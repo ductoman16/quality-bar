@@ -202,3 +202,61 @@ test("surfaces both the transaction error and a failed rollback", () => {
 
   core.close();
 });
+
+test("preserves a failed rollback on the hard storage_unavailable error", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+
+  assert.throws(
+    () =>
+      core.transaction((transaction) => {
+        transaction.run("PRAGMA query_only = ON");
+        transaction.run("ROLLBACK");
+        transaction.run(
+          "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+          "write_failure",
+          "must-not-exist",
+        );
+      }),
+    (error) => {
+      assert.equal(error.code, "storage_unavailable");
+      assert.ok(error.cause instanceof AggregateError);
+      assert.match(error.cause.errors[0].message, /readonly database/);
+      assert.match(error.cause.errors[1].message, /cannot rollback/);
+      return true;
+    },
+  );
+
+  core.close();
+});
+
+test("rejects asynchronous transaction callbacks without committing partial facts", async () => {
+  const core = openDurableCore(temporaryDatabasePath());
+
+  assert.throws(
+    () =>
+      core.transaction(async (transaction) => {
+        await Promise.resolve();
+        transaction.run(
+          "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+          "async_partial_fact",
+          "must-not-exist",
+        );
+      }),
+    (error) => {
+      assert.equal(error.code, "asynchronous_transaction_unsupported");
+      assert.equal(error.message, "SQLite transaction callback must be synchronous");
+      return true;
+    },
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(
+    core.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      "async_partial_fact",
+    ),
+    undefined,
+  );
+
+  core.close();
+});

@@ -243,6 +243,8 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
         { cause: error },
       );
       onStorageUnavailable?.(storageFailure);
+    } else if (error instanceof AggregateError) {
+      storageFailure.cause = error;
     }
     throw storageFailure;
   }
@@ -271,21 +273,48 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
     transaction(callback) {
       assertAvailable();
       let transactionStarted = false;
+      let transactionActive = false;
       try {
         database.exec("BEGIN IMMEDIATE");
         transactionStarted = true;
-        const result = callback({
-          get(sql, ...parameters) {
-            const row = execute("get", sql, parameters);
-            return row ? { ...row } : undefined;
-          },
-          run(sql, ...parameters) {
-            return execute("run", sql, parameters);
-          },
-        });
+        transactionActive = true;
+        let result;
+        try {
+          result = callback({
+            get(sql, ...parameters) {
+              if (!transactionActive) {
+                throw new DurableCoreError(
+                  "transaction_closed",
+                  "SQLite transaction is no longer active",
+                );
+              }
+              const row = execute("get", sql, parameters);
+              return row ? { ...row } : undefined;
+            },
+            run(sql, ...parameters) {
+              if (!transactionActive) {
+                throw new DurableCoreError(
+                  "transaction_closed",
+                  "SQLite transaction is no longer active",
+                );
+              }
+              return execute("run", sql, parameters);
+            },
+          });
+        } finally {
+          transactionActive = false;
+        }
+        if (typeof result?.then === "function") {
+          Promise.resolve(result).catch(() => {});
+          throw new DurableCoreError(
+            "asynchronous_transaction_unsupported",
+            "SQLite transaction callback must be synchronous",
+          );
+        }
         database.exec("COMMIT");
         return result;
       } catch (error) {
+        transactionActive = false;
         let rollbackError = null;
         if (transactionStarted) {
           try {
@@ -296,8 +325,12 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
         }
 
         if (rollbackError) {
+          const originalFailure =
+            error?.code === "storage_unavailable"
+              ? (error.cause ?? error)
+              : error;
           const combinedError = new AggregateError(
-            [error, rollbackError],
+            [originalFailure, rollbackError],
             "SQLite transaction and rollback both failed",
           );
           if (
