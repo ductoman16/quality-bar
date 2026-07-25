@@ -1,0 +1,12 @@
+services:
+  quality-bar:
+    image: quality-bar:${QUALITY_BAR_VERSION:-0.1.0}
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        QUALITY_BAR_VERSION: ${QUALITY_BAR_VERSION:-0.1.0}
+    user: "10001:10001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QUALITY_BAR_HTTP_PORT:-3000}:3000"
