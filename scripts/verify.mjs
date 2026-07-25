@@ -178,8 +178,8 @@ function validatePackageFacts(facts) {
       "database.journalMode must equal wal",
     ],
     [
-      facts?.database?.schemaVersion === 1,
-      "database.schemaVersion must equal 1",
+      facts?.database?.schemaVersion === 2,
+      "database.schemaVersion must equal 2",
     ],
     [
       facts?.database?.synchronous === "full",
@@ -314,21 +314,27 @@ const gateDefinitions = [
       "test/health-live.test.js",
       "test/installation-environment.test.js",
       "test/operator-password.test.js",
+      "test/browser-session.test.js",
     ],
   },
   {
     name: "browser-component",
-    testGroup: "operator-password-host-only-browser-boundary",
+    testGroup: "operator-password-and-session-browser-boundary",
     failureCode: "browser_component_tests_failed",
-    arguments: ["--test", "test/operator-password-browser-component.test.js"],
+    arguments: [
+      "--test",
+      "test/operator-password-browser-component.test.js",
+      "test/browser-session-browser-component.test.js",
+    ],
   },
   {
     name: "security-integration",
-    testGroup: "operator-password-host-bootstrap-security-boundary",
+    testGroup: "operator-password-and-session-security-boundary",
     failureCode: "security_integration_tests_failed",
     arguments: [
       "--test",
       "test/operator-password-bootstrap.test.js",
+      "test/browser-session-security-integration.test.js",
     ],
   },
   {
