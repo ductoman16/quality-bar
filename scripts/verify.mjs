@@ -51,6 +51,46 @@ function readRequiredMatch(path, pattern, description) {
   return value;
 }
 
+function validatePackageFacts(facts) {
+  const requirements = [
+    [
+      facts && typeof facts === "object" && !Array.isArray(facts),
+      "must be an object",
+    ],
+    [facts?.serviceCount === 1, "serviceCount must equal 1"],
+    [facts?.companionServiceCount === 0, "companionServiceCount must equal 0"],
+    [facts?.platform === "linux/amd64", "platform must equal linux/amd64"],
+    [
+      facts?.image === `quality-bar:${applicationVersion}`,
+      "image must match the application version",
+    ],
+    [
+      facts?.applicationProcess?.uid === 10001,
+      "applicationProcess.uid must equal 10001",
+    ],
+    [
+      facts?.applicationProcess?.pid === 1,
+      "applicationProcess.pid must equal 1",
+    ],
+    [
+      facts?.applicationProcess?.executable === "node",
+      "applicationProcess.executable must equal node",
+    ],
+    [
+      facts?.applicationProcess?.entrypoint === "src/main.js",
+      "applicationProcess.entrypoint must equal src/main.js",
+    ],
+    [facts?.liveness?.path === "/health/live", "liveness.path is invalid"],
+    [facts?.liveness?.httpStatus === 200, "liveness.httpStatus must equal 200"],
+    [
+      facts?.liveness?.response?.status === "live",
+      "liveness.response.status must equal live",
+    ],
+  ];
+
+  return requirements.find(([valid]) => !valid)?.[1] ?? null;
+}
+
 function runGate(definition) {
   const gateStartedAt = performance.now();
   const result = spawnSync(process.execPath, definition.arguments, {
@@ -93,6 +133,15 @@ function runGate(definition) {
   } else if (factsMatch) {
     try {
       facts = JSON.parse(factsMatch[1]);
+      const invalidFacts = definition.validateFacts?.(facts);
+      if (invalidFacts) {
+        facts = null;
+        outcome = "fail";
+        failure = {
+          code: "verification_evidence_invalid",
+          detail: `${definition.factsMarker} ${invalidFacts}`,
+        };
+      }
     } catch (error) {
       outcome = "fail";
       failure = {
@@ -165,6 +214,7 @@ const gateDefinitions = [
     testGroup: "compose-service",
     failureCode: "package_integration_failed",
     factsMarker: "QUALITY_BAR_PACKAGE_FACTS",
+    validateFacts: validatePackageFacts,
     arguments: ["--test", "test/package/compose.package-test.mjs"],
   },
 ];

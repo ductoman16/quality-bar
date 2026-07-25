@@ -82,15 +82,13 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
       "{{.Os}}/{{.Architecture}}",
     ]);
     assert.equal(imagePlatform, "linux/amd64");
-    const uid = Number.parseInt(
-      run(
-        "docker",
-        ["compose", "exec", "-T", serviceName, "id", "-u"],
-        environment,
-      ),
-      10,
+    const uidOutput = run(
+      "docker",
+      ["compose", "exec", "-T", serviceName, "id", "-u"],
+      environment,
     );
-    assert.equal(uid, 10001);
+    assert.equal(uidOutput, "10001");
+    const uid = Number(uidOutput);
     const processArguments = run(
       "docker",
       ["compose", "exec", "-T", serviceName, "cat", "/proc/1/cmdline"],
