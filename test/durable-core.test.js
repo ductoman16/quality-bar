@@ -263,3 +263,25 @@ test("rejects asynchronous transaction callbacks without committing partial fact
 
   core.close();
 });
+
+test("preserves a rejected thenable on the exact asynchronous transaction error", async () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const callbackFailure = new Error("callback rejected");
+  let transactionError;
+
+  try {
+    core.transaction(() => Promise.reject(callbackFailure));
+  } catch (error) {
+    transactionError = error;
+  }
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(transactionError.code, "asynchronous_transaction_unsupported");
+  assert.equal(
+    transactionError.message,
+    "SQLite transaction callback must be synchronous",
+  );
+  assert.equal(transactionError.cause, callbackFailure);
+
+  core.close();
+});

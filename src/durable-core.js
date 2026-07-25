@@ -312,10 +312,14 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
           transactionActive = false;
         }
         if (typeof result?.then === "function") {
-          throw new DurableCoreError(
+          const asynchronousTransactionError = new DurableCoreError(
             "asynchronous_transaction_unsupported",
             "SQLite transaction callback must be synchronous",
           );
+          Promise.resolve(result).catch((error) => {
+            asynchronousTransactionError.cause = error;
+          });
+          throw asynchronousTransactionError;
         }
         database.exec("COMMIT");
         return result;
