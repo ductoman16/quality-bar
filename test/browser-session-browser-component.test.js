@@ -128,6 +128,44 @@ test("a malformed login request creates no session", async () => {
   assert.equal(application.durableCore.get("SELECT session_hash FROM browser_sessions"), undefined);
 });
 
+test("the login surface reports one explicit throttled response without revealing password validity", async () => {
+  const { origin } = await startApplication();
+
+  const failedLogin = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "an incorrect operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  assert.equal(failedLogin.status, 401);
+
+  const throttledCorrectPassword = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const throttledIncorrectPassword = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "another incorrect operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+
+  assert.equal(throttledCorrectPassword.status, 429);
+  assert.equal(throttledCorrectPassword.headers.get("retry-after"), "1");
+  assert.equal(throttledCorrectPassword.headers.get("set-cookie"), null);
+  const correctPasswordError = await throttledCorrectPassword.json();
+  const incorrectPasswordError = await throttledIncorrectPassword.json();
+  assert.deepEqual(correctPasswordError.error, {
+    code: "login_throttled",
+    message: "Login is temporarily throttled",
+    request_id: correctPasswordError.error.request_id,
+  });
+  assert.deepEqual(incorrectPasswordError.error, {
+    code: "login_throttled",
+    message: "Login is temporarily throttled",
+    request_id: incorrectPasswordError.error.request_id,
+  });
+});
+
 test("the authenticated operator surface changes a password and revokes all sessions with fresh confirmation", async () => {
   const { origin } = await startApplication();
   const currentPassword = "a correct operator password";

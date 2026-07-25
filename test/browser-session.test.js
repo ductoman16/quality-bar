@@ -77,6 +77,50 @@ test("rejects an invalid password and writes no browser session", () => {
   core.close();
 });
 
+test("escalates one installation-wide failed-login delay through one minute and clears it after a successful login", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const password = "a correct operator password";
+  let now = 0;
+  bootstrapOperatorPassword(core, password);
+  const sessions = createBrowserSessionService(core, {
+    now: () => now,
+  });
+
+  for (const [attemptAt, expectedDelay] of [
+    [0, 1],
+    [1_000, 2],
+    [3_000, 4],
+    [7_000, 8],
+    [15_000, 16],
+    [31_000, 32],
+    [63_000, 60],
+  ]) {
+    now = attemptAt;
+    assert.throws(
+      () => sessions.login("an incorrect operator password"),
+      (error) => error.code === "authentication_invalid",
+    );
+    assert.throws(
+      () => sessions.login(password),
+      (error) =>
+        error.code === "login_throttled" &&
+        error.retryAfterSeconds === expectedDelay,
+    );
+  }
+
+  now = 123_000;
+  assert.match(sessions.login(password).secret, /^[A-Za-z0-9_-]{43}$/);
+  assert.throws(
+    () => sessions.login("an incorrect operator password"),
+    (error) => error.code === "authentication_invalid",
+  );
+  assert.throws(
+    () => sessions.login(password),
+    (error) => error.code === "login_throttled" && error.retryAfterSeconds === 1,
+  );
+  core.close();
+});
+
 test("a malformed password verifier is an exact hard failure and creates no session", () => {
   const core = openDurableCore(temporaryDatabasePath());
   core.run(
@@ -117,8 +161,10 @@ test("changing the password with fresh confirmation atomically revokes every bro
   const core = openDurableCore(temporaryDatabasePath());
   const currentPassword = "a correct operator password";
   const replacementPassword = "a replacement operator password";
+  let now = 0;
   bootstrapOperatorPassword(core, currentPassword);
   const sessions = createBrowserSessionService(core, {
+    now: () => now,
     randomBytes: (() => {
       let byte = 0;
       return () => Buffer.alloc(32, ++byte);
@@ -135,6 +181,7 @@ test("changing the password with fresh confirmation atomically revokes every bro
     () => sessions.login(currentPassword),
     (error) => error.code === "authentication_invalid",
   );
+  now = 1_000;
   assert.equal(sessions.login(replacementPassword).secret.length, 43);
   core.close();
 });
