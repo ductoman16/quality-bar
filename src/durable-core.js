@@ -11,7 +11,7 @@ const FATAL_SQLITE_CODES = [
   "SQLITE_PROTOCOL",
   "SQLITE_READONLY",
 ];
-const FATAL_SQLITE_RESULT_CODES = new Set([8, 10, 11, 13, 14, 15, 26]);
+const FATAL_SQLITE_RESULT_CODES = new Set([5, 6, 8, 10, 11, 13, 14, 15, 26]);
 
 export class DurableCoreError extends Error {
   constructor(code, message, options) {
@@ -270,8 +270,10 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
     },
     transaction(callback) {
       assertAvailable();
+      let transactionStarted = false;
       try {
         database.exec("BEGIN IMMEDIATE");
+        transactionStarted = true;
         const result = callback({
           get(sql, ...parameters) {
             const row = execute("get", sql, parameters);
@@ -284,14 +286,33 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
         database.exec("COMMIT");
         return result;
       } catch (error) {
-        try {
-          database.exec("ROLLBACK");
-        } catch (rollbackError) {
-          if (isFatalSqliteWrite(rollbackError)) {
-            return enterStorageUnavailable(rollbackError);
+        let rollbackError = null;
+        if (transactionStarted) {
+          try {
+            database.exec("ROLLBACK");
+          } catch (caughtRollbackError) {
+            rollbackError = caughtRollbackError;
           }
         }
-        if (isFatalSqliteWrite(error)) {
+
+        if (rollbackError) {
+          const combinedError = new AggregateError(
+            [error, rollbackError],
+            "SQLite transaction and rollback both failed",
+          );
+          if (
+            error?.code === "storage_unavailable" ||
+            isFatalSqliteWrite(error) ||
+            isFatalSqliteWrite(rollbackError)
+          ) {
+            return enterStorageUnavailable(combinedError);
+          }
+          throw combinedError;
+        }
+        if (
+          error?.code === "storage_unavailable" ||
+          isFatalSqliteWrite(error)
+        ) {
           return enterStorageUnavailable(error);
         }
         throw error;

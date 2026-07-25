@@ -21,13 +21,14 @@ export function createApplicationServer(readDurableCoreStatus) {
   }
 
   return createServer((request, response) => {
-    if (request.method === "GET" && request.url === "/health/live") {
+    const path = request.url.split("?", 1)[0];
+    if (request.method === "GET" && path === "/health/live") {
       writeJson(response, 200, { status: "live" });
       return;
     }
 
     const durableCoreStatus = readDurableCoreStatus();
-    if (request.method === "GET" && request.url === "/health/ready") {
+    if (request.method === "GET" && path === "/health/ready") {
       if (durableCoreStatus.status === "ready") {
         writeJson(response, 200, { status: "ready" });
       } else {
@@ -36,7 +37,7 @@ export function createApplicationServer(readDurableCoreStatus) {
       return;
     }
 
-    if (isProductSurface(request.url) && durableCoreStatus.status !== "ready") {
+    if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
       writeJson(response, 503, { error: durableCoreStatus.error });
       return;
     }

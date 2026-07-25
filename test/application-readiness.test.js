@@ -91,7 +91,14 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   assert.equal(application.workerSignal.aborted, true);
   assert.equal(application.workerSignal.reason.code, "storage_unavailable");
 
-  for (const path of ["/", "/api/v1/system", "/mcp/v1"]) {
+  for (const path of [
+    "/",
+    "/?view=system",
+    "/api/v1/system",
+    "/api/v1?resource=system",
+    "/mcp/v1",
+    "/mcp/v1?resource=system",
+  ]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 503, path);
     assert.deepEqual(await response.json(), {

@@ -154,3 +154,51 @@ test("a durable write failure enters the hard storage_unavailable gate", () => {
 
   core.close();
 });
+
+test("a locked durable write enters the hard storage_unavailable gate", () => {
+  const databasePath = temporaryDatabasePath();
+  const lockOwner = openDurableCore(databasePath);
+  const blockedWriter = openDurableCore(databasePath);
+
+  lockOwner.transaction(() => {
+    assert.throws(
+      () =>
+        blockedWriter.transaction((transaction) => {
+          transaction.run(
+            "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+            "blocked_write",
+            "must-not-exist",
+          );
+        }),
+      (error) => {
+        assert.equal(error.code, "storage_unavailable");
+        return true;
+      },
+    );
+  });
+
+  blockedWriter.close();
+  lockOwner.close();
+});
+
+test("surfaces both the transaction error and a failed rollback", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const transactionFailure = new Error("transaction failed");
+
+  assert.throws(
+    () =>
+      core.transaction((transaction) => {
+        transaction.run("ROLLBACK");
+        throw transactionFailure;
+      }),
+    (error) => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(error.message, "SQLite transaction and rollback both failed");
+      assert.equal(error.errors[0], transactionFailure);
+      assert.match(error.errors[1].message, /cannot rollback/);
+      return true;
+    },
+  );
+
+  core.close();
+});
