@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { test } from "node:test";
 
-const applicationVersion = "0.1.0";
+const applicationVersion = readFileSync(".env", "utf8").match(
+  /^QUALITY_BAR_VERSION=(\d+\.\d+\.\d+)$/m,
+)?.[1];
+assert.ok(applicationVersion, ".env must define a semantic QUALITY_BAR_VERSION");
 const serviceName = "quality-bar";
 const projectName = `quality-bar-package-${process.pid}`;
 
@@ -49,6 +53,7 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
 
+  let primaryFailure;
   try {
     run("docker", ["compose", "build"], environment);
     run("docker", ["compose", "up", "--detach", "--wait"], environment);
@@ -79,19 +84,26 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
       .split("\u0000")
       .filter(Boolean);
     assert.equal(processArguments[0], "node");
-    assert.equal(
-      processArguments.at(-1),
-      "src/main.js",
-    );
+    assert.equal(processArguments.at(-1), "src/main.js");
 
     const response = await fetch(`http://127.0.0.1:${hostPort}/health/live`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: "live" });
+  } catch (error) {
+    primaryFailure = error;
+    throw error;
   } finally {
-    run(
-      "docker",
-      ["compose", "down", "--volumes", "--remove-orphans"],
-      environment,
-    );
+    try {
+      run(
+        "docker",
+        ["compose", "down", "--volumes", "--remove-orphans"],
+        environment,
+      );
+    } catch (cleanupError) {
+      if (!primaryFailure) {
+        throw cleanupError;
+      }
+      process.stderr.write(`Package cleanup also failed: ${cleanupError.message}\n`);
+    }
   }
 });

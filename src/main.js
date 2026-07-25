@@ -1,6 +1,6 @@
 import { createApplicationServer } from "./server.js";
 
-const port = Number.parseInt(process.env.PORT ?? "3000", 10);
+const port = 3000;
 const server = createApplicationServer();
 
 server.listen(port, "0.0.0.0", () => {
