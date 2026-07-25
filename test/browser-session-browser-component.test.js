@@ -309,6 +309,17 @@ test("browser activity returns the exact session failure instead of dropping the
         return true;
       },
     },
+    implementerTokens: {
+      authenticate() {
+        return false;
+      },
+      create() {},
+      hasActiveToken() {
+        return false;
+      },
+      revoke() {},
+      rotate() {},
+    },
     readDurableCoreStatus: () => ({ status: "ready" }),
     requestSecurity: { requestFacts() {} },
   });
@@ -517,4 +528,66 @@ test("the authenticated operator surface changes a password and revokes all sess
     })).status,
     401,
   );
+});
+
+test("the authenticated operator surface reveals each generated implementer token once and requires fresh confirmation", async () => {
+  const { origin } = await startApplication();
+  const password = "a correct operator password";
+  const login = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookies = login.headers.get("set-cookie");
+  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const headers = {
+    "content-type": "application/json",
+    cookie: `${sessionCookie}; quality_bar_csrf=${csrfToken}`,
+    origin: "http://127.0.0.1:3000",
+    "x-quality-bar-csrf": csrfToken,
+  };
+
+  const page = await fetch(`${origin}/`, { headers: { cookie: sessionCookie } });
+  const html = await page.text();
+  assert.match(html, /id="implementer-token-create-form"/);
+  assert.match(html, /id="implementer-token-rotate-form"/);
+  assert.match(html, /id="implementer-token-revoke-form"/);
+  assert.match(html, /id="implementer-token-reveal"/);
+  assert.match(html, /aria-labelledby="implementer-token-reveal-title"/);
+  assert.match(html, /addEventListener\("close", \(\) => \{/);
+  assert.match(html, /window\.confirm\("Revoke implementer token\? Machine access will remain disabled until a new token is created\."\)/);
+  assert.doesNotMatch(html, /Bearer|localStorage/i);
+
+  const created = await fetch(`${origin}/api/v1/implementer-token`, {
+    body: JSON.stringify({ password }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(created.status, 201);
+  const createdToken = (await created.json()).token;
+  assert.match(createdToken, /^[A-Za-z0-9_-]{43}$/);
+
+  const duplicateCreate = await fetch(`${origin}/api/v1/implementer-token`, {
+    body: JSON.stringify({ password }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(duplicateCreate.status, 409);
+  assert.equal((await duplicateCreate.json()).error.code, "implementer_token_already_active");
+
+  const rotated = await fetch(`${origin}/api/v1/implementer-token/rotate`, {
+    body: JSON.stringify({ password }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(rotated.status, 200);
+  assert.match((await rotated.json()).token, /^[A-Za-z0-9_-]{43}$/);
+
+  const revoked = await fetch(`${origin}/api/v1/implementer-token/revoke`, {
+    body: JSON.stringify({ password }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(revoked.status, 204);
 });

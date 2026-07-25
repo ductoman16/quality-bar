@@ -50,12 +50,6 @@ function cookieValue(request, name) {
   return values.length === 1 ? values[0] : undefined;
 }
 
-function hasCookieName(request, name) {
-  return (request.headers.cookie?.split(";") ?? []).some(
-    (cookie) => cookie.trim().split("=", 1)[0] === name,
-  );
-}
-
 function sessionSecret(request) {
   return cookieValue(request, BROWSER_SESSION_COOKIE_NAME);
 }
@@ -103,6 +97,10 @@ function readSessionRevocationRequest(request) {
   return readPasswordRequest(request, ["confirmation", "password"]);
 }
 
+function readImplementerTokenRequest(request) {
+  return readPasswordRequest(request, ["password"]);
+}
+
 function sessionCookie(secret, secure) {
   return [
     `${BROWSER_SESSION_COOKIE_NAME}=${secret}`,
@@ -145,6 +143,8 @@ function clearedSessionCookies(secure) {
 function authenticationFailureStatus(code) {
   return code === "operator_password_uninitialized" ||
     code === "operator_password_verifier_unavailable" ||
+    code === "implementer_token_unavailable" ||
+    code === "implementer_token_verifier_unavailable" ||
     code === "login_throttle_unavailable" ||
     code === "session_unavailable" ||
     code === "storage_unavailable"
@@ -167,6 +167,14 @@ function passwordMutationFailureStatus(code) {
     : authenticationFailureStatus(code);
 }
 
+function implementerTokenFailureStatus(code) {
+  return ["implementer_token_already_active", "implementer_token_not_active"].includes(
+    code,
+  )
+    ? 409
+    : authenticationFailureStatus(code);
+}
+
 function authenticationFailureMessage(code) {
   return {
     authentication_invalid: "Operator password is invalid",
@@ -178,6 +186,10 @@ function authenticationFailureMessage(code) {
     session_unavailable: "Browser session is unavailable",
     login_throttled: "Login is temporarily throttled",
     login_throttle_unavailable: "Login throttling is unavailable",
+    implementer_token_already_active: "Implementer token is already active",
+    implementer_token_not_active: "Implementer token is not active",
+    implementer_token_unavailable: "Implementer token is unavailable",
+    implementer_token_verifier_unavailable: "Implementer token verifier is unavailable",
     storage_unavailable: "Storage is unavailable",
   }[code] ?? "Authentication is unavailable";
 }
@@ -190,7 +202,7 @@ function browserMutationError(code, message) {
 
 function assertNoMixedCredentials(request) {
   if (
-    hasCookieName(request, BROWSER_SESSION_COOKIE_NAME) &&
+    request.headers.cookie !== undefined &&
     request.headers.authorization !== undefined
   ) {
     throw browserMutationError(
@@ -218,6 +230,35 @@ function requireBrowserMutation(browserSessions, request, browserOrigin) {
     throw browserMutationError("csrf_invalid", "Browser CSRF token is invalid");
   }
   return secret;
+}
+
+function bearerToken(request) {
+  const value = request.headers.authorization;
+  const match = typeof value === "string" && /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
+  return match?.[1];
+}
+
+function hasUrlToken(requestUrl) {
+  return [...requestUrl.searchParams.keys()].some((name) =>
+    ["access_token", "authorization", "token"].includes(name.toLowerCase()),
+  );
+}
+
+function requireProductAuthority(browserSessions, implementerTokens, request, requestUrl) {
+  assertNoMixedCredentials(request);
+  if (hasUrlToken(requestUrl)) {
+    throw browserMutationError("authentication_invalid", "Machine authentication is invalid");
+  }
+  if (request.headers.authorization !== undefined) {
+    if (!implementerTokens.authenticate(bearerToken(request))) {
+      throw browserMutationError("authentication_invalid", "Machine authentication is invalid");
+    }
+    return "machine";
+  }
+  if (!browserSessions.authenticate(sessionSecret(request))) {
+    throw browserMutationError("authentication_required", "Browser session is required");
+  }
+  return "operator";
 }
 
 function safeInternalDestination(value) {
@@ -267,7 +308,7 @@ form.addEventListener("submit", async (event) => {
 }
 
 function operatorPage() {
-  return `<main><details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><button id="logout" type="button">Log out</button></details><p hidden id="error" role="alert"></p></main><script>
+  return `<main><details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
 let lastActivityAt = 0;
 function csrfToken() {
@@ -296,6 +337,31 @@ async function submitPasswordMutation(path, body) {
   });
   if (response.ok) {
     location.assign("/");
+    return;
+  }
+  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
+  if (authenticationFailure === true) {
+    return;
+  }
+  error.textContent = (authenticationFailure ?? await response.json()).error.message;
+  error.hidden = false;
+}
+async function submitImplementerTokenMutation(path, body) {
+  error.hidden = true;
+  const response = await fetch(path, {
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      "x-quality-bar-csrf": csrfToken(),
+    },
+    method: "POST",
+  });
+  if (response.ok) {
+    const token = (await response.json()).token;
+    if (typeof token === "string") {
+      document.getElementById("implementer-token-value").textContent = token;
+      document.getElementById("implementer-token-reveal").showModal();
+    }
     return;
   }
   const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
@@ -341,6 +407,33 @@ document.getElementById("session-revocation-form").addEventListener("submit", as
     password: document.getElementById("session-revocation-password").value,
   });
 });
+document.getElementById("implementer-token-create-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitImplementerTokenMutation("/api/v1/implementer-token", {
+    password: document.getElementById("implementer-token-create-password").value,
+  });
+});
+document.getElementById("implementer-token-rotate-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitImplementerTokenMutation("/api/v1/implementer-token/rotate", {
+    password: document.getElementById("implementer-token-rotate-password").value,
+  });
+});
+document.getElementById("implementer-token-revoke-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!window.confirm("Revoke implementer token? Machine access will remain disabled until a new token is created.")) {
+    return;
+  }
+  await submitPasswordMutation("/api/v1/implementer-token/revoke", {
+    password: document.getElementById("implementer-token-revoke-password").value,
+  });
+});
+document.getElementById("implementer-token-reveal-close").addEventListener("click", () => {
+  document.getElementById("implementer-token-reveal").close();
+});
+document.getElementById("implementer-token-reveal").addEventListener("close", () => {
+  document.getElementById("implementer-token-value").textContent = "";
+});
 document.getElementById("logout").addEventListener("click", async () => {
   error.hidden = true;
   const response = await fetch("/api/v1/session/logout", {
@@ -363,6 +456,7 @@ document.getElementById("logout").addEventListener("click", async () => {
 
 export function createApplicationServer({
   browserSessions,
+  implementerTokens,
   browserOrigin,
   requestSecurity,
   readDurableCoreStatus,
@@ -387,6 +481,11 @@ export function createApplicationServer({
   ]) {
     if (typeof browserSessions?.[method] !== "function") {
       throw new TypeError("browserSessions must provide the session boundary");
+    }
+  }
+  for (const method of ["authenticate", "create", "hasActiveToken", "revoke", "rotate"]) {
+    if (typeof implementerTokens?.[method] !== "function") {
+      throw new TypeError("implementerTokens must provide the token boundary");
     }
   }
   if (typeof requestSecurity?.requestFacts !== "function") {
@@ -425,6 +524,11 @@ export function createApplicationServer({
         error.code ?? "request_security_unavailable",
         error.message ?? "Request security is unavailable",
       );
+      return;
+    }
+
+    if (hasUrlToken(requestUrl)) {
+      writeError(response, 401, "authentication_invalid", "Machine authentication is invalid");
       return;
     }
 
@@ -549,7 +653,65 @@ export function createApplicationServer({
       return;
     }
 
+    if (
+      request.method === "POST" &&
+      [
+        "/api/v1/implementer-token",
+        "/api/v1/implementer-token/rotate",
+        "/api/v1/implementer-token/revoke",
+      ].includes(path)
+    ) {
+      try {
+        requireBrowserMutation(browserSessions, request, browserOrigin);
+        if (path === "/api/v1/implementer-token/revoke") {
+          const { password } = await readImplementerTokenRequest(request);
+          implementerTokens.revoke(password);
+          writeEmpty(response);
+        } else {
+          const { password } = await readImplementerTokenRequest(request);
+          const token = path.endsWith("/rotate")
+            ? implementerTokens.rotate(password)
+            : implementerTokens.create(password);
+          writeJson(response, path.endsWith("/rotate") ? 200 : 201, { token });
+        }
+      } catch (error) {
+        if (error.message === "request_malformed") {
+          writeError(response, 400, "request_malformed", "Request is malformed");
+        } else {
+          writeError(
+            response,
+            browserMutationFailureStatus(error.code) === 403
+              ? 403
+              : implementerTokenFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        }
+      }
+      return;
+    }
+
     if (request.method === "GET" && path === "/") {
+      if (request.headers.authorization !== undefined) {
+        try {
+          assertNoMixedCredentials(request);
+          if (!implementerTokens.authenticate(bearerToken(request))) {
+            throw browserMutationError(
+              "authentication_invalid",
+              "Machine authentication is invalid",
+            );
+          }
+          writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+        } catch (error) {
+          writeError(
+            response,
+            authenticationFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        }
+        return;
+      }
       if (!browserSessions.isBootstrapped()) {
         writeHtml(response, "<main><p role=\"status\">Operator bootstrap required</p></main>");
       } else {
@@ -583,7 +745,15 @@ export function createApplicationServer({
 
     if (isProductSurface(path)) {
       try {
-        requireBrowserSession(browserSessions, request);
+        const authority = requireProductAuthority(
+          browserSessions,
+          implementerTokens,
+          request,
+          requestUrl,
+        );
+        if (authority === "machine") {
+          request.machineAuthority = true;
+        }
       } catch (error) {
         writeError(
           response,
@@ -596,7 +766,20 @@ export function createApplicationServer({
     }
 
     if (request.method === "GET" && path === "/api/v1/system") {
-      writeJson(response, 200, readSystemStatus());
+      if (request.machineAuthority) {
+        writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+        return;
+      }
+      try {
+        writeJson(response, 200, readSystemStatus());
+      } catch (error) {
+        writeError(
+          response,
+          authenticationFailureStatus(error.code),
+          error.code ?? "system_unavailable",
+          error.message ?? "System is unavailable",
+        );
+      }
       return;
     }
 

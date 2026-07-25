@@ -27,6 +27,17 @@ before(async () => {
       },
     },
     browserOrigin: "http://127.0.0.1:3000",
+    implementerTokens: {
+      authenticate() {
+        return false;
+      },
+      create() {},
+      hasActiveToken() {
+        return false;
+      },
+      revoke() {},
+      rotate() {},
+    },
     readDurableCoreStatus: () => ({ status: "ready" }),
     requestSecurity: { requestFacts() {} },
   });
@@ -88,6 +99,17 @@ test("the application server rejects a missing request-security boundary", () =>
           verifyCsrf() {
             return false;
           },
+        },
+        implementerTokens: {
+          authenticate() {
+            return false;
+          },
+          create() {},
+          hasActiveToken() {
+            return false;
+          },
+          revoke() {},
+          rotate() {},
         },
         readDurableCoreStatus: () => ({ status: "ready" }),
       }),

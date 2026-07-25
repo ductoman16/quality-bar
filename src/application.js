@@ -13,6 +13,10 @@ import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
+import {
+  createImplementerTokenService,
+  createUnavailableImplementerTokenService,
+} from "./implementer-token.js";
 import { createApplicationServer } from "./server.js";
 import {
   createRequestSecurityBoundary,
@@ -112,6 +116,7 @@ export function createApplication({
   const storageBoundary = createHardStorageBoundary(writeLog);
   let durableCore = null;
   let browserSessions = null;
+  let implementerTokens = null;
   let browserOrigin = null;
   let requestSecurity = null;
   let secureBrowserCookie = false;
@@ -134,6 +139,7 @@ export function createApplication({
     verifyInstallationKey(durableCore, installation.masterKey);
     installation.masterKey.fill(0);
     browserSessions = createBrowserSessionService(durableCore, { now });
+    implementerTokens = createImplementerTokenService(durableCore);
     validateTools();
     try {
       validateCodexAuthentication();
@@ -163,6 +169,7 @@ export function createApplication({
     startupFailure = error;
     requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
     browserSessions = createUnavailableBrowserSessionService(startupFailure);
+    implementerTokens = createUnavailableImplementerTokenService(startupFailure);
     structuredLog(
       writeLog,
       "error",
@@ -182,6 +189,7 @@ export function createApplication({
 
   const server = createApplicationServer({
     browserSessions,
+    implementerTokens,
     browserOrigin,
     requestSecurity,
     readDurableCoreStatus,
@@ -189,6 +197,9 @@ export function createApplication({
       codex: codexCapabilityFailure
         ? { error: codexCapabilityFailure.code, status: "unavailable" }
         : { status: "available" },
+      implementer_token: implementerTokens?.hasActiveToken()
+        ? { status: "active" }
+        : { status: "revoked" },
     }),
     secureBrowserCookie,
   });
@@ -196,6 +207,7 @@ export function createApplication({
   return {
     server,
     durableCore,
+    implementerTokens,
     get codexCapability() {
       return codexCapabilityFailure
         ? { error: codexCapabilityFailure.code, status: "unavailable" }

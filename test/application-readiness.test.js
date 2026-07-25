@@ -176,6 +176,9 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       error: "codex_authentication_unavailable",
       status: "unavailable",
     },
+    implementer_token: {
+      status: "revoked",
+    },
   });
 });
 
