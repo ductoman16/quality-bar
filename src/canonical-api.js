@@ -1,3 +1,5 @@
+import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
+
 const errorResponse = {
   content: {
     "application/json": {
@@ -10,6 +12,7 @@ const errorResponse = {
 const authenticated = [{ browser_session: [] }, { implementer_token: [] }];
 
 export function canonicalOpenApiDocument() {
+  const codexCapabilityCatalog = readCodexCapabilityCatalog();
   const browserMutationParameters = [
     {
       in: "header",
@@ -226,9 +229,50 @@ export function canonicalOpenApiDocument() {
         },
         CodexFact: {
           additionalProperties: true,
-          properties: { error: { type: "string" }, status: { enum: ["available", "unavailable"], type: "string" } },
-          required: ["status"],
+          properties: {
+            catalog: { $ref: "#/components/schemas/CodexCapabilityCatalog" },
+            error: { type: "string" },
+            status: { enum: ["available", "unavailable"], type: "string" },
+          },
+          required: ["catalog", "status"],
           type: "object",
+        },
+        CodexCapabilityCatalog: {
+          additionalProperties: false,
+          const: codexCapabilityCatalog,
+          properties: {
+            codex_cli_version: {
+              const: codexCapabilityCatalog.codex_cli_version,
+              type: "string",
+            },
+            models: {
+              items: { $ref: "#/components/schemas/CodexModelCapability" },
+              minItems: 1,
+              type: "array",
+            },
+          },
+          required: ["codex_cli_version", "models"],
+          type: "object",
+        },
+        CodexModelCapability: {
+          oneOf: codexCapabilityCatalog.models.map((model) => ({
+            additionalProperties: false,
+            properties: {
+              id: { const: model.id, type: "string" },
+              reasoning_efforts: {
+                items: { enum: model.reasoning_efforts, type: "string" },
+                minItems: 1,
+                type: "array",
+              },
+              service_tiers: {
+                items: { enum: model.service_tiers, type: "string" },
+                minItems: 1,
+                type: "array",
+              },
+            },
+            required: ["id", "reasoning_efforts", "service_tiers"],
+            type: "object",
+          })),
         },
         DurableCoreFact: {
           additionalProperties: true,

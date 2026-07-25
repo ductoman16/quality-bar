@@ -1,0 +1,81 @@
+const MODEL_CAPABILITIES = Object.freeze([
+  Object.freeze({
+    id: "gpt-5.6-sol",
+    reasoning_efforts: Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+    service_tiers: Object.freeze(["standard", "fast"]),
+  }),
+  Object.freeze({
+    id: "gpt-5.6-terra",
+    reasoning_efforts: Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+    service_tiers: Object.freeze(["standard", "fast"]),
+  }),
+  Object.freeze({
+    id: "gpt-5.6-luna",
+    reasoning_efforts: Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+    service_tiers: Object.freeze(["standard", "fast"]),
+  }),
+]);
+
+export const CODEX_CAPABILITY_CATALOG = Object.freeze({
+  codex_cli_version: "0.145.0",
+  models: MODEL_CAPABILITIES,
+});
+
+export class CodexConfigurationError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "CodexConfigurationError";
+    this.code = code;
+  }
+}
+
+function fail(code, message) {
+  throw new CodexConfigurationError(code, message);
+}
+
+function isExactConfiguration(value) {
+  return value &&
+    !Array.isArray(value) &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype &&
+    Object.keys(value).length === 3 &&
+    ["model", "reasoning_effort", "service_tier"].every((key) =>
+      Object.hasOwn(value, key) && typeof value[key] === "string",
+    );
+}
+
+export function readCodexCapabilityCatalog() {
+  return structuredClone(CODEX_CAPABILITY_CATALOG);
+}
+
+export function validateCodexConfiguration(configuration) {
+  if (!isExactConfiguration(configuration)) {
+    fail(
+      "codex_configuration_malformed",
+      "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
+    );
+  }
+
+  const model = MODEL_CAPABILITIES.find(({ id }) => id === configuration.model);
+  if (!model) {
+    fail("codex_model_unsupported", "Codex model is not supported by the pinned catalog");
+  }
+  if (!model.reasoning_efforts.includes(configuration.reasoning_effort)) {
+    fail(
+      "codex_reasoning_effort_unsupported",
+      "Codex reasoning effort is not supported by the selected model",
+    );
+  }
+  if (!model.service_tiers.includes(configuration.service_tier)) {
+    fail(
+      "codex_service_tier_unsupported",
+      "Codex service tier is not supported by the selected model",
+    );
+  }
+
+  return {
+    model: configuration.model,
+    reasoning_effort: configuration.reasoning_effort,
+    service_tier: configuration.service_tier,
+  };
+}

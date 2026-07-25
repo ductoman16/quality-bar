@@ -517,7 +517,10 @@ fetch("/api/v1/system").then(async (response) => {
     }
     const system = await response.json();
     if (systemFacts) {
-      systemFacts.textContent = "Bootstrap: " + system.bootstrap.status + ". Durable core: " + system.durable_core.status + ". Codex: " + system.codex.status + (system.codex.error ? " (" + system.codex.error + ")" : "") + ". Browser sessions: " + system.browser_sessions.active_count + ". Implementer token: " + system.implementer_token.status + ".";
+      const codexModels = system.codex.catalog.models.map((model) =>
+        model.id + " (" + model.reasoning_efforts.join(", ") + "; " + model.service_tiers.join(", ") + ")"
+      ).join(". ");
+      systemFacts.textContent = "Bootstrap: " + system.bootstrap.status + ". Durable core: " + system.durable_core.status + ". Codex: " + system.codex.status + (system.codex.error ? " (" + system.codex.error + ")" : "") + ". Models: " + codexModels + ". Browser sessions: " + system.browser_sessions.active_count + ". Implementer token: " + system.implementer_token.status + ".";
     }
     const attention = document.getElementById("attention");
     if (system.codex.status === "unavailable") {
