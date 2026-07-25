@@ -44,6 +44,38 @@ test("bootstraps one minimum-length password as a salted memory-hard verifier", 
   core.close();
 });
 
+test("host bootstrap clears any durable failed-login delay", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  core.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "failed_operator_login_attempts",
+    "7",
+  );
+  core.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "failed_operator_login_until",
+    "60000",
+  );
+
+  bootstrapOperatorPassword(core, "a correct operator password");
+
+  assert.equal(
+    core.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      "failed_operator_login_attempts",
+    ),
+    undefined,
+  );
+  assert.equal(
+    core.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      "failed_operator_login_until",
+    ),
+    undefined,
+  );
+  core.close();
+});
+
 test("rejects a password shorter than fifteen characters without storing state", () => {
   const core = openDurableCore(temporaryDatabasePath());
   const password = "fourteen chars";

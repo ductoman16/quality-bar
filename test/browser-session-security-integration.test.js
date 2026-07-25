@@ -76,6 +76,31 @@ test("sessions survive a service restart but an uninitialized operator cannot lo
   assert.equal(system.status, 200);
 });
 
+test("a failed-login delay survives a service restart and blocks a correct password before verification", async () => {
+  const databasePath = temporaryDatabasePath();
+  const first = await startApplication(databasePath);
+  bootstrapOperatorPassword(first.application.durableCore, "a correct operator password");
+
+  const failedLogin = await fetch(`${first.origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "an incorrect operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  assert.equal(failedLogin.status, 401);
+  await first.application.close();
+  applications.splice(applications.indexOf(first.application), 1);
+
+  const second = await startApplication(databasePath);
+  const throttledLogin = await fetch(`${second.origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  assert.equal(throttledLogin.status, 429);
+  assert.equal((await throttledLogin.json()).error.code, "login_throttled");
+  assert.equal(throttledLogin.headers.get("set-cookie"), null);
+});
+
 test("password and global-session mutations keep durable authority unchanged after a rejected confirmation", async () => {
   const application = await startApplication(temporaryDatabasePath());
   const password = "a correct operator password";

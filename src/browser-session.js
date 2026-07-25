@@ -7,6 +7,11 @@ import {
   prepareOperatorPasswordReplacement,
   verifyOperatorPassword,
 } from "./operator-password.js";
+import {
+  clearFailedOperatorLoginDelay,
+  recordFailedOperatorLogin,
+  rejectDuringFailedLoginDelay,
+} from "./operator-login-throttle.js";
 
 export const BROWSER_SESSION_COOKIE_NAME = "quality_bar_session";
 
@@ -58,7 +63,7 @@ function createSessionSecret(randomBytes) {
 
 export function createBrowserSessionService(
   durableCore,
-  { randomBytes = createRandomBytes } = {},
+  { now = () => Date.now(), randomBytes = createRandomBytes } = {},
 ) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
@@ -66,7 +71,15 @@ export function createBrowserSessionService(
 
   return {
     login(password) {
-      verifyOperatorPassword(durableCore, password);
+      rejectDuringFailedLoginDelay(durableCore, now());
+      try {
+        verifyOperatorPassword(durableCore, password);
+      } catch (error) {
+        if (error?.code === "authentication_invalid") {
+          recordFailedOperatorLogin(durableCore, now());
+        }
+        throw error;
+      }
       const secret = createSessionSecret(randomBytes);
       try {
         durableCore.transaction((transaction) => {
@@ -74,6 +87,7 @@ export function createBrowserSessionService(
             "INSERT INTO browser_sessions (session_hash) VALUES (?)",
             sessionHash(secret),
           );
+          clearFailedOperatorLoginDelay(transaction);
         });
       } catch (error) {
         if (error?.code === "storage_unavailable") {

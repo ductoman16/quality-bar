@@ -3,8 +3,8 @@ import { createServer } from "node:http";
 
 import { BROWSER_SESSION_COOKIE_NAME } from "./browser-session.js";
 
-function writeJson(response, status, body) {
-  response.writeHead(status, { "content-type": "application/json" });
+function writeJson(response, status, body, headers = {}) {
+  response.writeHead(status, { "content-type": "application/json", ...headers });
   response.end(JSON.stringify(body));
 }
 
@@ -18,14 +18,14 @@ function writeEmpty(response, headers = {}) {
   response.end();
 }
 
-function writeError(response, status, code, message) {
+function writeError(response, status, code, message, headers) {
   writeJson(response, status, {
     error: {
       code,
       message,
       request_id: randomUUID(),
     },
-  });
+  }, headers);
 }
 
 function isProductSurface(path) {
@@ -114,10 +114,13 @@ function clearedSessionCookie(secure) {
 function authenticationFailureStatus(code) {
   return code === "operator_password_uninitialized" ||
     code === "operator_password_verifier_unavailable" ||
+    code === "login_throttle_unavailable" ||
     code === "session_unavailable" ||
     code === "storage_unavailable"
     ? 503
-    : 401;
+    : code === "login_throttled"
+      ? 429
+      : 401;
 }
 
 function passwordMutationFailureStatus(code) {
@@ -134,6 +137,8 @@ function authenticationFailureMessage(code) {
     operator_password_uninitialized: "Operator password has not been bootstrapped",
     operator_password_verifier_unavailable: "Operator password verifier is unavailable",
     session_unavailable: "Browser session is unavailable",
+    login_throttled: "Login is temporarily throttled",
+    login_throttle_unavailable: "Login throttling is unavailable",
     storage_unavailable: "Storage is unavailable",
   }[code] ?? "Authentication is unavailable";
 }
@@ -267,6 +272,9 @@ export function createApplicationServer({
             authenticationFailureStatus(error.code),
             error.code ?? "authentication_unavailable",
             error.message ?? authenticationFailureMessage(error.code),
+            error.code === "login_throttled"
+              ? { "retry-after": String(error.retryAfterSeconds) }
+              : undefined,
           );
         }
       }

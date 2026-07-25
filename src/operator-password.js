@@ -4,6 +4,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import { clearFailedOperatorLoginDelay } from "./operator-login-throttle.js";
+
 export const OPERATOR_PASSWORD_VERIFIER_METADATA_KEY =
   "operator_password_verifier";
 
@@ -184,5 +186,6 @@ export function bootstrapOperatorPassword(
       OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
       createPasswordVerifier(password, randomBytes),
     );
+    clearFailedOperatorLoginDelay(transaction);
   });
 }
