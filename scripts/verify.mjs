@@ -304,7 +304,7 @@ try {
 const gateDefinitions = [
   {
     name: "unit",
-    testGroup: "installation-configuration-and-durable-core-readiness",
+    testGroup: "operator-password-change-and-session-unit",
     failureCode: "unit_tests_failed",
     arguments: [
       "--test",
@@ -319,7 +319,7 @@ const gateDefinitions = [
   },
   {
     name: "browser-component",
-    testGroup: "operator-password-and-session-browser-boundary",
+    testGroup: "operator-password-change-and-session-browser-boundary",
     failureCode: "browser_component_tests_failed",
     arguments: [
       "--test",
@@ -329,7 +329,7 @@ const gateDefinitions = [
   },
   {
     name: "security-integration",
-    testGroup: "operator-password-and-session-security-boundary",
+    testGroup: "operator-password-change-and-session-security-boundary",
     failureCode: "security_integration_tests_failed",
     arguments: [
       "--test",

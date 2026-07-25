@@ -127,3 +127,82 @@ test("a malformed login request creates no session", async () => {
   assert.equal((await response.json()).error.code, "request_malformed");
   assert.equal(application.durableCore.get("SELECT session_hash FROM browser_sessions"), undefined);
 });
+
+test("the authenticated operator surface changes a password and revokes all sessions with fresh confirmation", async () => {
+  const { origin } = await startApplication();
+  const currentPassword = "a correct operator password";
+  const replacementPassword = "a replacement operator password";
+  const firstLogin = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: currentPassword }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const firstCookie = firstLogin.headers.get("set-cookie").split(";", 1)[0];
+  const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: currentPassword }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const secondCookie = secondLogin.headers.get("set-cookie").split(";", 1)[0];
+
+  const authenticatedPage = await fetch(`${origin}/`, {
+    headers: { cookie: firstCookie },
+  });
+  const authenticatedHtml = await authenticatedPage.text();
+  assert.match(authenticatedHtml, /id="password-change-form"/);
+  assert.match(authenticatedHtml, /\/api\/v1\/session\/password/);
+  assert.match(authenticatedHtml, /id="session-revocation-form"/);
+  assert.match(authenticatedHtml, /\/api\/v1\/sessions\/revoke/);
+  assert.match(authenticatedHtml, /REVOKE ALL SESSIONS/);
+  assert.doesNotMatch(authenticatedHtml, /localStorage|Bearer/i);
+
+  const passwordChange = await fetch(`${origin}/api/v1/session/password`, {
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: replacementPassword,
+    }),
+    headers: {
+      "content-type": "application/json",
+      cookie: firstCookie,
+    },
+    method: "POST",
+  });
+  assert.equal(passwordChange.status, 204);
+  assert.match(passwordChange.headers.get("set-cookie"), /Max-Age=0/);
+  assert.equal(
+    (await fetch(`${origin}/api/v1/system`, { headers: { cookie: firstCookie } })).status,
+    401,
+  );
+  assert.equal(
+    (await fetch(`${origin}/api/v1/system`, { headers: { cookie: secondCookie } })).status,
+    401,
+  );
+
+  const replacementLogin = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: replacementPassword }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const replacementCookie = replacementLogin.headers
+    .get("set-cookie")
+    .split(";", 1)[0];
+  const revocation = await fetch(`${origin}/api/v1/sessions/revoke`, {
+    body: JSON.stringify({
+      confirmation: "REVOKE ALL SESSIONS",
+      password: replacementPassword,
+    }),
+    headers: {
+      "content-type": "application/json",
+      cookie: replacementCookie,
+    },
+    method: "POST",
+  });
+  assert.equal(revocation.status, 204);
+  assert.match(revocation.headers.get("set-cookie"), /Max-Age=0/);
+  assert.equal(
+    (await fetch(`${origin}/api/v1/system`, {
+      headers: { cookie: replacementCookie },
+    })).status,
+    401,
+  );
+});
