@@ -1,6 +1,7 @@
 import {
   createHash,
   randomBytes as createRandomBytes,
+  timingSafeEqual,
 } from "node:crypto";
 
 import {
@@ -14,6 +15,10 @@ import {
 } from "./operator-login-throttle.js";
 
 export const BROWSER_SESSION_COOKIE_NAME = "quality_bar_session";
+export const BROWSER_CSRF_COOKIE_NAME = "quality_bar_csrf";
+
+const BROWSER_SESSION_IDLE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
+const BROWSER_SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export class BrowserSessionError extends Error {
   constructor(code, message, options) {
@@ -37,6 +42,7 @@ export function createUnavailableBrowserSessionService(error) {
     logout: unavailable,
     changePassword: unavailable,
     revokeAll: unavailable,
+    touch: unavailable,
   };
 }
 
@@ -46,6 +52,12 @@ function fail(code, message, cause) {
 
 function sessionHash(secret) {
   return createHash("sha256").update(secret, "utf8").digest("base64");
+}
+
+function matchesHash(secret, hash) {
+  const candidate = Buffer.from(sessionHash(secret), "utf8");
+  const stored = Buffer.from(hash, "utf8");
+  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
 }
 
 function createSessionSecret(randomBytes) {
@@ -61,6 +73,21 @@ function createSessionSecret(randomBytes) {
   return bytes.toString("base64url");
 }
 
+function currentTimestamp(now) {
+  const timestamp = now();
+  if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
+    fail("session_unavailable", "Browser session is unavailable");
+  }
+  return timestamp;
+}
+
+function hasExpired(session, timestamp) {
+  return (
+    timestamp - session.created_at >= BROWSER_SESSION_ABSOLUTE_LIFETIME_MS ||
+    timestamp - session.last_authenticated_at >= BROWSER_SESSION_IDLE_LIFETIME_MS
+  );
+}
+
 export function createBrowserSessionService(
   durableCore,
   { now = () => Date.now(), randomBytes = createRandomBytes } = {},
@@ -71,21 +98,26 @@ export function createBrowserSessionService(
 
   return {
     login(password) {
-      rejectDuringFailedLoginDelay(durableCore, now());
+      const timestamp = currentTimestamp(now);
+      rejectDuringFailedLoginDelay(durableCore, timestamp);
       try {
         verifyOperatorPassword(durableCore, password);
       } catch (error) {
         if (error?.code === "authentication_invalid") {
-          recordFailedOperatorLogin(durableCore, now());
+          recordFailedOperatorLogin(durableCore, timestamp);
         }
         throw error;
       }
       const secret = createSessionSecret(randomBytes);
+      const csrfToken = createSessionSecret(randomBytes);
       try {
         durableCore.transaction((transaction) => {
           transaction.run(
-            "INSERT INTO browser_sessions (session_hash) VALUES (?)",
+            "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
             sessionHash(secret),
+            sessionHash(csrfToken),
+            timestamp,
+            timestamp,
           );
           clearFailedOperatorLoginDelay(transaction);
         });
@@ -95,17 +127,22 @@ export function createBrowserSessionService(
         }
         fail("session_unavailable", "Browser session could not be created", error);
       }
-      return { secret };
+      return { csrfToken, secret };
     },
     authenticate(secret) {
-      return (
-        typeof secret === "string" &&
-        /^[A-Za-z0-9_-]{43}$/.test(secret) &&
-        durableCore.get(
-          "SELECT session_hash FROM browser_sessions WHERE session_hash = ?",
-          sessionHash(secret),
-        ) !== undefined
+      if (
+        typeof secret !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(secret)
+      ) {
+        return false;
+      }
+      const timestamp = currentTimestamp(now);
+      const hash = sessionHash(secret);
+      const session = durableCore.get(
+        "SELECT created_at, last_authenticated_at FROM browser_sessions WHERE session_hash = ?",
+        hash,
       );
+      return Boolean(session) && !hasExpired(session, timestamp);
     },
     logout(secret) {
       if (!this.authenticate(secret)) {
@@ -116,6 +153,36 @@ export function createBrowserSessionService(
           "DELETE FROM browser_sessions WHERE session_hash = ?",
           sessionHash(secret),
         );
+      });
+    },
+    touch(secret, csrfToken) {
+      if (
+        typeof secret !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(secret) ||
+        typeof csrfToken !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(csrfToken)
+      ) {
+        return false;
+      }
+      const timestamp = currentTimestamp(now);
+      const hash = sessionHash(secret);
+      return durableCore.transaction((transaction) => {
+        const session = transaction.get(
+          "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
+          hash,
+        );
+        if (!session || hasExpired(session, timestamp)) {
+          return false;
+        }
+        if (!matchesHash(csrfToken, session.csrf_hash)) {
+          return false;
+        }
+        transaction.run(
+          "UPDATE browser_sessions SET last_authenticated_at = ? WHERE session_hash = ?",
+          timestamp,
+          hash,
+        );
+        return true;
       });
     },
     changePassword(currentPassword, replacementPassword) {

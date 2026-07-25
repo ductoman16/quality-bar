@@ -98,6 +98,7 @@ export function createApplication({
   validateSources = validateInstallationSources,
   validateTools = validateBundledTools,
   validateCodexAuthentication = validateCodexLogin,
+  now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
 }) {
   if (typeof databasePath !== "string" || databasePath.length === 0) {
@@ -107,6 +108,7 @@ export function createApplication({
   const storageBoundary = createHardStorageBoundary(writeLog);
   let durableCore = null;
   let browserSessions = null;
+  let browserOrigin = null;
   let secureBrowserCookie = false;
   let codexCapabilityFailure = null;
   let releaseInstallationLock = null;
@@ -115,6 +117,7 @@ export function createApplication({
   try {
     validateSources();
     const installation = loadInstallation();
+    browserOrigin = installation.externalOrigin;
     secureBrowserCookie = installation.externalOrigin.startsWith("https:");
     ({ releaseInstallationLock } = validateInstallation());
     durableCore = openDurableCore(databasePath, {
@@ -124,7 +127,7 @@ export function createApplication({
     });
     verifyInstallationKey(durableCore, installation.masterKey);
     installation.masterKey.fill(0);
-    browserSessions = createBrowserSessionService(durableCore);
+    browserSessions = createBrowserSessionService(durableCore, { now });
     validateTools();
     try {
       validateCodexAuthentication();
@@ -172,6 +175,7 @@ export function createApplication({
 
   const server = createApplicationServer({
     browserSessions,
+    browserOrigin,
     readDurableCoreStatus,
     readSystemStatus: () => ({
       codex: codexCapabilityFailure

@@ -178,8 +178,8 @@ function validatePackageFacts(facts) {
       "database.journalMode must equal wal",
     ],
     [
-      facts?.database?.schemaVersion === 2,
-      "database.schemaVersion must equal 2",
+      facts?.database?.schemaVersion === 4,
+      "database.schemaVersion must equal 4",
     ],
     [
       facts?.database?.synchronous === "full",

@@ -19,6 +19,9 @@ before(async () => {
       logout() {},
       changePassword() {},
       revokeAll() {},
+      touch() {
+        return false;
+      },
     },
     readDurableCoreStatus: () => ({ status: "ready" }),
   });
