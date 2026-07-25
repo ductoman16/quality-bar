@@ -42,6 +42,7 @@ before(async () => {
     recordAuthorityAttribution() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
+    reviews: { create() {} },
     requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {

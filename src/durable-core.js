@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const FATAL_SQLITE_CODES = [
   "SQLITE_BUSY_RECOVERY",
   "SQLITE_CANTOPEN",
@@ -13,6 +13,63 @@ const FATAL_SQLITE_CODES = [
 ];
 const FATAL_SQLITE_RESULT_CODES = new Set([5, 6, 8, 10, 11, 13, 14, 15, 26]);
 const AsyncFunction = async function () {}.constructor;
+
+const REVIEW_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS reviews (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE CHECK (length(trim(name)) > 0),
+    description TEXT NOT NULL CHECK (length(trim(description)) > 0),
+    active_version_id TEXT NOT NULL REFERENCES review_versions(id) DEFERRABLE INITIALLY DEFERRED,
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS review_versions (
+    id TEXT PRIMARY KEY,
+    review_id TEXT NOT NULL REFERENCES reviews(id),
+    number INTEGER NOT NULL CHECK (number > 0),
+    model TEXT NOT NULL,
+    reasoning_effort TEXT NOT NULL,
+    service_tier TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (review_id, number)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS criteria (
+    id TEXT PRIMARY KEY,
+    review_id TEXT NOT NULL REFERENCES reviews(id),
+    instruction TEXT NOT NULL CHECK (length(trim(instruction)) > 0),
+    impact TEXT NOT NULL CHECK (impact IN ('advisory', 'blocking')),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS review_version_criteria (
+    review_version_id TEXT NOT NULL REFERENCES review_versions(id),
+    criterion_id TEXT NOT NULL REFERENCES criteria(id),
+    position INTEGER NOT NULL CHECK (position > 0),
+    PRIMARY KEY (review_version_id, criterion_id),
+    UNIQUE (review_version_id, position)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS review_assignments (
+    review_id TEXT PRIMARY KEY REFERENCES reviews(id),
+    scope TEXT NOT NULL CHECK (scope = 'installation_wide'),
+    created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TRIGGER IF NOT EXISTS review_versions_immutable_update
+    BEFORE UPDATE ON review_versions
+    BEGIN SELECT RAISE(ABORT, 'review_version_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_versions_immutable_delete
+    BEFORE DELETE ON review_versions
+    BEGIN SELECT RAISE(ABORT, 'review_version_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS criteria_immutable_update
+    BEFORE UPDATE ON criteria
+    BEGIN SELECT RAISE(ABORT, 'criterion_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS criteria_immutable_delete
+    BEFORE DELETE ON criteria
+    BEGIN SELECT RAISE(ABORT, 'criterion_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_update
+    BEFORE UPDATE ON review_version_criteria
+    BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_delete
+    BEFORE DELETE ON review_version_criteria
+    BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+`;
 
 export class DurableCoreError extends Error {
   constructor(code, message, options) {
@@ -163,6 +220,7 @@ function initializeOrValidateSchema(database) {
       ) STRICT;
       CREATE INDEX authority_attributions_keyset
         ON authority_attributions (occurred_at DESC, id DESC);
+      ${REVIEW_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -187,6 +245,7 @@ function initializeOrValidateSchema(database) {
       ) STRICT;
       CREATE INDEX authority_attributions_keyset
         ON authority_attributions (occurred_at DESC, id DESC);
+      ${REVIEW_SCHEMA}
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
       WHERE key = 'schema_version';
@@ -213,6 +272,7 @@ function initializeOrValidateSchema(database) {
       ) STRICT;
       CREATE INDEX authority_attributions_keyset
         ON authority_attributions (occurred_at DESC, id DESC);
+      ${REVIEW_SCHEMA}
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
       WHERE key = 'schema_version';
@@ -232,6 +292,17 @@ function initializeOrValidateSchema(database) {
       ) STRICT;
       CREATE INDEX authority_attributions_keyset
         ON authority_attributions (occurred_at DESC, id DESC);
+      ${REVIEW_SCHEMA}
+      UPDATE quality_bar_metadata
+      SET value = '${SCHEMA_VERSION}'
+      WHERE key = 'schema_version';
+      PRAGMA user_version = ${SCHEMA_VERSION};
+      COMMIT;
+    `);
+  } else if (version === 5) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      ${REVIEW_SCHEMA}
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
       WHERE key = 'schema_version';
