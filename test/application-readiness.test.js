@@ -7,6 +7,7 @@ import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
+import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
 const applications = [];
 const temporaryDirectories = [];
@@ -140,7 +141,17 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     status: "unavailable",
   });
 
-  const systemResponse = await fetch(`${origin}/api/v1/system`);
+  bootstrapOperatorPassword(application.durableCore, "a correct operator password");
+  const loginResponse = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookie = loginResponse.headers.get("set-cookie").split(";", 1)[0];
+
+  const systemResponse = await fetch(`${origin}/api/v1/system`, {
+    headers: { cookie },
+  });
   assert.equal(systemResponse.status, 200);
   assert.deepEqual(await systemResponse.json(), {
     codex: {

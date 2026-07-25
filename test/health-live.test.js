@@ -7,7 +7,19 @@ let server;
 let origin;
 
 before(async () => {
-  server = createApplicationServer(() => ({ status: "ready" }));
+  server = createApplicationServer({
+    browserSessions: {
+      authenticate() {
+        return false;
+      },
+      isBootstrapped() {
+        return false;
+      },
+      login() {},
+      logout() {},
+    },
+    readDurableCoreStatus: () => ({ status: "ready" }),
+  });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -29,4 +41,17 @@ test("GET /health/live reports only process responsiveness", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "application/json");
   assert.deepEqual(await response.json(), { status: "live" });
+});
+
+test("the application server rejects a missing browser-session boundary", () => {
+  assert.throws(
+    () =>
+      createApplicationServer({
+        readDurableCoreStatus: () => ({ status: "ready" }),
+      }),
+    (error) => {
+      assert.equal(error.message, "browserSessions must provide the session boundary");
+      return true;
+    },
+  );
 });

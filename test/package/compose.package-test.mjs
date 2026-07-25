@@ -264,13 +264,8 @@ test("Compose boots with one strict configuration source and external installati
     const systemResponse = await fetch(
       `http://127.0.0.1:${hostPort}/api/v1/system`,
     );
-    assert.equal(systemResponse.status, 200);
-    assert.deepEqual(await systemResponse.json(), {
-      codex: {
-        error: "codex_authentication_unavailable",
-        status: "unavailable",
-      },
-    });
+    assert.equal(systemResponse.status, 401);
+    assert.equal((await systemResponse.json()).error.code, "authentication_required");
 
     const inspectDatabaseScript = `
       import { DatabaseSync } from "node:sqlite";

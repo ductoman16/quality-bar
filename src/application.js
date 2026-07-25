@@ -9,6 +9,10 @@ import {
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "./installation-environment.js";
+import {
+  createBrowserSessionService,
+  createUnavailableBrowserSessionService,
+} from "./browser-session.js";
 import { createApplicationServer } from "./server.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
@@ -102,6 +106,8 @@ export function createApplication({
 
   const storageBoundary = createHardStorageBoundary(writeLog);
   let durableCore = null;
+  let browserSessions = null;
+  let secureBrowserCookie = false;
   let codexCapabilityFailure = null;
   let releaseInstallationLock = null;
   let startupFailure = null;
@@ -109,6 +115,7 @@ export function createApplication({
   try {
     validateSources();
     const installation = loadInstallation();
+    secureBrowserCookie = installation.externalOrigin.startsWith("https:");
     ({ releaseInstallationLock } = validateInstallation());
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
@@ -116,6 +123,8 @@ export function createApplication({
       },
     });
     verifyInstallationKey(durableCore, installation.masterKey);
+    installation.masterKey.fill(0);
+    browserSessions = createBrowserSessionService(durableCore);
     validateTools();
     try {
       validateCodexAuthentication();
@@ -143,6 +152,7 @@ export function createApplication({
     releaseInstallationLock?.();
     releaseInstallationLock = null;
     startupFailure = error;
+    browserSessions = createUnavailableBrowserSessionService(startupFailure);
     structuredLog(
       writeLog,
       "error",
@@ -160,11 +170,16 @@ export function createApplication({
       : { status: "ready" };
   }
 
-  const server = createApplicationServer(readDurableCoreStatus, () => ({
-    codex: codexCapabilityFailure
-      ? { error: codexCapabilityFailure.code, status: "unavailable" }
-      : { status: "available" },
-  }));
+  const server = createApplicationServer({
+    browserSessions,
+    readDurableCoreStatus,
+    readSystemStatus: () => ({
+      codex: codexCapabilityFailure
+        ? { error: codexCapabilityFailure.code, status: "unavailable" }
+        : { status: "available" },
+    }),
+    secureBrowserCookie,
+  });
 
   return {
     server,
