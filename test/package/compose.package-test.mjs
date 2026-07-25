@@ -52,30 +52,45 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
+  assert.throws(
+    () =>
+      run(
+        "docker",
+        [
+          "build",
+          "--platform",
+          "linux/amd64",
+          "--output",
+          "type=cacheonly",
+          ".",
+        ],
+        environment,
+      ),
+    /QUALITY_BAR_VERSION must be a semantic version/,
+  );
 
   let primaryFailure;
   try {
     run("docker", ["compose", "build"], environment);
     run("docker", ["compose", "up", "--detach", "--wait"], environment);
 
-    assert.equal(
-      run("docker", [
-        "image",
-        "inspect",
-        `quality-bar:${applicationVersion}`,
-        "--format",
-        "{{.Os}}/{{.Architecture}}",
-      ]),
-      "linux/amd64",
-    );
-    assert.equal(
+    const imagePlatform = run("docker", [
+      "image",
+      "inspect",
+      `quality-bar:${applicationVersion}`,
+      "--format",
+      "{{.Os}}/{{.Architecture}}",
+    ]);
+    assert.equal(imagePlatform, "linux/amd64");
+    const uid = Number.parseInt(
       run(
         "docker",
         ["compose", "exec", "-T", serviceName, "id", "-u"],
         environment,
       ),
-      "10001",
+      10,
     );
+    assert.equal(uid, 10001);
     const processArguments = run(
       "docker",
       ["compose", "exec", "-T", serviceName, "cat", "/proc/1/cmdline"],
@@ -88,7 +103,28 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
 
     const response = await fetch(`http://127.0.0.1:${hostPort}/health/live`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { status: "live" });
+    const liveness = await response.json();
+    assert.deepEqual(liveness, { status: "live" });
+
+    console.log(
+      `QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify({
+        serviceCount: Object.keys(configuration.services).length,
+        companionServiceCount: 0,
+        platform: imagePlatform,
+        image: `quality-bar:${applicationVersion}`,
+        applicationProcess: {
+          uid,
+          pid: 1,
+          executable: processArguments[0],
+          entrypoint: processArguments.at(-1),
+        },
+        liveness: {
+          path: "/health/live",
+          httpStatus: response.status,
+          response: liveness,
+        },
+      })}`,
+    );
   } catch (error) {
     primaryFailure = error;
     throw error;

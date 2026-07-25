@@ -2,6 +2,8 @@ FROM node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5
 
 ARG QUALITY_BAR_VERSION
 
+RUN node --eval "if (!/^[0-9]+\\.[0-9]+\\.[0-9]+$/.test(process.argv[1])) throw new Error('QUALITY_BAR_VERSION must be a semantic version')" "$QUALITY_BAR_VERSION"
+
 LABEL org.opencontainers.image.title="Quality Bar" \
       org.opencontainers.image.version="${QUALITY_BAR_VERSION}"
 

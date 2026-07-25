@@ -63,6 +63,12 @@ function runGate(definition) {
   const testCount = testCountMatch
     ? Number.parseInt(testCountMatch[1], 10)
     : null;
+  const factsMatch = definition.factsMarker
+    ? combinedOutput.match(
+        new RegExp(`^# ${definition.factsMarker} (.+)$`, "m"),
+      )
+    : null;
+  let facts = null;
   let outcome = "pass";
   let failure;
 
@@ -78,21 +84,42 @@ function runGate(definition) {
       code: "verification_evidence_invalid",
       detail: `${definition.name} passed without a positive '# tests' summary`,
     };
+  } else if (definition.factsMarker && !factsMatch) {
+    outcome = "fail";
+    failure = {
+      code: "verification_evidence_invalid",
+      detail: `${definition.name} passed without ${definition.factsMarker}`,
+    };
+  } else if (factsMatch) {
+    try {
+      facts = JSON.parse(factsMatch[1]);
+    } catch (error) {
+      outcome = "fail";
+      failure = {
+        code: "verification_evidence_invalid",
+        detail: `${definition.factsMarker} is not valid JSON: ${error.message}`,
+      };
+    }
+  }
+
+  const evidence = {
+    name: definition.name,
+    command: `node ${definition.arguments.join(" ")}`,
+    testGroups: [
+      {
+        name: definition.testGroup,
+        count: testCount,
+      },
+    ],
+    durationMs,
+    outcome,
+  };
+  if (facts) {
+    evidence.facts = facts;
   }
 
   return {
-    evidence: {
-      name: definition.name,
-      command: `node ${definition.arguments.join(" ")}`,
-      testGroups: [
-        {
-          name: definition.testGroup,
-          count: testCount,
-        },
-      ],
-      durationMs,
-      outcome,
-    },
+    evidence,
     failure,
     output: combinedOutput,
   };
@@ -137,6 +164,7 @@ const gateDefinitions = [
     name: "package-integration",
     testGroup: "compose-service",
     failureCode: "package_integration_failed",
+    factsMarker: "QUALITY_BAR_PACKAGE_FACTS",
     arguments: ["--test", "test/package/compose.package-test.mjs"],
   },
 ];
