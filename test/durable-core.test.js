@@ -231,10 +231,12 @@ test("preserves a failed rollback on the hard storage_unavailable error", () => 
 
 test("rejects asynchronous transaction callbacks without committing partial facts", async () => {
   const core = openDurableCore(temporaryDatabasePath());
+  let callbackWasInvoked = false;
 
   assert.throws(
     () =>
       core.transaction(async (transaction) => {
+        callbackWasInvoked = true;
         await Promise.resolve();
         transaction.run(
           "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
@@ -250,6 +252,7 @@ test("rejects asynchronous transaction callbacks without committing partial fact
   );
   await new Promise((resolve) => setImmediate(resolve));
 
+  assert.equal(callbackWasInvoked, false);
   assert.equal(
     core.get(
       "SELECT value FROM quality_bar_metadata WHERE key = ?",

@@ -12,6 +12,7 @@ const FATAL_SQLITE_CODES = [
   "SQLITE_READONLY",
 ];
 const FATAL_SQLITE_RESULT_CODES = new Set([5, 6, 8, 10, 11, 13, 14, 15, 26]);
+const AsyncFunction = async function () {}.constructor;
 
 export class DurableCoreError extends Error {
   constructor(code, message, options) {
@@ -272,6 +273,12 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
     },
     transaction(callback) {
       assertAvailable();
+      if (callback instanceof AsyncFunction) {
+        throw new DurableCoreError(
+          "asynchronous_transaction_unsupported",
+          "SQLite transaction callback must be synchronous",
+        );
+      }
       let transactionStarted = false;
       let transactionActive = false;
       try {
@@ -305,7 +312,6 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
           transactionActive = false;
         }
         if (typeof result?.then === "function") {
-          Promise.resolve(result).catch(() => {});
           throw new DurableCoreError(
             "asynchronous_transaction_unsupported",
             "SQLite transaction callback must be synchronous",
