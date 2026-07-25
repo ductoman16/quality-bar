@@ -23,6 +23,10 @@ async function startApplication(databasePath, options = {}) {
   const application = createApplication({
     databasePath,
     loadInstallation: options.loadInstallation ?? validInstallation,
+    validateInstallation: options.validateInstallation ?? (() => ({})),
+    validateSources: options.validateSources ?? (() => {}),
+    validateTools: options.validateTools ?? (() => {}),
+    validateCodexAuthentication: options.validateCodexAuthentication ?? (() => {}),
     writeLog: options.writeLog ?? (() => {}),
   });
   await new Promise((resolve, reject) => {
@@ -95,6 +99,54 @@ test("configuration failure keeps product traffic unavailable without exposing s
   assert.equal(productResponse.status, 503);
   assert.deepEqual(await productResponse.json(), {
     error: "configuration_unknown",
+  });
+});
+
+test("unsafe fixed sources are rejected before their contents are read", async () => {
+  let wasRead = false;
+  const sourceFailure = new Error("unsafe source");
+  sourceFailure.code = "owned_path_unsafe";
+  const application = createApplication({
+    databasePath: temporaryDatabasePath(),
+    loadInstallation() {
+      wasRead = true;
+      return validInstallation();
+    },
+    validateSources() {
+      throw sourceFailure;
+    },
+    writeLog() {},
+  });
+  applications.push(application);
+
+  assert.equal(wasRead, false);
+  assert.equal(application.durableCore, null);
+});
+
+test("unavailable Codex authentication leaves the durable System surface ready", async () => {
+  const authenticationFailure = new Error("not logged in");
+  authenticationFailure.code = "codex_authentication_unavailable";
+  const { application, origin } = await startApplication(temporaryDatabasePath(), {
+    validateCodexAuthentication() {
+      throw authenticationFailure;
+    },
+  });
+
+  const readyResponse = await fetch(`${origin}/health/ready`);
+  assert.equal(readyResponse.status, 200);
+  assert.deepEqual(await readyResponse.json(), { status: "ready" });
+  assert.deepEqual(application.codexCapability, {
+    error: "codex_authentication_unavailable",
+    status: "unavailable",
+  });
+
+  const systemResponse = await fetch(`${origin}/api/v1/system`);
+  assert.equal(systemResponse.status, 200);
+  assert.deepEqual(await systemResponse.json(), {
+    codex: {
+      error: "codex_authentication_unavailable",
+      status: "unavailable",
+    },
   });
 });
 

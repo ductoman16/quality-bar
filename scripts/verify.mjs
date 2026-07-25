@@ -109,6 +109,42 @@ function validatePackageFacts(facts) {
       "storage.persistedAcrossRecreate must equal true",
     ],
     [
+      facts?.storage?.checkoutsPath === "/var/cache/quality-bar/checkouts",
+      "storage.checkoutsPath is invalid",
+    ],
+    [
+      facts?.storage?.backupsPath === "/var/backups/quality-bar",
+      "storage.backupsPath is invalid",
+    ],
+    [
+      facts?.storage?.ownedPaths === true,
+      "storage.ownedPaths must equal true",
+    ],
+    [
+      facts?.storage?.localFilesystems === true,
+      "storage.localFilesystems must equal true",
+    ],
+    [
+      facts?.installation?.freeSpaceReserveBytes === 5 * 1024 ** 3,
+      "installation.freeSpaceReserveBytes is invalid",
+    ],
+    [
+      facts?.installation?.freeSpaceReserveMet === true,
+      "installation.freeSpaceReserveMet must equal true",
+    ],
+    [
+      facts?.tools?.git === "2.54.0",
+      "tools.git must equal 2.54.0",
+    ],
+    [
+      facts?.tools?.codex === "0.145.0",
+      "tools.codex must equal 0.145.0",
+    ],
+    [
+      facts?.tools?.persistentCodexLogin === false,
+      "tools.persistentCodexLogin must equal false for the unprovisioned packaged fixture",
+    ],
+    [
       facts?.configuration?.configPath === "/etc/quality-bar/config.env",
       "configuration.configPath is invalid",
     ],
@@ -272,6 +308,7 @@ const gateDefinitions = [
       "test/configuration.test.js",
       "test/durable-core.test.js",
       "test/health-live.test.js",
+      "test/installation-environment.test.js",
     ],
   },
   {
@@ -315,8 +352,8 @@ const manifest = {
     schema: packageFacts?.database?.schemaVersion ?? null,
     image: applicationVersion ? `quality-bar:${applicationVersion}` : null,
     runtime: packagedNodeVersion ? `node:${packagedNodeVersion}` : null,
-    git: null,
-    codex: null,
+    git: packageFacts?.tools?.git ?? null,
+    codex: packageFacts?.tools?.codex ?? null,
     adapterProtocol: null,
     browser: null,
     database: packageFacts?.database?.databaseVersion

@@ -3,6 +3,12 @@ import {
   loadInstallationConfiguration,
   verifyInstallationKey,
 } from "./installation-configuration.js";
+import {
+  validateBundledTools,
+  validateCodexLogin,
+  validateInstallationFilesystem,
+  validateInstallationSources,
+} from "./installation-environment.js";
 import { createApplicationServer } from "./server.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
@@ -84,6 +90,10 @@ function createHardStorageBoundary(writeLog) {
 export function createApplication({
   databasePath,
   loadInstallation = loadInstallationConfiguration,
+  validateInstallation = validateInstallationFilesystem,
+  validateSources = validateInstallationSources,
+  validateTools = validateBundledTools,
+  validateCodexAuthentication = validateCodexLogin,
   writeLog = (line) => process.stderr.write(line),
 }) {
   if (typeof databasePath !== "string" || databasePath.length === 0) {
@@ -92,16 +102,34 @@ export function createApplication({
 
   const storageBoundary = createHardStorageBoundary(writeLog);
   let durableCore = null;
+  let codexCapabilityFailure = null;
+  let releaseInstallationLock = null;
   let startupFailure = null;
 
   try {
+    validateSources();
     const installation = loadInstallation();
+    ({ releaseInstallationLock } = validateInstallation());
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(error);
       },
     });
     verifyInstallationKey(durableCore, installation.masterKey);
+    validateTools();
+    try {
+      validateCodexAuthentication();
+    } catch (error) {
+      codexCapabilityFailure = error;
+      structuredLog(
+        writeLog,
+        "error",
+        "codex_capability_unavailable",
+        "codex",
+        "failure",
+        error,
+      );
+    }
     structuredLog(
       writeLog,
       "info",
@@ -112,6 +140,8 @@ export function createApplication({
   } catch (error) {
     durableCore?.close();
     durableCore = null;
+    releaseInstallationLock?.();
+    releaseInstallationLock = null;
     startupFailure = error;
     structuredLog(
       writeLog,
@@ -130,11 +160,20 @@ export function createApplication({
       : { status: "ready" };
   }
 
-  const server = createApplicationServer(readDurableCoreStatus);
+  const server = createApplicationServer(readDurableCoreStatus, () => ({
+    codex: codexCapabilityFailure
+      ? { error: codexCapabilityFailure.code, status: "unavailable" }
+      : { status: "available" },
+  }));
 
   return {
     server,
     durableCore,
+    get codexCapability() {
+      return codexCapabilityFailure
+        ? { error: codexCapabilityFailure.code, status: "unavailable" }
+        : { status: "available" };
+    },
     workerSignal: storageBoundary.signal,
     registerCodexProcess(process) {
       storageBoundary.registerCodexProcess(process);
@@ -146,6 +185,8 @@ export function createApplication({
         });
       }
       durableCore?.close();
+      releaseInstallationLock?.();
+      releaseInstallationLock = null;
     },
   };
 }
