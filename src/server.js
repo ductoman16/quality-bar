@@ -15,9 +15,12 @@ function isProductSurface(path) {
   );
 }
 
-export function createApplicationServer(readDurableCoreStatus) {
+export function createApplicationServer(readDurableCoreStatus, readSystemStatus = () => ({})) {
   if (typeof readDurableCoreStatus !== "function") {
     throw new TypeError("readDurableCoreStatus is required");
+  }
+  if (typeof readSystemStatus !== "function") {
+    throw new TypeError("readSystemStatus must be a function");
   }
 
   return createServer((request, response) => {
@@ -39,6 +42,11 @@ export function createApplicationServer(readDurableCoreStatus) {
 
     if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
       writeJson(response, 503, { error: durableCoreStatus.error });
+      return;
+    }
+
+    if (request.method === "GET" && path === "/api/v1/system") {
+      writeJson(response, 200, readSystemStatus());
       return;
     }
 

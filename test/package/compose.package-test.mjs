@@ -25,12 +25,13 @@ writeFileSync(
 );
 writeFileSync(masterKeyPath, masterKey);
 
-function run(command, arguments_, environment = {}) {
+function run(command, arguments_, environment = {}, input) {
   return execFileSync(command, arguments_, {
     cwd: process.cwd(),
     encoding: "utf8",
     env: { ...process.env, ...environment },
-    stdio: ["ignore", "pipe", "pipe"],
+    input,
+    stdio: ["pipe", "pipe", "pipe"],
   }).trim();
 }
 
@@ -69,14 +70,36 @@ test("Compose boots with one strict configuration source and external installati
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
   const serviceVolumes = configuration.services[serviceName].volumes;
-  assert.deepEqual(serviceVolumes[0], {
-    source: "quality-bar-state",
-    target: "/var/lib/quality-bar",
-    type: "volume",
-    volume: {},
-  });
   assert.deepEqual(
-    serviceVolumes.slice(1).map((volume) => ({
+    serviceVolumes.slice(0, 3).map((volume) => ({
+      source: volume.source,
+      target: volume.target,
+      type: volume.type,
+      volume: volume.volume,
+    })),
+    [
+      {
+        source: "quality-bar-state",
+        target: "/var/lib/quality-bar",
+        type: "volume",
+        volume: {},
+      },
+      {
+        source: "quality-bar-checkouts",
+        target: "/var/cache/quality-bar/checkouts",
+        type: "volume",
+        volume: {},
+      },
+      {
+        source: "quality-bar-backups",
+        target: "/var/backups/quality-bar",
+        type: "volume",
+        volume: {},
+      },
+    ],
+  );
+  assert.deepEqual(
+    serviceVolumes.slice(3).map((volume) => ({
       readOnly: volume.read_only,
       target: volume.target,
       type: volume.type,
@@ -94,7 +117,11 @@ test("Compose boots with one strict configuration source and external installati
       },
     ],
   );
-  assert.deepEqual(Object.keys(configuration.volumes), ["quality-bar-state"]);
+  assert.deepEqual(Object.keys(configuration.volumes), [
+    "quality-bar-backups",
+    "quality-bar-checkouts",
+    "quality-bar-state",
+  ]);
   assert.throws(
     () =>
       run(
@@ -114,6 +141,20 @@ test("Compose boots with one strict configuration source and external installati
 
   let primaryFailure;
   try {
+    run(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "-v",
+        `${fixtureDirectory}:/fixture`,
+        "node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc",
+        "sh",
+        "-c",
+        "chown 10001:10001 /fixture/config.env /fixture/quality-bar-master-key && chmod 0400 /fixture/config.env /fixture/quality-bar-master-key",
+      ],
+      environment,
+    );
     run("docker", ["compose", "build"], environment);
     run("docker", ["compose", "up", "--detach", "--wait"], environment);
 
@@ -141,7 +182,70 @@ test("Compose boots with one strict configuration source and external installati
       .filter(Boolean);
     assert.equal(processArguments[0], "node");
     assert.equal(processArguments.at(-1), "src/main.js");
-
+    const filesystemFacts = JSON.parse(
+      run(
+        "docker",
+        [
+          "compose",
+          "exec",
+          "-T",
+          serviceName,
+          "node",
+          "--input-type=module",
+          "--eval",
+          `
+            import { lstatSync, statfsSync } from "node:fs";
+            const paths = [
+              "/var/lib/quality-bar",
+              "/var/lib/quality-bar/codex-home",
+              "/var/cache/quality-bar/checkouts",
+              "/var/backups/quality-bar",
+              "/etc/quality-bar/config.env",
+              "/run/secrets/quality-bar-master-key",
+            ];
+            const pathFacts = Object.fromEntries(paths.map((path) => {
+              const status = lstatSync(path);
+              return [path, { gid: status.gid, mode: status.mode & 0o777, uid: status.uid }];
+            }));
+            const localFilesystemTypes = new Set([0xef53, 0x58465342, 0x794c7630, 0x9123683e, 0x2fc12fc1]);
+            const localFilesystems = [
+              "/var/lib/quality-bar",
+              "/var/cache/quality-bar/checkouts",
+              "/var/backups/quality-bar",
+            ].every((path) => localFilesystemTypes.has(statfsSync(path).type));
+            console.log(JSON.stringify({
+              localFilesystems,
+              pathFacts,
+              stateFreeBytes: statfsSync("/var/lib/quality-bar").bavail * statfsSync("/var/lib/quality-bar").bsize,
+              checkoutsFreeBytes: statfsSync("/var/cache/quality-bar/checkouts").bavail * statfsSync("/var/cache/quality-bar/checkouts").bsize,
+            }));
+          `,
+        ],
+        environment,
+      ),
+    );
+    assert.equal(filesystemFacts.localFilesystems, true);
+    assert.ok(filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3);
+    assert.ok(filesystemFacts.checkoutsFreeBytes >= 5 * 1024 ** 3);
+    for (const [path, facts] of Object.entries(filesystemFacts.pathFacts)) {
+      assert.deepEqual(facts, {
+        gid: 10001,
+        mode: path === "/etc/quality-bar/config.env" || path === "/run/secrets/quality-bar-master-key" ? 0o400 : 0o700,
+        uid: 10001,
+      });
+    }
+    const gitVersion = run(
+      "docker",
+      ["compose", "exec", "-T", serviceName, "git", "--version"],
+      environment,
+    ).replace("git version ", "");
+    const codexVersion = run(
+      "docker",
+      ["compose", "exec", "-T", serviceName, "codex", "--version"],
+      environment,
+    ).replace("codex-cli ", "");
+    assert.equal(gitVersion, "2.54.0");
+    assert.equal(codexVersion, "0.145.0");
     const response = await fetch(`http://127.0.0.1:${hostPort}/health/live`);
     assert.equal(response.status, 200);
     const liveness = await response.json();
@@ -150,9 +254,23 @@ test("Compose boots with one strict configuration source and external installati
     const readyResponse = await fetch(
       `http://127.0.0.1:${hostPort}/health/ready`,
     );
-    assert.equal(readyResponse.status, 200);
+    assert.equal(
+      readyResponse.status,
+      200,
+      run("docker", ["compose", "logs", "--no-color", serviceName], environment),
+    );
     const readiness = await readyResponse.json();
     assert.deepEqual(readiness, { status: "ready" });
+    const systemResponse = await fetch(
+      `http://127.0.0.1:${hostPort}/api/v1/system`,
+    );
+    assert.equal(systemResponse.status, 200);
+    assert.deepEqual(await systemResponse.json(), {
+      codex: {
+        error: "codex_authentication_unavailable",
+        status: "unavailable",
+      },
+    });
 
     const inspectDatabaseScript = `
       import { DatabaseSync } from "node:sqlite";
@@ -252,9 +370,26 @@ test("Compose boots with one strict configuration source and external installati
         response: readiness,
       },
       storage: {
+        backupsPath: "/var/backups/quality-bar",
+        checkoutsPath: "/var/cache/quality-bar/checkouts",
         databasePath: "/var/lib/quality-bar/quality-bar.sqlite3",
+        localFilesystems: filesystemFacts.localFilesystems,
+        ownedPaths: Object.values(filesystemFacts.pathFacts).every(
+          (facts) => facts.gid === 10001 && facts.uid === 10001,
+        ),
         persistedAcrossRecreate: true,
         volumeTarget: serviceVolumes[0].target,
+      },
+      installation: {
+        freeSpaceReserveBytes: 5 * 1024 ** 3,
+        freeSpaceReserveMet:
+          filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3 &&
+          filesystemFacts.checkoutsFreeBytes >= 5 * 1024 ** 3,
+      },
+      tools: {
+        codex: codexVersion,
+        git: gitVersion,
+        persistentCodexLogin: false,
       },
       configuration: {
         configPath: "/etc/quality-bar/config.env",

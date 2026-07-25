@@ -1,5 +1,7 @@
 import { createApplication } from "./application.js";
 
+process.umask(0o077);
+
 const port = 3000;
 const databasePath = "/var/lib/quality-bar/quality-bar.sqlite3";
 const application = createApplication({ databasePath });
