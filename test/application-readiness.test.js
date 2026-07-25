@@ -6,14 +6,24 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { loadInstallationConfiguration } from "../src/installation-configuration.js";
 
 const applications = [];
 const temporaryDirectories = [];
 
-async function startApplication(databasePath) {
+function validInstallation() {
+  return {
+    externalOrigin: "http://127.0.0.1:3000",
+    masterKey: Buffer.alloc(32, 7),
+    trustedProxyAddresses: [],
+  };
+}
+
+async function startApplication(databasePath, options = {}) {
   const application = createApplication({
     databasePath,
-    writeLog() {},
+    loadInstallation: options.loadInstallation ?? validInstallation,
+    writeLog: options.writeLog ?? (() => {}),
   });
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
@@ -54,6 +64,111 @@ test("SQLite startup failure keeps liveness distinct from exact not-ready state"
   assert.deepEqual(await readyResponse.json(), {
     error: "wal_unavailable",
     status: "not_ready",
+  });
+});
+
+test("configuration failure keeps product traffic unavailable without exposing secret values", async () => {
+  const logs = [];
+  const configurationFailure = new Error("Configuration has an unknown key");
+  configurationFailure.code = "configuration_unknown";
+  const { origin } = await startApplication(temporaryDatabasePath(), {
+    loadInstallation() {
+      throw configurationFailure;
+    },
+    writeLog(line) {
+      logs.push(line);
+    },
+  });
+
+  const liveResponse = await fetch(`${origin}/health/live`);
+  assert.equal(liveResponse.status, 200);
+  assert.deepEqual(await liveResponse.json(), { status: "live" });
+
+  const readyResponse = await fetch(`${origin}/health/ready`);
+  assert.equal(readyResponse.status, 503);
+  assert.deepEqual(await readyResponse.json(), {
+    error: "configuration_unknown",
+    status: "not_ready",
+  });
+
+  const productResponse = await fetch(`${origin}/api/v1/system`);
+  assert.equal(productResponse.status, 503);
+  assert.deepEqual(await productResponse.json(), {
+    error: "configuration_unknown",
+  });
+});
+
+test("a malformed external master key never appears in responses or logs", async () => {
+  const logs = [];
+  const secretValue = "this-master-key-must-never-appear";
+  const { origin } = await startApplication(temporaryDatabasePath(), {
+    loadInstallation() {
+      return loadInstallationConfiguration({
+        configPath: "/etc/quality-bar/config.env",
+        masterKeyPath: "/run/secrets/quality-bar-master-key",
+        readFile(path, encoding) {
+          if (path === "/etc/quality-bar/config.env") {
+            return encoding
+              ? [
+                  "QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000",
+                  "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none",
+                ].join("\n")
+              : Buffer.from("");
+          }
+          if (path === "/run/secrets/quality-bar-master-key") {
+            return encoding ? secretValue : Buffer.from(secretValue);
+          }
+          throw new Error("unexpected path");
+        },
+      });
+    },
+    writeLog(line) {
+      logs.push(line);
+    },
+  });
+
+  const readyResponse = await fetch(`${origin}/health/ready`);
+  assert.equal(readyResponse.status, 503);
+  assert.deepEqual(await readyResponse.json(), {
+    error: "master_key_malformed",
+    status: "not_ready",
+  });
+
+  const productResponse = await fetch(`${origin}/api/v1/system`);
+  assert.equal(productResponse.status, 503);
+  assert.deepEqual(await productResponse.json(), {
+    error: "master_key_malformed",
+  });
+  assert.doesNotMatch(logs.join(""), new RegExp(secretValue));
+});
+
+test("an undecryptable installation key keeps product traffic unavailable", async () => {
+  const databasePath = temporaryDatabasePath();
+  const first = await startApplication(databasePath);
+  await first.application.close();
+  applications.splice(applications.indexOf(first.application), 1);
+
+  const { origin } = await startApplication(databasePath, {
+    loadInstallation() {
+      return {
+        externalOrigin: "http://127.0.0.1:3000",
+        masterKey: Buffer.alloc(32, 8),
+        trustedProxyAddresses: [],
+      };
+    },
+  });
+
+  const readyResponse = await fetch(`${origin}/health/ready`);
+  assert.equal(readyResponse.status, 503);
+  assert.deepEqual(await readyResponse.json(), {
+    error: "master_key_undecryptable",
+    status: "not_ready",
+  });
+
+  const productResponse = await fetch(`${origin}/api/v1/system`);
+  assert.equal(productResponse.status, 503);
+  assert.deepEqual(await productResponse.json(), {
+    error: "master_key_undecryptable",
   });
 });
 

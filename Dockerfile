@@ -9,7 +9,8 @@ LABEL org.opencontainers.image.title="Quality Bar" \
 
 RUN addgroup -g 10001 quality-bar \
     && adduser -D -H -u 10001 -G quality-bar quality-bar \
-    && install -d -o 10001 -g 10001 /var/lib/quality-bar
+    && install -d -o 10001 -g 10001 /var/lib/quality-bar \
+    && install -d /etc/quality-bar /run/secrets
 
 WORKDIR /app
 
