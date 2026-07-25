@@ -109,6 +109,19 @@ function validatePackageFacts(facts) {
       "storage.persistedAcrossRecreate must equal true",
     ],
     [
+      facts?.configuration?.configPath === "/etc/quality-bar/config.env",
+      "configuration.configPath is invalid",
+    ],
+    [
+      facts?.configuration?.masterKeyPath ===
+        "/run/secrets/quality-bar-master-key",
+      "configuration.masterKeyPath is invalid",
+    ],
+    [
+      facts?.configuration?.encryptedVerifier === true,
+      "configuration.encryptedVerifier must equal true",
+    ],
+    [
       /^\d+\.\d+\.\d+$/.test(facts?.database?.databaseVersion),
       "database.databaseVersion must be semantic",
     ],
@@ -251,11 +264,12 @@ try {
 const gateDefinitions = [
   {
     name: "unit",
-    testGroup: "durable-core-readiness",
+    testGroup: "installation-configuration-and-durable-core-readiness",
     failureCode: "unit_tests_failed",
     arguments: [
       "--test",
       "test/application-readiness.test.js",
+      "test/configuration.test.js",
       "test/durable-core.test.js",
       "test/health-live.test.js",
     ],

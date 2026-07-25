@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 const applicationVersion = readFileSync(".env", "utf8").match(
@@ -10,6 +12,18 @@ const applicationVersion = readFileSync(".env", "utf8").match(
 assert.ok(applicationVersion, ".env must define a semantic QUALITY_BAR_VERSION");
 const serviceName = "quality-bar";
 const projectName = `quality-bar-package-${process.pid}`;
+const fixtureDirectory = mkdtempSync(join(tmpdir(), "quality-bar-package-"));
+const configurationPath = join(fixtureDirectory, "config.env");
+const masterKeyPath = join(fixtureDirectory, "quality-bar-master-key");
+const masterKey = Buffer.alloc(32, 7).toString("base64");
+writeFileSync(
+  configurationPath,
+  [
+    "QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000",
+    "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none",
+  ].join("\n"),
+);
+writeFileSync(masterKeyPath, masterKey);
 
 function run(command, arguments_, environment = {}) {
   return execFileSync(command, arguments_, {
@@ -33,12 +47,14 @@ async function reservePort() {
   return port;
 }
 
-test("Compose boots one Linux amd64 service as one unprivileged application process", async () => {
+test("Compose boots with one strict configuration source and external installation master key", async () => {
   const hostPort = await reservePort();
   const environment = {
     COMPOSE_PROJECT_NAME: projectName,
     QUALITY_BAR_HTTP_PORT: String(hostPort),
     QUALITY_BAR_VERSION: applicationVersion,
+    QUALITY_BAR_CONFIG_FILE: configurationPath,
+    QUALITY_BAR_MASTER_KEY_FILE: masterKeyPath,
   };
 
   const configuration = JSON.parse(
@@ -52,14 +68,32 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
-  assert.deepEqual(configuration.services[serviceName].volumes, [
-    {
-      source: "quality-bar-state",
-      target: "/var/lib/quality-bar",
-      type: "volume",
-      volume: {},
-    },
-  ]);
+  const serviceVolumes = configuration.services[serviceName].volumes;
+  assert.deepEqual(serviceVolumes[0], {
+    source: "quality-bar-state",
+    target: "/var/lib/quality-bar",
+    type: "volume",
+    volume: {},
+  });
+  assert.deepEqual(
+    serviceVolumes.slice(1).map((volume) => ({
+      readOnly: volume.read_only,
+      target: volume.target,
+      type: volume.type,
+    })),
+    [
+      {
+        readOnly: true,
+        target: "/etc/quality-bar/config.env",
+        type: "bind",
+      },
+      {
+        readOnly: true,
+        target: "/run/secrets/quality-bar-master-key",
+        type: "bind",
+      },
+    ],
+  );
   assert.deepEqual(Object.keys(configuration.volumes), ["quality-bar-state"]);
   assert.throws(
     () =>
@@ -128,6 +162,7 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
         databaseVersion: scalar("SELECT sqlite_version() AS version", "version"),
         foreignKeys: (database.exec("PRAGMA foreign_keys = ON"), scalar("PRAGMA foreign_keys", "foreign_keys") === 1),
         integrity: scalar("PRAGMA integrity_check", "integrity_check"),
+        installationKeyVerifier: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("installation_key_verifier")?.value ?? null,
         journalMode: scalar("PRAGMA journal_mode", "journal_mode"),
         persistedMarker: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("package_persistence_test")?.value ?? null,
         schemaVersion: scalar("PRAGMA user_version", "user_version"),
@@ -152,6 +187,7 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
       ),
     );
     assert.equal(initialDatabaseFacts.persistedMarker, null);
+    assert.match(initialDatabaseFacts.installationKeyVerifier, /^v1\./);
     run(
       "docker",
       [
@@ -194,39 +230,47 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
     );
     assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
 
-    console.log(
-      `QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify({
-        serviceCount: Object.keys(configuration.services).length,
-        companionServiceCount: 0,
-        platform: imagePlatform,
-        image: `quality-bar:${applicationVersion}`,
-        applicationProcess: {
-          uid,
-          pid: 1,
-          executable: processArguments[0],
-          entrypoint: processArguments.at(-1),
-        },
-        liveness: {
-          path: "/health/live",
-          httpStatus: response.status,
-          response: liveness,
-        },
-        readiness: {
-          path: "/health/ready",
-          httpStatus: readyResponse.status,
-          response: readiness,
-        },
-        storage: {
-          databasePath: "/var/lib/quality-bar/quality-bar.sqlite3",
-          persistedAcrossRecreate: true,
-          volumeTarget: configuration.services[serviceName].volumes[0].target,
-        },
-        database: {
-          ...recreatedDatabaseFacts,
-          persistedMarker: undefined,
-        },
-      })}`,
-    );
+    const packageFacts = {
+      serviceCount: Object.keys(configuration.services).length,
+      companionServiceCount: 0,
+      platform: imagePlatform,
+      image: `quality-bar:${applicationVersion}`,
+      applicationProcess: {
+        uid,
+        pid: 1,
+        executable: processArguments[0],
+        entrypoint: processArguments.at(-1),
+      },
+      liveness: {
+        path: "/health/live",
+        httpStatus: response.status,
+        response: liveness,
+      },
+      readiness: {
+        path: "/health/ready",
+        httpStatus: readyResponse.status,
+        response: readiness,
+      },
+      storage: {
+        databasePath: "/var/lib/quality-bar/quality-bar.sqlite3",
+        persistedAcrossRecreate: true,
+        volumeTarget: serviceVolumes[0].target,
+      },
+      configuration: {
+        configPath: "/etc/quality-bar/config.env",
+        encryptedVerifier: /^v1\./.test(
+          recreatedDatabaseFacts.installationKeyVerifier,
+        ),
+        masterKeyPath: "/run/secrets/quality-bar-master-key",
+      },
+      database: {
+        ...recreatedDatabaseFacts,
+        installationKeyVerifier: undefined,
+        persistedMarker: undefined,
+      },
+    };
+    assert.doesNotMatch(JSON.stringify(packageFacts), new RegExp(masterKey));
+    console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(packageFacts)}`);
   } catch (error) {
     primaryFailure = error;
     throw error;
@@ -243,5 +287,6 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
       }
       process.stderr.write(`Package cleanup also failed: ${cleanupError.message}\n`);
     }
+    rmSync(fixtureDirectory, { force: true, recursive: true });
   }
 });

@@ -1,14 +1,18 @@
 import { openDurableCore } from "./durable-core.js";
+import {
+  loadInstallationConfiguration,
+  verifyInstallationKey,
+} from "./installation-configuration.js";
 import { createApplicationServer } from "./server.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 
-function structuredLog(writeLog, severity, event, outcome, error) {
+function structuredLog(writeLog, severity, event, component, outcome, error) {
   const record = {
     timestamp: new Date().toISOString(),
     severity,
     event,
-    component: "storage",
+    component,
     outcome,
   };
   if (error) {
@@ -55,6 +59,7 @@ function createHardStorageBoundary(writeLog) {
         writeLog,
         "error",
         "storage_unavailable",
+        "storage",
         "failure",
         error,
       );
@@ -78,6 +83,7 @@ function createHardStorageBoundary(writeLog) {
 
 export function createApplication({
   databasePath,
+  loadInstallation = loadInstallationConfiguration,
   writeLog = (line) => process.stderr.write(line),
 }) {
   if (typeof databasePath !== "string" || databasePath.length === 0) {
@@ -89,18 +95,29 @@ export function createApplication({
   let startupFailure = null;
 
   try {
+    const installation = loadInstallation();
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(error);
       },
     });
-    structuredLog(writeLog, "info", "durable_core_ready", "success");
+    verifyInstallationKey(durableCore, installation.masterKey);
+    structuredLog(
+      writeLog,
+      "info",
+      "installation_ready",
+      "configuration",
+      "success",
+    );
   } catch (error) {
+    durableCore?.close();
+    durableCore = null;
     startupFailure = error;
     structuredLog(
       writeLog,
       "error",
-      "durable_core_not_ready",
+      "installation_not_ready",
+      "configuration",
       "failure",
       error,
     );

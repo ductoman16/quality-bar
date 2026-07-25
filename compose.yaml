@@ -12,6 +12,14 @@ services:
       - "127.0.0.1:${QUALITY_BAR_HTTP_PORT:-3000}:3000"
     volumes:
       - quality-bar-state:/var/lib/quality-bar
+      - type: bind
+        source: ${QUALITY_BAR_CONFIG_FILE:?QUALITY_BAR_CONFIG_FILE must be set}
+        target: /etc/quality-bar/config.env
+        read_only: true
+      - type: bind
+        source: ${QUALITY_BAR_MASTER_KEY_FILE:?QUALITY_BAR_MASTER_KEY_FILE must be set}
+        target: /run/secrets/quality-bar-master-key
+        read_only: true
 
 volumes:
   quality-bar-state:
