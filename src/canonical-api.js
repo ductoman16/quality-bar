@@ -27,6 +27,11 @@ export function canonicalOpenApiDocument() {
       schema: { type: "string" },
     },
   ];
+  const browserOrBearerMutationParameters = browserMutationParameters.map((parameter) => ({
+    ...parameter,
+    description: "Required when authenticating with a browser session",
+    required: false,
+  }));
 
   return {
     info: { title: "Quality Bar API", version: "1.0.0" },
@@ -107,6 +112,15 @@ export function canonicalOpenApiDocument() {
           requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/CurrentPasswordRequest" } } }, required: true },
           responses: { 204: { description: "Implementer token revoked" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse, 503: errorResponse },
           security: [{ browser_session: [] }],
+        },
+      },
+      "/api/v1/reviews": {
+        post: {
+          operationId: "createReview",
+          parameters: browserOrBearerMutationParameters,
+          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/ReviewCreateRequest" } } }, required: true },
+          responses: { 201: { content: { "application/json": { schema: { $ref: "#/components/schemas/Review" } } }, description: "Review with its active immutable v1" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 500: errorResponse, 503: errorResponse },
+          security: authenticated,
         },
       },
       "/api/v1/system": {
@@ -201,6 +215,79 @@ export function canonicalOpenApiDocument() {
           additionalProperties: false,
           properties: { confirmation: { const: "REVOKE ALL SESSIONS", type: "string" }, password: { type: "string" } },
           required: ["confirmation", "password"],
+          type: "object",
+        },
+        CodexConfiguration: {
+          oneOf: codexCapabilityCatalog.models.map((model) => ({
+            additionalProperties: false,
+            properties: {
+              model: { const: model.id, type: "string" },
+              reasoning_effort: { enum: model.reasoning_efforts, type: "string" },
+              service_tier: { enum: model.service_tiers, type: "string" },
+            },
+            required: ["model", "reasoning_effort", "service_tier"],
+            type: "object",
+          })),
+        },
+        CriterionCreateRequest: {
+          additionalProperties: false,
+          properties: {
+            impact: { enum: ["advisory", "blocking"], type: "string" },
+            instruction: { minLength: 1, pattern: "\\S", type: "string" },
+          },
+          required: ["impact", "instruction"],
+          type: "object",
+        },
+        ReviewAssignment: {
+          additionalProperties: false,
+          properties: { scope: { const: "installation_wide", type: "string" } },
+          required: ["scope"],
+          type: "object",
+        },
+        ReviewCreateRequest: {
+          additionalProperties: false,
+          properties: {
+            assignment: { $ref: "#/components/schemas/ReviewAssignment" },
+            codex_configuration: { $ref: "#/components/schemas/CodexConfiguration" },
+            criteria: { items: { $ref: "#/components/schemas/CriterionCreateRequest" }, minItems: 1, type: "array" },
+            description: { minLength: 1, pattern: "\\S", type: "string" },
+            name: { minLength: 1, pattern: "\\S", type: "string" },
+          },
+          required: ["assignment", "codex_configuration", "criteria", "description", "name"],
+          type: "object",
+        },
+        Criterion: {
+          additionalProperties: false,
+          properties: {
+            id: { type: "string" },
+            impact: { enum: ["advisory", "blocking"], type: "string" },
+            instruction: { type: "string" },
+            position: { minimum: 1, type: "integer" },
+          },
+          required: ["id", "impact", "instruction", "position"],
+          type: "object",
+        },
+        ReviewVersion: {
+          additionalProperties: false,
+          properties: {
+            codex_configuration: { $ref: "#/components/schemas/CodexConfiguration" },
+            criteria: { items: { $ref: "#/components/schemas/Criterion" }, minItems: 1, type: "array" },
+            id: { type: "string" },
+            number: { minimum: 1, type: "integer" },
+          },
+          required: ["id", "number", "codex_configuration", "criteria"],
+          type: "object",
+        },
+        Review: {
+          additionalProperties: false,
+          properties: {
+            active_version: { $ref: "#/components/schemas/ReviewVersion" },
+            assignment: { $ref: "#/components/schemas/ReviewAssignment" },
+            description: { type: "string" },
+            id: { type: "string" },
+            name: { type: "string" },
+          },
+          required: ["id", "name", "description", "assignment", "active_version"],
           type: "object",
         },
         System: {

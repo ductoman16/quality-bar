@@ -194,8 +194,8 @@ function validatePackageFacts(facts) {
       "database.journalMode must equal wal",
     ],
     [
-      facts?.database?.schemaVersion === 5,
-      "database.schemaVersion must equal 5",
+      facts?.database?.schemaVersion === 6,
+      "database.schemaVersion must equal 6",
     ],
     [
       facts?.database?.synchronous === "full",
@@ -347,6 +347,7 @@ const gateDefinitions = [
       "test/browser-session.test.js",
       "test/implementer-token.test.js",
       "test/request-security.test.js",
+      "test/review-validation.test.js",
     ],
   },
   {
@@ -358,6 +359,18 @@ const gateDefinitions = [
       "test/operator-password-browser-component.test.js",
       "test/browser-session-browser-component.test.js",
     ],
+  },
+  {
+    name: "sqlite-integration",
+    testGroup: "review-sqlite-resource-boundary",
+    failureCode: "sqlite_integration_tests_failed",
+    arguments: ["--test", "test/review.test.js"],
+  },
+  {
+    name: "http-integration",
+    testGroup: "review-http-resource-boundary",
+    failureCode: "http_integration_tests_failed",
+    arguments: ["--test", "test/review-http-integration.test.js"],
   },
   {
     name: "security-integration",

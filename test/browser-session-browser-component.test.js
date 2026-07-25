@@ -157,6 +157,21 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(systemHtml, /system\.codex\.catalog\.models/);
   assert.match(systemHtml, /reasoning_efforts/);
   assert.match(systemHtml, /service_tiers/);
+  assert.match(systemHtml, /if \(reviewForm\) configureReviewModels\(system\.codex\.catalog\)/);
+
+  const reviews = await fetch(`${origin}/?view=reviews`, { headers: { cookie } });
+  const reviewsHtml = await reviews.text();
+  assert.match(reviewsHtml, /<h1>Reviews<\/h1>/);
+  assert.match(reviewsHtml, /id="review-create-form"/);
+  assert.match(reviewsHtml, /id="review-criteria"/);
+  assert.match(reviewsHtml, /id="review-add-criterion"/);
+  assert.match(reviewsHtml, /id="review-model"/);
+  assert.match(reviewsHtml, /id="review-reasoning-effort"/);
+  assert.match(reviewsHtml, /id="review-service-tier"/);
+  assert.match(reviewsHtml, /fetch\("\/api\/v1\/reviews"/);
+  assert.match(reviewsHtml, /assignment: \{ scope: "installation_wide" \}/);
+  assert.match(reviewsHtml, /configureReviewModels\(system\.codex\.catalog\)/);
+  assert.match(reviewsHtml, /review-create-result/);
 });
 
 test("browser activity refreshes a session only with its exact origin and session-bound CSRF token", async () => {
@@ -357,6 +372,7 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     },
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
+    reviews: { create() {} },
     requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {

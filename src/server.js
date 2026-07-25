@@ -63,6 +63,14 @@ function sessionSecret(request) {
 }
 
 async function readPasswordRequest(request, fields) {
+  const value = await readJsonRequest(request);
+  if (Object.keys(value).length !== fields.length || !fields.every((field) => typeof value[field] === "string")) {
+    throw new Error("request_malformed");
+  }
+  return value;
+}
+
+async function readJsonRequest(request) {
   if (request.headers["content-type"] !== "application/json") {
     throw new Error("request_malformed");
   }
@@ -75,13 +83,7 @@ async function readPasswordRequest(request, fields) {
   }
   try {
     const value = JSON.parse(body);
-    if (
-      !value ||
-      Array.isArray(value) ||
-      typeof value !== "object" ||
-      Object.keys(value).length !== fields.length ||
-      !fields.every((field) => typeof value[field] === "string")
-    ) {
+    if (!value || Array.isArray(value) || typeof value !== "object") {
       throw new Error("request_malformed");
     }
     return value;
@@ -367,9 +369,74 @@ function operatorPage({ view }) {
   const systemSection = view === "system"
     ? '<section aria-live="polite" id="system-facts"></section>'
     : "";
-  return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
+  const reviewSection = view === "reviews"
+    ? '<form id="review-create-form"><label for="review-name">Name</label><input id="review-name" name="name" required type="text"><label for="review-description">Description</label><textarea id="review-description" name="description" required></textarea><ol id="review-criteria"></ol><button id="review-add-criterion" type="button">Add criterion</button><label for="review-model">Codex model</label><select id="review-model" name="model" required></select><label for="review-reasoning-effort">Reasoning effort</label><select id="review-reasoning-effort" name="reasoning_effort" required></select><label for="review-service-tier">Service tier</label><select id="review-service-tier" name="service_tier" required></select><button id="review-create-submit" type="submit">Create Review</button><output aria-live="polite" id="review-create-result"></output></form>'
+    : "";
+  return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${reviewSection}${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
 let lastActivityAt = 0;
+const reviewForm = document.getElementById("review-create-form");
+function setReviewControlsDisabled(disabled) {
+  reviewForm?.querySelectorAll("button, input, select, textarea").forEach((control) => {
+    control.disabled = disabled;
+  });
+}
+function updateCriterionLabels() {
+  document.querySelectorAll("#review-criteria li").forEach((item, index) => {
+    const number = index + 1;
+    item.querySelector("label[for$='-instruction']").textContent = "Criterion " + number + " instruction";
+    item.querySelector("label[for$='-impact']").textContent = "Criterion " + number + " impact";
+    item.querySelector("button").textContent = "Remove Criterion " + number;
+  });
+}
+function addCriterion() {
+  const criteria = document.getElementById("review-criteria");
+  if (!criteria) throw new Error("Review criteria container is unavailable");
+  const index = criteria.children.length + 1;
+  const item = document.createElement("li");
+  const instructionLabel = document.createElement("label");
+  const instruction = document.createElement("textarea");
+  instruction.id = "review-criterion-" + index + "-instruction";
+  instruction.required = true;
+  instructionLabel.htmlFor = instruction.id;
+  const impactLabel = document.createElement("label");
+  const impact = document.createElement("select");
+  impact.id = "review-criterion-" + index + "-impact";
+  impact.innerHTML = '<option value="advisory">Advisory</option><option value="blocking">Blocking</option>';
+  impactLabel.htmlFor = impact.id;
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.addEventListener("click", () => {
+    item.remove();
+    updateCriterionLabels();
+  });
+  item.append(instructionLabel, instruction, impactLabel, impact, remove);
+  criteria.append(item);
+  updateCriterionLabels();
+}
+function configureReviewModels(catalog) {
+  const model = document.getElementById("review-model");
+  const reasoningEffort = document.getElementById("review-reasoning-effort");
+  const serviceTier = document.getElementById("review-service-tier");
+  if (!model || !reasoningEffort || !serviceTier) {
+    throw new Error("Review configuration controls are unavailable");
+  }
+  function option(value) {
+    const element = document.createElement("option");
+    element.value = value;
+    element.textContent = value;
+    return element;
+  }
+  function updateConfiguration() {
+    const capability = catalog.models.find((candidate) => candidate.id === model.value);
+    reasoningEffort.replaceChildren(...capability.reasoning_efforts.map(option));
+    serviceTier.replaceChildren(...capability.service_tiers.map(option));
+  }
+  model.replaceChildren(...catalog.models.map((capability) => option(capability.id)));
+  model.addEventListener("change", updateConfiguration);
+  updateConfiguration();
+  setReviewControlsDisabled(false);
+}
 function csrfToken() {
   return document.cookie.split(";").map((cookie) => cookie.trim().split("=", 2)).find(([name]) => name === "${BROWSER_CSRF_COOKIE_NAME}")?.[1];
 }
@@ -487,6 +554,44 @@ document.getElementById("implementer-token-revoke-form").addEventListener("submi
     password: document.getElementById("implementer-token-revoke-password").value,
   });
 });
+if (reviewForm) {
+  const addCriterionButton = document.getElementById("review-add-criterion");
+  if (!addCriterionButton) throw new Error("Review Criterion control is unavailable");
+  addCriterionButton.addEventListener("click", addCriterion);
+  setReviewControlsDisabled(true);
+  addCriterion();
+  reviewForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    const response = await fetch("/api/v1/reviews", {
+      body: JSON.stringify({
+        assignment: { scope: "installation_wide" },
+        codex_configuration: {
+          model: document.getElementById("review-model").value,
+          reasoning_effort: document.getElementById("review-reasoning-effort").value,
+          service_tier: document.getElementById("review-service-tier").value,
+        },
+        criteria: [...document.querySelectorAll("#review-criteria li")].map((item) => ({
+          impact: item.querySelector("select").value,
+          instruction: item.querySelector("textarea").value,
+        })),
+        description: document.getElementById("review-description").value,
+        name: document.getElementById("review-name").value,
+      }),
+      headers: { "content-type": "application/json", "x-quality-bar-csrf": csrfToken() },
+      method: "POST",
+    });
+    if (response.ok) {
+      const review = await response.json();
+      document.getElementById("review-create-result").textContent = review.name + " v" + review.active_version.number + " created.";
+      return;
+    }
+    const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
+    if (authenticationFailure === true) return;
+    error.textContent = (authenticationFailure ?? await response.json()).error.message;
+    error.hidden = false;
+  });
+}
 document.getElementById("implementer-token-reveal-close").addEventListener("click", () => {
   document.getElementById("implementer-token-reveal").close();
 });
@@ -516,6 +621,7 @@ fetch("/api/v1/system").then(async (response) => {
       throw new Error((await response.json()).error.message);
     }
     const system = await response.json();
+    if (reviewForm) configureReviewModels(system.codex.catalog);
     if (systemFacts) {
       const codexModels = system.codex.catalog.models.map((model) =>
         model.id + " (" + model.reasoning_efforts.join(", ") + "; " + model.service_tiers.join(", ") + ")"
@@ -539,6 +645,7 @@ export function createApplicationServer({
   implementerTokens,
   browserOrigin,
   requestSecurity,
+  reviews,
   readDurableCoreStatus,
   readSystemStatus,
   listAuthorityAttributions,
@@ -578,6 +685,9 @@ export function createApplicationServer({
   }
   if (typeof readSystemStatus !== "function") {
     throw new TypeError("readSystemStatus must be a function");
+  }
+  if (typeof reviews?.create !== "function") {
+    throw new TypeError("reviews must provide the Review resource");
   }
 
   const handleRequest = async (request, response) => {
@@ -996,6 +1106,38 @@ export function createApplicationServer({
 
     if (request.method === "GET" && path === "/api/v1/openapi.json") {
       writeJson(response, 200, canonicalOpenApiDocument());
+      return;
+    }
+
+    if (request.method === "POST" && path === "/api/v1/reviews") {
+      try {
+        if (!request.machineAuthority) {
+          requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
+        }
+        writeJson(response, 201, reviews.create(await readJsonRequest(request)));
+      } catch (error) {
+        if (error.message === "request_malformed") {
+          writeError(response, 400, "request_malformed", "Request is malformed");
+        } else if (!request.machineAuthority && ["csrf_invalid", "origin_invalid", "authentication_required"].includes(error.code)) {
+          writeError(
+            response,
+            browserMutationFailureStatus(error.code),
+            error.code,
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        } else {
+          const unavailable = isUnavailableError(error);
+          const code = unavailable
+            ? error.code
+            : error.code ?? "review_creation_failed";
+          writeError(
+            response,
+            unavailable ? 503 : error.code ? 422 : 500,
+            code,
+            error.message ?? "Review creation failed",
+          );
+        }
+      }
       return;
     }
 
