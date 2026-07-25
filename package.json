@@ -1,0 +1,11 @@
+{
+  "name": "quality-bar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test",
+    "test:package": "node --test test/package/compose.package-test.mjs",
+    "verify": "node scripts/verify.mjs"
+  }
+}
