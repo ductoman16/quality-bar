@@ -468,12 +468,22 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.ok(contract.paths["/api/v1/system/authority-attributions"]);
   assert.ok(contract.paths["/api/v1/reviews"]);
   assert.equal(contract.paths["/api/v1/reviews"].post.operationId, "createReview");
+  assert.deepEqual(
+    contract.paths["/api/v1/reviews"].post.parameters.map(({ name, required }) => ({ name, required })),
+    [
+      { name: "Origin", required: false },
+      { name: "x-quality-bar-csrf", required: false },
+    ],
+  );
   assert.deepEqual(contract.paths["/api/v1/reviews"].post.security, [
     { browser_session: [] },
     { implementer_token: [] },
   ]);
   assert.equal(contract.paths["/api/v1/reviews"].post.responses[201].description, "Review with its active immutable v1");
   assert.ok(contract.paths["/api/v1/reviews"].post.responses[500]);
+  assert.equal(contract.components.schemas.ReviewCreateRequest.properties.name.pattern, "\\S");
+  assert.equal(contract.components.schemas.ReviewCreateRequest.properties.description.pattern, "\\S");
+  assert.equal(contract.components.schemas.CriterionCreateRequest.properties.instruction.pattern, "\\S");
   for (const schema of [
     "CriterionCreateRequest",
     "ReviewAssignment",

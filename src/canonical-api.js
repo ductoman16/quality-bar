@@ -27,6 +27,11 @@ export function canonicalOpenApiDocument() {
       schema: { type: "string" },
     },
   ];
+  const browserOrBearerMutationParameters = browserMutationParameters.map((parameter) => ({
+    ...parameter,
+    description: "Required when authenticating with a browser session",
+    required: false,
+  }));
 
   return {
     info: { title: "Quality Bar API", version: "1.0.0" },
@@ -112,6 +117,7 @@ export function canonicalOpenApiDocument() {
       "/api/v1/reviews": {
         post: {
           operationId: "createReview",
+          parameters: browserOrBearerMutationParameters,
           requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/ReviewCreateRequest" } } }, required: true },
           responses: { 201: { content: { "application/json": { schema: { $ref: "#/components/schemas/Review" } } }, description: "Review with its active immutable v1" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 500: errorResponse, 503: errorResponse },
           security: authenticated,
@@ -227,7 +233,7 @@ export function canonicalOpenApiDocument() {
           additionalProperties: false,
           properties: {
             impact: { enum: ["advisory", "blocking"], type: "string" },
-            instruction: { minLength: 1, type: "string" },
+            instruction: { minLength: 1, pattern: "\\S", type: "string" },
           },
           required: ["impact", "instruction"],
           type: "object",
@@ -244,8 +250,8 @@ export function canonicalOpenApiDocument() {
             assignment: { $ref: "#/components/schemas/ReviewAssignment" },
             codex_configuration: { $ref: "#/components/schemas/CodexConfiguration" },
             criteria: { items: { $ref: "#/components/schemas/CriterionCreateRequest" }, minItems: 1, type: "array" },
-            description: { minLength: 1, type: "string" },
-            name: { minLength: 1, type: "string" },
+            description: { minLength: 1, pattern: "\\S", type: "string" },
+            name: { minLength: 1, pattern: "\\S", type: "string" },
           },
           required: ["assignment", "codex_configuration", "criteria", "description", "name"],
           type: "object",
