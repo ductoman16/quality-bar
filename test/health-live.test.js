@@ -22,8 +22,13 @@ before(async () => {
       touch() {
         return false;
       },
+      verifyCsrf() {
+        return false;
+      },
     },
+    browserOrigin: "http://127.0.0.1:3000",
     readDurableCoreStatus: () => ({ status: "ready" }),
+    requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -56,6 +61,38 @@ test("the application server rejects a missing browser-session boundary", () => 
       }),
     (error) => {
       assert.equal(error.message, "browserSessions must provide the session boundary");
+      return true;
+    },
+  );
+});
+
+test("the application server rejects a missing request-security boundary", () => {
+  assert.throws(
+    () =>
+      createApplicationServer({
+        browserOrigin: "http://127.0.0.1:3000",
+        browserSessions: {
+          authenticate() {
+            return false;
+          },
+          changePassword() {},
+          isBootstrapped() {
+            return false;
+          },
+          login() {},
+          logout() {},
+          revokeAll() {},
+          touch() {
+            return false;
+          },
+          verifyCsrf() {
+            return false;
+          },
+        },
+        readDurableCoreStatus: () => ({ status: "ready" }),
+      }),
+    (error) => {
+      assert.equal(error.message, "requestSecurity must provide the request boundary");
       return true;
     },
   );

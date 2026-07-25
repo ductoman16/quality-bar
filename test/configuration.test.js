@@ -70,7 +70,11 @@ for (const [name, input, code] of [
   ["a duplicate configuration value", `${validConfiguration}\nQUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000`, "configuration_duplicate"],
   ["an unknown configuration value", `${validConfiguration}\nQUALITY_BAR_UNUSED=value`, "configuration_unknown"],
   ["a malformed external origin", "QUALITY_BAR_EXTERNAL_ORIGIN=not-a-url\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none", "configuration_malformed"],
+  ["a non-loopback HTTP origin", "QUALITY_BAR_EXTERNAL_ORIGIN=http://192.168.1.15:3000\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none", "configuration_contradictory"],
+  ["an HTTP localhost origin", "QUALITY_BAR_EXTERNAL_ORIGIN=http://localhost:3000\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none", "configuration_contradictory"],
+  ["an HTTP IPv6 loopback origin", "QUALITY_BAR_EXTERNAL_ORIGIN=http://[::1]:3000\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none", "configuration_contradictory"],
   ["contradictory proxy settings", "QUALITY_BAR_EXTERNAL_ORIGIN=https://quality-bar.example\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none", "configuration_contradictory"],
+  ["an HTTPS proxy that cannot reach the loopback listener", "QUALITY_BAR_EXTERNAL_ORIGIN=https://quality-bar.example\nQUALITY_BAR_TRUSTED_PROXY_ADDRESSES=192.0.2.10", "configuration_contradictory"],
 ]) {
   test(`rejects ${name} with its owning error without echoing configuration values`, () => {
     assert.throws(

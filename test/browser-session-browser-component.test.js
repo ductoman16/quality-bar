@@ -77,10 +77,13 @@ test("the minimum unauthenticated surface exposes the password-only login and no
 
 test("a password login sets only an HttpOnly Strict host-only cookie and logout clears it", async () => {
   const { origin } = await startApplication({ externalOrigin: "https://quality-bar.example" });
+  const proxyHeaders = {
+    forwarded: "for=203.0.113.24;host=quality-bar.example;proto=https",
+  };
 
   const login = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...proxyHeaders },
     method: "POST",
   });
   assert.equal(login.status, 204);
@@ -94,26 +97,31 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
   assert.doesNotMatch(cookie, /Domain=|Max-Age=|Bearer/i);
 
   const authenticated = await fetch(`${origin}/api/v1/system`, {
-    headers: { cookie: cookie.split(";", 1)[0] },
+    headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
   });
   assert.equal(authenticated.status, 200);
 
   const authenticatedPage = await fetch(`${origin}/`, {
-    headers: { cookie: cookie.split(";", 1)[0] },
+    headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
   });
   const authenticatedHtml = await authenticatedPage.text();
   assert.match(authenticatedHtml, /<button id="logout" type="button">Log out<\/button>/);
   assert.match(authenticatedHtml, /\/api\/v1\/session\/logout/);
 
   const logout = await fetch(`${origin}/api/v1/session/logout`, {
-    headers: { cookie: cookie.split(";", 1)[0] },
+    headers: {
+      cookie: `${cookie.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0]}; quality_bar_csrf=${csrfToken}`,
+      origin: "https://quality-bar.example",
+      "x-quality-bar-csrf": csrfToken,
+      ...proxyHeaders,
+    },
     method: "POST",
   });
   assert.equal(logout.status, 204);
   assert.match(logout.headers.get("set-cookie"), /Max-Age=0/);
   assert.equal(
     (await fetch(`${origin}/api/v1/system`, {
-      headers: { cookie: cookie.split(";", 1)[0] },
+      headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
     })).status,
     401,
   );
@@ -157,8 +165,8 @@ test("browser activity refreshes a session only with its exact origin and sessio
     headers: { cookie, origin: "http://127.0.0.1:3000" },
     method: "POST",
   });
-  assert.equal(missingToken.status, 401);
-  assert.equal((await missingToken.json()).error.code, "authentication_required");
+  assert.equal(missingToken.status, 403);
+  assert.equal((await missingToken.json()).error.code, "csrf_invalid");
 
   const wrongToken = await fetch(`${origin}/api/v1/session/activity`, {
     headers: {
@@ -168,8 +176,8 @@ test("browser activity refreshes a session only with its exact origin and sessio
     },
     method: "POST",
   });
-  assert.equal(wrongToken.status, 401);
-  assert.equal((await wrongToken.json()).error.code, "authentication_required");
+  assert.equal(wrongToken.status, 403);
+  assert.equal((await wrongToken.json()).error.code, "csrf_invalid");
 
   const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
@@ -187,8 +195,8 @@ test("browser activity refreshes a session only with its exact origin and sessio
     },
     method: "POST",
   });
-  assert.equal(crossSessionToken.status, 401);
-  assert.equal((await crossSessionToken.json()).error.code, "authentication_required");
+  assert.equal(crossSessionToken.status, 403);
+  assert.equal((await crossSessionToken.json()).error.code, "csrf_invalid");
   assert.deepEqual(
     application.durableCore.get(
       "SELECT last_authenticated_at FROM browser_sessions WHERE session_hash = ?",
@@ -217,6 +225,67 @@ test("browser activity refreshes a session only with its exact origin and sessio
   );
 });
 
+test("every cookie-authenticated mutation rejects an absent origin or CSRF token before changing authority", async () => {
+  const { application, origin } = await startApplication();
+  const password = "a correct operator password";
+  const login = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookies = login.headers.get("set-cookie");
+  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
+
+  for (const [path, body] of [
+    ["/api/v1/session/logout", undefined],
+    [
+      "/api/v1/session/password",
+      { current_password: password, new_password: "a replacement operator password" },
+    ],
+    [
+      "/api/v1/sessions/revoke",
+      { confirmation: "REVOKE ALL SESSIONS", password },
+    ],
+  ]) {
+    const response = await fetch(`${origin}${path}`, {
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      headers: {
+        ...(body ? { "content-type": "application/json" } : {}),
+        cookie,
+        "x-quality-bar-csrf": csrfToken,
+      },
+      method: "POST",
+    });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).error.code, "origin_invalid");
+  }
+
+  const absentCsrf = await fetch(`${origin}/api/v1/session/password`, {
+    body: JSON.stringify({
+      current_password: password,
+      new_password: "a replacement operator password",
+    }),
+    headers: {
+      "content-type": "application/json",
+      cookie,
+      origin: "http://127.0.0.1:3000",
+    },
+    method: "POST",
+  });
+  assert.equal(absentCsrf.status, 403);
+  assert.equal((await absentCsrf.json()).error.code, "csrf_invalid");
+  assert.equal(
+    application.durableCore.get("SELECT COUNT(*) AS count FROM browser_sessions").count,
+    1,
+  );
+  assert.equal(
+    (await fetch(`${origin}/api/v1/system`, { headers: { cookie } })).status,
+    200,
+  );
+});
+
 test("browser activity returns the exact session failure instead of dropping the request", async () => {
   const failure = new Error("SQLite durable write failed");
   failure.code = "storage_unavailable";
@@ -236,8 +305,12 @@ test("browser activity returns the exact session failure instead of dropping the
       touch() {
         throw failure;
       },
+      verifyCsrf() {
+        return true;
+      },
     },
     readDurableCoreStatus: () => ({ status: "ready" }),
+    requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -368,7 +441,9 @@ test("the authenticated operator surface changes a password and revokes all sess
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const firstCookie = firstLogin.headers.get("set-cookie").split(";", 1)[0];
+  const firstCookies = firstLogin.headers.get("set-cookie");
+  const firstCookie = firstCookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const firstCsrfToken = firstCookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
   const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: currentPassword }),
     headers: { "content-type": "application/json" },
@@ -394,7 +469,9 @@ test("the authenticated operator surface changes a password and revokes all sess
     }),
     headers: {
       "content-type": "application/json",
-      cookie: firstCookie,
+      cookie: `${firstCookie}; quality_bar_csrf=${firstCsrfToken}`,
+      origin: "http://127.0.0.1:3000",
+      "x-quality-bar-csrf": firstCsrfToken,
     },
     method: "POST",
   });
@@ -414,9 +491,11 @@ test("the authenticated operator surface changes a password and revokes all sess
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const replacementCookie = replacementLogin.headers
-    .get("set-cookie")
-    .split(";", 1)[0];
+  const replacementCookies = replacementLogin.headers.get("set-cookie");
+  const replacementCookie = replacementCookies
+    .match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const replacementCsrfToken = replacementCookies
+    .match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
   const revocation = await fetch(`${origin}/api/v1/sessions/revoke`, {
     body: JSON.stringify({
       confirmation: "REVOKE ALL SESSIONS",
@@ -424,7 +503,9 @@ test("the authenticated operator surface changes a password and revokes all sess
     }),
     headers: {
       "content-type": "application/json",
-      cookie: replacementCookie,
+      cookie: `${replacementCookie}; quality_bar_csrf=${replacementCsrfToken}`,
+      origin: "http://127.0.0.1:3000",
+      "x-quality-bar-csrf": replacementCsrfToken,
     },
     method: "POST",
   });

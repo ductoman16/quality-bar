@@ -59,6 +59,11 @@ function validatePackageFacts(facts) {
     ],
     [facts?.serviceCount === 1, "serviceCount must equal 1"],
     [facts?.companionServiceCount === 0, "companionServiceCount must equal 0"],
+    [facts?.network?.mode === "host", "network.mode must equal host"],
+    [
+      facts?.network?.httpBindAddress === "127.0.0.1",
+      "network.httpBindAddress must equal 127.0.0.1",
+    ],
     [facts?.platform === "linux/amd64", "platform must equal linux/amd64"],
     [
       facts?.image === `quality-bar:${applicationVersion}`,
@@ -304,7 +309,7 @@ try {
 const gateDefinitions = [
   {
     name: "unit",
-    testGroup: "operator-password-and-failed-login-throttle-unit",
+    testGroup: "browser-authority-and-request-security-unit",
     failureCode: "unit_tests_failed",
     arguments: [
       "--test",
@@ -312,14 +317,16 @@ const gateDefinitions = [
       "test/configuration.test.js",
       "test/durable-core.test.js",
       "test/health-live.test.js",
+      "test/http-port.test.js",
       "test/installation-environment.test.js",
       "test/operator-password.test.js",
       "test/browser-session.test.js",
+      "test/request-security.test.js",
     ],
   },
   {
     name: "browser-component",
-    testGroup: "operator-password-and-failed-login-throttle-browser-boundary",
+    testGroup: "browser-authority-and-request-security-browser-boundary",
     failureCode: "browser_component_tests_failed",
     arguments: [
       "--test",
@@ -329,7 +336,7 @@ const gateDefinitions = [
   },
   {
     name: "security-integration",
-    testGroup: "operator-password-and-failed-login-throttle-security-boundary",
+    testGroup: "browser-authority-and-request-security-integration",
     failureCode: "security_integration_tests_failed",
     arguments: [
       "--test",
@@ -386,6 +393,11 @@ const manifest = {
       ? `sqlite:${packageFacts.database.databaseVersion}`
       : null,
     fixtures: null,
+  },
+  securityBoundary: {
+    browserMutations: "exact-origin-and-session-bound-csrf",
+    plaintextHttp: "loopback-only",
+    proxyFacts: "explicit-trusted-addresses-only",
   },
   runnerVersions: {
     node: process.version,

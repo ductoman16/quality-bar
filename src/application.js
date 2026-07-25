@@ -14,6 +14,10 @@ import {
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
 import { createApplicationServer } from "./server.js";
+import {
+  createRequestSecurityBoundary,
+  createUnavailableRequestSecurityBoundary,
+} from "./request-security.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 
@@ -109,6 +113,7 @@ export function createApplication({
   let durableCore = null;
   let browserSessions = null;
   let browserOrigin = null;
+  let requestSecurity = null;
   let secureBrowserCookie = false;
   let codexCapabilityFailure = null;
   let releaseInstallationLock = null;
@@ -118,6 +123,7 @@ export function createApplication({
     validateSources();
     const installation = loadInstallation();
     browserOrigin = installation.externalOrigin;
+    requestSecurity = createRequestSecurityBoundary(installation);
     secureBrowserCookie = installation.externalOrigin.startsWith("https:");
     ({ releaseInstallationLock } = validateInstallation());
     durableCore = openDurableCore(databasePath, {
@@ -155,6 +161,7 @@ export function createApplication({
     releaseInstallationLock?.();
     releaseInstallationLock = null;
     startupFailure = error;
+    requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
     browserSessions = createUnavailableBrowserSessionService(startupFailure);
     structuredLog(
       writeLog,
@@ -176,6 +183,7 @@ export function createApplication({
   const server = createApplicationServer({
     browserSessions,
     browserOrigin,
+    requestSecurity,
     readDurableCoreStatus,
     readSystemStatus: () => ({
       codex: codexCapabilityFailure

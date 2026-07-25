@@ -72,6 +72,24 @@ test("SQLite startup failure keeps liveness distinct from exact not-ready state"
   });
 });
 
+test("liveness remains a process probe when the configured browser origin requires HTTPS", async () => {
+  const { origin } = await startApplication(temporaryDatabasePath(), {
+    loadInstallation: () => ({
+      externalOrigin: "https://quality-bar.example",
+      masterKey: Buffer.alloc(32, 7),
+      trustedProxyAddresses: ["127.0.0.1"],
+    }),
+  });
+
+  const liveResponse = await fetch(`${origin}/health/live`);
+  assert.equal(liveResponse.status, 200);
+  assert.deepEqual(await liveResponse.json(), { status: "live" });
+
+  const directProductResponse = await fetch(`${origin}/api/v1/system`);
+  assert.equal(directProductResponse.status, 400);
+  assert.equal((await directProductResponse.json()).error.code, "proxy_forwarded_required");
+});
+
 test("configuration failure keeps product traffic unavailable without exposing secret values", async () => {
   const logs = [];
   const configurationFailure = new Error("Configuration has an unknown key");

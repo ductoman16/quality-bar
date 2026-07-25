@@ -1,13 +1,14 @@
 import { createApplication } from "./application.js";
+import { readHttpPort } from "./http-port.js";
 
 process.umask(0o077);
 
-const port = 3000;
+const port = readHttpPort(process.env.QUALITY_BAR_HTTP_PORT);
 const databasePath = "/var/lib/quality-bar/quality-bar.sqlite3";
 const application = createApplication({ databasePath });
 const { server } = application;
 
-server.listen(port, "0.0.0.0", () => {
+server.listen(port, "127.0.0.1", () => {
   process.stdout.write(
     `${JSON.stringify({
       timestamp: new Date().toISOString(),

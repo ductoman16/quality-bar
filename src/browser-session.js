@@ -43,6 +43,7 @@ export function createUnavailableBrowserSessionService(error) {
     changePassword: unavailable,
     revokeAll: unavailable,
     touch: unavailable,
+    verifyCsrf: unavailable,
   };
 }
 
@@ -184,6 +185,26 @@ export function createBrowserSessionService(
         );
         return true;
       });
+    },
+    verifyCsrf(secret, csrfToken) {
+      if (
+        typeof secret !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(secret) ||
+        typeof csrfToken !== "string" ||
+        !/^[A-Za-z0-9_-]{43}$/.test(csrfToken)
+      ) {
+        return false;
+      }
+      const timestamp = currentTimestamp(now);
+      const session = durableCore.get(
+        "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
+        sessionHash(secret),
+      );
+      return Boolean(
+        session &&
+          !hasExpired(session, timestamp) &&
+          matchesHash(csrfToken, session.csrf_hash),
+      );
     },
     changePassword(currentPassword, replacementPassword) {
       const replacementVerifier = prepareOperatorPasswordReplacement(
