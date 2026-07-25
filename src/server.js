@@ -50,6 +50,12 @@ function cookieValue(request, name) {
   return values.length === 1 ? values[0] : undefined;
 }
 
+function hasCookieName(request, name) {
+  return (request.headers.cookie?.split(";") ?? []).some(
+    (cookie) => cookie.trim().split("=", 1)[0] === name,
+  );
+}
+
 function sessionSecret(request) {
   return cookieValue(request, BROWSER_SESSION_COOKIE_NAME);
 }
@@ -148,6 +154,12 @@ function authenticationFailureStatus(code) {
       : 401;
 }
 
+function browserMutationFailureStatus(code) {
+  return ["csrf_invalid", "origin_invalid"].includes(code)
+    ? 403
+    : authenticationFailureStatus(code);
+}
+
 function passwordMutationFailureStatus(code) {
   return code === "operator_password_too_short" ||
     code === "session_revocation_confirmation_invalid"
@@ -158,6 +170,8 @@ function passwordMutationFailureStatus(code) {
 function authenticationFailureMessage(code) {
   return {
     authentication_invalid: "Operator password is invalid",
+    authentication_ambiguous: "Browser and machine credentials cannot be combined",
+    csrf_invalid: "Browser CSRF token is invalid",
     authentication_required: "Browser session is required",
     operator_password_uninitialized: "Operator password has not been bootstrapped",
     operator_password_verifier_unavailable: "Operator password verifier is unavailable",
@@ -166,6 +180,44 @@ function authenticationFailureMessage(code) {
     login_throttle_unavailable: "Login throttling is unavailable",
     storage_unavailable: "Storage is unavailable",
   }[code] ?? "Authentication is unavailable";
+}
+
+function browserMutationError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function assertNoMixedCredentials(request) {
+  if (
+    hasCookieName(request, BROWSER_SESSION_COOKIE_NAME) &&
+    request.headers.authorization !== undefined
+  ) {
+    throw browserMutationError(
+      "authentication_ambiguous",
+      "Browser and machine credentials cannot be combined",
+    );
+  }
+}
+
+function requireBrowserSession(browserSessions, request) {
+  const secret = sessionSecret(request);
+  assertNoMixedCredentials(request);
+  if (!browserSessions.authenticate(secret)) {
+    throw browserMutationError("authentication_required", "Browser session is required");
+  }
+  return secret;
+}
+
+function requireBrowserMutation(browserSessions, request, browserOrigin) {
+  const secret = requireBrowserSession(browserSessions, request);
+  if (request.headers.origin !== browserOrigin) {
+    throw browserMutationError("origin_invalid", "Browser origin is invalid");
+  }
+  if (!browserSessions.verifyCsrf(secret, request.headers["x-quality-bar-csrf"])) {
+    throw browserMutationError("csrf_invalid", "Browser CSRF token is invalid");
+  }
+  return secret;
 }
 
 function safeInternalDestination(value) {
@@ -236,7 +288,10 @@ async function submitPasswordMutation(path, body) {
   error.hidden = true;
   const response = await fetch(path, {
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-quality-bar-csrf": csrfToken(),
+    },
     method: "POST",
   });
   if (response.ok) {
@@ -288,7 +343,10 @@ document.getElementById("session-revocation-form").addEventListener("submit", as
 });
 document.getElementById("logout").addEventListener("click", async () => {
   error.hidden = true;
-  const response = await fetch("/api/v1/session/logout", { method: "POST" });
+  const response = await fetch("/api/v1/session/logout", {
+    headers: { "x-quality-bar-csrf": csrfToken() },
+    method: "POST",
+  });
   if (response.ok) {
     location.assign("/");
     return;
@@ -305,7 +363,8 @@ document.getElementById("logout").addEventListener("click", async () => {
 
 export function createApplicationServer({
   browserSessions,
-  browserOrigin = null,
+  browserOrigin,
+  requestSecurity,
   readDurableCoreStatus,
   readSystemStatus = () => ({}),
   secureBrowserCookie = false,
@@ -324,10 +383,14 @@ export function createApplicationServer({
     "changePassword",
     "revokeAll",
     "touch",
+    "verifyCsrf",
   ]) {
     if (typeof browserSessions?.[method] !== "function") {
       throw new TypeError("browserSessions must provide the session boundary");
     }
+  }
+  if (typeof requestSecurity?.requestFacts !== "function") {
+    throw new TypeError("requestSecurity must provide the request boundary");
   }
 
   return createServer(async (request, response) => {
@@ -353,8 +416,21 @@ export function createApplicationServer({
       return;
     }
 
+    try {
+      requestSecurity.requestFacts(request);
+    } catch (error) {
+      writeError(
+        response,
+        error.code === "https_required" ? 403 : 400,
+        error.code ?? "request_security_unavailable",
+        error.message ?? "Request security is unavailable",
+      );
+      return;
+    }
+
     if (request.method === "POST" && path === "/api/v1/session/login") {
       try {
+        assertNoMixedCredentials(request);
         const { password } = await readLoginRequest(request);
         const { csrfToken, secret } = browserSessions.login(password);
         writeEmpty(response, {
@@ -383,14 +459,14 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/logout") {
       try {
-        browserSessions.logout(sessionSecret(request));
+        browserSessions.logout(requireBrowserMutation(browserSessions, request, browserOrigin));
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
         writeError(
           response,
-          authenticationFailureStatus(error.code),
+          browserMutationFailureStatus(error.code),
           error.code ?? "authentication_unavailable",
           error.message ?? authenticationFailureMessage(error.code),
         );
@@ -400,22 +476,15 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/activity") {
       try {
-        if (request.headers.origin !== browserOrigin) {
-          writeError(response, 403, "origin_invalid", "Browser origin is invalid");
-        } else if (
-          !browserSessions.touch(
-            sessionSecret(request),
-            request.headers["x-quality-bar-csrf"],
-          )
-        ) {
-          writeError(response, 401, "authentication_required", "Browser session is required");
-        } else {
-          writeEmpty(response);
+        const secret = requireBrowserMutation(browserSessions, request, browserOrigin);
+        if (!browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])) {
+          throw browserMutationError("authentication_required", "Browser session is required");
         }
+        writeEmpty(response);
       } catch (error) {
         writeError(
           response,
-          authenticationFailureStatus(error.code),
+          browserMutationFailureStatus(error.code),
           error.code ?? "authentication_unavailable",
           error.message ?? authenticationFailureMessage(error.code),
         );
@@ -425,10 +494,7 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/password") {
       try {
-        if (!browserSessions.authenticate(sessionSecret(request))) {
-          writeError(response, 401, "authentication_required", "Browser session is required");
-          return;
-        }
+        requireBrowserMutation(browserSessions, request, browserOrigin);
         const { current_password, new_password } =
           await readPasswordChangeRequest(request);
         browserSessions.changePassword(current_password, new_password);
@@ -441,7 +507,9 @@ export function createApplicationServer({
         } else {
           writeError(
             response,
-            passwordMutationFailureStatus(error.code),
+            browserMutationFailureStatus(error.code) === 403
+              ? 403
+              : passwordMutationFailureStatus(error.code),
             error.code ?? "authentication_unavailable",
             error.message ?? authenticationFailureMessage(error.code),
           );
@@ -452,10 +520,7 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/sessions/revoke") {
       try {
-        if (!browserSessions.authenticate(sessionSecret(request))) {
-          writeError(response, 401, "authentication_required", "Browser session is required");
-          return;
-        }
+        requireBrowserMutation(browserSessions, request, browserOrigin);
         const { confirmation, password } =
           await readSessionRevocationRequest(request);
         if (confirmation !== "REVOKE ALL SESSIONS") {
@@ -473,7 +538,9 @@ export function createApplicationServer({
         } else {
           writeError(
             response,
-            passwordMutationFailureStatus(error.code),
+            browserMutationFailureStatus(error.code) === 403
+              ? 403
+              : passwordMutationFailureStatus(error.code),
             error.code ?? "authentication_unavailable",
             error.message ?? authenticationFailureMessage(error.code),
           );
@@ -485,13 +552,25 @@ export function createApplicationServer({
     if (request.method === "GET" && path === "/") {
       if (!browserSessions.isBootstrapped()) {
         writeHtml(response, "<main><p role=\"status\">Operator bootstrap required</p></main>");
-      } else if (browserSessions.authenticate(sessionSecret(request))) {
-        writeHtml(response, operatorPage());
       } else {
-        writeHtml(
-          response,
-          loginPage(safeInternalDestination(requestUrl.searchParams.get("return_to"))),
-        );
+        try {
+          assertNoMixedCredentials(request);
+          if (browserSessions.authenticate(sessionSecret(request))) {
+            writeHtml(response, operatorPage());
+          } else {
+            writeHtml(
+              response,
+              loginPage(safeInternalDestination(requestUrl.searchParams.get("return_to"))),
+            );
+          }
+        } catch (error) {
+          writeError(
+            response,
+            authenticationFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        }
       }
       return;
     }
@@ -503,9 +582,8 @@ export function createApplicationServer({
     }
 
     if (isProductSurface(path)) {
-      let authenticated = false;
       try {
-        authenticated = browserSessions.authenticate(sessionSecret(request));
+        requireBrowserSession(browserSessions, request);
       } catch (error) {
         writeError(
           response,
@@ -513,10 +591,6 @@ export function createApplicationServer({
           error.code ?? "authentication_unavailable",
           error.message ?? authenticationFailureMessage(error.code),
         );
-        return;
-      }
-      if (!authenticated) {
-        writeError(response, 401, "authentication_required", "Browser session is required");
         return;
       }
     }

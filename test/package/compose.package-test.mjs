@@ -19,8 +19,8 @@ const masterKey = Buffer.alloc(32, 7).toString("base64");
 writeFileSync(
   configurationPath,
   [
-    "QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000",
-    "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none",
+    "QUALITY_BAR_EXTERNAL_ORIGIN=https://quality-bar.example",
+    "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=127.0.0.1",
   ].join("\n"),
 );
 writeFileSync(masterKeyPath, masterKey);
@@ -69,6 +69,8 @@ test("Compose boots with one strict configuration source and external installati
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
+  assert.equal(configuration.services[serviceName].network_mode, "host");
+  assert.equal(configuration.services[serviceName].ports, undefined);
   const serviceVolumes = configuration.services[serviceName].volumes;
   assert.deepEqual(
     serviceVolumes.slice(0, 3).map((volume) => ({
@@ -246,26 +248,47 @@ test("Compose boots with one strict configuration source and external installati
     ).replace("codex-cli ", "");
     assert.equal(gitVersion, "2.54.0");
     assert.equal(codexVersion, "0.145.0");
-    const response = await fetch(`http://127.0.0.1:${hostPort}/health/live`);
+    const requestFromService = (path, headers = {}) =>
+      JSON.parse(
+        run(
+          "docker",
+          [
+            "compose",
+            "exec",
+            "-T",
+            serviceName,
+            "node",
+            "--input-type=module",
+            "--eval",
+            `const response = await fetch("http://127.0.0.1:${hostPort}${path}", { headers: ${JSON.stringify(headers)} }); console.log(JSON.stringify({ body: await response.json(), status: response.status }));`,
+          ],
+          environment,
+        ),
+      );
+    const response = requestFromService("/health/live");
     assert.equal(response.status, 200);
-    const liveness = await response.json();
+    const liveness = response.body;
     assert.deepEqual(liveness, { status: "live" });
 
-    const readyResponse = await fetch(
-      `http://127.0.0.1:${hostPort}/health/ready`,
-    );
+    const readyResponse = requestFromService("/health/ready");
     assert.equal(
       readyResponse.status,
       200,
       run("docker", ["compose", "logs", "--no-color", serviceName], environment),
     );
-    const readiness = await readyResponse.json();
+    const readiness = readyResponse.body;
     assert.deepEqual(readiness, { status: "ready" });
-    const systemResponse = await fetch(
-      `http://127.0.0.1:${hostPort}/api/v1/system`,
+    const directSystemResponse = requestFromService("/api/v1/system");
+    assert.equal(directSystemResponse.status, 400);
+    assert.equal(
+      directSystemResponse.body.error.code,
+      "proxy_forwarded_required",
     );
+    const systemResponse = requestFromService("/api/v1/system", {
+      forwarded: "for=203.0.113.24;host=quality-bar.example;proto=https",
+    });
     assert.equal(systemResponse.status, 401);
-    assert.equal((await systemResponse.json()).error.code, "authentication_required");
+    assert.equal(systemResponse.body.error.code, "authentication_required");
 
     const inspectDatabaseScript = `
       import { DatabaseSync } from "node:sqlite";
@@ -423,6 +446,10 @@ test("Compose boots with one strict configuration source and external installati
         freeSpaceReserveMet:
           filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3 &&
           filesystemFacts.checkoutsFreeBytes >= 5 * 1024 ** 3,
+      },
+      network: {
+        httpBindAddress: "127.0.0.1",
+        mode: configuration.services[serviceName].network_mode,
       },
       tools: {
         codex: codexVersion,

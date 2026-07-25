@@ -108,9 +108,13 @@ function parseTrustedProxyAddresses(value) {
 function validateNetworkConfiguration(origin, trustedProxyAddresses) {
   const isLoopbackHttp =
     origin.protocol === "http:" &&
-    ["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname);
+    origin.hostname === "127.0.0.1";
+  const hasUnreachableTrustedProxy = trustedProxyAddresses.some(
+    (address) => address !== "127.0.0.1",
+  );
   if (
     (origin.protocol === "https:" && trustedProxyAddresses.length === 0) ||
+    hasUnreachableTrustedProxy ||
     (isLoopbackHttp && trustedProxyAddresses.length > 0) ||
     (origin.protocol === "http:" && !isLoopbackHttp)
   ) {
