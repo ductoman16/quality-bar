@@ -86,6 +86,52 @@ function validatePackageFacts(facts) {
       facts?.liveness?.response?.status === "live",
       "liveness.response.status must equal live",
     ],
+    [facts?.readiness?.path === "/health/ready", "readiness.path is invalid"],
+    [
+      facts?.readiness?.httpStatus === 200,
+      "readiness.httpStatus must equal 200",
+    ],
+    [
+      facts?.readiness?.response?.status === "ready",
+      "readiness.response.status must equal ready",
+    ],
+    [
+      facts?.storage?.databasePath ===
+        "/var/lib/quality-bar/quality-bar.sqlite3",
+      "storage.databasePath is invalid",
+    ],
+    [
+      facts?.storage?.volumeTarget === "/var/lib/quality-bar",
+      "storage.volumeTarget is invalid",
+    ],
+    [
+      facts?.storage?.persistedAcrossRecreate === true,
+      "storage.persistedAcrossRecreate must equal true",
+    ],
+    [
+      /^\d+\.\d+\.\d+$/.test(facts?.database?.databaseVersion),
+      "database.databaseVersion must be semantic",
+    ],
+    [
+      facts?.database?.foreignKeys === true,
+      "database.foreignKeys must equal true",
+    ],
+    [
+      facts?.database?.integrity === "ok",
+      "database.integrity must equal ok",
+    ],
+    [
+      facts?.database?.journalMode === "wal",
+      "database.journalMode must equal wal",
+    ],
+    [
+      facts?.database?.schemaVersion === 1,
+      "database.schemaVersion must equal 1",
+    ],
+    [
+      facts?.database?.synchronous === "full",
+      "database.synchronous must equal full",
+    ],
   ];
 
   return requirements.find(([valid]) => !valid)?.[1] ?? null;
@@ -205,9 +251,14 @@ try {
 const gateDefinitions = [
   {
     name: "unit",
-    testGroup: "health-live",
+    testGroup: "durable-core-readiness",
     failureCode: "unit_tests_failed",
-    arguments: ["--test", "test/health-live.test.js"],
+    arguments: [
+      "--test",
+      "test/application-readiness.test.js",
+      "test/durable-core.test.js",
+      "test/health-live.test.js",
+    ],
   },
   {
     name: "package-integration",
@@ -235,6 +286,9 @@ if (failures.length === 0) {
 }
 
 const outcome = failures.length === 0 ? "pass" : "fail";
+const packageFacts = gates.find(
+  (gate) => gate.name === "package-integration",
+)?.facts;
 const manifest = {
   evidenceVersion: 1,
   sourceCommit,
@@ -244,14 +298,16 @@ const manifest = {
   },
   componentVersions: {
     application: applicationVersion,
-    schema: null,
+    schema: packageFacts?.database?.schemaVersion ?? null,
     image: applicationVersion ? `quality-bar:${applicationVersion}` : null,
     runtime: packagedNodeVersion ? `node:${packagedNodeVersion}` : null,
     git: null,
     codex: null,
     adapterProtocol: null,
     browser: null,
-    database: null,
+    database: packageFacts?.database?.databaseVersion
+      ? `sqlite:${packageFacts.database.databaseVersion}`
+      : null,
     fixtures: null,
   },
   runnerVersions: {

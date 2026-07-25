@@ -1,10 +1,44 @@
 import { createServer } from "node:http";
 
-export function createApplicationServer() {
+function writeJson(response, status, body) {
+  response.writeHead(status, { "content-type": "application/json" });
+  response.end(JSON.stringify(body));
+}
+
+function isProductSurface(path) {
+  return (
+    path === "/" ||
+    path === "/api/v1" ||
+    path.startsWith("/api/v1/") ||
+    path === "/mcp/v1" ||
+    path.startsWith("/mcp/v1/")
+  );
+}
+
+export function createApplicationServer(readDurableCoreStatus) {
+  if (typeof readDurableCoreStatus !== "function") {
+    throw new TypeError("readDurableCoreStatus is required");
+  }
+
   return createServer((request, response) => {
-    if (request.method === "GET" && request.url === "/health/live") {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end('{"status":"live"}');
+    const path = request.url.split("?", 1)[0];
+    if (request.method === "GET" && path === "/health/live") {
+      writeJson(response, 200, { status: "live" });
+      return;
+    }
+
+    const durableCoreStatus = readDurableCoreStatus();
+    if (request.method === "GET" && path === "/health/ready") {
+      if (durableCoreStatus.status === "ready") {
+        writeJson(response, 200, { status: "ready" });
+      } else {
+        writeJson(response, 503, durableCoreStatus);
+      }
+      return;
+    }
+
+    if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
+      writeJson(response, 503, { error: durableCoreStatus.error });
       return;
     }
 
