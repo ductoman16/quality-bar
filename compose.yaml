@@ -10,3 +10,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${QUALITY_BAR_HTTP_PORT:-3000}:3000"
+    volumes:
+      - quality-bar-state:/var/lib/quality-bar
+
+volumes:
+  quality-bar-state:

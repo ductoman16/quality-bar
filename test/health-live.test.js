@@ -7,7 +7,7 @@ let server;
 let origin;
 
 before(async () => {
-  server = createApplicationServer();
+  server = createApplicationServer(() => ({ status: "ready" }));
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);

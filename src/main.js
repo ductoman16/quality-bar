@@ -1,7 +1,9 @@
-import { createApplicationServer } from "./server.js";
+import { createApplication } from "./application.js";
 
 const port = 3000;
-const server = createApplicationServer();
+const databasePath = "/var/lib/quality-bar/quality-bar.sqlite3";
+const application = createApplication({ databasePath });
+const { server } = application;
 
 server.listen(port, "0.0.0.0", () => {
   process.stdout.write(

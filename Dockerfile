@@ -8,7 +8,8 @@ LABEL org.opencontainers.image.title="Quality Bar" \
       org.opencontainers.image.version="${QUALITY_BAR_VERSION}"
 
 RUN addgroup -g 10001 quality-bar \
-    && adduser -D -H -u 10001 -G quality-bar quality-bar
+    && adduser -D -H -u 10001 -G quality-bar quality-bar \
+    && install -d -o 10001 -g 10001 /var/lib/quality-bar
 
 WORKDIR /app
 

@@ -52,6 +52,15 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
+  assert.deepEqual(configuration.services[serviceName].volumes, [
+    {
+      source: "quality-bar-state",
+      target: "/var/lib/quality-bar",
+      type: "volume",
+      volume: {},
+    },
+  ]);
+  assert.deepEqual(Object.keys(configuration.volumes), ["quality-bar-state"]);
   assert.throws(
     () =>
       run(
@@ -104,6 +113,87 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
     const liveness = await response.json();
     assert.deepEqual(liveness, { status: "live" });
 
+    const readyResponse = await fetch(
+      `http://127.0.0.1:${hostPort}/health/ready`,
+    );
+    assert.equal(readyResponse.status, 200);
+    const readiness = await readyResponse.json();
+    assert.deepEqual(readiness, { status: "ready" });
+
+    const inspectDatabaseScript = `
+      import { DatabaseSync } from "node:sqlite";
+      const database = new DatabaseSync("/var/lib/quality-bar/quality-bar.sqlite3");
+      const scalar = (sql, field) => database.prepare(sql).get()[field];
+      console.log(JSON.stringify({
+        databaseVersion: scalar("SELECT sqlite_version() AS version", "version"),
+        foreignKeys: (database.exec("PRAGMA foreign_keys = ON"), scalar("PRAGMA foreign_keys", "foreign_keys") === 1),
+        integrity: scalar("PRAGMA integrity_check", "integrity_check"),
+        journalMode: scalar("PRAGMA journal_mode", "journal_mode"),
+        persistedMarker: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("package_persistence_test")?.value ?? null,
+        schemaVersion: scalar("PRAGMA user_version", "user_version"),
+        synchronous: ({ 0: "off", 1: "normal", 2: "full", 3: "extra" })[scalar("PRAGMA synchronous", "synchronous")],
+      }));
+      database.close();
+    `;
+    const initialDatabaseFacts = JSON.parse(
+      run(
+        "docker",
+        [
+          "compose",
+          "exec",
+          "-T",
+          serviceName,
+          "node",
+          "--input-type=module",
+          "--eval",
+          inspectDatabaseScript,
+        ],
+        environment,
+      ),
+    );
+    assert.equal(initialDatabaseFacts.persistedMarker, null);
+    run(
+      "docker",
+      [
+        "compose",
+        "exec",
+        "-T",
+        serviceName,
+        "node",
+        "--input-type=module",
+        "--eval",
+        `
+          import { DatabaseSync } from "node:sqlite";
+          const database = new DatabaseSync("/var/lib/quality-bar/quality-bar.sqlite3");
+          database.prepare("INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)").run("package_persistence_test", "survived");
+          database.close();
+        `,
+      ],
+      environment,
+    );
+    run(
+      "docker",
+      ["compose", "up", "--detach", "--wait", "--force-recreate"],
+      environment,
+    );
+    const recreatedDatabaseFacts = JSON.parse(
+      run(
+        "docker",
+        [
+          "compose",
+          "exec",
+          "-T",
+          serviceName,
+          "node",
+          "--input-type=module",
+          "--eval",
+          inspectDatabaseScript,
+        ],
+        environment,
+      ),
+    );
+    assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
+
     console.log(
       `QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify({
         serviceCount: Object.keys(configuration.services).length,
@@ -120,6 +210,20 @@ test("Compose boots one Linux amd64 service as one unprivileged application proc
           path: "/health/live",
           httpStatus: response.status,
           response: liveness,
+        },
+        readiness: {
+          path: "/health/ready",
+          httpStatus: readyResponse.status,
+          response: readiness,
+        },
+        storage: {
+          databasePath: "/var/lib/quality-bar/quality-bar.sqlite3",
+          persistedAcrossRecreate: true,
+          volumeTarget: configuration.services[serviceName].volumes[0].target,
+        },
+        database: {
+          ...recreatedDatabaseFacts,
+          persistedMarker: undefined,
         },
       })}`,
     );
