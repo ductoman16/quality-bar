@@ -13,12 +13,13 @@ import {
   recordFailedOperatorLogin,
   rejectDuringFailedLoginDelay,
 } from "./operator-login-throttle.js";
+import { insertAuthorityAttribution } from "./authority-attribution.js";
 
 export const BROWSER_SESSION_COOKIE_NAME = "quality_bar_session";
 export const BROWSER_CSRF_COOKIE_NAME = "quality_bar_csrf";
 
-const BROWSER_SESSION_IDLE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
-const BROWSER_SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1_000;
+export const BROWSER_SESSION_IDLE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
+export const BROWSER_SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export class BrowserSessionError extends Error {
   constructor(code, message, options) {
@@ -91,7 +92,11 @@ function hasExpired(session, timestamp) {
 
 export function createBrowserSessionService(
   durableCore,
-  { now = () => Date.now(), randomBytes = createRandomBytes } = {},
+  {
+    now = () => Date.now(),
+    randomBytes = createRandomBytes,
+    recordAttribution = insertAuthorityAttribution,
+  } = {},
 ) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
@@ -100,13 +105,31 @@ export function createBrowserSessionService(
   return {
     login(password) {
       const timestamp = currentTimestamp(now);
-      rejectDuringFailedLoginDelay(durableCore, timestamp);
+      try {
+        rejectDuringFailedLoginDelay(durableCore, timestamp);
+      } catch (error) {
+        recordAttribution(durableCore, {
+          action: "authentication",
+          channel: "browser_session",
+          errorCode: error.code,
+          occurredAt: timestamp,
+          outcome: "failure",
+        });
+        throw error;
+      }
       try {
         verifyOperatorPassword(durableCore, password);
       } catch (error) {
         if (error?.code === "authentication_invalid") {
           recordFailedOperatorLogin(durableCore, timestamp);
         }
+        recordAttribution(durableCore, {
+          action: "authentication",
+          channel: "browser_session",
+          errorCode: error.code,
+          occurredAt: timestamp,
+          outcome: "failure",
+        });
         throw error;
       }
       const secret = createSessionSecret(randomBytes);
@@ -121,6 +144,12 @@ export function createBrowserSessionService(
             timestamp,
           );
           clearFailedOperatorLoginDelay(transaction);
+          recordAttribution(transaction, {
+            action: "authentication",
+            channel: "browser_session",
+            occurredAt: timestamp,
+            outcome: "success",
+          });
         });
       } catch (error) {
         if (error?.code === "storage_unavailable") {
@@ -154,6 +183,12 @@ export function createBrowserSessionService(
           "DELETE FROM browser_sessions WHERE session_hash = ?",
           sessionHash(secret),
         );
+        recordAttribution(transaction, {
+          action: "session_logout",
+          channel: "browser_session",
+          occurredAt: currentTimestamp(now),
+          outcome: "success",
+        });
       });
     },
     touch(secret, csrfToken) {
@@ -183,6 +218,12 @@ export function createBrowserSessionService(
           timestamp,
           hash,
         );
+        recordAttribution(transaction, {
+          action: "session_activity",
+          channel: "browser_session",
+          occurredAt: timestamp,
+          outcome: "success",
+        });
         return true;
       });
     },
@@ -219,12 +260,24 @@ export function createBrowserSessionService(
           "operator_password_verifier",
         );
         transaction.run("DELETE FROM browser_sessions");
+        recordAttribution(transaction, {
+          action: "password_change",
+          channel: "browser_session",
+          occurredAt: currentTimestamp(now),
+          outcome: "success",
+        });
       });
     },
     revokeAll(password) {
       verifyOperatorPassword(durableCore, password);
       durableCore.transaction((transaction) => {
         transaction.run("DELETE FROM browser_sessions");
+        recordAttribution(transaction, {
+          action: "session_revoke_all",
+          channel: "browser_session",
+          occurredAt: currentTimestamp(now),
+          outcome: "success",
+        });
       });
     },
     isBootstrapped() {

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
+import { canonicalOpenApiDocument } from "./canonical-api.js";
+
 import {
   BROWSER_CSRF_COOKIE_NAME,
   BROWSER_SESSION_COOKIE_NAME,
@@ -21,12 +23,18 @@ function writeEmpty(response, headers = {}) {
   response.end();
 }
 
-function writeError(response, status, code, message, headers) {
+function writeError(response, status, code, message, headers, fields) {
+  const error = {
+    code,
+    message,
+    request_id: randomUUID(),
+  };
+  if (fields?.length) {
+    error.fields = fields;
+  }
   writeJson(response, status, {
     error: {
-      code,
-      message,
-      request_id: randomUUID(),
+      ...error,
     },
   }, headers);
 }
@@ -155,6 +163,9 @@ function authenticationFailureStatus(code) {
 }
 
 function browserMutationFailureStatus(code) {
+  if (code === "request_malformed") {
+    return 400;
+  }
   return ["csrf_invalid", "origin_invalid"].includes(code)
     ? 403
     : authenticationFailureStatus(code);
@@ -173,6 +184,10 @@ function implementerTokenFailureStatus(code) {
   )
     ? 409
     : authenticationFailureStatus(code);
+}
+
+function isUnavailableError(error) {
+  return typeof error?.code === "string" && error.code.endsWith("_unavailable");
 }
 
 function authenticationFailureMessage(code) {
@@ -232,6 +247,12 @@ function requireBrowserMutation(browserSessions, request, browserOrigin) {
   return secret;
 }
 
+function requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl) {
+  const secret = requireBrowserMutation(browserSessions, request, browserOrigin);
+  assertAllowedQueryParameters(requestUrl, new Set());
+  return secret;
+}
+
 function bearerToken(request) {
   const value = request.headers.authorization;
   const match = typeof value === "string" && /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
@@ -280,6 +301,30 @@ function safeInternalDestination(value) {
   }
 }
 
+function assertAllowedQueryParameters(requestUrl, allowed) {
+  for (const key of requestUrl.searchParams.keys()) {
+    if (!allowed.has(key) || requestUrl.searchParams.getAll(key).length !== 1) {
+      throw browserMutationError("request_malformed", "Request is malformed");
+    }
+  }
+}
+
+function readAuthorityAttributionQuery(requestUrl) {
+  assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
+  return {
+    cursor: requestUrl.searchParams.get("cursor") ?? undefined,
+    limit: requestUrl.searchParams.get("limit") ?? undefined,
+  };
+}
+
+function browserView(requestUrl) {
+  const view = requestUrl.searchParams.get("view") ?? "evaluations";
+  if (!["evaluations", "reviews", "repositories", "analytics", "system"].includes(view)) {
+    throw browserMutationError("not_found", "Resource was not found");
+  }
+  return view;
+}
+
 function loginPage(intendedDestination) {
   const safeDestination = JSON.stringify(intendedDestination).replaceAll(
     "<",
@@ -307,8 +352,22 @@ form.addEventListener("submit", async (event) => {
 </script>`;
 }
 
-function operatorPage() {
-  return `<main><details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
+function operatorPage({ view }) {
+  const navigation = ["evaluations", "reviews", "repositories", "analytics", "system"];
+  const navigationLinks = navigation
+    .map((name) => {
+      const label = name[0].toUpperCase() + name.slice(1);
+      return `<a${view === name ? ' aria-current="page"' : ""} href="/?view=${name}">${label}</a>`;
+    })
+    .join("");
+  const attention = `<a hidden href="/?view=system" id="attention"></a>${
+    view === "system" ? "" : "<style>details{display:none}</style>"
+  }`;
+  const heading = view[0].toUpperCase() + view.slice(1);
+  const systemSection = view === "system"
+    ? '<section aria-live="polite" id="system-facts"></section>'
+    : "";
+  return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
 let lastActivityAt = 0;
 function csrfToken() {
@@ -451,6 +510,24 @@ document.getElementById("logout").addEventListener("click", async () => {
   error.textContent = (authenticationFailure ?? await response.json()).error.message;
   error.hidden = false;
 });
+const systemFacts = document.getElementById("system-facts");
+fetch("/api/v1/system").then(async (response) => {
+    if (!response.ok) {
+      throw new Error((await response.json()).error.message);
+    }
+    const system = await response.json();
+    if (systemFacts) {
+      systemFacts.textContent = "Bootstrap: " + system.bootstrap.status + ". Durable core: " + system.durable_core.status + ". Codex: " + system.codex.status + (system.codex.error ? " (" + system.codex.error + ")" : "") + ". Browser sessions: " + system.browser_sessions.active_count + ". Implementer token: " + system.implementer_token.status + ".";
+    }
+    const attention = document.getElementById("attention");
+    if (system.codex.status === "unavailable") {
+      attention.hidden = false;
+      attention.textContent = "Codex unavailable";
+    }
+  }).catch((failure) => {
+    error.textContent = failure.message;
+    error.hidden = false;
+  });
 </script>`;
 }
 
@@ -460,14 +537,19 @@ export function createApplicationServer({
   browserOrigin,
   requestSecurity,
   readDurableCoreStatus,
-  readSystemStatus = () => ({}),
+  readSystemStatus,
+  listAuthorityAttributions,
+  recordAuthorityAttribution,
   secureBrowserCookie = false,
 } = {}) {
   if (typeof readDurableCoreStatus !== "function") {
     throw new TypeError("readDurableCoreStatus is required");
   }
-  if (typeof readSystemStatus !== "function") {
-    throw new TypeError("readSystemStatus must be a function");
+  if (typeof listAuthorityAttributions !== "function") {
+    throw new TypeError("listAuthorityAttributions must be a function");
+  }
+  if (typeof recordAuthorityAttribution !== "function") {
+    throw new TypeError("recordAuthorityAttribution must be a function");
   }
   for (const method of [
     "authenticate",
@@ -491,8 +573,11 @@ export function createApplicationServer({
   if (typeof requestSecurity?.requestFacts !== "function") {
     throw new TypeError("requestSecurity must provide the request boundary");
   }
+  if (typeof readSystemStatus !== "function") {
+    throw new TypeError("readSystemStatus must be a function");
+  }
 
-  return createServer(async (request, response) => {
+  const handleRequest = async (request, response) => {
     const requestUrl = new URL(request.url, "http://quality-bar.internal");
     const path = requestUrl.pathname;
     if (request.method === "GET" && path === "/health/live") {
@@ -511,7 +596,12 @@ export function createApplicationServer({
     }
 
     if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
-      writeJson(response, 503, { error: durableCoreStatus.error });
+      writeError(
+        response,
+        503,
+        durableCoreStatus.error,
+        "Quality Bar is not ready",
+      );
       return;
     }
 
@@ -528,12 +618,19 @@ export function createApplicationServer({
     }
 
     if (hasUrlToken(requestUrl)) {
+      recordAuthorityAttribution({
+        action: "authentication",
+        channel: "implementer_token",
+        errorCode: "authentication_invalid",
+        outcome: "failure",
+      });
       writeError(response, 401, "authentication_invalid", "Machine authentication is invalid");
       return;
     }
 
     if (request.method === "POST" && path === "/api/v1/session/login") {
       try {
+        assertAllowedQueryParameters(requestUrl, new Set());
         assertNoMixedCredentials(request);
         const { password } = await readLoginRequest(request);
         const { csrfToken, secret } = browserSessions.login(password);
@@ -544,6 +641,14 @@ export function createApplicationServer({
           ],
         });
       } catch (error) {
+        if (error.code === "authentication_ambiguous") {
+          recordAuthorityAttribution({
+            action: "authentication",
+            channel: "browser_session",
+            errorCode: error.code,
+            outcome: "failure",
+          });
+        }
         if (error.message === "request_malformed") {
           writeError(response, 400, "request_malformed", "Request is malformed");
         } else {
@@ -563,11 +668,19 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/logout") {
       try {
-        browserSessions.logout(requireBrowserMutation(browserSessions, request, browserOrigin));
+        browserSessions.logout(
+          requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl),
+        );
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        recordAuthorityAttribution({
+          action: "session_logout",
+          channel: "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         writeError(
           response,
           browserMutationFailureStatus(error.code),
@@ -580,12 +693,23 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/activity") {
       try {
-        const secret = requireBrowserMutation(browserSessions, request, browserOrigin);
+        const secret = requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
         if (!browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])) {
           throw browserMutationError("authentication_required", "Browser session is required");
         }
         writeEmpty(response);
       } catch (error) {
+        recordAuthorityAttribution({
+          action: "session_activity",
+          channel: "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         writeError(
           response,
           browserMutationFailureStatus(error.code),
@@ -598,7 +722,7 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/password") {
       try {
-        requireBrowserMutation(browserSessions, request, browserOrigin);
+        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
         const { current_password, new_password } =
           await readPasswordChangeRequest(request);
         browserSessions.changePassword(current_password, new_password);
@@ -606,6 +730,12 @@ export function createApplicationServer({
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        recordAuthorityAttribution({
+          action: "password_change",
+          channel: "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         if (error.message === "request_malformed") {
           writeError(response, 400, "request_malformed", "Request is malformed");
         } else {
@@ -624,7 +754,7 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/sessions/revoke") {
       try {
-        requireBrowserMutation(browserSessions, request, browserOrigin);
+        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
         const { confirmation, password } =
           await readSessionRevocationRequest(request);
         if (confirmation !== "REVOKE ALL SESSIONS") {
@@ -637,6 +767,12 @@ export function createApplicationServer({
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        recordAuthorityAttribution({
+          action: "session_revoke_all",
+          channel: "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         if (error.message === "request_malformed") {
           writeError(response, 400, "request_malformed", "Request is malformed");
         } else {
@@ -662,7 +798,7 @@ export function createApplicationServer({
       ].includes(path)
     ) {
       try {
-        requireBrowserMutation(browserSessions, request, browserOrigin);
+        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
         if (path === "/api/v1/implementer-token/revoke") {
           const { password } = await readImplementerTokenRequest(request);
           implementerTokens.revoke(password);
@@ -675,6 +811,16 @@ export function createApplicationServer({
           writeJson(response, path.endsWith("/rotate") ? 200 : 201, { token });
         }
       } catch (error) {
+        recordAuthorityAttribution({
+          action: path.endsWith("/rotate")
+            ? "implementer_token_rotate"
+            : path.endsWith("/revoke")
+              ? "implementer_token_revoke"
+              : "implementer_token_create",
+          channel: "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         if (error.message === "request_malformed") {
           writeError(response, 400, "request_malformed", "Request is malformed");
         } else {
@@ -701,8 +847,25 @@ export function createApplicationServer({
               "Machine authentication is invalid",
             );
           }
+          recordAuthorityAttribution({
+            action: "authentication",
+            channel: "implementer_token",
+            outcome: "success",
+          });
+          recordAuthorityAttribution({
+            action: "authorization",
+            channel: "implementer_token",
+            errorCode: "authorization_forbidden",
+            outcome: "forbidden",
+          });
           writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
         } catch (error) {
+          recordAuthorityAttribution({
+            action: "authentication",
+            channel: "implementer_token",
+            errorCode: error.code ?? "authentication_unavailable",
+            outcome: "failure",
+          });
           writeError(
             response,
             authenticationFailureStatus(error.code),
@@ -715,17 +878,43 @@ export function createApplicationServer({
       if (!browserSessions.isBootstrapped()) {
         writeHtml(response, "<main><p role=\"status\">Operator bootstrap required</p></main>");
       } else {
+        let view;
+        try {
+          view = browserView(requestUrl);
+        } catch (error) {
+          writeError(response, 404, error.code, error.message);
+          return;
+        }
         try {
           assertNoMixedCredentials(request);
           if (browserSessions.authenticate(sessionSecret(request))) {
-            writeHtml(response, operatorPage());
+            recordAuthorityAttribution({
+              action: "authentication",
+              channel: "browser_session",
+              outcome: "success",
+            });
+            writeHtml(response, operatorPage({ view }));
           } else {
+            if (sessionSecret(request) !== undefined) {
+              recordAuthorityAttribution({
+                action: "authentication",
+                channel: "browser_session",
+                errorCode: "authentication_required",
+                outcome: "failure",
+              });
+            }
             writeHtml(
               response,
               loginPage(safeInternalDestination(requestUrl.searchParams.get("return_to"))),
             );
           }
         } catch (error) {
+          recordAuthorityAttribution({
+            action: "authentication",
+            channel: "browser_session",
+            errorCode: error.code ?? "authentication_unavailable",
+            outcome: "failure",
+          });
           writeError(
             response,
             authenticationFailureStatus(error.code),
@@ -738,8 +927,7 @@ export function createApplicationServer({
     }
 
     if (path === "/api/v1/operator-password/bootstrap") {
-      response.writeHead(404);
-      response.end();
+      writeError(response, 404, "not_found", "Resource was not found");
       return;
     }
 
@@ -755,6 +943,14 @@ export function createApplicationServer({
           request.machineAuthority = true;
         }
       } catch (error) {
+        recordAuthorityAttribution({
+          action: "authentication",
+          channel: request.headers.authorization !== undefined
+            ? "implementer_token"
+            : "browser_session",
+          errorCode: error.code ?? "authentication_unavailable",
+          outcome: "failure",
+        });
         writeError(
           response,
           authenticationFailureStatus(error.code),
@@ -765,8 +961,49 @@ export function createApplicationServer({
       }
     }
 
+    if (
+      request.machineAuthority &&
+      ["/api/v1/system", "/api/v1/system/authority-attributions"].includes(path)
+    ) {
+      recordAuthorityAttribution({
+        action: "authorization",
+        channel: "implementer_token",
+        errorCode: "authorization_forbidden",
+        outcome: "forbidden",
+      });
+      writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+      return;
+    }
+
+    if (path === "/api/v1/system/authority-attributions") {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
+      } catch (error) {
+        writeError(response, 400, error.code, error.message);
+        return;
+      }
+    } else if (path === "/api/v1" || path.startsWith("/api/v1/")) {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set());
+      } catch (error) {
+        writeError(response, 400, error.code, error.message);
+        return;
+      }
+    }
+
+    if (request.method === "GET" && path === "/api/v1/openapi.json") {
+      writeJson(response, 200, canonicalOpenApiDocument());
+      return;
+    }
+
     if (request.method === "GET" && path === "/api/v1/system") {
       if (request.machineAuthority) {
+        recordAuthorityAttribution({
+          action: "authorization",
+          channel: "implementer_token",
+          errorCode: "authorization_forbidden",
+          outcome: "forbidden",
+        });
         writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
         return;
       }
@@ -775,15 +1012,69 @@ export function createApplicationServer({
       } catch (error) {
         writeError(
           response,
-          authenticationFailureStatus(error.code),
-          error.code ?? "system_unavailable",
-          error.message ?? "System is unavailable",
+          isUnavailableError(error) ? 503 : 500,
+          isUnavailableError(error) ? error.code : "internal_error",
+          isUnavailableError(error) ? error.message : "Internal server error",
         );
       }
       return;
     }
 
-    response.writeHead(404);
-    response.end();
+    if (request.method === "GET" && path === "/api/v1/system/authority-attributions") {
+      if (request.machineAuthority) {
+        recordAuthorityAttribution({
+          action: "authorization",
+          channel: "implementer_token",
+          errorCode: "authorization_forbidden",
+          outcome: "forbidden",
+        });
+        writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+        return;
+      }
+      try {
+        writeJson(response, 200, listAuthorityAttributions(
+          readAuthorityAttributionQuery(requestUrl),
+        ));
+      } catch (error) {
+        const status = ["cursor_invalid", "page_size_invalid", "request_malformed"].includes(error.code)
+          ? 400
+          : isUnavailableError(error)
+            ? 503
+            : 500;
+        writeError(
+          response,
+          status,
+          status === 400
+            ? error.code
+            : status === 503
+              ? error.code
+              : "internal_error",
+          status === 400
+            ? "Request is malformed"
+            : status === 503
+              ? error.message
+              : "Internal server error",
+        );
+      }
+      return;
+    }
+
+    writeError(response, 404, "not_found", "Resource was not found");
+  };
+
+  return createServer((request, response) => {
+    handleRequest(request, response).catch((error) => {
+      if (response.headersSent) {
+        response.destroy(error);
+        return;
+      }
+      const unavailable = isUnavailableError(error);
+      writeError(
+        response,
+        unavailable ? 503 : 500,
+        unavailable ? error.code : "internal_error",
+        unavailable ? error.message : "Internal server error",
+      );
+    });
   });
 }

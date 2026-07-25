@@ -5,6 +5,7 @@ import {
 } from "node:crypto";
 
 import { verifyOperatorPassword } from "./operator-password.js";
+import { insertAuthorityAttribution } from "./authority-attribution.js";
 
 export const IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY =
   "implementer_token_verifier";
@@ -80,7 +81,7 @@ function readVerifier(reader) {
 
 export function createImplementerTokenService(
   durableCore,
-  { randomBytes = createRandomBytes } = {},
+  { now = () => Date.now(), randomBytes = createRandomBytes, recordAttribution = insertAuthorityAttribution } = {},
 ) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
@@ -115,6 +116,12 @@ export function createImplementerTokenService(
           tokenVerifier(token),
         );
       }
+      recordAttribution(transaction, {
+        action: requireActive ? "implementer_token_rotate" : "implementer_token_create",
+        channel: "browser_session",
+        occurredAt: now(),
+        outcome: "success",
+      });
     });
     return token;
   }
@@ -136,6 +143,12 @@ export function createImplementerTokenService(
           "DELETE FROM quality_bar_metadata WHERE key = ?",
           IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY,
         );
+        recordAttribution(transaction, {
+          action: "implementer_token_revoke",
+          channel: "browser_session",
+          occurredAt: now(),
+          outcome: "success",
+        });
       });
     },
     authenticate(token) {

@@ -327,6 +327,31 @@ test("machine credentials are accepted only as a sole Authorization bearer value
   assert.equal(browserSurface.status, 403);
   assert.equal((await browserSurface.json()).error.code, "authorization_forbidden");
 
+  const unauthenticatedUnknownQuery = await fetch(
+    `${application.origin}/api/v1/system?unexpected=true`,
+  );
+  assert.equal(unauthenticatedUnknownQuery.status, 401);
+  assert.equal((await unauthenticatedUnknownQuery.json()).error.code, "authentication_required");
+
+  const forbiddenUnknownQuery = await fetch(
+    `${application.origin}/api/v1/system?unexpected=true`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  assert.equal(forbiddenUnknownQuery.status, 403);
+  assert.equal((await forbiddenUnknownQuery.json()).error.code, "authorization_forbidden");
+
+  const mixedLogin = await fetch(`${application.origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password }),
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      cookie: "quality_bar_session=not-a-session",
+    },
+    method: "POST",
+  });
+  assert.equal(mixedLogin.status, 401);
+  assert.equal((await mixedLogin.json()).error.code, "authentication_ambiguous");
+
   for (const [url, headers, expectedCode] of [
     [`${application.origin}/api/v1/system?ToKeN=${token}`, {}, "authentication_invalid"],
     [`${application.origin}/api/v1/system`, { authorization: token }, "authentication_invalid"],
@@ -340,4 +365,197 @@ test("machine credentials are accepted only as a sole Authorization bearer value
     assert.equal(response.status, 401);
     assert.equal((await response.json()).error.code, expectedCode);
   }
+  assert.ok(
+    application.application.durableCore.all(
+      "SELECT action, channel, outcome, error_code FROM authority_attributions",
+    ).some((event) =>
+      event.action === "authentication" &&
+      event.channel === "implementer_token" &&
+      event.outcome === "failure" &&
+      event.error_code === "authentication_invalid"
+    ),
+  );
+  assert.ok(
+    application.application.durableCore.all(
+      "SELECT action, channel, outcome, error_code FROM authority_attributions",
+    ).some((event) =>
+      event.action === "authentication" &&
+      event.channel === "browser_session" &&
+      event.outcome === "failure" &&
+      event.error_code === "authentication_ambiguous"
+    ),
+  );
+});
+
+test("the authenticated canonical contract is OpenAPI 3.1 with strict System attribution pagination", async () => {
+  let now = Date.parse("2026-07-25T12:00:00.000Z");
+  const application = await startApplication(temporaryDatabasePath(), {
+    now: () => now,
+  });
+  const password = "a correct operator password";
+  bootstrapOperatorPassword(application.application.durableCore, password);
+
+  const unauthenticated = await fetch(`${application.origin}/api/v1/openapi.json`);
+  assert.equal(unauthenticated.status, 401);
+  const unauthenticatedError = await unauthenticated.json();
+  assert.deepEqual(Object.keys(unauthenticatedError.error).sort(), [
+    "code",
+    "message",
+    "request_id",
+  ]);
+
+  now += 1_000;
+  const login = await fetch(`${application.origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const token = application.application.implementerTokens.create(password);
+
+  const openapi = await fetch(`${application.origin}/api/v1/openapi.json`, {
+    headers: { cookie },
+  });
+  assert.equal(openapi.status, 200);
+  const contract = await openapi.json();
+  assert.equal(contract.openapi, "3.1.0");
+  assert.equal(contract.components.schemas.Error.additionalProperties, true);
+  assert.equal(contract.components.schemas.FieldError.additionalProperties, true);
+  assert.equal(contract.components.schemas.System.additionalProperties, true);
+  assert.equal(contract.components.schemas.BootstrapFact.additionalProperties, true);
+  for (const schema of [
+    "CurrentPasswordRequest",
+    "LoginRequest",
+    "PasswordChangeRequest",
+    "SessionRevocationRequest",
+  ]) {
+    assert.equal(contract.components.schemas[schema].additionalProperties, false);
+  }
+  assert.deepEqual(contract.components.schemas.System.properties.codex, {
+    $ref: "#/components/schemas/CodexFact",
+  });
+  assert.equal(contract.components.schemas.AuthorityAttribution.properties.occurred_at.format, "date-time");
+  assert.ok(contract.paths["/api/v1/system/authority-attributions"]);
+  for (const path of [
+    "/api/v1/session/logout",
+    "/api/v1/session/activity",
+    "/api/v1/session/password",
+    "/api/v1/sessions/revoke",
+    "/api/v1/implementer-token",
+    "/api/v1/implementer-token/rotate",
+    "/api/v1/implementer-token/revoke",
+  ]) {
+    assert.deepEqual(
+      contract.paths[path].post.parameters.map(({ name, required }) => ({ name, required })),
+      [
+        { name: "Origin", required: true },
+        { name: "x-quality-bar-csrf", required: true },
+      ],
+    );
+  }
+  assert.ok(contract.paths["/api/v1/session/logout"].post.responses[503]);
+  assert.ok(contract.paths["/api/v1/session/logout"].post.responses[400]);
+  assert.ok(contract.paths["/api/v1/session/activity"].post.responses[400]);
+  assert.ok(contract.paths["/api/v1/openapi.json"].get.responses[400]);
+  assert.ok(contract.paths["/api/v1/system"].get.responses[400]);
+  assert.ok(contract.paths["/api/v1/system/authority-attributions"].get.responses[503]);
+
+  const system = await fetch(`${application.origin}/api/v1/system`, {
+    headers: { cookie },
+  });
+  assert.equal(system.status, 200);
+  assert.deepEqual(await system.json(), {
+    bootstrap: { status: "complete" },
+    browser_sessions: { active_count: 1, status: "available" },
+    codex: { status: "available" },
+    durable_core: { schema_version: 5, status: "ready" },
+    implementer_token: { status: "active" },
+  });
+
+  const attributions = await fetch(
+    `${application.origin}/api/v1/system/authority-attributions?limit=1`,
+    { headers: { cookie } },
+  );
+  assert.equal(attributions.status, 200);
+  const firstPage = await attributions.json();
+  assert.equal(firstPage.items.length, 1);
+  assert.match(firstPage.items[0].id, /^[0-9a-f-]{36}$/);
+  assert.match(firstPage.items[0].occurred_at, /^2026-07-25T12:00:0[01]\.000Z$/);
+  assert.equal(typeof firstPage.next_cursor, "string");
+  assert.doesNotMatch(JSON.stringify(firstPage), new RegExp(`${password}|${token}`));
+
+  const secondPage = await fetch(
+    `${application.origin}/api/v1/system/authority-attributions?cursor=${encodeURIComponent(firstPage.next_cursor)}&limit=1`,
+    { headers: { cookie } },
+  );
+  assert.equal(secondPage.status, 200);
+  assert.notEqual((await secondPage.json()).items[0].id, firstPage.items[0].id);
+
+  const malformed = await fetch(
+    `${application.origin}/api/v1/system/authority-attributions?unexpected=true`,
+    { headers: { cookie } },
+  );
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error.code, "request_malformed");
+
+  const oversized = await fetch(
+    `${application.origin}/api/v1/system/authority-attributions?limit=101`,
+    { headers: { cookie } },
+  );
+  assert.equal(oversized.status, 400);
+  assert.equal((await oversized.json()).error.code, "page_size_invalid");
+
+  const malformedCursor = await fetch(
+    `${application.origin}/api/v1/system/authority-attributions?cursor=not-a-cursor`,
+    { headers: { cookie } },
+  );
+  assert.equal(malformedCursor.status, 400);
+  assert.equal((await malformedCursor.json()).error.code, "cursor_invalid");
+
+  const unknownSystemQuery = await fetch(
+    `${application.origin}/api/v1/system?unexpected=true`,
+    { headers: { cookie } },
+  );
+  assert.equal(unknownSystemQuery.status, 400);
+  assert.equal((await unknownSystemQuery.json()).error.code, "request_malformed");
+
+  const unknownOpenApiQuery = await fetch(
+    `${application.origin}/api/v1/openapi.json?unexpected=true`,
+    { headers: { cookie } },
+  );
+  assert.equal(unknownOpenApiQuery.status, 400);
+  assert.equal((await unknownOpenApiQuery.json()).error.code, "request_malformed");
+
+  const unknownBrowserView = await fetch(`${application.origin}/?view=unknown`, {
+    headers: { cookie },
+  });
+  assert.equal(unknownBrowserView.status, 404);
+  assert.equal((await unknownBrowserView.json()).error.code, "not_found");
+
+  const csrfToken = login.headers.get("set-cookie").match(
+    /quality_bar_csrf=([A-Za-z0-9_-]{43})/,
+  )[1];
+  const unknownMutationQuery = await fetch(
+    `${application.origin}/api/v1/session/logout?unexpected=true`,
+    {
+      headers: {
+        cookie: `${cookie}; quality_bar_csrf=${csrfToken}`,
+        origin: "http://127.0.0.1:3000",
+        "x-quality-bar-csrf": csrfToken,
+      },
+      method: "POST",
+    },
+  );
+  assert.equal(unknownMutationQuery.status, 400);
+  assert.equal((await unknownMutationQuery.json()).error.code, "request_malformed");
+
+  const machineContract = await fetch(`${application.origin}/api/v1/openapi.json`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(machineContract.status, 200);
+  const machineSystem = await fetch(`${application.origin}/api/v1/system`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(machineSystem.status, 403);
+  assert.equal((await machineSystem.json()).error.code, "authorization_forbidden");
 });

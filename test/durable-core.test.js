@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createSystemResource } from "../src/system-resource.js";
 
 const temporaryDirectories = [];
 
@@ -28,7 +29,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 4,
+    schemaVersion: 5,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -39,16 +40,18 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
 test("migrates the existing operator-password schema atomically before serving sessions", () => {
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
+  core.run("DROP INDEX authority_attributions_keyset");
+  core.run("DROP TABLE authority_attributions");
   core.run("DROP TABLE browser_sessions");
   core.run("UPDATE quality_bar_metadata SET value = '1' WHERE key = 'schema_version'");
   core.run("PRAGMA user_version = 1");
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 4);
+  assert.equal(migrated.facts.schemaVersion, 5);
   assert.equal(
     migrated.get("SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'").value,
-    "4",
+    "5",
   );
   migrated.run(
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
@@ -64,6 +67,8 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
   core.transaction((transaction) => {
+    transaction.run("DROP INDEX authority_attributions_keyset");
+    transaction.run("DROP TABLE authority_attributions");
     transaction.run("DROP TABLE browser_sessions");
     transaction.run(
       "CREATE TABLE browser_sessions (session_hash TEXT PRIMARY KEY) STRICT",
@@ -80,9 +85,77 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 4);
+  assert.equal(migrated.facts.schemaVersion, 5);
   assert.equal(migrated.get("SELECT session_hash FROM browser_sessions"), undefined);
   migrated.close();
+});
+
+test("migrates v4 to v5 without losing existing authority facts", () => {
+  const databasePath = temporaryDatabasePath();
+  const core = openDurableCore(databasePath);
+  core.transaction((transaction) => {
+    transaction.run(
+      "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+      "retained-session-hash",
+      "retained-csrf-hash",
+      1,
+      1,
+    );
+    transaction.run("DROP INDEX authority_attributions_keyset");
+    transaction.run("DROP TABLE authority_attributions");
+    transaction.run("UPDATE quality_bar_metadata SET value = '4' WHERE key = 'schema_version'");
+    transaction.run("PRAGMA user_version = 4");
+  });
+  core.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 5);
+  assert.deepEqual(
+    migrated.get("SELECT session_hash FROM browser_sessions"),
+    { session_hash: "retained-session-hash" },
+  );
+  assert.equal(
+    migrated.get("SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'").value,
+    "5",
+  );
+  assert.deepEqual(
+    migrated.get("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'authority_attributions'"),
+    { name: "authority_attributions" },
+  );
+  assert.deepEqual(
+    migrated.get("SELECT name FROM sqlite_schema WHERE type = 'index' AND name = 'authority_attributions_keyset'"),
+    { name: "authority_attributions_keyset" },
+  );
+  migrated.close();
+});
+
+test("System facts exclude browser sessions past their idle or absolute lifetime", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const now = Date.parse("2026-07-25T12:00:00.000Z");
+  core.run(
+    "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+    "active-session",
+    "active-csrf",
+    now - (29 * 24 * 60 * 60 * 1_000),
+    now - (6 * 24 * 60 * 60 * 1_000),
+  );
+  core.run(
+    "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+    "expired-session",
+    "expired-csrf",
+    now - (31 * 24 * 60 * 60 * 1_000),
+    now - (8 * 24 * 60 * 60 * 1_000),
+  );
+  const system = createSystemResource(core, { now: () => now });
+  assert.equal(
+    system.readFacts({
+      browserSessions: { isBootstrapped: () => true },
+      codex: { status: "available" },
+      implementerToken: { status: "revoked" },
+    }).browser_sessions.active_count,
+    1,
+  );
+  core.close();
 });
 
 test("a durable fact is invisible to another connection until its transaction commits", () => {
@@ -150,14 +223,14 @@ test("rejects a corrupt database with the exact owning error", () => {
 test("rejects an incompatible schema with the exact owning error", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 5");
+  current.run("PRAGMA user_version = 6");
   current.close();
 
   assert.throws(
     () => openDurableCore(databasePath),
     (error) => {
       assert.equal(error.code, "schema_invalid");
-      assert.equal(error.message, "SQLite schema version 5 is not supported");
+      assert.equal(error.message, "SQLite schema version 6 is not supported");
       return true;
     },
   );

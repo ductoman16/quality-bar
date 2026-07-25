@@ -409,6 +409,51 @@ test("Compose boots with one strict configuration source and external installati
     assert.match(recreatedDatabaseFacts.operatorPasswordVerifier, /^scrypt-v1\./);
     assert.doesNotMatch(recreatedDatabaseFacts.operatorPasswordVerifier, new RegExp(bootstrapPassword));
 
+    const authenticatedHttpSmoke = JSON.parse(
+      run(
+        "docker",
+        [
+          "compose",
+          "exec",
+          "-T",
+          serviceName,
+          "node",
+          "--input-type=module",
+          "--eval",
+          `
+            const headers = { forwarded: "for=203.0.113.24;host=quality-bar.example;proto=https" };
+            const login = await fetch("http://127.0.0.1:${hostPort}/api/v1/session/login", {
+              body: JSON.stringify({ password: ${JSON.stringify(bootstrapPassword)} }),
+              headers: { ...headers, "content-type": "application/json" },
+              method: "POST",
+            });
+            const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+            const browser = await fetch("http://127.0.0.1:${hostPort}/?view=system", {
+              headers: { ...headers, cookie },
+            });
+            const openapi = await fetch("http://127.0.0.1:${hostPort}/api/v1/openapi.json", {
+              headers: { ...headers, cookie },
+            });
+            console.log(JSON.stringify({
+              browserStatus: browser.status,
+              hasNavigation: /Evaluations.*Reviews.*Repositories.*Analytics.*System/.test(await browser.text()),
+              loginStatus: login.status,
+              openapiStatus: openapi.status,
+              openapiVersion: (await openapi.json()).openapi,
+            }));
+          `,
+        ],
+        environment,
+      ),
+    );
+    assert.deepEqual(authenticatedHttpSmoke, {
+      browserStatus: 200,
+      hasNavigation: true,
+      loginStatus: 204,
+      openapiStatus: 200,
+      openapiVersion: "3.1.0",
+    });
+
     const packageFacts = {
       serviceCount: Object.keys(configuration.services).length,
       companionServiceCount: 0,
@@ -468,6 +513,7 @@ test("Compose boots with one strict configuration source and external installati
           recreatedDatabaseFacts.operatorPasswordVerifier,
         ),
       },
+      authenticatedHttpSmoke,
       database: {
         ...recreatedDatabaseFacts,
         installationKeyVerifier: undefined,

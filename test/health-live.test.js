@@ -38,7 +38,10 @@ before(async () => {
       revoke() {},
       rotate() {},
     },
+    listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
+    recordAuthorityAttribution() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
+    readSystemStatus: () => ({}),
     requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {
@@ -68,7 +71,10 @@ test("the application server rejects a missing browser-session boundary", () => 
   assert.throws(
     () =>
       createApplicationServer({
+        listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
+        recordAuthorityAttribution() {},
         readDurableCoreStatus: () => ({ status: "ready" }),
+        readSystemStatus: () => ({}),
       }),
     (error) => {
       assert.equal(error.message, "browserSessions must provide the session boundary");
@@ -111,7 +117,10 @@ test("the application server rejects a missing request-security boundary", () =>
           revoke() {},
           rotate() {},
         },
+        listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
+        recordAuthorityAttribution() {},
         readDurableCoreStatus: () => ({ status: "ready" }),
+        readSystemStatus: () => ({}),
       }),
     (error) => {
       assert.equal(error.message, "requestSecurity must provide the request boundary");

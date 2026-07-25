@@ -22,6 +22,7 @@ import {
   createRequestSecurityBoundary,
   createUnavailableRequestSecurityBoundary,
 } from "./request-security.js";
+import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 
@@ -119,6 +120,7 @@ export function createApplication({
   let implementerTokens = null;
   let browserOrigin = null;
   let requestSecurity = null;
+  let systemResource = null;
   let secureBrowserCookie = false;
   let codexCapabilityFailure = null;
   let releaseInstallationLock = null;
@@ -139,7 +141,8 @@ export function createApplication({
     verifyInstallationKey(durableCore, installation.masterKey);
     installation.masterKey.fill(0);
     browserSessions = createBrowserSessionService(durableCore, { now });
-    implementerTokens = createImplementerTokenService(durableCore);
+    implementerTokens = createImplementerTokenService(durableCore, { now });
+    systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {
       validateCodexAuthentication();
@@ -194,13 +197,20 @@ export function createApplication({
     requestSecurity,
     readDurableCoreStatus,
     readSystemStatus: () => ({
-      codex: codexCapabilityFailure
-        ? { error: codexCapabilityFailure.code, status: "unavailable" }
-        : { status: "available" },
-      implementer_token: implementerTokens?.hasActiveToken()
-        ? { status: "active" }
-        : { status: "revoked" },
+      ...systemResource.readFacts({
+        browserSessions,
+        codex: codexCapabilityFailure
+          ? { error: codexCapabilityFailure.code, status: "unavailable" }
+          : { status: "available" },
+        implementerToken: implementerTokens?.hasActiveToken()
+          ? { status: "active" }
+          : { status: "revoked" },
+      }),
     }),
+    listAuthorityAttributions: (query) =>
+      systemResource.listAuthorityAttributions(query),
+    recordAuthorityAttribution: (event) =>
+      systemResource.recordAuthorityAttribution(event),
     secureBrowserCookie,
   });
 
