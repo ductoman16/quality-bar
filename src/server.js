@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
-import { BROWSER_SESSION_COOKIE_NAME } from "./browser-session.js";
+import {
+  BROWSER_CSRF_COOKIE_NAME,
+  BROWSER_SESSION_COOKIE_NAME,
+} from "./browser-session.js";
 
 function writeJson(response, status, body, headers = {}) {
   response.writeHead(status, { "content-type": "application/json", ...headers });
@@ -38,13 +41,17 @@ function isProductSurface(path) {
   );
 }
 
-function sessionSecret(request) {
+function cookieValue(request, name) {
   const cookies = request.headers.cookie?.split(";") ?? [];
   const values = cookies
     .map((cookie) => cookie.trim().split("=", 2))
-    .filter(([name]) => name === BROWSER_SESSION_COOKIE_NAME)
+    .filter(([cookieName]) => cookieName === name)
     .map(([, value]) => value);
   return values.length === 1 ? values[0] : undefined;
+}
+
+function sessionSecret(request) {
+  return cookieValue(request, BROWSER_SESSION_COOKIE_NAME);
 }
 
 async function readPasswordRequest(request, fields) {
@@ -100,15 +107,33 @@ function sessionCookie(secret, secure) {
   ].join("; ");
 }
 
-function clearedSessionCookie(secure) {
+function csrfCookie(token, secure) {
   return [
-    `${BROWSER_SESSION_COOKIE_NAME}=`,
+    `${BROWSER_CSRF_COOKIE_NAME}=${token}`,
     "Path=/",
-    "HttpOnly",
     "SameSite=Strict",
-    "Max-Age=0",
     ...(secure ? ["Secure"] : []),
   ].join("; ");
+}
+
+function clearedSessionCookies(secure) {
+  return [
+    [
+      `${BROWSER_SESSION_COOKIE_NAME}=`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Strict",
+      "Max-Age=0",
+      ...(secure ? ["Secure"] : []),
+    ].join("; "),
+    [
+      `${BROWSER_CSRF_COOKIE_NAME}=`,
+      "Path=/",
+      "SameSite=Strict",
+      "Max-Age=0",
+      ...(secure ? ["Secure"] : []),
+    ].join("; "),
+  ];
 }
 
 function authenticationFailureStatus(code) {
@@ -143,10 +168,34 @@ function authenticationFailureMessage(code) {
   }[code] ?? "Authentication is unavailable";
 }
 
-function loginPage() {
+function safeInternalDestination(value) {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
+    return "/";
+  }
+  try {
+    const destination = new URL(value, "http://quality-bar.internal");
+    if (destination.origin !== "http://quality-bar.internal") {
+      return "/";
+    }
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
+function loginPage(intendedDestination) {
+  const safeDestination = JSON.stringify(intendedDestination).replaceAll(
+    "<",
+    "\\u003c",
+  );
   return `<main><form id="login-form"><label for="password">Password</label><input autocomplete="current-password" id="password" name="password" required type="password"><button type="submit">Log in</button><p hidden id="error" role="alert"></p></form></main><script>
 const form = document.getElementById("login-form");
 const error = document.getElementById("error");
+const intendedDestination = ${safeDestination};
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   error.hidden = true;
@@ -156,7 +205,7 @@ form.addEventListener("submit", async (event) => {
     method: "POST",
   });
   if (response.ok) {
-    location.assign("/");
+    location.assign(intendedDestination);
     return;
   }
   error.textContent = (await response.json()).error.message;
@@ -168,6 +217,21 @@ form.addEventListener("submit", async (event) => {
 function operatorPage() {
   return `<main><details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><button id="logout" type="button">Log out</button></details><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
+let lastActivityAt = 0;
+function csrfToken() {
+  return document.cookie.split(";").map((cookie) => cookie.trim().split("=", 2)).find(([name]) => name === "${BROWSER_CSRF_COOKIE_NAME}")?.[1];
+}
+async function returnToLoginAfterAuthenticationFailure(response) {
+  if (response.status !== 401) {
+    return null;
+  }
+  const body = await response.json();
+  if (body.error.code !== "authentication_required") {
+    return body;
+  }
+  location.assign("/?return_to=" + encodeURIComponent(location.pathname + location.search));
+  return true;
+}
 async function submitPasswordMutation(path, body) {
   error.hidden = true;
   const response = await fetch(path, {
@@ -179,9 +243,35 @@ async function submitPasswordMutation(path, body) {
     location.assign("/");
     return;
   }
-  error.textContent = (await response.json()).error.message;
+  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
+  if (authenticationFailure === true) {
+    return;
+  }
+  error.textContent = (authenticationFailure ?? await response.json()).error.message;
   error.hidden = false;
 }
+async function recordBrowserActivity() {
+  const now = Date.now();
+  if (now - lastActivityAt < 60_000) {
+    return;
+  }
+  lastActivityAt = now;
+  const response = await fetch("/api/v1/session/activity", {
+    headers: { "x-quality-bar-csrf": csrfToken() },
+    method: "POST",
+  });
+  if (response.ok) {
+    return;
+  }
+  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
+  if (authenticationFailure === true) {
+    return;
+  }
+  error.textContent = (authenticationFailure ?? await response.json()).error.message;
+  error.hidden = false;
+}
+document.addEventListener("keydown", recordBrowserActivity);
+document.addEventListener("pointerdown", recordBrowserActivity);
 document.getElementById("password-change-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   await submitPasswordMutation("/api/v1/session/password", {
@@ -203,7 +293,11 @@ document.getElementById("logout").addEventListener("click", async () => {
     location.assign("/");
     return;
   }
-  error.textContent = (await response.json()).error.message;
+  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
+  if (authenticationFailure === true) {
+    return;
+  }
+  error.textContent = (authenticationFailure ?? await response.json()).error.message;
   error.hidden = false;
 });
 </script>`;
@@ -211,6 +305,7 @@ document.getElementById("logout").addEventListener("click", async () => {
 
 export function createApplicationServer({
   browserSessions,
+  browserOrigin = null,
   readDurableCoreStatus,
   readSystemStatus = () => ({}),
   secureBrowserCookie = false,
@@ -228,6 +323,7 @@ export function createApplicationServer({
     "logout",
     "changePassword",
     "revokeAll",
+    "touch",
   ]) {
     if (typeof browserSessions?.[method] !== "function") {
       throw new TypeError("browserSessions must provide the session boundary");
@@ -235,7 +331,8 @@ export function createApplicationServer({
   }
 
   return createServer(async (request, response) => {
-    const path = request.url.split("?", 1)[0];
+    const requestUrl = new URL(request.url, "http://quality-bar.internal");
+    const path = requestUrl.pathname;
     if (request.method === "GET" && path === "/health/live") {
       writeJson(response, 200, { status: "live" });
       return;
@@ -259,9 +356,12 @@ export function createApplicationServer({
     if (request.method === "POST" && path === "/api/v1/session/login") {
       try {
         const { password } = await readLoginRequest(request);
-        const { secret } = browserSessions.login(password);
+        const { csrfToken, secret } = browserSessions.login(password);
         writeEmpty(response, {
-          "set-cookie": sessionCookie(secret, secureBrowserCookie),
+          "set-cookie": [
+            sessionCookie(secret, secureBrowserCookie),
+            csrfCookie(csrfToken, secureBrowserCookie),
+          ],
         });
       } catch (error) {
         if (error.message === "request_malformed") {
@@ -285,8 +385,33 @@ export function createApplicationServer({
       try {
         browserSessions.logout(sessionSecret(request));
         writeEmpty(response, {
-          "set-cookie": clearedSessionCookie(secureBrowserCookie),
+          "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
+      } catch (error) {
+        writeError(
+          response,
+          authenticationFailureStatus(error.code),
+          error.code ?? "authentication_unavailable",
+          error.message ?? authenticationFailureMessage(error.code),
+        );
+      }
+      return;
+    }
+
+    if (request.method === "POST" && path === "/api/v1/session/activity") {
+      try {
+        if (request.headers.origin !== browserOrigin) {
+          writeError(response, 403, "origin_invalid", "Browser origin is invalid");
+        } else if (
+          !browserSessions.touch(
+            sessionSecret(request),
+            request.headers["x-quality-bar-csrf"],
+          )
+        ) {
+          writeError(response, 401, "authentication_required", "Browser session is required");
+        } else {
+          writeEmpty(response);
+        }
       } catch (error) {
         writeError(
           response,
@@ -308,7 +433,7 @@ export function createApplicationServer({
           await readPasswordChangeRequest(request);
         browserSessions.changePassword(current_password, new_password);
         writeEmpty(response, {
-          "set-cookie": clearedSessionCookie(secureBrowserCookie),
+          "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
         if (error.message === "request_malformed") {
@@ -340,7 +465,7 @@ export function createApplicationServer({
         }
         browserSessions.revokeAll(password);
         writeEmpty(response, {
-          "set-cookie": clearedSessionCookie(secureBrowserCookie),
+          "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
         if (error.message === "request_malformed") {
@@ -363,7 +488,10 @@ export function createApplicationServer({
       } else if (browserSessions.authenticate(sessionSecret(request))) {
         writeHtml(response, operatorPage());
       } else {
-        writeHtml(response, loginPage());
+        writeHtml(
+          response,
+          loginPage(safeInternalDestination(requestUrl.searchParams.get("return_to"))),
+        );
       }
       return;
     }

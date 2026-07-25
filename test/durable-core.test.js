@@ -28,7 +28,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 2,
+    schemaVersion: 4,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -45,12 +45,43 @@ test("migrates the existing operator-password schema atomically before serving s
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 2);
+  assert.equal(migrated.facts.schemaVersion, 4);
   assert.equal(
     migrated.get("SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'").value,
-    "2",
+    "4",
   );
-  migrated.run("INSERT INTO browser_sessions (session_hash) VALUES (?)", "session-hash");
+  migrated.run(
+    "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+    "session-hash",
+    "csrf-hash",
+    1,
+    1,
+  );
+  migrated.close();
+});
+
+test("migrates legacy browser sessions by revoking records without lifetime timestamps", () => {
+  const databasePath = temporaryDatabasePath();
+  const core = openDurableCore(databasePath);
+  core.transaction((transaction) => {
+    transaction.run("DROP TABLE browser_sessions");
+    transaction.run(
+      "CREATE TABLE browser_sessions (session_hash TEXT PRIMARY KEY) STRICT",
+    );
+    transaction.run(
+      "INSERT INTO browser_sessions (session_hash) VALUES (?)",
+      "legacy-session-hash",
+    );
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = '2' WHERE key = 'schema_version'",
+    );
+    transaction.run("PRAGMA user_version = 2");
+  });
+  core.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 4);
+  assert.equal(migrated.get("SELECT session_hash FROM browser_sessions"), undefined);
   migrated.close();
 });
 
@@ -119,14 +150,14 @@ test("rejects a corrupt database with the exact owning error", () => {
 test("rejects an incompatible schema with the exact owning error", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 3");
+  current.run("PRAGMA user_version = 5");
   current.close();
 
   assert.throws(
     () => openDurableCore(databasePath),
     (error) => {
       assert.equal(error.code, "schema_invalid");
-      assert.equal(error.message, "SQLite schema version 3 is not supported");
+      assert.equal(error.message, "SQLite schema version 5 is not supported");
       return true;
     },
   );

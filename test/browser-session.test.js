@@ -52,6 +52,7 @@ test("creates a durable opaque browser session without persisting its secret", (
   const session = sessions.login("a correct operator password");
 
   assert.match(session.secret, /^[A-Za-z0-9_-]{43}$/);
+  assert.match(session.csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(sessions.authenticate(session.secret), true);
   assert.notEqual(
     core.get("SELECT session_hash FROM browser_sessions").session_hash,
@@ -61,6 +62,87 @@ test("creates a durable opaque browser session without persisting its secret", (
     core.get("SELECT session_hash FROM browser_sessions").session_hash,
     new RegExp(session.secret),
   );
+  assert.doesNotMatch(
+    core.get("SELECT csrf_hash FROM browser_sessions").csrf_hash,
+    new RegExp(session.csrfToken),
+  );
+  core.close();
+});
+
+test("enforces fixed idle and absolute browser-session lifetimes from durable timestamps", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const password = "a correct operator password";
+  let now = 1_000;
+  const day = 24 * 60 * 60 * 1_000;
+  bootstrapOperatorPassword(core, password);
+  const sessions = createBrowserSessionService(core, {
+    now: () => now,
+    randomBytes: (() => {
+      let byte = 0;
+      return () => Buffer.alloc(32, ++byte);
+    })(),
+  });
+
+  const idleSession = sessions.login(password);
+  now += 6 * day;
+  assert.equal(sessions.authenticate(idleSession.secret), true);
+  assert.deepEqual(
+    core.get(
+      "SELECT created_at, last_authenticated_at FROM browser_sessions WHERE created_at = ?",
+      1_000,
+    ),
+    { created_at: 1_000, last_authenticated_at: 1_000 },
+  );
+  now = 1_000 + 7 * day;
+  assert.equal(sessions.authenticate(idleSession.secret), false);
+  assert.notEqual(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+
+  now = 2_000;
+  const absoluteSession = sessions.login(password);
+  for (const elapsedDays of [6, 12, 18, 24]) {
+    now = 2_000 + elapsedDays * day;
+    core.run(
+      "UPDATE browser_sessions SET last_authenticated_at = ? WHERE created_at = ?",
+      now,
+      2_000,
+    );
+    assert.equal(sessions.authenticate(absoluteSession.secret), true);
+  }
+  now = 2_000 + 29 * day;
+  core.run(
+    "UPDATE browser_sessions SET last_authenticated_at = ? WHERE created_at = ?",
+    now,
+    2_000,
+  );
+  assert.equal(sessions.authenticate(absoluteSession.secret), true);
+  now = 2_000 + 30 * day;
+  assert.equal(sessions.authenticate(absoluteSession.secret), false);
+  assert.notEqual(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+  core.close();
+});
+
+test("refreshes idle activity only through a session-bound transition", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const password = "a correct operator password";
+  let now = 1_000;
+  const day = 24 * 60 * 60 * 1_000;
+  bootstrapOperatorPassword(core, password);
+  const sessions = createBrowserSessionService(core, {
+    now: () => now,
+  });
+  const session = sessions.login(password);
+
+  now += 6 * day;
+  assert.equal(sessions.authenticate(session.secret), true);
+  assert.equal(sessions.touch(session.secret, session.csrfToken), true);
+  assert.deepEqual(
+    core.get("SELECT last_authenticated_at FROM browser_sessions"),
+    { last_authenticated_at: now },
+  );
+  now += 6 * day;
+  assert.equal(sessions.authenticate(session.secret), true);
+  now += 7 * day;
+  assert.equal(sessions.authenticate(session.secret), false);
   core.close();
 });
 

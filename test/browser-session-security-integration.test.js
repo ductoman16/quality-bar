@@ -16,7 +16,7 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
-async function startApplication(databasePath) {
+async function startApplication(databasePath, { now } = {}) {
   const application = createApplication({
     databasePath,
     loadInstallation: () => ({
@@ -29,6 +29,7 @@ async function startApplication(databasePath) {
     validateTools() {},
     validateCodexAuthentication() {},
     writeLog() {},
+    now,
   });
   applications.push(application);
   await new Promise((resolve, reject) => {
@@ -74,6 +75,45 @@ test("sessions survive a service restart but an uninitialized operator cannot lo
     headers: { cookie },
   });
   assert.equal(system.status, 200);
+});
+
+test("idle and absolute expiry remain enforced after a service restart", async () => {
+  const databasePath = temporaryDatabasePath();
+  let now = 1_000;
+  const first = await startApplication(databasePath, { now: () => now });
+  bootstrapOperatorPassword(first.application.durableCore, "a correct operator password");
+  const idleLogin = await fetch(`${first.origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookies = idleLogin.headers.get("set-cookie");
+  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  now += 6 * 24 * 60 * 60 * 1_000;
+  const activity = await fetch(`${first.origin}/api/v1/session/activity`, {
+    headers: {
+      cookie: `${sessionCookie}; quality_bar_csrf=${csrfToken}`,
+      origin: "http://127.0.0.1:3000",
+      "x-quality-bar-csrf": csrfToken,
+    },
+    method: "POST",
+  });
+  assert.equal(activity.status, 204);
+  await first.application.close();
+  applications.splice(applications.indexOf(first.application), 1);
+
+  now += 6 * 24 * 60 * 60 * 1_000;
+  const second = await startApplication(databasePath, { now: () => now });
+  const refreshedSystem = await fetch(`${second.origin}/api/v1/system`, {
+    headers: { cookie: sessionCookie },
+  });
+  assert.equal(refreshedSystem.status, 200);
+  now = 1_000 + 30 * 24 * 60 * 60 * 1_000;
+  const absoluteSystem = await fetch(`${second.origin}/api/v1/system`, {
+    headers: { cookie: sessionCookie },
+  });
+  assert.equal(absoluteSystem.status, 401);
 });
 
 test("a failed-login delay survives a service restart and blocks a correct password before verification", async () => {

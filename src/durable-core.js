@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 const FATAL_SQLITE_CODES = [
   "SQLITE_BUSY_RECOVERY",
   "SQLITE_CANTOPEN",
@@ -148,7 +148,10 @@ function initializeOrValidateSchema(database) {
         value TEXT NOT NULL
       ) STRICT;
       CREATE TABLE browser_sessions (
-        session_hash TEXT PRIMARY KEY
+        session_hash TEXT PRIMARY KEY,
+        csrf_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_authenticated_at INTEGER NOT NULL
       ) STRICT;
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
@@ -159,7 +162,26 @@ function initializeOrValidateSchema(database) {
     database.exec(`
       BEGIN IMMEDIATE;
       CREATE TABLE browser_sessions (
-        session_hash TEXT PRIMARY KEY
+        session_hash TEXT PRIMARY KEY,
+        csrf_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_authenticated_at INTEGER NOT NULL
+      ) STRICT;
+      UPDATE quality_bar_metadata
+      SET value = '${SCHEMA_VERSION}'
+      WHERE key = 'schema_version';
+      PRAGMA user_version = ${SCHEMA_VERSION};
+      COMMIT;
+    `);
+  } else if (version === 2 || version === 3) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      DROP TABLE browser_sessions;
+      CREATE TABLE browser_sessions (
+        session_hash TEXT PRIMARY KEY,
+        csrf_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_authenticated_at INTEGER NOT NULL
       ) STRICT;
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
