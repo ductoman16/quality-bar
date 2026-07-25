@@ -282,6 +282,7 @@ test("Compose boots with one strict configuration source and external installati
         integrity: scalar("PRAGMA integrity_check", "integrity_check"),
         installationKeyVerifier: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("installation_key_verifier")?.value ?? null,
         journalMode: scalar("PRAGMA journal_mode", "journal_mode"),
+        operatorPasswordVerifier: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("operator_password_verifier")?.value ?? null,
         persistedMarker: database.prepare("SELECT value FROM quality_bar_metadata WHERE key = ?").get("package_persistence_test")?.value ?? null,
         schemaVersion: scalar("PRAGMA user_version", "user_version"),
         synchronous: ({ 0: "off", 1: "normal", 2: "full", 3: "extra" })[scalar("PRAGMA synchronous", "synchronous")],
@@ -306,6 +307,7 @@ test("Compose boots with one strict configuration source and external installati
     );
     assert.equal(initialDatabaseFacts.persistedMarker, null);
     assert.match(initialDatabaseFacts.installationKeyVerifier, /^v1\./);
+    assert.equal(initialDatabaseFacts.operatorPasswordVerifier, null);
     run(
       "docker",
       [
@@ -324,6 +326,45 @@ test("Compose boots with one strict configuration source and external installati
         `,
       ],
       environment,
+    );
+    const bootstrapPassword = "a package supplied operator password";
+    run("docker", ["compose", "stop", serviceName], environment);
+    assert.equal(
+      run(
+        "docker",
+        [
+          "compose",
+          "run",
+          "--rm",
+          "--no-deps",
+          "-T",
+          serviceName,
+          "node",
+          "src/bootstrap-operator-password.js",
+        ],
+        environment,
+        `${bootstrapPassword}\n`,
+      ),
+      '{"status":"operator_password_bootstrapped"}',
+    );
+    assert.throws(
+      () =>
+        run(
+          "docker",
+          [
+            "compose",
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            serviceName,
+            "node",
+            "src/bootstrap-operator-password.js",
+          ],
+          environment,
+          "a different package supplied password\n",
+        ),
+      /operator_password_already_set/,
     );
     run(
       "docker",
@@ -347,6 +388,8 @@ test("Compose boots with one strict configuration source and external installati
       ),
     );
     assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
+    assert.match(recreatedDatabaseFacts.operatorPasswordVerifier, /^scrypt-v1\./);
+    assert.doesNotMatch(recreatedDatabaseFacts.operatorPasswordVerifier, new RegExp(bootstrapPassword));
 
     const packageFacts = {
       serviceCount: Object.keys(configuration.services).length,
@@ -398,13 +441,20 @@ test("Compose boots with one strict configuration source and external installati
         ),
         masterKeyPath: "/run/secrets/quality-bar-master-key",
       },
+      authority: {
+        operatorPasswordBootstrap: /^scrypt-v1\./.test(
+          recreatedDatabaseFacts.operatorPasswordVerifier,
+        ),
+      },
       database: {
         ...recreatedDatabaseFacts,
         installationKeyVerifier: undefined,
+        operatorPasswordVerifier: undefined,
         persistedMarker: undefined,
       },
     };
     assert.doesNotMatch(JSON.stringify(packageFacts), new RegExp(masterKey));
+    assert.doesNotMatch(JSON.stringify(packageFacts), new RegExp(bootstrapPassword));
     console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(packageFacts)}`);
   } catch (error) {
     primaryFailure = error;

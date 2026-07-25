@@ -158,6 +158,10 @@ function validatePackageFacts(facts) {
       "configuration.encryptedVerifier must equal true",
     ],
     [
+      facts?.authority?.operatorPasswordBootstrap === true,
+      "authority.operatorPasswordBootstrap must equal true",
+    ],
+    [
       /^\d+\.\d+\.\d+$/.test(facts?.database?.databaseVersion),
       "database.databaseVersion must be semantic",
     ],
@@ -309,6 +313,22 @@ const gateDefinitions = [
       "test/durable-core.test.js",
       "test/health-live.test.js",
       "test/installation-environment.test.js",
+      "test/operator-password.test.js",
+    ],
+  },
+  {
+    name: "browser-component",
+    testGroup: "operator-password-host-only-browser-boundary",
+    failureCode: "browser_component_tests_failed",
+    arguments: ["--test", "test/operator-password-browser-component.test.js"],
+  },
+  {
+    name: "security-integration",
+    testGroup: "operator-password-host-bootstrap-security-boundary",
+    failureCode: "security_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/operator-password-bootstrap.test.js",
     ],
   },
   {
