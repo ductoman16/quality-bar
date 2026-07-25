@@ -116,9 +116,7 @@ test("configuration failure keeps product traffic unavailable without exposing s
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.deepEqual(await productResponse.json(), {
-    error: "configuration_unknown",
-  });
+  assert.equal((await productResponse.json()).error.code, "configuration_unknown");
 });
 
 test("unsafe fixed sources are rejected before their contents are read", async () => {
@@ -172,10 +170,13 @@ test("unavailable Codex authentication leaves the durable System surface ready",
   });
   assert.equal(systemResponse.status, 200);
   assert.deepEqual(await systemResponse.json(), {
+    bootstrap: { status: "complete" },
+    browser_sessions: { active_count: 1, status: "available" },
     codex: {
       error: "codex_authentication_unavailable",
       status: "unavailable",
     },
+    durable_core: { schema_version: 5, status: "ready" },
     implementer_token: {
       status: "revoked",
     },
@@ -220,9 +221,7 @@ test("a malformed external master key never appears in responses or logs", async
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.deepEqual(await productResponse.json(), {
-    error: "master_key_malformed",
-  });
+  assert.equal((await productResponse.json()).error.code, "master_key_malformed");
   assert.doesNotMatch(logs.join(""), new RegExp(secretValue));
 });
 
@@ -251,9 +250,7 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.deepEqual(await productResponse.json(), {
-    error: "master_key_undecryptable",
-  });
+  assert.equal((await productResponse.json()).error.code, "master_key_undecryptable");
 });
 
 test("hard storage failure stops work, terminates Codex, and rejects every product surface", async () => {
@@ -300,9 +297,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   ]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 503, path);
-    assert.deepEqual(await response.json(), {
-      error: "storage_unavailable",
-    });
+    assert.equal((await response.json()).error.code, "storage_unavailable");
   }
 
   const liveAfterFailure = await fetch(`${origin}/health/live`);

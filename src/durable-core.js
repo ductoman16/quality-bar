@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const FATAL_SQLITE_CODES = [
   "SQLITE_BUSY_RECOVERY",
   "SQLITE_CANTOPEN",
@@ -153,6 +153,16 @@ function initializeOrValidateSchema(database) {
         created_at INTEGER NOT NULL,
         last_authenticated_at INTEGER NOT NULL
       ) STRICT;
+      CREATE TABLE authority_attributions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
+        error_code TEXT,
+        occurred_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX authority_attributions_keyset
+        ON authority_attributions (occurred_at DESC, id DESC);
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -167,6 +177,16 @@ function initializeOrValidateSchema(database) {
         created_at INTEGER NOT NULL,
         last_authenticated_at INTEGER NOT NULL
       ) STRICT;
+      CREATE TABLE authority_attributions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
+        error_code TEXT,
+        occurred_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX authority_attributions_keyset
+        ON authority_attributions (occurred_at DESC, id DESC);
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
       WHERE key = 'schema_version';
@@ -183,6 +203,35 @@ function initializeOrValidateSchema(database) {
         created_at INTEGER NOT NULL,
         last_authenticated_at INTEGER NOT NULL
       ) STRICT;
+      CREATE TABLE authority_attributions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
+        error_code TEXT,
+        occurred_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX authority_attributions_keyset
+        ON authority_attributions (occurred_at DESC, id DESC);
+      UPDATE quality_bar_metadata
+      SET value = '${SCHEMA_VERSION}'
+      WHERE key = 'schema_version';
+      PRAGMA user_version = ${SCHEMA_VERSION};
+      COMMIT;
+    `);
+  } else if (version === 4) {
+    database.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE authority_attributions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
+        error_code TEXT,
+        occurred_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX authority_attributions_keyset
+        ON authority_attributions (occurred_at DESC, id DESC);
       UPDATE quality_bar_metadata
       SET value = '${SCHEMA_VERSION}'
       WHERE key = 'schema_version';
@@ -305,6 +354,9 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
       const row = execute("get", sql, parameters);
       return row ? { ...row } : undefined;
     },
+    all(sql, ...parameters) {
+      return execute("all", sql, parameters).map((row) => ({ ...row }));
+    },
     run(sql, ...parameters) {
       return execute("run", sql, parameters);
     },
@@ -334,6 +386,15 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
               }
               const row = execute("get", sql, parameters);
               return row ? { ...row } : undefined;
+            },
+            all(sql, ...parameters) {
+              if (!transactionActive) {
+                throw new DurableCoreError(
+                  "transaction_closed",
+                  "SQLite transaction is no longer active",
+                );
+              }
+              return execute("all", sql, parameters).map((row) => ({ ...row }));
             },
             run(sql, ...parameters) {
               if (!transactionActive) {

@@ -127,6 +127,35 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
   );
 });
 
+test("the authenticated browser shell has the fixed resource navigation and a System attention target", async () => {
+  const { origin } = await startApplication();
+  const login = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+
+  const evaluations = await fetch(`${origin}/`, { headers: { cookie } });
+  const evaluationsHtml = await evaluations.text();
+  assert.match(evaluationsHtml, /<h1>Evaluations<\/h1>/);
+  assert.match(evaluationsHtml, /aria-label="Primary"/);
+  for (const resource of ["Evaluations", "Reviews", "Repositories", "Analytics", "System"]) {
+    assert.match(evaluationsHtml, new RegExp(`>${resource}<\\/a>`));
+  }
+  assert.match(evaluationsHtml, /id="attention"/);
+  assert.doesNotMatch(evaluationsHtml, /Dashboard|notification|workflow/i);
+
+  const system = await fetch(`${origin}/?view=system`, { headers: { cookie } });
+  const systemHtml = await system.text();
+  assert.match(systemHtml, /<h1>System<\/h1>/);
+  assert.match(systemHtml, /id="system-facts"/);
+  assert.match(systemHtml, /fetch\("\/api\/v1\/system"\)/);
+  assert.match(systemHtml, /system\.bootstrap\.status/);
+  assert.match(systemHtml, /system\.implementer_token\.status/);
+  assert.match(systemHtml, /system\.codex\.error/);
+});
+
 test("browser activity refreshes a session only with its exact origin and session-bound CSRF token", async () => {
   let now = 1_000;
   const { application, origin } = await startApplication({ now: () => now });
@@ -286,9 +315,8 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
   );
 });
 
-test("browser activity returns the exact session failure instead of dropping the request", async () => {
-  const failure = new Error("SQLite durable write failed");
-  failure.code = "storage_unavailable";
+test("browser activity makes an unexpected authority-recording failure secret-safe", async () => {
+  const failure = new Error("unexpected recorder implementation detail");
   const server = createApplicationServer({
     browserOrigin: "http://127.0.0.1:3000",
     browserSessions: {
@@ -303,7 +331,7 @@ test("browser activity returns the exact session failure instead of dropping the
       logout() {},
       revokeAll() {},
       touch() {
-        throw failure;
+        return false;
       },
       verifyCsrf() {
         return true;
@@ -320,7 +348,12 @@ test("browser activity returns the exact session failure instead of dropping the
       revoke() {},
       rotate() {},
     },
+    listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
+    recordAuthorityAttribution() {
+      throw failure;
+    },
     readDurableCoreStatus: () => ({ status: "ready" }),
+    readSystemStatus: () => ({}),
     requestSecurity: { requestFacts() {} },
   });
   await new Promise((resolve, reject) => {
@@ -334,8 +367,12 @@ test("browser activity returns the exact session failure instead of dropping the
       headers: { origin: "http://127.0.0.1:3000" },
       method: "POST",
     });
-    assert.equal(response.status, 503);
-    assert.equal((await response.json()).error.code, "storage_unavailable");
+    assert.equal(response.status, 500);
+    assert.deepEqual(Object.keys((await response.json()).error).sort(), [
+      "code",
+      "message",
+      "request_id",
+    ]);
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

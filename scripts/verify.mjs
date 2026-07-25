@@ -167,6 +167,14 @@ function validatePackageFacts(facts) {
       "authority.operatorPasswordBootstrap must equal true",
     ],
     [
+      facts?.authenticatedHttpSmoke?.browserStatus === 200 &&
+        facts?.authenticatedHttpSmoke?.hasNavigation === true &&
+        facts?.authenticatedHttpSmoke?.loginStatus === 204 &&
+        facts?.authenticatedHttpSmoke?.openapiStatus === 200 &&
+        facts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0",
+      "authenticatedHttpSmoke must prove the packaged authenticated HTTP and OpenAPI contract",
+    ],
+    [
       /^\d+\.\d+\.\d+$/.test(facts?.database?.databaseVersion),
       "database.databaseVersion must be semantic",
     ],
@@ -183,8 +191,8 @@ function validatePackageFacts(facts) {
       "database.journalMode must equal wal",
     ],
     [
-      facts?.database?.schemaVersion === 4,
-      "database.schemaVersion must equal 4",
+      facts?.database?.schemaVersion === 5,
+      "database.schemaVersion must equal 5",
     ],
     [
       facts?.database?.synchronous === "full",
@@ -193,6 +201,18 @@ function validatePackageFacts(facts) {
   ];
 
   return requirements.find(([valid]) => !valid)?.[1] ?? null;
+}
+
+function validateOperatorBrowserFacts(facts) {
+  return facts?.engine !== "firefox"
+    ? "engine must equal firefox"
+    : facts?.authenticatedShell !== true
+      ? "authenticatedShell must equal true"
+      : facts?.systemFetch !== true
+        ? "systemFetch must equal true"
+        : typeof facts?.executableVersion !== "string" || facts.executableVersion.length === 0
+          ? "executableVersion must be nonempty"
+          : null;
 }
 
 function runGate(definition) {
@@ -346,6 +366,14 @@ const gateDefinitions = [
     ],
   },
   {
+    name: "operator-browser-smoke",
+    testGroup: "authenticated-firefox-browser-cross-process",
+    failureCode: "operator_browser_smoke_failed",
+    factsMarker: "QUALITY_BAR_OPERATOR_BROWSER_FACTS",
+    validateFacts: validateOperatorBrowserFacts,
+    arguments: ["--test", "test/operator-browser-smoke.test.js"],
+  },
+  {
     name: "package-integration",
     testGroup: "compose-service",
     failureCode: "package_integration_failed",
@@ -374,6 +402,9 @@ const outcome = failures.length === 0 ? "pass" : "fail";
 const packageFacts = gates.find(
   (gate) => gate.name === "package-integration",
 )?.facts;
+const operatorBrowserFacts = gates.find(
+  (gate) => gate.name === "operator-browser-smoke",
+)?.facts;
 const manifest = {
   evidenceVersion: 1,
   sourceCommit,
@@ -389,7 +420,7 @@ const manifest = {
     git: packageFacts?.tools?.git ?? null,
     codex: packageFacts?.tools?.codex ?? null,
     adapterProtocol: null,
-    browser: null,
+    browser: operatorBrowserFacts?.executableVersion ?? null,
     database: packageFacts?.database?.databaseVersion
       ? `sqlite:${packageFacts.database.databaseVersion}`
       : null,
