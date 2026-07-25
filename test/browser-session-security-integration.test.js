@@ -308,3 +308,36 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
   assert.equal(identityHeader.status, 401);
   assert.equal((await identityHeader.json()).error.code, "authentication_required");
 });
+
+test("machine credentials are accepted only as a sole Authorization bearer value", async () => {
+  const application = await startApplication(temporaryDatabasePath());
+  const password = "a correct operator password";
+  bootstrapOperatorPassword(application.application.durableCore, password);
+  const token = application.application.implementerTokens.create(password);
+
+  const validBearer = await fetch(`${application.origin}/api/v1/system`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(validBearer.status, 403);
+  assert.equal((await validBearer.json()).error.code, "authorization_forbidden");
+
+  const browserSurface = await fetch(`${application.origin}/`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(browserSurface.status, 403);
+  assert.equal((await browserSurface.json()).error.code, "authorization_forbidden");
+
+  for (const [url, headers, expectedCode] of [
+    [`${application.origin}/api/v1/system?ToKeN=${token}`, {}, "authentication_invalid"],
+    [`${application.origin}/api/v1/system`, { authorization: token }, "authentication_invalid"],
+    [
+      `${application.origin}/api/v1/system`,
+      { authorization: `Bearer ${token}`, cookie: "quality_bar_session=not-machine-auth" },
+      "authentication_ambiguous",
+    ],
+  ]) {
+    const response = await fetch(url, { headers });
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error.code, expectedCode);
+  }
+});

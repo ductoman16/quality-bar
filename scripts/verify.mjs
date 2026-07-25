@@ -321,6 +321,7 @@ const gateDefinitions = [
       "test/installation-environment.test.js",
       "test/operator-password.test.js",
       "test/browser-session.test.js",
+      "test/implementer-token.test.js",
       "test/request-security.test.js",
     ],
   },
@@ -396,6 +397,7 @@ const manifest = {
   },
   securityBoundary: {
     browserMutations: "exact-origin-and-session-bound-csrf",
+    machineAuthentication: "authorization-bearer-only",
     plaintextHttp: "loopback-only",
     proxyFacts: "explicit-trusted-addresses-only",
   },
