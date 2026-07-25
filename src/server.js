@@ -391,7 +391,7 @@ function updateCriterionLabels() {
 }
 function addCriterion() {
   const criteria = document.getElementById("review-criteria");
-  if (!criteria) return;
+  if (!criteria) throw new Error("Review criteria container is unavailable");
   const index = criteria.children.length + 1;
   const item = document.createElement("li");
   const instructionLabel = document.createElement("label");
@@ -418,7 +418,9 @@ function configureReviewModels(catalog) {
   const model = document.getElementById("review-model");
   const reasoningEffort = document.getElementById("review-reasoning-effort");
   const serviceTier = document.getElementById("review-service-tier");
-  if (!model || !reasoningEffort || !serviceTier) return;
+  if (!model || !reasoningEffort || !serviceTier) {
+    throw new Error("Review configuration controls are unavailable");
+  }
   function option(value) {
     const element = document.createElement("option");
     element.value = value;
@@ -552,8 +554,10 @@ document.getElementById("implementer-token-revoke-form").addEventListener("submi
     password: document.getElementById("implementer-token-revoke-password").value,
   });
 });
-document.getElementById("review-add-criterion")?.addEventListener("click", addCriterion);
 if (reviewForm) {
+  const addCriterionButton = document.getElementById("review-add-criterion");
+  if (!addCriterionButton) throw new Error("Review Criterion control is unavailable");
+  addCriterionButton.addEventListener("click", addCriterion);
   setReviewControlsDisabled(true);
   addCriterion();
   reviewForm.addEventListener("submit", async (event) => {
@@ -1123,11 +1127,14 @@ export function createApplicationServer({
           );
         } else {
           const unavailable = isUnavailableError(error);
+          const code = unavailable
+            ? error.code
+            : error.code ?? "review_creation_failed";
           writeError(
             response,
             unavailable ? 503 : error.code ? 422 : 500,
-            unavailable ? error.code : error.code ?? "internal_error",
-            unavailable ? error.message : error.code ? error.message : "Internal server error",
+            code,
+            error.message ?? "Review creation failed",
           );
         }
       }

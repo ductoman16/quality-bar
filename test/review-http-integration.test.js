@@ -16,7 +16,7 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
-async function startApplication() {
+async function startApplication(options = {}) {
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => ({
@@ -28,6 +28,7 @@ async function startApplication() {
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
+    createReviews: options.createReviews,
     writeLog() {},
   });
   bootstrapOperatorPassword(application.durableCore, "a correct operator password");
@@ -112,4 +113,36 @@ test("a sole implementer bearer creates the same Review resource without browser
   });
   assert.equal(created.status, 201);
   assert.equal((await created.json()).name, "Machine HTTP boundaries");
+});
+
+test("an unexpected Review resource failure has an exact owning error", async () => {
+  const failure = new Error("exact Review resource failure");
+  const { origin } = await startApplication({
+    createReviews() {
+      return { create() { throw failure; } };
+    },
+  });
+  const login = await fetch(`${origin}/api/v1/session/login`, {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const setCookie = login.headers.get("set-cookie");
+  const session = setCookie.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const csrf = setCookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const response = await fetch(`${origin}/api/v1/reviews`, {
+    body: JSON.stringify(reviewRequest()),
+    headers: {
+      "content-type": "application/json",
+      cookie: `${session}; quality_bar_csrf=${csrf}`,
+      origin: "http://127.0.0.1:3000",
+      "x-quality-bar-csrf": csrf,
+    },
+    method: "POST",
+  });
+  assert.equal(response.status, 500);
+  const body = await response.json();
+  assert.equal(body.error.code, "review_creation_failed");
+  assert.equal(body.error.message, "exact Review resource failure");
+  assert.match(body.error.request_id, /^[0-9a-f-]{36}$/);
 });

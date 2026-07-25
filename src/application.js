@@ -111,6 +111,7 @@ export function createApplication({
   validateSources = validateInstallationSources,
   validateTools = validateBundledTools,
   validateCodexAuthentication = validateCodexLogin,
+  createReviews = createReviewService,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
 }) {
@@ -147,7 +148,7 @@ export function createApplication({
     installation.masterKey.fill(0);
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
-    reviews = createReviewService(durableCore, { now });
+    reviews = createReviews(durableCore, { now });
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {

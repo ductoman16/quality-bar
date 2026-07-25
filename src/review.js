@@ -106,6 +106,7 @@ export function createReviewService(durableCore, { createId = randomUUID, now = 
             transaction.run("INSERT INTO criteria (id, review_id, instruction, impact, created_at) VALUES (?, ?, ?, ?, ?)", criterion.id, reviewId, criterion.instruction, criterion.impact, createdAt);
             transaction.run("INSERT INTO review_version_criteria (review_version_id, criterion_id, position) VALUES (?, ?, ?)", versionId, criterion.id, criterion.position);
           }
+          transaction.run("UPDATE review_versions SET sealed_at = ? WHERE id = ?", createdAt, versionId);
         });
       } catch (error) {
         if (conflict(error)) {

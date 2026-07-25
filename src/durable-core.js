@@ -30,6 +30,7 @@ const REVIEW_SCHEMA = `
     reasoning_effort TEXT NOT NULL,
     service_tier TEXT NOT NULL,
     created_at INTEGER NOT NULL,
+    sealed_at INTEGER,
     UNIQUE (review_id, number)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS criteria (
@@ -53,6 +54,7 @@ const REVIEW_SCHEMA = `
   ) STRICT;
   CREATE TRIGGER IF NOT EXISTS review_versions_immutable_update
     BEFORE UPDATE ON review_versions
+    WHEN OLD.sealed_at IS NOT NULL OR NEW.sealed_at IS NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS review_versions_immutable_delete
     BEFORE DELETE ON review_versions
@@ -68,6 +70,10 @@ const REVIEW_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_delete
     BEFORE DELETE ON review_version_criteria
+    BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_insert
+    BEFORE INSERT ON review_version_criteria
+    WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
 
