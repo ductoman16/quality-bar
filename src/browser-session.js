@@ -3,7 +3,10 @@ import {
   randomBytes as createRandomBytes,
 } from "node:crypto";
 
-import { verifyOperatorPassword } from "./operator-password.js";
+import {
+  prepareOperatorPasswordReplacement,
+  verifyOperatorPassword,
+} from "./operator-password.js";
 
 export const BROWSER_SESSION_COOKIE_NAME = "quality_bar_session";
 
@@ -27,6 +30,8 @@ export function createUnavailableBrowserSessionService(error) {
     isBootstrapped: unavailable,
     login: unavailable,
     logout: unavailable,
+    changePassword: unavailable,
+    revokeAll: unavailable,
   };
 }
 
@@ -97,6 +102,27 @@ export function createBrowserSessionService(
           "DELETE FROM browser_sessions WHERE session_hash = ?",
           sessionHash(secret),
         );
+      });
+    },
+    changePassword(currentPassword, replacementPassword) {
+      const replacementVerifier = prepareOperatorPasswordReplacement(
+        durableCore,
+        currentPassword,
+        replacementPassword,
+      );
+      durableCore.transaction((transaction) => {
+        transaction.run(
+          "UPDATE quality_bar_metadata SET value = ? WHERE key = ?",
+          replacementVerifier,
+          "operator_password_verifier",
+        );
+        transaction.run("DELETE FROM browser_sessions");
+      });
+    },
+    revokeAll(password) {
+      verifyOperatorPassword(durableCore, password);
+      durableCore.transaction((transaction) => {
+        transaction.run("DELETE FROM browser_sessions");
       });
     },
     isBootstrapped() {

@@ -30,7 +30,14 @@ test("an unavailable browser-session boundary preserves the exact startup failur
   failure.code = "configuration_missing";
   const sessions = createUnavailableBrowserSessionService(failure);
 
-  for (const method of ["authenticate", "isBootstrapped", "login", "logout"]) {
+  for (const method of [
+    "authenticate",
+    "isBootstrapped",
+    "login",
+    "logout",
+    "changePassword",
+    "revokeAll",
+  ]) {
     assert.throws(() => sessions[method](), (error) => error === failure);
   }
 });
@@ -103,5 +110,58 @@ test("logout revokes only the current durable browser session", () => {
 
   assert.equal(sessions.authenticate(first.secret), false);
   assert.equal(sessions.authenticate(second.secret), true);
+  core.close();
+});
+
+test("changing the password with fresh confirmation atomically revokes every browser session", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const currentPassword = "a correct operator password";
+  const replacementPassword = "a replacement operator password";
+  bootstrapOperatorPassword(core, currentPassword);
+  const sessions = createBrowserSessionService(core, {
+    randomBytes: (() => {
+      let byte = 0;
+      return () => Buffer.alloc(32, ++byte);
+    })(),
+  });
+  const first = sessions.login(currentPassword);
+  const second = sessions.login(currentPassword);
+
+  sessions.changePassword(currentPassword, replacementPassword);
+
+  assert.equal(sessions.authenticate(first.secret), false);
+  assert.equal(sessions.authenticate(second.secret), false);
+  assert.throws(
+    () => sessions.login(currentPassword),
+    (error) => error.code === "authentication_invalid",
+  );
+  assert.equal(sessions.login(replacementPassword).secret.length, 43);
+  core.close();
+});
+
+test("global session revocation requires the current password and invalidates every session", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const password = "a correct operator password";
+  bootstrapOperatorPassword(core, password);
+  const sessions = createBrowserSessionService(core, {
+    randomBytes: (() => {
+      let byte = 0;
+      return () => Buffer.alloc(32, ++byte);
+    })(),
+  });
+  const first = sessions.login(password);
+  const second = sessions.login(password);
+
+  assert.throws(
+    () => sessions.revokeAll("an incorrect operator password"),
+    (error) => error.code === "authentication_invalid",
+  );
+  assert.equal(sessions.authenticate(first.secret), true);
+  assert.equal(sessions.authenticate(second.secret), true);
+
+  sessions.revokeAll(password);
+
+  assert.equal(sessions.authenticate(first.secret), false);
+  assert.equal(sessions.authenticate(second.secret), false);
   core.close();
 });

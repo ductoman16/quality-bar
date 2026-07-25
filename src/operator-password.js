@@ -137,6 +137,25 @@ export function verifyOperatorPassword(durableCore, password) {
   }
 }
 
+export function prepareOperatorPasswordReplacement(
+  durableCore,
+  currentPassword,
+  replacementPassword,
+  { randomBytes = createRandomBytes } = {},
+) {
+  verifyOperatorPassword(durableCore, currentPassword);
+  if (typeof replacementPassword !== "string") {
+    fail("operator_password_input_missing", "Operator password input is required");
+  }
+  if (passwordCharacterCount(replacementPassword) < MINIMUM_PASSWORD_LENGTH) {
+    fail(
+      "operator_password_too_short",
+      "Operator password must be at least 15 characters",
+    );
+  }
+  return createPasswordVerifier(replacementPassword, randomBytes);
+}
+
 export function bootstrapOperatorPassword(
   durableCore,
   password,

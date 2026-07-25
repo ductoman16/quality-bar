@@ -47,7 +47,7 @@ function sessionSecret(request) {
   return values.length === 1 ? values[0] : undefined;
 }
 
-async function readLoginRequest(request) {
+async function readPasswordRequest(request, fields) {
   if (request.headers["content-type"] !== "application/json") {
     throw new Error("request_malformed");
   }
@@ -64,8 +64,8 @@ async function readLoginRequest(request) {
       !value ||
       Array.isArray(value) ||
       typeof value !== "object" ||
-      Object.keys(value).length !== 1 ||
-      typeof value.password !== "string"
+      Object.keys(value).length !== fields.length ||
+      !fields.every((field) => typeof value[field] === "string")
     ) {
       throw new Error("request_malformed");
     }
@@ -76,6 +76,18 @@ async function readLoginRequest(request) {
     }
     throw new Error("request_malformed");
   }
+}
+
+function readLoginRequest(request) {
+  return readPasswordRequest(request, ["password"]);
+}
+
+function readPasswordChangeRequest(request) {
+  return readPasswordRequest(request, ["current_password", "new_password"]);
+}
+
+function readSessionRevocationRequest(request) {
+  return readPasswordRequest(request, ["confirmation", "password"]);
 }
 
 function sessionCookie(secret, secure) {
@@ -106,6 +118,13 @@ function authenticationFailureStatus(code) {
     code === "storage_unavailable"
     ? 503
     : 401;
+}
+
+function passwordMutationFailureStatus(code) {
+  return code === "operator_password_too_short" ||
+    code === "session_revocation_confirmation_invalid"
+    ? 422
+    : authenticationFailureStatus(code);
 }
 
 function authenticationFailureMessage(code) {
@@ -141,9 +160,37 @@ form.addEventListener("submit", async (event) => {
 </script>`;
 }
 
-function logoutPage() {
-  return `<main><button id="logout" type="button">Log out</button><p hidden id="error" role="alert"></p></main><script>
+function operatorPage() {
+  return `<main><details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><button id="logout" type="button">Log out</button></details><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
+async function submitPasswordMutation(path, body) {
+  error.hidden = true;
+  const response = await fetch(path, {
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (response.ok) {
+    location.assign("/");
+    return;
+  }
+  error.textContent = (await response.json()).error.message;
+  error.hidden = false;
+}
+document.getElementById("password-change-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitPasswordMutation("/api/v1/session/password", {
+    current_password: document.getElementById("password-change-current-password").value,
+    new_password: document.getElementById("password-change-new-password").value,
+  });
+});
+document.getElementById("session-revocation-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitPasswordMutation("/api/v1/sessions/revoke", {
+    confirmation: document.getElementById("session-revocation-confirmation").value,
+    password: document.getElementById("session-revocation-password").value,
+  });
+});
 document.getElementById("logout").addEventListener("click", async () => {
   error.hidden = true;
   const response = await fetch("/api/v1/session/logout", { method: "POST" });
@@ -169,7 +216,14 @@ export function createApplicationServer({
   if (typeof readSystemStatus !== "function") {
     throw new TypeError("readSystemStatus must be a function");
   }
-  for (const method of ["authenticate", "isBootstrapped", "login", "logout"]) {
+  for (const method of [
+    "authenticate",
+    "isBootstrapped",
+    "login",
+    "logout",
+    "changePassword",
+    "revokeAll",
+  ]) {
     if (typeof browserSessions?.[method] !== "function") {
       throw new TypeError("browserSessions must provide the session boundary");
     }
@@ -236,11 +290,70 @@ export function createApplicationServer({
       return;
     }
 
+    if (request.method === "POST" && path === "/api/v1/session/password") {
+      try {
+        if (!browserSessions.authenticate(sessionSecret(request))) {
+          writeError(response, 401, "authentication_required", "Browser session is required");
+          return;
+        }
+        const { current_password, new_password } =
+          await readPasswordChangeRequest(request);
+        browserSessions.changePassword(current_password, new_password);
+        writeEmpty(response, {
+          "set-cookie": clearedSessionCookie(secureBrowserCookie),
+        });
+      } catch (error) {
+        if (error.message === "request_malformed") {
+          writeError(response, 400, "request_malformed", "Request is malformed");
+        } else {
+          writeError(
+            response,
+            passwordMutationFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        }
+      }
+      return;
+    }
+
+    if (request.method === "POST" && path === "/api/v1/sessions/revoke") {
+      try {
+        if (!browserSessions.authenticate(sessionSecret(request))) {
+          writeError(response, 401, "authentication_required", "Browser session is required");
+          return;
+        }
+        const { confirmation, password } =
+          await readSessionRevocationRequest(request);
+        if (confirmation !== "REVOKE ALL SESSIONS") {
+          const error = new Error("Global browser-session revocation must be confirmed");
+          error.code = "session_revocation_confirmation_invalid";
+          throw error;
+        }
+        browserSessions.revokeAll(password);
+        writeEmpty(response, {
+          "set-cookie": clearedSessionCookie(secureBrowserCookie),
+        });
+      } catch (error) {
+        if (error.message === "request_malformed") {
+          writeError(response, 400, "request_malformed", "Request is malformed");
+        } else {
+          writeError(
+            response,
+            passwordMutationFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+        }
+      }
+      return;
+    }
+
     if (request.method === "GET" && path === "/") {
       if (!browserSessions.isBootstrapped()) {
         writeHtml(response, "<main><p role=\"status\">Operator bootstrap required</p></main>");
       } else if (browserSessions.authenticate(sessionSecret(request))) {
-        writeHtml(response, logoutPage());
+        writeHtml(response, operatorPage());
       } else {
         writeHtml(response, loginPage());
       }
