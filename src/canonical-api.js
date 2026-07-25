@@ -113,7 +113,7 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "createReview",
           requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/ReviewCreateRequest" } } }, required: true },
-          responses: { 201: { content: { "application/json": { schema: { $ref: "#/components/schemas/Review" } } }, description: "Review with its active immutable v1" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 503: errorResponse },
+          responses: { 201: { content: { "application/json": { schema: { $ref: "#/components/schemas/Review" } } }, description: "Review with its active immutable v1" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 500: errorResponse, 503: errorResponse },
           security: authenticated,
         },
       },

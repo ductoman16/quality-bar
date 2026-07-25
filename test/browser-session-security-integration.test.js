@@ -473,6 +473,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     { implementer_token: [] },
   ]);
   assert.equal(contract.paths["/api/v1/reviews"].post.responses[201].description, "Review with its active immutable v1");
+  assert.ok(contract.paths["/api/v1/reviews"].post.responses[500]);
   for (const schema of [
     "CriterionCreateRequest",
     "ReviewAssignment",

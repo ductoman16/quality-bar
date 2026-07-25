@@ -621,7 +621,7 @@ fetch("/api/v1/system").then(async (response) => {
       throw new Error((await response.json()).error.message);
     }
     const system = await response.json();
-    configureReviewModels(system.codex.catalog);
+    if (reviewForm) configureReviewModels(system.codex.catalog);
     if (systemFacts) {
       const codexModels = system.codex.catalog.models.map((model) =>
         model.id + " (" + model.reasoning_efforts.join(", ") + "; " + model.service_tiers.join(", ") + ")"
