@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
+import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createSystemResource } from "../src/system-resource.js";
 
@@ -147,14 +148,13 @@ test("System facts exclude browser sessions past their idle or absolute lifetime
     now - (8 * 24 * 60 * 60 * 1_000),
   );
   const system = createSystemResource(core, { now: () => now });
-  assert.equal(
-    system.readFacts({
-      browserSessions: { isBootstrapped: () => true },
-      codex: { status: "available" },
-      implementerToken: { status: "revoked" },
-    }).browser_sessions.active_count,
-    1,
-  );
+  const facts = system.readFacts({
+    browserSessions: { isBootstrapped: () => true },
+    codex: { status: "available" },
+    implementerToken: { status: "revoked" },
+  });
+  assert.equal(facts.browser_sessions.active_count, 1);
+  assert.deepEqual(facts.codex.catalog, CODEX_CAPABILITY_CATALOG);
   core.close();
 });
 

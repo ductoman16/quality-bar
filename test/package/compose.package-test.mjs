@@ -431,11 +431,17 @@ test("Compose boots with one strict configuration source and external installati
             const browser = await fetch("http://127.0.0.1:${hostPort}/?view=system", {
               headers: { ...headers, cookie },
             });
+            const system = await fetch("http://127.0.0.1:${hostPort}/api/v1/system", {
+              headers: { ...headers, cookie },
+            });
             const openapi = await fetch("http://127.0.0.1:${hostPort}/api/v1/openapi.json", {
               headers: { ...headers, cookie },
             });
+            const codexCapabilityCatalog = (await system.json()).codex.catalog;
             console.log(JSON.stringify({
               browserStatus: browser.status,
+              codexCapabilityCatalogVersion: codexCapabilityCatalog.codex_cli_version,
+              hasCodexCapabilityModels: Array.isArray(codexCapabilityCatalog.models) && codexCapabilityCatalog.models.length > 0,
               hasNavigation: /Evaluations.*Reviews.*Repositories.*Analytics.*System/.test(await browser.text()),
               loginStatus: login.status,
               openapiStatus: openapi.status,
@@ -446,8 +452,11 @@ test("Compose boots with one strict configuration source and external installati
         environment,
       ),
     );
+    assert.match(authenticatedHttpSmoke.codexCapabilityCatalogVersion, /^\d+\.\d+\.\d+$/);
     assert.deepEqual(authenticatedHttpSmoke, {
       browserStatus: 200,
+      codexCapabilityCatalogVersion: authenticatedHttpSmoke.codexCapabilityCatalogVersion,
+      hasCodexCapabilityModels: true,
       hasNavigation: true,
       loginStatus: 204,
       openapiStatus: 200,

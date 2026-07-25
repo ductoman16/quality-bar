@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
@@ -173,6 +174,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: {
+      catalog: CODEX_CAPABILITY_CATALOG,
       error: "codex_authentication_unavailable",
       status: "unavailable",
     },

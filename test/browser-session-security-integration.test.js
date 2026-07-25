@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
 const applications = [];
@@ -434,6 +435,35 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.deepEqual(contract.components.schemas.System.properties.codex, {
     $ref: "#/components/schemas/CodexFact",
   });
+  assert.equal(
+    contract.components.schemas.CodexCapabilityCatalog.properties.codex_cli_version.const,
+    CODEX_CAPABILITY_CATALOG.codex_cli_version,
+  );
+  assert.deepEqual(
+    contract.components.schemas.CodexCapabilityCatalog.const,
+    CODEX_CAPABILITY_CATALOG,
+  );
+  assert.deepEqual(
+    contract.components.schemas.CodexModelCapability.oneOf,
+    CODEX_CAPABILITY_CATALOG.models.map((model) => ({
+      additionalProperties: false,
+      properties: {
+        id: { const: model.id, type: "string" },
+        reasoning_efforts: {
+          items: { enum: model.reasoning_efforts, type: "string" },
+          minItems: 1,
+          type: "array",
+        },
+        service_tiers: {
+          items: { enum: model.service_tiers, type: "string" },
+          minItems: 1,
+          type: "array",
+        },
+      },
+      required: ["id", "reasoning_efforts", "service_tiers"],
+      type: "object",
+    })),
+  );
   assert.equal(contract.components.schemas.AuthorityAttribution.properties.occurred_at.format, "date-time");
   assert.ok(contract.paths["/api/v1/system/authority-attributions"]);
   for (const path of [
@@ -467,7 +497,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.deepEqual(await system.json(), {
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
-    codex: { status: "available" },
+    codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
     durable_core: { schema_version: 5, status: "ready" },
     implementer_token: { status: "active" },
   });

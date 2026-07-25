@@ -168,11 +168,14 @@ function validatePackageFacts(facts) {
     ],
     [
       facts?.authenticatedHttpSmoke?.browserStatus === 200 &&
+        typeof facts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion === "string" &&
+        facts.authenticatedHttpSmoke.codexCapabilityCatalogVersion.length > 0 &&
+        facts?.authenticatedHttpSmoke?.hasCodexCapabilityModels === true &&
         facts?.authenticatedHttpSmoke?.hasNavigation === true &&
         facts?.authenticatedHttpSmoke?.loginStatus === 204 &&
         facts?.authenticatedHttpSmoke?.openapiStatus === 200 &&
         facts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0",
-      "authenticatedHttpSmoke must prove the packaged authenticated HTTP and OpenAPI contract",
+      "authenticatedHttpSmoke must prove the packaged authenticated HTTP, OpenAPI, and Codex capability catalog contract",
     ],
     [
       /^\d+\.\d+\.\d+$/.test(facts?.database?.databaseVersion),
@@ -334,6 +337,7 @@ const gateDefinitions = [
     arguments: [
       "--test",
       "test/application-readiness.test.js",
+      "test/codex-capabilities.test.js",
       "test/configuration.test.js",
       "test/durable-core.test.js",
       "test/health-live.test.js",
@@ -419,6 +423,7 @@ const manifest = {
     runtime: packagedNodeVersion ? `node:${packagedNodeVersion}` : null,
     git: packageFacts?.tools?.git ?? null,
     codex: packageFacts?.tools?.codex ?? null,
+    codexCapabilityCatalog: packageFacts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion ?? null,
     adapterProtocol: null,
     browser: operatorBrowserFacts?.executableVersion ?? null,
     database: packageFacts?.database?.databaseVersion

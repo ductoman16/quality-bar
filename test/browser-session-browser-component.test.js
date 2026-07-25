@@ -154,6 +154,9 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(systemHtml, /system\.bootstrap\.status/);
   assert.match(systemHtml, /system\.implementer_token\.status/);
   assert.match(systemHtml, /system\.codex\.error/);
+  assert.match(systemHtml, /system\.codex\.catalog\.models/);
+  assert.match(systemHtml, /reasoning_efforts/);
+  assert.match(systemHtml, /service_tiers/);
 });
 
 test("browser activity refreshes a session only with its exact origin and session-bound CSRF token", async () => {

@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 import { insertAuthorityAttribution } from "./authority-attribution.js";
+import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import {
   BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   BROWSER_SESSION_IDLE_LIFETIME_MS,
@@ -127,7 +128,10 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
           ).count,
           status: "available",
         },
-        codex,
+        codex: {
+          ...codex,
+          catalog: readCodexCapabilityCatalog(),
+        },
         durable_core: {
           schema_version: durableCore.facts.schemaVersion,
           status: "ready",
