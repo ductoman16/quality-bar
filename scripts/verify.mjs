@@ -365,6 +365,7 @@ const gateDefinitions = [
     failureCode: "browser_component_tests_failed",
     arguments: [
       "--test",
+      "test/browser-assets-browser-component.test.js",
       "test/operator-password-browser-component.test.js",
       "test/browser-session-browser-component.test.js",
     ],

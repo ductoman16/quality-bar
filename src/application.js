@@ -13,6 +13,7 @@ import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
+import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import {
   createImplementerTokenService,
   createUnavailableImplementerTokenService,
@@ -112,6 +113,7 @@ export function createApplication({
   validateTools = validateBundledTools,
   validateCodexAuthentication = validateCodexLogin,
   createReviews = createReviewService,
+  readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
 }) {
@@ -201,6 +203,7 @@ export function createApplication({
 
   const server = createApplicationServer({
     browserSessions,
+    browserAssetReader: readBrowserAsset,
     implementerTokens,
     browserOrigin,
     requestSecurity,
