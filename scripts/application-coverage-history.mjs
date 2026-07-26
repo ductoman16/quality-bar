@@ -139,19 +139,19 @@ export function verifyCoverageHistory(
     ["rev-parse", "HEAD"],
     "application_coverage_head_unavailable",
   );
-  const headLedger = git(repositoryRoot, [
-    "show",
-    `HEAD:${COVERAGE_LEDGER_PATH}`,
-  ]);
-  const ledgerDiffersFromHead =
-    headLedger.status !== 0 || headLedger.stdout !== currentContents;
-  const trustedCommit = ledgerDiffersFromHead
-    ? headCommit
-    : requireGit(
-        repositoryRoot,
-        ["rev-parse", "HEAD^1"],
-        "application_coverage_trusted_commit_unavailable",
-      );
+  const workingTreeStatus = requireGit(
+    repositoryRoot,
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "application_coverage_working_tree_status_unavailable",
+  );
+  const trustedCommit =
+    workingTreeStatus.length > 0
+      ? headCommit
+      : requireGit(
+          repositoryRoot,
+          ["rev-parse", "HEAD^1"],
+          "application_coverage_trusted_commit_unavailable",
+        );
   const trustedObject = git(repositoryRoot, [
     "cat-file",
     "-e",
@@ -168,6 +168,7 @@ export function verifyCoverageHistory(
     `${trustedCommit}:${COVERAGE_LEDGER_PATH}`,
   ]);
   let priorIdentity = COVERAGE_GENESIS_HASH;
+  let priorEntryCount = 0;
   if (priorLedgerResult.status === 0) {
     const priorLedger = parseLedger(
       priorLedgerResult.stdout,
@@ -176,14 +177,40 @@ export function verifyCoverageHistory(
     const priorValidation = validateCoverageLedger(priorLedger);
     verifyRetainedPrefix(currentLedger.entries, priorLedger.entries);
     priorIdentity = priorValidation.identity;
-  } else if (
-    trustedCommit !== genesisSourceCommit ||
-    currentLedger.entries.length !== 1 ||
-    currentLedger.entries[0]?.sourceCommit !== genesisSourceCommit
-  ) {
-    throw new Error(
-      `application_coverage_prior_ledger_unavailable: ${trustedCommit}:${COVERAGE_LEDGER_PATH}`,
-    );
+    priorEntryCount = priorLedger.entries.length;
+  } else {
+    const priorTree = git(repositoryRoot, [
+      "ls-tree",
+      "-r",
+      "--full-tree",
+      "--name-only",
+      trustedCommit,
+      "--",
+      COVERAGE_LEDGER_PATH,
+    ]);
+    if (priorTree.status !== 0) {
+      throw new Error(
+        `application_coverage_prior_tree_unavailable: ${trustedCommit}`,
+      );
+    }
+    const priorLedgerWasPresent = priorTree.stdout
+      .trim()
+      .split("\n")
+      .includes(COVERAGE_LEDGER_PATH);
+    if (priorLedgerWasPresent) {
+      throw new Error(
+        `application_coverage_prior_ledger_object_unavailable: ${trustedCommit}:${COVERAGE_LEDGER_PATH}`,
+      );
+    }
+    if (
+      trustedCommit !== genesisSourceCommit ||
+      currentLedger.entries.length !== 1 ||
+      currentLedger.entries[0]?.sourceCommit !== genesisSourceCommit
+    ) {
+      throw new Error(
+        `application_coverage_prior_ledger_unavailable: ${trustedCommit}:${COVERAGE_LEDGER_PATH}`,
+      );
+    }
   }
 
   verifySourceHistory(
@@ -192,6 +219,20 @@ export function verifyCoverageHistory(
     genesisSourceCommit,
     headCommit,
   );
+  const appendedEntryCount = currentLedger.entries.length - priorEntryCount;
+  if (appendedEntryCount > 1) {
+    throw new Error(
+      `application_coverage_multiple_entries_appended: ${appendedEntryCount}`,
+    );
+  }
+  if (
+    appendedEntryCount === 1 &&
+    currentLedger.entries.at(-1).sourceCommit !== trustedCommit
+  ) {
+    throw new Error(
+      `application_coverage_source_commit_mismatch: expected ${trustedCommit} received ${String(currentLedger.entries.at(-1).sourceCommit)}`,
+    );
+  }
   return {
     ...currentValidation,
     headCommit,

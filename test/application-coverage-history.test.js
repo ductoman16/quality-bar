@@ -128,6 +128,26 @@ test("history accepts only an exact retained prefix and first-parent append", ()
   }
 });
 
+test("a dirty non-ledger working tree uses HEAD as its trusted base", () => {
+  const { genesisSourceCommit, repositoryRoot } = createRepository();
+  try {
+    writeLedger(repositoryRoot, genesisSourceCommit);
+    const coverageCommit = commit(repositoryRoot, "coverage genesis");
+    writeFileSync(
+      resolve(repositoryRoot, "application.txt"),
+      "changed application\n",
+    );
+
+    const result = verifyCoverageHistory(repositoryRoot, {
+      genesisSourceCommit,
+    });
+    assert.equal(result.headCommit, coverageCommit);
+    assert.equal(result.trustedCommit, coverageCommit);
+  } finally {
+    rmSync(repositoryRoot, { force: true, recursive: true });
+  }
+});
+
 test("history rejects truncation, retained-entry rewriting, and reordering", () => {
   const { genesisSourceCommit, repositoryRoot } = createRepository();
   try {
@@ -221,6 +241,26 @@ test("history hard-fails for a missing or non-first-parent source commit", () =>
   }
 });
 
+test("a new measurement must identify the exact trusted source commit", () => {
+  const { genesisSourceCommit, repositoryRoot } = createRepository();
+  try {
+    const genesis = writeLedger(repositoryRoot, genesisSourceCommit);
+    const coverageCommit = commit(repositoryRoot, "coverage genesis");
+    writeFileSync(resolve(repositoryRoot, "application.txt"), "revision two\n");
+    const currentHead = commit(repositoryRoot, "application revision");
+    writeLedger(repositoryRoot, coverageCommit, genesis.entries);
+
+    assert.throws(
+      () => verifyCoverageHistory(repositoryRoot, { genesisSourceCommit }),
+      new RegExp(
+        `application_coverage_source_commit_mismatch: expected ${currentHead} received ${coverageCommit}`,
+      ),
+    );
+  } finally {
+    rmSync(repositoryRoot, { force: true, recursive: true });
+  }
+});
+
 test("history hard-fails when the trusted prior commit object is unavailable", () => {
   const { genesisSourceCommit, repositoryRoot } = createRepository();
   try {
@@ -238,6 +278,33 @@ test("history hard-fails when the trusted prior commit object is unavailable", (
     assert.throws(
       () => verifyCoverageHistory(repositoryRoot, { genesisSourceCommit }),
       /application_coverage_trusted_commit_unavailable/,
+    );
+  } finally {
+    rmSync(repositoryRoot, { force: true, recursive: true });
+  }
+});
+
+test("history hard-fails when the genesis prior tree object is unavailable", () => {
+  const { genesisSourceCommit, repositoryRoot } = createRepository();
+  try {
+    writeLedger(repositoryRoot, genesisSourceCommit);
+    commit(repositoryRoot, "coverage genesis");
+    const tree = git(repositoryRoot, [
+      "rev-parse",
+      `${genesisSourceCommit}^{tree}`,
+    ]);
+    const objectPath = resolve(
+      repositoryRoot,
+      ".git",
+      "objects",
+      tree.slice(0, 2),
+      tree.slice(2),
+    );
+    rmSync(objectPath);
+
+    assert.throws(
+      () => verifyCoverageHistory(repositoryRoot, { genesisSourceCommit }),
+      /application_coverage_prior_tree_unavailable/,
     );
   } finally {
     rmSync(repositoryRoot, { force: true, recursive: true });
