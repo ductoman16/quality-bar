@@ -1,0 +1,2 @@
+import { DurableCoreError } from "./durable-error.js";
+throw new DurableCoreError();

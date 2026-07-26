@@ -1,0 +1,4 @@
+let factory = () => new String("invalid");
+const saved = factory;
+factory = () => new Error("valid");
+throw saved();

@@ -44,7 +44,9 @@ function updateCriterionLabels() {
 }
 function addCriterion() {
   const criteria = document.getElementById("review-criteria");
-  if (!criteria) throw new Error("Review criteria container is unavailable");
+  if (!criteria) {
+    throw new Error("Review criteria container is unavailable");
+  }
   const index = criteria.children.length + 1;
   const item = document.createElement("li");
   const instructionLabel = document.createElement("label");
@@ -251,8 +253,9 @@ document
   });
 if (reviewForm) {
   const addCriterionButton = document.getElementById("review-add-criterion");
-  if (!addCriterionButton)
+  if (!addCriterionButton) {
     throw new Error("Review Criterion control is unavailable");
+  }
   addCriterionButton.addEventListener("click", addCriterion);
   setReviewControlsDisabled(true);
   addCriterion();
@@ -291,7 +294,9 @@ if (reviewForm) {
     }
     const authenticationFailure =
       await returnToLoginAfterAuthenticationFailure(response);
-    if (authenticationFailure === true) return;
+    if (authenticationFailure === true) {
+      return;
+    }
     error.textContent = (
       authenticationFailure ?? (await response.json())
     ).error.message;
@@ -335,7 +340,9 @@ fetch("/api/v1/system")
       throw new Error((await response.json()).error.message);
     }
     const system = await response.json();
-    if (reviewForm) configureReviewModels(system.codex.catalog);
+    if (reviewForm) {
+      configureReviewModels(system.codex.catalog);
+    }
     if (systemFacts) {
       const codexModels = system.codex.catalog.models
         .map(

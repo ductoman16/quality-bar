@@ -8,7 +8,6 @@ import {
 } from "./browser-session.js";
 
 const DEFAULT_PAGE_SIZE = 50;
-const MAXIMUM_PAGE_SIZE = 100;
 
 function invalidQuery(code) {
   const error = new Error(code);

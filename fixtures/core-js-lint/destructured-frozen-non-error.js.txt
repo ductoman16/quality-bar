@@ -1,0 +1,3 @@
+const original = Object.freeze({ failure: new String("invalid") });
+const { failure } = original;
+throw failure;

@@ -1,0 +1,4 @@
+function fake() {
+  return new String("invalid");
+}
+throw fake();

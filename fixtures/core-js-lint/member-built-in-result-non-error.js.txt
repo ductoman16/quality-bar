@@ -1,0 +1,2 @@
+const holder = Object.freeze({ failure: String });
+throw holder.failure("invalid");
