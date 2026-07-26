@@ -5,23 +5,50 @@ const MAX_FAILED_LOGIN_DELAY_MS = 60_000;
 const MAX_FAILED_LOGIN_ATTEMPTS = 7;
 
 export class OperatorLoginThrottleError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "OperatorLoginThrottleError";
     this.code = code;
+    /** @type {number | null} */
     this.retryAfterSeconds = null;
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(code, message) {
   throw new OperatorLoginThrottleError(code, message);
 }
 
+/**
+ * @typedef {{
+ *   get: (
+ *     sql: string,
+ *     ...parameters: import("node:sqlite").SQLInputValue[]
+ *   ) => Record<string, import("node:sqlite").SQLInputValue> | undefined,
+ *   run: (
+ *     sql: string,
+ *     ...parameters: import("node:sqlite").SQLInputValue[]
+ *   ) => unknown
+ * }} ThrottleStore
+ */
+/**
+ * @param {ThrottleStore} store
+ * @param {string} key
+ */
 function readNonnegativeInteger(store, key) {
-  const value = store.get(
-    "SELECT value FROM quality_bar_metadata WHERE key = ?",
-    key,
-  )?.value;
+  const row = /** @type {{ value: string } | undefined} */ (
+    store.get("SELECT value FROM quality_bar_metadata WHERE key = ?", key)
+  );
+  const value = row?.value;
   if (value === undefined) {
     return 0;
   }
@@ -35,6 +62,7 @@ function readNonnegativeInteger(store, key) {
   return number;
 }
 
+/** @param {ThrottleStore} store */
 function readState(store) {
   const attempts = readNonnegativeInteger(
     store,
@@ -47,6 +75,11 @@ function readState(store) {
   return { attempts, until };
 }
 
+/**
+ * @param {ThrottleStore} store
+ * @param {string} key
+ * @param {number} value
+ */
 function writeMetadata(store, key, value) {
   store.run(
     `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
@@ -56,6 +89,7 @@ function writeMetadata(store, key, value) {
   );
 }
 
+/** @param {number} now */
 function nowMilliseconds(now) {
   if (!Number.isSafeInteger(now) || now < 0) {
     throw new TypeError(
@@ -65,6 +99,7 @@ function nowMilliseconds(now) {
   return now;
 }
 
+/** @param {number} attempts */
 function delayMilliseconds(attempts) {
   return Math.min(
     FIRST_FAILED_LOGIN_DELAY_MS * 2 ** (attempts - 1),
@@ -72,6 +107,10 @@ function delayMilliseconds(attempts) {
   );
 }
 
+/**
+ * @param {ThrottleStore} durableCore
+ * @param {number} now
+ */
 export function rejectDuringFailedLoginDelay(durableCore, now) {
   const timestamp = nowMilliseconds(now);
   const { until } = readState(durableCore);
@@ -85,6 +124,10 @@ export function rejectDuringFailedLoginDelay(durableCore, now) {
   }
 }
 
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {number} now
+ */
 export function recordFailedOperatorLogin(durableCore, now) {
   const timestamp = nowMilliseconds(now);
   return durableCore.transaction((transaction) => {
@@ -105,6 +148,7 @@ export function recordFailedOperatorLogin(durableCore, now) {
   });
 }
 
+/** @param {ThrottleStore} store */
 export function clearFailedOperatorLoginDelay(store) {
   store.run(
     "DELETE FROM quality_bar_metadata WHERE key IN (?, ?)",

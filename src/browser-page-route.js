@@ -12,11 +12,45 @@ import {
 } from "./browser-pages.js";
 import { writeError, writeHtml } from "./http-response.js";
 
+/**
+ * @typedef {{
+ *   action: string,
+ *   channel: string,
+ *   errorCode?: string,
+ *   outcome: string
+ * }} AttributionEvent
+ */
+/** @param {unknown} error */
+function errorFacts(error) {
+  return {
+    code:
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+        ? error.code
+        : "authentication_unavailable",
+    message:
+      error instanceof Error ? error.message : "Authentication is unavailable",
+  };
+}
+
+/**
+ * @param {{
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
+ *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
+ *   recordAuthorityAttribution: (event: AttributionEvent) => void
+ * }} dependencies
+ */
 export function createBrowserPageRoute({
   browserSessions,
   implementerTokens,
   recordAuthorityAttribution,
 }) {
+  /**
+   * @param {import("node:http").IncomingMessage} request
+   * @param {import("node:http").ServerResponse} response
+   * @param {URL} requestUrl
+   */
   return function handleBrowserPage(request, response, requestUrl) {
     if (request.method !== "GET" || requestUrl.pathname !== "/") {
       return false;
@@ -50,17 +84,18 @@ export function createBrowserPageRoute({
           "Machine access is forbidden",
         );
       } catch (error) {
+        const failure = errorFacts(error);
         recordAuthorityAttribution({
           action: "authentication",
           channel: "implementer_token",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
         writeError(
           response,
-          authenticationFailureStatus(error.code),
-          error.code ?? "authentication_unavailable",
-          error.message ?? authenticationFailureMessage(error.code),
+          authenticationFailureStatus(failure.code),
+          failure.code,
+          failure.message || authenticationFailureMessage(failure.code),
         );
       }
       return true;
@@ -76,7 +111,8 @@ export function createBrowserPageRoute({
     try {
       view = browserView(requestUrl);
     } catch (error) {
-      writeError(response, 404, error.code, error.message);
+      const failure = errorFacts(error);
+      writeError(response, 404, failure.code, failure.message);
       return true;
     }
     try {
@@ -105,17 +141,18 @@ export function createBrowserPageRoute({
         );
       }
     } catch (error) {
+      const failure = errorFacts(error);
       recordAuthorityAttribution({
         action: "authentication",
         channel: "browser_session",
-        errorCode: error.code ?? "authentication_unavailable",
+        errorCode: failure.code,
         outcome: "failure",
       });
       writeError(
         response,
-        authenticationFailureStatus(error.code),
-        error.code ?? "authentication_unavailable",
-        error.message ?? authenticationFailureMessage(error.code),
+        authenticationFailureStatus(failure.code),
+        failure.code,
+        failure.message || authenticationFailureMessage(failure.code),
       );
     }
     return true;

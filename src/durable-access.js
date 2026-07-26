@@ -3,15 +3,22 @@ import { isFatalSqliteWrite } from "./durable-integrity.js";
 
 const AsyncFunction = async function () {}.constructor;
 
+/**
+ * @typedef {Record<string, import("node:sqlite").SQLInputValue>} SqlRow
+ * @typedef {import("node:sqlite").SQLInputValue} SqlParameter
+ */
+
+/** @param {SqlRow | undefined} row */
 function cloneRow(row) {
   return row ? { ...row } : undefined;
 }
 
 /**
  * @param {import("node:sqlite").DatabaseSync} database
- * @param {{ onStorageUnavailable?: Function }} options
+ * @param {{ onStorageUnavailable?: (error: DurableCoreError) => void }} options
  */
 export function createDurableAccess(database, { onStorageUnavailable } = {}) {
+  /** @type {DurableCoreError | undefined} */
   let storageFailure;
 
   function assertAvailable() {
@@ -20,6 +27,10 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
     }
   }
 
+  /**
+   * @param {unknown} error
+   * @returns {never}
+   */
   function enterStorageUnavailable(error) {
     if (!storageFailure) {
       storageFailure = new DurableCoreError(
@@ -34,18 +45,25 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
     throw storageFailure;
   }
 
-  function execute(method, sql, parameters) {
+  /**
+   * @template Result
+   * @param {() => Result} operation
+   * @param {boolean} [write]
+   * @returns {Result}
+   */
+  function execute(operation, write = false) {
     assertAvailable();
     try {
-      return database.prepare(sql)[method](...parameters);
+      return operation();
     } catch (error) {
-      if (method === "run" && isFatalSqliteWrite(error)) {
+      if (write && isFatalSqliteWrite(error)) {
         return enterStorageUnavailable(error);
       }
       throw error;
     }
   }
 
+  /** @param {() => boolean} transactionActive */
   function transactionAccess(transactionActive) {
     function assertTransactionActive() {
       if (!transactionActive()) {
@@ -56,31 +74,66 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
       }
     }
     return {
+      /**
+       * @param {string} sql
+       * @param {...SqlParameter} parameters
+       */
       get(sql, ...parameters) {
         assertTransactionActive();
-        return cloneRow(execute("get", sql, parameters));
+        return cloneRow(
+          execute(() => database.prepare(sql).get(...parameters)),
+        );
       },
+      /**
+       * @param {string} sql
+       * @param {...SqlParameter} parameters
+       */
       all(sql, ...parameters) {
         assertTransactionActive();
-        return execute("all", sql, parameters).map(cloneRow);
+        return execute(() => database.prepare(sql).all(...parameters)).map(
+          cloneRow,
+        );
       },
+      /**
+       * @param {string} sql
+       * @param {...SqlParameter} parameters
+       */
       run(sql, ...parameters) {
         assertTransactionActive();
-        return execute("run", sql, parameters);
+        return execute(() => database.prepare(sql).run(...parameters), true);
       },
     };
   }
 
   return {
+    /**
+     * @param {string} sql
+     * @param {...SqlParameter} parameters
+     */
     get(sql, ...parameters) {
-      return cloneRow(execute("get", sql, parameters));
+      return cloneRow(execute(() => database.prepare(sql).get(...parameters)));
     },
+    /**
+     * @param {string} sql
+     * @param {...SqlParameter} parameters
+     */
     all(sql, ...parameters) {
-      return execute("all", sql, parameters).map(cloneRow);
+      return execute(() => database.prepare(sql).all(...parameters)).map(
+        cloneRow,
+      );
     },
+    /**
+     * @param {string} sql
+     * @param {...SqlParameter} parameters
+     */
     run(sql, ...parameters) {
-      return execute("run", sql, parameters);
+      return execute(() => database.prepare(sql).run(...parameters), true);
     },
+    /**
+     * @template Result
+     * @param {(transaction: ReturnType<typeof transactionAccess>) => Result} callback
+     * @returns {Result}
+     */
     transaction(callback) {
       assertAvailable();
       if (callback instanceof AsyncFunction) {
@@ -95,13 +148,19 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
         database.exec("BEGIN IMMEDIATE");
         transactionStarted = true;
         transactionActive = true;
+        /** @type {Result} */
         let result;
         try {
           result = callback(transactionAccess(() => transactionActive));
         } finally {
           transactionActive = false;
         }
-        if (typeof result?.then === "function") {
+        if (
+          result !== null &&
+          (typeof result === "object" || typeof result === "function") &&
+          "then" in result &&
+          typeof result.then === "function"
+        ) {
           const asynchronousTransactionError = new DurableCoreError(
             "asynchronous_transaction_unsupported",
             "SQLite transaction callback must be synchronous",
@@ -125,7 +184,8 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
         }
         if (rollbackError) {
           const originalFailure =
-            error?.code === "storage_unavailable"
+            error instanceof DurableCoreError &&
+            error.code === "storage_unavailable"
               ? (error.cause ?? error)
               : error;
           const combinedError = new AggregateError(
@@ -133,7 +193,8 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
             "SQLite transaction and rollback both failed",
           );
           if (
-            error?.code === "storage_unavailable" ||
+            (error instanceof DurableCoreError &&
+              error.code === "storage_unavailable") ||
             isFatalSqliteWrite(error) ||
             isFatalSqliteWrite(rollbackError)
           ) {
@@ -142,7 +203,8 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
           throw combinedError;
         }
         if (
-          error?.code === "storage_unavailable" ||
+          (error instanceof DurableCoreError &&
+            error.code === "storage_unavailable") ||
           isFatalSqliteWrite(error)
         ) {
           return enterStorageUnavailable(error);

@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { validateCodexConfiguration } from "./codex-capabilities.js";
 
 export class ReviewError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   */
   constructor(code, message) {
     super(message);
     this.name = "ReviewError";
@@ -10,21 +14,36 @@ export class ReviewError extends Error {
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(code, message) {
   throw new ReviewError(code, message);
 }
 
+/**
+ * @param {unknown} value
+ * @param {string[]} keys
+ * @returns {value is Record<string, unknown>}
+ */
 function isExactObject(value, keys) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
   return (
-    value &&
-    !Array.isArray(value) &&
-    typeof value === "object" &&
     Object.getPrototypeOf(value) === Object.prototype &&
     Object.keys(value).length === keys.length &&
     keys.every((key) => Object.hasOwn(value, key))
   );
 }
 
+/**
+ * @param {unknown} value
+ * @param {string} code
+ * @param {string} message
+ */
 function validateNonblank(value, code, message) {
   if (typeof value !== "string" || value.trim().length === 0) {
     fail(code, message);
@@ -32,6 +51,7 @@ function validateNonblank(value, code, message) {
   return value;
 }
 
+/** @param {unknown} assignment */
 function validateAssignment(assignment) {
   if (
     !isExactObject(assignment, ["scope"]) ||
@@ -51,6 +71,7 @@ function validateAssignment(assignment) {
   return { scope: assignment.scope };
 }
 
+/** @param {unknown} criteria */
 function validateCriteria(criteria) {
   if (!Array.isArray(criteria) || criteria.length === 0) {
     fail(
@@ -67,7 +88,10 @@ function validateCriteria(criteria) {
       "review_criterion_instruction_invalid",
       `Criterion ${index + 1} instruction must be nonblank`,
     );
-    if (!["advisory", "blocking"].includes(criterion.impact)) {
+    if (
+      typeof criterion.impact !== "string" ||
+      !["advisory", "blocking"].includes(criterion.impact)
+    ) {
       fail(
         "review_criterion_impact_invalid",
         `Criterion ${index + 1} impact must be advisory or blocking`,
@@ -77,6 +101,7 @@ function validateCriteria(criteria) {
   });
 }
 
+/** @param {unknown} definition */
 function validateDefinition(definition) {
   if (
     !isExactObject(definition, [
@@ -111,10 +136,18 @@ function validateDefinition(definition) {
   };
 }
 
+/** @param {unknown} error */
 function conflict(error) {
-  return /UNIQUE constraint failed: reviews\.name/.test(error?.message);
+  return (
+    error instanceof Error &&
+    /UNIQUE constraint failed: reviews\.name/.test(error.message)
+  );
 }
 
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {{ createId?: () => string, now?: () => number }} [options]
+ */
 export function createReviewService(
   durableCore,
   { createId = randomUUID, now = () => Date.now() } = {},
@@ -127,6 +160,7 @@ export function createReviewService(
   }
 
   return {
+    /** @param {unknown} definition */
     create(definition) {
       const validated = validateDefinition(definition);
       const createdAt = now();
@@ -219,6 +253,7 @@ export function createReviewService(
   };
 }
 
+/** @param {unknown} error */
 export function createUnavailableReviewService(error) {
   return {
     create() {

@@ -6,10 +6,35 @@ import {
 } from "./http-request.js";
 import { writeError, writeJavascript } from "./http-response.js";
 
+/** @param {unknown} error */
+function errorFacts(error) {
+  return {
+    code:
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+        ? error.code
+        : "browser_asset_unavailable",
+    message:
+      error instanceof Error ? error.message : "Browser asset is unavailable",
+  };
+}
+
+/**
+ * @param {{
+ *   browserAssetReader: (path: string) => string,
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>
+ * }} dependencies
+ */
 export function createBrowserAssetRoute({
   browserAssetReader,
   browserSessions,
 }) {
+  /**
+   * @param {import("node:http").IncomingMessage} request
+   * @param {import("node:http").ServerResponse} response
+   * @param {URL} requestUrl
+   */
   return function handleBrowserAsset(request, response, requestUrl) {
     const path = requestUrl.pathname;
     if (request.method !== "GET" || !path.startsWith("/assets/")) {
@@ -18,23 +43,20 @@ export function createBrowserAssetRoute({
     try {
       assertAllowedQueryParameters(requestUrl, new Set());
     } catch (error) {
-      writeError(
-        response,
-        400,
-        error.code ?? "request_malformed",
-        error.message ?? "Request is malformed",
-      );
+      const failure = errorFacts(error);
+      writeError(response, 400, failure.code, failure.message);
       return true;
     }
     if (path === "/assets/operator.js") {
       try {
         requireBrowserSession(browserSessions, request);
       } catch (error) {
+        const failure = errorFacts(error);
         writeError(
           response,
-          authenticationFailureStatus(error.code),
-          error.code ?? "authentication_unavailable",
-          error.message ?? authenticationFailureMessage(error.code),
+          authenticationFailureStatus(failure.code),
+          failure.code,
+          failure.message || authenticationFailureMessage(failure.code),
         );
         return true;
       }
@@ -42,18 +64,14 @@ export function createBrowserAssetRoute({
     try {
       writeJavascript(response, browserAssetReader(path));
     } catch (error) {
+      const failure = errorFacts(error);
       const status =
-        error.code === "browser_asset_not_found"
+        failure.code === "browser_asset_not_found"
           ? 404
-          : error.code === "browser_asset_unavailable"
+          : failure.code === "browser_asset_unavailable"
             ? 503
             : 500;
-      writeError(
-        response,
-        status,
-        error.code ?? "browser_asset_unavailable",
-        error.message ?? "Browser asset is unavailable",
-      );
+      writeError(response, status, failure.code, failure.message);
     }
     return true;
   };

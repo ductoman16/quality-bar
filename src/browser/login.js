@@ -6,7 +6,9 @@ function readBrowserConfiguration() {
     throw new Error("browser_configuration_invalid");
   }
   try {
-    const value = JSON.parse(configuration.textContent);
+    const value = /** @type {{ intendedDestination?: unknown }} */ (
+      JSON.parse(configuration.textContent)
+    );
     if (
       !value ||
       typeof value.intendedDestination !== "string" ||
@@ -22,18 +24,30 @@ function readBrowserConfiguration() {
     if (destination.origin !== "http://quality-bar.internal") {
       throw new Error("browser_configuration_invalid");
     }
-    return value;
+    return { intendedDestination: value.intendedDestination };
   } catch (error) {
-    if (error.message === "browser_configuration_invalid") {
+    if (
+      error instanceof Error &&
+      error.message === "browser_configuration_invalid"
+    ) {
       throw error;
     }
     throw new Error("browser_configuration_invalid", { cause: error });
   }
 }
 
-const form = document.getElementById("login-form");
+const form = /** @type {HTMLFormElement | null} */ (
+  document.getElementById("login-form")
+);
 const error = document.getElementById("error");
+if (!form || !error) {
+  throw new Error("browser_control_unavailable");
+}
 const { intendedDestination } = readBrowserConfiguration();
+/**
+ * @param {string} id
+ * @returns {string}
+ */
 function inputValue(id) {
   const input = document.getElementById(id);
   if (!input || !("value" in input) || typeof input.value !== "string") {
@@ -55,6 +69,9 @@ form.addEventListener("submit", async (event) => {
     location.assign(intendedDestination);
     return;
   }
-  error.textContent = (await response.json()).error.message;
+  const body = /** @type {{ error: { message: string } }} */ (
+    await response.json()
+  );
+  error.textContent = body.error.message;
   error.hidden = false;
 });

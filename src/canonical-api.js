@@ -29,6 +29,25 @@ function browserMutationParameters() {
   ];
 }
 
+/**
+ * @typedef {{
+ *   content?: { "application/json": { schema: { $ref: string } } },
+ *   description: string
+ * }} OpenApiResponse
+ */
+/**
+ * @typedef {{
+ *   content: { "application/json": { schema: { $ref: string } } },
+ *   required: boolean
+ * }} OpenApiRequestBody
+ */
+
+/**
+ * @param {string} path
+ * @param {string} operationId
+ * @param {Record<number, OpenApiResponse>} responses
+ * @param {OpenApiRequestBody} [requestBody]
+ */
 function sessionMutation(path, operationId, responses, requestBody) {
   return {
     [path]: {
@@ -43,6 +62,7 @@ function sessionMutation(path, operationId, responses, requestBody) {
   };
 }
 
+/** @param {string} schema */
 const jsonRequest = (schema) => ({
   content: {
     "application/json": { schema: { $ref: `#/components/schemas/${schema}` } },

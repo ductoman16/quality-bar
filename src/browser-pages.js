@@ -1,9 +1,11 @@
 import { BROWSER_CSRF_COOKIE_NAME } from "./browser-session.js";
 
+/** @param {{ intendedDestination?: string } | { csrfCookieName: string }} value */
 function browserConfiguration(value) {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
+/** @param {unknown} value */
 export function safeInternalDestination(value) {
   if (
     typeof value !== "string" ||
@@ -23,6 +25,7 @@ export function safeInternalDestination(value) {
   }
 }
 
+/** @param {URL} requestUrl */
 export function browserView(requestUrl) {
   const view = requestUrl.searchParams.get("view") ?? "evaluations";
   if (
@@ -37,10 +40,12 @@ export function browserView(requestUrl) {
   return view;
 }
 
+/** @param {string} intendedDestination */
 export function loginPage(intendedDestination) {
   return `<main><form id="login-form"><label for="password">Password</label><input autocomplete="current-password" id="password" name="password" required type="password"><button type="submit">Log in</button><p hidden id="error" role="alert"></p></form></main><script id="browser-configuration" type="application/json">${browserConfiguration({ intendedDestination })}</script><script src="/assets/login.js"></script>`;
 }
 
+/** @param {{ view: string }} options */
 export function operatorPage({ view }) {
   const navigation = [
     "evaluations",

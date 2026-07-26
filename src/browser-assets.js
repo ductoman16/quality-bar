@@ -20,6 +20,11 @@ export const BROWSER_ASSET_SOURCE_PATHS = browserAssets.map(
 const assetPaths = new Map(browserAssets.map(({ route, url }) => [route, url]));
 
 export class BrowserAssetError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "BrowserAssetError";
@@ -27,6 +32,7 @@ export class BrowserAssetError extends Error {
   }
 }
 
+/** @param {string} path */
 export function readBrowserAsset(path) {
   const assetPath = assetPaths.get(path);
   if (!assetPath) {

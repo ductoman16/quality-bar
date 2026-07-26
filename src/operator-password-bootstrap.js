@@ -17,10 +17,17 @@ import {
 
 const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
 function fail(code, message, cause) {
   throw new OperatorPasswordError(code, message, { cause });
 }
 
+/** @param {string} source */
 export function passwordFromStandardInput(source) {
   if (typeof source !== "string") {
     fail(
@@ -42,6 +49,11 @@ export function passwordFromStandardInput(source) {
   return password;
 }
 
+/**
+ * @param {import("node:tty").ReadStream} input
+ * @param {NodeJS.WritableStream} output
+ * @returns {Promise<string>}
+ */
 function passwordFromTerminal(input, output) {
   output.write("Operator password: ");
   input.setEncoding("utf8");
@@ -51,6 +63,7 @@ function passwordFromTerminal(input, output) {
   return new Promise((resolve, reject) => {
     let password = "";
 
+    /** @param {Error} [error] */
     function finish(error) {
       input.off("data", receive);
       input.off("end", end);
@@ -63,6 +76,7 @@ function passwordFromTerminal(input, output) {
       }
     }
 
+    /** @param {string} characters */
     function receive(characters) {
       for (const character of characters) {
         if (character === "\u0003") {

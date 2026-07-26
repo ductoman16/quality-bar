@@ -7,12 +7,9 @@
     "moduleDetection": "force",
     "moduleResolution": "Bundler",
     "noEmit": true,
-    "noImplicitAny": false,
     "strict": true,
-    "strictNullChecks": false,
     "target": "ES2024",
-    "types": [],
-    "useUnknownInCatchVariables": false
+    "types": []
   },
   "files": ["src/browser/login.js", "src/browser/operator.js"]
 }

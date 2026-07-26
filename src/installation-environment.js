@@ -36,6 +36,11 @@ const LOCAL_FILESYSTEM_TYPES = new Set([
 ]);
 
 export class InstallationEnvironmentError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "InstallationEnvironmentError";
@@ -43,10 +48,20 @@ export class InstallationEnvironmentError extends Error {
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
 function fail(code, message, cause) {
   throw new InstallationEnvironmentError(code, message, { cause });
 }
 
+/**
+ * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {string} path
+ */
 function validateOwnedDirectory(filesystem, path) {
   let status;
   try {
@@ -69,6 +84,10 @@ function validateOwnedDirectory(filesystem, path) {
   }
 }
 
+/**
+ * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {string} path
+ */
 function validateOwnedReadOnlyFile(filesystem, path) {
   let status;
   try {
@@ -91,6 +110,11 @@ function validateOwnedReadOnlyFile(filesystem, path) {
   }
 }
 
+/**
+ * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {string} path
+ * @param {boolean} requireReserve
+ */
 function validateFilesystem(filesystem, path, requireReserve) {
   let facts;
   try {
@@ -129,6 +153,10 @@ function validateFilesystem(filesystem, path, requireReserve) {
   }
 }
 
+/**
+ * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {string} path
+ */
 function validateDurableWriteSemantics(filesystem, path) {
   let probePath;
   let directoryDescriptor;
@@ -150,7 +178,13 @@ function validateDurableWriteSemantics(filesystem, path) {
   } catch (error) {
     fail(
       "filesystem_unsupported",
-      `A required filesystem lacks durable local-write semantics (${error?.code ?? "unknown"})`,
+      `A required filesystem lacks durable local-write semantics (${
+        error instanceof Error &&
+        "code" in error &&
+        typeof error.code === "string"
+          ? error.code
+          : "unknown"
+      })`,
       error,
     );
   } finally {
@@ -166,6 +200,16 @@ function validateDurableWriteSemantics(filesystem, path) {
   }
 }
 
+/**
+ * @typedef {(command: string, arguments_: string[]) => string} ToolRunner
+ */
+/**
+ * @param {ToolRunner} runTool
+ * @param {string} command
+ * @param {string[]} arguments_
+ * @param {string} expected
+ * @param {string} failureCode
+ */
 function validateTool(runTool, command, arguments_, expected, failureCode) {
   let output;
   try {
@@ -178,6 +222,7 @@ function validateTool(runTool, command, arguments_, expected, failureCode) {
   }
 }
 
+/** @param {{ runTool?: ToolRunner }} [options] */
 export function validateCodexLogin({ runTool = runBundledTool } = {}) {
   try {
     runTool("codex", ["login", "status"]);
@@ -190,7 +235,9 @@ export function validateCodexLogin({ runTool = runBundledTool } = {}) {
   }
 }
 
+/** @param {(path: string) => DatabaseSync} createLock */
 export function acquireInstallationLock(createLock) {
+  /** @type {DatabaseSync | undefined} */
   let lock;
   try {
     lock = createLock(INSTALLATION_LOCK_PATH);
@@ -204,6 +251,9 @@ export function acquireInstallationLock(createLock) {
     );
   }
 
+  if (!lock) {
+    fail("installation_locked", "Installation lock is unavailable");
+  }
   let released = false;
   return () => {
     if (released) {
@@ -221,6 +271,7 @@ function createFilesystem() {
     lstat: lstatSync,
     mkdtemp: mkdtempSync,
     open: openSync,
+    /** @param {string} path */
     remove(path) {
       rmSync(path, { force: true, recursive: true });
     },
@@ -230,14 +281,20 @@ function createFilesystem() {
   };
 }
 
+/** @param {string} path */
 function createInstallationLock(path) {
   return new DatabaseSync(path);
 }
 
+/**
+ * @param {string} command
+ * @param {string[]} arguments_
+ */
 function runBundledTool(command, arguments_) {
   return execFileSync(command, arguments_, { encoding: "utf8" }).trim();
 }
 
+/** @param {{ filesystem?: ReturnType<typeof createFilesystem> }} [options] */
 export function validateInstallationSources({
   filesystem = createFilesystem(),
 } = {}) {
@@ -246,6 +303,12 @@ export function validateInstallationSources({
   }
 }
 
+/**
+ * @param {{
+ *   createLock?: (path: string) => DatabaseSync,
+ *   filesystem?: ReturnType<typeof createFilesystem>
+ * }} [options]
+ */
 export function validateInstallationFilesystem({
   createLock = createInstallationLock,
   filesystem = createFilesystem(),
@@ -261,11 +324,14 @@ export function validateInstallationFilesystem({
   validateInstallationSources({ filesystem });
   const releaseInstallationLock = acquireInstallationLock(createLock);
   try {
-    for (const [path, requireReserve] of [
+    for (const [
+      path,
+      requireReserve,
+    ] of /** @type {Array<[string, boolean]>} */ ([
       [STATE_PATH, true],
       [CHECKOUTS_PATH, true],
       [BACKUPS_PATH, false],
-    ]) {
+    ])) {
       validateFilesystem(filesystem, path, requireReserve);
       validateDurableWriteSemantics(filesystem, path);
     }
@@ -276,6 +342,7 @@ export function validateInstallationFilesystem({
   return { releaseInstallationLock };
 }
 
+/** @param {{ runTool?: ToolRunner }} [options] */
 export function validateBundledTools({ runTool = runBundledTool } = {}) {
   validateTool(
     runTool,
@@ -293,6 +360,7 @@ export function validateBundledTools({ runTool = runBundledTool } = {}) {
   );
 }
 
+/** @param {{ runTool?: ToolRunner }} [options] */
 export function validateBundledToolsAndCodexLogin({
   runTool = runBundledTool,
 } = {}) {
@@ -300,6 +368,13 @@ export function validateBundledToolsAndCodexLogin({
   validateCodexLogin({ runTool });
 }
 
+/**
+ * @param {{
+ *   createLock?: (path: string) => DatabaseSync,
+ *   filesystem?: ReturnType<typeof createFilesystem>,
+ *   runTool?: ToolRunner
+ * }} [options]
+ */
 export function validateInstallationEnvironment({
   createLock = createInstallationLock,
   filesystem = createFilesystem(),

@@ -65,6 +65,10 @@ const REVIEW_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
 
+/**
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @param {string} statements
+ */
 function migration(database, statements) {
   database.exec(`
     BEGIN IMMEDIATE;
@@ -77,8 +81,11 @@ function migration(database, statements) {
   `);
 }
 
+/** @param {import("node:sqlite").DatabaseSync} database */
 export function initializeOrValidateSchema(database) {
-  const version = database.prepare("PRAGMA user_version").get().user_version;
+  const version = /** @type {{ user_version: number }} */ (
+    database.prepare("PRAGMA user_version").get()
+  ).user_version;
   if (version === 0) {
     const existingTables = database
       .prepare(

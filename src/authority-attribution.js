@@ -3,6 +3,17 @@ import { randomUUID } from "node:crypto";
 const CHANNELS = new Set(["browser_session", "implementer_token"]);
 const OUTCOMES = new Set(["success", "failure", "forbidden"]);
 
+/**
+ * @typedef {{
+ *   action: string,
+ *   channel: string,
+ *   errorCode?: string,
+ *   occurredAt: number,
+ *   outcome: string
+ * }} AuthorityAttribution
+ */
+
+/** @param {AuthorityAttribution} event */
 function assertAttribution(event) {
   if (
     !event ||
@@ -20,6 +31,10 @@ function assertAttribution(event) {
   }
 }
 
+/**
+ * @param {{ run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown }} store
+ * @param {AuthorityAttribution} event
+ */
 export function insertAuthorityAttribution(store, event) {
   assertAttribution(event);
   store.run(

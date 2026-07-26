@@ -6,7 +6,9 @@ function readBrowserConfiguration() {
     throw new Error("browser_configuration_invalid");
   }
   try {
-    const value = JSON.parse(configuration.textContent);
+    const value = /** @type {{ csrfCookieName?: unknown }} */ (
+      JSON.parse(configuration.textContent)
+    );
     if (
       !value ||
       typeof value.csrfCookieName !== "string" ||
@@ -14,19 +16,39 @@ function readBrowserConfiguration() {
     ) {
       throw new Error("browser_configuration_invalid");
     }
-    return value;
+    return { csrfCookieName: value.csrfCookieName };
   } catch (error) {
-    if (error.message === "browser_configuration_invalid") {
+    if (
+      error instanceof Error &&
+      error.message === "browser_configuration_invalid"
+    ) {
       throw error;
     }
     throw new Error("browser_configuration_invalid", { cause: error });
   }
 }
 
-const error = document.getElementById("error");
+const error = requiredElement("error");
 const { csrfCookieName } = readBrowserConfiguration();
 let lastActivityAt = 0;
-const reviewForm = document.getElementById("review-create-form");
+const reviewForm = /** @type {HTMLFormElement | null} */ (
+  document.getElementById("review-create-form")
+);
+/**
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+function requiredElement(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error("browser_control_unavailable");
+  }
+  return element;
+}
+/**
+ * @param {string} id
+ * @returns {string}
+ */
 function controlValue(id) {
   const control = document.getElementById(id);
   if (!control || !("value" in control) || typeof control.value !== "string") {
@@ -34,6 +56,7 @@ function controlValue(id) {
   }
   return control.value;
 }
+/** @param {boolean} disabled */
 function setReviewControlsDisabled(disabled) {
   reviewForm
     ?.querySelectorAll("button, input, select, textarea")
@@ -45,13 +68,25 @@ function setReviewControlsDisabled(disabled) {
 }
 function updateCriterionLabels() {
   document.querySelectorAll("#review-criteria li").forEach((item, index) => {
-    const number = index + 1;
-    item.querySelector("label[for$='-instruction']").textContent =
-      "Criterion " + number + " instruction";
-    item.querySelector("label[for$='-impact']").textContent =
-      "Criterion " + number + " impact";
-    item.querySelector("button").textContent = "Remove Criterion " + number;
+    requiredDescendant(item, "label[for$='-instruction']").textContent =
+      "Criterion " + (index + 1) + " instruction";
+    requiredDescendant(item, "label[for$='-impact']").textContent =
+      "Criterion " + (index + 1) + " impact";
+    requiredDescendant(item, "button").textContent =
+      "Remove Criterion " + (index + 1);
   });
+}
+/**
+ * @param {Element} parent
+ * @param {string} selector
+ * @returns {Element}
+ */
+function requiredDescendant(parent, selector) {
+  const element = parent.querySelector(selector);
+  if (!element) {
+    throw new Error("browser_control_unavailable");
+  }
+  return element;
 }
 function addCriterion() {
   const criteria = document.getElementById("review-criteria");
@@ -81,6 +116,15 @@ function addCriterion() {
   criteria.append(item);
   updateCriterionLabels();
 }
+/**
+ * @typedef {{
+ *   id: string,
+ *   reasoning_efforts: string[],
+ *   service_tiers: string[]
+ * }} ModelCapability
+ */
+
+/** @param {{ models: ModelCapability[] }} catalog */
 function configureReviewModels(catalog) {
   const model = /** @type {HTMLSelectElement} */ (
     document.getElementById("review-model")
@@ -94,6 +138,7 @@ function configureReviewModels(catalog) {
   if (!model || !reasoningEffort || !serviceTier) {
     throw new Error("Review configuration controls are unavailable");
   }
+  /** @param {string} value */
   function option(value) {
     const element = document.createElement("option");
     element.value = value;
@@ -104,6 +149,9 @@ function configureReviewModels(catalog) {
     const capability = catalog.models.find(
       (candidate) => candidate.id === model.value,
     );
+    if (!capability) {
+      throw new Error("Review model capability is unavailable");
+    }
     reasoningEffort.replaceChildren(
       ...capability.reasoning_efforts.map(option),
     );
@@ -117,16 +165,25 @@ function configureReviewModels(catalog) {
   setReviewControlsDisabled(false);
 }
 function csrfToken() {
-  return document.cookie
+  const token = document.cookie
     .split(";")
     .map((cookie) => cookie.trim().split("=", 2))
     .find(([name]) => name === csrfCookieName)?.[1];
+  if (!token) {
+    throw new Error("browser_csrf_unavailable");
+  }
+  return token;
 }
+/**
+ * @typedef {{ error: { code: string, message: string } }} ApiErrorResponse
+ */
+
+/** @param {Response} response */
 async function returnToLoginAfterAuthenticationFailure(response) {
   if (response.status !== 401) {
     return null;
   }
-  const body = await response.json();
+  const body = /** @type {ApiErrorResponse} */ (await response.json());
   if (body.error.code !== "authentication_required") {
     return body;
   }
@@ -135,6 +192,28 @@ async function returnToLoginAfterAuthenticationFailure(response) {
   );
   return true;
 }
+/** @param {Response} response */
+async function displayMutationFailure(response) {
+  const authenticationFailure =
+    await returnToLoginAfterAuthenticationFailure(response);
+  if (authenticationFailure === true) {
+    return;
+  }
+  const body =
+    authenticationFailure ??
+    /** @type {ApiErrorResponse} */ (await response.json());
+  error.textContent = body.error.message;
+  error.hidden = false;
+}
+/**
+ * @param {string} path
+ * @param {{
+ *   confirmation?: string,
+ *   current_password?: string,
+ *   new_password?: string,
+ *   password?: string
+ * }} body
+ */
 async function submitPasswordMutation(path, body) {
   error.hidden = true;
   const response = await fetch(path, {
@@ -149,16 +228,12 @@ async function submitPasswordMutation(path, body) {
     location.assign("/");
     return;
   }
-  const authenticationFailure =
-    await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (
-    authenticationFailure ?? (await response.json())
-  ).error.message;
-  error.hidden = false;
+  await displayMutationFailure(response);
 }
+/**
+ * @param {string} path
+ * @param {{ password: string }} body
+ */
 async function submitImplementerTokenMutation(path, body) {
   error.hidden = true;
   const response = await fetch(path, {
@@ -170,24 +245,18 @@ async function submitImplementerTokenMutation(path, body) {
     method: "POST",
   });
   if (response.ok) {
-    const token = (await response.json()).token;
+    const { token } = /** @type {{ token?: unknown }} */ (
+      await response.json()
+    );
     if (typeof token === "string") {
-      document.getElementById("implementer-token-value").textContent = token;
+      requiredElement("implementer-token-value").textContent = token;
       /** @type {HTMLDialogElement} */ (
         document.getElementById("implementer-token-reveal")
       ).showModal();
     }
     return;
   }
-  const authenticationFailure =
-    await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (
-    authenticationFailure ?? (await response.json())
-  ).error.message;
-  error.hidden = false;
+  await displayMutationFailure(response);
 }
 async function recordBrowserActivity() {
   const now = Date.now();
@@ -202,55 +271,45 @@ async function recordBrowserActivity() {
   if (response.ok) {
     return;
   }
-  const authenticationFailure =
-    await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (
-    authenticationFailure ?? (await response.json())
-  ).error.message;
-  error.hidden = false;
+  await displayMutationFailure(response);
+}
+/**
+ * @param {string} id
+ * @param {() => Promise<void>} submit
+ */
+function onSubmit(id, submit) {
+  requiredElement(id).addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await submit();
+  });
 }
 document.addEventListener("keydown", recordBrowserActivity);
 document.addEventListener("pointerdown", recordBrowserActivity);
-document
-  .getElementById("password-change-form")
-  .addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await submitPasswordMutation("/api/v1/session/password", {
-      current_password: controlValue("password-change-current-password"),
-      new_password: controlValue("password-change-new-password"),
-    });
-  });
-document
-  .getElementById("session-revocation-form")
-  .addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await submitPasswordMutation("/api/v1/sessions/revoke", {
-      confirmation: controlValue("session-revocation-confirmation"),
-      password: controlValue("session-revocation-password"),
-    });
-  });
-document
-  .getElementById("implementer-token-create-form")
-  .addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await submitImplementerTokenMutation("/api/v1/implementer-token", {
-      password: controlValue("implementer-token-create-password"),
-    });
-  });
-document
-  .getElementById("implementer-token-rotate-form")
-  .addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await submitImplementerTokenMutation("/api/v1/implementer-token/rotate", {
-      password: controlValue("implementer-token-rotate-password"),
-    });
-  });
-document
-  .getElementById("implementer-token-revoke-form")
-  .addEventListener("submit", async (event) => {
+onSubmit("password-change-form", () =>
+  submitPasswordMutation("/api/v1/session/password", {
+    current_password: controlValue("password-change-current-password"),
+    new_password: controlValue("password-change-new-password"),
+  }),
+);
+onSubmit("session-revocation-form", () =>
+  submitPasswordMutation("/api/v1/sessions/revoke", {
+    confirmation: controlValue("session-revocation-confirmation"),
+    password: controlValue("session-revocation-password"),
+  }),
+);
+onSubmit("implementer-token-create-form", () =>
+  submitImplementerTokenMutation("/api/v1/implementer-token", {
+    password: controlValue("implementer-token-create-password"),
+  }),
+);
+onSubmit("implementer-token-rotate-form", () =>
+  submitImplementerTokenMutation("/api/v1/implementer-token/rotate", {
+    password: controlValue("implementer-token-rotate-password"),
+  }),
+);
+requiredElement("implementer-token-revoke-form").addEventListener(
+  "submit",
+  async (event) => {
     event.preventDefault();
     if (
       !window.confirm(
@@ -262,7 +321,8 @@ document
     await submitPasswordMutation("/api/v1/implementer-token/revoke", {
       password: controlValue("implementer-token-revoke-password"),
     });
-  });
+  },
+);
 if (reviewForm) {
   const addCriterionButton = document.getElementById("review-add-criterion");
   if (!addCriterionButton) {
@@ -284,8 +344,12 @@ if (reviewForm) {
         },
         criteria: [...document.querySelectorAll("#review-criteria li")].map(
           (item) => ({
-            impact: item.querySelector("select").value,
-            instruction: item.querySelector("textarea").value,
+            impact: /** @type {HTMLSelectElement} */ (
+              requiredDescendant(item, "select")
+            ).value,
+            instruction: /** @type {HTMLTextAreaElement} */ (
+              requiredDescendant(item, "textarea")
+            ).value,
           }),
         ),
         description: controlValue("review-description"),
@@ -298,35 +362,29 @@ if (reviewForm) {
       method: "POST",
     });
     if (response.ok) {
-      const review = await response.json();
-      document.getElementById("review-create-result").textContent =
+      const review =
+        /** @type {{ name: string, active_version: { number: number } }} */ (
+          await response.json()
+        );
+      requiredElement("review-create-result").textContent =
         review.name + " v" + review.active_version.number + " created.";
       return;
     }
-    const authenticationFailure =
-      await returnToLoginAfterAuthenticationFailure(response);
-    if (authenticationFailure === true) {
-      return;
-    }
-    error.textContent = (
-      authenticationFailure ?? (await response.json())
-    ).error.message;
-    error.hidden = false;
+    await displayMutationFailure(response);
   });
 }
-document
-  .getElementById("implementer-token-reveal-close")
-  .addEventListener("click", () => {
+requiredElement("implementer-token-reveal-close").addEventListener(
+  "click",
+  () => {
     /** @type {HTMLDialogElement} */ (
       document.getElementById("implementer-token-reveal")
     ).close();
-  });
-document
-  .getElementById("implementer-token-reveal")
-  .addEventListener("close", () => {
-    document.getElementById("implementer-token-value").textContent = "";
-  });
-document.getElementById("logout").addEventListener("click", async () => {
+  },
+);
+requiredElement("implementer-token-reveal").addEventListener("close", () => {
+  requiredElement("implementer-token-value").textContent = "";
+});
+requiredElement("logout").addEventListener("click", async () => {
   error.hidden = true;
   const response = await fetch("/api/v1/session/logout", {
     headers: { "x-quality-bar-csrf": csrfToken() },
@@ -336,15 +394,7 @@ document.getElementById("logout").addEventListener("click", async () => {
     location.assign("/");
     return;
   }
-  const authenticationFailure =
-    await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (
-    authenticationFailure ?? (await response.json())
-  ).error.message;
-  error.hidden = false;
+  await displayMutationFailure(response);
 });
 const systemFacts = document.getElementById("system-facts");
 fetch("/api/v1/system")
@@ -352,7 +402,17 @@ fetch("/api/v1/system")
     if (!response.ok) {
       throw new Error((await response.json()).error.message);
     }
-    const system = await response.json();
+    const system = /** @type {{
+     *   bootstrap: { status: string },
+     *   browser_sessions: { active_count: number },
+     *   codex: {
+     *     catalog: { models: ModelCapability[] },
+     *     error?: string,
+     *     status: string
+     *   },
+     *   durable_core: { status: string },
+     *   implementer_token: { status: string }
+     * }} */ (await response.json());
     if (reviewForm) {
       configureReviewModels(system.codex.catalog);
     }
@@ -385,12 +445,13 @@ fetch("/api/v1/system")
         ".";
     }
     const attention = document.getElementById("attention");
-    if (system.codex.status === "unavailable") {
+    if (system.codex.status === "unavailable" && attention) {
       attention.hidden = false;
       attention.textContent = "Codex unavailable";
     }
   })
   .catch((failure) => {
-    error.textContent = failure.message;
+    error.textContent =
+      failure instanceof Error ? failure.message : "Unexpected failure";
     error.hidden = false;
   });

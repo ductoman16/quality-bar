@@ -3,6 +3,20 @@ import {
   BROWSER_SESSION_COOKIE_NAME,
 } from "./browser-session.js";
 
+/**
+ * @typedef {{
+ *   authenticate: (secret: string | undefined) => boolean,
+ *   verifyCsrf: (secret: string | undefined, token: string | undefined) => boolean
+ * }} BrowserSessionAuthority
+ * @typedef {{
+ *   authenticate: (token: string | undefined) => boolean
+ * }} ImplementerTokenAuthority
+ */
+
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @param {string} name
+ */
 function cookieValue(request, name) {
   const cookies = request.headers.cookie?.split(";") ?? [];
   const values = cookies
@@ -12,6 +26,11 @@ function cookieValue(request, name) {
   return values.length === 1 ? values[0] : undefined;
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @param {string[]} fields
+ * @returns {Promise<Record<string, string>>}
+ */
 function readPasswordRequest(request, fields) {
   return readJsonRequest(request).then((value) => {
     if (
@@ -20,10 +39,14 @@ function readPasswordRequest(request, fields) {
     ) {
       throw new Error("request_malformed");
     }
-    return value;
+    return /** @type {Record<string, string>} */ (value);
   });
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<Record<string, unknown>>}
+ */
 export async function readJsonRequest(request) {
   if (request.headers["content-type"] !== "application/json") {
     throw new Error("request_malformed");
@@ -36,35 +59,60 @@ export async function readJsonRequest(request) {
     }
   }
   try {
-    const value = JSON.parse(body);
+    const value = /** @type {unknown} */ (JSON.parse(body));
     if (!value || Array.isArray(value) || typeof value !== "object") {
       throw new Error("request_malformed");
     }
-    return value;
+    return /** @type {Record<string, unknown>} */ (value);
   } catch (error) {
-    if (error.message === "request_malformed") {
+    if (error instanceof Error && error.message === "request_malformed") {
       throw error;
     }
     throw new Error("request_malformed");
   }
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<{ password: string }>}
+ */
 export function readLoginRequest(request) {
-  return readPasswordRequest(request, ["password"]);
+  return /** @type {Promise<{ password: string }>} */ (
+    readPasswordRequest(request, ["password"])
+  );
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<{ current_password: string, new_password: string }>}
+ */
 export function readPasswordChangeRequest(request) {
-  return readPasswordRequest(request, ["current_password", "new_password"]);
+  return /** @type {Promise<{ current_password: string, new_password: string }>} */ (
+    readPasswordRequest(request, ["current_password", "new_password"])
+  );
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<{ confirmation: string, password: string }>}
+ */
 export function readSessionRevocationRequest(request) {
-  return readPasswordRequest(request, ["confirmation", "password"]);
+  return /** @type {Promise<{ confirmation: string, password: string }>} */ (
+    readPasswordRequest(request, ["confirmation", "password"])
+  );
 }
 
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {Promise<{ password: string }>}
+ */
 export function readImplementerTokenRequest(request) {
-  return readPasswordRequest(request, ["password"]);
+  return /** @type {Promise<{ password: string }>} */ (
+    readPasswordRequest(request, ["password"])
+  );
 }
 
+/** @param {string} path */
 export function isProductSurface(path) {
   return (
     path === "/" ||
@@ -75,6 +123,10 @@ export function isProductSurface(path) {
   );
 }
 
+/**
+ * @param {string} secret
+ * @param {boolean} secure
+ */
 export function sessionCookie(secret, secure) {
   return [
     `${BROWSER_SESSION_COOKIE_NAME}=${secret}`,
@@ -85,6 +137,10 @@ export function sessionCookie(secret, secure) {
   ].join("; ");
 }
 
+/**
+ * @param {string} token
+ * @param {boolean} secure
+ */
 export function csrfCookie(token, secure) {
   return [
     `${BROWSER_CSRF_COOKIE_NAME}=${token}`,
@@ -94,6 +150,7 @@ export function csrfCookie(token, secure) {
   ].join("; ");
 }
 
+/** @param {boolean} secure */
 export function clearedSessionCookies(secure) {
   return [
     [
@@ -114,6 +171,7 @@ export function clearedSessionCookies(secure) {
   ];
 }
 
+/** @param {string} code */
 export function authenticationFailureStatus(code) {
   return code === "operator_password_uninitialized" ||
     code === "operator_password_verifier_unavailable" ||
@@ -128,6 +186,7 @@ export function authenticationFailureStatus(code) {
       : 401;
 }
 
+/** @param {string} code */
 export function browserMutationFailureStatus(code) {
   if (code === "request_malformed") {
     return 400;
@@ -137,6 +196,7 @@ export function browserMutationFailureStatus(code) {
     : authenticationFailureStatus(code);
 }
 
+/** @param {string} code */
 export function passwordMutationFailureStatus(code) {
   return code === "operator_password_too_short" ||
     code === "session_revocation_confirmation_invalid"
@@ -144,6 +204,7 @@ export function passwordMutationFailureStatus(code) {
     : authenticationFailureStatus(code);
 }
 
+/** @param {string} code */
 export function implementerTokenFailureStatus(code) {
   return [
     "implementer_token_already_active",
@@ -153,10 +214,17 @@ export function implementerTokenFailureStatus(code) {
     : authenticationFailureStatus(code);
 }
 
+/** @param {unknown} error */
 export function isUnavailableError(error) {
-  return typeof error?.code === "string" && error.code.endsWith("_unavailable");
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code.endsWith("_unavailable")
+  );
 }
 
+/** @param {string} code */
 export function authenticationFailureMessage(code) {
   return (
     {
@@ -182,10 +250,15 @@ export function authenticationFailureMessage(code) {
   );
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ */
 export function browserMutationError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
+/** @param {import("node:http").IncomingMessage} request */
 export function assertNoMixedCredentials(request) {
   if (
     request.headers.cookie !== undefined &&
@@ -198,14 +271,19 @@ export function assertNoMixedCredentials(request) {
   }
 }
 
+/** @param {import("node:http").IncomingMessage} request */
 export function sessionSecret(request) {
   return cookieValue(request, BROWSER_SESSION_COOKIE_NAME);
 }
 
+/**
+ * @param {BrowserSessionAuthority} browserSessions
+ * @param {import("node:http").IncomingMessage} request
+ */
 export function requireBrowserSession(browserSessions, request) {
   const secret = sessionSecret(request);
   assertNoMixedCredentials(request);
-  if (!browserSessions.authenticate(secret)) {
+  if (typeof secret !== "string" || !browserSessions.authenticate(secret)) {
     throw browserMutationError(
       "authentication_required",
       "Browser session is required",
@@ -214,6 +292,11 @@ export function requireBrowserSession(browserSessions, request) {
   return secret;
 }
 
+/**
+ * @param {BrowserSessionAuthority} browserSessions
+ * @param {import("node:http").IncomingMessage} request
+ * @param {string} browserOrigin
+ */
 export function requireBrowserMutation(
   browserSessions,
   request,
@@ -224,13 +307,24 @@ export function requireBrowserMutation(
     throw browserMutationError("origin_invalid", "Browser origin is invalid");
   }
   if (
-    !browserSessions.verifyCsrf(secret, request.headers["x-quality-bar-csrf"])
+    !browserSessions.verifyCsrf(
+      secret,
+      typeof request.headers["x-quality-bar-csrf"] === "string"
+        ? request.headers["x-quality-bar-csrf"]
+        : undefined,
+    )
   ) {
     throw browserMutationError("csrf_invalid", "Browser CSRF token is invalid");
   }
   return secret;
 }
 
+/**
+ * @param {BrowserSessionAuthority} browserSessions
+ * @param {import("node:http").IncomingMessage} request
+ * @param {string} browserOrigin
+ * @param {URL} requestUrl
+ */
 export function requireBrowserMutationWithQuery(
   browserSessions,
   request,
@@ -246,19 +340,30 @@ export function requireBrowserMutationWithQuery(
   return secret;
 }
 
+/** @param {import("node:http").IncomingMessage} request */
 function bearerToken(request) {
   const value = request.headers.authorization;
   const match =
-    typeof value === "string" && /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
+    typeof value === "string"
+      ? /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value)
+      : null;
   return match?.[1];
 }
 
+/** @param {URL} requestUrl */
 export function hasUrlToken(requestUrl) {
   return [...requestUrl.searchParams.keys()].some((name) =>
     ["access_token", "authorization", "token"].includes(name.toLowerCase()),
   );
 }
 
+/**
+ * @param {BrowserSessionAuthority} browserSessions
+ * @param {ImplementerTokenAuthority} implementerTokens
+ * @param {import("node:http").IncomingMessage} request
+ * @param {URL} requestUrl
+ * @returns {"machine" | "operator"}
+ */
 export function requireProductAuthority(
   browserSessions,
   implementerTokens,
@@ -290,6 +395,10 @@ export function requireProductAuthority(
   return "operator";
 }
 
+/**
+ * @param {URL} requestUrl
+ * @param {Set<string>} allowed
+ */
 export function assertAllowedQueryParameters(requestUrl, allowed) {
   for (const key of requestUrl.searchParams.keys()) {
     if (!allowed.has(key) || requestUrl.searchParams.getAll(key).length !== 1) {
@@ -298,6 +407,7 @@ export function assertAllowedQueryParameters(requestUrl, allowed) {
   }
 }
 
+/** @param {URL} requestUrl */
 export function readAuthorityAttributionQuery(requestUrl) {
   assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
   return {

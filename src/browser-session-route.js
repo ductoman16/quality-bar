@@ -17,6 +17,39 @@ import {
 } from "./http-request.js";
 import { writeEmpty, writeError, writeJson } from "./http-response.js";
 
+/**
+ * @typedef {{
+ *   action: string,
+ *   channel: string,
+ *   errorCode?: string,
+ *   outcome: string
+ * }} AttributionEvent
+ */
+/** @param {unknown} error */
+function routeError(error) {
+  return {
+    code:
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+        ? error.code
+        : "authentication_unavailable",
+    message:
+      error instanceof Error ? error.message : "Authentication is unavailable",
+    retryAfterSeconds:
+      error instanceof Error &&
+      "retryAfterSeconds" in error &&
+      typeof error.retryAfterSeconds === "number"
+        ? error.retryAfterSeconds
+        : null,
+  };
+}
+
+/**
+ * @param {import("node:http").ServerResponse} response
+ * @param {ReturnType<typeof routeError>} error
+ * @param {(code: string) => number} status
+ */
 function writeMalformedOrAuthenticationError(response, error, status) {
   if (error.message === "request_malformed") {
     writeError(response, 400, "request_malformed", "Request is malformed");
@@ -30,6 +63,15 @@ function writeMalformedOrAuthenticationError(response, error, status) {
   );
 }
 
+/**
+ * @param {{
+ *   browserOrigin: string,
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
+ *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
+ *   recordAuthorityAttribution: (event: AttributionEvent) => void,
+ *   secureBrowserCookie: boolean
+ * }} dependencies
+ */
 export function createBrowserSessionRoute({
   browserOrigin,
   browserSessions,
@@ -37,6 +79,11 @@ export function createBrowserSessionRoute({
   recordAuthorityAttribution,
   secureBrowserCookie,
 }) {
+  /**
+   * @param {import("node:http").IncomingMessage} request
+   * @param {import("node:http").ServerResponse} response
+   * @param {URL} requestUrl
+   */
   return async function handleBrowserSession(request, response, requestUrl) {
     const { method } = request;
     const path = requestUrl.pathname;
@@ -53,15 +100,16 @@ export function createBrowserSessionRoute({
           ],
         });
       } catch (error) {
-        if (error.code === "authentication_ambiguous") {
+        const failure = routeError(error);
+        if (failure.code === "authentication_ambiguous") {
           recordAuthorityAttribution({
             action: "authentication",
             channel: "browser_session",
-            errorCode: error.code,
+            errorCode: failure.code,
             outcome: "failure",
           });
         }
-        if (error.message === "request_malformed") {
+        if (failure.message === "request_malformed") {
           writeError(
             response,
             400,
@@ -71,11 +119,11 @@ export function createBrowserSessionRoute({
         } else {
           writeError(
             response,
-            authenticationFailureStatus(error.code),
-            error.code ?? "authentication_unavailable",
-            error.message ?? authenticationFailureMessage(error.code),
-            error.code === "login_throttled"
-              ? { "retry-after": String(error.retryAfterSeconds) }
+            authenticationFailureStatus(failure.code),
+            failure.code,
+            failure.message || authenticationFailureMessage(failure.code),
+            failure.code === "login_throttled"
+              ? { "retry-after": String(failure.retryAfterSeconds) }
               : undefined,
           );
         }
@@ -96,15 +144,16 @@ export function createBrowserSessionRoute({
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        const failure = routeError(error);
         recordAuthorityAttribution({
           action: "session_logout",
           channel: "browser_session",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
         writeMalformedOrAuthenticationError(
           response,
-          error,
+          failure,
           browserMutationFailureStatus,
         );
       }
@@ -119,7 +168,12 @@ export function createBrowserSessionRoute({
           requestUrl,
         );
         if (
-          !browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])
+          !browserSessions.touch(
+            secret,
+            typeof request.headers["x-quality-bar-csrf"] === "string"
+              ? request.headers["x-quality-bar-csrf"]
+              : undefined,
+          )
         ) {
           throw Object.assign(new Error("Browser session is required"), {
             code: "authentication_required",
@@ -127,15 +181,16 @@ export function createBrowserSessionRoute({
         }
         writeEmpty(response);
       } catch (error) {
+        const failure = routeError(error);
         recordAuthorityAttribution({
           action: "session_activity",
           channel: "browser_session",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
         writeMalformedOrAuthenticationError(
           response,
-          error,
+          failure,
           browserMutationFailureStatus,
         );
       }
@@ -156,13 +211,14 @@ export function createBrowserSessionRoute({
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        const failure = routeError(error);
         recordAuthorityAttribution({
           action: "password_change",
           channel: "browser_session",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
-        writeMalformedOrAuthenticationError(response, error, (code) =>
+        writeMalformedOrAuthenticationError(response, failure, (code) =>
           browserMutationFailureStatus(code) === 403
             ? 403
             : passwordMutationFailureStatus(code),
@@ -191,13 +247,14 @@ export function createBrowserSessionRoute({
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
       } catch (error) {
+        const failure = routeError(error);
         recordAuthorityAttribution({
           action: "session_revoke_all",
           channel: "browser_session",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
-        writeMalformedOrAuthenticationError(response, error, (code) =>
+        writeMalformedOrAuthenticationError(response, failure, (code) =>
           browserMutationFailureStatus(code) === 403
             ? 403
             : passwordMutationFailureStatus(code),
@@ -231,6 +288,7 @@ export function createBrowserSessionRoute({
           writeJson(response, path.endsWith("/rotate") ? 200 : 201, { token });
         }
       } catch (error) {
+        const failure = routeError(error);
         recordAuthorityAttribution({
           action: path.endsWith("/rotate")
             ? "implementer_token_rotate"
@@ -238,10 +296,10 @@ export function createBrowserSessionRoute({
               ? "implementer_token_revoke"
               : "implementer_token_create",
           channel: "browser_session",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
-        writeMalformedOrAuthenticationError(response, error, (code) =>
+        writeMalformedOrAuthenticationError(response, failure, (code) =>
           browserMutationFailureStatus(code) === 403
             ? 403
             : implementerTokenFailureStatus(code),

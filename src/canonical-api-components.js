@@ -1,15 +1,42 @@
+/**
+ * @typedef {Record<string, unknown>} JsonSchema
+ * @typedef {Record<string, JsonSchema>} JsonSchemaProperties
+ * @typedef {{
+ *   codex_cli_version: string,
+ *   models: ReadonlyArray<{
+ *     id: string,
+ *     reasoning_efforts: ReadonlyArray<string>,
+ *     service_tiers: ReadonlyArray<string>
+ *   }>
+ * }} CodexCapabilityCatalog
+ */
+
+/**
+ * @param {JsonSchemaProperties} properties
+ * @param {string[]} required
+ * @param {boolean} additionalProperties
+ */
 function objectSchema(properties, required, additionalProperties) {
   return { additionalProperties, properties, required, type: "object" };
 }
 
+/**
+ * @param {JsonSchemaProperties} properties
+ * @param {string[]} required
+ */
 function openObject(properties, required) {
   return objectSchema(properties, required, true);
 }
 
+/**
+ * @param {JsonSchemaProperties} properties
+ * @param {string[]} required
+ */
 function closedObject(properties, required) {
   return objectSchema(properties, required, false);
 }
 
+/** @param {CodexCapabilityCatalog} codexCapabilityCatalog */
 export function createCanonicalComponents(codexCapabilityCatalog) {
   return {
     schemas: {

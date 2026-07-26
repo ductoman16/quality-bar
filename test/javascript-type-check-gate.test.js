@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import { test } from "node:test";
 
@@ -16,6 +15,18 @@ function runTypeScript(arguments_) {
     { cwd: repositoryRoot, encoding: "utf8" },
   );
 }
+
+const strictFamilyOptions = [
+  "alwaysStrict",
+  "noImplicitAny",
+  "noImplicitThis",
+  "strictBindCallApply",
+  "strictBuiltinIteratorReturn",
+  "strictFunctionTypes",
+  "strictNullChecks",
+  "strictPropertyInitialization",
+  "useUnknownInCatchVariables",
+];
 
 function readConfiguration(name) {
   return JSON.parse(
@@ -32,6 +43,13 @@ test("strict JavaScript checking owns every production Node and served browser m
     assert.equal(configuration.compilerOptions.checkJs, true);
     assert.equal(configuration.compilerOptions.strict, true);
     assert.equal(configuration.compilerOptions.noEmit, true);
+    for (const option of strictFamilyOptions) {
+      assert.equal(
+        Object.hasOwn(configuration.compilerOptions, option),
+        false,
+        `${option} must inherit from strict instead of being overridden`,
+      );
+    }
   }
   assert.deepEqual(node.include, ["src/**/*.js"]);
   assert.deepEqual(node.exclude, ["src/browser/**/*.js"]);
@@ -48,7 +66,7 @@ test("strict JavaScript checking owns every production Node and served browser m
 
 test("representative invalid Node and browser fixtures fail with owning diagnostics", () => {
   const fixtureDirectory = mkdtempSync(
-    resolve(tmpdir(), "quality-bar-type-check-"),
+    resolve(repositoryRoot, ".javascript-type-check-fixture-"),
   );
   try {
     const nodeFixture = resolve(fixtureDirectory, "node-invalid-assignment.js");
@@ -74,36 +92,25 @@ test("representative invalid Node and browser fixtures fail with owning diagnost
       ),
     );
 
-    const nodeResult = runTypeScript([
-      "--allowJs",
-      "--checkJs",
-      "--strict",
-      "--noEmit",
-      "--target",
-      "ES2024",
-      "--module",
-      "NodeNext",
-      "--moduleResolution",
-      "NodeNext",
-      "--types",
-      "node",
-      nodeFixture,
-    ]);
-    const browserResult = runTypeScript([
-      "--allowJs",
-      "--checkJs",
-      "--strict",
-      "--noEmit",
-      "--target",
-      "ES2024",
-      "--module",
-      "ESNext",
-      "--moduleResolution",
-      "Bundler",
-      "--lib",
-      "ES2024,DOM,DOM.Iterable",
-      browserFixture,
-    ]);
+    const nodeProject = resolve(fixtureDirectory, "tsconfig.node.json");
+    const browserProject = resolve(fixtureDirectory, "tsconfig.browser.json");
+    writeFileSync(
+      nodeProject,
+      JSON.stringify({
+        extends: resolve(repositoryRoot, "tsconfig.node.json"),
+        files: [nodeFixture],
+      }),
+    );
+    writeFileSync(
+      browserProject,
+      JSON.stringify({
+        extends: resolve(repositoryRoot, "tsconfig.browser.json"),
+        files: [browserFixture],
+      }),
+    );
+
+    const nodeResult = runTypeScript(["--project", nodeProject]);
+    const browserResult = runTypeScript(["--project", browserProject]);
 
     assert.equal(nodeResult.status, 1, nodeResult.stdout || nodeResult.stderr);
     assert.match(nodeResult.stdout, /error TS2322:/);

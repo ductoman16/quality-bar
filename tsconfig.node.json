@@ -6,12 +6,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": true,
-    "noImplicitAny": false,
     "strict": true,
-    "strictNullChecks": false,
     "target": "ES2024",
-    "types": ["node"],
-    "useUnknownInCatchVariables": false
+    "types": ["node"]
   },
   "exclude": ["src/browser/**/*.js"],
   "include": ["src/**/*.js"]

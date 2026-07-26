@@ -1,6 +1,10 @@
 import { isIP } from "node:net";
 
 export class RequestSecurityError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   */
   constructor(code, message) {
     super(message);
     this.name = "RequestSecurityError";
@@ -8,10 +12,16 @@ export class RequestSecurityError extends Error {
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(code, message) {
   throw new RequestSecurityError(code, message);
 }
 
+/** @param {string | undefined} address */
 function isLoopbackAddress(address) {
   return (
     address === "127.0.0.1" ||
@@ -20,6 +30,10 @@ function isLoopbackAddress(address) {
   );
 }
 
+/**
+ * @param {string | string[] | undefined} value
+ * @param {string} expectedHost
+ */
 function forwardedFacts(value, expectedHost) {
   if (typeof value !== "string" || value.length === 0) {
     fail(
@@ -58,6 +72,7 @@ function forwardedFacts(value, expectedHost) {
   if (
     facts.get("proto") !== "https" ||
     facts.get("host") !== expectedHost ||
+    typeof clientAddress !== "string" ||
     isIP(clientAddress) === 0
   ) {
     fail(
@@ -77,7 +92,7 @@ export function createRequestSecurityBoundary({
 } = {}) {
   let origin;
   try {
-    origin = new URL(externalOrigin);
+    origin = new URL(externalOrigin ?? "");
   } catch {
     throw new TypeError("externalOrigin must be a valid URL");
   }
@@ -87,16 +102,21 @@ export function createRequestSecurityBoundary({
   const trustedProxies = new Set(trustedProxyAddresses);
 
   return {
+    /** @param {import("node:http").IncomingMessage} request */
     requestFacts(request) {
       const peerAddress = request?.socket?.remoteAddress;
-      if (trustedProxies.has(peerAddress)) {
+      if (typeof peerAddress === "string" && trustedProxies.has(peerAddress)) {
         const clientAddress = forwardedFacts(
           request.headers.forwarded,
           origin.host,
         );
         return { clientAddress, host: origin.host, scheme: "https" };
       }
-      if (origin.protocol !== "http:" || !isLoopbackAddress(peerAddress)) {
+      if (
+        origin.protocol !== "http:" ||
+        typeof peerAddress !== "string" ||
+        !isLoopbackAddress(peerAddress)
+      ) {
         fail("https_required", "HTTPS is required outside loopback");
       }
       return { clientAddress: peerAddress, host: origin.host, scheme: "http" };
@@ -104,8 +124,13 @@ export function createRequestSecurityBoundary({
   };
 }
 
+/** @param {unknown} error */
 export function createUnavailableRequestSecurityBoundary(error) {
-  if (!error || typeof error.code !== "string") {
+  if (
+    !(error instanceof Error) ||
+    !("code" in error) ||
+    typeof error.code !== "string"
+  ) {
     throw new TypeError(
       "an exact unavailable request-security error is required",
     );

@@ -12,28 +12,53 @@ const FATAL_SQLITE_CODES = [
 ];
 const FATAL_SQLITE_RESULT_CODES = new Set([5, 6, 8, 10, 11, 13, 14, 15, 26]);
 
+/** @param {unknown} error */
 function sqliteCode(error) {
-  return typeof error?.code === "string" ? error.code : "";
+  return error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string"
+    ? error.code
+    : "";
 }
 
+/** @param {unknown} error */
 export function isFatalSqliteWrite(error) {
   const code = sqliteCode(error);
+  const resultCode =
+    error instanceof Error &&
+    "errcode" in error &&
+    typeof error.errcode === "number"
+      ? error.errcode
+      : 0;
   return (
-    FATAL_SQLITE_RESULT_CODES.has(error?.errcode & 0xff) ||
+    FATAL_SQLITE_RESULT_CODES.has(resultCode & 0xff) ||
     FATAL_SQLITE_CODES.some(
       (fatalCode) => code === fatalCode || code.startsWith(`${fatalCode}_`),
     )
   );
 }
 
+/** @param {unknown} error */
 function isSqliteCorruption(error) {
-  return [11, 26].includes(error?.errcode & 0xff);
+  const resultCode =
+    error instanceof Error &&
+    "errcode" in error &&
+    typeof error.errcode === "number"
+      ? error.errcode
+      : 0;
+  return [11, 26].includes(resultCode & 0xff);
 }
 
+/**
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @param {string} pragma
+ * @param {string} field
+ */
 function scalar(database, pragma, field) {
   return database.prepare(pragma).get()?.[field];
 }
 
+/** @param {import("node:sqlite").DatabaseSync} database */
 export function configureDatabase(database) {
   try {
     database.exec("PRAGMA foreign_keys = ON");
@@ -89,6 +114,7 @@ export function configureDatabase(database) {
   }
 }
 
+/** @param {import("node:sqlite").DatabaseSync} database */
 export function validateIntegrity(database) {
   let result;
   try {
