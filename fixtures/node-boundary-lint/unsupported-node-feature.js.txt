@@ -1,0 +1,3 @@
+import { Utf8Stream } from "node:fs";
+
+new Utf8Stream();

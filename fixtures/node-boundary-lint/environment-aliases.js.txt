@@ -1,0 +1,2 @@
+globalThis.process.env.QUALITY_BAR_TEST;
+global.process.env.QUALITY_BAR_TEST;

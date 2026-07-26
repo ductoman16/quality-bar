@@ -1,0 +1,2 @@
+globalThis.console.log("protocol");
+global.console.log("protocol");

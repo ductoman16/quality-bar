@@ -1,0 +1,52 @@
+{
+  "ticket": 160,
+  "focused_command": "npm run lint:boundaries",
+  "node_version": "24.18.0",
+  "initial_unowned_violations": [],
+  "initial_unsupported_feature_reports": [
+    {
+      "feature": "import.meta.main",
+      "paths": [
+        "scripts/core-js-lint.mjs",
+        "scripts/node-boundary-lint.mjs",
+        "scripts/structural-lint.mjs"
+      ]
+    },
+    {
+      "feature": "sqlite",
+      "paths": [
+        "fixtures/package/database-facts.mjs",
+        "fixtures/package/write-database-marker.mjs",
+        "src/durable-core.js",
+        "src/installation-environment.js",
+        "test/installation-environment.test.js"
+      ]
+    }
+  ],
+  "approved_console_owners": [
+    "fixtures/package/authenticated-http-smoke.mjs",
+    "fixtures/package/database-facts.mjs",
+    "fixtures/package/filesystem-facts.mjs",
+    "fixtures/package/http-facts.mjs",
+    "scripts/package-proof/prove-compose-service.mjs",
+    "test/operator-browser-smoke.test.js"
+  ],
+  "approved_environment_owners": [
+    "scripts/package-proof/package-fixture.mjs",
+    "scripts/verification/harness.mjs",
+    "src/healthcheck.js",
+    "src/main.js",
+    "test/operator-browser-smoke.test.js",
+    "test/verification-harness.test.js"
+  ],
+  "approved_node_builtin_exceptions": ["import.meta.main", "sqlite"],
+  "representative_failures": {
+    "missing_import": "n/no-missing-import",
+    "extraneous_import": "n/no-extraneous-import",
+    "unavailable_node_import": "n/no-missing-import",
+    "unsupported_node_feature": "n/no-unsupported-features/node-builtins",
+    "direct_console_output": "no-console",
+    "direct_environment_access": "no-restricted-syntax"
+  },
+  "final_outcome": "pass"
+}

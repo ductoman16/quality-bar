@@ -1,0 +1,2 @@
+const { ["env"]: environment } = process;
+environment.QUALITY_BAR_TEST;
