@@ -35,6 +35,8 @@ test("the core JavaScript correctness gate reports every required rule family", 
     "bound-non-error": "error-only-throwing/error-only-throwing",
     "shadowed-error-name": "error-only-throwing/error-only-throwing",
     "unproven-import": "error-only-throwing/error-only-throwing",
+    "nested-relative-import": "error-only-throwing/error-only-throwing",
+    "reassigned-non-error": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
     "object-shorthand": "object-shorthand",
     "immutable-binding": "prefer-const",
@@ -124,6 +126,21 @@ test("Error-only throwing accepts an aliased repository Error constructor", asyn
         path: "src/error-import-fixture.js",
         source:
           "import { DurableCoreError as Failure } from './durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
+});
+
+test("Error-only throwing accepts every proven repository Error export", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-import-fixture.js",
+        source:
+          "import { BrowserSessionError as Failure } from './browser-session.js';\nthrow new Failure('invalid', 'invalid');\n",
       },
     ],
     repositoryRoot,

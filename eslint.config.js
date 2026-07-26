@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import { globalIgnores } from "eslint/config";
 import globals from "globals";
+import { dirname, resolve } from "node:path";
 
 import { GENERATED_ARTIFACT_ALLOWLIST } from "./scripts/structural-lint-policy.mjs";
 
@@ -47,8 +48,50 @@ const errorOnlyThrowing = {
             "URIError",
           ]);
           const repositoryConstructors = new Map([
-            ["./durable-error.js", new Set(["DurableCoreError"])],
-            ["./operator-password.js", new Set(["OperatorPasswordError"])],
+            [
+              resolve(import.meta.dirname, "src/durable-error.js"),
+              new Set(["DurableCoreError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/operator-password.js"),
+              new Set(["OperatorPasswordError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/browser-assets.js"),
+              new Set(["BrowserAssetError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/browser-session.js"),
+              new Set(["BrowserSessionError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/codex-capabilities.js"),
+              new Set(["CodexConfigurationError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/implementer-token.js"),
+              new Set(["ImplementerTokenError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/installation-configuration.js"),
+              new Set(["InstallationConfigurationError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/installation-environment.js"),
+              new Set(["InstallationEnvironmentError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/operator-login-throttle.js"),
+              new Set(["OperatorLoginThrottleError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/request-security.js"),
+              new Set(["RequestSecurityError"]),
+            ],
+            [
+              resolve(import.meta.dirname, "src/review.js"),
+              new Set(["ReviewError"]),
+            ],
           ]);
           const variable = variableFor(node.callee);
           const definition = variable?.defs[0];
@@ -59,7 +102,12 @@ const errorOnlyThrowing = {
             return (
               definition.node.type === "ImportSpecifier" &&
               repositoryConstructors
-                .get(definition.node.parent.source.value)
+                .get(
+                  resolve(
+                    dirname(context.filename),
+                    definition.node.parent.source.value,
+                  ),
+                )
                 ?.has(definition.node.imported.name)
             );
           }
@@ -98,7 +146,9 @@ const errorOnlyThrowing = {
           return (
             definition?.type === "Variable" &&
             definition.node.init !== null &&
-            isKnownNonError(definition.node.init, checkedVariables)
+            (variable.references.filter((reference) => reference.isWrite())
+              .length > 1 ||
+              isKnownNonError(definition.node.init, checkedVariables))
           );
         }
 
