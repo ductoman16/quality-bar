@@ -127,10 +127,7 @@ function configureDatabase(database) {
 
   const foreignKeys = scalar(database, "PRAGMA foreign_keys", "foreign_keys");
   if (foreignKeys !== 1) {
-    fail(
-      "foreign_keys_unavailable",
-      "SQLite foreign keys are not enabled",
-    );
+    fail("foreign_keys_unavailable", "SQLite foreign keys are not enabled");
   }
 
   let journalMode;
@@ -316,10 +313,7 @@ function initializeOrValidateSchema(database) {
       COMMIT;
     `);
   } else if (version !== SCHEMA_VERSION) {
-    fail(
-      "schema_invalid",
-      `SQLite schema version ${version} is not supported`,
-    );
+    fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
 
   try {
@@ -361,8 +355,9 @@ function initializeOrValidateSchema(database) {
 
 function readFacts(database) {
   return {
-    databaseVersion: database.prepare("SELECT sqlite_version() AS version").get()
-      .version,
+    databaseVersion: database
+      .prepare("SELECT sqlite_version() AS version")
+      .get().version,
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",

@@ -23,7 +23,9 @@ function reviewDefinition(overrides = {}) {
       reasoning_effort: "high",
       service_tier: "standard",
     },
-    criteria: [{ impact: "blocking", instruction: "Reject unsafe SQL construction." }],
+    criteria: [
+      { impact: "blocking", instruction: "Reject unsafe SQL construction." },
+    ],
     description: "Protect data access boundaries.",
     name: "Data access",
     ...overrides,
@@ -53,7 +55,14 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
         reasoning_effort: "high",
         service_tier: "standard",
       },
-      criteria: [{ id: "review-fact-3", impact: "blocking", instruction: "Reject unsafe SQL construction.", position: 1 }],
+      criteria: [
+        {
+          id: "review-fact-3",
+          impact: "blocking",
+          instruction: "Reject unsafe SQL construction.",
+          position: 1,
+        },
+      ],
       id: "review-fact-2",
       number: 1,
     },
@@ -64,14 +73,26 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
   });
   assert.deepEqual(
     core.all("SELECT id, name, description, active_version_id FROM reviews"),
-    [{ id: "review-fact-1", name: "Data access", description: "Protect data access boundaries.", active_version_id: "review-fact-2" }],
+    [
+      {
+        id: "review-fact-1",
+        name: "Data access",
+        description: "Protect data access boundaries.",
+        active_version_id: "review-fact-2",
+      },
+    ],
   );
   assert.deepEqual(
     core.all("SELECT review_id, scope FROM review_assignments"),
     [{ review_id: "review-fact-1", scope: "installation_wide" }],
   );
   assert.throws(
-    () => core.run("UPDATE review_versions SET model = ? WHERE id = ?", "gpt-5.6-sol", "review-fact-2"),
+    () =>
+      core.run(
+        "UPDATE review_versions SET model = ? WHERE id = ?",
+        "gpt-5.6-sol",
+        "review-fact-2",
+      ),
     /review_version_immutable/,
   );
   assert.throws(
@@ -87,7 +108,13 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
     Date.parse("2026-07-25T20:00:00.000Z"),
   );
   assert.throws(
-    () => core.run("INSERT INTO review_version_criteria (review_version_id, criterion_id, position) VALUES (?, ?, ?)", "review-fact-2", "later-criterion", 2),
+    () =>
+      core.run(
+        "INSERT INTO review_version_criteria (review_version_id, criterion_id, position) VALUES (?, ?, ?)",
+        "review-fact-2",
+        "later-criterion",
+        2,
+      ),
     /review_version_criterion_immutable/,
   );
   assert.throws(
@@ -106,7 +133,13 @@ test("a malformed Review definition creates no partial durable facts", () => {
     () => reviews.create(reviewDefinition({ criteria: [] })),
     (error) => error.code === "review_criteria_invalid",
   );
-  for (const table of ["reviews", "review_versions", "criteria", "review_version_criteria", "review_assignments"]) {
+  for (const table of [
+    "reviews",
+    "review_versions",
+    "criteria",
+    "review_version_criteria",
+    "review_assignments",
+  ]) {
     assert.deepEqual(core.all(`SELECT * FROM ${table}`), []);
   }
   core.close();

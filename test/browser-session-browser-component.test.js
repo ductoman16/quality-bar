@@ -38,7 +38,10 @@ async function startApplication(options = {}) {
   });
   applications.push(application);
   if (options.bootstrap !== false) {
-    bootstrapOperatorPassword(application.durableCore, "a correct operator password");
+    bootstrapOperatorPassword(
+      application.durableCore,
+      "a correct operator password",
+    );
   }
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
@@ -68,7 +71,10 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   assert.match(loginPage, /<label for="password">Password<\/label>/);
   assert.match(loginPage, /<button type="submit">Log in<\/button>/);
   assert.match(loginPage, /\/api\/v1\/session\/login/);
-  assert.doesNotMatch(loginPage, /username|signup|remember|recovery|localStorage|Bearer/i);
+  assert.doesNotMatch(
+    loginPage,
+    /username|signup|remember|recovery|localStorage|Bearer/i,
+  );
 
   const system = await fetch(`${origin}/api/v1/system`);
   assert.equal(system.status, 401);
@@ -76,7 +82,9 @@ test("the minimum unauthenticated surface exposes the password-only login and no
 });
 
 test("a password login sets only an HttpOnly Strict host-only cookie and logout clears it", async () => {
-  const { origin } = await startApplication({ externalOrigin: "https://quality-bar.example" });
+  const { origin } = await startApplication({
+    externalOrigin: "https://quality-bar.example",
+  });
   const proxyHeaders = {
     forwarded: "for=203.0.113.24;host=quality-bar.example;proto=https",
   };
@@ -105,7 +113,10 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
   });
   const authenticatedHtml = await authenticatedPage.text();
-  assert.match(authenticatedHtml, /<button id="logout" type="button">Log out<\/button>/);
+  assert.match(
+    authenticatedHtml,
+    /<button id="logout" type="button">Log out<\/button>/,
+  );
   assert.match(authenticatedHtml, /\/api\/v1\/session\/logout/);
 
   const logout = await fetch(`${origin}/api/v1/session/logout`, {
@@ -120,9 +131,11 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
   assert.equal(logout.status, 204);
   assert.match(logout.headers.get("set-cookie"), /Max-Age=0/);
   assert.equal(
-    (await fetch(`${origin}/api/v1/system`, {
-      headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
-    })).status,
+    (
+      await fetch(`${origin}/api/v1/system`, {
+        headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
+      })
+    ).status,
     401,
   );
 });
@@ -140,7 +153,13 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   const evaluationsHtml = await evaluations.text();
   assert.match(evaluationsHtml, /<h1>Evaluations<\/h1>/);
   assert.match(evaluationsHtml, /aria-label="Primary"/);
-  for (const resource of ["Evaluations", "Reviews", "Repositories", "Analytics", "System"]) {
+  for (const resource of [
+    "Evaluations",
+    "Reviews",
+    "Repositories",
+    "Analytics",
+    "System",
+  ]) {
     assert.match(evaluationsHtml, new RegExp(`>${resource}<\\/a>`));
   }
   assert.match(evaluationsHtml, /id="attention"/);
@@ -157,9 +176,14 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(systemHtml, /system\.codex\.catalog\.models/);
   assert.match(systemHtml, /reasoning_efforts/);
   assert.match(systemHtml, /service_tiers/);
-  assert.match(systemHtml, /if \(reviewForm\) configureReviewModels\(system\.codex\.catalog\)/);
+  assert.match(
+    systemHtml,
+    /if \(reviewForm\) configureReviewModels\(system\.codex\.catalog\)/,
+  );
 
-  const reviews = await fetch(`${origin}/?view=reviews`, { headers: { cookie } });
+  const reviews = await fetch(`${origin}/?view=reviews`, {
+    headers: { cookie },
+  });
   const reviewsHtml = await reviews.text();
   assert.match(reviewsHtml, /<h1>Reviews<\/h1>/);
   assert.match(reviewsHtml, /id="review-create-form"/);
@@ -183,7 +207,9 @@ test("browser activity refreshes a session only with its exact origin and sessio
     method: "POST",
   });
   const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const sessionCookie = cookies.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )[0];
   const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
   const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
   const beforeRejectedActivity = application.durableCore.get(
@@ -281,7 +307,9 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
     method: "POST",
   });
   const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const sessionCookie = cookies.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )[0];
   const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
   const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
 
@@ -289,7 +317,10 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
     ["/api/v1/session/logout", undefined],
     [
       "/api/v1/session/password",
-      { current_password: password, new_password: "a replacement operator password" },
+      {
+        current_password: password,
+        new_password: "a replacement operator password",
+      },
     ],
     [
       "/api/v1/sessions/revoke",
@@ -324,7 +355,9 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
   assert.equal(absentCsrf.status, 403);
   assert.equal((await absentCsrf.json()).error.code, "csrf_invalid");
   assert.equal(
-    application.durableCore.get("SELECT COUNT(*) AS count FROM browser_sessions").count,
+    application.durableCore.get(
+      "SELECT COUNT(*) AS count FROM browser_sessions",
+    ).count,
     1,
   );
   assert.equal(
@@ -403,13 +436,19 @@ test("a malformed login request creates no session", async () => {
   const { application, origin } = await startApplication();
 
   const response = await fetch(`${origin}/api/v1/session/login`, {
-    body: JSON.stringify({ password: "a correct operator password", unexpected: true }),
+    body: JSON.stringify({
+      password: "a correct operator password",
+      unexpected: true,
+    }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error.code, "request_malformed");
-  assert.equal(application.durableCore.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.equal(
+    application.durableCore.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
 });
 
 test("an expired browser session returns to login and preserves only a safe internal destination", async () => {
@@ -430,7 +469,9 @@ test("an expired browser session returns to login and preserves only a safe inte
   );
   const safeLoginPage = await safeDestination.text();
   assert.ok(
-    safeLoginPage.includes('const intendedDestination = "/system?section=sessions";'),
+    safeLoginPage.includes(
+      'const intendedDestination = "/system?section=sessions";',
+    ),
   );
   assert.match(safeLoginPage, /location\.assign\(intendedDestination\)/);
   assert.doesNotMatch(safeLoginPage, /fetch\(intendedDestination/);
@@ -451,7 +492,10 @@ test("an expired browser session returns to login and preserves only a safe inte
   });
   const authenticatedHtml = await operatorPage.text();
   assert.match(authenticatedHtml, /returnToLoginAfterAuthenticationFailure/);
-  assert.match(authenticatedHtml, /location\.assign\("\/\?return_to=" \+ encodeURIComponent\(location\.pathname \+ location\.search\)\)/);
+  assert.match(
+    authenticatedHtml,
+    /location\.assign\("\/\?return_to=" \+ encodeURIComponent\(location\.pathname \+ location\.search\)\)/,
+  );
 
   const unsafeDestination = await fetch(
     `${origin}/?return_to=https%3A%2F%2Fattacker.example%2Fsteal`,
@@ -471,16 +515,22 @@ test("the login surface reports one explicit throttled response without revealin
   });
   assert.equal(failedLogin.status, 401);
 
-  const throttledCorrectPassword = await fetch(`${origin}/api/v1/session/login`, {
-    body: JSON.stringify({ password: "a correct operator password" }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  const throttledIncorrectPassword = await fetch(`${origin}/api/v1/session/login`, {
-    body: JSON.stringify({ password: "another incorrect operator password" }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const throttledCorrectPassword = await fetch(
+    `${origin}/api/v1/session/login`,
+    {
+      body: JSON.stringify({ password: "a correct operator password" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
+  const throttledIncorrectPassword = await fetch(
+    `${origin}/api/v1/session/login`,
+    {
+      body: JSON.stringify({ password: "another incorrect operator password" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    },
+  );
 
   assert.equal(throttledCorrectPassword.status, 429);
   assert.equal(throttledCorrectPassword.headers.get("retry-after"), "1");
@@ -509,8 +559,12 @@ test("the authenticated operator surface changes a password and revokes all sess
     method: "POST",
   });
   const firstCookies = firstLogin.headers.get("set-cookie");
-  const firstCookie = firstCookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
-  const firstCsrfToken = firstCookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const firstCookie = firstCookies.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )[0];
+  const firstCsrfToken = firstCookies.match(
+    /quality_bar_csrf=([A-Za-z0-9_-]{43})/,
+  )[1];
   const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: currentPassword }),
     headers: { "content-type": "application/json" },
@@ -545,11 +599,19 @@ test("the authenticated operator surface changes a password and revokes all sess
   assert.equal(passwordChange.status, 204);
   assert.match(passwordChange.headers.get("set-cookie"), /Max-Age=0/);
   assert.equal(
-    (await fetch(`${origin}/api/v1/system`, { headers: { cookie: firstCookie } })).status,
+    (
+      await fetch(`${origin}/api/v1/system`, {
+        headers: { cookie: firstCookie },
+      })
+    ).status,
     401,
   );
   assert.equal(
-    (await fetch(`${origin}/api/v1/system`, { headers: { cookie: secondCookie } })).status,
+    (
+      await fetch(`${origin}/api/v1/system`, {
+        headers: { cookie: secondCookie },
+      })
+    ).status,
     401,
   );
 
@@ -559,10 +621,12 @@ test("the authenticated operator surface changes a password and revokes all sess
     method: "POST",
   });
   const replacementCookies = replacementLogin.headers.get("set-cookie");
-  const replacementCookie = replacementCookies
-    .match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
-  const replacementCsrfToken = replacementCookies
-    .match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const replacementCookie = replacementCookies.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )[0];
+  const replacementCsrfToken = replacementCookies.match(
+    /quality_bar_csrf=([A-Za-z0-9_-]{43})/,
+  )[1];
   const revocation = await fetch(`${origin}/api/v1/sessions/revoke`, {
     body: JSON.stringify({
       confirmation: "REVOKE ALL SESSIONS",
@@ -579,9 +643,11 @@ test("the authenticated operator surface changes a password and revokes all sess
   assert.equal(revocation.status, 204);
   assert.match(revocation.headers.get("set-cookie"), /Max-Age=0/);
   assert.equal(
-    (await fetch(`${origin}/api/v1/system`, {
-      headers: { cookie: replacementCookie },
-    })).status,
+    (
+      await fetch(`${origin}/api/v1/system`, {
+        headers: { cookie: replacementCookie },
+      })
+    ).status,
     401,
   );
 });
@@ -595,7 +661,9 @@ test("the authenticated operator surface reveals each generated implementer toke
     method: "POST",
   });
   const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
+  const sessionCookie = cookies.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )[0];
   const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
   const headers = {
     "content-type": "application/json",
@@ -604,7 +672,9 @@ test("the authenticated operator surface reveals each generated implementer toke
     "x-quality-bar-csrf": csrfToken,
   };
 
-  const page = await fetch(`${origin}/`, { headers: { cookie: sessionCookie } });
+  const page = await fetch(`${origin}/`, {
+    headers: { cookie: sessionCookie },
+  });
   const html = await page.text();
   assert.match(html, /id="implementer-token-create-form"/);
   assert.match(html, /id="implementer-token-rotate-form"/);
@@ -612,7 +682,10 @@ test("the authenticated operator surface reveals each generated implementer toke
   assert.match(html, /id="implementer-token-reveal"/);
   assert.match(html, /aria-labelledby="implementer-token-reveal-title"/);
   assert.match(html, /addEventListener\("close", \(\) => \{/);
-  assert.match(html, /window\.confirm\("Revoke implementer token\? Machine access will remain disabled until a new token is created\."\)/);
+  assert.match(
+    html,
+    /window\.confirm\("Revoke implementer token\? Machine access will remain disabled until a new token is created\."\)/,
+  );
   assert.doesNotMatch(html, /Bearer|localStorage/i);
 
   const created = await fetch(`${origin}/api/v1/implementer-token`, {
@@ -630,7 +703,10 @@ test("the authenticated operator surface reveals each generated implementer toke
     method: "POST",
   });
   assert.equal(duplicateCreate.status, 409);
-  assert.equal((await duplicateCreate.json()).error.code, "implementer_token_already_active");
+  assert.equal(
+    (await duplicateCreate.json()).error.code,
+    "implementer_token_already_active",
+  );
 
   const rotated = await fetch(`${origin}/api/v1/implementer-token/rotate`, {
     body: JSON.stringify({ password }),

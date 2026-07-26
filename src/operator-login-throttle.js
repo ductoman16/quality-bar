@@ -35,7 +35,10 @@ function readNonnegativeInteger(store, key) {
 }
 
 function readState(store) {
-  const attempts = readNonnegativeInteger(store, FAILED_LOGIN_ATTEMPTS_METADATA_KEY);
+  const attempts = readNonnegativeInteger(
+    store,
+    FAILED_LOGIN_ATTEMPTS_METADATA_KEY,
+  );
   const until = readNonnegativeInteger(store, FAILED_LOGIN_UNTIL_METADATA_KEY);
   if (attempts > MAX_FAILED_LOGIN_ATTEMPTS) {
     fail("login_throttle_unavailable", "Login throttling is unavailable");
@@ -54,7 +57,9 @@ function writeMetadata(store, key, value) {
 
 function nowMilliseconds(now) {
   if (!Number.isSafeInteger(now) || now < 0) {
-    throw new TypeError("now must be a nonnegative integer millisecond timestamp");
+    throw new TypeError(
+      "now must be a nonnegative integer millisecond timestamp",
+    );
   }
   return now;
 }
@@ -85,8 +90,16 @@ export function recordFailedOperatorLogin(durableCore, now) {
     const { attempts } = readState(transaction);
     const nextAttempts = Math.min(attempts + 1, MAX_FAILED_LOGIN_ATTEMPTS);
     const delayMs = delayMilliseconds(nextAttempts);
-    writeMetadata(transaction, FAILED_LOGIN_ATTEMPTS_METADATA_KEY, nextAttempts);
-    writeMetadata(transaction, FAILED_LOGIN_UNTIL_METADATA_KEY, timestamp + delayMs);
+    writeMetadata(
+      transaction,
+      FAILED_LOGIN_ATTEMPTS_METADATA_KEY,
+      nextAttempts,
+    );
+    writeMetadata(
+      transaction,
+      FAILED_LOGIN_UNTIL_METADATA_KEY,
+      timestamp + delayMs,
+    );
     return { retryAfterSeconds: Math.ceil(delayMs / 1_000) };
   });
 }

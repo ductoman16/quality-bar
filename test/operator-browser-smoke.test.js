@@ -18,7 +18,8 @@ function temporaryDirectory(prefix) {
 }
 
 function firefoxBinary() {
-  const binary = process.env.QUALITY_BAR_FIREFOX_BINARY ??
+  const binary =
+    process.env.QUALITY_BAR_FIREFOX_BINARY ??
     (process.platform === "darwin"
       ? "/Applications/Firefox.app/Contents/MacOS/firefox"
       : "/usr/bin/firefox");
@@ -64,7 +65,10 @@ document.getElementById("login-form").requestSubmit();
 
 function waitFor(value, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("operator browser smoke timed out")), timeoutMs);
+    const timeout = setTimeout(
+      () => reject(new Error("operator browser smoke timed out")),
+      timeoutMs,
+    );
     value.then(
       (result) => {
         clearTimeout(timeout);
@@ -100,7 +104,10 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     validateCodexAuthentication() {},
     writeLog() {},
   });
-  bootstrapOperatorPassword(application.durableCore, "a correct operator password");
+  bootstrapOperatorPassword(
+    application.durableCore,
+    "a correct operator password",
+  );
   await listen(application.server);
   const applicationOrigin = `http://127.0.0.1:${application.server.address().port}`;
   let sawAuthenticatedShell = false;
@@ -110,7 +117,9 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     complete = resolve;
   });
   const proxy = createServer(async (request, response) => {
-    const body = ["GET", "HEAD"].includes(request.method) ? undefined : await readBody(request);
+    const body = ["GET", "HEAD"].includes(request.method)
+      ? undefined
+      : await readBody(request);
     const headers = {};
     if (request.headers.cookie) {
       headers.cookie = request.headers.cookie;
@@ -124,7 +133,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       method: request.method,
     });
     let responseBody = Buffer.from(await upstream.arrayBuffer());
-    const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+    const contentType =
+      upstream.headers.get("content-type") ?? "application/octet-stream";
     if (
       request.method === "GET" &&
       request.url === "/" &&
@@ -169,10 +179,14 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     await close(proxy);
     await application.close();
   }
-  console.log(`QUALITY_BAR_OPERATOR_BROWSER_FACTS ${JSON.stringify({
-    authenticatedShell: sawAuthenticatedShell,
-    engine: "firefox",
-    executableVersion: execFileSync(firefoxBinary(), ["--version"], { encoding: "utf8" }).trim(),
-    systemFetch: sawSystemFetch,
-  })}`);
+  console.log(
+    `QUALITY_BAR_OPERATOR_BROWSER_FACTS ${JSON.stringify({
+      authenticatedShell: sawAuthenticatedShell,
+      engine: "firefox",
+      executableVersion: execFileSync(firefoxBinary(), ["--version"], {
+        encoding: "utf8",
+      }).trim(),
+      systemFetch: sawSystemFetch,
+    })}`,
+  );
 });

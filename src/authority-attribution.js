@@ -13,7 +13,8 @@ function assertAttribution(event) {
     !Number.isSafeInteger(event.occurredAt) ||
     event.occurredAt < 0 ||
     (event.errorCode !== undefined &&
-      (typeof event.errorCode !== "string" || !/^[a-z_]+$/.test(event.errorCode)))
+      (typeof event.errorCode !== "string" ||
+        !/^[a-z_]+$/.test(event.errorCode)))
   ) {
     throw new TypeError("authority attribution is invalid");
   }

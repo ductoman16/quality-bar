@@ -31,13 +31,19 @@ async function startApplication(options = {}) {
     createReviews: options.createReviews,
     writeLog() {},
   });
-  bootstrapOperatorPassword(application.durableCore, "a correct operator password");
+  bootstrapOperatorPassword(
+    application.durableCore,
+    "a correct operator password",
+  );
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
     application.server.listen(0, "127.0.0.1", resolve);
   });
   applications.push(application);
-  return { application, origin: `http://127.0.0.1:${application.server.address().port}` };
+  return {
+    application,
+    origin: `http://127.0.0.1:${application.server.address().port}`,
+  };
 }
 
 function reviewRequest(overrides = {}) {
@@ -48,7 +54,12 @@ function reviewRequest(overrides = {}) {
       reasoning_effort: "high",
       service_tier: "standard",
     },
-    criteria: [{ impact: "advisory", instruction: "Preserve request authentication boundaries." }],
+    criteria: [
+      {
+        impact: "advisory",
+        instruction: "Preserve request authentication boundaries.",
+      },
+    ],
     description: "Keep authenticated mutations safe.",
     name: "HTTP boundaries",
     ...overrides,
@@ -96,12 +107,17 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
   });
   assert.equal(rejected.status, 422);
   assert.equal((await rejected.json()).error.code, "review_request_malformed");
-  assert.equal(application.durableCore.get("SELECT count(*) AS count FROM reviews").count, 1);
+  assert.equal(
+    application.durableCore.get("SELECT count(*) AS count FROM reviews").count,
+    1,
+  );
 });
 
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
   const { application, origin } = await startApplication();
-  const token = application.implementerTokens.create("a correct operator password");
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
 
   const created = await fetch(`${origin}/api/v1/reviews`, {
     body: JSON.stringify(reviewRequest({ name: "Machine HTTP boundaries" })),
@@ -119,7 +135,11 @@ test("an unexpected Review resource failure has an exact owning error", async ()
   const failure = new Error("exact Review resource failure");
   const { origin } = await startApplication({
     createReviews() {
-      return { create() { throw failure; } };
+      return {
+        create() {
+          throw failure;
+        },
+      };
     },
   });
   const login = await fetch(`${origin}/api/v1/session/login`, {

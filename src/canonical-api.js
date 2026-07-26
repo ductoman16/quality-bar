@@ -27,11 +27,13 @@ export function canonicalOpenApiDocument() {
       schema: { type: "string" },
     },
   ];
-  const browserOrBearerMutationParameters = browserMutationParameters.map((parameter) => ({
-    ...parameter,
-    description: "Required when authenticating with a browser session",
-    required: false,
-  }));
+  const browserOrBearerMutationParameters = browserMutationParameters.map(
+    (parameter) => ({
+      ...parameter,
+      description: "Required when authenticating with a browser session",
+      required: false,
+    }),
+  );
 
   return {
     info: { title: "Quality Bar API", version: "1.0.0" },
@@ -41,15 +43,35 @@ export function canonicalOpenApiDocument() {
       "/api/v1/openapi.json": {
         get: {
           operationId: "getOpenApiDocument",
-          responses: { 200: { content: { "application/json": { schema: { type: "object" } } }, description: "OpenAPI document" }, 400: errorResponse, 401: errorResponse },
+          responses: {
+            200: {
+              content: { "application/json": { schema: { type: "object" } } },
+              description: "OpenAPI document",
+            },
+            400: errorResponse,
+            401: errorResponse,
+          },
           security: authenticated,
         },
       },
       "/api/v1/session/login": {
         post: {
           operationId: "loginOperator",
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/LoginRequest" } } }, required: true },
-          responses: { 204: { description: "Authenticated browser session" }, 400: errorResponse, 401: errorResponse, 429: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LoginRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            204: { description: "Authenticated browser session" },
+            400: errorResponse,
+            401: errorResponse,
+            429: errorResponse,
+            503: errorResponse,
+          },
           security: [],
         },
       },
@@ -57,7 +79,13 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "logoutOperator",
           parameters: browserMutationParameters,
-          responses: { 204: { description: "Current browser session revoked" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 503: errorResponse },
+          responses: {
+            204: { description: "Current browser session revoked" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -65,7 +93,13 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "recordBrowserSessionActivity",
           parameters: browserMutationParameters,
-          responses: { 204: { description: "Browser session refreshed" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 503: errorResponse },
+          responses: {
+            204: { description: "Browser session refreshed" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -73,8 +107,22 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "changeOperatorPassword",
           parameters: browserMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/PasswordChangeRequest" } } }, required: true },
-          responses: { 204: { description: "Password changed and sessions revoked" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PasswordChangeRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            204: { description: "Password changed and sessions revoked" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            422: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -82,8 +130,24 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "revokeBrowserSessions",
           parameters: browserMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/SessionRevocationRequest" } } }, required: true },
-          responses: { 204: { description: "All browser sessions revoked" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SessionRevocationRequest",
+                },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            204: { description: "All browser sessions revoked" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            422: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -91,8 +155,22 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "createImplementerToken",
           parameters: browserMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/CurrentPasswordRequest" } } }, required: true },
-          responses: { 201: { description: "One-time token reveal" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentPasswordRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            201: { description: "One-time token reveal" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            409: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -100,8 +178,22 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "rotateImplementerToken",
           parameters: browserMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/CurrentPasswordRequest" } } }, required: true },
-          responses: { 200: { description: "One-time replacement token reveal" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentPasswordRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            200: { description: "One-time replacement token reveal" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            409: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -109,8 +201,22 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "revokeImplementerToken",
           parameters: browserMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/CurrentPasswordRequest" } } }, required: true },
-          responses: { 204: { description: "Implementer token revoked" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 409: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentPasswordRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            204: { description: "Implementer token revoked" },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            409: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -118,15 +224,51 @@ export function canonicalOpenApiDocument() {
         post: {
           operationId: "createReview",
           parameters: browserOrBearerMutationParameters,
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/ReviewCreateRequest" } } }, required: true },
-          responses: { 201: { content: { "application/json": { schema: { $ref: "#/components/schemas/Review" } } }, description: "Review with its active immutable v1" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 422: errorResponse, 500: errorResponse, 503: errorResponse },
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ReviewCreateRequest" },
+              },
+            },
+            required: true,
+          },
+          responses: {
+            201: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Review" },
+                },
+              },
+              description: "Review with its active immutable v1",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            422: errorResponse,
+            500: errorResponse,
+            503: errorResponse,
+          },
           security: authenticated,
         },
       },
       "/api/v1/system": {
         get: {
           operationId: "getSystem",
-          responses: { 200: { content: { "application/json": { schema: { $ref: "#/components/schemas/System" } } }, description: "System facts" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 500: errorResponse, 503: errorResponse },
+          responses: {
+            200: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/System" },
+                },
+              },
+              description: "System facts",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            500: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -135,9 +277,28 @@ export function canonicalOpenApiDocument() {
           operationId: "listAuthorityAttributions",
           parameters: [
             { in: "query", name: "cursor", schema: { type: "string" } },
-            { in: "query", name: "limit", schema: { maximum: 100, minimum: 1, type: "integer" } },
+            {
+              in: "query",
+              name: "limit",
+              schema: { maximum: 100, minimum: 1, type: "integer" },
+            },
           ],
-          responses: { 200: { content: { "application/json": { schema: { $ref: "#/components/schemas/AuthorityAttributionCollection" } } }, description: "Attribution collection" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 503: errorResponse },
+          responses: {
+            200: {
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/AuthorityAttributionCollection",
+                  },
+                },
+              },
+              description: "Attribution collection",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            503: errorResponse,
+          },
           security: [{ browser_session: [] }],
         },
       },
@@ -148,11 +309,17 @@ export function canonicalOpenApiDocument() {
           additionalProperties: true,
           properties: {
             action: { type: "string" },
-            channel: { enum: ["browser_session", "implementer_token"], type: "string" },
+            channel: {
+              enum: ["browser_session", "implementer_token"],
+              type: "string",
+            },
             error_code: { type: "string" },
             id: { type: "string" },
             occurred_at: { format: "date-time", type: "string" },
-            outcome: { enum: ["success", "failure", "forbidden"], type: "string" },
+            outcome: {
+              enum: ["success", "failure", "forbidden"],
+              type: "string",
+            },
           },
           required: ["id", "channel", "action", "outcome", "occurred_at"],
           type: "object",
@@ -160,7 +327,10 @@ export function canonicalOpenApiDocument() {
         AuthorityAttributionCollection: {
           additionalProperties: true,
           properties: {
-            items: { items: { $ref: "#/components/schemas/AuthorityAttribution" }, type: "array" },
+            items: {
+              items: { $ref: "#/components/schemas/AuthorityAttribution" },
+              type: "array",
+            },
             next_cursor: { type: ["string", "null"] },
           },
           required: ["items", "next_cursor"],
@@ -170,7 +340,10 @@ export function canonicalOpenApiDocument() {
           additionalProperties: true,
           properties: {
             code: { type: "string" },
-            fields: { items: { $ref: "#/components/schemas/FieldError" }, type: "array" },
+            fields: {
+              items: { $ref: "#/components/schemas/FieldError" },
+              type: "array",
+            },
             message: { type: "string" },
             request_id: { type: "string" },
           },
@@ -207,13 +380,19 @@ export function canonicalOpenApiDocument() {
         },
         PasswordChangeRequest: {
           additionalProperties: false,
-          properties: { current_password: { type: "string" }, new_password: { type: "string" } },
+          properties: {
+            current_password: { type: "string" },
+            new_password: { type: "string" },
+          },
           required: ["current_password", "new_password"],
           type: "object",
         },
         SessionRevocationRequest: {
           additionalProperties: false,
-          properties: { confirmation: { const: "REVOKE ALL SESSIONS", type: "string" }, password: { type: "string" } },
+          properties: {
+            confirmation: { const: "REVOKE ALL SESSIONS", type: "string" },
+            password: { type: "string" },
+          },
           required: ["confirmation", "password"],
           type: "object",
         },
@@ -222,7 +401,10 @@ export function canonicalOpenApiDocument() {
             additionalProperties: false,
             properties: {
               model: { const: model.id, type: "string" },
-              reasoning_effort: { enum: model.reasoning_efforts, type: "string" },
+              reasoning_effort: {
+                enum: model.reasoning_efforts,
+                type: "string",
+              },
               service_tier: { enum: model.service_tiers, type: "string" },
             },
             required: ["model", "reasoning_effort", "service_tier"],
@@ -248,12 +430,24 @@ export function canonicalOpenApiDocument() {
           additionalProperties: false,
           properties: {
             assignment: { $ref: "#/components/schemas/ReviewAssignment" },
-            codex_configuration: { $ref: "#/components/schemas/CodexConfiguration" },
-            criteria: { items: { $ref: "#/components/schemas/CriterionCreateRequest" }, minItems: 1, type: "array" },
+            codex_configuration: {
+              $ref: "#/components/schemas/CodexConfiguration",
+            },
+            criteria: {
+              items: { $ref: "#/components/schemas/CriterionCreateRequest" },
+              minItems: 1,
+              type: "array",
+            },
             description: { minLength: 1, pattern: "\\S", type: "string" },
             name: { minLength: 1, pattern: "\\S", type: "string" },
           },
-          required: ["assignment", "codex_configuration", "criteria", "description", "name"],
+          required: [
+            "assignment",
+            "codex_configuration",
+            "criteria",
+            "description",
+            "name",
+          ],
           type: "object",
         },
         Criterion: {
@@ -270,8 +464,14 @@ export function canonicalOpenApiDocument() {
         ReviewVersion: {
           additionalProperties: false,
           properties: {
-            codex_configuration: { $ref: "#/components/schemas/CodexConfiguration" },
-            criteria: { items: { $ref: "#/components/schemas/Criterion" }, minItems: 1, type: "array" },
+            codex_configuration: {
+              $ref: "#/components/schemas/CodexConfiguration",
+            },
+            criteria: {
+              items: { $ref: "#/components/schemas/Criterion" },
+              minItems: 1,
+              type: "array",
+            },
             id: { type: "string" },
             number: { minimum: 1, type: "integer" },
           },
@@ -287,30 +487,51 @@ export function canonicalOpenApiDocument() {
             id: { type: "string" },
             name: { type: "string" },
           },
-          required: ["id", "name", "description", "assignment", "active_version"],
+          required: [
+            "id",
+            "name",
+            "description",
+            "assignment",
+            "active_version",
+          ],
           type: "object",
         },
         System: {
           additionalProperties: true,
           properties: {
             bootstrap: { $ref: "#/components/schemas/BootstrapFact" },
-            browser_sessions: { $ref: "#/components/schemas/BrowserSessionsFact" },
+            browser_sessions: {
+              $ref: "#/components/schemas/BrowserSessionsFact",
+            },
             codex: { $ref: "#/components/schemas/CodexFact" },
             durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
-            implementer_token: { $ref: "#/components/schemas/ImplementerTokenFact" },
+            implementer_token: {
+              $ref: "#/components/schemas/ImplementerTokenFact",
+            },
           },
-          required: ["bootstrap", "browser_sessions", "codex", "durable_core", "implementer_token"],
+          required: [
+            "bootstrap",
+            "browser_sessions",
+            "codex",
+            "durable_core",
+            "implementer_token",
+          ],
           type: "object",
         },
         BootstrapFact: {
           additionalProperties: true,
-          properties: { status: { enum: ["complete", "required"], type: "string" } },
+          properties: {
+            status: { enum: ["complete", "required"], type: "string" },
+          },
           required: ["status"],
           type: "object",
         },
         BrowserSessionsFact: {
           additionalProperties: true,
-          properties: { active_count: { minimum: 0, type: "integer" }, status: { const: "available", type: "string" } },
+          properties: {
+            active_count: { minimum: 0, type: "integer" },
+            status: { const: "available", type: "string" },
+          },
           required: ["active_count", "status"],
           type: "object",
         },
@@ -363,19 +584,28 @@ export function canonicalOpenApiDocument() {
         },
         DurableCoreFact: {
           additionalProperties: true,
-          properties: { schema_version: { minimum: 1, type: "integer" }, status: { const: "ready", type: "string" } },
+          properties: {
+            schema_version: { minimum: 1, type: "integer" },
+            status: { const: "ready", type: "string" },
+          },
           required: ["schema_version", "status"],
           type: "object",
         },
         ImplementerTokenFact: {
           additionalProperties: true,
-          properties: { status: { enum: ["active", "revoked"], type: "string" } },
+          properties: {
+            status: { enum: ["active", "revoked"], type: "string" },
+          },
           required: ["status"],
           type: "object",
         },
       },
       securitySchemes: {
-        browser_session: { in: "cookie", name: "quality_bar_session", type: "apiKey" },
+        browser_session: {
+          in: "cookie",
+          name: "quality_bar_session",
+          type: "apiKey",
+        },
         implementer_token: { scheme: "bearer", type: "http" },
       },
     },

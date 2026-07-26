@@ -78,7 +78,10 @@ test("the application server rejects a missing browser-session boundary", () => 
         readSystemStatus: () => ({}),
       }),
     (error) => {
-      assert.equal(error.message, "browserSessions must provide the session boundary");
+      assert.equal(
+        error.message,
+        "browserSessions must provide the session boundary",
+      );
       return true;
     },
   );
@@ -124,7 +127,10 @@ test("the application server rejects a missing request-security boundary", () =>
         readSystemStatus: () => ({}),
       }),
     (error) => {
-      assert.equal(error.message, "requestSecurity must provide the request boundary");
+      assert.equal(
+        error.message,
+        "requestSecurity must provide the request boundary",
+      );
       return true;
     },
   );

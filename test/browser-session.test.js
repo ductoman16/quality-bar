@@ -38,7 +38,10 @@ test("an unavailable browser-session boundary preserves the exact startup failur
     "changePassword",
     "revokeAll",
   ]) {
-    assert.throws(() => sessions[method](), (error) => error === failure);
+    assert.throws(
+      () => sessions[method](),
+      (error) => error === failure,
+    );
   }
 });
 
@@ -95,7 +98,10 @@ test("enforces fixed idle and absolute browser-session lifetimes from durable ti
   );
   now = 1_000 + 7 * day;
   assert.equal(sessions.authenticate(idleSession.secret), false);
-  assert.notEqual(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.notEqual(
+    core.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
 
   now = 2_000;
   const absoluteSession = sessions.login(password);
@@ -117,7 +123,10 @@ test("enforces fixed idle and absolute browser-session lifetimes from durable ti
   assert.equal(sessions.authenticate(absoluteSession.secret), true);
   now = 2_000 + 30 * day;
   assert.equal(sessions.authenticate(absoluteSession.secret), false);
-  assert.notEqual(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.notEqual(
+    core.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
   core.close();
 });
 
@@ -155,7 +164,10 @@ test("rejects an invalid password and writes no browser session", () => {
     () => sessions.login("an incorrect operator password"),
     (error) => error.code === "authentication_invalid",
   );
-  assert.equal(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.equal(
+    core.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
   core.close();
 });
 
@@ -198,7 +210,8 @@ test("escalates one installation-wide failed-login delay through one minute and 
   );
   assert.throws(
     () => sessions.login(password),
-    (error) => error.code === "login_throttled" && error.retryAfterSeconds === 1,
+    (error) =>
+      error.code === "login_throttled" && error.retryAfterSeconds === 1,
   );
   core.close();
 });
@@ -216,7 +229,10 @@ test("a malformed password verifier is an exact hard failure and creates no sess
     () => sessions.login("a correct operator password"),
     (error) => error.code === "operator_password_verifier_unavailable",
   );
-  assert.equal(core.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.equal(
+    core.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
   core.close();
 });
 

@@ -9,7 +9,10 @@ import {
 } from "./browser-session.js";
 
 function writeJson(response, status, body, headers = {}) {
-  response.writeHead(status, { "content-type": "application/json", ...headers });
+  response.writeHead(status, {
+    "content-type": "application/json",
+    ...headers,
+  });
   response.end(JSON.stringify(body));
 }
 
@@ -32,11 +35,16 @@ function writeError(response, status, code, message, headers, fields) {
   if (fields?.length) {
     error.fields = fields;
   }
-  writeJson(response, status, {
-    error: {
-      ...error,
+  writeJson(
+    response,
+    status,
+    {
+      error: {
+        ...error,
+      },
     },
-  }, headers);
+    headers,
+  );
 }
 
 function isProductSurface(path) {
@@ -64,7 +72,10 @@ function sessionSecret(request) {
 
 async function readPasswordRequest(request, fields) {
   const value = await readJsonRequest(request);
-  if (Object.keys(value).length !== fields.length || !fields.every((field) => typeof value[field] === "string")) {
+  if (
+    Object.keys(value).length !== fields.length ||
+    !fields.every((field) => typeof value[field] === "string")
+  ) {
     throw new Error("request_malformed");
   }
   return value;
@@ -181,9 +192,10 @@ function passwordMutationFailureStatus(code) {
 }
 
 function implementerTokenFailureStatus(code) {
-  return ["implementer_token_already_active", "implementer_token_not_active"].includes(
-    code,
-  )
+  return [
+    "implementer_token_already_active",
+    "implementer_token_not_active",
+  ].includes(code)
     ? 409
     : authenticationFailureStatus(code);
 }
@@ -193,22 +205,28 @@ function isUnavailableError(error) {
 }
 
 function authenticationFailureMessage(code) {
-  return {
-    authentication_invalid: "Operator password is invalid",
-    authentication_ambiguous: "Browser and machine credentials cannot be combined",
-    csrf_invalid: "Browser CSRF token is invalid",
-    authentication_required: "Browser session is required",
-    operator_password_uninitialized: "Operator password has not been bootstrapped",
-    operator_password_verifier_unavailable: "Operator password verifier is unavailable",
-    session_unavailable: "Browser session is unavailable",
-    login_throttled: "Login is temporarily throttled",
-    login_throttle_unavailable: "Login throttling is unavailable",
-    implementer_token_already_active: "Implementer token is already active",
-    implementer_token_not_active: "Implementer token is not active",
-    implementer_token_unavailable: "Implementer token is unavailable",
-    implementer_token_verifier_unavailable: "Implementer token verifier is unavailable",
-    storage_unavailable: "Storage is unavailable",
-  }[code] ?? "Authentication is unavailable";
+  return (
+    {
+      authentication_invalid: "Operator password is invalid",
+      authentication_ambiguous:
+        "Browser and machine credentials cannot be combined",
+      csrf_invalid: "Browser CSRF token is invalid",
+      authentication_required: "Browser session is required",
+      operator_password_uninitialized:
+        "Operator password has not been bootstrapped",
+      operator_password_verifier_unavailable:
+        "Operator password verifier is unavailable",
+      session_unavailable: "Browser session is unavailable",
+      login_throttled: "Login is temporarily throttled",
+      login_throttle_unavailable: "Login throttling is unavailable",
+      implementer_token_already_active: "Implementer token is already active",
+      implementer_token_not_active: "Implementer token is not active",
+      implementer_token_unavailable: "Implementer token is unavailable",
+      implementer_token_verifier_unavailable:
+        "Implementer token verifier is unavailable",
+      storage_unavailable: "Storage is unavailable",
+    }[code] ?? "Authentication is unavailable"
+  );
 }
 
 function browserMutationError(code, message) {
@@ -233,7 +251,10 @@ function requireBrowserSession(browserSessions, request) {
   const secret = sessionSecret(request);
   assertNoMixedCredentials(request);
   if (!browserSessions.authenticate(secret)) {
-    throw browserMutationError("authentication_required", "Browser session is required");
+    throw browserMutationError(
+      "authentication_required",
+      "Browser session is required",
+    );
   }
   return secret;
 }
@@ -243,21 +264,33 @@ function requireBrowserMutation(browserSessions, request, browserOrigin) {
   if (request.headers.origin !== browserOrigin) {
     throw browserMutationError("origin_invalid", "Browser origin is invalid");
   }
-  if (!browserSessions.verifyCsrf(secret, request.headers["x-quality-bar-csrf"])) {
+  if (
+    !browserSessions.verifyCsrf(secret, request.headers["x-quality-bar-csrf"])
+  ) {
     throw browserMutationError("csrf_invalid", "Browser CSRF token is invalid");
   }
   return secret;
 }
 
-function requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl) {
-  const secret = requireBrowserMutation(browserSessions, request, browserOrigin);
+function requireBrowserMutationWithQuery(
+  browserSessions,
+  request,
+  browserOrigin,
+  requestUrl,
+) {
+  const secret = requireBrowserMutation(
+    browserSessions,
+    request,
+    browserOrigin,
+  );
   assertAllowedQueryParameters(requestUrl, new Set());
   return secret;
 }
 
 function bearerToken(request) {
   const value = request.headers.authorization;
-  const match = typeof value === "string" && /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
+  const match =
+    typeof value === "string" && /^Bearer ([A-Za-z0-9_-]{43})$/.exec(value);
   return match?.[1];
 }
 
@@ -267,19 +300,33 @@ function hasUrlToken(requestUrl) {
   );
 }
 
-function requireProductAuthority(browserSessions, implementerTokens, request, requestUrl) {
+function requireProductAuthority(
+  browserSessions,
+  implementerTokens,
+  request,
+  requestUrl,
+) {
   assertNoMixedCredentials(request);
   if (hasUrlToken(requestUrl)) {
-    throw browserMutationError("authentication_invalid", "Machine authentication is invalid");
+    throw browserMutationError(
+      "authentication_invalid",
+      "Machine authentication is invalid",
+    );
   }
   if (request.headers.authorization !== undefined) {
     if (!implementerTokens.authenticate(bearerToken(request))) {
-      throw browserMutationError("authentication_invalid", "Machine authentication is invalid");
+      throw browserMutationError(
+        "authentication_invalid",
+        "Machine authentication is invalid",
+      );
     }
     return "machine";
   }
   if (!browserSessions.authenticate(sessionSecret(request))) {
-    throw browserMutationError("authentication_required", "Browser session is required");
+    throw browserMutationError(
+      "authentication_required",
+      "Browser session is required",
+    );
   }
   return "operator";
 }
@@ -321,7 +368,11 @@ function readAuthorityAttributionQuery(requestUrl) {
 
 function browserView(requestUrl) {
   const view = requestUrl.searchParams.get("view") ?? "evaluations";
-  if (!["evaluations", "reviews", "repositories", "analytics", "system"].includes(view)) {
+  if (
+    !["evaluations", "reviews", "repositories", "analytics", "system"].includes(
+      view,
+    )
+  ) {
     throw browserMutationError("not_found", "Resource was not found");
   }
   return view;
@@ -355,7 +406,13 @@ form.addEventListener("submit", async (event) => {
 }
 
 function operatorPage({ view }) {
-  const navigation = ["evaluations", "reviews", "repositories", "analytics", "system"];
+  const navigation = [
+    "evaluations",
+    "reviews",
+    "repositories",
+    "analytics",
+    "system",
+  ];
   const navigationLinks = navigation
     .map((name) => {
       const label = name[0].toUpperCase() + name.slice(1);
@@ -366,12 +423,14 @@ function operatorPage({ view }) {
     view === "system" ? "" : "<style>details{display:none}</style>"
   }`;
   const heading = view[0].toUpperCase() + view.slice(1);
-  const systemSection = view === "system"
-    ? '<section aria-live="polite" id="system-facts"></section>'
-    : "";
-  const reviewSection = view === "reviews"
-    ? '<form id="review-create-form"><label for="review-name">Name</label><input id="review-name" name="name" required type="text"><label for="review-description">Description</label><textarea id="review-description" name="description" required></textarea><ol id="review-criteria"></ol><button id="review-add-criterion" type="button">Add criterion</button><label for="review-model">Codex model</label><select id="review-model" name="model" required></select><label for="review-reasoning-effort">Reasoning effort</label><select id="review-reasoning-effort" name="reasoning_effort" required></select><label for="review-service-tier">Service tier</label><select id="review-service-tier" name="service_tier" required></select><button id="review-create-submit" type="submit">Create Review</button><output aria-live="polite" id="review-create-result"></output></form>'
-    : "";
+  const systemSection =
+    view === "system"
+      ? '<section aria-live="polite" id="system-facts"></section>'
+      : "";
+  const reviewSection =
+    view === "reviews"
+      ? '<form id="review-create-form"><label for="review-name">Name</label><input id="review-name" name="name" required type="text"><label for="review-description">Description</label><textarea id="review-description" name="description" required></textarea><ol id="review-criteria"></ol><button id="review-add-criterion" type="button">Add criterion</button><label for="review-model">Codex model</label><select id="review-model" name="model" required></select><label for="review-reasoning-effort">Reasoning effort</label><select id="review-reasoning-effort" name="reasoning_effort" required></select><label for="review-service-tier">Service tier</label><select id="review-service-tier" name="service_tier" required></select><button id="review-create-submit" type="submit">Create Review</button><output aria-live="polite" id="review-create-result"></output></form>'
+      : "";
   return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${reviewSection}${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
 const error = document.getElementById("error");
 let lastActivityAt = 0;
@@ -675,7 +734,13 @@ export function createApplicationServer({
       throw new TypeError("browserSessions must provide the session boundary");
     }
   }
-  for (const method of ["authenticate", "create", "hasActiveToken", "revoke", "rotate"]) {
+  for (const method of [
+    "authenticate",
+    "create",
+    "hasActiveToken",
+    "revoke",
+    "rotate",
+  ]) {
     if (typeof implementerTokens?.[method] !== "function") {
       throw new TypeError("implementerTokens must provide the token boundary");
     }
@@ -737,7 +802,12 @@ export function createApplicationServer({
         errorCode: "authentication_invalid",
         outcome: "failure",
       });
-      writeError(response, 401, "authentication_invalid", "Machine authentication is invalid");
+      writeError(
+        response,
+        401,
+        "authentication_invalid",
+        "Machine authentication is invalid",
+      );
       return;
     }
 
@@ -763,7 +833,12 @@ export function createApplicationServer({
           });
         }
         if (error.message === "request_malformed") {
-          writeError(response, 400, "request_malformed", "Request is malformed");
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
         } else {
           writeError(
             response,
@@ -782,7 +857,12 @@ export function createApplicationServer({
     if (request.method === "POST" && path === "/api/v1/session/logout") {
       try {
         browserSessions.logout(
-          requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl),
+          requireBrowserMutationWithQuery(
+            browserSessions,
+            request,
+            browserOrigin,
+            requestUrl,
+          ),
         );
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
@@ -812,8 +892,13 @@ export function createApplicationServer({
           browserOrigin,
           requestUrl,
         );
-        if (!browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])) {
-          throw browserMutationError("authentication_required", "Browser session is required");
+        if (
+          !browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])
+        ) {
+          throw browserMutationError(
+            "authentication_required",
+            "Browser session is required",
+          );
         }
         writeEmpty(response);
       } catch (error) {
@@ -835,7 +920,12 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/session/password") {
       try {
-        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
         const { current_password, new_password } =
           await readPasswordChangeRequest(request);
         browserSessions.changePassword(current_password, new_password);
@@ -850,7 +940,12 @@ export function createApplicationServer({
           outcome: "failure",
         });
         if (error.message === "request_malformed") {
-          writeError(response, 400, "request_malformed", "Request is malformed");
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
         } else {
           writeError(
             response,
@@ -867,11 +962,18 @@ export function createApplicationServer({
 
     if (request.method === "POST" && path === "/api/v1/sessions/revoke") {
       try {
-        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
         const { confirmation, password } =
           await readSessionRevocationRequest(request);
         if (confirmation !== "REVOKE ALL SESSIONS") {
-          const error = new Error("Global browser-session revocation must be confirmed");
+          const error = new Error(
+            "Global browser-session revocation must be confirmed",
+          );
           error.code = "session_revocation_confirmation_invalid";
           throw error;
         }
@@ -887,7 +989,12 @@ export function createApplicationServer({
           outcome: "failure",
         });
         if (error.message === "request_malformed") {
-          writeError(response, 400, "request_malformed", "Request is malformed");
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
         } else {
           writeError(
             response,
@@ -911,7 +1018,12 @@ export function createApplicationServer({
       ].includes(path)
     ) {
       try {
-        requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
         if (path === "/api/v1/implementer-token/revoke") {
           const { password } = await readImplementerTokenRequest(request);
           implementerTokens.revoke(password);
@@ -935,7 +1047,12 @@ export function createApplicationServer({
           outcome: "failure",
         });
         if (error.message === "request_malformed") {
-          writeError(response, 400, "request_malformed", "Request is malformed");
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
         } else {
           writeError(
             response,
@@ -971,7 +1088,12 @@ export function createApplicationServer({
             errorCode: "authorization_forbidden",
             outcome: "forbidden",
           });
-          writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+          writeError(
+            response,
+            403,
+            "authorization_forbidden",
+            "Machine access is forbidden",
+          );
         } catch (error) {
           recordAuthorityAttribution({
             action: "authentication",
@@ -989,7 +1111,10 @@ export function createApplicationServer({
         return;
       }
       if (!browserSessions.isBootstrapped()) {
-        writeHtml(response, "<main><p role=\"status\">Operator bootstrap required</p></main>");
+        writeHtml(
+          response,
+          '<main><p role="status">Operator bootstrap required</p></main>',
+        );
       } else {
         let view;
         try {
@@ -1018,7 +1143,11 @@ export function createApplicationServer({
             }
             writeHtml(
               response,
-              loginPage(safeInternalDestination(requestUrl.searchParams.get("return_to"))),
+              loginPage(
+                safeInternalDestination(
+                  requestUrl.searchParams.get("return_to"),
+                ),
+              ),
             );
           }
         } catch (error) {
@@ -1058,9 +1187,10 @@ export function createApplicationServer({
       } catch (error) {
         recordAuthorityAttribution({
           action: "authentication",
-          channel: request.headers.authorization !== undefined
-            ? "implementer_token"
-            : "browser_session",
+          channel:
+            request.headers.authorization !== undefined
+              ? "implementer_token"
+              : "browser_session",
           errorCode: error.code ?? "authentication_unavailable",
           outcome: "failure",
         });
@@ -1084,7 +1214,12 @@ export function createApplicationServer({
         errorCode: "authorization_forbidden",
         outcome: "forbidden",
       });
-      writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+      writeError(
+        response,
+        403,
+        "authorization_forbidden",
+        "Machine access is forbidden",
+      );
       return;
     }
 
@@ -1112,13 +1247,34 @@ export function createApplicationServer({
     if (request.method === "POST" && path === "/api/v1/reviews") {
       try {
         if (!request.machineAuthority) {
-          requireBrowserMutationWithQuery(browserSessions, request, browserOrigin, requestUrl);
+          requireBrowserMutationWithQuery(
+            browserSessions,
+            request,
+            browserOrigin,
+            requestUrl,
+          );
         }
-        writeJson(response, 201, reviews.create(await readJsonRequest(request)));
+        writeJson(
+          response,
+          201,
+          reviews.create(await readJsonRequest(request)),
+        );
       } catch (error) {
         if (error.message === "request_malformed") {
-          writeError(response, 400, "request_malformed", "Request is malformed");
-        } else if (!request.machineAuthority && ["csrf_invalid", "origin_invalid", "authentication_required"].includes(error.code)) {
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
+        } else if (
+          !request.machineAuthority &&
+          [
+            "csrf_invalid",
+            "origin_invalid",
+            "authentication_required",
+          ].includes(error.code)
+        ) {
           writeError(
             response,
             browserMutationFailureStatus(error.code),
@@ -1129,7 +1285,7 @@ export function createApplicationServer({
           const unavailable = isUnavailableError(error);
           const code = unavailable
             ? error.code
-            : error.code ?? "review_creation_failed";
+            : (error.code ?? "review_creation_failed");
           writeError(
             response,
             unavailable ? 503 : error.code ? 422 : 500,
@@ -1149,7 +1305,12 @@ export function createApplicationServer({
           errorCode: "authorization_forbidden",
           outcome: "forbidden",
         });
-        writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+        writeError(
+          response,
+          403,
+          "authorization_forbidden",
+          "Machine access is forbidden",
+        );
         return;
       }
       try {
@@ -1165,7 +1326,10 @@ export function createApplicationServer({
       return;
     }
 
-    if (request.method === "GET" && path === "/api/v1/system/authority-attributions") {
+    if (
+      request.method === "GET" &&
+      path === "/api/v1/system/authority-attributions"
+    ) {
       if (request.machineAuthority) {
         recordAuthorityAttribution({
           action: "authorization",
@@ -1173,15 +1337,26 @@ export function createApplicationServer({
           errorCode: "authorization_forbidden",
           outcome: "forbidden",
         });
-        writeError(response, 403, "authorization_forbidden", "Machine access is forbidden");
+        writeError(
+          response,
+          403,
+          "authorization_forbidden",
+          "Machine access is forbidden",
+        );
         return;
       }
       try {
-        writeJson(response, 200, listAuthorityAttributions(
-          readAuthorityAttributionQuery(requestUrl),
-        ));
+        writeJson(
+          response,
+          200,
+          listAuthorityAttributions(readAuthorityAttributionQuery(requestUrl)),
+        );
       } catch (error) {
-        const status = ["cursor_invalid", "page_size_invalid", "request_malformed"].includes(error.code)
+        const status = [
+          "cursor_invalid",
+          "page_size_invalid",
+          "request_malformed",
+        ].includes(error.code)
           ? 400
           : isUnavailableError(error)
             ? 503

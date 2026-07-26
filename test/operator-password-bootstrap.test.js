@@ -31,7 +31,10 @@ afterEach(() => {
 });
 
 test("accepts a password only from standard input and preserves intentional spaces", async () => {
-  assert.equal(passwordFromStandardInput("  secure passphrase  \n"), "  secure passphrase  ");
+  assert.equal(
+    passwordFromStandardInput("  secure passphrase  \n"),
+    "  secure passphrase  ",
+  );
   await assert.rejects(
     readOperatorPassword({
       input: { fd: 9, isTTY: false },

@@ -44,7 +44,10 @@ function eventDocument(row) {
   return document;
 }
 
-export function createSystemResource(durableCore, { now = () => Date.now() } = {}) {
+export function createSystemResource(
+  durableCore,
+  { now = () => Date.now() } = {},
+) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
   }
@@ -53,9 +56,16 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
 
   function encodeCursor(row) {
     const initializationVector = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", cursorKey, initializationVector);
+    const cipher = createCipheriv(
+      "aes-256-gcm",
+      cursorKey,
+      initializationVector,
+    );
     const ciphertext = Buffer.concat([
-      cipher.update(JSON.stringify({ id: row.id, occurred_at: row.occurred_at }), "utf8"),
+      cipher.update(
+        JSON.stringify({ id: row.id, occurred_at: row.occurred_at }),
+        "utf8",
+      ),
       cipher.final(),
     ]);
     return [
@@ -80,10 +90,12 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
         Buffer.from(iv, "base64url"),
       );
       decipher.setAuthTag(Buffer.from(tag, "base64url"));
-      const boundary = JSON.parse(Buffer.concat([
-        decipher.update(Buffer.from(ciphertext, "base64url")),
-        decipher.final(),
-      ]).toString("utf8"));
+      const boundary = JSON.parse(
+        Buffer.concat([
+          decipher.update(Buffer.from(ciphertext, "base64url")),
+          decipher.final(),
+        ]).toString("utf8"),
+      );
       if (
         !boundary ||
         typeof boundary.id !== "string" ||
@@ -95,7 +107,9 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
       }
       return boundary;
     } catch (error) {
-      throw error?.code === "cursor_invalid" ? error : invalidQuery("cursor_invalid");
+      throw error?.code === "cursor_invalid"
+        ? error
+        : invalidQuery("cursor_invalid");
     }
   }
 
@@ -103,7 +117,9 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
     recordAuthorityAttribution(event) {
       const occurredAt = now();
       if (!Number.isSafeInteger(occurredAt) || occurredAt < 0) {
-        throw new TypeError("now must return a nonnegative integer millisecond timestamp");
+        throw new TypeError(
+          "now must return a nonnegative integer millisecond timestamp",
+        );
       }
       durableCore.transaction((transaction) => {
         insertAuthorityAttribution(transaction, { ...event, occurredAt });
@@ -112,7 +128,9 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
     readFacts({ browserSessions, codex, implementerToken }) {
       const timestamp = now();
       if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
-        throw new TypeError("now must return a nonnegative integer millisecond timestamp");
+        throw new TypeError(
+          "now must return a nonnegative integer millisecond timestamp",
+        );
       }
       return {
         bootstrap: {
@@ -143,26 +161,27 @@ export function createSystemResource(durableCore, { now = () => Date.now() } = {
       const size = pageSize(limit);
       const boundary = cursor === undefined ? null : decodeCursor(cursor);
       const rows = boundary
-        ? durableCore
-            .all(
-              `SELECT id, channel, action, outcome, error_code, occurred_at
+        ? durableCore.all(
+            `SELECT id, channel, action, outcome, error_code, occurred_at
                  FROM authority_attributions
                 WHERE occurred_at < ? OR (occurred_at = ? AND id < ?)
                 ORDER BY occurred_at DESC, id DESC
                 LIMIT ?`,
-              boundary.occurred_at,
-              boundary.occurred_at,
-              boundary.id,
-              size + 1,
-            )
+            boundary.occurred_at,
+            boundary.occurred_at,
+            boundary.id,
+            size + 1,
+          )
         : null;
-      const pageRows = rows ?? durableCore.all(
-        `SELECT id, channel, action, outcome, error_code, occurred_at
+      const pageRows =
+        rows ??
+        durableCore.all(
+          `SELECT id, channel, action, outcome, error_code, occurred_at
            FROM authority_attributions
           ORDER BY occurred_at DESC, id DESC
           LIMIT ?`,
-        size + 1,
-      );
+          size + 1,
+        );
       const hasMore = pageRows.length > size;
       const items = pageRows.slice(0, size);
       return {

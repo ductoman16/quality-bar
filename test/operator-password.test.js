@@ -37,7 +37,10 @@ test("bootstraps one minimum-length password as a salted memory-hard verifier", 
     "SELECT value FROM quality_bar_metadata WHERE key = ?",
     OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
   ).value;
-  assert.match(verifier, /^scrypt-v1\.32768\.8\.1\.[A-Za-z0-9+/]+={0,2}\.[A-Za-z0-9+/]+={0,2}$/);
+  assert.match(
+    verifier,
+    /^scrypt-v1\.32768\.8\.1\.[A-Za-z0-9+/]+={0,2}\.[A-Za-z0-9+/]+={0,2}$/,
+  );
   assert.doesNotMatch(verifier, new RegExp(password));
   assert.doesNotMatch(verifier, /correct|horse|battery|staple/);
 
@@ -85,7 +88,10 @@ test("rejects a password shorter than fifteen characters without storing state",
     (error) => {
       assert.ok(error instanceof OperatorPasswordError);
       assert.equal(error.code, "operator_password_too_short");
-      assert.equal(error.message, "Operator password must be at least 15 characters");
+      assert.equal(
+        error.message,
+        "Operator password must be at least 15 characters",
+      );
       assert.doesNotMatch(error.message, new RegExp(password));
       return true;
     },

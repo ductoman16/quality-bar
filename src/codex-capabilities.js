@@ -34,14 +34,16 @@ function fail(code, message) {
 }
 
 function isExactConfiguration(value) {
-  return value &&
+  return (
+    value &&
     !Array.isArray(value) &&
     typeof value === "object" &&
     Object.getPrototypeOf(value) === Object.prototype &&
     Object.keys(value).length === 3 &&
-    ["model", "reasoning_effort", "service_tier"].every((key) =>
-      Object.hasOwn(value, key) && typeof value[key] === "string",
-    );
+    ["model", "reasoning_effort", "service_tier"].every(
+      (key) => Object.hasOwn(value, key) && typeof value[key] === "string",
+    )
+  );
 }
 
 export function readCodexCapabilityCatalog() {
@@ -58,7 +60,10 @@ export function validateCodexConfiguration(configuration) {
 
   const model = MODEL_CAPABILITIES.find(({ id }) => id === configuration.model);
   if (!model) {
-    fail("codex_model_unsupported", "Codex model is not supported by the pinned catalog");
+    fail(
+      "codex_model_unsupported",
+      "Codex model is not supported by the pinned catalog",
+    );
   }
   if (!model.reasoning_efforts.includes(configuration.reasoning_effort)) {
     fail(

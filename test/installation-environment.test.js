@@ -103,8 +103,15 @@ test("validates the exact owned roots, bundled tools, persistent login, and excl
   });
 
   assert.throws(
-    () => validateInstallationEnvironment({ createLock: filesystem.createLock, filesystem, runTool: runTool() }),
-    (error) => error instanceof InstallationEnvironmentError && error.code === "installation_locked",
+    () =>
+      validateInstallationEnvironment({
+        createLock: filesystem.createLock,
+        filesystem,
+        runTool: runTool(),
+      }),
+    (error) =>
+      error instanceof InstallationEnvironmentError &&
+      error.code === "installation_locked",
   );
 
   first.releaseInstallationLock();
@@ -114,13 +121,16 @@ test("validates the exact owned roots, bundled tools, persistent login, and excl
     runTool: runTool(),
   });
   second.releaseInstallationLock();
-  assert.deepEqual(filesystem.syncedDescriptors, [
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-  ]);
+  assert.deepEqual(
+    filesystem.syncedDescriptors,
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  );
 });
 
 test("holds a real SQLite exclusive installation lock until it is released", () => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-installation-lock-"));
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-installation-lock-"),
+  );
   const lockPath = join(directory, "installation.lock");
   const createLock = () => new DatabaseSync(lockPath);
   const first = acquireInstallationLock(createLock);
@@ -154,13 +164,41 @@ test("holds a real SQLite exclusive installation lock until it is released", () 
 });
 
 for (const [name, input, code] of [
-  ["a root with group-readable permissions", { mode: 0o40750 }, "owned_path_unsafe"],
-  ["a read-only source with group-readable permissions", { mode: 0o100440 }, "owned_path_unsafe"],
-  ["a network filesystem", { filesystemType: 0x6969 }, "filesystem_unsupported"],
-  ["a filesystem below the 5 GiB reserve", { bavail: 1 }, "storage_reserve_unavailable"],
-  ["the wrong bundled Git version", { gitVersion: "git version 2.53.0" }, "git_version_unsupported"],
-  ["the wrong bundled Codex version", { codexVersion: "codex-cli 0.144.5" }, "codex_version_unsupported"],
-  ["an unavailable persistent Codex login", { loginUnavailable: true }, "codex_authentication_unavailable"],
+  [
+    "a root with group-readable permissions",
+    { mode: 0o40750 },
+    "owned_path_unsafe",
+  ],
+  [
+    "a read-only source with group-readable permissions",
+    { mode: 0o100440 },
+    "owned_path_unsafe",
+  ],
+  [
+    "a network filesystem",
+    { filesystemType: 0x6969 },
+    "filesystem_unsupported",
+  ],
+  [
+    "a filesystem below the 5 GiB reserve",
+    { bavail: 1 },
+    "storage_reserve_unavailable",
+  ],
+  [
+    "the wrong bundled Git version",
+    { gitVersion: "git version 2.53.0" },
+    "git_version_unsupported",
+  ],
+  [
+    "the wrong bundled Codex version",
+    { codexVersion: "codex-cli 0.144.5" },
+    "codex_version_unsupported",
+  ],
+  [
+    "an unavailable persistent Codex login",
+    { loginUnavailable: true },
+    "codex_authentication_unavailable",
+  ],
 ]) {
   test(`rejects ${name} with its owning error`, () => {
     const filesystem = createFilesystem(input);
@@ -171,7 +209,8 @@ for (const [name, input, code] of [
           filesystem,
           runTool: runTool(input),
         }),
-      (error) => error instanceof InstallationEnvironmentError && error.code === code,
+      (error) =>
+        error instanceof InstallationEnvironmentError && error.code === code,
     );
   });
 }

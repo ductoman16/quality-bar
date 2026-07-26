@@ -11,7 +11,9 @@ function validDefinition(overrides = {}) {
       reasoning_effort: "high",
       service_tier: "standard",
     },
-    criteria: [{ impact: "advisory", instruction: "Keep public boundaries explicit." }],
+    criteria: [
+      { impact: "advisory", instruction: "Keep public boundaries explicit." },
+    ],
     description: "Protect public behavior.",
     name: "Public boundaries",
     ...overrides,
@@ -30,12 +32,32 @@ test("invalid Review definitions fail before a durable transaction can begin", (
     [validDefinition({ name: " \t" }), "review_name_invalid"],
     [validDefinition({ description: "\n" }), "review_description_invalid"],
     [validDefinition({ criteria: [] }), "review_criteria_invalid"],
-    [validDefinition({ criteria: [{ impact: "critical", instruction: "Check this." }] }), "review_criterion_impact_invalid"],
-    [validDefinition({ assignment: { scope: "repository_set" } }), "review_assignment_unsupported"],
-    [validDefinition({ codex_configuration: { model: "gpt-5.6-terra", reasoning_effort: "ultra", service_tier: "standard" } }), "codex_reasoning_effort_unsupported"],
+    [
+      validDefinition({
+        criteria: [{ impact: "critical", instruction: "Check this." }],
+      }),
+      "review_criterion_impact_invalid",
+    ],
+    [
+      validDefinition({ assignment: { scope: "repository_set" } }),
+      "review_assignment_unsupported",
+    ],
+    [
+      validDefinition({
+        codex_configuration: {
+          model: "gpt-5.6-terra",
+          reasoning_effort: "ultra",
+          service_tier: "standard",
+        },
+      }),
+      "codex_reasoning_effort_unsupported",
+    ],
     [validDefinition({ extra: true }), "review_request_malformed"],
   ]) {
-    assert.throws(() => reviews.create(definition), (error) => error.code === code);
+    assert.throws(
+      () => reviews.create(definition),
+      (error) => error.code === code,
+    );
   }
   assert.equal(transactionCount, 0);
 });

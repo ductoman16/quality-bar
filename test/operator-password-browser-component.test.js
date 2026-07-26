@@ -53,7 +53,9 @@ test("browser product traffic cannot bootstrap an operator password", async () =
   const response = await fetch(
     `http://127.0.0.1:${port}/api/v1/operator-password/bootstrap`,
     {
-      body: JSON.stringify({ password: "a browser supplied operator password" }),
+      body: JSON.stringify({
+        password: "a browser supplied operator password",
+      }),
       headers: { "content-type": "application/json" },
       method: "POST",
     },
