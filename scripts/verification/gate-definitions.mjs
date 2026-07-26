@@ -87,5 +87,11 @@ export function createGateDefinitions(applicationVersion) {
       failureCode: "structural_lint_failed",
       arguments: ["--test", "test/structural-lint-gate.test.js"],
     },
+    {
+      name: "core-javascript-correctness",
+      testGroup: "maintained-javascript-correctness",
+      failureCode: "core_javascript_correctness_failed",
+      arguments: ["--test", "test/core-js-lint-gate.test.js"],
+    },
   ];
 }

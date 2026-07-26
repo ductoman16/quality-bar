@@ -129,7 +129,8 @@ test("structural lint reports oversized, omitted, and excluded maintained JavaSc
       resolve(directory, "src/oversized.js"),
       Array.from(
         { length: 401 },
-        (_, index) => `const line${index} = ${index};`,
+        (value, index) =>
+          `const line${index} = ${value === undefined ? index : value};`,
       ).join("\n"),
     );
     writeFileSync(
@@ -189,7 +190,8 @@ test("structural lint reports oversized, omitted, and excluded maintained JavaSc
       resolve(directory, "suppressed.js"),
       `/* eslint-disable max-lines */\n${Array.from(
         { length: 401 },
-        (_, index) => `const suppressed${index} = ${index};`,
+        (value, index) =>
+          `const suppressed${index} = ${value === undefined ? index : value};`,
       ).join("\n")}`,
     );
     writeFileSync(
@@ -214,7 +216,8 @@ test("structural lint reports oversized, omitted, and excluded maintained JavaSc
       resolve(directory, "disabled.js"),
       Array.from(
         { length: 401 },
-        (_, index) => `const disabled${index} = ${index};`,
+        (value, index) =>
+          `const disabled${index} = ${value === undefined ? index : value};`,
       ).join("\n"),
     );
     writeFileSync(

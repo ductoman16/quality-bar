@@ -1,0 +1,62 @@
+{
+  "ticket": 159,
+  "focused_command": "npm run lint:correctness",
+  "initial_violations": [
+    {
+      "column": 18,
+      "line": 47,
+      "path": "src/browser/operator.js",
+      "rule": "curly"
+    },
+    {
+      "column": 5,
+      "line": 255,
+      "path": "src/browser/operator.js",
+      "rule": "curly"
+    },
+    {
+      "column": 41,
+      "line": 294,
+      "path": "src/browser/operator.js",
+      "rule": "curly"
+    },
+    {
+      "column": 21,
+      "line": 338,
+      "path": "src/browser/operator.js",
+      "rule": "curly"
+    },
+    {
+      "column": 7,
+      "line": 11,
+      "path": "src/system-resource.js",
+      "rule": "no-unused-vars"
+    },
+    {
+      "column": 3,
+      "line": 16,
+      "path": "test/installation-environment.test.js",
+      "rule": "no-unused-vars"
+    },
+    {
+      "column": 10,
+      "line": 132,
+      "path": "test/quality-foundation.test.js",
+      "rule": "no-unused-vars"
+    },
+    {
+      "column": 10,
+      "line": 192,
+      "path": "test/quality-foundation.test.js",
+      "rule": "no-unused-vars"
+    },
+    {
+      "column": 10,
+      "line": 217,
+      "path": "test/quality-foundation.test.js",
+      "rule": "no-unused-vars"
+    }
+  ],
+  "resolution": "Configured explicit Node, browser, script, and test environments; then removed every unused binding and added braces around every owned conditional.",
+  "final_outcome": "pass"
+}
