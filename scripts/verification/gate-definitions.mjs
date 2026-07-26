@@ -13,6 +13,7 @@ export function createGateDefinitions(applicationVersion) {
         "test/codex-capabilities.test.js",
         "test/configuration.test.js",
         "test/durable-core.test.js",
+        "test/durable-core-transaction.test.js",
         "test/health-live.test.js",
         "test/http-port.test.js",
         "test/installation-environment.test.js",
@@ -79,6 +80,12 @@ export function createGateDefinitions(applicationVersion) {
       factsMarker: "QUALITY_BAR_PACKAGE_FACTS",
       validateFacts: (facts) => validatePackageFacts(facts, applicationVersion),
       arguments: ["--test", "test/package/compose.package-test.mjs"],
+    },
+    {
+      name: "structural-lint",
+      testGroup: "maintained-javascript-structure",
+      failureCode: "structural_lint_failed",
+      arguments: ["--test", "test/structural-lint-gate.test.js"],
     },
   ];
 }
