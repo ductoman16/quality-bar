@@ -8,6 +8,7 @@ import { dirname } from "node:path";
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
+ *   jsonSchemaFormatsVersion: string | null,
  *   jsonSchemaValidatorVersion: string | null,
  *   openApiValidatorVersion: string | null,
  *   packagedNodeVersion: string | null,
@@ -95,6 +96,9 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       jsonSchemaValidator: metadata.jsonSchemaValidatorVersion
         ? `ajv:${metadata.jsonSchemaValidatorVersion}`
         : null,
+      jsonSchemaFormats: metadata.jsonSchemaFormatsVersion
+        ? `ajv-formats:${metadata.jsonSchemaFormatsVersion}`
+        : null,
       git: packageFacts?.tools?.git ?? null,
       codex: packageFacts?.tools?.codex ?? null,
       codexCapabilityCatalog:
@@ -119,6 +123,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       "eslint-plugin-n": metadata.eslintPluginNodeVersion,
       prettier: metadata.formatterVersion,
       ajv: metadata.jsonSchemaValidatorVersion,
+      "ajv-formats": metadata.jsonSchemaFormatsVersion,
       "openapi-schema-validator": metadata.openApiValidatorVersion,
       typescript: metadata.typeCheckerVersion,
       git: metadata.runnerGitVersion,

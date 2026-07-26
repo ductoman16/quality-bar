@@ -116,6 +116,7 @@ test("the canonical verifier starts with six named static-quality gates", () => 
     eslintPluginNodeVersion: "18.2.2",
     eslintVersion: "9.39.1",
     formatterVersion: "3.7.4",
+    jsonSchemaFormatsVersion: "3.0.1",
     jsonSchemaValidatorVersion: "8.20.0",
     openApiValidatorVersion: "2.9.0",
     typeCheckerVersion: "7.0.2",
@@ -173,6 +174,7 @@ test("the canonical verifier starts with six named static-quality gates", () => 
   assert.deepEqual(openApiStructure.arguments, ["run", "openapi:check"]);
   assert.deepEqual(openApiStructure.tools, {
     ajv: "8.20.0",
+    "ajv-formats": "3.0.1",
     node: process.version,
     "openapi-schema-validator": "2.9.0",
   });
@@ -184,6 +186,7 @@ test("the canonical verifier starts with six named static-quality gates", () => 
     "--test",
     "test/openapi-conformance.test.js",
   ]);
+  assert.deepEqual(openApiRuntime.tools, openApiStructure.tools);
 });
 
 test("verification metadata reads the exact installed static tool versions", () => {
@@ -193,6 +196,7 @@ test("verification metadata reads the exact installed static tool versions", () 
   assert.equal(metadata.coverageToolVersion, "12.0.0");
   assert.equal(metadata.eslintVersion, "9.39.1");
   assert.equal(metadata.eslintPluginNodeVersion, "18.2.2");
+  assert.equal(metadata.jsonSchemaFormatsVersion, "3.0.1");
   assert.equal(metadata.jsonSchemaValidatorVersion, "8.20.0");
   assert.equal(metadata.openApiValidatorVersion, "2.9.0");
   assert.equal(metadata.typeCheckerVersion, "7.0.2");
@@ -207,6 +211,7 @@ test("static gate definitions reject unavailable tool-version evidence", () => {
         eslintPluginNodeVersion: "18.2.2",
         eslintVersion: null,
         formatterVersion: "3.7.4",
+        jsonSchemaFormatsVersion: "3.0.1",
         jsonSchemaValidatorVersion: "8.20.0",
         openApiValidatorVersion: "2.9.0",
         typeCheckerVersion: "7.0.2",
@@ -357,6 +362,7 @@ test("each static gate emits its owning hard failure and stops verification", ()
       eslintPluginNodeVersion: "18.2.2",
       eslintVersion: "9.39.1",
       formatterVersion: "3.7.4",
+      jsonSchemaFormatsVersion: "3.0.1",
       jsonSchemaValidatorVersion: "8.20.0",
       openApiValidatorVersion: "2.9.0",
       packagedNodeVersion: "24.18.0",

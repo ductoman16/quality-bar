@@ -114,6 +114,11 @@ export function readVerificationMetadata(repositoryRoot) {
       "9.39.1",
     ),
     formatterVersion,
+    jsonSchemaFormatsVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "ajv-formats",
+      "3.0.1",
+    ),
     jsonSchemaValidatorVersion: readInstalledPackageVersion(
       repositoryRoot,
       "ajv",

@@ -172,6 +172,30 @@ test("runtime conformance rejects invalid request, response, status, content typ
     },
   );
 
+  const booleanSchemaContract = canonicalOpenApiDocument();
+  const booleanSchemaMediaType = /** @type {Record<string, unknown>} */ (
+    booleanSchemaContract.paths["/api/v1/system"].get.responses[200].content[
+      "application/json"
+    ]
+  );
+  booleanSchemaMediaType.schema = false;
+  await assert.rejects(
+    () =>
+      createHttpConformanceAssertion(booleanSchemaContract).assertExchange(
+        documentedExchange({
+          request: {
+            method: "GET",
+            url: "http://127.0.0.1/api/v1/system",
+          },
+          response: Response.json({}),
+        }),
+      ),
+    {
+      message:
+        "openapi_success_document_invalid: GET /api/v1/system status 200 / boolean schema is false",
+    },
+  );
+
   await assert.rejects(
     () =>
       assertion.assertExchange(

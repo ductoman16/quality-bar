@@ -38,6 +38,7 @@ function requireExactToolVersion(version, tool) {
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
+ *   jsonSchemaFormatsVersion: string | null,
  *   jsonSchemaValidatorVersion: string | null,
  *   openApiValidatorVersion: string | null,
  *   typeCheckerVersion: string | null,
@@ -62,6 +63,10 @@ export function createGateDefinitions(metadata) {
   const ajv = requireExactToolVersion(
     metadata.jsonSchemaValidatorVersion,
     "JSON Schema validator",
+  );
+  const ajvFormats = requireExactToolVersion(
+    metadata.jsonSchemaFormatsVersion,
+    "JSON Schema format validator",
   );
   const openApiValidator = requireExactToolVersion(
     metadata.openApiValidatorVersion,
@@ -184,6 +189,7 @@ export function createGateDefinitions(metadata) {
       ],
       tools: {
         ajv,
+        "ajv-formats": ajvFormats,
         node,
         "openapi-schema-validator": openApiValidator,
       },
@@ -195,6 +201,7 @@ export function createGateDefinitions(metadata) {
       arguments: ["--test", "test/openapi-conformance.test.js"],
       tools: {
         ajv,
+        "ajv-formats": ajvFormats,
         node,
         "openapi-schema-validator": openApiValidator,
       },

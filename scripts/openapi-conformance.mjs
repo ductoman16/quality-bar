@@ -109,6 +109,9 @@ function schemaValidator(document, schema) {
     validateFormats: true,
   });
   addJsonSchemaFormats(ajv);
+  if (typeof schema === "boolean") {
+    return ajv.compile(schema);
+  }
   return ajv.compile({
     components: document.components,
     ...asRecord(schema),
@@ -209,7 +212,9 @@ export function createHttpConformanceAssertion(document) {
       );
     }
     const responseContent = asRecord(responseContract.content);
-    const jsonSchema = asRecord(responseContent[JSON_CONTENT_TYPE]).schema;
+    const jsonMediaType = asRecord(responseContent[JSON_CONTENT_TYPE]);
+    const jsonSchema = jsonMediaType.schema;
+    const hasJsonSchema = Object.hasOwn(jsonMediaType, "schema");
     if (response.status >= 400) {
       if (asRecord(jsonSchema).$ref !== CANONICAL_ERROR_REF) {
         throw new Error(
@@ -224,7 +229,7 @@ export function createHttpConformanceAssertion(document) {
       );
       facts.canonicalErrors += 1;
       facts.responseDocuments += 1;
-    } else if (jsonSchema) {
+    } else if (hasJsonSchema) {
       await assertJsonResponse(
         document,
         jsonSchema,
