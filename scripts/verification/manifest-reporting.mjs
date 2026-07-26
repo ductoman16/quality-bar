@@ -158,9 +158,9 @@ export function formatReport(manifest, manifestPath) {
     );
   }
   for (const failure of manifest.failures) {
-    const detailWasPrinted = manifest.invokedGates.some(
-      (gate) => gate.outcome === "fail",
-    );
+    const detailWasPrinted =
+      failure.code !== "verification_evidence_invalid" &&
+      manifest.invokedGates.some((gate) => gate.outcome === "fail");
     lines.push(
       `- ${failure.code}${detailWasPrinted ? "" : `: ${failure.detail}`}`,
     );

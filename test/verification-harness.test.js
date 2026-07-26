@@ -156,6 +156,20 @@ test("verification metadata reads the exact installed static tool versions", () 
   assert.equal(metadata.typeCheckerVersion, "7.0.2");
 });
 
+test("static gate definitions reject unavailable tool-version evidence", () => {
+  assert.throws(
+    () =>
+      createGateDefinitions({
+        applicationVersion: "1.2.3",
+        eslintPluginNodeVersion: "18.2.2",
+        eslintVersion: null,
+        formatterVersion: "3.7.4",
+        typeCheckerVersion: "7.0.2",
+      }),
+    /verification metadata must include an exact eslint version/,
+  );
+});
+
 test("static gate evidence records exact tools, duration, and meaningful check counts", () => {
   const directory = mkdtempSync(resolve(tmpdir(), "quality-bar-static-gate-"));
   try {
@@ -198,6 +212,47 @@ test("static gate evidence records exact tools, duration, and meaningful check c
     assert.match(result.report, /static-proof: PASS \(4 files,/);
     assert.match(result.report, /eslint 9\.39\.1/);
     assert.match(result.report, new RegExp(`node ${process.version}`));
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("the human summary reports an exact verifier-created evidence failure", () => {
+  const directory = mkdtempSync(
+    resolve(tmpdir(), "quality-bar-invalid-evidence-"),
+  );
+  try {
+    const incompleteCheck = resolve(directory, "incomplete-check.mjs");
+    writeFileSync(
+      incompleteCheck,
+      'process.stdout.write("check passed\\n");\n',
+    );
+    const result = runVerification({
+      repositoryRoot,
+      manifestPath: resolve(directory, "evidence.json"),
+      gateDefinitions: [
+        {
+          name: "static-proof",
+          failureCode: "static_proof_failed",
+          arguments: [incompleteCheck],
+          checkGroups: [
+            {
+              name: "maintained-javascript",
+              countPattern: /PASS \((\d+) maintained JavaScript files,/,
+              unit: "file",
+            },
+          ],
+          tools: { eslint: "9.39.1", node: process.version },
+        },
+      ],
+      failureOutputWriter: () => {},
+    });
+
+    assert.equal(result.manifest.outcome, "fail");
+    assert.match(
+      result.report,
+      /verification_evidence_invalid: static-proof passed without its required check count/,
+    );
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }

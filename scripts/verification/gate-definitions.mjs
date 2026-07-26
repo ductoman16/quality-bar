@@ -1,6 +1,16 @@
 import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 
+/** @param {string | null} version @param {string} tool */
+function requireExactToolVersion(version, tool) {
+  if (typeof version !== "string" || version.length === 0) {
+    throw new Error(
+      `verification metadata must include an exact ${tool} version`,
+    );
+  }
+  return version;
+}
+
 /**
  * @typedef {{
  *   name: string,
@@ -23,19 +33,28 @@ import { validatePackageFacts } from "./package-facts.mjs";
 /**
  * @param {{
  *   applicationVersion: string | null,
- *   eslintPluginNodeVersion?: string | null,
- *   eslintVersion?: string | null,
- *   formatterVersion?: string | null,
- *   typeCheckerVersion?: string | null,
+ *   eslintPluginNodeVersion: string | null,
+ *   eslintVersion: string | null,
+ *   formatterVersion: string | null,
+ *   typeCheckerVersion: string | null,
  * }} metadata
  * @returns {GateDefinition[]}
  */
 export function createGateDefinitions(metadata) {
   const node = process.version;
-  const eslint = metadata.eslintVersion ?? "unavailable";
-  const eslintPluginNode = metadata.eslintPluginNodeVersion ?? "unavailable";
-  const prettier = metadata.formatterVersion ?? "unavailable";
-  const typescript = metadata.typeCheckerVersion ?? "unavailable";
+  const eslint = requireExactToolVersion(metadata.eslintVersion, "eslint");
+  const eslintPluginNode = requireExactToolVersion(
+    metadata.eslintPluginNodeVersion,
+    "eslint-plugin-n",
+  );
+  const prettier = requireExactToolVersion(
+    metadata.formatterVersion,
+    "prettier",
+  );
+  const typescript = requireExactToolVersion(
+    metadata.typeCheckerVersion,
+    "typescript",
+  );
 
   return [
     {
