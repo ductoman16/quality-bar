@@ -55,8 +55,20 @@
       "line": 217,
       "path": "test/quality-foundation.test.js",
       "rule": "no-unused-vars"
+    },
+    {
+      "column": 13,
+      "line": 15,
+      "path": "src/durable-access.js",
+      "rule": "error-only-throwing/error-only-throwing"
+    },
+    {
+      "column": 11,
+      "line": 30,
+      "path": "src/durable-access.js",
+      "rule": "error-only-throwing/error-only-throwing"
     }
   ],
-  "resolution": "Configured explicit Node, browser, script, and test environments; then removed every unused binding and added braces around every owned conditional.",
+  "resolution": "Configured explicit Node, browser, script, and test environments; then removed every unused binding, added braces around every owned conditional, and prevented non-Error sentinel values from being thrown.",
   "final_outcome": "pass"
 }

@@ -8,7 +8,7 @@ function cloneRow(row) {
 }
 
 export function createDurableAccess(database, { onStorageUnavailable } = {}) {
-  let storageFailure = null;
+  let storageFailure;
 
   function assertAvailable() {
     if (storageFailure) {

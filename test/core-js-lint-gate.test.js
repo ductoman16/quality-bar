@@ -31,6 +31,8 @@ test("the core JavaScript correctness gate reports every required rule family", 
     "strict-equality": "eqeqeq",
     "implicit-coercion": "no-implicit-coercion",
     "error-only-throwing": "no-throw-literal",
+    "constructed-non-error": "error-only-throwing/error-only-throwing",
+    "bound-non-error": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
     "object-shorthand": "object-shorthand",
     "immutable-binding": "prefer-const",
@@ -166,6 +168,18 @@ test("the core JavaScript correctness evidence records the complete cleanup", ()
       line: 217,
       path: "test/quality-foundation.test.js",
       rule: "no-unused-vars",
+    },
+    {
+      column: 13,
+      line: 15,
+      path: "src/durable-access.js",
+      rule: "error-only-throwing/error-only-throwing",
+    },
+    {
+      column: 11,
+      line: 30,
+      path: "src/durable-access.js",
+      rule: "error-only-throwing/error-only-throwing",
     },
   ]);
 });
