@@ -41,6 +41,8 @@ export function runVerification({
     eslintPluginNodeVersion: null,
     eslintVersion: null,
     formatterVersion: null,
+    jsonSchemaValidatorVersion: null,
+    openApiValidatorVersion: null,
     packagedNodeVersion: null,
     runnerGitVersion: null,
     sourceCommit: null,

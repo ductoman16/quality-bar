@@ -1,0 +1,36 @@
+{
+  "ticket": 165,
+  "baseline_source_commit": "995e8c1dd3a4f3eba8dacac9e5198f796861dbbd",
+  "focused_commands": [
+    "npm run openapi:check",
+    "node --test test/openapi-conformance.test.js",
+    "node --test test/review-http-integration.test.js"
+  ],
+  "validators": {
+    "openapi_schema": "@seriousme/openapi-schema-validator:2.9.0",
+    "json_schema": "ajv:8.20.0",
+    "json_schema_formats": "ajv-formats:3.0.1"
+  },
+  "published_contract": {
+    "version": "3.1.0",
+    "documents": 1,
+    "operations": 12,
+    "response_statuses": 66
+  },
+  "representative_hard_failures": [
+    "openapi_structure_unsupported_version",
+    "openapi_structure_invalid",
+    "openapi_request_document_invalid",
+    "openapi_success_document_invalid",
+    "openapi_status_unsupported",
+    "openapi_response_content_type_invalid",
+    "openapi_canonical_error_invalid"
+  ],
+  "automatic_http_integration_seam": "test/review-http-integration.test.js startApplication request",
+  "cross_process_smokes": [
+    "authenticated-firefox-browser-cross-process",
+    "compose-service"
+  ],
+  "new_e2e_scenarios": 0,
+  "final_outcome": "pass"
+}

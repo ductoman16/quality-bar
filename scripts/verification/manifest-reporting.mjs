@@ -8,6 +8,8 @@ import { dirname } from "node:path";
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
+ *   jsonSchemaValidatorVersion: string | null,
+ *   openApiValidatorVersion: string | null,
  *   packagedNodeVersion: string | null,
  *   runnerGitVersion: string | null,
  *   sourceCommit: string | null,
@@ -87,6 +89,12 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       coverage: metadata.coverageToolVersion
         ? `c8:${metadata.coverageToolVersion}`
         : null,
+      openApiValidator: metadata.openApiValidatorVersion
+        ? `openapi-schema-validator:${metadata.openApiValidatorVersion}`
+        : null,
+      jsonSchemaValidator: metadata.jsonSchemaValidatorVersion
+        ? `ajv:${metadata.jsonSchemaValidatorVersion}`
+        : null,
       git: packageFacts?.tools?.git ?? null,
       codex: packageFacts?.tools?.codex ?? null,
       codexCapabilityCatalog:
@@ -110,6 +118,8 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       eslint: metadata.eslintVersion,
       "eslint-plugin-n": metadata.eslintPluginNodeVersion,
       prettier: metadata.formatterVersion,
+      ajv: metadata.jsonSchemaValidatorVersion,
+      "openapi-schema-validator": metadata.openApiValidatorVersion,
       typescript: metadata.typeCheckerVersion,
       git: metadata.runnerGitVersion,
     },

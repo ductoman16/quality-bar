@@ -114,6 +114,16 @@ export function readVerificationMetadata(repositoryRoot) {
       "9.39.1",
     ),
     formatterVersion,
+    jsonSchemaValidatorVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "ajv",
+      "8.20.0",
+    ),
+    openApiValidatorVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "@seriousme/openapi-schema-validator",
+      "2.9.0",
+    ),
     packagedNodeVersion,
     runnerGitVersion: captureCommand(repositoryRoot, "git", [
       "--version",

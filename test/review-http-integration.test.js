@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
+import { createConformingFetch } from "../scripts/openapi-conformance.mjs";
 import { createApplication } from "../src/application.js";
+import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
@@ -58,9 +60,17 @@ async function startApplication(options = {}) {
     throw new Error("review_http_server_address_unavailable");
   }
   applications.push(readyApplication);
+  const origin = `http://127.0.0.1:${address.port}`;
+  const conformingFetch = createConformingFetch(canonicalOpenApiDocument());
+  /** @param {string} path @param {RequestInit} [init] */
+  const request = (path, init) => conformingFetch(new URL(path, origin), init);
+  /** @param {string} path @param {RequestInit} [init] */
+  const invalidRequest = (path, init) =>
+    conformingFetch.invalidRequest(new URL(path, origin), init);
+  request.invalidRequest = invalidRequest;
   return {
     application: readyApplication,
-    origin: `http://127.0.0.1:${address.port}`,
+    request,
   };
 }
 
@@ -114,17 +124,17 @@ afterEach(async () => {
 });
 
 test("an API-looking path outside the exact version boundary stays not found", async () => {
-  const { origin } = await startApplication();
+  const { request } = await startApplication();
 
-  const response = await fetch(`${origin}/api/v10?unexpected=value`);
+  const response = await request("/api/v10?unexpected=value");
 
   assert.equal(response.status, 404);
   assert.equal(await responseErrorCode(response), "not_found");
 });
 
 test("the authenticated Review resource creates only an exact complete v1 snapshot", async () => {
-  const { application, origin } = await startApplication();
-  const login = await fetch(`${origin}/api/v1/session/login`, {
+  const { application, request } = await startApplication();
+  const login = await request("/api/v1/session/login", {
     body: JSON.stringify({ password: "a correct operator password" }),
     headers: { "content-type": "application/json" },
     method: "POST",
@@ -137,7 +147,7 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
     "x-quality-bar-csrf": csrf,
   };
 
-  const created = await fetch(`${origin}/api/v1/reviews`, {
+  const created = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest()),
     headers,
     method: "POST",
@@ -148,7 +158,7 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
   );
   assert.equal(createdReview.active_version.number, 1);
 
-  const rejected = await fetch(`${origin}/api/v1/reviews`, {
+  const rejected = await request.invalidRequest("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest({ unexpected: true })),
     headers,
     method: "POST",
@@ -162,12 +172,12 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
 });
 
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
-  const { application, origin } = await startApplication();
+  const { application, request } = await startApplication();
   const token = application.implementerTokens.create(
     "a correct operator password",
   );
 
-  const created = await fetch(`${origin}/api/v1/reviews`, {
+  const created = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest({ name: "Machine HTTP boundaries" })),
     headers: {
       authorization: `Bearer ${token}`,
@@ -182,7 +192,7 @@ test("a sole implementer bearer creates the same Review resource without browser
 
 test("an unexpected Review resource failure has an exact owning error", async () => {
   const failure = new Error("exact Review resource failure");
-  const { origin } = await startApplication({
+  const { request } = await startApplication({
     createReviews() {
       return {
         create() {
@@ -191,13 +201,13 @@ test("an unexpected Review resource failure has an exact owning error", async ()
       };
     },
   });
-  const login = await fetch(`${origin}/api/v1/session/login`, {
+  const login = await request("/api/v1/session/login", {
     body: JSON.stringify({ password: "a correct operator password" }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
   const { csrf, session } = sessionCookies(login);
-  const response = await fetch(`${origin}/api/v1/reviews`, {
+  const response = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest()),
     headers: {
       "content-type": "application/json",
