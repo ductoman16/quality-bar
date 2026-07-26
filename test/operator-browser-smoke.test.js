@@ -139,6 +139,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const applicationOrigin = `http://127.0.0.1:${applicationAddress.port}`;
   let sawAuthenticatedShell = false;
   let sawSystemFetch = false;
+  /** @type {string[]} */
+  const requestFacts = [];
   /** @type {() => void} */
   let complete = () => {
     throw new Error("operator_browser_completion_not_initialized");
@@ -150,6 +152,9 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     if (!request.method || !request.url) {
       throw new Error("operator_browser_proxy_request_invalid");
     }
+    requestFacts.push(
+      `${request.method} ${request.url} cookie=${String(Boolean(request.headers.cookie))}`,
+    );
     if (
       request.method === "GET" &&
       request.url === "/operator-browser-login.js"
@@ -241,7 +246,9 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       throw new Error(
         `operator_browser_firefox_failed: ${
           error instanceof Error ? error.message : String(error)
-        }; stderr: ${firefoxStandardError.trim() || "unavailable"}`,
+        }; requests: ${JSON.stringify(requestFacts.slice(-20))}; stderr: ${
+          firefoxStandardError.trim() || "unavailable"
+        }`,
       );
     }
     assert.equal(sawAuthenticatedShell, true);
