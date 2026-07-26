@@ -33,7 +33,9 @@ export function createGateDefinitions(applicationVersion) {
         "--test",
         "test/browser-assets-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
-        "test/browser-session-browser-component.test.js",
+        "test/browser-session-authentication-browser-component.test.js",
+        "test/browser-session-protection-browser-component.test.js",
+        "test/browser-session-operator-browser-component.test.js",
       ],
     },
     {
