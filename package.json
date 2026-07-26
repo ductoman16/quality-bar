@@ -9,12 +9,14 @@
   "scripts": {
     "start": "node scripts/run-with-exact-node.mjs src/main.js",
     "test": "node scripts/run-with-exact-node.mjs --test",
+    "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",
     "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
     "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" fixtures/operator-browser-login.js",
     "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" fixtures/operator-browser-login.js",
     "verify": "node scripts/run-with-exact-node.mjs scripts/verify.mjs"
   },
   "devDependencies": {
+    "eslint": "9.39.1",
     "prettier": "3.7.4"
   }
 }
