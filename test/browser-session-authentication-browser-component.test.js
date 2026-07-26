@@ -3,11 +3,31 @@ import { test } from "node:test";
 
 import { startApplication } from "./browser-session-component-support.js";
 
+/** @param {Response} response @param {string} name */
+function requiredHeader(response, name) {
+  const value = response.headers.get(name);
+  if (!value) {
+    throw new Error(`browser_authentication_header_missing: ${name}`);
+  }
+  return value;
+}
+
+/** @param {Response} response */
+function sessionCookie(response) {
+  return requiredHeader(response, "set-cookie").split(";", 1)[0];
+}
+
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
 test("the minimum unauthenticated surface exposes the password-only login and no product data", async () => {
   const { origin } = await startApplication();
 
   const login = await fetch(`${origin}/`);
-  assert.match(login.headers.get("content-type"), /^text\/html/);
+  assert.match(requiredHeader(login, "content-type"), /^text\/html/);
   const loginPage = await login.text();
   assert.match(loginPage, /<label for="password">Password<\/label>/);
   assert.match(loginPage, /<button type="submit">Log in<\/button>/);
@@ -19,7 +39,7 @@ test("the minimum unauthenticated surface exposes the password-only login and no
 
   const system = await fetch(`${origin}/api/v1/system`);
   assert.equal(system.status, 401);
-  assert.equal((await system.json()).error.code, "authentication_required");
+  assert.equal(await responseErrorCode(system), "authentication_required");
 });
 
 test("a password login sets only an HttpOnly Strict host-only cookie and logout clears it", async () => {
@@ -36,9 +56,15 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     method: "POST",
   });
   assert.equal(login.status, 204);
-  const cookie = login.headers.get("set-cookie");
+  const cookie = requiredHeader(login, "set-cookie");
   assert.match(cookie, /^quality_bar_session=[A-Za-z0-9_-]{43}; Path=\//);
   const csrfToken = cookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  const authenticatedCookie = cookie.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )?.[0];
+  if (!csrfToken || !authenticatedCookie) {
+    throw new Error("browser_authentication_cookie_invalid");
+  }
   assert.match(csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.match(cookie, /; HttpOnly/);
   assert.match(cookie, /; SameSite=Strict/);
@@ -65,7 +91,7 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
 
   const logout = await fetch(`${origin}/api/v1/session/logout`, {
     headers: {
-      cookie: `${cookie.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0]}; quality_bar_csrf=${csrfToken}`,
+      cookie: `${authenticatedCookie}; quality_bar_csrf=${csrfToken}`,
       origin: "https://quality-bar.example",
       "x-quality-bar-csrf": csrfToken,
       ...proxyHeaders,
@@ -73,7 +99,7 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     method: "POST",
   });
   assert.equal(logout.status, 204);
-  assert.match(logout.headers.get("set-cookie"), /Max-Age=0/);
+  assert.match(requiredHeader(logout, "set-cookie"), /Max-Age=0/);
   assert.equal(
     (
       await fetch(`${origin}/api/v1/system`, {
@@ -91,7 +117,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const cookie = sessionCookie(login);
 
   const evaluations = await fetch(`${origin}/`, { headers: { cookie } });
   const evaluationsHtml = await evaluations.text();
@@ -142,7 +168,7 @@ test("a malformed login request creates no session", async () => {
     method: "POST",
   });
   assert.equal(response.status, 400);
-  assert.equal((await response.json()).error.code, "request_malformed");
+  assert.equal(await responseErrorCode(response), "request_malformed");
   assert.equal(
     application.durableCore.get("SELECT session_hash FROM browser_sessions"),
     undefined,
@@ -156,7 +182,7 @@ test("an expired browser session returns to login and preserves only a safe inte
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const cookie = sessionCookie(login);
   application.durableCore.run(
     "UPDATE browser_sessions SET last_authenticated_at = 0",
   );
@@ -182,7 +208,7 @@ test("an expired browser session returns to login and preserves only a safe inte
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const freshCookie = freshLogin.headers.get("set-cookie").split(";", 1)[0];
+  const freshCookie = sessionCookie(freshLogin);
   const operatorPage = await fetch(`${origin}/`, {
     headers: { cookie: freshCookie },
   });
@@ -233,8 +259,14 @@ test("the login surface reports one explicit throttled response without revealin
   assert.equal(throttledCorrectPassword.status, 429);
   assert.equal(throttledCorrectPassword.headers.get("retry-after"), "1");
   assert.equal(throttledCorrectPassword.headers.get("set-cookie"), null);
-  const correctPasswordError = await throttledCorrectPassword.json();
-  const incorrectPasswordError = await throttledIncorrectPassword.json();
+  const correctPasswordError =
+    /** @type {{error: {code: string, message: string, request_id: string}}} */ (
+      await throttledCorrectPassword.json()
+    );
+  const incorrectPasswordError =
+    /** @type {{error: {code: string, message: string, request_id: string}}} */ (
+      await throttledIncorrectPassword.json()
+    );
   assert.deepEqual(correctPasswordError.error, {
     code: "login_throttled",
     message: "Login is temporarily throttled",

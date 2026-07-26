@@ -8,6 +8,26 @@ import { runInNewContext } from "node:vm";
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/**
+ * @typedef {{
+ *   hidden?: boolean,
+ *   textContent?: string,
+ *   type?: string,
+ *   value?: string,
+ *   addEventListener: (
+ *     name: string,
+ *     listener: (event?: {preventDefault(): void}) => unknown
+ *   ) => void,
+ *   listener: (
+ *     name: string
+ *   ) => (event?: {preventDefault(): void}) => unknown,
+ *   querySelectorAll: () => BrowserElement[],
+ *   replaceChildren: () => void,
+ *   showModal: () => void,
+ *   close: () => void,
+ * }} BrowserElement
+ */
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -16,7 +36,9 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
+/** @param {Partial<BrowserElement>} [properties] @returns {BrowserElement} */
 function browserElement(properties = {}) {
+  /** @type {Map<string, (event?: {preventDefault(): void}) => unknown>} */
   const listeners = new Map();
   return {
     ...properties,
@@ -24,7 +46,11 @@ function browserElement(properties = {}) {
       listeners.set(name, listener);
     },
     listener(name) {
-      return listeners.get(name);
+      const listener = listeners.get(name);
+      if (!listener) {
+        throw new Error(`browser_component_listener_missing: ${name}`);
+      }
+      return listener;
     },
     querySelectorAll() {
       return [];
@@ -35,6 +61,7 @@ function browserElement(properties = {}) {
   };
 }
 
+/** @param {{readBrowserAsset?: (path: string) => string}} [options] */
 async function startApplication(options = {}) {
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
@@ -43,34 +70,49 @@ async function startApplication(options = {}) {
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),
-    validateInstallation: () => ({}),
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
     writeLog() {},
     readBrowserAsset: options.readBrowserAsset,
   });
+  if (!application.durableCore) {
+    throw new Error("browser_asset_application_not_ready");
+  }
   bootstrapOperatorPassword(
     application.durableCore,
     "a correct operator password",
   );
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
+    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
+  const address = application.server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("browser_asset_server_address_unavailable");
+  }
   return {
     application,
-    origin: `http://127.0.0.1:${application.server.address().port}`,
+    origin: `http://127.0.0.1:${address.port}`,
   };
 }
 
+/**
+ * @param {string} origin
+ * @param {string} path
+ * @param {Record<string, string>} [headers]
+ */
 async function servedAsset(origin, path, headers) {
   const response = await fetch(`${origin}${path}`, { headers });
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type"), /^text\/javascript/);
+  const contentType = response.headers.get("content-type");
+  assert.ok(contentType);
+  assert.match(contentType, /^text\/javascript/);
   return response.text();
 }
 
+/** @param {string} page */
 function configurationFrom(page) {
   const match = page.match(
     /<script id="browser-configuration" type="application\/json">([^<]*)<\/script>/,
@@ -111,20 +153,24 @@ test("browser pages serve and execute their exact maintained same-origin assets"
     ["login-form", loginForm],
     ["password", browserElement({ value: "a correct operator password" })],
   ]);
+  /** @type {{path: string, options: object}[]} */
   const loginRequests = [];
   let loginDestination;
   runInNewContext(loginSource, {
     URL,
     document: {
+      /** @param {string} id */
       getElementById(id) {
         return loginElements.get(id) ?? null;
       },
     },
+    /** @param {string} path @param {object} options */
     fetch: async (path, options) => {
       loginRequests.push({ options, path });
       return { ok: true };
     },
     location: {
+      /** @param {string} value */
       assign(value) {
         loginDestination = value;
       },
@@ -177,13 +223,19 @@ test("browser pages serve and execute their exact maintained same-origin assets"
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const setCookie = login.headers.get("set-cookie");
+  if (!setCookie) {
+    throw new Error("browser_component_login_cookie_missing");
+  }
+  const cookie = setCookie.split(";", 1)[0];
   const unauthenticatedOperatorAsset = await fetch(
     `${origin}/assets/operator.js`,
   );
   assert.equal(unauthenticatedOperatorAsset.status, 401);
   assert.equal(
-    (await unauthenticatedOperatorAsset.json()).error.code,
+    /** @type {{error: {code: string}}} */ (
+      await unauthenticatedOperatorAsset.json()
+    ).error.code,
     "authentication_required",
   );
   const mixedCredentialOperatorAsset = await fetch(
@@ -192,7 +244,9 @@ test("browser pages serve and execute their exact maintained same-origin assets"
   );
   assert.equal(mixedCredentialOperatorAsset.status, 401);
   assert.equal(
-    (await mixedCredentialOperatorAsset.json()).error.code,
+    /** @type {{error: {code: string}}} */ (
+      await mixedCredentialOperatorAsset.json()
+    ).error.code,
     "authentication_ambiguous",
   );
 
@@ -231,17 +285,22 @@ test("browser pages serve and execute their exact maintained same-origin assets"
       type: "application/json",
     }),
   );
+  /** @type {Map<string, (event?: object) => unknown>} */
   const documentListeners = new Map();
+  /** @type {{path: string, options: object}[]} */
   const operatorRequests = [];
+  /** @type {string[]} */
   const operatorDestinations = [];
   let logoutAttempts = 0;
   runInNewContext(operatorSource, {
     Date,
     document: {
+      /** @param {string} name @param {(event?: object) => unknown} listener */
       addEventListener(name, listener) {
         documentListeners.set(name, listener);
       },
       cookie: "quality_bar_configured_csrf=csrf-token",
+      /** @param {string} id */
       getElementById(id) {
         return operatorElements.get(id) ?? null;
       },
@@ -249,6 +308,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
         return [];
       },
     },
+    /** @param {string} path @param {object} options */
     fetch: async (path, options) => {
       operatorRequests.push({ options, path });
       if (path === "/api/v1/system") {
@@ -283,6 +343,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
           };
     },
     location: {
+      /** @param {string} value */
       assign(value) {
         operatorDestinations.push(value);
       },
@@ -303,7 +364,12 @@ test("browser pages serve and execute their exact maintained same-origin assets"
   );
   assert.ok(documentListeners.has("keydown"));
   assert.ok(documentListeners.has("pointerdown"));
-  await operatorElements.get("logout").listener("click")();
+  const logout = operatorElements.get("logout");
+  const errorElement = operatorElements.get("error");
+  if (!logout || !errorElement) {
+    throw new Error("browser_component_operator_elements_missing");
+  }
+  await logout.listener("click")();
   assert.deepEqual(JSON.parse(JSON.stringify(operatorRequests[1])), {
     options: {
       headers: { "x-quality-bar-csrf": "csrf-token" },
@@ -312,24 +378,23 @@ test("browser pages serve and execute their exact maintained same-origin assets"
     path: "/api/v1/session/logout",
   });
   assert.deepEqual(operatorDestinations, ["/?return_to=%2F"]);
-  await operatorElements.get("logout").listener("click")();
-  assert.equal(operatorElements.get("error").hidden, false);
-  assert.equal(
-    operatorElements.get("error").textContent,
-    "exact logout failure",
-  );
+  await logout.listener("click")();
+  assert.equal(errorElement.hidden, false);
+  assert.equal(errorElement.textContent, "exact logout failure");
 
   const missingAsset = await fetch(`${origin}/assets/not-maintained.js`);
   assert.equal(missingAsset.status, 404);
   assert.equal(
-    (await missingAsset.json()).error.code,
+    /** @type {{error: {code: string}}} */ (await missingAsset.json()).error
+      .code,
     "browser_asset_not_found",
   );
 });
 
 test("an unavailable browser asset has one exact owning failure and no fallback", async (context) => {
-  const unavailable = new Error("Browser asset is unavailable");
-  unavailable.code = "browser_asset_unavailable";
+  const unavailable = Object.assign(new Error("Browser asset is unavailable"), {
+    code: "browser_asset_unavailable",
+  });
   const { application, origin } = await startApplication({
     readBrowserAsset() {
       throw unavailable;
@@ -344,7 +409,9 @@ test("an unavailable browser asset has one exact owning failure and no fallback"
 
   const response = await fetch(`${origin}/assets/login.js`);
   assert.equal(response.status, 503);
-  const body = await response.json();
+  const body = /** @type {{error: {code: string, message: string}}} */ (
+    await response.json()
+  );
   assert.equal(body.error.code, "browser_asset_unavailable");
   assert.equal(body.error.message, "Browser asset is unavailable");
 });

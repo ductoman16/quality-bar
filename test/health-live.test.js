@@ -3,11 +3,18 @@ import { after, before, test } from "node:test";
 
 import { createApplicationServer } from "../src/server.js";
 
+/** @type {import("node:http").Server | undefined} */
 let server;
+/** @type {string | undefined} */
 let origin;
 
+/** @param {object} options */
+function callApplicationServer(options) {
+  return Reflect.apply(createApplicationServer, undefined, [options]);
+}
+
 before(async () => {
-  server = createApplicationServer({
+  const applicationServer = createApplicationServer({
     browserSessions: {
       authenticate() {
         return false;
@@ -15,7 +22,9 @@ before(async () => {
       isBootstrapped() {
         return false;
       },
-      login() {},
+      login() {
+        throw new Error("unused browser session login");
+      },
       logout() {},
       changePassword() {},
       revokeAll() {},
@@ -31,36 +40,61 @@ before(async () => {
       authenticate() {
         return false;
       },
-      create() {},
+      create() {
+        throw new Error("unused implementer token create");
+      },
       hasActiveToken() {
         return false;
       },
       revoke() {},
-      rotate() {},
+      rotate() {
+        throw new Error("unused implementer token rotate");
+      },
     },
     listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
     recordAuthorityAttribution() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
-    reviews: { create() {} },
-    requestSecurity: { requestFacts() {} },
+    reviews: {
+      create() {
+        throw new Error("unused review create");
+      },
+    },
+    requestSecurity: {
+      requestFacts() {
+        throw new Error("unused request facts");
+      },
+    },
   });
+  server = applicationServer;
   await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    applicationServer.once("error", reject);
+    applicationServer.listen(0, "127.0.0.1", () => resolve(undefined));
   });
 
-  const address = server.address();
+  const address = applicationServer.address();
+  if (!address || typeof address === "string") {
+    throw new Error("health_live_server_address_unavailable");
+  }
   origin = `http://127.0.0.1:${address.port}`;
 });
 
 after(async () => {
+  if (!server) {
+    throw new Error("health_live_server_missing");
+  }
+  const applicationServer = server;
   await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
+    applicationServer.close((error) =>
+      error ? reject(error) : resolve(undefined),
+    );
   });
 });
 
 test("GET /health/live reports only process responsiveness", async () => {
+  if (!origin) {
+    throw new Error("health_live_origin_missing");
+  }
   const response = await fetch(`${origin}/health/live`);
 
   assert.equal(response.status, 200);
@@ -71,13 +105,16 @@ test("GET /health/live reports only process responsiveness", async () => {
 test("the application server rejects a missing browser-session boundary", () => {
   assert.throws(
     () =>
-      createApplicationServer({
+      callApplicationServer({
         listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
         recordAuthorityAttribution() {},
         readDurableCoreStatus: () => ({ status: "ready" }),
         readSystemStatus: () => ({}),
       }),
     (error) => {
+      if (!(error instanceof Error)) {
+        return false;
+      }
       assert.equal(
         error.message,
         "browserSessions must provide the session boundary",
@@ -90,7 +127,7 @@ test("the application server rejects a missing browser-session boundary", () => 
 test("the application server rejects a missing request-security boundary", () => {
   assert.throws(
     () =>
-      createApplicationServer({
+      callApplicationServer({
         browserOrigin: "http://127.0.0.1:3000",
         browserSessions: {
           authenticate() {
@@ -100,7 +137,9 @@ test("the application server rejects a missing request-security boundary", () =>
           isBootstrapped() {
             return false;
           },
-          login() {},
+          login() {
+            throw new Error("unused browser session login");
+          },
           logout() {},
           revokeAll() {},
           touch() {
@@ -114,12 +153,16 @@ test("the application server rejects a missing request-security boundary", () =>
           authenticate() {
             return false;
           },
-          create() {},
+          create() {
+            throw new Error("unused implementer token create");
+          },
           hasActiveToken() {
             return false;
           },
           revoke() {},
-          rotate() {},
+          rotate() {
+            throw new Error("unused implementer token rotate");
+          },
         },
         listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
         recordAuthorityAttribution() {},
@@ -127,6 +170,9 @@ test("the application server rejects a missing request-security boundary", () =>
         readSystemStatus: () => ({}),
       }),
     (error) => {
+      if (!(error instanceof Error)) {
+        return false;
+      }
       assert.equal(
         error.message,
         "requestSecurity must provide the request boundary",

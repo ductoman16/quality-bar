@@ -5,10 +5,61 @@ import { runPackageProbe } from "./package-probes.mjs";
 const serviceFixtureImage =
   "node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc";
 
+/** @typedef {import("./package-fixture.mjs").PackageFixture} PackageFixture */
+/** @typedef {import("./compose-configuration.mjs").ComposeConfiguration} ComposeConfiguration */
+/**
+ * @typedef {{
+ *   localFilesystems: boolean,
+ *   stateFreeBytes: number,
+ *   checkoutsFreeBytes: number,
+ *   pathFacts: Record<string, {gid: number, mode: number, uid: number}>,
+ * }} FilesystemFacts
+ */
+/**
+ * @typedef {{
+ *   liveness: {body: {status: string}, status: number},
+ *   readiness: {body: {status: string}, status: number},
+ *   directSystem: {errorCode: string, status: number},
+ *   forwardedSystem: {errorCode: string, status: number},
+ * }} HttpFacts
+ */
+/**
+ * @typedef {{
+ *   databaseVersion: string,
+ *   foreignKeys: boolean,
+ *   installationKeyVerifier: string,
+ *   integrity: string,
+ *   journalMode: string,
+ *   operatorPasswordVerifier: string | null,
+ *   persistedMarker: string | null,
+ *   schemaVersion: number,
+ *   synchronous: string,
+ * }} DatabaseFacts
+ */
+/**
+ * @typedef {{
+ *   browserStatus: number,
+ *   codexCapabilityCatalogVersion: string,
+ *   hasCodexCapabilityModels: boolean,
+ *   hasNavigation: boolean,
+ *   loginStatus: number,
+ *   openapiStatus: number,
+ *   openapiVersion: string,
+ * }} AuthenticatedHttpSmoke
+ */
+
+/**
+ * @param {PackageFixture} fixture
+ * @param {string} name
+ * @param {string[]} [arguments_]
+ * @param {string} [input]
+ * @returns {unknown}
+ */
 function jsonProbe(fixture, name, arguments_, input) {
   return JSON.parse(runPackageProbe(fixture, name, arguments_, input));
 }
 
+/** @param {FilesystemFacts} filesystemFacts */
 function assertFilesystemFacts(filesystemFacts) {
   assert.equal(filesystemFacts.localFilesystems, true);
   assert.ok(filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3);
@@ -26,6 +77,20 @@ function assertFilesystemFacts(filesystemFacts) {
   }
 }
 
+/**
+ * @param {{
+ *   authenticatedHttpSmoke: AuthenticatedHttpSmoke,
+ *   configuration: ComposeConfiguration,
+ *   fixture: PackageFixture,
+ *   filesystemFacts: FilesystemFacts,
+ *   httpFacts: HttpFacts,
+ *   imagePlatform: string,
+ *   processArguments: string[],
+ *   recreatedDatabaseFacts: DatabaseFacts,
+ *   toolVersions: {codex: string, git: string},
+ *   uid: number,
+ * }} facts
+ */
 function packageFacts({
   authenticatedHttpSmoke,
   configuration,
@@ -38,6 +103,9 @@ function packageFacts({
   toolVersions,
   uid,
 }) {
+  if (recreatedDatabaseFacts.operatorPasswordVerifier === null) {
+    throw new Error("package_operator_password_verifier_missing");
+  }
   const serviceVolumes = configuration.services[fixture.serviceName].volumes;
   return {
     serviceCount: Object.keys(configuration.services).length,
@@ -104,6 +172,9 @@ function packageFacts({
   };
 }
 
+/**
+ * @param {{configuration: ComposeConfiguration, fixture: PackageFixture}} proof
+ */
 export function proveComposeService({ configuration, fixture }) {
   const { environment, fixtureDirectory, serviceName } = fixture;
   fixture.runDocker([
@@ -150,11 +221,13 @@ export function proveComposeService({ configuration, fixture }) {
   assert.equal(processArguments[0], "node");
   assert.equal(processArguments.at(-1), "src/main.js");
 
-  const filesystemFacts = jsonProbe(fixture, "filesystem-facts.mjs");
+  const filesystemFacts = /** @type {FilesystemFacts} */ (
+    jsonProbe(fixture, "filesystem-facts.mjs")
+  );
   assertFilesystemFacts(filesystemFacts);
-  const httpFacts = jsonProbe(fixture, "http-facts.mjs", [
-    environment.QUALITY_BAR_HTTP_PORT,
-  ]);
+  const httpFacts = /** @type {HttpFacts} */ (
+    jsonProbe(fixture, "http-facts.mjs", [environment.QUALITY_BAR_HTTP_PORT])
+  );
   assert.deepEqual(httpFacts.liveness, {
     body: { status: "live" },
     status: 200,
@@ -182,7 +255,9 @@ export function proveComposeService({ configuration, fixture }) {
   assert.equal(toolVersions.git, "2.54.0");
   assert.equal(toolVersions.codex, "0.145.0");
 
-  const initialDatabaseFacts = jsonProbe(fixture, "database-facts.mjs");
+  const initialDatabaseFacts = /** @type {DatabaseFacts} */ (
+    jsonProbe(fixture, "database-facts.mjs")
+  );
   assert.equal(initialDatabaseFacts.persistedMarker, null);
   assert.match(initialDatabaseFacts.installationKeyVerifier, /^v1\./);
   assert.equal(initialDatabaseFacts.operatorPasswordVerifier, null);
@@ -223,18 +298,25 @@ export function proveComposeService({ configuration, fixture }) {
   );
   fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
 
-  const recreatedDatabaseFacts = jsonProbe(fixture, "database-facts.mjs");
+  const recreatedDatabaseFacts = /** @type {DatabaseFacts} */ (
+    jsonProbe(fixture, "database-facts.mjs")
+  );
   assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
+  if (recreatedDatabaseFacts.operatorPasswordVerifier === null) {
+    throw new Error("package_operator_password_verifier_missing");
+  }
   assert.match(recreatedDatabaseFacts.operatorPasswordVerifier, /^scrypt-v1\./);
   assert.doesNotMatch(
     recreatedDatabaseFacts.operatorPasswordVerifier,
     new RegExp(bootstrapPassword),
   );
-  const authenticatedHttpSmoke = jsonProbe(
-    fixture,
-    "authenticated-http-smoke.mjs",
-    [environment.QUALITY_BAR_HTTP_PORT],
-    bootstrapPassword,
+  const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
+    jsonProbe(
+      fixture,
+      "authenticated-http-smoke.mjs",
+      [environment.QUALITY_BAR_HTTP_PORT],
+      bootstrapPassword,
+    )
   );
   assert.match(
     authenticatedHttpSmoke.codexCapabilityCatalogVersion,

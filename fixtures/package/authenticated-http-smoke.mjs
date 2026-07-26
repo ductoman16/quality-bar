@@ -11,7 +11,11 @@ const login = await fetch(`${endpoint}/api/v1/session/login`, {
   headers: { ...headers, "content-type": "application/json" },
   method: "POST",
 });
-const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+const setCookie = login.headers.get("set-cookie");
+if (!setCookie) {
+  throw new Error("package_probe_login_cookie_missing");
+}
+const cookie = setCookie.split(";", 1)[0];
 const browser = await fetch(`${endpoint}/?view=system`, {
   headers: { ...headers, cookie },
 });
@@ -21,7 +25,11 @@ const system = await fetch(`${endpoint}/api/v1/system`, {
 const openapi = await fetch(`${endpoint}/api/v1/openapi.json`, {
   headers: { ...headers, cookie },
 });
-const codexCapabilityCatalog = (await system.json()).codex.catalog;
+const systemFacts =
+  /** @type {{codex: {catalog: {codex_cli_version: string, models: unknown[]}}}} */ (
+    await system.json()
+  );
+const codexCapabilityCatalog = systemFacts.codex.catalog;
 
 console.log(
   JSON.stringify({
@@ -35,6 +43,7 @@ console.log(
     ),
     loginStatus: login.status,
     openapiStatus: openapi.status,
-    openapiVersion: (await openapi.json()).openapi,
+    openapiVersion: /** @type {{openapi: string}} */ (await openapi.json())
+      .openapi,
   }),
 );

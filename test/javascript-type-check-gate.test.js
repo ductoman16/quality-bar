@@ -9,6 +9,7 @@ import { BROWSER_ASSET_SOURCE_PATHS } from "../src/browser-assets.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
+/** @param {string[]} arguments_ */
 function runTypeScript(arguments_) {
   return spawnSync(
     process.execPath,
@@ -29,6 +30,7 @@ const strictFamilyOptions = [
   "useUnknownInCatchVariables",
 ];
 
+/** @param {string} name */
 function readConfiguration(name) {
   return JSON.parse(
     readFileSync(resolve(repositoryRoot, `tsconfig.${name}.json`), "utf8"),

@@ -7,16 +7,23 @@ import { isGeneratedArtifact } from "./structural-lint-policy.mjs";
 const JAVASCRIPT_EXTENSIONS = new Set([".cjs", ".js", ".mjs"]);
 const UNMAINTAINED_DIRECTORIES = new Set([".git", "node_modules"]);
 
+/** @param {string} repositoryRoot @param {string} path */
 function relativePath(repositoryRoot, path) {
   return relative(repositoryRoot, path).split(sep).join("/");
 }
 
+/** @param {string} path */
 function isJavaScriptFile(path) {
   return [...JAVASCRIPT_EXTENSIONS].some((extension) =>
     path.endsWith(extension),
   );
 }
 
+/**
+ * @param {string} repositoryRoot
+ * @param {string} directory
+ * @param {string[]} files
+ */
 function collectJavaScriptFiles(repositoryRoot, directory, files) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = resolve(directory, entry.name);
@@ -34,27 +41,40 @@ function collectJavaScriptFiles(repositoryRoot, directory, files) {
   }
 }
 
+/** @param {string} repositoryRoot */
 export function listMaintainedJavaScriptFiles(repositoryRoot) {
+  /** @type {string[]} */
   const files = [];
   collectJavaScriptFiles(repositoryRoot, repositoryRoot, files);
   return files.sort();
 }
 
+/** @param {string} code @param {string} path @param {string} [message] */
 function reportDiagnostic(code, path, message = "") {
   return `${code}: ${path}${message ? ` ${message}` : ""}`;
 }
 
+/** @param {import("eslint").Linter.Config | undefined} config */
 function hasRequiredMaxLinesRule(config) {
   const rule = config?.rules?.["max-lines"];
+  const options = Array.isArray(rule) ? rule[1] : undefined;
   return (
     Array.isArray(rule) &&
     rule[0] === 2 &&
-    rule[1]?.max === 400 &&
-    rule[1]?.skipBlankLines === true &&
-    rule[1]?.skipComments === true
+    typeof options === "object" &&
+    options !== null &&
+    "max" in options &&
+    options.max === 400 &&
+    "skipBlankLines" in options &&
+    options.skipBlankLines === true &&
+    "skipComments" in options &&
+    options.skipComments === true
   );
 }
 
+/**
+ * @param {{repositoryRoot?: string, configFile?: string}} [options]
+ */
 export async function runStructuralLint({
   repositoryRoot = resolve(import.meta.dirname, ".."),
   configFile = "eslint.config.js",
@@ -64,7 +84,9 @@ export async function runStructuralLint({
     overrideConfigFile: resolve(repositoryRoot, configFile),
   });
   const files = listMaintainedJavaScriptFiles(repositoryRoot);
+  /** @type {string[]} */
   const diagnostics = [];
+  /** @type {string[]} */
   const lintableFiles = [];
 
   for (const file of files) {

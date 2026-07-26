@@ -8,6 +8,53 @@ import {
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
 
+/**
+ * @typedef {{
+ *   $ref?: string,
+ *   additionalProperties?: boolean,
+ *   const?: unknown,
+ *   enum?: unknown[],
+ *   format?: string,
+ *   items?: OpenApiSchema,
+ *   minItems?: number,
+ *   oneOf: OpenApiSchema[],
+ *   pattern?: string,
+ *   properties: Record<string, OpenApiSchema>,
+ *   required?: string[],
+ *   type?: string,
+ * }} OpenApiSchema
+ */
+/**
+ * @typedef {{
+ *   operationId?: string,
+ *   parameters: {name: string, required: boolean}[],
+ *   responses: Record<string, {description?: string}>,
+ *   security?: Record<string, unknown[]>[],
+ * }} OpenApiOperation
+ */
+/**
+ * @typedef {{
+ *   openapi: string,
+ *   components: {schemas: Record<string, OpenApiSchema>},
+ *   paths: Record<string, {get: OpenApiOperation, post: OpenApiOperation}>,
+ * }} OpenApiDocument
+ */
+
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
+/** @param {Response} response */
+function responseCookie(response) {
+  const cookie = response.headers.get("set-cookie");
+  if (!cookie) {
+    throw new Error("security_integration_cookie_missing");
+  }
+  return cookie;
+}
+
 test("the authenticated canonical contract is OpenAPI 3.1 with strict System attribution pagination", async () => {
   let now = Date.parse("2026-07-25T12:00:00.000Z");
   const application = await startApplication(temporaryDatabasePath(), {
@@ -20,7 +67,9 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     `${application.origin}/api/v1/openapi.json`,
   );
   assert.equal(unauthenticated.status, 401);
-  const unauthenticatedError = await unauthenticated.json();
+  const unauthenticatedError = /** @type {{error: Record<string, unknown>}} */ (
+    await unauthenticated.json()
+  );
   assert.deepEqual(Object.keys(unauthenticatedError.error).sort(), [
     "code",
     "message",
@@ -33,14 +82,15 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const setCookie = responseCookie(login);
+  const cookie = setCookie.split(";", 1)[0];
   const token = application.application.implementerTokens.create(password);
 
   const openapi = await fetch(`${application.origin}/api/v1/openapi.json`, {
     headers: { cookie },
   });
   assert.equal(openapi.status, 200);
-  const contract = await openapi.json();
+  const contract = /** @type {OpenApiDocument} */ (await openapi.json());
   assert.equal(contract.openapi, "3.1.0");
   assert.equal(contract.components.schemas.Error.additionalProperties, true);
   assert.equal(
@@ -202,7 +252,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     { headers: { cookie } },
   );
   assert.equal(attributions.status, 200);
-  const firstPage = await attributions.json();
+  const firstPage = /** @type {{
+   *   items: {id: string, occurred_at: string}[],
+   *   next_cursor: string,
+   * }} */ (await attributions.json());
   assert.equal(firstPage.items.length, 1);
   assert.match(firstPage.items[0].id, /^[0-9a-f-]{36}$/);
   assert.match(
@@ -220,7 +273,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     { headers: { cookie } },
   );
   assert.equal(secondPage.status, 200);
-  assert.notEqual((await secondPage.json()).items[0].id, firstPage.items[0].id);
+  const secondPageBody = /** @type {{items: {id: string}[]}} */ (
+    await secondPage.json()
+  );
+  assert.notEqual(secondPageBody.items[0].id, firstPage.items[0].id);
 
   for (const [url, expectedCode] of [
     [
@@ -246,7 +302,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   ]) {
     const response = await fetch(url, { headers: { cookie } });
     assert.equal(response.status, 400);
-    assert.equal((await response.json()).error.code, expectedCode);
+    assert.equal(await responseErrorCode(response), expectedCode);
   }
 
   const unknownBrowserView = await fetch(
@@ -256,11 +312,13 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     },
   );
   assert.equal(unknownBrowserView.status, 404);
-  assert.equal((await unknownBrowserView.json()).error.code, "not_found");
+  assert.equal(await responseErrorCode(unknownBrowserView), "not_found");
 
-  const csrfToken = login.headers
-    .get("set-cookie")
-    .match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const csrfMatch = setCookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/);
+  if (!csrfMatch) {
+    throw new Error("security_integration_csrf_cookie_missing");
+  }
+  const csrfToken = csrfMatch[1];
   const unknownMutationQuery = await fetch(
     `${application.origin}/api/v1/session/logout?unexpected=true`,
     {
@@ -274,7 +332,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   );
   assert.equal(unknownMutationQuery.status, 400);
   assert.equal(
-    (await unknownMutationQuery.json()).error.code,
+    await responseErrorCode(unknownMutationQuery),
     "request_malformed",
   );
 
@@ -288,7 +346,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   });
   assert.equal(machineSystem.status, 403);
   assert.equal(
-    (await machineSystem.json()).error.code,
+    await responseErrorCode(machineSystem),
     "authorization_forbidden",
   );
 });

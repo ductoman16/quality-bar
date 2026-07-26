@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createReviewService } from "../src/review.js";
+import { CodexConfigurationError } from "../src/codex-capabilities.js";
+import { createReviewService, ReviewError } from "../src/review.js";
 
 function validDefinition(overrides = {}) {
   return {
@@ -25,6 +26,7 @@ test("invalid Review definitions fail before a durable transaction can begin", (
   const reviews = createReviewService({
     transaction() {
       transactionCount += 1;
+      throw new Error("validation started a transaction");
     },
   });
 
@@ -56,7 +58,10 @@ test("invalid Review definitions fail before a durable transaction can begin", (
   ]) {
     assert.throws(
       () => reviews.create(definition),
-      (error) => error.code === code,
+      (error) =>
+        (error instanceof ReviewError ||
+          error instanceof CodexConfigurationError) &&
+        error.code === code,
     );
   }
   assert.equal(transactionCount, 0);

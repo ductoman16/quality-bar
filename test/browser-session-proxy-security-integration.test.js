@@ -7,6 +7,23 @@ import {
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
 
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
+/** @param {Response} response */
+function sessionCookies(response) {
+  const cookies = response.headers.get("set-cookie");
+  const session = cookies?.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)?.[0];
+  const csrf = cookies?.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  if (!session || !csrf) {
+    throw new Error("proxy_security_session_cookies_missing");
+  }
+  return { csrf, session };
+}
+
 test("a trusted HTTPS proxy preserves authentication while direct, mixed, and identity-header requests do not bypass it", async () => {
   const application = await startApplication(temporaryDatabasePath(), {
     externalOrigin: "https://quality-bar.example",
@@ -26,7 +43,7 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
   );
   assert.equal(directLogin.status, 400);
   assert.equal(
-    (await directLogin.json()).error.code,
+    await responseErrorCode(directLogin),
     "proxy_forwarded_required",
   );
 
@@ -36,11 +53,7 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
     method: "POST",
   });
   assert.equal(login.status, 204);
-  const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: csrfToken, session: sessionCookie } = sessionCookies(login);
   const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
 
   const mixedCredentials = await fetch(
@@ -58,7 +71,7 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
   );
   assert.equal(mixedCredentials.status, 401);
   assert.equal(
-    (await mixedCredentials.json()).error.code,
+    await responseErrorCode(mixedCredentials),
     "authentication_ambiguous",
   );
 
@@ -73,10 +86,7 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
     method: "POST",
   });
   assert.equal(mixedLogin.status, 401);
-  assert.equal(
-    (await mixedLogin.json()).error.code,
-    "authentication_ambiguous",
-  );
+  assert.equal(await responseErrorCode(mixedLogin), "authentication_ambiguous");
 
   const duplicateSessionCookieLogin = await fetch(
     `${application.origin}/api/v1/session/login`,
@@ -93,7 +103,7 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
   );
   assert.equal(duplicateSessionCookieLogin.status, 401);
   assert.equal(
-    (await duplicateSessionCookieLogin.json()).error.code,
+    await responseErrorCode(duplicateSessionCookieLogin),
     "authentication_ambiguous",
   );
 
@@ -105,14 +115,14 @@ test("a trusted HTTPS proxy preserves authentication while direct, mixed, and id
     },
   });
   assert.equal(mixedRoot.status, 401);
-  assert.equal((await mixedRoot.json()).error.code, "authentication_ambiguous");
+  assert.equal(await responseErrorCode(mixedRoot), "authentication_ambiguous");
 
   const identityHeader = await fetch(`${application.origin}/api/v1/system`, {
     headers: { forwarded, "x-remote-user": "operator" },
   });
   assert.equal(identityHeader.status, 401);
   assert.equal(
-    (await identityHeader.json()).error.code,
+    await responseErrorCode(identityHeader),
     "authentication_required",
   );
 });

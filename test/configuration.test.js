@@ -11,6 +11,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
 const configurationPath = "/etc/quality-bar/config.env";
 const masterKeyPath = "/run/secrets/quality-bar-master-key";
@@ -20,6 +21,7 @@ const validConfiguration = [
 ].join("\n");
 const validMasterKey = Buffer.alloc(32, 7).toString("base64");
 
+/** @param {{configuration?: string, masterKey?: string}} [input] */
 function load(input = {}) {
   const configuration = input.configuration ?? validConfiguration;
   const masterKey = Object.hasOwn(input, "masterKey")
@@ -34,8 +36,9 @@ function load(input = {}) {
       }
       if (path === masterKeyPath) {
         if (masterKey === undefined) {
-          const error = new Error("not found");
-          error.code = "ENOENT";
+          const error = Object.assign(new Error("not found"), {
+            code: "ENOENT",
+          });
           throw error;
         }
         return encoding ? masterKey : Buffer.from(masterKey);
@@ -153,7 +156,10 @@ test("persists only an encrypted installation-key verifier and rejects an undecr
   const verifier = core.get(
     "SELECT value FROM quality_bar_metadata WHERE key = ?",
     "installation_key_verifier",
-  ).value;
+  )?.value;
+  if (typeof verifier !== "string") {
+    throw new Error("installation_key_verifier_missing");
+  }
   assert.doesNotMatch(verifier, new RegExp(firstKey.toString("base64")));
   core.close();
 
@@ -161,6 +167,7 @@ test("persists only an encrypted installation-key verifier and rejects an undecr
   assert.throws(
     () => verifyInstallationKey(reopenedCore, Buffer.alloc(32, 8)),
     (error) => {
+      assert.ok(error instanceof InstallationConfigurationError);
       assert.equal(error.code, "master_key_undecryptable");
       assert.doesNotMatch(error.message, /CAgICAg/);
       return true;
@@ -170,7 +177,7 @@ test("persists only an encrypted installation-key verifier and rejects an undecr
     reopenedCore.get(
       "SELECT value FROM quality_bar_metadata WHERE key = ?",
       "installation_key_verifier",
-    ).value,
+    )?.value,
     verifier,
   );
   reopenedCore.close();

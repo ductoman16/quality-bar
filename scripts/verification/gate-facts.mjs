@@ -1,12 +1,22 @@
+/** @param {unknown} facts */
 export function validateOperatorBrowserFacts(facts) {
-  return facts?.engine !== "firefox"
+  if (!facts || typeof facts !== "object") {
+    return "must be an object";
+  }
+  const browserFacts = /** @type {{
+   *   engine?: unknown,
+   *   authenticatedShell?: unknown,
+   *   systemFetch?: unknown,
+   *   executableVersion?: unknown,
+   * }} */ (facts);
+  return browserFacts.engine !== "firefox"
     ? "engine must equal firefox"
-    : facts?.authenticatedShell !== true
+    : browserFacts.authenticatedShell !== true
       ? "authenticatedShell must equal true"
-      : facts?.systemFetch !== true
+      : browserFacts.systemFetch !== true
         ? "systemFetch must equal true"
-        : typeof facts?.executableVersion !== "string" ||
-            facts.executableVersion.length === 0
+        : typeof browserFacts.executableVersion !== "string" ||
+            browserFacts.executableVersion.length === 0
           ? "executableVersion must be nonempty"
           : null;
 }

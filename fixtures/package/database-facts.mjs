@@ -1,11 +1,24 @@
 import { DatabaseSync } from "node:sqlite";
 
 const database = new DatabaseSync("/var/lib/quality-bar/quality-bar.sqlite3");
-const scalar = (sql, field) => database.prepare(sql).get()[field];
+/** @param {string} sql @param {string} field */
+const scalar = (sql, field) => {
+  const row = database.prepare(sql).get();
+  if (!row) {
+    throw new Error(`package_probe_scalar_missing: ${field}`);
+  }
+  return row[field];
+};
+/** @param {string} key */
 const metadata = (key) =>
   database
     .prepare("SELECT value FROM quality_bar_metadata WHERE key = ?")
     .get(key)?.value ?? null;
+
+const synchronous = scalar("PRAGMA synchronous", "synchronous");
+if (typeof synchronous !== "number") {
+  throw new Error("package_probe_synchronous_not_numeric");
+}
 
 console.log(
   JSON.stringify({
@@ -19,9 +32,7 @@ console.log(
     operatorPasswordVerifier: metadata("operator_password_verifier"),
     persistedMarker: metadata("package_persistence_test"),
     schemaVersion: scalar("PRAGMA user_version", "user_version"),
-    synchronous: { 0: "off", 1: "normal", 2: "full", 3: "extra" }[
-      scalar("PRAGMA synchronous", "synchronous")
-    ],
+    synchronous: { 0: "off", 1: "normal", 2: "full", 3: "extra" }[synchronous],
   }),
 );
 database.close();

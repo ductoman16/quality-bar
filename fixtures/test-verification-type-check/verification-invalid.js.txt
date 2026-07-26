@@ -1,0 +1,4 @@
+/** @type {boolean} */
+const verificationPassed = "not a boolean";
+
+void verificationPassed;

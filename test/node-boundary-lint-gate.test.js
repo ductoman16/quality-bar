@@ -7,6 +7,7 @@ import { runNodeBoundaryLint } from "../scripts/node-boundary-lint.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
+/** @param {string} name */
 function fixture(name) {
   return readFileSync(
     resolve(repositoryRoot, "fixtures", "node-boundary-lint", `${name}.js.txt`),

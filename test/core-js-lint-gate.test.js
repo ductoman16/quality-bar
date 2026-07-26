@@ -7,6 +7,7 @@ import { runCoreJavaScriptLint } from "../scripts/core-js-lint.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
+/** @param {string} name */
 function fixture(name) {
   return readFileSync(
     resolve(repositoryRoot, "fixtures", "core-js-lint", `${name}.js.txt`),

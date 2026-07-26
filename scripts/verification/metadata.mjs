@@ -4,6 +4,11 @@ import { resolve } from "node:path";
 
 import { commandFailure } from "./failure-reporting.mjs";
 
+/**
+ * @param {string} repositoryRoot
+ * @param {string} command
+ * @param {string[]} arguments_
+ */
 function captureCommand(repositoryRoot, command, arguments_) {
   const result = spawnSync(command, arguments_, {
     cwd: repositoryRoot,
@@ -17,6 +22,12 @@ function captureCommand(repositoryRoot, command, arguments_) {
   return result.stdout.trim();
 }
 
+/**
+ * @param {string} repositoryRoot
+ * @param {string} path
+ * @param {RegExp} pattern
+ * @param {string} description
+ */
 function readRequiredMatch(repositoryRoot, path, pattern, description) {
   const contents = readFileSync(resolve(repositoryRoot, path), "utf8");
   const value = contents.match(pattern)?.[1];
@@ -26,6 +37,7 @@ function readRequiredMatch(repositoryRoot, path, pattern, description) {
   return value;
 }
 
+/** @param {string} repositoryRoot */
 export function readVerificationMetadata(repositoryRoot) {
   const applicationVersion = readRequiredMatch(
     repositoryRoot,

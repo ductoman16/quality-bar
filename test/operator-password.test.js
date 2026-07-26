@@ -11,7 +11,20 @@ import {
   bootstrapOperatorPassword,
 } from "../src/operator-password.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
+
+/** @param {ReturnType<typeof openDurableCore>} core */
+function storedVerifier(core) {
+  const verifier = core.get(
+    "SELECT value FROM quality_bar_metadata WHERE key = ?",
+    OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
+  )?.value;
+  if (typeof verifier !== "string") {
+    throw new Error("operator_password_verifier_missing");
+  }
+  return verifier;
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-password-"));
@@ -33,10 +46,7 @@ test("bootstraps one minimum-length password as a salted memory-hard verifier", 
     randomBytes: () => Buffer.alloc(16, 9),
   });
 
-  const verifier = core.get(
-    "SELECT value FROM quality_bar_metadata WHERE key = ?",
-    OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
-  ).value;
+  const verifier = storedVerifier(core);
   assert.match(
     verifier,
     /^scrypt-v1\.32768\.8\.1\.[A-Za-z0-9+/]+={0,2}\.[A-Za-z0-9+/]+={0,2}$/,
@@ -115,10 +125,7 @@ test("allows bootstrap only once and leaves the first verifier unchanged", () =>
   bootstrapOperatorPassword(core, firstPassword, {
     randomBytes: () => Buffer.alloc(16, 1),
   });
-  const originalVerifier = core.get(
-    "SELECT value FROM quality_bar_metadata WHERE key = ?",
-    OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
-  ).value;
+  const originalVerifier = storedVerifier(core);
 
   assert.throws(
     () => bootstrapOperatorPassword(core, secondPassword),
@@ -129,13 +136,7 @@ test("allows bootstrap only once and leaves the first verifier unchanged", () =>
       return true;
     },
   );
-  assert.equal(
-    core.get(
-      "SELECT value FROM quality_bar_metadata WHERE key = ?",
-      OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
-    ).value,
-    originalVerifier,
-  );
+  assert.equal(storedVerifier(core), originalVerifier);
 
   core.close();
 });

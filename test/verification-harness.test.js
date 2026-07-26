@@ -8,12 +8,21 @@ import { runVerification } from "../scripts/verification/harness.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
+/**
+ * @param {string} directory
+ * @param {string} name
+ * @param {string} source
+ */
 function writeGateTest(directory, name, source) {
   const path = resolve(directory, `${name}.test.mjs`);
   writeFileSync(path, source);
   return path;
 }
 
+/**
+ * @param {string} name
+ * @param {string} testPath
+ */
 function gate(name, testPath) {
   return {
     name,

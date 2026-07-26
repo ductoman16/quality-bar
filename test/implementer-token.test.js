@@ -8,7 +8,14 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createImplementerTokenService } from "../src/implementer-token.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
+
+/** @param {unknown} error */
+function implementerTokenError(error) {
+  assert.ok(error instanceof Error && "code" in error);
+  return /** @type {Error & {code: string}} */ (error);
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(
@@ -40,12 +47,16 @@ test("creates, rotates, and revokes one verifier-only implementer token", () => 
   const verifier = core.get(
     "SELECT value FROM quality_bar_metadata WHERE key = ?",
     "implementer_token_verifier",
-  ).value;
+  )?.value;
+  if (typeof verifier !== "string") {
+    throw new Error("implementer_token_verifier_missing");
+  }
   assert.match(verifier, /^sha256-v1\.[A-Za-z0-9+/]{43}=$/);
   assert.doesNotMatch(verifier, new RegExp(created));
   assert.throws(
     () => tokens.create(password),
-    (error) => error.code === "implementer_token_already_active",
+    (error) =>
+      implementerTokenError(error).code === "implementer_token_already_active",
   );
 
   const rotated = tokens.rotate(password);
@@ -67,7 +78,8 @@ test("creates, rotates, and revokes one verifier-only implementer token", () => 
   );
   assert.throws(
     () => tokens.revoke(password),
-    (error) => error.code === "implementer_token_not_active",
+    (error) =>
+      implementerTokenError(error).code === "implementer_token_not_active",
   );
   core.close();
 });
@@ -80,13 +92,13 @@ test("rejects a stale password without creating or changing the implementer toke
 
   assert.throws(
     () => tokens.create("an incorrect operator password"),
-    (error) => error.code === "authentication_invalid",
+    (error) => implementerTokenError(error).code === "authentication_invalid",
   );
   assert.equal(tokens.hasActiveToken(), false);
   const created = tokens.create(password);
   assert.throws(
     () => tokens.rotate("an incorrect operator password"),
-    (error) => error.code === "authentication_invalid",
+    (error) => implementerTokenError(error).code === "authentication_invalid",
   );
   assert.equal(tokens.authenticate(created), true);
   core.close();
@@ -105,11 +117,15 @@ test("a malformed implementer-token verifier is an exact hard authentication fai
 
   assert.throws(
     () => tokens.authenticate("A".repeat(43)),
-    (error) => error.code === "implementer_token_verifier_unavailable",
+    (error) =>
+      implementerTokenError(error).code ===
+      "implementer_token_verifier_unavailable",
   );
   assert.throws(
     () => tokens.hasActiveToken(),
-    (error) => error.code === "implementer_token_verifier_unavailable",
+    (error) =>
+      implementerTokenError(error).code ===
+      "implementer_token_verifier_unavailable",
   );
   core.close();
 });

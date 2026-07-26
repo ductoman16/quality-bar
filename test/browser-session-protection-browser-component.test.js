@@ -4,6 +4,23 @@ import { test } from "node:test";
 import { createApplicationServer } from "../src/server.js";
 import { startApplication } from "./browser-session-component-support.js";
 
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
+/** @param {Response} response */
+function sessionCookies(response) {
+  const cookies = response.headers.get("set-cookie");
+  const session = cookies?.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)?.[0];
+  const csrf = cookies?.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  if (!session || !csrf) {
+    throw new Error("browser_protection_session_cookies_missing");
+  }
+  return { csrf, session };
+}
+
 test("browser activity refreshes a session only with its exact origin and session-bound CSRF token", async () => {
   let now = 1_000;
   const { application, origin } = await startApplication({ now: () => now });
@@ -12,11 +29,7 @@ test("browser activity refreshes a session only with its exact origin and sessio
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: csrfToken, session: sessionCookie } = sessionCookies(login);
   const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
   const beforeRejectedActivity = application.durableCore.get(
     "SELECT session_hash, last_authenticated_at FROM browser_sessions",
@@ -27,7 +40,7 @@ test("browser activity refreshes a session only with its exact origin and sessio
     method: "POST",
   });
   assert.equal(missingOrigin.status, 403);
-  assert.equal((await missingOrigin.json()).error.code, "origin_invalid");
+  assert.equal(await responseErrorCode(missingOrigin), "origin_invalid");
 
   const wrongOrigin = await fetch(`${origin}/api/v1/session/activity`, {
     headers: {
@@ -38,14 +51,14 @@ test("browser activity refreshes a session only with its exact origin and sessio
     method: "POST",
   });
   assert.equal(wrongOrigin.status, 403);
-  assert.equal((await wrongOrigin.json()).error.code, "origin_invalid");
+  assert.equal(await responseErrorCode(wrongOrigin), "origin_invalid");
 
   const missingToken = await fetch(`${origin}/api/v1/session/activity`, {
     headers: { cookie, origin: "http://127.0.0.1:3000" },
     method: "POST",
   });
   assert.equal(missingToken.status, 403);
-  assert.equal((await missingToken.json()).error.code, "csrf_invalid");
+  assert.equal(await responseErrorCode(missingToken), "csrf_invalid");
 
   const wrongToken = await fetch(`${origin}/api/v1/session/activity`, {
     headers: {
@@ -56,16 +69,14 @@ test("browser activity refreshes a session only with its exact origin and sessio
     method: "POST",
   });
   assert.equal(wrongToken.status, 403);
-  assert.equal((await wrongToken.json()).error.code, "csrf_invalid");
+  assert.equal(await responseErrorCode(wrongToken), "csrf_invalid");
 
   const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const secondToken = secondLogin.headers
-    .get("set-cookie")
-    .match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: secondToken } = sessionCookies(secondLogin);
   const crossSessionToken = await fetch(`${origin}/api/v1/session/activity`, {
     headers: {
       cookie,
@@ -75,7 +86,10 @@ test("browser activity refreshes a session only with its exact origin and sessio
     method: "POST",
   });
   assert.equal(crossSessionToken.status, 403);
-  assert.equal((await crossSessionToken.json()).error.code, "csrf_invalid");
+  assert.equal(await responseErrorCode(crossSessionToken), "csrf_invalid");
+  if (!beforeRejectedActivity) {
+    throw new Error("browser_protection_session_row_missing");
+  }
   assert.deepEqual(
     application.durableCore.get(
       "SELECT last_authenticated_at FROM browser_sessions WHERE session_hash = ?",
@@ -112,11 +126,7 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: csrfToken, session: sessionCookie } = sessionCookies(login);
   const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
 
   for (const [path, body] of [
@@ -143,7 +153,7 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
       method: "POST",
     });
     assert.equal(response.status, 403);
-    assert.equal((await response.json()).error.code, "origin_invalid");
+    assert.equal(await responseErrorCode(response), "origin_invalid");
   }
 
   const absentCsrf = await fetch(`${origin}/api/v1/session/password`, {
@@ -159,13 +169,11 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
     method: "POST",
   });
   assert.equal(absentCsrf.status, 403);
-  assert.equal((await absentCsrf.json()).error.code, "csrf_invalid");
-  assert.equal(
-    application.durableCore.get(
-      "SELECT COUNT(*) AS count FROM browser_sessions",
-    ).count,
-    1,
+  assert.equal(await responseErrorCode(absentCsrf), "csrf_invalid");
+  const sessionCount = application.durableCore.get(
+    "SELECT COUNT(*) AS count FROM browser_sessions",
   );
+  assert.equal(sessionCount?.count, 1);
   assert.equal(
     (await fetch(`${origin}/api/v1/system`, { headers: { cookie } })).status,
     200,
@@ -184,7 +192,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       isBootstrapped() {
         return true;
       },
-      login() {},
+      login() {
+        throw new Error("unused browser session login");
+      },
       logout() {},
       revokeAll() {},
       touch() {
@@ -198,12 +208,16 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       authenticate() {
         return false;
       },
-      create() {},
+      create() {
+        throw new Error("unused implementer token create");
+      },
       hasActiveToken() {
         return false;
       },
       revoke() {},
-      rotate() {},
+      rotate() {
+        throw new Error("unused implementer token rotate");
+      },
     },
     listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
     recordAuthorityAttribution() {
@@ -211,14 +225,26 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     },
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
-    reviews: { create() {} },
-    requestSecurity: { requestFacts() {} },
+    reviews: {
+      create() {
+        throw new Error("unused review create");
+      },
+    },
+    requestSecurity: {
+      requestFacts() {
+        throw new Error("unused request facts");
+      },
+    },
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
-  const origin = `http://127.0.0.1:${server.address().port}`;
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("browser_protection_server_address_unavailable");
+  }
+  const origin = `http://127.0.0.1:${address.port}`;
 
   try {
     const response = await fetch(`${origin}/api/v1/session/activity`, {
@@ -226,14 +252,17 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       method: "POST",
     });
     assert.equal(response.status, 500);
-    assert.deepEqual(Object.keys((await response.json()).error).sort(), [
+    const body = /** @type {{error: Record<string, unknown>}} */ (
+      await response.json()
+    );
+    assert.deepEqual(Object.keys(body.error).sort(), [
       "code",
       "message",
       "request_id",
     ]);
   } finally {
     await new Promise((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
+      server.close((error) => (error ? reject(error) : resolve(undefined)));
     });
   }
 });

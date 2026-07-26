@@ -6,7 +6,15 @@ import { afterEach } from "node:test";
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @typedef {ReturnType<typeof createApplication>} Application */
+/**
+ * @typedef {Application & {
+ *   durableCore: NonNullable<Application["durableCore"]>,
+ * }} ReadyApplication
+ */
+/** @type {Application[]} */
 const applications = [];
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -15,6 +23,7 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
+/** @param {string} [origin] */
 function validInstallation(origin = "http://127.0.0.1:3000") {
   return {
     externalOrigin: origin,
@@ -23,11 +32,18 @@ function validInstallation(origin = "http://127.0.0.1:3000") {
   };
 }
 
+/**
+ * @param {{
+ *   externalOrigin?: string,
+ *   now?: () => number,
+ *   bootstrap?: boolean,
+ * }} [options]
+ */
 export async function startApplication(options = {}) {
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => validInstallation(options.externalOrigin),
-    validateInstallation: () => ({}),
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
@@ -35,19 +51,27 @@ export async function startApplication(options = {}) {
     writeLog() {},
   });
   applications.push(application);
+  if (!application.durableCore) {
+    throw new Error("browser_component_application_not_ready");
+  }
+  const readyApplication = /** @type {ReadyApplication} */ (application);
   if (options.bootstrap !== false) {
     bootstrapOperatorPassword(
-      application.durableCore,
+      readyApplication.durableCore,
       "a correct operator password",
     );
   }
   await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
+    readyApplication.server.once("error", reject);
+    readyApplication.server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
+  const address = readyApplication.server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("browser_component_server_address_unavailable");
+  }
   return {
-    application,
-    origin: `http://127.0.0.1:${application.server.address().port}`,
+    application: readyApplication,
+    origin: `http://127.0.0.1:${address.port}`,
   };
 }
 

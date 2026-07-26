@@ -4,6 +4,25 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/**
+ * @typedef {{
+ *   applicationVersion: string,
+ *   environment: Record<string, string>,
+ *   fixtureDirectory: string,
+ *   masterKey: string,
+ *   serviceName: string,
+ *   runCompose: (arguments_: string[], input?: string) => string,
+ *   runDocker: (arguments_: string[]) => string,
+ *   cleanup: (primaryFailure?: unknown) => void,
+ * }} PackageFixture
+ */
+
+/**
+ * @param {string} command
+ * @param {string[]} arguments_
+ * @param {Record<string, string>} [environment]
+ * @param {string} [input]
+ */
 function run(command, arguments_, environment = {}, input) {
   return execFileSync(command, arguments_, {
     cwd: process.cwd(),
@@ -16,14 +35,30 @@ function run(command, arguments_, environment = {}, input) {
 
 async function reservePort() {
   const server = createServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const { port } = server.address();
-  await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
+  await new Promise(
+    /**
+     * @param {(value: void) => void} resolve
+     * @param {(reason?: unknown) => void} reject
+     */
+    (resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => resolve(undefined));
+    },
+  );
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("package_fixture_port_reservation_failed");
+  }
+  const { port } = address;
+  await new Promise(
+    /**
+     * @param {(value: void) => void} resolve
+     * @param {(reason?: unknown) => void} reject
+     */
+    (resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve(undefined)));
+    },
+  );
   return port;
 }
 
@@ -62,12 +97,15 @@ export async function createPackageFixture() {
     fixtureDirectory,
     masterKey,
     serviceName,
+    /** @param {string[]} arguments_ @param {string} [input] */
     runCompose(arguments_, input) {
       return run("docker", ["compose", ...arguments_], environment, input);
     },
+    /** @param {string[]} arguments_ */
     runDocker(arguments_) {
       return run("docker", arguments_, environment);
     },
+    /** @param {unknown} [primaryFailure] */
     cleanup(primaryFailure) {
       try {
         this.runCompose(["down", "--volumes", "--remove-orphans"]);
@@ -75,9 +113,11 @@ export async function createPackageFixture() {
         if (!primaryFailure) {
           throw cleanupError;
         }
-        process.stderr.write(
-          `Package cleanup also failed: ${cleanupError.message}\n`,
-        );
+        const detail =
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError);
+        process.stderr.write(`Package cleanup also failed: ${detail}\n`);
       }
       rmSync(fixtureDirectory, { force: true, recursive: true });
     },

@@ -35,6 +35,28 @@ const LOCAL_FILESYSTEM_TYPES = new Set([
   0x2fc12fc1, // ZFS
 ]);
 
+/**
+ * @typedef {{
+ *   close: (descriptor: number) => void,
+ *   fsync: (descriptor: number) => void,
+ *   lstat: (path: string) => {
+ *     gid: number,
+ *     isDirectory: () => boolean,
+ *     isFile: () => boolean,
+ *     isSymbolicLink: () => boolean,
+ *     mode: number,
+ *     uid: number,
+ *   },
+ *   mkdtemp: (prefix: string) => string,
+ *   open: (path: string, flags: string, mode?: number) => number,
+ *   remove: (path: string) => void,
+ *   rename: (oldPath: string, newPath: string) => void,
+ *   statfs: (path: string) => {bavail: number, bsize: number, type: number},
+ *   writeFile: (descriptor: number, data: string) => void,
+ * }} InstallationFilesystem
+ */
+/** @typedef {{close: () => unknown, exec: (sql: string) => unknown}} InstallationLock */
+
 export class InstallationEnvironmentError extends Error {
   /**
    * @param {string} code
@@ -59,7 +81,7 @@ function fail(code, message, cause) {
 }
 
 /**
- * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {InstallationFilesystem} filesystem
  * @param {string} path
  */
 function validateOwnedDirectory(filesystem, path) {
@@ -85,7 +107,7 @@ function validateOwnedDirectory(filesystem, path) {
 }
 
 /**
- * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {InstallationFilesystem} filesystem
  * @param {string} path
  */
 function validateOwnedReadOnlyFile(filesystem, path) {
@@ -111,7 +133,7 @@ function validateOwnedReadOnlyFile(filesystem, path) {
 }
 
 /**
- * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {InstallationFilesystem} filesystem
  * @param {string} path
  * @param {boolean} requireReserve
  */
@@ -154,7 +176,7 @@ function validateFilesystem(filesystem, path, requireReserve) {
 }
 
 /**
- * @param {ReturnType<typeof createFilesystem>} filesystem
+ * @param {InstallationFilesystem} filesystem
  * @param {string} path
  */
 function validateDurableWriteSemantics(filesystem, path) {
@@ -235,9 +257,9 @@ export function validateCodexLogin({ runTool = runBundledTool } = {}) {
   }
 }
 
-/** @param {(path: string) => DatabaseSync} createLock */
+/** @param {(path: string) => InstallationLock} createLock */
 export function acquireInstallationLock(createLock) {
-  /** @type {DatabaseSync | undefined} */
+  /** @type {InstallationLock | undefined} */
   let lock;
   try {
     lock = createLock(INSTALLATION_LOCK_PATH);
@@ -294,7 +316,7 @@ function runBundledTool(command, arguments_) {
   return execFileSync(command, arguments_, { encoding: "utf8" }).trim();
 }
 
-/** @param {{ filesystem?: ReturnType<typeof createFilesystem> }} [options] */
+/** @param {{ filesystem?: InstallationFilesystem }} [options] */
 export function validateInstallationSources({
   filesystem = createFilesystem(),
 } = {}) {
@@ -305,8 +327,8 @@ export function validateInstallationSources({
 
 /**
  * @param {{
- *   createLock?: (path: string) => DatabaseSync,
- *   filesystem?: ReturnType<typeof createFilesystem>
+ *   createLock?: (path: string) => InstallationLock,
+ *   filesystem?: InstallationFilesystem
  * }} [options]
  */
 export function validateInstallationFilesystem({
@@ -370,8 +392,8 @@ export function validateBundledToolsAndCodexLogin({
 
 /**
  * @param {{
- *   createLock?: (path: string) => DatabaseSync,
- *   filesystem?: ReturnType<typeof createFilesystem>,
+ *   createLock?: (path: string) => InstallationLock,
+ *   filesystem?: InstallationFilesystem,
  *   runTool?: ToolRunner
  * }} [options]
  */

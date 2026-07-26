@@ -6,6 +6,10 @@ import {
   createRequestSecurityBoundary,
 } from "../src/request-security.js";
 
+/**
+ * @param {string} remoteAddress
+ * @param {{forwarded?: string}} [headers]
+ */
 function request(remoteAddress, headers = {}) {
   return { headers, socket: { remoteAddress } };
 }

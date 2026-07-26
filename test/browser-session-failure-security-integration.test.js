@@ -16,10 +16,12 @@ test("password and global-session mutations keep durable authority unchanged aft
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
-  const csrfToken = login.headers
-    .get("set-cookie")
-    .match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const setCookie = login.headers.get("set-cookie");
+  assert.ok(setCookie);
+  const cookie = setCookie.split(";", 1)[0];
+  const csrfMatch = setCookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/);
+  assert.ok(csrfMatch);
+  const csrfToken = csrfMatch[1];
 
   const rejectedPasswordChange = await fetch(
     `${application.origin}/api/v1/session/password`,
@@ -39,6 +41,10 @@ test("password and global-session mutations keep durable authority unchanged aft
   );
   assert.equal(rejectedPasswordChange.status, 401);
   const passwordChangeError = await rejectedPasswordChange.json();
+  assert.deepEqual(
+    passwordChangeError,
+    /** @type {{ error: { code: string } }} */ (passwordChangeError),
+  );
   assert.equal(passwordChangeError.error.code, "authentication_invalid");
   assert.doesNotMatch(
     JSON.stringify(passwordChangeError),
@@ -60,6 +66,10 @@ test("password and global-session mutations keep durable authority unchanged aft
   );
   assert.equal(rejectedRevocation.status, 422);
   const revocationError = await rejectedRevocation.json();
+  assert.deepEqual(
+    revocationError,
+    /** @type {{ error: { code: string } }} */ (revocationError),
+  );
   assert.equal(
     revocationError.error.code,
     "session_revocation_confirmation_invalid",
