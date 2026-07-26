@@ -146,13 +146,15 @@ test("the focused Node and browser JavaScript type checks pass", () => {
   }
 });
 
-test("the canonical verifier owns the JavaScript type-check gate", () => {
+test("the canonical verifier owns the production type-check gate and its proof", () => {
   const definitions = readFileSync(
     resolve(repositoryRoot, "scripts/verification/gate-definitions.mjs"),
     "utf8",
   );
 
-  assert.match(definitions, /name: "javascript-type-check"/);
+  assert.match(definitions, /name: "production-type-check"/);
+  assert.match(definitions, /arguments: \["run", "typecheck:production"\]/);
+  assert.match(definitions, /name: "production-type-check-proof"/);
   assert.match(definitions, /test\/javascript-type-check-gate\.test\.js/);
 });
 

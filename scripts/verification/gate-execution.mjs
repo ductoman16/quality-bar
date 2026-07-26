@@ -10,7 +10,8 @@ import { commandFailure } from "./failure-reporting.mjs";
  */
 export function runGate(repositoryRoot, definition) {
   const gateStartedAt = performance.now();
-  const result = spawnSync(process.execPath, definition.arguments, {
+  const command = definition.command ?? process.execPath;
+  const result = spawnSync(command, definition.arguments, {
     cwd: repositoryRoot,
     encoding: "utf8",
   });
@@ -20,6 +21,18 @@ export function runGate(repositoryRoot, definition) {
   const testCount = testCountMatch
     ? Number.parseInt(testCountMatch[1], 10)
     : null;
+  const checkGroups = (definition.checkGroups ?? []).map((group) => {
+    const matchedCount = group.countPattern
+      ? output.match(group.countPattern)?.[1]
+      : undefined;
+    return {
+      name: group.name,
+      count:
+        group.count ??
+        (matchedCount === undefined ? null : Number.parseInt(matchedCount, 10)),
+      unit: group.unit,
+    };
+  });
   const factsMatch = definition.factsMarker
     ? output.match(new RegExp(`^(?:# )?${definition.factsMarker} (.+)$`, "m"))
     : null;
@@ -30,12 +43,24 @@ export function runGate(repositoryRoot, definition) {
   if (result.status !== 0) {
     failure = {
       code: definition.failureCode,
-      detail: commandFailure(result, process.execPath, definition.arguments),
+      detail: commandFailure(result, command, definition.arguments),
     };
-  } else if (testCount === null || testCount < 1) {
+  } else if (definition.testGroup && (testCount === null || testCount < 1)) {
     failure = {
       code: "verification_evidence_invalid",
       detail: `${definition.name} passed without a positive '# tests' summary`,
+    };
+  } else if (checkGroups.some((group) => group.count === null)) {
+    failure = {
+      code: "verification_evidence_invalid",
+      detail: `${definition.name} passed without its required check count`,
+    };
+  } else if (
+    checkGroups.some((group) => group.count !== null && group.count < 1)
+  ) {
+    failure = {
+      code: "verification_evidence_invalid",
+      detail: `${definition.name} passed without a positive check count`,
     };
   } else if (definition.factsMarker && !factsMatch) {
     failure = {
@@ -66,8 +91,12 @@ export function runGate(repositoryRoot, definition) {
   /** @type {GateEvidence} */
   const evidence = {
     name: definition.name,
-    command: `node ${definition.arguments.join(" ")}`,
-    testGroups: [{ name: definition.testGroup, count: testCount }],
+    command: `${definition.command ?? "node"} ${definition.arguments.join(" ")}`,
+    testGroups: definition.testGroup
+      ? [{ name: definition.testGroup, count: testCount }]
+      : [],
+    checkGroups,
+    tools: definition.tools ?? { node: process.version },
     durationMs,
     outcome: failure ? "fail" : "pass",
   };

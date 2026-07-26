@@ -112,13 +112,15 @@ test("the focused test and verification JavaScript type checks pass", () => {
   }
 });
 
-test("the canonical verifier owns the test and verification type-check gate", () => {
+test("the canonical verifier owns the proof-code type-check gate and its proof", () => {
   const definitions = readFileSync(
     resolve(repositoryRoot, "scripts/verification/gate-definitions.mjs"),
     "utf8",
   );
 
-  assert.match(definitions, /name: "test-verification-type-check"/);
+  assert.match(definitions, /name: "proof-code-type-check"/);
+  assert.match(definitions, /arguments: \["run", "typecheck:proof"\]/);
+  assert.match(definitions, /name: "proof-code-type-check-proof"/);
   assert.match(
     definitions,
     /test\/test-verification-type-check-gate\.test\.js/,

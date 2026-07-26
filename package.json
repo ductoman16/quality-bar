@@ -16,6 +16,8 @@
     "typecheck:browser": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.browser.json",
     "typecheck:tests": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test.json && node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test-browser.json",
     "typecheck:verification": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.verification.json",
+    "typecheck:production": "npm run typecheck:node && npm run typecheck:browser",
+    "typecheck:proof": "npm run typecheck:tests && npm run typecheck:verification",
     "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
     "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
     "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",

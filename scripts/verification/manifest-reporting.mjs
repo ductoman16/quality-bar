@@ -4,6 +4,8 @@ import { dirname } from "node:path";
 /**
  * @typedef {{
  *   applicationVersion: string | null,
+ *   eslintPluginNodeVersion: string | null,
+ *   eslintVersion: string | null,
  *   formatterVersion: string | null,
  *   packagedNodeVersion: string | null,
  *   runnerGitVersion: string | null,
@@ -17,6 +19,8 @@ import { dirname } from "node:path";
  *   name: string,
  *   command: string,
  *   testGroups: {name: string, count: number | null}[],
+ *   checkGroups: {name: string, count: number | null, unit: string}[],
+ *   tools: Record<string, string>,
  *   durationMs: number,
  *   outcome: "pass" | "fail",
  *   facts?: {
@@ -96,6 +100,8 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
     },
     runnerVersions: {
       node: process.version,
+      eslint: metadata.eslintVersion,
+      "eslint-plugin-n": metadata.eslintPluginNodeVersion,
       prettier: metadata.formatterVersion,
       typescript: metadata.typeCheckerVersion,
       git: metadata.runnerGitVersion,
@@ -126,18 +132,35 @@ export function formatReport(manifest, manifestPath) {
     lines.push("- metadata: FAIL");
   }
   for (const gate of manifest.invokedGates) {
-    const count = gate.testGroups.reduce(
+    const testCount = gate.testGroups.reduce(
       (total, group) => total + (group.count ?? 0),
       0,
     );
+    const countsByUnit = new Map();
+    for (const group of gate.checkGroups) {
+      countsByUnit.set(
+        group.unit,
+        (countsByUnit.get(group.unit) ?? 0) + (group.count ?? 0),
+      );
+    }
+    const counts = [];
+    if (testCount > 0) {
+      counts.push(`${testCount} test${testCount === 1 ? "" : "s"}`);
+    }
+    for (const [unit, count] of countsByUnit) {
+      counts.push(`${count} ${unit}${count === 1 ? "" : "s"}`);
+    }
+    const tools = Object.entries(gate.tools)
+      .map(([name, version]) => `${name} ${version}`)
+      .join(", ");
     lines.push(
-      `- ${gate.name}: ${gate.outcome.toUpperCase()} (${count} test${count === 1 ? "" : "s"}, ${gate.durationMs} ms)`,
+      `- ${gate.name}: ${gate.outcome.toUpperCase()} (${counts.join(", ")}, ${gate.durationMs} ms; ${tools})`,
     );
   }
   for (const failure of manifest.failures) {
     const detailWasPrinted =
-      failure.code === "unit_tests_failed" ||
-      failure.code === "package_integration_failed";
+      failure.code !== "verification_evidence_invalid" &&
+      manifest.invokedGates.some((gate) => gate.outcome === "fail");
     lines.push(
       `- ${failure.code}${detailWasPrinted ? "" : `: ${failure.detail}`}`,
     );
