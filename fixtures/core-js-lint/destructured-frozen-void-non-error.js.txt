@@ -1,0 +1,2 @@
+const { missing } = Object.freeze({ missing: void 0 });
+throw missing;

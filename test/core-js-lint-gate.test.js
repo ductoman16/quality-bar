@@ -32,11 +32,38 @@ test("the core JavaScript correctness gate reports every required rule family", 
     "implicit-coercion": "no-implicit-coercion",
     "error-only-throwing": "no-throw-literal",
     "constructed-non-error": "error-only-throwing/error-only-throwing",
+    "destructured-frozen-non-error": "error-only-throwing/error-only-throwing",
+    "destructured-frozen-aliased-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-defaulted-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-absent-defaulted-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-void-defaulted-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-absent-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-undefined-non-error":
+      "error-only-throwing/error-only-throwing",
+    "destructured-frozen-void-non-error":
+      "error-only-throwing/error-only-throwing",
     "bound-non-error": "error-only-throwing/error-only-throwing",
+    "bare-error-constructor": "error-only-throwing/error-only-throwing",
+    "bare-non-error-constructor": "error-only-throwing/error-only-throwing",
+    "called-non-error": "error-only-throwing/error-only-throwing",
+    "called-built-in-non-error": "error-only-throwing/error-only-throwing",
+    "inline-called-non-error": "error-only-throwing/error-only-throwing",
+    "member-function-non-error": "error-only-throwing/error-only-throwing",
+    "member-function-result-non-error":
+      "error-only-throwing/error-only-throwing",
+    "member-built-in-result-non-error":
+      "error-only-throwing/error-only-throwing",
+    "member-non-error": "error-only-throwing/error-only-throwing",
     "shadowed-error-name": "error-only-throwing/error-only-throwing",
     "unproven-import": "error-only-throwing/error-only-throwing",
     "nested-relative-import": "error-only-throwing/error-only-throwing",
     "reassigned-non-error": "error-only-throwing/error-only-throwing",
+    "snapshot-function-non-error": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
     "object-shorthand": "object-shorthand",
     "immutable-binding": "prefer-const",
@@ -141,6 +168,51 @@ test("Error-only throwing accepts every proven repository Error export", async (
         path: "src/error-import-fixture.js",
         source:
           "import { BrowserSessionError as Failure } from './browser-session.js';\nthrow new Failure('invalid', 'invalid');\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
+});
+
+test("Error-only throwing accepts a validated repository Error re-export", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-reexport-fixture.js",
+        source:
+          "import { DurableCoreError as Failure } from './durable-core.js';\nthrow new Failure('invalid', 'invalid');\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
+});
+
+test("Error-only throwing does not reject calls or members changed to Error values", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-reassignment-fixture.js",
+        source:
+          "let factory = () => new String('invalid');\nfactory = () => new Error('valid');\nconst holder = { failure: new String('invalid') };\nholder['failure'] = new Error('valid');\nconst aliasHolder = { failure: new String('invalid') };\nconst alias = aliasHolder;\nalias.failure = new Error('valid');\nlet value = new String('invalid');\nconst captured = () => value;\nvalue = new Error('valid');\nfunction throwFactory() {\n  throw factory();\n}\nfunction throwHolder() {\n  throw holder.failure;\n}\nfunction throwAliasHolder() {\n  throw aliasHolder.failure;\n}\nfunction throwCaptured() {\n  throw captured();\n}\nfunction throwConditional(condition) {\n  let conditional = new Error('valid');\n  if (condition) {\n    conditional = new String('invalid');\n  }\n  throw conditional;\n}\nfunction throwDeferred() {\n  let deferred = new Error('valid');\n  const deferredWrite = () => {\n    deferred = new String('invalid');\n  };\n  Object.freeze(deferredWrite);\n  throw deferred;\n}\nlet ordered = new Error('valid');\nfunction throwLater() {\n  throw ordered;\n}\nordered = new String('invalid');\nthrowFactory();\nthrowHolder();\nthrowAliasHolder();\nthrowCaptured();\nthrowConditional(false);\nthrowDeferred();\nthrowLater();\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
+});
+
+test("Error-only throwing accepts an Error default for an undefined frozen property", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-default-fixture.js",
+        source:
+          "const { failure: reason = new Error('valid') } = Object.freeze({ failure: undefined });\nthrow reason;\n",
       },
     ],
     repositoryRoot,
