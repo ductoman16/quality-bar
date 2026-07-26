@@ -155,6 +155,9 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     requestFacts.push(
       `${request.method} ${request.url} cookie=${String(Boolean(request.headers.cookie))}`,
     );
+    if (requestFacts.length > 20) {
+      requestFacts.shift();
+    }
     if (
       request.method === "GET" &&
       request.url === "/operator-browser-login.js"
@@ -246,7 +249,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       throw new Error(
         `operator_browser_firefox_failed: ${
           error instanceof Error ? error.message : String(error)
-        }; requests: ${JSON.stringify(requestFacts.slice(-20))}; stderr: ${
+        }; requests: ${JSON.stringify(requestFacts)}; stderr: ${
           firefoxStandardError.trim() || "unavailable"
         }`,
       );
