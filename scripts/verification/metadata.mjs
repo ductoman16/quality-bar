@@ -37,6 +37,30 @@ function readRequiredMatch(repositoryRoot, path, pattern, description) {
   return value;
 }
 
+/**
+ * @param {string} repositoryRoot
+ * @param {string} packageName
+ * @param {string} expectedVersion
+ */
+function readInstalledPackageVersion(
+  repositoryRoot,
+  packageName,
+  expectedVersion,
+) {
+  const packageMetadata = JSON.parse(
+    readFileSync(
+      resolve(repositoryRoot, "node_modules", packageName, "package.json"),
+      "utf8",
+    ),
+  );
+  if (packageMetadata.version !== expectedVersion) {
+    throw new Error(
+      `node_modules/${packageName} must report ${expectedVersion}, received ${String(packageMetadata.version)}`,
+    );
+  }
+  return packageMetadata.version;
+}
+
 /** @param {string} repositoryRoot */
 export function readVerificationMetadata(repositoryRoot) {
   const applicationVersion = readRequiredMatch(
@@ -74,6 +98,16 @@ export function readVerificationMetadata(repositoryRoot) {
 
   return {
     applicationVersion,
+    eslintPluginNodeVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "eslint-plugin-n",
+      "18.2.2",
+    ),
+    eslintVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "eslint",
+      "9.39.1",
+    ),
     formatterVersion,
     packagedNodeVersion,
     runnerGitVersion: captureCommand(repositoryRoot, "git", [

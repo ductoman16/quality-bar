@@ -37,6 +37,8 @@ export function runVerification({
   /** @type {import("./manifest-reporting.mjs").VerificationMetadata} */
   let metadata = {
     applicationVersion: null,
+    eslintPluginNodeVersion: null,
+    eslintVersion: null,
     formatterVersion: null,
     packagedNodeVersion: null,
     runnerGitVersion: null,
@@ -53,8 +55,7 @@ export function runVerification({
     });
   }
 
-  const definitions =
-    gateDefinitions ?? createGateDefinitions(metadata.applicationVersion);
+  const definitions = gateDefinitions ?? createGateDefinitions(metadata);
   if (failures.length === 0) {
     for (const definition of definitions) {
       const result = runGate(repositoryRoot, definition);
