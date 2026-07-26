@@ -62,7 +62,9 @@ test("structural validation rejects unsupported and invalid contracts with ownin
 });
 
 test("runtime conformance accepts a documented request and empty success", async () => {
-  const assertion = createHttpConformanceAssertion(canonicalOpenApiDocument());
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
 
   await assertion.assertExchange(documentedExchange());
 
@@ -78,7 +80,7 @@ test("runtime conformance accepts a documented request and empty success", async
 
 test("the shared HTTP fetch validates every exchange automatically", async () => {
   let calls = 0;
-  const conformingFetch = createConformingFetch(
+  const conformingFetch = await createConformingFetch(
     canonicalOpenApiDocument(),
     async () => {
       calls += 1;
@@ -102,7 +104,9 @@ test("the shared HTTP fetch validates every exchange automatically", async () =>
 });
 
 test("runtime conformance rejects invalid request, response, status, content type, and canonical error fixtures", async () => {
-  const assertion = createHttpConformanceAssertion(canonicalOpenApiDocument());
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
 
   await assert.rejects(
     () =>
@@ -179,9 +183,12 @@ test("runtime conformance rejects invalid request, response, status, content typ
     ]
   );
   booleanSchemaMediaType.schema = false;
+  const booleanSchemaAssertion = await createHttpConformanceAssertion(
+    booleanSchemaContract,
+  );
   await assert.rejects(
     () =>
-      createHttpConformanceAssertion(booleanSchemaContract).assertExchange(
+      booleanSchemaAssertion.assertExchange(
         documentedExchange({
           request: {
             method: "GET",
@@ -193,6 +200,21 @@ test("runtime conformance rejects invalid request, response, status, content typ
     {
       message:
         "openapi_success_document_invalid: GET /api/v1/system status 200 / boolean schema is false",
+    },
+  );
+
+  const primitiveSchemaContract = canonicalOpenApiDocument();
+  const primitiveSchemaMediaType = /** @type {Record<string, unknown>} */ (
+    primitiveSchemaContract.paths["/api/v1/system"].get.responses[200].content[
+      "application/json"
+    ]
+  );
+  primitiveSchemaMediaType.schema = 42;
+  await assert.rejects(
+    () => createHttpConformanceAssertion(primitiveSchemaContract),
+    {
+      message:
+        "openapi_structure_invalid: /paths/~1api~1v1~1system/get/responses/200/content/application~1json/schema must be object,boolean",
     },
   );
 

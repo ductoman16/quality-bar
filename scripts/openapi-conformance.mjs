@@ -140,7 +140,8 @@ function parseJson(body, owner) {
  */
 
 /** @param {Record<string, any>} document */
-export function createHttpConformanceAssertion(document) {
+export async function createHttpConformanceAssertion(document) {
+  await validateOpenApi31Document(document);
   const facts = {
     canonicalErrors: 0,
     exchanges: 0,
@@ -295,8 +296,11 @@ export function createHttpConformanceAssertion(document) {
  * @param {Record<string, any>} document
  * @param {typeof fetch} [fetchImplementation]
  */
-export function createConformingFetch(document, fetchImplementation = fetch) {
-  const assertion = createHttpConformanceAssertion(document);
+export async function createConformingFetch(
+  document,
+  fetchImplementation = fetch,
+) {
+  const assertion = await createHttpConformanceAssertion(document);
   /** @param {string | URL | Request} input @param {RequestInit} [init] */
   async function execute(input, init) {
     const request = new Request(input, init);

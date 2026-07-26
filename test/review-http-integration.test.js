@@ -61,7 +61,9 @@ async function startApplication(options = {}) {
   }
   applications.push(readyApplication);
   const origin = `http://127.0.0.1:${address.port}`;
-  const conformingFetch = createConformingFetch(canonicalOpenApiDocument());
+  const conformingFetch = await createConformingFetch(
+    canonicalOpenApiDocument(),
+  );
   /** @param {string} path @param {RequestInit} [init] */
   const request = (path, init) => conformingFetch(new URL(path, origin), init);
   /** @param {string} path @param {RequestInit} [init] */
