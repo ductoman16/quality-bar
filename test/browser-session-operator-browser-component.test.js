@@ -3,6 +3,31 @@ import { test } from "node:test";
 
 import { startApplication } from "./browser-session-component-support.js";
 
+/** @param {Response} response @param {string} name */
+function requiredHeader(response, name) {
+  const value = response.headers.get(name);
+  if (!value) {
+    throw new Error(`operator_component_header_missing: ${name}`);
+  }
+  return value;
+}
+
+/** @param {Response} response */
+function sessionCookies(response) {
+  const cookies = requiredHeader(response, "set-cookie");
+  const session = cookies.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)?.[0];
+  const csrf = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  if (!session || !csrf) {
+    throw new Error("operator_component_session_cookies_invalid");
+  }
+  return { csrf, session };
+}
+
+/** @param {Response} response */
+async function tokenBody(response) {
+  return /** @type {{token: string}} */ (await response.json());
+}
+
 test("the authenticated operator surface changes a password and revokes all sessions with fresh confirmation", async () => {
   const { origin } = await startApplication();
   const currentPassword = "a correct operator password";
@@ -12,19 +37,14 @@ test("the authenticated operator surface changes a password and revokes all sess
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const firstCookies = firstLogin.headers.get("set-cookie");
-  const firstCookie = firstCookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const firstCsrfToken = firstCookies.match(
-    /quality_bar_csrf=([A-Za-z0-9_-]{43})/,
-  )[1];
+  const { csrf: firstCsrfToken, session: firstCookie } =
+    sessionCookies(firstLogin);
   const secondLogin = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: currentPassword }),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const secondCookie = secondLogin.headers.get("set-cookie").split(";", 1)[0];
+  const { session: secondCookie } = sessionCookies(secondLogin);
 
   const authenticatedPage = await fetch(`${origin}/`, {
     headers: { cookie: firstCookie },
@@ -53,7 +73,7 @@ test("the authenticated operator surface changes a password and revokes all sess
     method: "POST",
   });
   assert.equal(passwordChange.status, 204);
-  assert.match(passwordChange.headers.get("set-cookie"), /Max-Age=0/);
+  assert.match(requiredHeader(passwordChange, "set-cookie"), /Max-Age=0/);
   assert.equal(
     (
       await fetch(`${origin}/api/v1/system`, {
@@ -76,13 +96,8 @@ test("the authenticated operator surface changes a password and revokes all sess
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const replacementCookies = replacementLogin.headers.get("set-cookie");
-  const replacementCookie = replacementCookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const replacementCsrfToken = replacementCookies.match(
-    /quality_bar_csrf=([A-Za-z0-9_-]{43})/,
-  )[1];
+  const { csrf: replacementCsrfToken, session: replacementCookie } =
+    sessionCookies(replacementLogin);
   const revocation = await fetch(`${origin}/api/v1/sessions/revoke`, {
     body: JSON.stringify({
       confirmation: "REVOKE ALL SESSIONS",
@@ -97,7 +112,7 @@ test("the authenticated operator surface changes a password and revokes all sess
     method: "POST",
   });
   assert.equal(revocation.status, 204);
-  assert.match(revocation.headers.get("set-cookie"), /Max-Age=0/);
+  assert.match(requiredHeader(revocation, "set-cookie"), /Max-Age=0/);
   assert.equal(
     (
       await fetch(`${origin}/api/v1/system`, {
@@ -116,11 +131,7 @@ test("the authenticated operator surface reveals each generated implementer toke
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookies = login.headers.get("set-cookie");
-  const sessionCookie = cookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: csrfToken, session: sessionCookie } = sessionCookies(login);
   const headers = {
     "content-type": "application/json",
     cookie: `${sessionCookie}; quality_bar_csrf=${csrfToken}`,
@@ -146,7 +157,7 @@ test("the authenticated operator surface reveals each generated implementer toke
     method: "POST",
   });
   assert.equal(created.status, 201);
-  const createdToken = (await created.json()).token;
+  const createdToken = (await tokenBody(created)).token;
   assert.match(createdToken, /^[A-Za-z0-9_-]{43}$/);
 
   const duplicateCreate = await fetch(`${origin}/api/v1/implementer-token`, {
@@ -156,7 +167,8 @@ test("the authenticated operator surface reveals each generated implementer toke
   });
   assert.equal(duplicateCreate.status, 409);
   assert.equal(
-    (await duplicateCreate.json()).error.code,
+    /** @type {{error: {code: string}}} */ (await duplicateCreate.json()).error
+      .code,
     "implementer_token_already_active",
   );
 
@@ -166,7 +178,7 @@ test("the authenticated operator surface reveals each generated implementer toke
     method: "POST",
   });
   assert.equal(rotated.status, 200);
-  assert.match((await rotated.json()).token, /^[A-Za-z0-9_-]{43}$/);
+  assert.match((await tokenBody(rotated)).token, /^[A-Za-z0-9_-]{43}$/);
 
   const revoked = await fetch(`${origin}/api/v1/implementer-token/revoke`, {
     body: JSON.stringify({ password }),

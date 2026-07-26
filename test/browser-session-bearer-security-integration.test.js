@@ -7,6 +7,12 @@ import {
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
 
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
 test("machine credentials are accepted only as a sole Authorization bearer value", async () => {
   const application = await startApplication(temporaryDatabasePath());
   const password = "a correct operator password";
@@ -17,17 +23,14 @@ test("machine credentials are accepted only as a sole Authorization bearer value
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(validBearer.status, 403);
-  assert.equal(
-    (await validBearer.json()).error.code,
-    "authorization_forbidden",
-  );
+  assert.equal(await responseErrorCode(validBearer), "authorization_forbidden");
 
   const browserSurface = await fetch(`${application.origin}/`, {
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(browserSurface.status, 403);
   assert.equal(
-    (await browserSurface.json()).error.code,
+    await responseErrorCode(browserSurface),
     "authorization_forbidden",
   );
 
@@ -36,7 +39,7 @@ test("machine credentials are accepted only as a sole Authorization bearer value
   );
   assert.equal(unauthenticatedUnknownQuery.status, 401);
   assert.equal(
-    (await unauthenticatedUnknownQuery.json()).error.code,
+    await responseErrorCode(unauthenticatedUnknownQuery),
     "authentication_required",
   );
 
@@ -46,7 +49,7 @@ test("machine credentials are accepted only as a sole Authorization bearer value
   );
   assert.equal(forbiddenUnknownQuery.status, 403);
   assert.equal(
-    (await forbiddenUnknownQuery.json()).error.code,
+    await responseErrorCode(forbiddenUnknownQuery),
     "authorization_forbidden",
   );
 
@@ -60,12 +63,13 @@ test("machine credentials are accepted only as a sole Authorization bearer value
     method: "POST",
   });
   assert.equal(mixedLogin.status, 401);
-  assert.equal(
-    (await mixedLogin.json()).error.code,
-    "authentication_ambiguous",
-  );
+  assert.equal(await responseErrorCode(mixedLogin), "authentication_ambiguous");
 
-  for (const [url, headers, expectedCode] of [
+  for (const [url, headers, expectedCode] of /** @type {[
+    string,
+    Record<string, string>,
+    string,
+  ][]} */ ([
     [
       `${application.origin}/api/v1/system?ToKeN=${token}`,
       {},
@@ -84,10 +88,10 @@ test("machine credentials are accepted only as a sole Authorization bearer value
       },
       "authentication_ambiguous",
     ],
-  ]) {
+  ])) {
     const response = await fetch(url, { headers });
     assert.equal(response.status, 401);
-    assert.equal((await response.json()).error.code, expectedCode);
+    assert.equal(await responseErrorCode(response), expectedCode);
   }
   assert.ok(
     application.application.durableCore
@@ -96,6 +100,7 @@ test("machine credentials are accepted only as a sole Authorization bearer value
       )
       .some(
         (event) =>
+          event !== undefined &&
           event.action === "authentication" &&
           event.channel === "implementer_token" &&
           event.outcome === "failure" &&
@@ -109,6 +114,7 @@ test("machine credentials are accepted only as a sole Authorization bearer value
       )
       .some(
         (event) =>
+          event !== undefined &&
           event.action === "authentication" &&
           event.channel === "browser_session" &&
           event.outcome === "failure" &&

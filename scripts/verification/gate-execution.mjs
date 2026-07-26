@@ -2,6 +2,12 @@ import { spawnSync } from "node:child_process";
 
 import { commandFailure } from "./failure-reporting.mjs";
 
+/** @typedef {import("./manifest-reporting.mjs").VerificationGate} GateEvidence */
+
+/**
+ * @param {string} repositoryRoot
+ * @param {import("./gate-definitions.mjs").GateDefinition} definition
+ */
 export function runGate(repositoryRoot, definition) {
   const gateStartedAt = performance.now();
   const result = spawnSync(process.execPath, definition.arguments, {
@@ -17,6 +23,7 @@ export function runGate(repositoryRoot, definition) {
   const factsMatch = definition.factsMarker
     ? output.match(new RegExp(`^(?:# )?${definition.factsMarker} (.+)$`, "m"))
     : null;
+  /** @type {GateEvidence["facts"] | null} */
   let facts = null;
   let failure;
 
@@ -49,11 +56,14 @@ export function runGate(repositoryRoot, definition) {
     } catch (error) {
       failure = {
         code: "verification_evidence_invalid",
-        detail: `${definition.factsMarker} is not valid JSON: ${error.message}`,
+        detail: `${definition.factsMarker} is not valid JSON: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       };
     }
   }
 
+  /** @type {GateEvidence} */
   const evidence = {
     name: definition.name,
     command: `node ${definition.arguments.join(" ")}`,

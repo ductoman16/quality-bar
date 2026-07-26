@@ -3,6 +3,12 @@ import { join } from "node:path";
 const containerProbeDirectory = "/tmp/quality-bar-package-probes";
 const fixtureProbeDirectory = "fixtures/package";
 
+/**
+ * @param {import("./package-fixture.mjs").PackageFixture} fixture
+ * @param {string} name
+ * @param {string[]} [arguments_]
+ * @param {string} [input]
+ */
 export function runPackageProbe(fixture, name, arguments_ = [], input) {
   fixture.runCompose([
     "exec",

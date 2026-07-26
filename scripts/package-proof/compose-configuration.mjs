@@ -1,6 +1,36 @@
 import assert from "node:assert/strict";
 
+/**
+ * @typedef {{
+ *   source?: string,
+ *   target: string,
+ *   type: string,
+ *   volume?: object,
+ *   read_only?: boolean,
+ * }} ComposeVolume
+ */
+
+/**
+ * @typedef {{
+ *   services: Record<string, {
+ *     platform: string,
+ *     image: string,
+ *     profiles?: unknown,
+ *     depends_on?: unknown,
+ *     network_mode: string,
+ *     ports?: unknown,
+ *     volumes: ComposeVolume[],
+ *   }>,
+ *   volumes: Record<string, object>,
+ * }} ComposeConfiguration
+ */
+
+/**
+ * @param {import("./package-fixture.mjs").PackageFixture} fixture
+ * @returns {ComposeConfiguration}
+ */
 export function assertComposeConfiguration(fixture) {
+  /** @type {ComposeConfiguration} */
   const configuration = JSON.parse(
     fixture.runCompose(["config", "--format", "json"]),
   );

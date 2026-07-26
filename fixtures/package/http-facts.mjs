@@ -1,9 +1,16 @@
 const [port] = process.argv.slice(2);
 const endpoint = `http://127.0.0.1:${port}`;
 
+/**
+ * @param {string} path
+ * @param {Record<string, string>} [headers]
+ */
 async function responseFacts(path, headers) {
   const response = await fetch(`${endpoint}${path}`, { headers });
-  return { body: await response.json(), status: response.status };
+  const body = /** @type {{error: {code: string}, status?: string}} */ (
+    await response.json()
+  );
+  return { body, status: response.status };
 }
 
 const liveness = await responseFacts("/health/live");

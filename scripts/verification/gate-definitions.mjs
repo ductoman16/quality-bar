@@ -1,6 +1,21 @@
 import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 
+/**
+ * @typedef {{
+ *   name: string,
+ *   testGroup: string,
+ *   failureCode: string,
+ *   arguments: string[],
+ *   factsMarker?: string,
+ *   validateFacts?: (facts: unknown) => string | null,
+ * }} GateDefinition
+ */
+
+/**
+ * @param {string | null} applicationVersion
+ * @returns {GateDefinition[]}
+ */
 export function createGateDefinitions(applicationVersion) {
   return [
     {
@@ -104,6 +119,12 @@ export function createGateDefinitions(applicationVersion) {
       testGroup: "production-node-and-served-browser-javascript",
       failureCode: "javascript_type_check_failed",
       arguments: ["--test", "test/javascript-type-check-gate.test.js"],
+    },
+    {
+      name: "test-verification-type-check",
+      testGroup: "maintained-test-verification-and-proof-javascript",
+      failureCode: "test_verification_type_check_failed",
+      arguments: ["--test", "test/test-verification-type-check-gate.test.js"],
     },
   ];
 }

@@ -65,8 +65,7 @@ test("the shared command runner invokes child Node with the validated runtime", 
     process.execPath,
     [
       "scripts/run-with-exact-node.mjs",
-      "--eval",
-      "process.stdout.write(process.version)",
+      "fixtures/test-probes/runtime-version.mjs",
     ],
     { cwd: repositoryRoot, encoding: "utf8" },
   );

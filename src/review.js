@@ -145,7 +145,21 @@ function conflict(error) {
 }
 
 /**
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @typedef {{
+ *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
+ *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>,
+ *   run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
+ * }} ReviewTransaction
+ */
+
+/**
+ * @typedef {{
+ *   transaction<Result>(callback: (transaction: ReviewTransaction) => Result): Result
+ * }} ReviewDurableCore
+ */
+
+/**
+ * @param {ReviewDurableCore} durableCore
  * @param {{ createId?: () => string, now?: () => number }} [options]
  */
 export function createReviewService(

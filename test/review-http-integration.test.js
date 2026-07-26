@@ -7,7 +7,16 @@ import { afterEach, test } from "node:test";
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @typedef {ReturnType<typeof createApplication>} Application */
+/**
+ * @typedef {Application & {
+ *   durableCore: NonNullable<Application["durableCore"]>,
+ *   implementerTokens: NonNullable<Application["implementerTokens"]>,
+ * }} ReadyApplication
+ */
+/** @type {Application[]} */
 const applications = [];
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -16,6 +25,7 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
+/** @param {{createReviews?: Parameters<typeof createApplication>[0]["createReviews"]}} [options] */
 async function startApplication(options = {}) {
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
@@ -24,28 +34,37 @@ async function startApplication(options = {}) {
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),
-    validateInstallation: () => ({}),
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
     createReviews: options.createReviews,
     writeLog() {},
   });
+  if (!application.durableCore || !application.implementerTokens) {
+    throw new Error("review_http_application_not_ready");
+  }
+  const readyApplication = /** @type {ReadyApplication} */ (application);
   bootstrapOperatorPassword(
-    application.durableCore,
+    readyApplication.durableCore,
     "a correct operator password",
   );
   await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
+    readyApplication.server.once("error", reject);
+    readyApplication.server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
-  applications.push(application);
+  const address = readyApplication.server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("review_http_server_address_unavailable");
+  }
+  applications.push(readyApplication);
   return {
-    application,
-    origin: `http://127.0.0.1:${application.server.address().port}`,
+    application: readyApplication,
+    origin: `http://127.0.0.1:${address.port}`,
   };
 }
 
+/** @param {Record<string, unknown>} [overrides] */
 function reviewRequest(overrides = {}) {
   return {
     assignment: { scope: "installation_wide" },
@@ -66,6 +85,25 @@ function reviewRequest(overrides = {}) {
   };
 }
 
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
+/** @param {Response} response */
+function sessionCookies(response) {
+  const setCookie = response.headers.get("set-cookie");
+  const session = setCookie?.match(
+    /quality_bar_session=[A-Za-z0-9_-]{43}/,
+  )?.[0];
+  const csrf = setCookie?.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  if (!session || !csrf) {
+    throw new Error("review_http_session_cookies_missing");
+  }
+  return { csrf, session };
+}
+
 afterEach(async () => {
   for (const application of applications.splice(0)) {
     await application.close();
@@ -81,7 +119,7 @@ test("an API-looking path outside the exact version boundary stays not found", a
   const response = await fetch(`${origin}/api/v10?unexpected=value`);
 
   assert.equal(response.status, 404);
-  assert.equal((await response.json()).error.code, "not_found");
+  assert.equal(await responseErrorCode(response), "not_found");
 });
 
 test("the authenticated Review resource creates only an exact complete v1 snapshot", async () => {
@@ -91,9 +129,7 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const setCookie = login.headers.get("set-cookie");
-  const session = setCookie.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
-  const csrf = setCookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf, session } = sessionCookies(login);
   const headers = {
     "content-type": "application/json",
     cookie: `${session}; quality_bar_csrf=${csrf}`,
@@ -107,7 +143,10 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
     method: "POST",
   });
   assert.equal(created.status, 201);
-  assert.equal((await created.json()).active_version.number, 1);
+  const createdReview = /** @type {{active_version: {number: number}}} */ (
+    await created.json()
+  );
+  assert.equal(createdReview.active_version.number, 1);
 
   const rejected = await fetch(`${origin}/api/v1/reviews`, {
     body: JSON.stringify(reviewRequest({ unexpected: true })),
@@ -115,11 +154,11 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
     method: "POST",
   });
   assert.equal(rejected.status, 422);
-  assert.equal((await rejected.json()).error.code, "review_request_malformed");
-  assert.equal(
-    application.durableCore.get("SELECT count(*) AS count FROM reviews").count,
-    1,
+  assert.equal(await responseErrorCode(rejected), "review_request_malformed");
+  const reviewCount = application.durableCore.get(
+    "SELECT count(*) AS count FROM reviews",
   );
+  assert.equal(reviewCount?.count, 1);
 });
 
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
@@ -137,7 +176,8 @@ test("a sole implementer bearer creates the same Review resource without browser
     method: "POST",
   });
   assert.equal(created.status, 201);
-  assert.equal((await created.json()).name, "Machine HTTP boundaries");
+  const createdReview = /** @type {{name: string}} */ (await created.json());
+  assert.equal(createdReview.name, "Machine HTTP boundaries");
 });
 
 test("an unexpected Review resource failure has an exact owning error", async () => {
@@ -156,9 +196,7 @@ test("an unexpected Review resource failure has an exact owning error", async ()
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const setCookie = login.headers.get("set-cookie");
-  const session = setCookie.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)[0];
-  const csrf = setCookie.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf, session } = sessionCookies(login);
   const response = await fetch(`${origin}/api/v1/reviews`, {
     body: JSON.stringify(reviewRequest()),
     headers: {
@@ -170,7 +208,10 @@ test("an unexpected Review resource failure has an exact owning error", async ()
     method: "POST",
   });
   assert.equal(response.status, 500);
-  const body = await response.json();
+  const body =
+    /** @type {{error: {code: string, message: string, request_id: string}}} */ (
+      await response.json()
+    );
   assert.equal(body.error.code, "review_creation_failed");
   assert.equal(body.error.message, "exact Review resource failure");
   assert.match(body.error.request_id, /^[0-9a-f-]{36}$/);

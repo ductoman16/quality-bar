@@ -9,8 +9,10 @@ import { afterEach, test } from "node:test";
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
 
+/** @param {string} prefix */
 function temporaryDirectory(prefix) {
   const directory = mkdtempSync(join(tmpdir(), prefix));
   temporaryDirectories.push(directory);
@@ -27,22 +29,27 @@ function firefoxBinary() {
   return binary;
 }
 
+/** @param {import("node:http").Server} server */
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
 }
 
+/** @param {import("node:http").Server} server */
 function close(server) {
   return new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
+    server.close((error) => (error ? reject(error) : resolve(undefined)));
   });
 }
 
+/** @param {import("node:http").IncomingMessage} request */
 function readBody(request) {
   return new Promise((resolve, reject) => {
+    /** @type {Buffer[]} */
     const chunks = [];
+    /** @param {Buffer} chunk */
     request.on("data", (chunk) => {
       chunks.push(chunk);
     });
@@ -51,6 +58,7 @@ function readBody(request) {
   });
 }
 
+/** @param {Buffer} body */
 function automatedLoginPage(body) {
   return Buffer.from(
     body
@@ -69,6 +77,12 @@ function automatedLoginScript() {
   );
 }
 
+/**
+ * @template Result
+ * @param {Promise<Result>} value
+ * @param {number} [timeoutMs]
+ * @returns {Promise<Result>}
+ */
 function waitFor(value, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(
@@ -104,25 +118,38 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),
-    validateInstallation: () => ({}),
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
     writeLog() {},
   });
+  if (!application.durableCore) {
+    throw new Error("operator_browser_application_not_ready");
+  }
   bootstrapOperatorPassword(
     application.durableCore,
     "a correct operator password",
   );
   await listen(application.server);
-  const applicationOrigin = `http://127.0.0.1:${application.server.address().port}`;
+  const applicationAddress = application.server.address();
+  if (!applicationAddress || typeof applicationAddress === "string") {
+    throw new Error("operator_browser_application_address_unavailable");
+  }
+  const applicationOrigin = `http://127.0.0.1:${applicationAddress.port}`;
   let sawAuthenticatedShell = false;
   let sawSystemFetch = false;
-  let complete;
+  /** @type {() => void} */
+  let complete = () => {
+    throw new Error("operator_browser_completion_not_initialized");
+  };
   const completed = new Promise((resolve) => {
-    complete = resolve;
+    complete = () => resolve(undefined);
   });
   const proxy = createServer(async (request, response) => {
+    if (!request.method || !request.url) {
+      throw new Error("operator_browser_proxy_request_invalid");
+    }
     if (
       request.method === "GET" &&
       request.url === "/operator-browser-login.js"
@@ -136,6 +163,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     const body = ["GET", "HEAD"].includes(request.method)
       ? undefined
       : await readBody(request);
+    /** @type {Record<string, string>} */
     const headers = {};
     if (request.headers.cookie) {
       headers.cookie = request.headers.cookie;
@@ -177,7 +205,11 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     }
   });
   await listen(proxy);
-  const proxyOrigin = `http://127.0.0.1:${proxy.address().port}`;
+  const proxyAddress = proxy.address();
+  if (!proxyAddress || typeof proxyAddress === "string") {
+    throw new Error("operator_browser_proxy_address_unavailable");
+  }
+  const proxyOrigin = `http://127.0.0.1:${proxyAddress.port}`;
   const firefox = spawn(firefoxBinary(), [
     "--headless",
     "--no-remote",

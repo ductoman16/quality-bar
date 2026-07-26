@@ -21,12 +21,36 @@ import {
 
 const ownedPaths = [STATE_PATH, CODEX_HOME_PATH, CHECKOUTS_PATH, BACKUPS_PATH];
 
+/**
+ * @typedef {{
+ *   gid?: number,
+ *   notDirectory?: boolean,
+ *   notFile?: boolean,
+ *   symbolicLink?: boolean,
+ *   mode?: number,
+ *   uid?: number,
+ *   bavail?: number,
+ *   filesystemType?: number,
+ * }} FilesystemInput
+ */
+/**
+ * @typedef {{
+ *   gitVersion?: string,
+ *   codexVersion?: string,
+ *   loginUnavailable?: boolean,
+ * }} ToolInput
+ */
+
+/** @param {FilesystemInput} [input] */
 function createFilesystem(input = {}) {
+  /** @type {Set<string>} */
   const locks = new Set();
+  /** @type {number[]} */
   const syncedDescriptors = [];
   let descriptor = 0;
   return {
     close() {},
+    /** @param {string} path */
     createLock(path) {
       if (locks.has(path)) {
         throw new Error("already locked");
@@ -39,9 +63,11 @@ function createFilesystem(input = {}) {
         exec() {},
       };
     },
+    /** @param {number} descriptor */
     fsync(descriptor) {
       syncedDescriptors.push(descriptor);
     },
+    /** @param {string} path */
     lstat(path) {
       const isDirectory = ownedPaths.includes(path);
       return {
@@ -53,6 +79,7 @@ function createFilesystem(input = {}) {
         uid: input.uid ?? 10001,
       };
     },
+    /** @param {string} prefix */
     mkdtemp(prefix) {
       return `${prefix}test`;
     },
@@ -62,6 +89,7 @@ function createFilesystem(input = {}) {
     },
     remove() {},
     rename() {},
+    /** @param {string} path */
     statfs(path) {
       assert.ok(ownedPaths.includes(path));
       return {
@@ -75,7 +103,9 @@ function createFilesystem(input = {}) {
   };
 }
 
+/** @param {ToolInput} [input] */
 function runTool(input = {}) {
+  /** @param {string} command @param {string[]} arguments_ */
   return (command, arguments_) => {
     if (command === "git" && arguments_[0] === "--version") {
       return input.gitVersion ?? `git version ${BUNDLED_GIT_VERSION}`;
@@ -137,20 +167,11 @@ test("holds a real SQLite exclusive installation lock until it is released", () 
   const contender = spawnSync(
     process.execPath,
     [
-      "--input-type=module",
-      "--eval",
-      `
-        import { DatabaseSync } from "node:sqlite";
-        const lock = new DatabaseSync(${JSON.stringify(lockPath)});
-        try {
-          lock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
-          process.exitCode = 1;
-        } catch {
-          process.exitCode = 0;
-        } finally {
-          lock.close();
-        }
-      `,
+      join(
+        import.meta.dirname,
+        "../fixtures/test-probes/sqlite-lock-contender.mjs",
+      ),
+      lockPath,
     ],
     { encoding: "utf8" },
   );
@@ -162,7 +183,11 @@ test("holds a real SQLite exclusive installation lock until it is released", () 
   rmSync(directory, { force: true, recursive: true });
 });
 
-for (const [name, input, code] of [
+for (const [name, input, code] of /** @type {[
+  string,
+  FilesystemInput & ToolInput,
+  string,
+][]} */ ([
   [
     "a root with group-readable permissions",
     { mode: 0o40750 },
@@ -198,7 +223,7 @@ for (const [name, input, code] of [
     { loginUnavailable: true },
     "codex_authentication_unavailable",
   ],
-]) {
+])) {
   test(`rejects ${name} with its owning error`, () => {
     const filesystem = createFilesystem(input);
     assert.throws(

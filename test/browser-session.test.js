@@ -11,7 +11,29 @@ import {
 import { openDurableCore } from "../src/durable-core.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
+
+/** @param {unknown} error */
+function sessionError(error) {
+  assert.ok(error instanceof Error && "code" in error);
+  return /** @type {Error & {code: string, retryAfterSeconds?: number}} */ (
+    error
+  );
+}
+
+/**
+ * @param {ReturnType<typeof openDurableCore>} core
+ * @param {string} sql
+ * @param {string} field
+ */
+function storedString(core, sql, field) {
+  const value = core.get(sql)?.[field];
+  if (typeof value !== "string") {
+    throw new Error(`browser_session_string_missing: ${field}`);
+  }
+  return value;
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-session-"));
@@ -26,22 +48,20 @@ afterEach(() => {
 });
 
 test("an unavailable browser-session boundary preserves the exact startup failure", () => {
-  const failure = new Error("Configuration is unavailable");
-  failure.code = "configuration_missing";
+  const failure = Object.assign(new Error("Configuration is unavailable"), {
+    code: "configuration_missing",
+  });
   const sessions = createUnavailableBrowserSessionService(failure);
 
-  for (const method of [
-    "authenticate",
-    "isBootstrapped",
-    "login",
-    "logout",
-    "changePassword",
-    "revokeAll",
+  for (const invoke of [
+    () => sessions.authenticate(),
+    () => sessions.isBootstrapped(),
+    () => sessions.login(),
+    () => sessions.logout(),
+    () => sessions.changePassword(),
+    () => sessions.revokeAll(),
   ]) {
-    assert.throws(
-      () => sessions[method](),
-      (error) => error === failure,
-    );
+    assert.throws(invoke, (error) => error === failure);
   }
 });
 
@@ -58,15 +78,23 @@ test("creates a durable opaque browser session without persisting its secret", (
   assert.match(session.csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(sessions.authenticate(session.secret), true);
   assert.notEqual(
-    core.get("SELECT session_hash FROM browser_sessions").session_hash,
+    storedString(
+      core,
+      "SELECT session_hash FROM browser_sessions",
+      "session_hash",
+    ),
     session.secret,
   );
   assert.doesNotMatch(
-    core.get("SELECT session_hash FROM browser_sessions").session_hash,
+    storedString(
+      core,
+      "SELECT session_hash FROM browser_sessions",
+      "session_hash",
+    ),
     new RegExp(session.secret),
   );
   assert.doesNotMatch(
-    core.get("SELECT csrf_hash FROM browser_sessions").csrf_hash,
+    storedString(core, "SELECT csrf_hash FROM browser_sessions", "csrf_hash"),
     new RegExp(session.csrfToken),
   );
   core.close();
@@ -162,7 +190,7 @@ test("rejects an invalid password and writes no browser session", () => {
 
   assert.throws(
     () => sessions.login("an incorrect operator password"),
-    (error) => error.code === "authentication_invalid",
+    (error) => sessionError(error).code === "authentication_invalid",
   );
   assert.equal(
     core.get("SELECT session_hash FROM browser_sessions"),
@@ -192,13 +220,13 @@ test("escalates one installation-wide failed-login delay through one minute and 
     now = attemptAt;
     assert.throws(
       () => sessions.login("an incorrect operator password"),
-      (error) => error.code === "authentication_invalid",
+      (error) => sessionError(error).code === "authentication_invalid",
     );
     assert.throws(
       () => sessions.login(password),
       (error) =>
-        error.code === "login_throttled" &&
-        error.retryAfterSeconds === expectedDelay,
+        sessionError(error).code === "login_throttled" &&
+        sessionError(error).retryAfterSeconds === expectedDelay,
     );
   }
 
@@ -206,12 +234,13 @@ test("escalates one installation-wide failed-login delay through one minute and 
   assert.match(sessions.login(password).secret, /^[A-Za-z0-9_-]{43}$/);
   assert.throws(
     () => sessions.login("an incorrect operator password"),
-    (error) => error.code === "authentication_invalid",
+    (error) => sessionError(error).code === "authentication_invalid",
   );
   assert.throws(
     () => sessions.login(password),
     (error) =>
-      error.code === "login_throttled" && error.retryAfterSeconds === 1,
+      sessionError(error).code === "login_throttled" &&
+      sessionError(error).retryAfterSeconds === 1,
   );
   core.close();
 });
@@ -227,7 +256,8 @@ test("a malformed password verifier is an exact hard failure and creates no sess
 
   assert.throws(
     () => sessions.login("a correct operator password"),
-    (error) => error.code === "operator_password_verifier_unavailable",
+    (error) =>
+      sessionError(error).code === "operator_password_verifier_unavailable",
   );
   assert.equal(
     core.get("SELECT session_hash FROM browser_sessions"),
@@ -277,7 +307,7 @@ test("changing the password with fresh confirmation atomically revokes every bro
   assert.equal(sessions.authenticate(second.secret), false);
   assert.throws(
     () => sessions.login(currentPassword),
-    (error) => error.code === "authentication_invalid",
+    (error) => sessionError(error).code === "authentication_invalid",
   );
   now = 1_000;
   assert.equal(sessions.login(replacementPassword).secret.length, 43);
@@ -299,7 +329,7 @@ test("global session revocation requires the current password and invalidates ev
 
   assert.throws(
     () => sessions.revokeAll("an incorrect operator password"),
-    (error) => error.code === "authentication_invalid",
+    (error) => sessionError(error).code === "authentication_invalid",
   );
   assert.equal(sessions.authenticate(first.secret), true);
   assert.equal(sessions.authenticate(second.secret), true);

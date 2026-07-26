@@ -8,6 +8,23 @@ import {
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
 
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
+}
+
+/** @param {Response} response */
+function sessionCookies(response) {
+  const cookies = response.headers.get("set-cookie");
+  const session = cookies?.match(/quality_bar_session=[A-Za-z0-9_-]{43}/)?.[0];
+  const csrf = cookies?.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
+  if (!session || !csrf) {
+    throw new Error("session_durability_cookies_missing");
+  }
+  return { csrf, session };
+}
+
 test("sessions survive a service restart but an uninitialized operator cannot log in", async () => {
   const databasePath = temporaryDatabasePath();
   const first = await startApplication(databasePath);
@@ -19,7 +36,7 @@ test("sessions survive a service restart but an uninitialized operator cannot lo
   });
   assert.equal(unavailableLogin.status, 503);
   assert.equal(
-    (await unavailableLogin.json()).error.code,
+    await responseErrorCode(unavailableLogin),
     "operator_password_uninitialized",
   );
 
@@ -32,7 +49,7 @@ test("sessions survive a service restart but an uninitialized operator cannot lo
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+  const { session: cookie } = sessionCookies(login);
   await closeApplication(first.application);
 
   const second = await startApplication(databasePath);
@@ -55,11 +72,7 @@ test("idle and absolute expiry remain enforced after a service restart", async (
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookies = idleLogin.headers.get("set-cookie");
-  const sessionCookie = cookies.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )[0];
-  const csrfToken = cookies.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)[1];
+  const { csrf: csrfToken, session: sessionCookie } = sessionCookies(idleLogin);
   now += 6 * 24 * 60 * 60 * 1_000;
   const activity = await fetch(`${first.origin}/api/v1/session/activity`, {
     headers: {
@@ -108,6 +121,6 @@ test("a failed-login delay survives a service restart and blocks a correct passw
     method: "POST",
   });
   assert.equal(throttledLogin.status, 429);
-  assert.equal((await throttledLogin.json()).error.code, "login_throttled");
+  assert.equal(await responseErrorCode(throttledLogin), "login_throttled");
   assert.equal(throttledLogin.headers.get("set-cookie"), null);
 });

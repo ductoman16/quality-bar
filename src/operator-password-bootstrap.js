@@ -109,6 +109,16 @@ function passwordFromTerminal(input, output) {
   });
 }
 
+/**
+ * @param {{
+ *   input?: (import("node:tty").ReadStream & {fd: number}) | {
+ *     fd: number,
+ *     isTTY: false,
+ *   },
+ *   output?: import("node:tty").WriteStream,
+ *   readFile?: (fd: number, encoding: "utf8") => string,
+ * }} [options]
+ */
 export function readOperatorPassword({
   input = process.stdin,
   output = process.stderr,
@@ -135,6 +145,15 @@ export function readOperatorPassword({
   }
 }
 
+/**
+ * @param {{
+ *   databasePath?: string,
+ *   loadInstallation?: () => {masterKey: Buffer},
+ *   readPassword?: () => string | Promise<string>,
+ *   validateInstallation?: () => {releaseInstallationLock?: () => void},
+ *   validateSources?: () => void,
+ * }} [options]
+ */
 export async function bootstrapOperatorPasswordFromHost({
   databasePath = DATABASE_PATH,
   loadInstallation = loadInstallationConfiguration,

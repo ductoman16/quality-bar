@@ -3,20 +3,33 @@ import { relative, resolve } from "node:path";
 
 import { listMaintainedJavaScriptFiles } from "./structural-lint.mjs";
 
+/** @param {string} repositoryRoot @param {string} path */
 function relativePath(repositoryRoot, path) {
   return relative(repositoryRoot, path).replaceAll("\\", "/");
 }
 
+/**
+ * @param {string} path
+ * @param {import("eslint").Linter.LintMessage} message
+ */
 function reportDiagnostic(path, message) {
   return `node_boundary_lint: ${path}:${message.line}:${message.column} [${message.ruleId ?? "configuration"}] ${message.message}`;
 }
 
+/**
+ * @param {{
+ *   repositoryRoot?: string,
+ *   files?: {path: string, source: string}[],
+ * }} [options]
+ */
 export async function runNodeBoundaryLint({
   repositoryRoot = resolve(import.meta.dirname, ".."),
   files,
 } = {}) {
   const eslint = new ESLint({ cwd: repositoryRoot });
+  /** @type {string[]} */
   const diagnostics = [];
+  /** @type {import("eslint").ESLint.LintResult[]} */
   let results;
 
   if (files) {

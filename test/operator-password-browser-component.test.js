@@ -7,7 +7,10 @@ import { afterEach, test } from "node:test";
 import { createApplication } from "../src/application.js";
 import { OPERATOR_PASSWORD_VERIFIER_METADATA_KEY } from "../src/operator-password.js";
 
+/** @typedef {ReturnType<typeof createApplication>} Application */
+/** @type {Application[]} */
 const applications = [];
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -37,18 +40,25 @@ test("browser product traffic cannot bootstrap an operator password", async () =
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
     loadInstallation: validInstallation,
-    validateInstallation: () => ({}),
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
     writeLog() {},
   });
+  if (!application.durableCore) {
+    throw new Error("operator_password_browser_application_not_ready");
+  }
   applications.push(application);
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
+    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
-  const { port } = application.server.address();
+  const address = application.server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("operator_password_browser_address_unavailable");
+  }
+  const { port } = address;
 
   const response = await fetch(
     `http://127.0.0.1:${port}/api/v1/operator-password/bootstrap`,

@@ -1,6 +1,48 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+/**
+ * @typedef {{
+ *   applicationVersion: string | null,
+ *   formatterVersion: string | null,
+ *   packagedNodeVersion: string | null,
+ *   runnerGitVersion: string | null,
+ *   sourceCommit: string | null,
+ *   typeCheckerVersion: string | null,
+ * }} VerificationMetadata
+ */
+/** @typedef {{code: string, detail: string}} VerificationFailure */
+/**
+ * @typedef {{
+ *   name: string,
+ *   command: string,
+ *   testGroups: {name: string, count: number | null}[],
+ *   durationMs: number,
+ *   outcome: "pass" | "fail",
+ *   facts?: {
+ *     database?: {schemaVersion?: number, databaseVersion?: string},
+ *     tools?: {git?: string, codex?: string},
+ *     authenticatedHttpSmoke?: {codexCapabilityCatalogVersion?: string},
+ *     executableVersion?: string,
+ *   },
+ * }} VerificationGate
+ */
+/**
+ * @typedef {{
+ *   invokedGates: VerificationGate[],
+ *   outcome: "pass" | "fail",
+ *   failures: VerificationFailure[],
+ * }} VerificationManifest
+ */
+
+/**
+ * @param {{
+ *   metadata: VerificationMetadata,
+ *   gates: VerificationGate[],
+ *   failures: VerificationFailure[],
+ *   startedAt: number,
+ * }} input
+ */
 export function createManifest({ metadata, gates, failures, startedAt }) {
   const packageFacts = gates.find(
     (gate) => gate.name === "package-integration",
@@ -9,6 +51,9 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
     (gate) => gate.name === "operator-browser-smoke",
   )?.facts;
 
+  const outcome = /** @type {"pass" | "fail"} */ (
+    failures.length === 0 ? "pass" : "fail"
+  );
   return {
     evidenceVersion: 1,
     sourceCommit: metadata.sourceCommit,
@@ -57,16 +102,24 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
     },
     invokedGates: gates,
     totalDurationMs: Math.round(performance.now() - startedAt),
-    outcome: failures.length === 0 ? "pass" : "fail",
+    outcome,
     failures,
   };
 }
 
+/**
+ * @param {string} manifestPath
+ * @param {VerificationManifest} manifest
+ */
 export function writeManifest(manifestPath, manifest) {
   mkdirSync(dirname(manifestPath), { recursive: true });
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
+/**
+ * @param {VerificationManifest} manifest
+ * @param {string} manifestPath
+ */
 export function formatReport(manifest, manifestPath) {
   const lines = [`Quality Bar verification: ${manifest.outcome.toUpperCase()}`];
   if (manifest.invokedGates.length === 0 && manifest.failures.length > 0) {

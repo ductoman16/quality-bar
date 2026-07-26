@@ -6,7 +6,14 @@ import { afterEach, test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
+
+/** @param {unknown} error */
+function transactionFailure(error) {
+  assert.ok(error instanceof Error && "code" in error);
+  return /** @type {Error & {code: string, cause?: unknown}} */ (error);
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-sqlite-"));
@@ -36,9 +43,10 @@ test("rejects asynchronous transaction callbacks without committing partial fact
         );
       }),
     (error) => {
-      assert.equal(error.code, "asynchronous_transaction_unsupported");
+      const failure = transactionFailure(error);
+      assert.equal(failure.code, "asynchronous_transaction_unsupported");
       assert.equal(
-        error.message,
+        failure.message,
         "SQLite transaction callback must be synchronous",
       );
       return true;
@@ -61,6 +69,7 @@ test("rejects asynchronous transaction callbacks without committing partial fact
 test("preserves a rejected thenable on the exact asynchronous transaction error", async () => {
   const core = openDurableCore(temporaryDatabasePath());
   const callbackFailure = new Error("callback rejected");
+  /** @type {unknown} */
   let transactionError;
 
   try {
@@ -70,12 +79,13 @@ test("preserves a rejected thenable on the exact asynchronous transaction error"
   }
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(transactionError.code, "asynchronous_transaction_unsupported");
+  const failure = transactionFailure(transactionError);
+  assert.equal(failure.code, "asynchronous_transaction_unsupported");
   assert.equal(
-    transactionError.message,
+    failure.message,
     "SQLite transaction callback must be synchronous",
   );
-  assert.equal(transactionError.cause, callbackFailure);
+  assert.equal(failure.cause, callbackFailure);
 
   core.close();
 });

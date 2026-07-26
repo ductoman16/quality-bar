@@ -70,8 +70,23 @@ function isExactConfiguration(value) {
   );
 }
 
+/** @returns {{
+ *   codex_cli_version: string,
+ *   models: Array<{
+ *     id: string,
+ *     reasoning_efforts: string[],
+ *     service_tiers: string[]
+ *   }>
+ * }} */
 export function readCodexCapabilityCatalog() {
-  return structuredClone(CODEX_CAPABILITY_CATALOG);
+  return {
+    codex_cli_version: CODEX_CAPABILITY_CATALOG.codex_cli_version,
+    models: CODEX_CAPABILITY_CATALOG.models.map((model) => ({
+      id: model.id,
+      reasoning_efforts: [...model.reasoning_efforts],
+      service_tiers: [...model.service_tiers],
+    })),
+  };
 }
 
 /** @param {unknown} configuration */

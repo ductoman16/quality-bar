@@ -102,7 +102,12 @@ export function createRequestSecurityBoundary({
   const trustedProxies = new Set(trustedProxyAddresses);
 
   return {
-    /** @param {import("node:http").IncomingMessage} request */
+    /**
+     * @param {{
+     *   headers: {forwarded?: string | string[]},
+     *   socket: {remoteAddress?: string},
+     * }} request
+     */
     requestFacts(request) {
       const peerAddress = request?.socket?.remoteAddress;
       if (typeof peerAddress === "string" && trustedProxies.has(peerAddress)) {

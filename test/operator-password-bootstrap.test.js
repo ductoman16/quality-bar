@@ -12,6 +12,7 @@ import {
 } from "../src/operator-password-bootstrap.js";
 import { OPERATOR_PASSWORD_VERIFIER_METADATA_KEY } from "../src/operator-password.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -43,6 +44,7 @@ test("accepts a password only from standard input and preserves intentional spac
       },
     }),
     (error) => {
+      assert.ok(error instanceof Error && "code" in error);
       assert.equal(error.code, "operator_password_input_missing");
       assert.equal(error.message, "Operator password input is required");
       return true;
@@ -79,7 +81,10 @@ test("host bootstrap verifies the owned installation before reading stdin and st
   const verifier = core.get(
     "SELECT value FROM quality_bar_metadata WHERE key = ?",
     OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
-  ).value;
+  )?.value;
+  if (typeof verifier !== "string") {
+    throw new Error("operator_password_verifier_missing");
+  }
   assert.match(verifier, /^scrypt-v1\./);
   assert.doesNotMatch(verifier, new RegExp(password));
   core.close();
@@ -87,8 +92,9 @@ test("host bootstrap verifies the owned installation before reading stdin and st
 
 test("host bootstrap does not read a password when configuration validation fails", async () => {
   let passwordWasRead = false;
-  const failure = new Error("unsafe source");
-  failure.code = "owned_path_unsafe";
+  const failure = Object.assign(new Error("unsafe source"), {
+    code: "owned_path_unsafe",
+  });
 
   await assert.rejects(
     bootstrapOperatorPasswordFromHost({

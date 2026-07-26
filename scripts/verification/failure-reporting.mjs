@@ -1,3 +1,8 @@
+/**
+ * @param {import("node:child_process").SpawnSyncReturns<string>} result
+ * @param {string} command
+ * @param {string[]} arguments_
+ */
 export function commandFailure(result, command, arguments_) {
   if (result.error) {
     return result.error.message;

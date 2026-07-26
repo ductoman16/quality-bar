@@ -8,7 +8,14 @@ import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createSystemResource } from "../src/system-resource.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
+
+/** @param {unknown} error */
+function codedError(error) {
+  assert.ok(error instanceof Error && "code" in error);
+  return /** @type {Error & {code: string, cause?: unknown}} */ (error);
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-sqlite-"));
@@ -55,7 +62,7 @@ test("migrates the existing operator-password schema atomically before serving s
   assert.equal(
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
-    ).value,
+    )?.value,
     "6",
   );
   migrated.run(
@@ -126,7 +133,7 @@ test("migrates v4 to v6 without losing existing authority facts", () => {
   assert.equal(
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
-    ).value,
+    )?.value,
     "6",
   );
   assert.deepEqual(
@@ -233,8 +240,9 @@ test("rejects a database that cannot use WAL with the exact owning error", () =>
   assert.throws(
     () => openDurableCore(":memory:"),
     (error) => {
-      assert.equal(error.code, "wal_unavailable");
-      assert.equal(error.message, "SQLite journal mode is memory, not wal");
+      const failure = codedError(error);
+      assert.equal(failure.code, "wal_unavailable");
+      assert.equal(failure.message, "SQLite journal mode is memory, not wal");
       return true;
     },
   );
@@ -247,8 +255,9 @@ test("rejects a corrupt database with the exact owning error", () => {
   assert.throws(
     () => openDurableCore(databasePath),
     (error) => {
-      assert.equal(error.code, "integrity_check_failed");
-      assert.equal(error.message, "SQLite database is not valid");
+      const failure = codedError(error);
+      assert.equal(failure.code, "integrity_check_failed");
+      assert.equal(failure.message, "SQLite database is not valid");
       return true;
     },
   );
@@ -263,14 +272,16 @@ test("rejects an incompatible schema with the exact owning error", () => {
   assert.throws(
     () => openDurableCore(databasePath),
     (error) => {
-      assert.equal(error.code, "schema_invalid");
-      assert.equal(error.message, "SQLite schema version 7 is not supported");
+      const failure = codedError(error);
+      assert.equal(failure.code, "schema_invalid");
+      assert.equal(failure.message, "SQLite schema version 7 is not supported");
       return true;
     },
   );
 });
 
 test("a durable write failure enters the hard storage_unavailable gate", () => {
+  /** @type {(Error & {code: string})[]} */
   const failures = [];
   const core = openDurableCore(temporaryDatabasePath(), {
     onStorageUnavailable(error) {
@@ -289,8 +300,9 @@ test("a durable write failure enters the hard storage_unavailable gate", () => {
         );
       }),
     (error) => {
-      assert.equal(error.code, "storage_unavailable");
-      assert.equal(error.message, "SQLite durable write failed");
+      const failure = codedError(error);
+      assert.equal(failure.code, "storage_unavailable");
+      assert.equal(failure.message, "SQLite durable write failed");
       return true;
     },
   );
@@ -303,7 +315,7 @@ test("a durable write failure enters the hard storage_unavailable gate", () => {
         "schema_version",
       ),
     (error) => {
-      assert.equal(error.code, "storage_unavailable");
+      assert.equal(codedError(error).code, "storage_unavailable");
       return true;
     },
   );
@@ -327,7 +339,7 @@ test("a locked durable write enters the hard storage_unavailable gate", () => {
           );
         }),
       (error) => {
-        assert.equal(error.code, "storage_unavailable");
+        assert.equal(codedError(error).code, "storage_unavailable");
         return true;
       },
     );
@@ -377,10 +389,11 @@ test("preserves a failed rollback on the hard storage_unavailable error", () => 
         );
       }),
     (error) => {
-      assert.equal(error.code, "storage_unavailable");
-      assert.ok(error.cause instanceof AggregateError);
-      assert.match(error.cause.errors[0].message, /readonly database/);
-      assert.match(error.cause.errors[1].message, /cannot rollback/);
+      const failure = codedError(error);
+      assert.equal(failure.code, "storage_unavailable");
+      assert.ok(failure.cause instanceof AggregateError);
+      assert.match(failure.cause.errors[0].message, /readonly database/);
+      assert.match(failure.cause.errors[1].message, /cannot rollback/);
       return true;
     },
   );

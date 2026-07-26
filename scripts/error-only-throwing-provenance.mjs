@@ -1,6 +1,13 @@
-import { parse } from "espree";
+import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+
+const { parse } = /** @type {{
+ *   parse: (
+ *     source: string,
+ *     options: {ecmaVersion: "latest", sourceType: "module"},
+ *   ) => import("estree").Program,
+ * }} */ (createRequire(import.meta.url)("espree"));
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const repositoryConstructors = new Map(
@@ -26,6 +33,7 @@ const validatedRepositoryReexports = new Map([
   ],
 ]);
 
+/** @param {string} path @param {string} name */
 export function isValidatedRepositoryConstructor(path, name) {
   if (repositoryConstructors.get(path)?.has(name)) {
     return true;
@@ -46,12 +54,15 @@ export function isValidatedRepositoryConstructor(path, name) {
         statement.specifiers.some(
           (specifier) =>
             specifier.type === "ExportSpecifier" &&
+            specifier.local.type === "Identifier" &&
+            specifier.exported.type === "Identifier" &&
             specifier.local.name === name &&
             specifier.exported.name === name,
         ),
     ) &&
-    repositoryConstructors
+    (repositoryConstructors
       .get(resolve(dirname(path), reexportSource))
-      ?.has(name)
+      ?.has(name) ??
+      false)
   );
 }

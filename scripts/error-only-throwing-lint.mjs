@@ -1,36 +1,13 @@
 import { dirname, resolve } from "node:path";
 
+import {
+  errorConstructors,
+  nonErrorCallables,
+  nonErrorConstructors,
+  parentOf,
+  rangeStart,
+} from "./error-only-throwing-ast.mjs";
 import { isValidatedRepositoryConstructor } from "./error-only-throwing-provenance.mjs";
-
-const errorConstructors = new Set([
-  "AggregateError",
-  "Error",
-  "EvalError",
-  "RangeError",
-  "ReferenceError",
-  "SyntaxError",
-  "TypeError",
-  "URIError",
-]);
-
-const nonErrorCallables = new Set([
-  "BigInt",
-  "Boolean",
-  "Number",
-  "String",
-  "Symbol",
-  "parseFloat",
-  "parseInt",
-]);
-
-const nonErrorConstructors = new Set([
-  "BigInt",
-  "Boolean",
-  "Number",
-  "Object",
-  "String",
-  "Symbol",
-]);
 
 export const errorOnlyThrowing = {
   rules: {
@@ -40,8 +17,17 @@ export const errorOnlyThrowing = {
         schema: [],
         type: "problem",
       },
+      /** @param {import("eslint").Rule.RuleContext} context */
       create(context) {
+        /**
+         * @param {import("estree").Node} node
+         * @returns {import("eslint").Scope.Variable | undefined}
+         */
         function variableFor(node) {
+          if (node.type !== "Identifier") {
+            return undefined;
+          }
+          /** @type {import("eslint").Scope.Scope | null} */
           let scope = context.sourceCode.getScope(node);
           while (scope) {
             const variable = scope.variables.find(
@@ -55,6 +41,10 @@ export const errorOnlyThrowing = {
           return undefined;
         }
 
+        /**
+         * @param {import("estree").Node | undefined} node
+         * @returns {import("estree").Node | undefined}
+         */
         function executionScope(node) {
           let current = node;
           while (current) {
@@ -68,49 +58,59 @@ export const errorOnlyThrowing = {
             ) {
               return current;
             }
-            current = current.parent;
+            current = parentOf(current);
           }
           return undefined;
         }
 
-        function isErrorConstructor(node) {
-          if (
-            node.type !== "NewExpression" ||
-            node.callee.type !== "Identifier"
-          ) {
+        /**
+         * @param {import("estree").Node} node
+         * @returns {boolean}
+         */
+        function isErrorConstructorIdentifier(node) {
+          if (node.type !== "Identifier") {
             return false;
           }
-          const variable = variableFor(node.callee);
+          const variable = variableFor(node);
           const definition = variable?.defs[0];
           if (!definition) {
-            return errorConstructors.has(node.callee.name);
+            return errorConstructors.has(node.name);
           }
           if (definition.type === "ImportBinding") {
+            const importDeclaration = parentOf(definition.node);
             return (
               definition.node.type === "ImportSpecifier" &&
+              importDeclaration?.type === "ImportDeclaration" &&
+              typeof importDeclaration.source.value === "string" &&
+              definition.node.imported.type === "Identifier" &&
               isValidatedRepositoryConstructor(
                 resolve(
                   dirname(context.filename),
-                  definition.node.parent.source.value,
+                  importDeclaration.source.value,
                 ),
                 definition.node.imported.name,
               )
             );
           }
-          return (
-            definition.type === "ClassName" &&
-            definition.node.superClass !== null &&
-            isErrorConstructor({
-              callee: definition.node.superClass,
-              type: "NewExpression",
-            })
-          );
+          if (definition.type !== "ClassName") {
+            return false;
+          }
+          return definition.node.superClass
+            ? isErrorConstructorIdentifier(definition.node.superClass)
+            : false;
         }
 
+        /**
+         * @param {import("eslint").Scope.Variable | undefined} variable
+         * @param {import("eslint").Scope.Definition | undefined} definition
+         * @param {number} position
+         * @param {import("estree").Node} scopeNode
+         * @returns {import("estree").Node | null | undefined}
+         */
         function bindingValue(variable, definition, position, scopeNode) {
           const definitionScope = executionScope(
             definition?.type === "FunctionName"
-              ? definition.node.parent
+              ? parentOf(definition.node)
               : definition?.node,
           );
           if (definitionScope !== executionScope(scopeNode)) {
@@ -118,7 +118,8 @@ export const errorOnlyThrowing = {
           }
           const writes = variable?.references.filter(
             (reference) =>
-              reference.isWrite() && reference.identifier.range[0] < position,
+              reference.isWrite() &&
+              rangeStart(reference.identifier) < position,
           );
           if (definition?.type === "FunctionName" && writes?.length === 0) {
             return definition.node;
@@ -129,29 +130,42 @@ export const errorOnlyThrowing = {
           if (
             writes.length > 1 &&
             !writes.slice(1).every((reference) => {
-              const assignment = reference.identifier.parent;
-              const statement = assignment?.parent;
-              const container = statement?.parent;
+              const assignment = parentOf(reference.identifier);
+              const statement = assignment ? parentOf(assignment) : undefined;
+              const container = statement ? parentOf(statement) : undefined;
               return (
                 assignment?.type === "AssignmentExpression" &&
                 assignment.left === reference.identifier &&
                 executionScope(reference.identifier) === definitionScope &&
+                statement !== undefined &&
                 statement.type === "ExpressionStatement" &&
+                container !== undefined &&
                 (container.type === "Program" ||
                   (container.type === "BlockStatement" &&
-                    [
-                      "ArrowFunctionExpression",
-                      "FunctionDeclaration",
-                      "FunctionExpression",
-                    ].includes(container.parent?.type)))
+                    (() => {
+                      const parentType = parentOf(container)?.type;
+                      return (
+                        parentType !== undefined &&
+                        [
+                          "ArrowFunctionExpression",
+                          "FunctionDeclaration",
+                          "FunctionExpression",
+                        ].includes(parentType)
+                      );
+                    })()))
               );
             })
           ) {
             return undefined;
           }
-          return writes.at(-1).writeExpr;
+          return writes.at(-1)?.writeExpr;
         }
 
+        /**
+         * @param {import("estree").Node} node
+         * @param {number} position
+         * @returns {import("estree").ObjectExpression | undefined}
+         */
         function frozenObject(node, position) {
           if (node.type === "ObjectExpression") {
             return node;
@@ -163,7 +177,7 @@ export const errorOnlyThrowing = {
               ? node
               : bindingValue(variable, variable?.defs[0], position, node);
           if (initializer?.type === "Identifier") {
-            return frozenObject(initializer, initializer.range[0]);
+            return frozenObject(initializer, rangeStart(initializer));
           }
           if (
             initializer?.type !== "CallExpression" ||
@@ -181,7 +195,15 @@ export const errorOnlyThrowing = {
           return initializer.arguments[0];
         }
 
+        /**
+         * @param {import("estree").Node} node
+         * @param {number} position
+         * @returns {import("estree").Node | undefined}
+         */
         function frozenMemberValue(node, position) {
+          if (node.type !== "MemberExpression") {
+            return undefined;
+          }
           const object = frozenObject(node.object, position);
           const propertyName =
             node.computed && node.property.type === "Literal"
@@ -189,7 +211,7 @@ export const errorOnlyThrowing = {
               : !node.computed && node.property.type === "Identifier"
                 ? node.property.name
                 : undefined;
-          return object?.properties.find(
+          const property = object?.properties.find(
             (candidate) =>
               candidate.type === "Property" &&
               !candidate.computed &&
@@ -197,13 +219,20 @@ export const errorOnlyThrowing = {
                 candidate.key.name === propertyName) ||
                 (candidate.key.type === "Literal" &&
                   candidate.key.value === propertyName)),
-          )?.value;
+          );
+          return property?.type === "Property" ? property.value : undefined;
         }
 
+        /**
+         * @param {import("estree").Node} node
+         * @param {Set<import("eslint").Scope.Variable | undefined>} [checkedVariables]
+         * @param {number} [position]
+         * @returns {boolean}
+         */
         function isKnownNonError(
           node,
           checkedVariables = new Set(),
-          position = node.range[0],
+          position = rangeStart(node),
         ) {
           if (
             [
@@ -219,11 +248,11 @@ export const errorOnlyThrowing = {
             return true;
           }
           if (node.type === "NewExpression") {
-            return !isErrorConstructor(node);
+            return !isErrorConstructorIdentifier(node.callee);
           }
           if (
             node.type === "Identifier" &&
-            isErrorConstructor({ callee: node, type: "NewExpression" })
+            isErrorConstructorIdentifier(node)
           ) {
             return true;
           }
@@ -281,31 +310,38 @@ export const errorOnlyThrowing = {
               functionNode = bindingValue(
                 functionVariable,
                 functionVariable?.defs[0],
-                functionNode.range[0],
+                rangeStart(functionNode),
                 functionNode,
               );
             }
             if (
-              ![
-                "ArrowFunctionExpression",
-                "FunctionExpression",
-                "FunctionDeclaration",
-              ].includes(functionNode?.type)
+              !functionNode ||
+              (functionNode.type !== "ArrowFunctionExpression" &&
+                functionNode.type !== "FunctionExpression" &&
+                functionNode.type !== "FunctionDeclaration")
             ) {
               return false;
             }
-            if (functionNode.expression) {
+            if (
+              functionNode.type === "ArrowFunctionExpression" &&
+              functionNode.expression
+            ) {
               return isKnownNonError(
                 functionNode.body,
                 checkedVariables,
                 position,
               );
             }
+            if (functionNode.body.type !== "BlockStatement") {
+              return false;
+            }
             const [statement] = functionNode.body.body;
             return (
               functionNode.body.body.length === 1 &&
+              statement !== undefined &&
               statement.type === "ReturnStatement" &&
               statement.argument !== null &&
+              statement.argument !== undefined &&
               isKnownNonError(statement.argument, checkedVariables, position)
             );
           }
@@ -328,7 +364,8 @@ export const errorOnlyThrowing = {
           if (
             definition?.type === "Variable" &&
             definition.node.id.type === "ObjectPattern" &&
-            definition.node.init !== null
+            definition.node.init !== null &&
+            definition.node.init !== undefined
           ) {
             const destructuredProperty = definition.node.id.properties.find(
               (property) =>
@@ -339,17 +376,21 @@ export const errorOnlyThrowing = {
                     property.value.left.type === "Identifier" &&
                     property.value.left.name === node.name)),
             );
-            if (!destructuredProperty) {
+            if (
+              !destructuredProperty ||
+              destructuredProperty.type !== "Property"
+            ) {
               return false;
             }
             const sourceValue = frozenMemberValue(
               {
                 computed: destructuredProperty.computed,
                 object: definition.node.init,
+                optional: false,
                 property: destructuredProperty.key,
                 type: "MemberExpression",
               },
-              definition.node.init.range[0],
+              rangeStart(definition.node.init),
             );
             const propertyIsUndefined =
               (sourceValue?.type === "Identifier" &&
@@ -380,15 +421,21 @@ export const errorOnlyThrowing = {
           }
           const value = bindingValue(variable, definition, position, node);
           return (
+            value !== null &&
             value !== undefined &&
             isKnownNonError(value, checkedVariables, position)
           );
         }
 
         return {
+          /** @param {import("estree").ThrowStatement} node */
           ThrowStatement(node) {
             if (
-              isKnownNonError(node.argument, new Set(), node.argument.range[0])
+              isKnownNonError(
+                node.argument,
+                new Set(),
+                rangeStart(node.argument),
+              )
             ) {
               context.report({ messageId: "errorOnly", node: node.argument });
             }

@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { createReviewService } from "../src/review.js";
+import { createReviewService, ReviewError } from "../src/review.js";
 
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
@@ -129,9 +130,12 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
   );
   assert.throws(
     () => reviews.create(reviewDefinition()),
-    (error) => error.code === "review_name_conflict",
+    (error) =>
+      error instanceof ReviewError && error.code === "review_name_conflict",
   );
-  assert.equal(core.get("SELECT count(*) AS count FROM reviews").count, 1);
+  const reviewCount = core.get("SELECT count(*) AS count FROM reviews");
+  assert.ok(reviewCount);
+  assert.equal(reviewCount.count, 1);
   core.close();
 });
 
@@ -141,7 +145,8 @@ test("a malformed Review definition creates no partial durable facts", () => {
 
   assert.throws(
     () => reviews.create(reviewDefinition({ criteria: [] })),
-    (error) => error.code === "review_criteria_invalid",
+    (error) =>
+      error instanceof ReviewError && error.code === "review_criteria_invalid",
   );
   for (const table of [
     "reviews",

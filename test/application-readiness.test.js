@@ -10,7 +10,10 @@ import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
+/** @typedef {ReturnType<typeof createApplication>} Application */
+/** @type {Application[]} */
 const applications = [];
+/** @type {string[]} */
 const temporaryDirectories = [];
 
 function validInstallation() {
@@ -21,11 +24,17 @@ function validInstallation() {
   };
 }
 
+/**
+ * @param {string} databasePath
+ * @param {Partial<Parameters<typeof createApplication>[0]>} [options]
+ */
 async function startApplication(databasePath, options = {}) {
   const application = createApplication({
     databasePath,
     loadInstallation: options.loadInstallation ?? validInstallation,
-    validateInstallation: options.validateInstallation ?? (() => ({})),
+    validateInstallation:
+      options.validateInstallation ??
+      (() => ({ releaseInstallationLock() {} })),
     validateSources: options.validateSources ?? (() => {}),
     validateTools: options.validateTools ?? (() => {}),
     validateCodexAuthentication:
@@ -34,14 +43,23 @@ async function startApplication(databasePath, options = {}) {
   });
   await new Promise((resolve, reject) => {
     application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
+    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
   });
-  const { port } = application.server.address();
+  const address = application.server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("application_readiness_address_unavailable");
+  }
   applications.push(application);
   return {
     application,
-    origin: `http://127.0.0.1:${port}`,
+    origin: `http://127.0.0.1:${address.port}`,
   };
+}
+
+/** @param {Response} response */
+async function responseErrorCode(response) {
+  const body = /** @type {{error: {code: string}}} */ (await response.json());
+  return body.error.code;
 }
 
 function temporaryDatabasePath() {
@@ -90,19 +108,23 @@ test("liveness remains a process probe when the configured browser origin requir
   const directProductResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(directProductResponse.status, 400);
   assert.equal(
-    (await directProductResponse.json()).error.code,
+    await responseErrorCode(directProductResponse),
     "proxy_forwarded_required",
   );
 });
 
 test("configuration failure keeps product traffic unavailable without exposing secret values", async () => {
+  /** @type {string[]} */
   const logs = [];
-  const configurationFailure = new Error("Configuration has an unknown key");
-  configurationFailure.code = "configuration_unknown";
+  const configurationFailure = Object.assign(
+    new Error("Configuration has an unknown key"),
+    { code: "configuration_unknown" },
+  );
   const { origin } = await startApplication(temporaryDatabasePath(), {
     loadInstallation() {
       throw configurationFailure;
     },
+    /** @param {string} line */
     writeLog(line) {
       logs.push(line);
     },
@@ -122,15 +144,16 @@ test("configuration failure keeps product traffic unavailable without exposing s
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
   assert.equal(
-    (await productResponse.json()).error.code,
+    await responseErrorCode(productResponse),
     "configuration_unknown",
   );
 });
 
 test("unsafe fixed sources are rejected before their contents are read", async () => {
   let wasRead = false;
-  const sourceFailure = new Error("unsafe source");
-  sourceFailure.code = "owned_path_unsafe";
+  const sourceFailure = Object.assign(new Error("unsafe source"), {
+    code: "owned_path_unsafe",
+  });
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
     loadInstallation() {
@@ -149,8 +172,9 @@ test("unsafe fixed sources are rejected before their contents are read", async (
 });
 
 test("unavailable Codex authentication leaves the durable System surface ready", async () => {
-  const authenticationFailure = new Error("not logged in");
-  authenticationFailure.code = "codex_authentication_unavailable";
+  const authenticationFailure = Object.assign(new Error("not logged in"), {
+    code: "codex_authentication_unavailable",
+  });
   const { application, origin } = await startApplication(
     temporaryDatabasePath(),
     {
@@ -168,6 +192,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     status: "unavailable",
   });
 
+  assert.ok(application.durableCore);
   bootstrapOperatorPassword(
     application.durableCore,
     "a correct operator password",
@@ -177,7 +202,11 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const cookie = loginResponse.headers.get("set-cookie").split(";", 1)[0];
+  const setCookie = loginResponse.headers.get("set-cookie");
+  if (!setCookie) {
+    throw new Error("application_readiness_cookie_missing");
+  }
+  const cookie = setCookie.split(";", 1)[0];
 
   const systemResponse = await fetch(`${origin}/api/v1/system`, {
     headers: { cookie },
@@ -199,6 +228,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
 });
 
 test("a malformed external master key never appears in responses or logs", async () => {
+  /** @type {string[]} */
   const logs = [];
   const secretValue = "this-master-key-must-never-appear";
   const { origin } = await startApplication(temporaryDatabasePath(), {
@@ -222,6 +252,7 @@ test("a malformed external master key never appears in responses or logs", async
         },
       });
     },
+    /** @param {string} line */
     writeLog(line) {
       logs.push(line);
     },
@@ -237,7 +268,7 @@ test("a malformed external master key never appears in responses or logs", async
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
   assert.equal(
-    (await productResponse.json()).error.code,
+    await responseErrorCode(productResponse),
     "master_key_malformed",
   );
   assert.doesNotMatch(logs.join(""), new RegExp(secretValue));
@@ -269,7 +300,7 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
   assert.equal(
-    (await productResponse.json()).error.code,
+    await responseErrorCode(productResponse),
     "master_key_undecryptable",
   );
 });
@@ -279,34 +310,41 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
     temporaryDatabasePath(),
   );
   const codexProcess = spawn(process.execPath, [
-    "--eval",
-    "setInterval(() => {}, 1_000)",
+    join(import.meta.dirname, "../fixtures/test-probes/idle-child.mjs"),
   ]);
   application.registerCodexProcess(codexProcess);
   const codexExited = new Promise((resolve) =>
-    codexProcess.once("exit", resolve),
+    codexProcess.once("exit", () => resolve(undefined)),
   );
 
   const readyResponse = await fetch(`${origin}/health/ready`);
   assert.equal(readyResponse.status, 200);
   assert.deepEqual(await readyResponse.json(), { status: "ready" });
 
-  application.durableCore.run("PRAGMA query_only = ON");
+  assert.ok(application.durableCore);
+  const durableCore = application.durableCore;
+  durableCore.run("PRAGMA query_only = ON");
   assert.throws(
     () =>
-      application.durableCore.transaction((transaction) => {
+      durableCore.transaction((transaction) => {
         transaction.run(
           "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
           "write_failure",
           "must-not-exist",
         );
       }),
-    (error) => error.code === "storage_unavailable",
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "storage_unavailable",
   );
 
   await codexExited;
   assert.equal(application.workerSignal.aborted, true);
-  assert.equal(application.workerSignal.reason.code, "storage_unavailable");
+  const workerFailure = /** @type {{code: string}} */ (
+    application.workerSignal.reason
+  );
+  assert.equal(workerFailure.code, "storage_unavailable");
 
   for (const path of [
     "/",
@@ -318,7 +356,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   ]) {
     const response = await fetch(`${origin}${path}`);
     assert.equal(response.status, 503, path);
-    assert.equal((await response.json()).error.code, "storage_unavailable");
+    assert.equal(await responseErrorCode(response), "storage_unavailable");
   }
 
   const liveAfterFailure = await fetch(`${origin}/health/live`);
