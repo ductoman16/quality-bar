@@ -170,6 +170,41 @@ test("static gate definitions reject unavailable tool-version evidence", () => {
   );
 });
 
+test("metadata failure emits its exact manifest without building gates", () => {
+  const directory = mkdtempSync(
+    resolve(tmpdir(), "quality-bar-metadata-fail-"),
+  );
+  try {
+    const evidencePath = resolve(directory, "evidence.json");
+    const result = runVerification({
+      repositoryRoot,
+      manifestPath: evidencePath,
+      metadataReader: () => {
+        throw new Error("exact metadata failure");
+      },
+    });
+
+    assert.equal(result.manifest.outcome, "fail");
+    assert.deepEqual(result.manifest.invokedGates, []);
+    assert.deepEqual(result.manifest.failures, [
+      {
+        code: "verification_metadata_failed",
+        detail: "exact metadata failure",
+      },
+    ]);
+    assert.match(
+      result.report,
+      /verification_metadata_failed: exact metadata failure/,
+    );
+    assert.deepEqual(
+      JSON.parse(readFileSync(evidencePath, "utf8")),
+      result.manifest,
+    );
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test("static gate evidence records exact tools, duration, and meaningful check counts", () => {
   const directory = mkdtempSync(resolve(tmpdir(), "quality-bar-static-gate-"));
   try {

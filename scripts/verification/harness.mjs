@@ -55,8 +55,8 @@ export function runVerification({
     });
   }
 
-  const definitions = gateDefinitions ?? createGateDefinitions(metadata);
   if (failures.length === 0) {
+    const definitions = gateDefinitions ?? createGateDefinitions(metadata);
     for (const definition of definitions) {
       const result = runGate(repositoryRoot, definition);
       gates.push(result.evidence);
