@@ -1,0 +1,78 @@
+import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
+import { validatePackageFacts } from "./package-facts.mjs";
+
+export function createGateDefinitions(applicationVersion) {
+  return [
+    {
+      name: "unit",
+      testGroup: "browser-authority-and-request-security-unit",
+      failureCode: "unit_tests_failed",
+      arguments: [
+        "--test",
+        "test/application-readiness.test.js",
+        "test/codex-capabilities.test.js",
+        "test/configuration.test.js",
+        "test/durable-core.test.js",
+        "test/health-live.test.js",
+        "test/http-port.test.js",
+        "test/installation-environment.test.js",
+        "test/operator-password.test.js",
+        "test/quality-foundation.test.js",
+        "test/browser-session.test.js",
+        "test/implementer-token.test.js",
+        "test/request-security.test.js",
+        "test/review-validation.test.js",
+        "test/verification-harness.test.js",
+      ],
+    },
+    {
+      name: "browser-component",
+      testGroup: "browser-authority-and-request-security-browser-boundary",
+      failureCode: "browser_component_tests_failed",
+      arguments: [
+        "--test",
+        "test/browser-assets-browser-component.test.js",
+        "test/operator-password-browser-component.test.js",
+        "test/browser-session-browser-component.test.js",
+      ],
+    },
+    {
+      name: "sqlite-integration",
+      testGroup: "review-sqlite-resource-boundary",
+      failureCode: "sqlite_integration_tests_failed",
+      arguments: ["--test", "test/review.test.js"],
+    },
+    {
+      name: "http-integration",
+      testGroup: "review-http-resource-boundary",
+      failureCode: "http_integration_tests_failed",
+      arguments: ["--test", "test/review-http-integration.test.js"],
+    },
+    {
+      name: "security-integration",
+      testGroup: "browser-authority-and-request-security-integration",
+      failureCode: "security_integration_tests_failed",
+      arguments: [
+        "--test",
+        "test/operator-password-bootstrap.test.js",
+        "test/browser-session-security-integration.test.js",
+      ],
+    },
+    {
+      name: "operator-browser-smoke",
+      testGroup: "authenticated-firefox-browser-cross-process",
+      failureCode: "operator_browser_smoke_failed",
+      factsMarker: "QUALITY_BAR_OPERATOR_BROWSER_FACTS",
+      validateFacts: validateOperatorBrowserFacts,
+      arguments: ["--test", "test/operator-browser-smoke.test.js"],
+    },
+    {
+      name: "package-integration",
+      testGroup: "compose-service",
+      failureCode: "package_integration_failed",
+      factsMarker: "QUALITY_BAR_PACKAGE_FACTS",
+      validateFacts: (facts) => validatePackageFacts(facts, applicationVersion),
+      arguments: ["--test", "test/package/compose.package-test.mjs"],
+    },
+  ];
+}
