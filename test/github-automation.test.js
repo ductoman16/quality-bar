@@ -71,7 +71,13 @@ test("GitHub runs only canonical verification with pinned prerequisites", () => 
         command.includes('test "$(uname -m)" = "x86_64"') &&
         command.includes("docker version") &&
         command.includes("docker compose version") &&
-        command.includes("firefox --version"),
+        command.includes("firefox --version") &&
+        command.includes(
+          "sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0",
+        ) &&
+        command.includes(
+          'test "$(sysctl --values kernel.apparmor_restrict_unprivileged_userns)" = "0"',
+        ),
     ),
   );
   assert.deepEqual(
@@ -130,6 +136,10 @@ test("ticket evidence records immutable inputs and the unchanged smoke scope", (
   assert.equal(evidence.node, "24.18.0");
   assert.equal(evidence.firefox, "153.0");
   assert.equal(evidence.yaml_parser, "yaml:2.9.0");
+  assert.equal(
+    evidence.firefox_sandbox_prerequisite,
+    "kernel.apparmor_restrict_unprivileged_userns=0",
+  );
   assert.equal(evidence.install_command, "npm ci");
   assert.equal(evidence.acceptance_command, "npm run verify");
   assert.deepEqual(evidence.dependabot_ecosystems, [

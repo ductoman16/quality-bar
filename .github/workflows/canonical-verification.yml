@@ -42,6 +42,8 @@ jobs:
           docker version
           docker compose version
           firefox --version
+          sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0
+          test "$(sysctl --values kernel.apparmor_restrict_unprivileged_userns)" = "0"
 
       - name: Run canonical verification
         run: npm run verify

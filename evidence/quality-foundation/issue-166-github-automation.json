@@ -2,6 +2,7 @@
   "ticket": 166,
   "node": "24.18.0",
   "firefox": "153.0",
+  "firefox_sandbox_prerequisite": "kernel.apparmor_restrict_unprivileged_userns=0",
   "yaml_parser": "yaml:2.9.0",
   "install_command": "npm ci",
   "acceptance_command": "npm run verify",
