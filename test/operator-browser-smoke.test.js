@@ -217,9 +217,33 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     join(directory, "firefox-profile"),
     `${proxyOrigin}/`,
   ]);
+  let firefoxStandardError = "";
+  firefox.stderr.on("data", (chunk) => {
+    firefoxStandardError = `${firefoxStandardError}${String(chunk)}`.slice(
+      -4096,
+    );
+  });
+  const { promise: firefoxExited, reject: rejectFirefoxExit } =
+    Promise.withResolvers();
+  firefox.once("error", rejectFirefoxExit);
+  firefox.once("exit", (code, signal) => {
+    rejectFirefoxExit(
+      new Error(
+        `Firefox exited before completing the smoke (code ${String(code)}, signal ${String(signal)})`,
+      ),
+    );
+  });
 
   try {
-    await waitFor(completed);
+    try {
+      await waitFor(Promise.race([completed, firefoxExited]));
+    } catch (error) {
+      throw new Error(
+        `operator_browser_firefox_failed: ${
+          error instanceof Error ? error.message : String(error)
+        }; stderr: ${firefoxStandardError.trim() || "unavailable"}`,
+      );
+    }
     assert.equal(sawAuthenticatedShell, true);
     assert.equal(sawSystemFetch, true);
   } finally {
