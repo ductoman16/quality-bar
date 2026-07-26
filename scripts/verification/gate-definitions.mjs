@@ -1,5 +1,6 @@
 import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
+import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 
 /** @param {string | null} version @param {string} tool */
 function requireExactToolVersion(version, tool) {
@@ -33,6 +34,7 @@ function requireExactToolVersion(version, tool) {
 /**
  * @param {{
  *   applicationVersion: string | null,
+ *   coverageToolVersion: string | null,
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
@@ -42,6 +44,10 @@ function requireExactToolVersion(version, tool) {
  */
 export function createGateDefinitions(metadata) {
   const node = process.version;
+  const c8 = requireExactToolVersion(
+    metadata.coverageToolVersion,
+    "application coverage",
+  );
   const eslint = requireExactToolVersion(metadata.eslintVersion, "eslint");
   const eslintPluginNode = requireExactToolVersion(
     metadata.eslintPluginNodeVersion,
@@ -207,6 +213,16 @@ export function createGateDefinitions(metadata) {
       ],
     },
     {
+      name: "application-coverage",
+      testGroup: "maintained-server-and-served-browser-application",
+      failureCode: "application_coverage_failed",
+      command: "npm",
+      factsMarker: "QUALITY_BAR_APPLICATION_COVERAGE_FACTS",
+      validateFacts: validateApplicationCoverageFacts,
+      arguments: ["run", "coverage"],
+      tools: { c8, node },
+    },
+    {
       name: "operator-browser-smoke",
       testGroup: "authenticated-firefox-browser-cross-process",
       failureCode: "operator_browser_smoke_failed",
@@ -252,6 +268,17 @@ export function createGateDefinitions(metadata) {
       testGroup: "maintained-test-verification-and-proof-javascript",
       failureCode: "proof_code_type_check_proof_failed",
       arguments: ["--test", "test/test-verification-type-check-gate.test.js"],
+    },
+    {
+      name: "application-coverage-proof",
+      testGroup: "application-coverage-ledger-and-boundary",
+      failureCode: "application_coverage_proof_failed",
+      arguments: [
+        "--test",
+        "test/application-coverage-policy.test.js",
+        "test/application-coverage-ledger.test.js",
+        "test/application-coverage-history.test.js",
+      ],
     },
   ];
 }

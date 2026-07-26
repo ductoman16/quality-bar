@@ -37,6 +37,7 @@ export function runVerification({
   /** @type {import("./manifest-reporting.mjs").VerificationMetadata} */
   let metadata = {
     applicationVersion: null,
+    coverageToolVersion: null,
     eslintPluginNodeVersion: null,
     eslintVersion: null,
     formatterVersion: null,

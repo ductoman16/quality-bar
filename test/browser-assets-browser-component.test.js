@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { runInNewContext } from "node:vm";
 
+import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
@@ -29,6 +29,27 @@ import { bootstrapOperatorPassword } from "../src/operator-password.js";
  */
 /** @type {string[]} */
 const temporaryDirectories = [];
+const repositoryRoot = resolve(import.meta.dirname, "..");
+
+/** @param {string} source @param {object} context */
+function runLoginInNewContext(source, context) {
+  return executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/login.js",
+    source,
+    context,
+  );
+}
+
+/** @param {string} source @param {object} context */
+function runOperatorInNewContext(source, context) {
+  return executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/operator.js",
+    source,
+    context,
+  );
+}
 
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-browser-assets-"));
@@ -156,7 +177,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
   /** @type {{path: string, options: object}[]} */
   const loginRequests = [];
   let loginDestination;
-  runInNewContext(loginSource, {
+  runLoginInNewContext(loginSource, {
     URL,
     document: {
       /** @param {string} id */
@@ -192,7 +213,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
 
   assert.throws(
     () =>
-      runInNewContext(loginSource, {
+      runLoginInNewContext(loginSource, {
         URL,
         document: {
           getElementById: () =>
@@ -203,7 +224,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
   );
   assert.throws(
     () =>
-      runInNewContext(loginSource, {
+      runLoginInNewContext(loginSource, {
         URL,
         document: {
           getElementById: () =>
@@ -292,7 +313,7 @@ test("browser pages serve and execute their exact maintained same-origin assets"
   /** @type {string[]} */
   const operatorDestinations = [];
   let logoutAttempts = 0;
-  runInNewContext(operatorSource, {
+  runOperatorInNewContext(operatorSource, {
     Date,
     document: {
       /** @param {string} name @param {(event?: object) => unknown} listener */

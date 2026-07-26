@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 /**
  * @typedef {{
  *   applicationVersion: string | null,
+ *   coverageToolVersion: string | null,
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
@@ -54,6 +55,9 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
   const operatorBrowserFacts = gates.find(
     (gate) => gate.name === "operator-browser-smoke",
   )?.facts;
+  const applicationCoverageFacts = gates.find(
+    (gate) => gate.name === "application-coverage",
+  )?.facts;
 
   const outcome = /** @type {"pass" | "fail"} */ (
     failures.length === 0 ? "pass" : "fail"
@@ -79,6 +83,9 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
         : null,
       typeChecker: metadata.typeCheckerVersion
         ? `typescript:${metadata.typeCheckerVersion}`
+        : null,
+      coverage: metadata.coverageToolVersion
+        ? `c8:${metadata.coverageToolVersion}`
         : null,
       git: packageFacts?.tools?.git ?? null,
       codex: packageFacts?.tools?.codex ?? null,
@@ -106,6 +113,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       typescript: metadata.typeCheckerVersion,
       git: metadata.runnerGitVersion,
     },
+    applicationCoverage: applicationCoverageFacts ?? null,
     invokedGates: gates,
     totalDurationMs: Math.round(performance.now() - startedAt),
     outcome,
