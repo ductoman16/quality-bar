@@ -38,6 +38,9 @@ function requireExactToolVersion(version, tool) {
  *   eslintPluginNodeVersion: string | null,
  *   eslintVersion: string | null,
  *   formatterVersion: string | null,
+ *   jsonSchemaFormatsVersion: string | null,
+ *   jsonSchemaValidatorVersion: string | null,
+ *   openApiValidatorVersion: string | null,
  *   typeCheckerVersion: string | null,
  * }} metadata
  * @returns {GateDefinition[]}
@@ -56,6 +59,18 @@ export function createGateDefinitions(metadata) {
   const prettier = requireExactToolVersion(
     metadata.formatterVersion,
     "prettier",
+  );
+  const ajv = requireExactToolVersion(
+    metadata.jsonSchemaValidatorVersion,
+    "JSON Schema validator",
+  );
+  const ajvFormats = requireExactToolVersion(
+    metadata.jsonSchemaFormatsVersion,
+    "JSON Schema format validator",
+  );
+  const openApiValidator = requireExactToolVersion(
+    metadata.openApiValidatorVersion,
+    "OpenAPI schema validator",
   );
   const typescript = requireExactToolVersion(
     metadata.typeCheckerVersion,
@@ -149,6 +164,47 @@ export function createGateDefinitions(metadata) {
         },
       ],
       tools: { node, typescript },
+    },
+    {
+      name: "openapi-structure",
+      failureCode: "openapi_structure_failed",
+      command: "npm",
+      arguments: ["run", "openapi:check"],
+      checkGroups: [
+        {
+          name: "published-openapi-document",
+          countPattern: /PASS \((\d+) document,/,
+          unit: "document",
+        },
+        {
+          name: "published-openapi-operations",
+          countPattern: /document, (\d+) operations,/,
+          unit: "operation",
+        },
+        {
+          name: "published-openapi-response-statuses",
+          countPattern: /operations, (\d+) response statuses;/,
+          unit: "response status",
+        },
+      ],
+      tools: {
+        ajv,
+        "ajv-formats": ajvFormats,
+        node,
+        "openapi-schema-validator": openApiValidator,
+      },
+    },
+    {
+      name: "openapi-runtime-conformance",
+      testGroup: "shared-http-request-and-response-conformance",
+      failureCode: "openapi_runtime_conformance_failed",
+      arguments: ["--test", "test/openapi-conformance.test.js"],
+      tools: {
+        ajv,
+        "ajv-formats": ajvFormats,
+        node,
+        "openapi-schema-validator": openApiValidator,
+      },
     },
     {
       name: "unit",

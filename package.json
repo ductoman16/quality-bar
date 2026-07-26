@@ -19,6 +19,7 @@
     "typecheck:production": "npm run typecheck:node && npm run typecheck:browser",
     "typecheck:proof": "npm run typecheck:tests && npm run typecheck:verification",
     "coverage": "node scripts/run-with-exact-node.mjs scripts/application-coverage.mjs",
+    "openapi:check": "node scripts/run-with-exact-node.mjs scripts/openapi-structural.mjs",
     "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
     "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
     "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
@@ -26,7 +27,10 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
+    "@seriousme/openapi-schema-validator": "2.9.0",
     "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "c8": "12.0.0",
     "eslint": "9.39.1",
     "eslint-plugin-n": "18.2.2",
