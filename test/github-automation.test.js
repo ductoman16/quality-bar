@@ -34,7 +34,7 @@ test("GitHub runs only canonical verification with pinned prerequisites", () => 
   assert.equal(job["timeout-minutes"], 30);
 
   const steps =
-    /** @type {{uses: string, run: string, with: Record<string, any>, if: string}[]} */ (
+    /** @type {{uses: string, run: string, with: Record<string, any>, if: string, id: string, env: Record<string, string>}[]} */ (
       job.steps
     );
   const actionSteps = steps.filter((step) => step.uses);
@@ -60,6 +60,7 @@ test("GitHub runs only canonical verification with pinned prerequisites", () => 
   assert.equal(node.with["cache-dependency-path"], "package-lock.json");
 
   const firefox = actionSteps[2];
+  assert.equal(firefox.id, "firefox");
   assert.equal(firefox.with["firefox-version"], "153.0");
 
   const commands = steps.filter((step) => step.run).map((step) => step.run);
@@ -76,6 +77,12 @@ test("GitHub runs only canonical verification with pinned prerequisites", () => 
   assert.deepEqual(
     commands.filter((command) => command.startsWith("npm run ")),
     ["npm run verify"],
+  );
+  const verification = steps.find((step) => step.run === "npm run verify");
+  assert.ok(verification);
+  assert.match(
+    JSON.stringify(verification),
+    /"env":\{"QUALITY_BAR_FIREFOX_BINARY":"\$\{\{ steps\.firefox\.outputs\.firefox-path \}\}"\}/u,
   );
 
   const artifact = actionSteps[3];

@@ -28,6 +28,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Set up exact Firefox
+        id: firefox
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
         with:
           firefox-version: "153.0"
@@ -44,6 +45,8 @@ jobs:
 
       - name: Run canonical verification
         run: npm run verify
+        env:
+          QUALITY_BAR_FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
 
       - name: Preserve canonical verification evidence
         if: always()
