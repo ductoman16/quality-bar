@@ -93,5 +93,11 @@ export function createGateDefinitions(applicationVersion) {
       failureCode: "core_javascript_correctness_failed",
       arguments: ["--test", "test/core-js-lint-gate.test.js"],
     },
+    {
+      name: "node-and-ownership-boundaries",
+      testGroup: "maintained-javascript-node-and-ownership-boundaries",
+      failureCode: "node_and_ownership_boundary_lint_failed",
+      arguments: ["--test", "test/node-boundary-lint-gate.test.js"],
+    },
   ];
 }
