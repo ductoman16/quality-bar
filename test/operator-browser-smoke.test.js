@@ -236,7 +236,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
 
   try {
     try {
-      await waitFor(Promise.race([completed, firefoxExited]));
+      await waitFor(Promise.race([completed, firefoxExited]), 30_000);
     } catch (error) {
       throw new Error(
         `operator_browser_firefox_failed: ${
