@@ -46,18 +46,9 @@ const errorOnlyThrowing = {
             "TypeError",
             "URIError",
           ]);
-          const repositoryConstructors = new Set([
-            "BrowserAssetError",
-            "BrowserSessionError",
-            "CodexConfigurationError",
-            "DurableCoreError",
-            "ImplementerTokenError",
-            "InstallationConfigurationError",
-            "InstallationEnvironmentError",
-            "OperatorLoginThrottleError",
-            "OperatorPasswordError",
-            "RequestSecurityError",
-            "ReviewError",
+          const repositoryConstructors = new Map([
+            ["./durable-error.js", new Set(["DurableCoreError"])],
+            ["./operator-password.js", new Set(["OperatorPasswordError"])],
           ]);
           const variable = variableFor(node.callee);
           const definition = variable?.defs[0];
@@ -65,7 +56,12 @@ const errorOnlyThrowing = {
             return builtInConstructors.has(node.callee.name);
           }
           if (definition.type === "ImportBinding") {
-            return repositoryConstructors.has(node.callee.name);
+            return (
+              definition.node.type === "ImportSpecifier" &&
+              repositoryConstructors
+                .get(definition.node.parent.source.value)
+                ?.has(definition.node.imported.name)
+            );
           }
           return (
             definition.type === "ClassName" &&

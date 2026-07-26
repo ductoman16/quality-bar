@@ -34,6 +34,7 @@ test("the core JavaScript correctness gate reports every required rule family", 
     "constructed-non-error": "error-only-throwing/error-only-throwing",
     "bound-non-error": "error-only-throwing/error-only-throwing",
     "shadowed-error-name": "error-only-throwing/error-only-throwing",
+    "unproven-import": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
     "object-shorthand": "object-shorthand",
     "immutable-binding": "prefer-const",
@@ -108,6 +109,21 @@ test("Error-only throwing accepts actual Error ancestry", async () => {
         path: "src/error-ancestry-fixture.js",
         source:
           "class ReviewFailure extends Error {}\nthrow new ReviewFailure('invalid');\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
+});
+
+test("Error-only throwing accepts an aliased repository Error constructor", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-import-fixture.js",
+        source:
+          "import { DurableCoreError as Failure } from './durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
       },
     ],
     repositoryRoot,
