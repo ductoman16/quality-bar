@@ -75,6 +75,15 @@ afterEach(async () => {
   }
 });
 
+test("an API-looking path outside the exact version boundary stays not found", async () => {
+  const { origin } = await startApplication();
+
+  const response = await fetch(`${origin}/api/v10?unexpected=value`);
+
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).error.code, "not_found");
+});
+
 test("the authenticated Review resource creates only an exact complete v1 snapshot", async () => {
   const { application, origin } = await startApplication();
   const login = await fetch(`${origin}/api/v1/session/login`, {
