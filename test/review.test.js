@@ -118,6 +118,16 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
     /review_version_criterion_immutable/,
   );
   assert.throws(
+    () =>
+      core.run(
+        "UPDATE review_version_criteria SET position = ? WHERE review_version_id = ? AND criterion_id = ?",
+        2,
+        "review-fact-2",
+        "review-fact-3",
+      ),
+    /review_version_criterion_immutable/,
+  );
+  assert.throws(
     () => reviews.create(reviewDefinition()),
     (error) => error.code === "review_name_conflict",
   );
