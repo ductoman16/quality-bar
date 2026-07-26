@@ -98,6 +98,11 @@ export function readVerificationMetadata(repositoryRoot) {
 
   return {
     applicationVersion,
+    coverageToolVersion: readInstalledPackageVersion(
+      repositoryRoot,
+      "c8",
+      "12.0.0",
+    ),
     eslintPluginNodeVersion: readInstalledPackageVersion(
       repositoryRoot,
       "eslint-plugin-n",

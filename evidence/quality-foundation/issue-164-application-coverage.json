@@ -1,0 +1,49 @@
+{
+  "ticket": 164,
+  "baseline_source_commit": "313f83f70a96e7959c5539b45eca4493430ebca0",
+  "focused_command": "npm run coverage",
+  "coverage_tool": "c8:12.0.0",
+  "precision": 2,
+  "application_boundary": {
+    "include": [
+      "src/**/*.js"
+    ],
+    "excluded_roots": [
+      "artifacts",
+      "evidence",
+      "fixtures",
+      "scripts",
+      "test"
+    ],
+    "served_browser_assets": [
+      "src/browser/login.js",
+      "src/browser/operator.js"
+    ]
+  },
+  "measured_baseline": {
+    "lines": "86.01",
+    "branches": "83.26",
+    "functions": "88.71"
+  },
+  "ledger": {
+    "genesis": "sha256:b1b0f6bb68e31b46812072358bf8610164fdd110c9553011478434d2a8f1102f",
+    "identity": "sha256:e21af3df8aa40242c9b9cfd839845227b3f088051a4c240f682fad3be7286914",
+    "entry_count": 1
+  },
+  "representative_hard_failures": [
+    "coverage below any committed component threshold",
+    "damaged ledger hash",
+    "decreasing historical component",
+    "truncated ledger",
+    "rewritten retained prefix",
+    "reordered first-parent source history",
+    "unavailable source or trusted prior Git object",
+    "missing exact served browser asset"
+  ],
+  "cross_process_smokes": [
+    "authenticated-firefox-browser-cross-process",
+    "compose-service"
+  ],
+  "new_e2e_scenarios": 0,
+  "final_outcome": "pass"
+}

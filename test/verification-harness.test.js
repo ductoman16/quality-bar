@@ -112,6 +112,7 @@ test("the verifier emits successful evidence and stops at a hard gate failure", 
 test("the canonical verifier starts with six named static-quality gates", () => {
   const definitions = createGateDefinitions({
     applicationVersion: "1.2.3",
+    coverageToolVersion: "12.0.0",
     eslintPluginNodeVersion: "18.2.2",
     eslintVersion: "9.39.1",
     formatterVersion: "3.7.4",
@@ -145,12 +146,31 @@ test("the canonical verifier starts with six named static-quality gates", () => 
     assert.ok((definition.checkGroups?.length ?? 0) > 0);
     assert.equal(definition.tools?.node, process.version);
   }
+  const coverage = definitions.find(
+    (definition) => definition.name === "application-coverage",
+  );
+  assert.ok(coverage);
+  assert.equal(coverage.command, "npm");
+  assert.deepEqual(coverage.arguments, ["run", "coverage"]);
+  assert.equal(coverage.factsMarker, "QUALITY_BAR_APPLICATION_COVERAGE_FACTS");
+  assert.deepEqual(coverage.tools, { c8: "12.0.0", node: process.version });
+  const coverageProof = definitions.find(
+    (definition) => definition.name === "application-coverage-proof",
+  );
+  assert.ok(coverageProof);
+  assert.deepEqual(coverageProof.arguments, [
+    "--test",
+    "test/application-coverage-policy.test.js",
+    "test/application-coverage-ledger.test.js",
+    "test/application-coverage-history.test.js",
+  ]);
 });
 
 test("verification metadata reads the exact installed static tool versions", () => {
   const metadata = readVerificationMetadata(repositoryRoot);
 
   assert.equal(metadata.formatterVersion, "3.7.4");
+  assert.equal(metadata.coverageToolVersion, "12.0.0");
   assert.equal(metadata.eslintVersion, "9.39.1");
   assert.equal(metadata.eslintPluginNodeVersion, "18.2.2");
   assert.equal(metadata.typeCheckerVersion, "7.0.2");
@@ -161,6 +181,7 @@ test("static gate definitions reject unavailable tool-version evidence", () => {
     () =>
       createGateDefinitions({
         applicationVersion: "1.2.3",
+        coverageToolVersion: "12.0.0",
         eslintPluginNodeVersion: "18.2.2",
         eslintVersion: null,
         formatterVersion: "3.7.4",
@@ -308,6 +329,7 @@ test("each static gate emits its owning hard failure and stops verification", ()
     );
     const metadata = {
       applicationVersion: "1.2.3",
+      coverageToolVersion: "12.0.0",
       eslintPluginNodeVersion: "18.2.2",
       eslintVersion: "9.39.1",
       formatterVersion: "3.7.4",
