@@ -179,7 +179,8 @@ export function createApplication({
     startupFailure = error;
     requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
     browserSessions = createUnavailableBrowserSessionService(startupFailure);
-    implementerTokens = createUnavailableImplementerTokenService(startupFailure);
+    implementerTokens =
+      createUnavailableImplementerTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
     structuredLog(
       writeLog,

@@ -43,10 +43,17 @@ function createToken(randomBytes) {
   try {
     bytes = randomBytes(32);
   } catch (error) {
-    fail("implementer_token_unavailable", "Implementer token could not be created", error);
+    fail(
+      "implementer_token_unavailable",
+      "Implementer token could not be created",
+      error,
+    );
   }
   if (!Buffer.isBuffer(bytes) || bytes.length !== 32) {
-    fail("implementer_token_unavailable", "Implementer token could not be created");
+    fail(
+      "implementer_token_unavailable",
+      "Implementer token could not be created",
+    );
   }
   return bytes.toString("base64url");
 }
@@ -56,7 +63,9 @@ function tokenVerifier(token) {
 }
 
 function isTokenVerifier(value) {
-  return typeof value === "string" && /^sha256-v1\.[A-Za-z0-9+/]{43}=$/.test(value);
+  return (
+    typeof value === "string" && /^sha256-v1\.[A-Za-z0-9+/]{43}=$/.test(value)
+  );
 }
 
 function verifierMatches(token, verifier) {
@@ -69,7 +78,9 @@ function verifierMatches(token, verifier) {
   }
   const candidate = Buffer.from(tokenVerifier(token), "utf8");
   const stored = Buffer.from(verifier, "utf8");
-  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
+  return (
+    candidate.length === stored.length && timingSafeEqual(candidate, stored)
+  );
 }
 
 function readVerifier(reader) {
@@ -81,7 +92,11 @@ function readVerifier(reader) {
 
 export function createImplementerTokenService(
   durableCore,
-  { now = () => Date.now(), randomBytes = createRandomBytes, recordAttribution = insertAuthorityAttribution } = {},
+  {
+    now = () => Date.now(),
+    randomBytes = createRandomBytes,
+    recordAttribution = insertAuthorityAttribution,
+  } = {},
 ) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
@@ -117,7 +132,9 @@ export function createImplementerTokenService(
         );
       }
       recordAttribution(transaction, {
-        action: requireActive ? "implementer_token_rotate" : "implementer_token_create",
+        action: requireActive
+          ? "implementer_token_rotate"
+          : "implementer_token_create",
         channel: "browser_session",
         occurredAt: now(),
         outcome: "success",
@@ -137,7 +154,10 @@ export function createImplementerTokenService(
       durableCore.transaction((transaction) => {
         verifyOperatorPassword(transaction, password);
         if (readVerifier(transaction) === undefined) {
-          fail("implementer_token_not_active", "Implementer token is not active");
+          fail(
+            "implementer_token_not_active",
+            "Implementer token is not active",
+          );
         }
         transaction.run(
           "DELETE FROM quality_bar_metadata WHERE key = ?",

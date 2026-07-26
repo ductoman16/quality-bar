@@ -44,14 +44,18 @@ test("migrates the existing operator-password schema atomically before serving s
   core.run("DROP INDEX authority_attributions_keyset");
   core.run("DROP TABLE authority_attributions");
   core.run("DROP TABLE browser_sessions");
-  core.run("UPDATE quality_bar_metadata SET value = '1' WHERE key = 'schema_version'");
+  core.run(
+    "UPDATE quality_bar_metadata SET value = '1' WHERE key = 'schema_version'",
+  );
   core.run("PRAGMA user_version = 1");
   core.close();
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 6);
   assert.equal(
-    migrated.get("SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'").value,
+    migrated.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
+    ).value,
     "6",
   );
   migrated.run(
@@ -87,7 +91,10 @@ test("migrates legacy browser sessions by revoking records without lifetime time
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 6);
-  assert.equal(migrated.get("SELECT session_hash FROM browser_sessions"), undefined);
+  assert.equal(
+    migrated.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
   migrated.close();
 });
 
@@ -104,27 +111,34 @@ test("migrates v4 to v6 without losing existing authority facts", () => {
     );
     transaction.run("DROP INDEX authority_attributions_keyset");
     transaction.run("DROP TABLE authority_attributions");
-    transaction.run("UPDATE quality_bar_metadata SET value = '4' WHERE key = 'schema_version'");
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = '4' WHERE key = 'schema_version'",
+    );
     transaction.run("PRAGMA user_version = 4");
   });
   core.close();
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 6);
-  assert.deepEqual(
-    migrated.get("SELECT session_hash FROM browser_sessions"),
-    { session_hash: "retained-session-hash" },
-  );
+  assert.deepEqual(migrated.get("SELECT session_hash FROM browser_sessions"), {
+    session_hash: "retained-session-hash",
+  });
   assert.equal(
-    migrated.get("SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'").value,
+    migrated.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
+    ).value,
     "6",
   );
   assert.deepEqual(
-    migrated.get("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'authority_attributions'"),
+    migrated.get(
+      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'authority_attributions'",
+    ),
     { name: "authority_attributions" },
   );
   assert.deepEqual(
-    migrated.get("SELECT name FROM sqlite_schema WHERE type = 'index' AND name = 'authority_attributions_keyset'"),
+    migrated.get(
+      "SELECT name FROM sqlite_schema WHERE type = 'index' AND name = 'authority_attributions_keyset'",
+    ),
     { name: "authority_attributions_keyset" },
   );
   migrated.close();
@@ -133,14 +147,18 @@ test("migrates v4 to v6 without losing existing authority facts", () => {
 test("migrates v5 to v6 with the Review schema intact", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("UPDATE quality_bar_metadata SET value = '5' WHERE key = 'schema_version'");
+  current.run(
+    "UPDATE quality_bar_metadata SET value = '5' WHERE key = 'schema_version'",
+  );
   current.run("PRAGMA user_version = 5");
   current.close();
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 6);
   assert.deepEqual(
-    migrated.get("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'reviews'"),
+    migrated.get(
+      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'reviews'",
+    ),
     { name: "reviews" },
   );
   migrated.close();
@@ -153,15 +171,15 @@ test("System facts exclude browser sessions past their idle or absolute lifetime
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
     "active-session",
     "active-csrf",
-    now - (29 * 24 * 60 * 60 * 1_000),
-    now - (6 * 24 * 60 * 60 * 1_000),
+    now - 29 * 24 * 60 * 60 * 1_000,
+    now - 6 * 24 * 60 * 60 * 1_000,
   );
   core.run(
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
     "expired-session",
     "expired-csrf",
-    now - (31 * 24 * 60 * 60 * 1_000),
-    now - (8 * 24 * 60 * 60 * 1_000),
+    now - 31 * 24 * 60 * 60 * 1_000,
+    now - 8 * 24 * 60 * 60 * 1_000,
   );
   const system = createSystemResource(core, { now: () => now });
   const facts = system.readFacts({
@@ -331,7 +349,10 @@ test("surfaces both the transaction error and a failed rollback", () => {
       }),
     (error) => {
       assert.ok(error instanceof AggregateError);
-      assert.equal(error.message, "SQLite transaction and rollback both failed");
+      assert.equal(
+        error.message,
+        "SQLite transaction and rollback both failed",
+      );
       assert.equal(error.errors[0], transactionFailure);
       assert.match(error.errors[1].message, /cannot rollback/);
       return true;
@@ -384,7 +405,10 @@ test("rejects asynchronous transaction callbacks without committing partial fact
       }),
     (error) => {
       assert.equal(error.code, "asynchronous_transaction_unsupported");
-      assert.equal(error.message, "SQLite transaction callback must be synchronous");
+      assert.equal(
+        error.message,
+        "SQLite transaction callback must be synchronous",
+      );
       return true;
     },
   );

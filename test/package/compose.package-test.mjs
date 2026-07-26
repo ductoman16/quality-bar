@@ -9,7 +9,10 @@ import { test } from "node:test";
 const applicationVersion = readFileSync(".env", "utf8").match(
   /^QUALITY_BAR_VERSION=(\d+\.\d+\.\d+)$/m,
 )?.[1];
-assert.ok(applicationVersion, ".env must define a semantic QUALITY_BAR_VERSION");
+assert.ok(
+  applicationVersion,
+  ".env must define a semantic QUALITY_BAR_VERSION",
+);
 const serviceName = "quality-bar";
 const projectName = `quality-bar-package-${process.pid}`;
 const fixtureDirectory = mkdtempSync(join(tmpdir(), "quality-bar-package-"));
@@ -232,7 +235,11 @@ test("Compose boots with one strict configuration source and external installati
     for (const [path, facts] of Object.entries(filesystemFacts.pathFacts)) {
       assert.deepEqual(facts, {
         gid: 10001,
-        mode: path === "/etc/quality-bar/config.env" || path === "/run/secrets/quality-bar-master-key" ? 0o400 : 0o700,
+        mode:
+          path === "/etc/quality-bar/config.env" ||
+          path === "/run/secrets/quality-bar-master-key"
+            ? 0o400
+            : 0o700,
         uid: 10001,
       });
     }
@@ -274,7 +281,11 @@ test("Compose boots with one strict configuration source and external installati
     assert.equal(
       readyResponse.status,
       200,
-      run("docker", ["compose", "logs", "--no-color", serviceName], environment),
+      run(
+        "docker",
+        ["compose", "logs", "--no-color", serviceName],
+        environment,
+      ),
     );
     const readiness = readyResponse.body;
     assert.deepEqual(readiness, { status: "ready" });
@@ -406,8 +417,14 @@ test("Compose boots with one strict configuration source and external installati
       ),
     );
     assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
-    assert.match(recreatedDatabaseFacts.operatorPasswordVerifier, /^scrypt-v1\./);
-    assert.doesNotMatch(recreatedDatabaseFacts.operatorPasswordVerifier, new RegExp(bootstrapPassword));
+    assert.match(
+      recreatedDatabaseFacts.operatorPasswordVerifier,
+      /^scrypt-v1\./,
+    );
+    assert.doesNotMatch(
+      recreatedDatabaseFacts.operatorPasswordVerifier,
+      new RegExp(bootstrapPassword),
+    );
 
     const authenticatedHttpSmoke = JSON.parse(
       run(
@@ -452,10 +469,14 @@ test("Compose boots with one strict configuration source and external installati
         environment,
       ),
     );
-    assert.match(authenticatedHttpSmoke.codexCapabilityCatalogVersion, /^\d+\.\d+\.\d+$/);
+    assert.match(
+      authenticatedHttpSmoke.codexCapabilityCatalogVersion,
+      /^\d+\.\d+\.\d+$/,
+    );
     assert.deepEqual(authenticatedHttpSmoke, {
       browserStatus: 200,
-      codexCapabilityCatalogVersion: authenticatedHttpSmoke.codexCapabilityCatalogVersion,
+      codexCapabilityCatalogVersion:
+        authenticatedHttpSmoke.codexCapabilityCatalogVersion,
       hasCodexCapabilityModels: true,
       hasNavigation: true,
       loginStatus: 204,
@@ -531,7 +552,10 @@ test("Compose boots with one strict configuration source and external installati
       },
     };
     assert.doesNotMatch(JSON.stringify(packageFacts), new RegExp(masterKey));
-    assert.doesNotMatch(JSON.stringify(packageFacts), new RegExp(bootstrapPassword));
+    assert.doesNotMatch(
+      JSON.stringify(packageFacts),
+      new RegExp(bootstrapPassword),
+    );
     console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(packageFacts)}`);
   } catch (error) {
     primaryFailure = error;
@@ -547,7 +571,9 @@ test("Compose boots with one strict configuration source and external installati
       if (!primaryFailure) {
         throw cleanupError;
       }
-      process.stderr.write(`Package cleanup also failed: ${cleanupError.message}\n`);
+      process.stderr.write(
+        `Package cleanup also failed: ${cleanupError.message}\n`,
+      );
     }
     rmSync(fixtureDirectory, { force: true, recursive: true });
   }

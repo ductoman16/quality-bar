@@ -24,7 +24,13 @@ function fail(code, message, cause) {
   throw new InstallationConfigurationError(code, message, { cause });
 }
 
-function readRequiredFile(readFile, path, encoding, missingCode, missingMessage) {
+function readRequiredFile(
+  readFile,
+  path,
+  encoding,
+  missingCode,
+  missingMessage,
+) {
   try {
     return readFile(path, encoding);
   } catch (error) {
@@ -61,7 +67,10 @@ function parseConfiguration(source) {
 
   for (const key of REQUIRED_CONFIGURATION_KEYS) {
     if (!entries.has(key)) {
-      fail("configuration_missing", "Configuration is missing a required value");
+      fail(
+        "configuration_missing",
+        "Configuration is missing a required value",
+      );
     }
   }
   return entries;
@@ -72,7 +81,10 @@ function parseExternalOrigin(value) {
   try {
     origin = new URL(value);
   } catch {
-    fail("configuration_malformed", "Configuration has a malformed external origin");
+    fail(
+      "configuration_malformed",
+      "Configuration has a malformed external origin",
+    );
   }
   if (
     origin.origin !== value ||
@@ -83,7 +95,10 @@ function parseExternalOrigin(value) {
     origin.search ||
     origin.hash
   ) {
-    fail("configuration_malformed", "Configuration has a malformed external origin");
+    fail(
+      "configuration_malformed",
+      "Configuration has a malformed external origin",
+    );
   }
   return origin;
 }
@@ -107,8 +122,7 @@ function parseTrustedProxyAddresses(value) {
 
 function validateNetworkConfiguration(origin, trustedProxyAddresses) {
   const isLoopbackHttp =
-    origin.protocol === "http:" &&
-    origin.hostname === "127.0.0.1";
+    origin.protocol === "http:" && origin.hostname === "127.0.0.1";
   const hasUnreachableTrustedProxy = trustedProxyAddresses.some(
     (address) => address !== "127.0.0.1",
   );
@@ -150,7 +164,9 @@ export function loadInstallationConfiguration({
     "Configuration source is unavailable",
   );
   const entries = parseConfiguration(source);
-  const origin = parseExternalOrigin(entries.get("QUALITY_BAR_EXTERNAL_ORIGIN"));
+  const origin = parseExternalOrigin(
+    entries.get("QUALITY_BAR_EXTERNAL_ORIGIN"),
+  );
   const trustedProxyAddresses = parseTrustedProxyAddresses(
     entries.get("QUALITY_BAR_TRUSTED_PROXY_ADDRESSES"),
   );
@@ -188,8 +204,13 @@ function encryptVerifier(masterKey) {
 }
 
 function decryptVerifier(value, masterKey) {
-  const [version, initializationVector, authenticationTag, ciphertext, ...extra] =
-    value.split(".");
+  const [
+    version,
+    initializationVector,
+    authenticationTag,
+    ciphertext,
+    ...extra
+  ] = value.split(".");
   if (
     version !== "v1" ||
     extra.length !== 0 ||
@@ -206,10 +227,12 @@ function decryptVerifier(value, masterKey) {
       Buffer.from(initializationVector, "base64"),
     );
     decipher.setAuthTag(Buffer.from(authenticationTag, "base64"));
-    return Buffer.concat([
-      decipher.update(Buffer.from(ciphertext, "base64")),
-      decipher.final(),
-    ]).toString("utf8") === INSTALLATION_KEY_VERIFIER;
+    return (
+      Buffer.concat([
+        decipher.update(Buffer.from(ciphertext, "base64")),
+        decipher.final(),
+      ]).toString("utf8") === INSTALLATION_KEY_VERIFIER
+    );
   } catch {
     return false;
   }

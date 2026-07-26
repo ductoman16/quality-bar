@@ -28,7 +28,8 @@ async function startApplication(databasePath, options = {}) {
     validateInstallation: options.validateInstallation ?? (() => ({})),
     validateSources: options.validateSources ?? (() => {}),
     validateTools: options.validateTools ?? (() => {}),
-    validateCodexAuthentication: options.validateCodexAuthentication ?? (() => {}),
+    validateCodexAuthentication:
+      options.validateCodexAuthentication ?? (() => {}),
     writeLog: options.writeLog ?? (() => {}),
   });
   await new Promise((resolve, reject) => {
@@ -88,7 +89,10 @@ test("liveness remains a process probe when the configured browser origin requir
 
   const directProductResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(directProductResponse.status, 400);
-  assert.equal((await directProductResponse.json()).error.code, "proxy_forwarded_required");
+  assert.equal(
+    (await directProductResponse.json()).error.code,
+    "proxy_forwarded_required",
+  );
 });
 
 test("configuration failure keeps product traffic unavailable without exposing secret values", async () => {
@@ -117,7 +121,10 @@ test("configuration failure keeps product traffic unavailable without exposing s
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.equal((await productResponse.json()).error.code, "configuration_unknown");
+  assert.equal(
+    (await productResponse.json()).error.code,
+    "configuration_unknown",
+  );
 });
 
 test("unsafe fixed sources are rejected before their contents are read", async () => {
@@ -144,11 +151,14 @@ test("unsafe fixed sources are rejected before their contents are read", async (
 test("unavailable Codex authentication leaves the durable System surface ready", async () => {
   const authenticationFailure = new Error("not logged in");
   authenticationFailure.code = "codex_authentication_unavailable";
-  const { application, origin } = await startApplication(temporaryDatabasePath(), {
-    validateCodexAuthentication() {
-      throw authenticationFailure;
+  const { application, origin } = await startApplication(
+    temporaryDatabasePath(),
+    {
+      validateCodexAuthentication() {
+        throw authenticationFailure;
+      },
     },
-  });
+  );
 
   const readyResponse = await fetch(`${origin}/health/ready`);
   assert.equal(readyResponse.status, 200);
@@ -158,7 +168,10 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     status: "unavailable",
   });
 
-  bootstrapOperatorPassword(application.durableCore, "a correct operator password");
+  bootstrapOperatorPassword(
+    application.durableCore,
+    "a correct operator password",
+  );
   const loginResponse = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
     headers: { "content-type": "application/json" },
@@ -223,7 +236,10 @@ test("a malformed external master key never appears in responses or logs", async
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.equal((await productResponse.json()).error.code, "master_key_malformed");
+  assert.equal(
+    (await productResponse.json()).error.code,
+    "master_key_malformed",
+  );
   assert.doesNotMatch(logs.join(""), new RegExp(secretValue));
 });
 
@@ -252,7 +268,10 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);
-  assert.equal((await productResponse.json()).error.code, "master_key_undecryptable");
+  assert.equal(
+    (await productResponse.json()).error.code,
+    "master_key_undecryptable",
+  );
 });
 
 test("hard storage failure stops work, terminates Codex, and rejects every product surface", async () => {

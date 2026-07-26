@@ -11,7 +11,9 @@ import { bootstrapOperatorPassword } from "../src/operator-password.js";
 const temporaryDirectories = [];
 
 function temporaryDatabasePath() {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-implementer-token-"));
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-implementer-token-"),
+  );
   temporaryDirectories.push(directory);
   return join(directory, "quality-bar.sqlite3");
 }

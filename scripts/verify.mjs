@@ -2,6 +2,15 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { assertExactNodeRuntime } from "./runtime-contract.mjs";
+
+try {
+  assertExactNodeRuntime(process.version);
+} catch (error) {
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
+}
+
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const manifestPath = resolve(
   repositoryRoot,
@@ -121,10 +130,7 @@ function validatePackageFacts(facts) {
       facts?.storage?.backupsPath === "/var/backups/quality-bar",
       "storage.backupsPath is invalid",
     ],
-    [
-      facts?.storage?.ownedPaths === true,
-      "storage.ownedPaths must equal true",
-    ],
+    [facts?.storage?.ownedPaths === true, "storage.ownedPaths must equal true"],
     [
       facts?.storage?.localFilesystems === true,
       "storage.localFilesystems must equal true",
@@ -137,14 +143,8 @@ function validatePackageFacts(facts) {
       facts?.installation?.freeSpaceReserveMet === true,
       "installation.freeSpaceReserveMet must equal true",
     ],
-    [
-      facts?.tools?.git === "2.54.0",
-      "tools.git must equal 2.54.0",
-    ],
-    [
-      facts?.tools?.codex === "0.145.0",
-      "tools.codex must equal 0.145.0",
-    ],
+    [facts?.tools?.git === "2.54.0", "tools.git must equal 2.54.0"],
+    [facts?.tools?.codex === "0.145.0", "tools.codex must equal 0.145.0"],
     [
       facts?.tools?.persistentCodexLogin === false,
       "tools.persistentCodexLogin must equal false for the unprovisioned packaged fixture",
@@ -168,7 +168,8 @@ function validatePackageFacts(facts) {
     ],
     [
       facts?.authenticatedHttpSmoke?.browserStatus === 200 &&
-        typeof facts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion === "string" &&
+        typeof facts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion ===
+          "string" &&
         facts.authenticatedHttpSmoke.codexCapabilityCatalogVersion.length > 0 &&
         facts?.authenticatedHttpSmoke?.hasCodexCapabilityModels === true &&
         facts?.authenticatedHttpSmoke?.hasNavigation === true &&
@@ -185,10 +186,7 @@ function validatePackageFacts(facts) {
       facts?.database?.foreignKeys === true,
       "database.foreignKeys must equal true",
     ],
-    [
-      facts?.database?.integrity === "ok",
-      "database.integrity must equal ok",
-    ],
+    [facts?.database?.integrity === "ok", "database.integrity must equal ok"],
     [
       facts?.database?.journalMode === "wal",
       "database.journalMode must equal wal",
@@ -213,7 +211,8 @@ function validateOperatorBrowserFacts(facts) {
       ? "authenticatedShell must equal true"
       : facts?.systemFetch !== true
         ? "systemFetch must equal true"
-        : typeof facts?.executableVersion !== "string" || facts.executableVersion.length === 0
+        : typeof facts?.executableVersion !== "string" ||
+            facts.executableVersion.length === 0
           ? "executableVersion must be nonempty"
           : null;
 }
@@ -226,13 +225,13 @@ function runGate(definition) {
   });
   const durationMs = Math.round(performance.now() - gateStartedAt);
   const combinedOutput = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
-  const testCountMatch = combinedOutput.match(/^# tests (\d+)$/m);
+  const testCountMatch = combinedOutput.match(/^(?:#|ℹ) tests (\d+)$/m);
   const testCount = testCountMatch
     ? Number.parseInt(testCountMatch[1], 10)
     : null;
   const factsMatch = definition.factsMarker
     ? combinedOutput.match(
-        new RegExp(`^# ${definition.factsMarker} (.+)$`, "m"),
+        new RegExp(`^(?:# )?${definition.factsMarker} (.+)$`, "m"),
       )
     : null;
   let facts = null;
@@ -305,6 +304,7 @@ let applicationVersion = null;
 let packagedNodeVersion = null;
 let sourceCommit = null;
 let runnerGitVersion = null;
+let formatterVersion = null;
 
 try {
   applicationVersion = readRequiredMatch(
@@ -317,6 +317,15 @@ try {
     /^FROM node:(\d+\.\d+\.\d+)-alpine@sha256:/m,
     "a digest-pinned Node version",
   );
+  formatterVersion = captureCommand(
+    resolve(repositoryRoot, "node_modules/.bin/prettier"),
+    ["--version"],
+  );
+  if (formatterVersion !== "3.7.4") {
+    throw new Error(
+      `node_modules/.bin/prettier must report 3.7.4, received ${formatterVersion}`,
+    );
+  }
   sourceCommit = captureCommand("git", ["rev-parse", "HEAD"]);
   runnerGitVersion = captureCommand("git", ["--version"]).replace(
     /^git version /,
@@ -434,9 +443,12 @@ const manifest = {
     schema: packageFacts?.database?.schemaVersion ?? null,
     image: applicationVersion ? `quality-bar:${applicationVersion}` : null,
     runtime: packagedNodeVersion ? `node:${packagedNodeVersion}` : null,
+    formatter: formatterVersion ? `prettier:${formatterVersion}` : null,
     git: packageFacts?.tools?.git ?? null,
     codex: packageFacts?.tools?.codex ?? null,
-    codexCapabilityCatalog: packageFacts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion ?? null,
+    codexCapabilityCatalog:
+      packageFacts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion ??
+      null,
     adapterProtocol: null,
     browser: operatorBrowserFacts?.executableVersion ?? null,
     database: packageFacts?.database?.databaseVersion
@@ -452,6 +464,7 @@ const manifest = {
   },
   runnerVersions: {
     node: process.version,
+    prettier: formatterVersion,
     git: runnerGitVersion,
   },
   invokedGates: gates,

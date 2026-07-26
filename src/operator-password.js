@@ -74,8 +74,15 @@ function readPasswordVerifier(value) {
       "Operator password verifier could not be read",
     );
   }
-  const [version, cost, blockSize, parallelization, salt, derivedKey, ...extra] =
-    value.split(".");
+  const [
+    version,
+    cost,
+    blockSize,
+    parallelization,
+    salt,
+    derivedKey,
+    ...extra
+  ] = value.split(".");
   if (
     version !== "scrypt-v1" ||
     extra.length !== 0 ||
@@ -147,7 +154,10 @@ export function prepareOperatorPasswordReplacement(
 ) {
   verifyOperatorPassword(durableCore, currentPassword);
   if (typeof replacementPassword !== "string") {
-    fail("operator_password_input_missing", "Operator password input is required");
+    fail(
+      "operator_password_input_missing",
+      "Operator password input is required",
+    );
   }
   if (passwordCharacterCount(replacementPassword) < MINIMUM_PASSWORD_LENGTH) {
     fail(
@@ -164,7 +174,10 @@ export function bootstrapOperatorPassword(
   { randomBytes = createRandomBytes } = {},
 ) {
   if (typeof password !== "string") {
-    fail("operator_password_input_missing", "Operator password input is required");
+    fail(
+      "operator_password_input_missing",
+      "Operator password input is required",
+    );
   }
   if (passwordCharacterCount(password) < MINIMUM_PASSWORD_LENGTH) {
     fail(

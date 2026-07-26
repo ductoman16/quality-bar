@@ -2,10 +2,19 @@
   "name": "quality-bar",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.18.0"
+  },
+  "packageManager": "npm@11.16.0",
   "scripts": {
-    "start": "node src/main.js",
-    "test": "node --test",
-    "test:package": "node --test test/package/compose.package-test.mjs",
-    "verify": "node scripts/verify.mjs"
+    "start": "node scripts/run-with-exact-node.mjs src/main.js",
+    "test": "node scripts/run-with-exact-node.mjs --test",
+    "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
+    "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.test.js\" \"test/package/**/*.mjs\"",
+    "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.test.js\" \"test/package/**/*.mjs\"",
+    "verify": "node scripts/run-with-exact-node.mjs scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.7.4"
   }
 }

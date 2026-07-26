@@ -28,19 +28,28 @@ function forwardedFacts(value, expectedHost) {
     );
   }
   if (value.includes(",")) {
-    fail("proxy_forwarded_invalid", "Trusted proxy forwarded facts are invalid");
+    fail(
+      "proxy_forwarded_invalid",
+      "Trusted proxy forwarded facts are invalid",
+    );
   }
 
   const facts = new Map();
   for (const part of value.split(";")) {
     const separator = part.indexOf("=");
     if (separator <= 0 || separator === part.length - 1) {
-      fail("proxy_forwarded_invalid", "Trusted proxy forwarded facts are invalid");
+      fail(
+        "proxy_forwarded_invalid",
+        "Trusted proxy forwarded facts are invalid",
+      );
     }
     const name = part.slice(0, separator).toLowerCase();
     const fact = part.slice(separator + 1);
     if (!/^[a-z]+$/.test(name) || facts.has(name)) {
-      fail("proxy_forwarded_invalid", "Trusted proxy forwarded facts are invalid");
+      fail(
+        "proxy_forwarded_invalid",
+        "Trusted proxy forwarded facts are invalid",
+      );
     }
     facts.set(name, fact);
   }
@@ -51,7 +60,10 @@ function forwardedFacts(value, expectedHost) {
     facts.get("host") !== expectedHost ||
     isIP(clientAddress) === 0
   ) {
-    fail("proxy_forwarded_invalid", "Trusted proxy forwarded facts are invalid");
+    fail(
+      "proxy_forwarded_invalid",
+      "Trusted proxy forwarded facts are invalid",
+    );
   }
   return clientAddress;
 }
@@ -75,7 +87,10 @@ export function createRequestSecurityBoundary({
     requestFacts(request) {
       const peerAddress = request?.socket?.remoteAddress;
       if (trustedProxies.has(peerAddress)) {
-        const clientAddress = forwardedFacts(request.headers.forwarded, origin.host);
+        const clientAddress = forwardedFacts(
+          request.headers.forwarded,
+          origin.host,
+        );
         return { clientAddress, host: origin.host, scheme: "https" };
       }
       if (origin.protocol !== "http:" || !isLoopbackAddress(peerAddress)) {
@@ -88,7 +103,9 @@ export function createRequestSecurityBoundary({
 
 export function createUnavailableRequestSecurityBoundary(error) {
   if (!error || typeof error.code !== "string") {
-    throw new TypeError("an exact unavailable request-security error is required");
+    throw new TypeError(
+      "an exact unavailable request-security error is required",
+    );
   }
   return {
     requestFacts() {

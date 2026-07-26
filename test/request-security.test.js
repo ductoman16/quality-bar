@@ -16,10 +16,11 @@ test("permits plain HTTP only from a loopback peer configured for loopback HTTP"
     trustedProxyAddresses: [],
   });
 
-  assert.deepEqual(
-    boundary.requestFacts(request("127.0.0.1")),
-    { clientAddress: "127.0.0.1", host: "127.0.0.1:3000", scheme: "http" },
-  );
+  assert.deepEqual(boundary.requestFacts(request("127.0.0.1")), {
+    clientAddress: "127.0.0.1",
+    host: "127.0.0.1:3000",
+    scheme: "http",
+  });
   assert.throws(
     () =>
       boundary.requestFacts(
@@ -27,7 +28,8 @@ test("permits plain HTTP only from a loopback peer configured for loopback HTTP"
           forwarded: "for=203.0.113.24;host=attacker.example;proto=https",
         }),
       ),
-    (error) => error instanceof RequestSecurityError && error.code === "https_required",
+    (error) =>
+      error instanceof RequestSecurityError && error.code === "https_required",
   );
 });
 
@@ -38,13 +40,15 @@ test("honors complete forwarded facts only from an explicitly trusted proxy", ()
   });
   const forwarded = "for=203.0.113.24;host=quality-bar.example;proto=https";
 
-  assert.deepEqual(
-    boundary.requestFacts(request("127.0.0.1", { forwarded })),
-    { clientAddress: "203.0.113.24", host: "quality-bar.example", scheme: "https" },
-  );
+  assert.deepEqual(boundary.requestFacts(request("127.0.0.1", { forwarded })), {
+    clientAddress: "203.0.113.24",
+    host: "quality-bar.example",
+    scheme: "https",
+  });
   assert.throws(
     () => boundary.requestFacts(request("192.168.1.15", { forwarded })),
-    (error) => error instanceof RequestSecurityError && error.code === "https_required",
+    (error) =>
+      error instanceof RequestSecurityError && error.code === "https_required",
   );
 });
 
@@ -65,7 +69,9 @@ test("rejects a trusted proxy with missing, ambiguous, or mismatched forwarded f
       () => boundary.requestFacts(request("127.0.0.1", { forwarded })),
       (error) =>
         error instanceof RequestSecurityError &&
-        ["proxy_forwarded_required", "proxy_forwarded_invalid"].includes(error.code),
+        ["proxy_forwarded_required", "proxy_forwarded_invalid"].includes(
+          error.code,
+        ),
     );
   }
 });

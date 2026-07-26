@@ -23,7 +23,10 @@ function fail(code, message, cause) {
 
 export function passwordFromStandardInput(source) {
   if (typeof source !== "string") {
-    fail("operator_password_input_missing", "Operator password input is required");
+    fail(
+      "operator_password_input_missing",
+      "Operator password input is required",
+    );
   }
   const password = source.endsWith("\r\n")
     ? source.slice(0, -2)
@@ -31,7 +34,10 @@ export function passwordFromStandardInput(source) {
       ? source.slice(0, -1)
       : source;
   if (password.length === 0) {
-    fail("operator_password_input_missing", "Operator password input is required");
+    fail(
+      "operator_password_input_missing",
+      "Operator password input is required",
+    );
   }
   return password;
 }
@@ -98,7 +104,9 @@ export function readOperatorPassword({
     return passwordFromTerminal(input, output);
   }
   try {
-    return Promise.resolve(passwordFromStandardInput(readFile(input.fd, "utf8")));
+    return Promise.resolve(
+      passwordFromStandardInput(readFile(input.fd, "utf8")),
+    );
   } catch (error) {
     if (error instanceof OperatorPasswordError) {
       return Promise.reject(error);

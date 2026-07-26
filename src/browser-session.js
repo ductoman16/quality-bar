@@ -59,7 +59,9 @@ function sessionHash(secret) {
 function matchesHash(secret, hash) {
   const candidate = Buffer.from(sessionHash(secret), "utf8");
   const stored = Buffer.from(hash, "utf8");
-  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
+  return (
+    candidate.length === stored.length && timingSafeEqual(candidate, stored)
+  );
 }
 
 function createSessionSecret(randomBytes) {
@@ -86,7 +88,8 @@ function currentTimestamp(now) {
 function hasExpired(session, timestamp) {
   return (
     timestamp - session.created_at >= BROWSER_SESSION_ABSOLUTE_LIFETIME_MS ||
-    timestamp - session.last_authenticated_at >= BROWSER_SESSION_IDLE_LIFETIME_MS
+    timestamp - session.last_authenticated_at >=
+      BROWSER_SESSION_IDLE_LIFETIME_MS
   );
 }
 
@@ -155,15 +158,16 @@ export function createBrowserSessionService(
         if (error?.code === "storage_unavailable") {
           throw error;
         }
-        fail("session_unavailable", "Browser session could not be created", error);
+        fail(
+          "session_unavailable",
+          "Browser session could not be created",
+          error,
+        );
       }
       return { csrfToken, secret };
     },
     authenticate(secret) {
-      if (
-        typeof secret !== "string" ||
-        !/^[A-Za-z0-9_-]{43}$/.test(secret)
-      ) {
+      if (typeof secret !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(secret)) {
         return false;
       }
       const timestamp = currentTimestamp(now);
@@ -243,8 +247,8 @@ export function createBrowserSessionService(
       );
       return Boolean(
         session &&
-          !hasExpired(session, timestamp) &&
-          matchesHash(csrfToken, session.csrf_hash),
+        !hasExpired(session, timestamp) &&
+        matchesHash(csrfToken, session.csrf_hash),
       );
     },
     changePassword(currentPassword, replacementPassword) {
