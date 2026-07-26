@@ -14,6 +14,7 @@ import {
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
+import { requireCodedError } from "./coded-error.js";
 import {
   createImplementerTokenService,
   createUnavailableImplementerTokenService,
@@ -32,20 +33,8 @@ import { createSystemResource } from "./system-resource.js";
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 
 /**
- * @typedef {Error & { code: string }} CodedError
+ * @typedef {ReturnType<typeof requireCodedError>} CodedError
  */
-/** @param {unknown} error */
-function requireCodedError(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw new TypeError("an exact coded application error is required");
-  }
-  return /** @type {CodedError} */ (error);
-}
-
 /**
  * @param {(line: string) => unknown} writeLog
  * @param {string} severity

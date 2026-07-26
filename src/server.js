@@ -6,28 +6,14 @@ import { createBrowserAssetRoute } from "./browser-asset-route.js";
 import { createBrowserPageRoute } from "./browser-page-route.js";
 import { createBrowserSessionRoute } from "./browser-session-route.js";
 import {
-  authenticationFailureMessage,
   authenticationFailureStatus,
   hasUrlToken,
   isProductSurface,
   isUnavailableError,
   requireProductAuthority,
 } from "./http-request.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
-
-/** @param {unknown} error */
-function serverError(error) {
-  return {
-    code:
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string"
-        ? error.code
-        : "internal_error",
-    error: error instanceof Error ? error : new Error("Internal server error"),
-    message: error instanceof Error ? error.message : "Internal server error",
-  };
-}
 
 /**
  * @param {unknown} value
@@ -161,10 +147,10 @@ export function createApplicationServer({
    * @param {import("node:http").ServerResponse} response
    */
   const handleRequest = async (request, response) => {
-    const requestUrl = new URL(
-      request.url ?? "/",
-      "http://quality-bar.internal",
-    );
+    if (typeof request.url !== "string") {
+      throw new TypeError("request.url is required");
+    }
+    const requestUrl = new URL(request.url, "http://quality-bar.internal");
     const path = requestUrl.pathname;
     if (request.method === "GET" && path === "/health/live") {
       writeJson(response, 200, { status: "live" });
@@ -181,10 +167,13 @@ export function createApplicationServer({
       return;
     }
     if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
+      if (typeof durableCoreStatus.error !== "string") {
+        throw new TypeError("not-ready status must provide an error code");
+      }
       writeError(
         response,
         503,
-        durableCoreStatus.error ?? "storage_unavailable",
+        durableCoreStatus.error,
         "Quality Bar is not ready",
       );
       return;
@@ -192,13 +181,11 @@ export function createApplicationServer({
     try {
       requestSecurity.requestFacts(request);
     } catch (error) {
-      const failure = serverError(error);
+      const failure = requireCodedError(error);
       writeError(
         response,
         failure.code === "https_required" ? 403 : 400,
-        failure.code === "internal_error"
-          ? "request_security_unavailable"
-          : failure.code,
+        failure.code,
         failure.message,
       );
       return;
@@ -241,26 +228,21 @@ export function createApplicationServer({
           requestUrl,
         );
       } catch (error) {
-        const failure = serverError(error);
+        const failure = requireCodedError(error);
         recordAuthorityAttribution({
           action: "authentication",
           channel:
             request.headers.authorization !== undefined
               ? "implementer_token"
               : "browser_session",
-          errorCode:
-            failure.code === "internal_error"
-              ? "authentication_unavailable"
-              : failure.code,
+          errorCode: failure.code,
           outcome: "failure",
         });
         writeError(
           response,
           authenticationFailureStatus(failure.code),
-          failure.code === "internal_error"
-            ? "authentication_unavailable"
-            : failure.code,
-          failure.message || authenticationFailureMessage(failure.code),
+          failure.code,
+          failure.message,
         );
         return;
       }
@@ -273,18 +255,27 @@ export function createApplicationServer({
 
   return createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
-      const failure = serverError(error);
+      const failure =
+        error instanceof Error
+          ? error
+          : new TypeError("Request handler rejected with a non-Error", {
+              cause: error,
+            });
       if (response.headersSent) {
-        response.destroy(failure.error);
+        response.destroy(failure);
         return;
       }
-      const unavailable = isUnavailableError(error);
-      writeError(
-        response,
-        unavailable ? 503 : 500,
-        unavailable ? failure.code : "internal_error",
-        unavailable ? failure.message : "Internal server error",
-      );
+      if (isUnavailableError(failure)) {
+        const unavailableFailure = requireCodedError(failure);
+        writeError(
+          response,
+          503,
+          unavailableFailure.code,
+          unavailableFailure.message,
+        );
+        return;
+      }
+      writeError(response, 500, "internal_error", "Internal server error");
     });
   });
 }

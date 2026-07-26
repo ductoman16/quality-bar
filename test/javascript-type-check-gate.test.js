@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import { test } from "node:test";
 
@@ -66,7 +67,7 @@ test("strict JavaScript checking owns every production Node and served browser m
 
 test("representative invalid Node and browser fixtures fail with owning diagnostics", () => {
   const fixtureDirectory = mkdtempSync(
-    resolve(repositoryRoot, ".javascript-type-check-fixture-"),
+    resolve(tmpdir(), "quality-bar-type-check-"),
   );
   try {
     const nodeFixture = resolve(fixtureDirectory, "node-invalid-assignment.js");
@@ -97,6 +98,9 @@ test("representative invalid Node and browser fixtures fail with owning diagnost
     writeFileSync(
       nodeProject,
       JSON.stringify({
+        compilerOptions: {
+          typeRoots: [resolve(repositoryRoot, "node_modules/@types")],
+        },
         extends: resolve(repositoryRoot, "tsconfig.node.json"),
         files: [nodeFixture],
       }),
@@ -171,16 +175,32 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
     evidence.served_browser_modules,
     BROWSER_ASSET_SOURCE_PATHS.map((path) => basename(path)),
   );
-  assert.ok(evidence.initial_production_diagnostics.length > 0);
+  assert.equal(
+    evidence.initial_capture_base,
+    "52980575e9fa1f785a02db2f39cc7af54e37dcc5",
+  );
+  assert.equal(evidence.initial_production_diagnostics.length, 616);
+  const diagnosticIdentities = new Set();
   for (const diagnostic of evidence.initial_production_diagnostics) {
+    assert.match(diagnostic.environment, /^(?:browser|node)$/);
     assert.match(diagnostic.path, /^src\//);
-    assert.ok(diagnostic.count > 0);
+    assert.ok(diagnostic.line > 0);
+    assert.ok(diagnostic.column > 0);
+    assert.match(diagnostic.code, /^TS[0-9]+$/);
+    assert.ok(diagnostic.message.length > 0);
+    diagnosticIdentities.add(
+      [
+        diagnostic.environment,
+        diagnostic.path,
+        diagnostic.line,
+        diagnostic.column,
+        diagnostic.code,
+        diagnostic.message,
+      ].join(":"),
+    );
   }
   assert.equal(
-    evidence.initial_production_diagnostics.reduce(
-      (total, diagnostic) => total + diagnostic.count,
-      0,
-    ),
-    619,
+    diagnosticIdentities.size,
+    evidence.initial_production_diagnostics.length,
   );
 });

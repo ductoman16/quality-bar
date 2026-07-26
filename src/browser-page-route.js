@@ -1,6 +1,5 @@
 import {
   assertNoMixedCredentials,
-  authenticationFailureMessage,
   authenticationFailureStatus,
   sessionSecret,
 } from "./http-request.js";
@@ -10,6 +9,7 @@ import {
   operatorPage,
   safeInternalDestination,
 } from "./browser-pages.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeHtml } from "./http-response.js";
 
 /**
@@ -20,20 +20,6 @@ import { writeError, writeHtml } from "./http-response.js";
  *   outcome: string
  * }} AttributionEvent
  */
-/** @param {unknown} error */
-function errorFacts(error) {
-  return {
-    code:
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string"
-        ? error.code
-        : "authentication_unavailable",
-    message:
-      error instanceof Error ? error.message : "Authentication is unavailable",
-  };
-}
-
 /**
  * @param {{
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
@@ -84,7 +70,7 @@ export function createBrowserPageRoute({
           "Machine access is forbidden",
         );
       } catch (error) {
-        const failure = errorFacts(error);
+        const failure = requireCodedError(error);
         recordAuthorityAttribution({
           action: "authentication",
           channel: "implementer_token",
@@ -95,7 +81,7 @@ export function createBrowserPageRoute({
           response,
           authenticationFailureStatus(failure.code),
           failure.code,
-          failure.message || authenticationFailureMessage(failure.code),
+          failure.message,
         );
       }
       return true;
@@ -111,7 +97,7 @@ export function createBrowserPageRoute({
     try {
       view = browserView(requestUrl);
     } catch (error) {
-      const failure = errorFacts(error);
+      const failure = requireCodedError(error);
       writeError(response, 404, failure.code, failure.message);
       return true;
     }
@@ -141,7 +127,7 @@ export function createBrowserPageRoute({
         );
       }
     } catch (error) {
-      const failure = errorFacts(error);
+      const failure = requireCodedError(error);
       recordAuthorityAttribution({
         action: "authentication",
         channel: "browser_session",
@@ -152,7 +138,7 @@ export function createBrowserPageRoute({
         response,
         authenticationFailureStatus(failure.code),
         failure.code,
-        failure.message || authenticationFailureMessage(failure.code),
+        failure.message,
       );
     }
     return true;

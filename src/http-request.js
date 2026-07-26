@@ -37,7 +37,7 @@ function readPasswordRequest(request, fields) {
       Object.keys(value).length !== fields.length ||
       !fields.every((field) => typeof value[field] === "string")
     ) {
-      throw new Error("request_malformed");
+      throw browserMutationError("request_malformed", "request_malformed");
     }
     return /** @type {Record<string, string>} */ (value);
   });
@@ -49,26 +49,26 @@ function readPasswordRequest(request, fields) {
  */
 export async function readJsonRequest(request) {
   if (request.headers["content-type"] !== "application/json") {
-    throw new Error("request_malformed");
+    throw browserMutationError("request_malformed", "request_malformed");
   }
   let body = "";
   for await (const chunk of request) {
     body += chunk;
     if (Buffer.byteLength(body) > 8 * 1024) {
-      throw new Error("request_malformed");
+      throw browserMutationError("request_malformed", "request_malformed");
     }
   }
   try {
     const value = /** @type {unknown} */ (JSON.parse(body));
     if (!value || Array.isArray(value) || typeof value !== "object") {
-      throw new Error("request_malformed");
+      throw browserMutationError("request_malformed", "request_malformed");
     }
     return /** @type {Record<string, unknown>} */ (value);
   } catch (error) {
     if (error instanceof Error && error.message === "request_malformed") {
       throw error;
     }
-    throw new Error("request_malformed");
+    throw browserMutationError("request_malformed", "request_malformed");
   }
 }
 

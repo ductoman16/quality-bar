@@ -1,13 +1,13 @@
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   assertAllowedQueryParameters,
-  authenticationFailureMessage,
   browserMutationFailureStatus,
   isUnavailableError,
   readAuthorityAttributionQuery,
   readJsonRequest,
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 
 /**
@@ -18,19 +18,6 @@ import { writeError, writeJson } from "./http-response.js";
  *   outcome: string
  * }} AttributionEvent
  */
-/** @param {unknown} error */
-function apiError(error) {
-  return {
-    code:
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string"
-        ? error.code
-        : "internal_error",
-    message: error instanceof Error ? error.message : "Internal server error",
-  };
-}
-
 /**
  * @param {import("node:http").ServerResponse} response
  * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
@@ -91,7 +78,7 @@ export function createApiRoute({
       try {
         assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
       } catch (error) {
-        const failure = apiError(error);
+        const failure = requireCodedError(error);
         writeError(response, 400, failure.code, failure.message);
         return true;
       }
@@ -99,7 +86,7 @@ export function createApiRoute({
       try {
         assertAllowedQueryParameters(requestUrl, new Set());
       } catch (error) {
-        const failure = apiError(error);
+        const failure = requireCodedError(error);
         writeError(response, 400, failure.code, failure.message);
         return true;
       }
@@ -124,7 +111,14 @@ export function createApiRoute({
           reviews.create(await readJsonRequest(request)),
         );
       } catch (error) {
-        const failure = apiError(error);
+        if (
+          error instanceof Error &&
+          (!("code" in error) || typeof error.code !== "string")
+        ) {
+          writeError(response, 500, "review_creation_failed", error.message);
+          return true;
+        }
+        const failure = requireCodedError(error);
         if (failure.message === "request_malformed") {
           writeError(
             response,
@@ -144,20 +138,15 @@ export function createApiRoute({
             response,
             browserMutationFailureStatus(failure.code),
             failure.code,
-            failure.message || authenticationFailureMessage(failure.code),
+            failure.message,
           );
         } else {
           const unavailable = isUnavailableError(error);
-          const code = unavailable
-            ? failure.code
-            : failure.code === "internal_error"
-              ? "review_creation_failed"
-              : failure.code;
           writeError(
             response,
-            unavailable ? 503 : failure.code !== "internal_error" ? 422 : 500,
-            code,
-            failure.message || "Review creation failed",
+            unavailable ? 503 : 422,
+            failure.code,
+            failure.message,
           );
         }
       }
@@ -167,7 +156,7 @@ export function createApiRoute({
       try {
         writeJson(response, 200, readSystemStatus());
       } catch (error) {
-        const failure = apiError(error);
+        const failure = requireCodedError(error);
         writeError(
           response,
           isUnavailableError(error) ? 503 : 500,
@@ -185,7 +174,7 @@ export function createApiRoute({
           listAuthorityAttributions(readAuthorityAttributionQuery(requestUrl)),
         );
       } catch (error) {
-        const failure = apiError(error);
+        const failure = requireCodedError(error);
         const status = [
           "cursor_invalid",
           "page_size_invalid",

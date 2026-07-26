@@ -1,24 +1,10 @@
 import {
   assertAllowedQueryParameters,
-  authenticationFailureMessage,
   authenticationFailureStatus,
   requireBrowserSession,
 } from "./http-request.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJavascript } from "./http-response.js";
-
-/** @param {unknown} error */
-function errorFacts(error) {
-  return {
-    code:
-      error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string"
-        ? error.code
-        : "browser_asset_unavailable",
-    message:
-      error instanceof Error ? error.message : "Browser asset is unavailable",
-  };
-}
 
 /**
  * @param {{
@@ -43,7 +29,7 @@ export function createBrowserAssetRoute({
     try {
       assertAllowedQueryParameters(requestUrl, new Set());
     } catch (error) {
-      const failure = errorFacts(error);
+      const failure = requireCodedError(error);
       writeError(response, 400, failure.code, failure.message);
       return true;
     }
@@ -51,12 +37,12 @@ export function createBrowserAssetRoute({
       try {
         requireBrowserSession(browserSessions, request);
       } catch (error) {
-        const failure = errorFacts(error);
+        const failure = requireCodedError(error);
         writeError(
           response,
           authenticationFailureStatus(failure.code),
           failure.code,
-          failure.message || authenticationFailureMessage(failure.code),
+          failure.message,
         );
         return true;
       }
@@ -64,7 +50,7 @@ export function createBrowserAssetRoute({
     try {
       writeJavascript(response, browserAssetReader(path));
     } catch (error) {
-      const failure = errorFacts(error);
+      const failure = requireCodedError(error);
       const status =
         failure.code === "browser_asset_not_found"
           ? 404
