@@ -1,0 +1,22 @@
+{
+  "ticket": 166,
+  "node": "24.18.0",
+  "firefox": "153.0",
+  "yaml_parser": "yaml:2.9.0",
+  "install_command": "npm ci",
+  "acceptance_command": "npm run verify",
+  "verified_action_commits": {
+    "actions/checkout@v5": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
+    "actions/setup-node@v5": "a0853c24544627f65ddf259abe73b1d18a591444",
+    "actions/upload-artifact@v4": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "browser-actions/setup-firefox@v1.7.2": "0bc507ddf224827e3b1af68e014d5e42ab93e795"
+  },
+  "dependabot_ecosystems": ["npm", "docker", "github-actions"],
+  "cross_process_smokes": [
+    "authenticated-firefox-browser-cross-process",
+    "packaged-compose-http-mcp-cross-process"
+  ],
+  "new_e2e_scenarios": 0,
+  "mutable_repository_settings_changed": false,
+  "final_outcome": "pass"
+}
