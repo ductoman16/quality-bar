@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -218,11 +224,13 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     throw new Error("operator_browser_proxy_address_unavailable");
   }
   const proxyOrigin = `http://127.0.0.1:${proxyAddress.port}`;
+  const firefoxProfilePath = join(directory, "firefox-profile");
+  mkdirSync(firefoxProfilePath, { mode: 0o700 });
   const firefox = spawn(firefoxBinary(), [
     "--headless",
     "--no-remote",
     "--profile",
-    join(directory, "firefox-profile"),
+    firefoxProfilePath,
     `${proxyOrigin}/`,
   ]);
   let firefoxStandardError = "";
