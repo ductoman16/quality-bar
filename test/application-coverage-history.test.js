@@ -310,3 +310,30 @@ test("history hard-fails when the genesis prior tree object is unavailable", () 
     rmSync(repositoryRoot, { force: true, recursive: true });
   }
 });
+
+test("history hard-fails when a trusted application blob is unavailable", () => {
+  const { genesisSourceCommit, repositoryRoot } = createRepository();
+  try {
+    writeLedger(repositoryRoot, genesisSourceCommit);
+    commit(repositoryRoot, "coverage genesis");
+    const applicationBlob = git(repositoryRoot, [
+      "rev-parse",
+      `${genesisSourceCommit}:application.txt`,
+    ]);
+    const objectPath = resolve(
+      repositoryRoot,
+      ".git",
+      "objects",
+      applicationBlob.slice(0, 2),
+      applicationBlob.slice(2),
+    );
+    rmSync(objectPath);
+
+    assert.throws(
+      () => verifyCoverageHistory(repositoryRoot, { genesisSourceCommit }),
+      /application_coverage_git_object_graph_invalid/,
+    );
+  } finally {
+    rmSync(repositoryRoot, { force: true, recursive: true });
+  }
+});

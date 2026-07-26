@@ -219,6 +219,20 @@ export function verifyCoverageHistory(
     genesisSourceCommit,
     headCommit,
   );
+  const objectGraph = git(repositoryRoot, [
+    "fsck",
+    "--strict",
+    "--no-dangling",
+    "--no-reflogs",
+    trustedCommit,
+  ]);
+  if (objectGraph.status !== 0) {
+    throw new Error(
+      `application_coverage_git_object_graph_invalid: ${
+        objectGraph.stderr.trim() || objectGraph.stdout.trim() || trustedCommit
+      }`,
+    );
+  }
   const appendedEntryCount = currentLedger.entries.length - priorEntryCount;
   if (appendedEntryCount > 1) {
     throw new Error(
