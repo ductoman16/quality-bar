@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,13 +53,19 @@ function readBody(request) {
 
 function automatedLoginPage(body) {
   return Buffer.from(
-    body.toString("utf8").replace(
-      "</body>",
-      `<script>
-document.getElementById("password").value = "a correct operator password";
-document.getElementById("login-form").requestSubmit();
-</script></body>`,
-    ),
+    body
+      .toString("utf8")
+      .replace(
+        "</body>",
+        '<script src="/operator-browser-login.js"></script></body>',
+      ),
+  );
+}
+
+function automatedLoginScript() {
+  return readFileSync(
+    new URL("../fixtures/operator-browser-login.js", import.meta.url),
+    "utf8",
   );
 }
 
@@ -117,6 +123,16 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     complete = resolve;
   });
   const proxy = createServer(async (request, response) => {
+    if (
+      request.method === "GET" &&
+      request.url === "/operator-browser-login.js"
+    ) {
+      response.writeHead(200, {
+        "content-type": "text/javascript; charset=utf-8",
+      });
+      response.end(automatedLoginScript());
+      return;
+    }
     const body = ["GET", "HEAD"].includes(request.method)
       ? undefined
       : await readBody(request);

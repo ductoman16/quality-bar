@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
 import { canonicalOpenApiDocument } from "./canonical-api.js";
+import { readBrowserAsset } from "./browser-assets.js";
 
 import {
   BROWSER_CSRF_COOKIE_NAME,
@@ -19,6 +20,11 @@ function writeJson(response, status, body, headers = {}) {
 function writeHtml(response, body) {
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   response.end(`<!doctype html><html lang="en"><body>${body}</body></html>`);
+}
+
+function writeJavascript(response, body) {
+  response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+  response.end(body);
 }
 
 function writeEmpty(response, headers = {}) {
@@ -378,31 +384,12 @@ function browserView(requestUrl) {
   return view;
 }
 
+function browserConfiguration(value) {
+  return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
 function loginPage(intendedDestination) {
-  const safeDestination = JSON.stringify(intendedDestination).replaceAll(
-    "<",
-    "\\u003c",
-  );
-  return `<main><form id="login-form"><label for="password">Password</label><input autocomplete="current-password" id="password" name="password" required type="password"><button type="submit">Log in</button><p hidden id="error" role="alert"></p></form></main><script>
-const form = document.getElementById("login-form");
-const error = document.getElementById("error");
-const intendedDestination = ${safeDestination};
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  error.hidden = true;
-  const response = await fetch("/api/v1/session/login", {
-    body: JSON.stringify({ password: document.getElementById("password").value }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  if (response.ok) {
-    location.assign(intendedDestination);
-    return;
-  }
-  error.textContent = (await response.json()).error.message;
-  error.hidden = false;
-});
-</script>`;
+  return `<main><form id="login-form"><label for="password">Password</label><input autocomplete="current-password" id="password" name="password" required type="password"><button type="submit">Log in</button><p hidden id="error" role="alert"></p></form></main><script id="browser-configuration" type="application/json">${browserConfiguration({ intendedDestination })}</script><script src="/assets/login.js"></script>`;
 }
 
 function operatorPage({ view }) {
@@ -431,276 +418,11 @@ function operatorPage({ view }) {
     view === "reviews"
       ? '<form id="review-create-form"><label for="review-name">Name</label><input id="review-name" name="name" required type="text"><label for="review-description">Description</label><textarea id="review-description" name="description" required></textarea><ol id="review-criteria"></ol><button id="review-add-criterion" type="button">Add criterion</button><label for="review-model">Codex model</label><select id="review-model" name="model" required></select><label for="review-reasoning-effort">Reasoning effort</label><select id="review-reasoning-effort" name="reasoning_effort" required></select><label for="review-service-tier">Service tier</label><select id="review-service-tier" name="service_tier" required></select><button id="review-create-submit" type="submit">Create Review</button><output aria-live="polite" id="review-create-result"></output></form>'
       : "";
-  return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${reviewSection}${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script>
-const error = document.getElementById("error");
-let lastActivityAt = 0;
-const reviewForm = document.getElementById("review-create-form");
-function setReviewControlsDisabled(disabled) {
-  reviewForm?.querySelectorAll("button, input, select, textarea").forEach((control) => {
-    control.disabled = disabled;
-  });
+  return `<header><nav aria-label="Primary">${navigationLinks}</nav>${attention}</header><main><h1>${heading}</h1>${reviewSection}${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button type="submit">Revoke implementer token</button></form><button id="logout" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" type="button">Done</button></dialog><p hidden id="error" role="alert"></p></main><script id="browser-configuration" type="application/json">${browserConfiguration({ csrfCookieName: BROWSER_CSRF_COOKIE_NAME })}</script><script src="/assets/operator.js"></script>`;
 }
-function updateCriterionLabels() {
-  document.querySelectorAll("#review-criteria li").forEach((item, index) => {
-    const number = index + 1;
-    item.querySelector("label[for$='-instruction']").textContent = "Criterion " + number + " instruction";
-    item.querySelector("label[for$='-impact']").textContent = "Criterion " + number + " impact";
-    item.querySelector("button").textContent = "Remove Criterion " + number;
-  });
-}
-function addCriterion() {
-  const criteria = document.getElementById("review-criteria");
-  if (!criteria) throw new Error("Review criteria container is unavailable");
-  const index = criteria.children.length + 1;
-  const item = document.createElement("li");
-  const instructionLabel = document.createElement("label");
-  const instruction = document.createElement("textarea");
-  instruction.id = "review-criterion-" + index + "-instruction";
-  instruction.required = true;
-  instructionLabel.htmlFor = instruction.id;
-  const impactLabel = document.createElement("label");
-  const impact = document.createElement("select");
-  impact.id = "review-criterion-" + index + "-impact";
-  impact.innerHTML = '<option value="advisory">Advisory</option><option value="blocking">Blocking</option>';
-  impactLabel.htmlFor = impact.id;
-  const remove = document.createElement("button");
-  remove.type = "button";
-  remove.addEventListener("click", () => {
-    item.remove();
-    updateCriterionLabels();
-  });
-  item.append(instructionLabel, instruction, impactLabel, impact, remove);
-  criteria.append(item);
-  updateCriterionLabels();
-}
-function configureReviewModels(catalog) {
-  const model = document.getElementById("review-model");
-  const reasoningEffort = document.getElementById("review-reasoning-effort");
-  const serviceTier = document.getElementById("review-service-tier");
-  if (!model || !reasoningEffort || !serviceTier) {
-    throw new Error("Review configuration controls are unavailable");
-  }
-  function option(value) {
-    const element = document.createElement("option");
-    element.value = value;
-    element.textContent = value;
-    return element;
-  }
-  function updateConfiguration() {
-    const capability = catalog.models.find((candidate) => candidate.id === model.value);
-    reasoningEffort.replaceChildren(...capability.reasoning_efforts.map(option));
-    serviceTier.replaceChildren(...capability.service_tiers.map(option));
-  }
-  model.replaceChildren(...catalog.models.map((capability) => option(capability.id)));
-  model.addEventListener("change", updateConfiguration);
-  updateConfiguration();
-  setReviewControlsDisabled(false);
-}
-function csrfToken() {
-  return document.cookie.split(";").map((cookie) => cookie.trim().split("=", 2)).find(([name]) => name === "${BROWSER_CSRF_COOKIE_NAME}")?.[1];
-}
-async function returnToLoginAfterAuthenticationFailure(response) {
-  if (response.status !== 401) {
-    return null;
-  }
-  const body = await response.json();
-  if (body.error.code !== "authentication_required") {
-    return body;
-  }
-  location.assign("/?return_to=" + encodeURIComponent(location.pathname + location.search));
-  return true;
-}
-async function submitPasswordMutation(path, body) {
-  error.hidden = true;
-  const response = await fetch(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(),
-    },
-    method: "POST",
-  });
-  if (response.ok) {
-    location.assign("/");
-    return;
-  }
-  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (authenticationFailure ?? await response.json()).error.message;
-  error.hidden = false;
-}
-async function submitImplementerTokenMutation(path, body) {
-  error.hidden = true;
-  const response = await fetch(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(),
-    },
-    method: "POST",
-  });
-  if (response.ok) {
-    const token = (await response.json()).token;
-    if (typeof token === "string") {
-      document.getElementById("implementer-token-value").textContent = token;
-      document.getElementById("implementer-token-reveal").showModal();
-    }
-    return;
-  }
-  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (authenticationFailure ?? await response.json()).error.message;
-  error.hidden = false;
-}
-async function recordBrowserActivity() {
-  const now = Date.now();
-  if (now - lastActivityAt < 60_000) {
-    return;
-  }
-  lastActivityAt = now;
-  const response = await fetch("/api/v1/session/activity", {
-    headers: { "x-quality-bar-csrf": csrfToken() },
-    method: "POST",
-  });
-  if (response.ok) {
-    return;
-  }
-  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (authenticationFailure ?? await response.json()).error.message;
-  error.hidden = false;
-}
-document.addEventListener("keydown", recordBrowserActivity);
-document.addEventListener("pointerdown", recordBrowserActivity);
-document.getElementById("password-change-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await submitPasswordMutation("/api/v1/session/password", {
-    current_password: document.getElementById("password-change-current-password").value,
-    new_password: document.getElementById("password-change-new-password").value,
-  });
-});
-document.getElementById("session-revocation-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await submitPasswordMutation("/api/v1/sessions/revoke", {
-    confirmation: document.getElementById("session-revocation-confirmation").value,
-    password: document.getElementById("session-revocation-password").value,
-  });
-});
-document.getElementById("implementer-token-create-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await submitImplementerTokenMutation("/api/v1/implementer-token", {
-    password: document.getElementById("implementer-token-create-password").value,
-  });
-});
-document.getElementById("implementer-token-rotate-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await submitImplementerTokenMutation("/api/v1/implementer-token/rotate", {
-    password: document.getElementById("implementer-token-rotate-password").value,
-  });
-});
-document.getElementById("implementer-token-revoke-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!window.confirm("Revoke implementer token? Machine access will remain disabled until a new token is created.")) {
-    return;
-  }
-  await submitPasswordMutation("/api/v1/implementer-token/revoke", {
-    password: document.getElementById("implementer-token-revoke-password").value,
-  });
-});
-if (reviewForm) {
-  const addCriterionButton = document.getElementById("review-add-criterion");
-  if (!addCriterionButton) throw new Error("Review Criterion control is unavailable");
-  addCriterionButton.addEventListener("click", addCriterion);
-  setReviewControlsDisabled(true);
-  addCriterion();
-  reviewForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    error.hidden = true;
-    const response = await fetch("/api/v1/reviews", {
-      body: JSON.stringify({
-        assignment: { scope: "installation_wide" },
-        codex_configuration: {
-          model: document.getElementById("review-model").value,
-          reasoning_effort: document.getElementById("review-reasoning-effort").value,
-          service_tier: document.getElementById("review-service-tier").value,
-        },
-        criteria: [...document.querySelectorAll("#review-criteria li")].map((item) => ({
-          impact: item.querySelector("select").value,
-          instruction: item.querySelector("textarea").value,
-        })),
-        description: document.getElementById("review-description").value,
-        name: document.getElementById("review-name").value,
-      }),
-      headers: { "content-type": "application/json", "x-quality-bar-csrf": csrfToken() },
-      method: "POST",
-    });
-    if (response.ok) {
-      const review = await response.json();
-      document.getElementById("review-create-result").textContent = review.name + " v" + review.active_version.number + " created.";
-      return;
-    }
-    const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
-    if (authenticationFailure === true) return;
-    error.textContent = (authenticationFailure ?? await response.json()).error.message;
-    error.hidden = false;
-  });
-}
-document.getElementById("implementer-token-reveal-close").addEventListener("click", () => {
-  document.getElementById("implementer-token-reveal").close();
-});
-document.getElementById("implementer-token-reveal").addEventListener("close", () => {
-  document.getElementById("implementer-token-value").textContent = "";
-});
-document.getElementById("logout").addEventListener("click", async () => {
-  error.hidden = true;
-  const response = await fetch("/api/v1/session/logout", {
-    headers: { "x-quality-bar-csrf": csrfToken() },
-    method: "POST",
-  });
-  if (response.ok) {
-    location.assign("/");
-    return;
-  }
-  const authenticationFailure = await returnToLoginAfterAuthenticationFailure(response);
-  if (authenticationFailure === true) {
-    return;
-  }
-  error.textContent = (authenticationFailure ?? await response.json()).error.message;
-  error.hidden = false;
-});
-const systemFacts = document.getElementById("system-facts");
-fetch("/api/v1/system").then(async (response) => {
-    if (!response.ok) {
-      throw new Error((await response.json()).error.message);
-    }
-    const system = await response.json();
-    if (reviewForm) configureReviewModels(system.codex.catalog);
-    if (systemFacts) {
-      const codexModels = system.codex.catalog.models.map((model) =>
-        model.id + " (" + model.reasoning_efforts.join(", ") + "; " + model.service_tiers.join(", ") + ")"
-      ).join(". ");
-      systemFacts.textContent = "Bootstrap: " + system.bootstrap.status + ". Durable core: " + system.durable_core.status + ". Codex: " + system.codex.status + (system.codex.error ? " (" + system.codex.error + ")" : "") + ". Models: " + codexModels + ". Browser sessions: " + system.browser_sessions.active_count + ". Implementer token: " + system.implementer_token.status + ".";
-    }
-    const attention = document.getElementById("attention");
-    if (system.codex.status === "unavailable") {
-      attention.hidden = false;
-      attention.textContent = "Codex unavailable";
-    }
-  }).catch((failure) => {
-    error.textContent = failure.message;
-    error.hidden = false;
-  });
-</script>`;
-}
-
 export function createApplicationServer({
   browserSessions,
+  browserAssetReader = readBrowserAsset,
   implementerTokens,
   browserOrigin,
   requestSecurity,
@@ -713,6 +435,9 @@ export function createApplicationServer({
 } = {}) {
   if (typeof readDurableCoreStatus !== "function") {
     throw new TypeError("readDurableCoreStatus is required");
+  }
+  if (typeof browserAssetReader !== "function") {
+    throw new TypeError("browserAssetReader must be a function");
   }
   if (typeof listAuthorityAttributions !== "function") {
     throw new TypeError("listAuthorityAttributions must be a function");
@@ -808,6 +533,50 @@ export function createApplicationServer({
         "authentication_invalid",
         "Machine authentication is invalid",
       );
+      return;
+    }
+
+    if (request.method === "GET" && path.startsWith("/assets/")) {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set());
+      } catch (error) {
+        writeError(
+          response,
+          400,
+          error.code ?? "request_malformed",
+          error.message ?? "Request is malformed",
+        );
+        return;
+      }
+      if (path === "/assets/operator.js") {
+        try {
+          requireBrowserSession(browserSessions, request);
+        } catch (error) {
+          writeError(
+            response,
+            authenticationFailureStatus(error.code),
+            error.code ?? "authentication_unavailable",
+            error.message ?? authenticationFailureMessage(error.code),
+          );
+          return;
+        }
+      }
+      try {
+        writeJavascript(response, browserAssetReader(path));
+      } catch (error) {
+        const status =
+          error.code === "browser_asset_not_found"
+            ? 404
+            : error.code === "browser_asset_unavailable"
+              ? 503
+              : 500;
+        writeError(
+          response,
+          status,
+          error.code ?? "browser_asset_unavailable",
+          error.message ?? "Browser asset is unavailable",
+        );
+      }
       return;
     }
 

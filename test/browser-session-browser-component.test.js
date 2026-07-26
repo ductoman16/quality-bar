@@ -70,7 +70,7 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   const loginPage = await login.text();
   assert.match(loginPage, /<label for="password">Password<\/label>/);
   assert.match(loginPage, /<button type="submit">Log in<\/button>/);
-  assert.match(loginPage, /\/api\/v1\/session\/login/);
+  assert.match(loginPage, /<script src="\/assets\/login\.js"><\/script>/);
   assert.doesNotMatch(
     loginPage,
     /username|signup|remember|recovery|localStorage|Bearer/i,
@@ -117,7 +117,10 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     authenticatedHtml,
     /<button id="logout" type="button">Log out<\/button>/,
   );
-  assert.match(authenticatedHtml, /\/api\/v1\/session\/logout/);
+  assert.match(
+    authenticatedHtml,
+    /<script src="\/assets\/operator\.js"><\/script>/,
+  );
 
   const logout = await fetch(`${origin}/api/v1/session/logout`, {
     headers: {
@@ -169,17 +172,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   const systemHtml = await system.text();
   assert.match(systemHtml, /<h1>System<\/h1>/);
   assert.match(systemHtml, /id="system-facts"/);
-  assert.match(systemHtml, /fetch\("\/api\/v1\/system"\)/);
-  assert.match(systemHtml, /system\.bootstrap\.status/);
-  assert.match(systemHtml, /system\.implementer_token\.status/);
-  assert.match(systemHtml, /system\.codex\.error/);
-  assert.match(systemHtml, /system\.codex\.catalog\.models/);
-  assert.match(systemHtml, /reasoning_efforts/);
-  assert.match(systemHtml, /service_tiers/);
-  assert.match(
-    systemHtml,
-    /if \(reviewForm\) configureReviewModels\(system\.codex\.catalog\)/,
-  );
+  assert.match(systemHtml, /<script src="\/assets\/operator\.js"><\/script>/);
 
   const reviews = await fetch(`${origin}/?view=reviews`, {
     headers: { cookie },
@@ -192,9 +185,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /id="review-model"/);
   assert.match(reviewsHtml, /id="review-reasoning-effort"/);
   assert.match(reviewsHtml, /id="review-service-tier"/);
-  assert.match(reviewsHtml, /fetch\("\/api\/v1\/reviews"/);
-  assert.match(reviewsHtml, /assignment: \{ scope: "installation_wide" \}/);
-  assert.match(reviewsHtml, /configureReviewModels\(system\.codex\.catalog\)/);
+  assert.match(reviewsHtml, /<script src="\/assets\/operator\.js"><\/script>/);
   assert.match(reviewsHtml, /review-create-result/);
 });
 
@@ -468,13 +459,11 @@ test("an expired browser session returns to login and preserves only a safe inte
     { headers: { cookie } },
   );
   const safeLoginPage = await safeDestination.text();
-  assert.ok(
-    safeLoginPage.includes(
-      'const intendedDestination = "/system?section=sessions";',
-    ),
+  assert.match(
+    safeLoginPage,
+    /<script id="browser-configuration" type="application\/json">\{"intendedDestination":"\/system\?section=sessions"\}<\/script>/,
   );
-  assert.match(safeLoginPage, /location\.assign\(intendedDestination\)/);
-  assert.doesNotMatch(safeLoginPage, /fetch\(intendedDestination/);
+  assert.match(safeLoginPage, /<script src="\/assets\/login\.js"><\/script>/);
 
   const rejectedMutation = await fetch(`${origin}/api/v1/session/logout`, {
     headers: { cookie },
@@ -491,17 +480,19 @@ test("an expired browser session returns to login and preserves only a safe inte
     headers: { cookie: freshCookie },
   });
   const authenticatedHtml = await operatorPage.text();
-  assert.match(authenticatedHtml, /returnToLoginAfterAuthenticationFailure/);
   assert.match(
     authenticatedHtml,
-    /location\.assign\("\/\?return_to=" \+ encodeURIComponent\(location\.pathname \+ location\.search\)\)/,
+    /<script src="\/assets\/operator\.js"><\/script>/,
   );
 
   const unsafeDestination = await fetch(
     `${origin}/?return_to=https%3A%2F%2Fattacker.example%2Fsteal`,
   );
   const unsafeLoginPage = await unsafeDestination.text();
-  assert.ok(unsafeLoginPage.includes('const intendedDestination = "/";'));
+  assert.match(
+    unsafeLoginPage,
+    /<script id="browser-configuration" type="application\/json">\{"intendedDestination":"\/"\}<\/script>/,
+  );
   assert.doesNotMatch(unsafeLoginPage, /attacker\.example/);
 });
 
@@ -577,9 +568,11 @@ test("the authenticated operator surface changes a password and revokes all sess
   });
   const authenticatedHtml = await authenticatedPage.text();
   assert.match(authenticatedHtml, /id="password-change-form"/);
-  assert.match(authenticatedHtml, /\/api\/v1\/session\/password/);
+  assert.match(
+    authenticatedHtml,
+    /<script src="\/assets\/operator\.js"><\/script>/,
+  );
   assert.match(authenticatedHtml, /id="session-revocation-form"/);
-  assert.match(authenticatedHtml, /\/api\/v1\/sessions\/revoke/);
   assert.match(authenticatedHtml, /REVOKE ALL SESSIONS/);
   assert.doesNotMatch(authenticatedHtml, /localStorage|Bearer/i);
 
@@ -681,11 +674,7 @@ test("the authenticated operator surface reveals each generated implementer toke
   assert.match(html, /id="implementer-token-revoke-form"/);
   assert.match(html, /id="implementer-token-reveal"/);
   assert.match(html, /aria-labelledby="implementer-token-reveal-title"/);
-  assert.match(html, /addEventListener\("close", \(\) => \{/);
-  assert.match(
-    html,
-    /window\.confirm\("Revoke implementer token\? Machine access will remain disabled until a new token is created\."\)/,
-  );
+  assert.match(html, /<script src="\/assets\/operator\.js"><\/script>/);
   assert.doesNotMatch(html, /Bearer|localStorage/i);
 
   const created = await fetch(`${origin}/api/v1/implementer-token`, {
