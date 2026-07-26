@@ -15,14 +15,6 @@ const errorOnlyThrowing = {
         type: "problem",
       },
       create(context) {
-        function isErrorConstructor(node) {
-          return (
-            node.type === "NewExpression" &&
-            node.callee.type === "Identifier" &&
-            node.callee.name.endsWith("Error")
-          );
-        }
-
         function variableFor(node) {
           let scope = context.sourceCode.getScope(node);
           while (scope) {
@@ -35,6 +27,54 @@ const errorOnlyThrowing = {
             scope = scope.upper;
           }
           return undefined;
+        }
+
+        function isErrorConstructor(node) {
+          if (
+            node.type !== "NewExpression" ||
+            node.callee.type !== "Identifier"
+          ) {
+            return false;
+          }
+          const builtInConstructors = new Set([
+            "AggregateError",
+            "Error",
+            "EvalError",
+            "RangeError",
+            "ReferenceError",
+            "SyntaxError",
+            "TypeError",
+            "URIError",
+          ]);
+          const repositoryConstructors = new Set([
+            "BrowserAssetError",
+            "BrowserSessionError",
+            "CodexConfigurationError",
+            "DurableCoreError",
+            "ImplementerTokenError",
+            "InstallationConfigurationError",
+            "InstallationEnvironmentError",
+            "OperatorLoginThrottleError",
+            "OperatorPasswordError",
+            "RequestSecurityError",
+            "ReviewError",
+          ]);
+          const variable = variableFor(node.callee);
+          const definition = variable?.defs[0];
+          if (!definition) {
+            return builtInConstructors.has(node.callee.name);
+          }
+          if (definition.type === "ImportBinding") {
+            return repositoryConstructors.has(node.callee.name);
+          }
+          return (
+            definition.type === "ClassName" &&
+            definition.node.superClass !== null &&
+            isErrorConstructor({
+              callee: definition.node.superClass,
+              type: "NewExpression",
+            })
+          );
         }
 
         function isKnownNonError(node, checkedVariables = new Set()) {

@@ -33,6 +33,7 @@ test("the core JavaScript correctness gate reports every required rule family", 
     "error-only-throwing": "no-throw-literal",
     "constructed-non-error": "error-only-throwing/error-only-throwing",
     "bound-non-error": "error-only-throwing/error-only-throwing",
+    "shadowed-error-name": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
     "object-shorthand": "object-shorthand",
     "immutable-binding": "prefer-const",
@@ -98,6 +99,21 @@ test("the core JavaScript environments stay separate", async () => {
   assert.match(browserUsingNode.report, /\[no-undef\]/);
   assert.equal(nodeUsingBrowser.outcome, "fail", nodeUsingBrowser.report);
   assert.match(nodeUsingBrowser.report, /\[no-undef\]/);
+});
+
+test("Error-only throwing accepts actual Error ancestry", async () => {
+  const result = await runCoreJavaScriptLint({
+    files: [
+      {
+        path: "src/error-ancestry-fixture.js",
+        source:
+          "class ReviewFailure extends Error {}\nthrow new ReviewFailure('invalid');\n",
+      },
+    ],
+    repositoryRoot,
+  });
+
+  assert.equal(result.outcome, "pass", result.report);
 });
 
 test("the core JavaScript correctness evidence records the complete cleanup", () => {
