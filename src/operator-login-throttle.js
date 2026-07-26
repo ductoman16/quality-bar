@@ -9,6 +9,7 @@ export class OperatorLoginThrottleError extends Error {
     super(message, options);
     this.name = "OperatorLoginThrottleError";
     this.code = code;
+    this.retryAfterSeconds = null;
   }
 }
 

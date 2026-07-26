@@ -10,9 +10,7 @@ import {
 const DEFAULT_PAGE_SIZE = 50;
 
 function invalidQuery(code) {
-  const error = new Error(code);
-  error.code = code;
-  return error;
+  return Object.assign(new Error(code), { code });
 }
 
 function timestampToUtc(timestamp) {
@@ -156,6 +154,7 @@ export function createSystemResource(
         implementer_token: implementerToken,
       };
     },
+    /** @param {{ cursor?: string, limit?: string }} query */
     listAuthorityAttributions({ cursor, limit } = {}) {
       const size = pageSize(limit);
       const boundary = cursor === undefined ? null : decodeCursor(cursor);

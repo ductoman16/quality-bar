@@ -1,5 +1,7 @@
 function readBrowserConfiguration() {
-  const configuration = document.getElementById("browser-configuration");
+  const configuration = /** @type {HTMLScriptElement} */ (
+    document.getElementById("browser-configuration")
+  );
   if (configuration?.type !== "application/json") {
     throw new Error("browser_configuration_invalid");
   }
@@ -25,11 +27,20 @@ const error = document.getElementById("error");
 const { csrfCookieName } = readBrowserConfiguration();
 let lastActivityAt = 0;
 const reviewForm = document.getElementById("review-create-form");
+function controlValue(id) {
+  const control = document.getElementById(id);
+  if (!control || !("value" in control) || typeof control.value !== "string") {
+    throw new Error("browser_control_unavailable");
+  }
+  return control.value;
+}
 function setReviewControlsDisabled(disabled) {
   reviewForm
     ?.querySelectorAll("button, input, select, textarea")
     .forEach((control) => {
-      control.disabled = disabled;
+      if ("disabled" in control) {
+        control.disabled = disabled;
+      }
     });
 }
 function updateCriterionLabels() {
@@ -71,9 +82,15 @@ function addCriterion() {
   updateCriterionLabels();
 }
 function configureReviewModels(catalog) {
-  const model = document.getElementById("review-model");
-  const reasoningEffort = document.getElementById("review-reasoning-effort");
-  const serviceTier = document.getElementById("review-service-tier");
+  const model = /** @type {HTMLSelectElement} */ (
+    document.getElementById("review-model")
+  );
+  const reasoningEffort = /** @type {HTMLSelectElement} */ (
+    document.getElementById("review-reasoning-effort")
+  );
+  const serviceTier = /** @type {HTMLSelectElement} */ (
+    document.getElementById("review-service-tier")
+  );
   if (!model || !reasoningEffort || !serviceTier) {
     throw new Error("Review configuration controls are unavailable");
   }
@@ -156,7 +173,9 @@ async function submitImplementerTokenMutation(path, body) {
     const token = (await response.json()).token;
     if (typeof token === "string") {
       document.getElementById("implementer-token-value").textContent = token;
-      document.getElementById("implementer-token-reveal").showModal();
+      /** @type {HTMLDialogElement} */ (
+        document.getElementById("implementer-token-reveal")
+      ).showModal();
     }
     return;
   }
@@ -200,11 +219,8 @@ document
   .addEventListener("submit", async (event) => {
     event.preventDefault();
     await submitPasswordMutation("/api/v1/session/password", {
-      current_password: document.getElementById(
-        "password-change-current-password",
-      ).value,
-      new_password: document.getElementById("password-change-new-password")
-        .value,
+      current_password: controlValue("password-change-current-password"),
+      new_password: controlValue("password-change-new-password"),
     });
   });
 document
@@ -212,9 +228,8 @@ document
   .addEventListener("submit", async (event) => {
     event.preventDefault();
     await submitPasswordMutation("/api/v1/sessions/revoke", {
-      confirmation: document.getElementById("session-revocation-confirmation")
-        .value,
-      password: document.getElementById("session-revocation-password").value,
+      confirmation: controlValue("session-revocation-confirmation"),
+      password: controlValue("session-revocation-password"),
     });
   });
 document
@@ -222,8 +237,7 @@ document
   .addEventListener("submit", async (event) => {
     event.preventDefault();
     await submitImplementerTokenMutation("/api/v1/implementer-token", {
-      password: document.getElementById("implementer-token-create-password")
-        .value,
+      password: controlValue("implementer-token-create-password"),
     });
   });
 document
@@ -231,8 +245,7 @@ document
   .addEventListener("submit", async (event) => {
     event.preventDefault();
     await submitImplementerTokenMutation("/api/v1/implementer-token/rotate", {
-      password: document.getElementById("implementer-token-rotate-password")
-        .value,
+      password: controlValue("implementer-token-rotate-password"),
     });
   });
 document
@@ -247,8 +260,7 @@ document
       return;
     }
     await submitPasswordMutation("/api/v1/implementer-token/revoke", {
-      password: document.getElementById("implementer-token-revoke-password")
-        .value,
+      password: controlValue("implementer-token-revoke-password"),
     });
   });
 if (reviewForm) {
@@ -266,10 +278,9 @@ if (reviewForm) {
       body: JSON.stringify({
         assignment: { scope: "installation_wide" },
         codex_configuration: {
-          model: document.getElementById("review-model").value,
-          reasoning_effort: document.getElementById("review-reasoning-effort")
-            .value,
-          service_tier: document.getElementById("review-service-tier").value,
+          model: controlValue("review-model"),
+          reasoning_effort: controlValue("review-reasoning-effort"),
+          service_tier: controlValue("review-service-tier"),
         },
         criteria: [...document.querySelectorAll("#review-criteria li")].map(
           (item) => ({
@@ -277,8 +288,8 @@ if (reviewForm) {
             instruction: item.querySelector("textarea").value,
           }),
         ),
-        description: document.getElementById("review-description").value,
-        name: document.getElementById("review-name").value,
+        description: controlValue("review-description"),
+        name: controlValue("review-name"),
       }),
       headers: {
         "content-type": "application/json",
@@ -306,7 +317,9 @@ if (reviewForm) {
 document
   .getElementById("implementer-token-reveal-close")
   .addEventListener("click", () => {
-    document.getElementById("implementer-token-reveal").close();
+    /** @type {HTMLDialogElement} */ (
+      document.getElementById("implementer-token-reveal")
+    ).close();
   });
 document
   .getElementById("implementer-token-reveal")

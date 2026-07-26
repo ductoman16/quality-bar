@@ -242,9 +242,11 @@ export function createApplication({
     },
     async close() {
       if (server.listening) {
-        await new Promise((resolve, reject) => {
-          server.close((error) => (error ? reject(error) : resolve()));
-        });
+        await /** @type {Promise<void>} */ (
+          new Promise((resolve, reject) => {
+            server.close((error) => (error ? reject(error) : resolve()));
+          })
+        );
       }
       durableCore?.close();
       releaseInstallationLock?.();

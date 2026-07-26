@@ -28,9 +28,9 @@ export function createBrowserPageRoute({
           /^Bearer ([A-Za-z0-9_-]{43})$/,
         )?.[1];
         if (!implementerTokens.authenticate(token)) {
-          const error = new Error("Machine authentication is invalid");
-          error.code = "authentication_invalid";
-          throw error;
+          throw Object.assign(new Error("Machine authentication is invalid"), {
+            code: "authentication_invalid",
+          });
         }
         recordAuthorityAttribution({
           action: "authentication",

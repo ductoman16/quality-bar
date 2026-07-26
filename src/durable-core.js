@@ -23,6 +23,10 @@ function readFacts(database) {
   };
 }
 
+/**
+ * @param {string} databasePath
+ * @param {{ onStorageUnavailable?: Function }} options
+ */
 export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   let database;
   try {

@@ -7,6 +7,10 @@ function cloneRow(row) {
   return row ? { ...row } : undefined;
 }
 
+/**
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @param {{ onStorageUnavailable?: Function }} options
+ */
 export function createDurableAccess(database, { onStorageUnavailable } = {}) {
   let storageFailure;
 

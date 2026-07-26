@@ -99,5 +99,11 @@ export function createGateDefinitions(applicationVersion) {
       failureCode: "node_and_ownership_boundary_lint_failed",
       arguments: ["--test", "test/node-boundary-lint-gate.test.js"],
     },
+    {
+      name: "javascript-type-check",
+      testGroup: "production-node-and-served-browser-javascript",
+      failureCode: "javascript_type_check_failed",
+      arguments: ["--test", "test/javascript-type-check-gate.test.js"],
+    },
   ];
 }

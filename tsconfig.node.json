@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "noImplicitAny": false,
+    "strict": true,
+    "strictNullChecks": false,
+    "target": "ES2024",
+    "types": ["node"],
+    "useUnknownInCatchVariables": false
+  },
+  "exclude": ["src/browser/**/*.js"],
+  "include": ["src/**/*.js"]
+}

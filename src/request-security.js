@@ -68,6 +68,9 @@ function forwardedFacts(value, expectedHost) {
   return clientAddress;
 }
 
+/**
+ * @param {{ externalOrigin?: string, trustedProxyAddresses?: string[] }} options
+ */
 export function createRequestSecurityBoundary({
   externalOrigin,
   trustedProxyAddresses,

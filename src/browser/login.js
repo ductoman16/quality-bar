@@ -1,5 +1,7 @@
 function readBrowserConfiguration() {
-  const configuration = document.getElementById("browser-configuration");
+  const configuration = /** @type {HTMLScriptElement} */ (
+    document.getElementById("browser-configuration")
+  );
   if (configuration?.type !== "application/json") {
     throw new Error("browser_configuration_invalid");
   }
@@ -32,12 +34,19 @@ function readBrowserConfiguration() {
 const form = document.getElementById("login-form");
 const error = document.getElementById("error");
 const { intendedDestination } = readBrowserConfiguration();
+function inputValue(id) {
+  const input = document.getElementById(id);
+  if (!input || !("value" in input) || typeof input.value !== "string") {
+    throw new Error("browser_control_unavailable");
+  }
+  return input.value;
+}
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   error.hidden = true;
   const response = await fetch("/api/v1/session/login", {
     body: JSON.stringify({
-      password: document.getElementById("password").value,
+      password: inputValue("password"),
     }),
     headers: { "content-type": "application/json" },
     method: "POST",

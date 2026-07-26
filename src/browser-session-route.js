@@ -121,9 +121,9 @@ export function createBrowserSessionRoute({
         if (
           !browserSessions.touch(secret, request.headers["x-quality-bar-csrf"])
         ) {
-          const error = new Error("Browser session is required");
-          error.code = "authentication_required";
-          throw error;
+          throw Object.assign(new Error("Browser session is required"), {
+            code: "authentication_required",
+          });
         }
         writeEmpty(response);
       } catch (error) {
@@ -181,11 +181,10 @@ export function createBrowserSessionRoute({
         const { confirmation, password } =
           await readSessionRevocationRequest(request);
         if (confirmation !== "REVOKE ALL SESSIONS") {
-          const error = new Error(
-            "Global browser-session revocation must be confirmed",
+          throw Object.assign(
+            new Error("Global browser-session revocation must be confirmed"),
+            { code: "session_revocation_confirmation_invalid" },
           );
-          error.code = "session_revocation_confirmation_invalid";
-          throw error;
         }
         browserSessions.revokeAll(password);
         writeEmpty(response, {

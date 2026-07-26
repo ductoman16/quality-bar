@@ -183,9 +183,7 @@ export function authenticationFailureMessage(code) {
 }
 
 export function browserMutationError(code, message) {
-  const error = new Error(message);
-  error.code = code;
-  return error;
+  return Object.assign(new Error(message), { code });
 }
 
 export function assertNoMixedCredentials(request) {

@@ -30,9 +30,9 @@ export function browserView(requestUrl) {
       view,
     )
   ) {
-    const error = new Error("Resource was not found");
-    error.code = "not_found";
-    throw error;
+    throw Object.assign(new Error("Resource was not found"), {
+      code: "not_found",
+    });
   }
   return view;
 }

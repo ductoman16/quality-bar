@@ -49,6 +49,20 @@ const TOKEN_METHODS = [
   "rotate",
 ];
 
+/**
+ * @param {object} options
+ * @param {object} options.browserSessions
+ * @param {(path: string) => string} [options.browserAssetReader]
+ * @param {object} options.implementerTokens
+ * @param {string} options.browserOrigin
+ * @param {{ requestFacts: Function }} options.requestSecurity
+ * @param {{ create: Function }} options.reviews
+ * @param {Function} options.readDurableCoreStatus
+ * @param {Function} options.readSystemStatus
+ * @param {Function} options.listAuthorityAttributions
+ * @param {Function} options.recordAuthorityAttribution
+ * @param {boolean} [options.secureBrowserCookie]
+ */
 export function createApplicationServer({
   browserSessions,
   browserAssetReader = readBrowserAsset,
@@ -61,7 +75,7 @@ export function createApplicationServer({
   listAuthorityAttributions,
   recordAuthorityAttribution,
   secureBrowserCookie = false,
-} = {}) {
+}) {
   requireFunction(readDurableCoreStatus, "readDurableCoreStatus is required");
   requireFunction(browserAssetReader, "browserAssetReader must be a function");
   requireFunction(
