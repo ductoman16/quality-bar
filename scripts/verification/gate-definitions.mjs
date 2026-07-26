@@ -57,7 +57,11 @@ export function createGateDefinitions(applicationVersion) {
       arguments: [
         "--test",
         "test/operator-password-bootstrap.test.js",
-        "test/browser-session-security-integration.test.js",
+        "test/browser-session-durability-security-integration.test.js",
+        "test/browser-session-failure-security-integration.test.js",
+        "test/browser-session-proxy-security-integration.test.js",
+        "test/browser-session-bearer-security-integration.test.js",
+        "test/browser-session-contract-security-integration.test.js",
       ],
     },
     {
