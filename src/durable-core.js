@@ -10,11 +10,12 @@ import {
 
 export { DurableCoreError } from "./durable-error.js";
 
+/** @param {DatabaseSync} database */
 function readFacts(database) {
   return {
-    databaseVersion: database
-      .prepare("SELECT sqlite_version() AS version")
-      .get().version,
+    databaseVersion: /** @type {{ version: string }} */ (
+      database.prepare("SELECT sqlite_version() AS version").get()
+    ).version,
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
@@ -23,6 +24,10 @@ function readFacts(database) {
   };
 }
 
+/**
+ * @param {string} databasePath
+ * @param {{ onStorageUnavailable?: (error: DurableCoreError) => void }} options
+ */
 export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   let database;
   try {

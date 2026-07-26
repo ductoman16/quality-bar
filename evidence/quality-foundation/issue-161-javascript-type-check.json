@@ -1,0 +1,4945 @@
+{
+  "ticket": 161,
+  "focused_commands": [
+    "npm run typecheck:node",
+    "npm run typecheck:browser"
+  ],
+  "typescript_version": "7.0.2",
+  "node_types_version": "24.13.3",
+  "served_browser_modules": [
+    "login.js",
+    "operator.js"
+  ],
+  "initial_production_diagnostics": [
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 13,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 13,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'recordAuthorityAttribution' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 29,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserOrigin' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 30,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 31,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'listAuthorityAttributions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 32,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'readSystemStatus' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 33,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'recordAuthorityAttribution' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 34,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'reviews' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 36,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 36,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 36,
+      "column": 54,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 36,
+      "column": 66,
+      "code": "TS7006",
+      "message": "Parameter 'authority' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 53,
+      "column": 35,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 53,
+      "column": 47,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 60,
+      "column": 35,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 60,
+      "column": 47,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 84,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 97,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 101,
+      "column": 42,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 102,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 103,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 103,
+      "column": 59,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 108,
+      "column": 15,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 109,
+      "column": 16,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 112,
+      "column": 33,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 114,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 127,
+      "column": 39,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 128,
+      "column": 39,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 145,
+      "column": 20,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 153,
+      "column": 46,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/api-route.js",
+      "line": 157,
+      "column": 17,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'writeLog' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'severity' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'event' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 51,
+      "code": "TS7006",
+      "message": "Parameter 'component' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 62,
+      "code": "TS7006",
+      "message": "Parameter 'outcome' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 34,
+      "column": 71,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 43,
+      "column": 12,
+      "code": "TS2339",
+      "message": "Property 'error' does not exist on type '{ timestamp: string; severity: any; event: any; component: any; outcome: any; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 44,
+      "column": 12,
+      "code": "TS2339",
+      "message": "Property 'detail' does not exist on type '{ timestamp: string; severity: any; event: any; component: any; outcome: any; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 49,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'writeLog' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 52,
+      "column": 7,
+      "code": "TS7034",
+      "message": "Variable 'failure' implicitly has type 'any' in some locations where its type cannot be determined."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 54,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'process' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 71,
+      "column": 14,
+      "code": "TS7005",
+      "message": "Variable 'failure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 73,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 74,
+      "column": 11,
+      "code": "TS7005",
+      "message": "Variable 'failure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 91,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'process' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 98,
+      "column": 11,
+      "code": "TS7005",
+      "message": "Variable 'failure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 109,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'databasePath' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 118,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'line' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 134,
+      "column": 7,
+      "code": "TS7034",
+      "message": "Variable 'releaseInstallationLock' implicitly has type 'any' in some locations where its type cannot be determined."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 135,
+      "column": 7,
+      "code": "TS7034",
+      "message": "Variable 'startupFailure' implicitly has type 'any' in some locations where its type cannot be determined."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 145,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 198,
+      "column": 46,
+      "code": "TS7005",
+      "message": "Variable 'startupFailure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 205,
+      "column": 5,
+      "code": "TS2353",
+      "message": "Object literal may only specify known properties, and 'browserSessions' does not exist in type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 213,
+      "column": 10,
+      "code": "TS18047",
+      "message": "'systemResource' is possibly 'null'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 216,
+      "column": 45,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 223,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'query' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 224,
+      "column": 7,
+      "code": "TS18047",
+      "message": "'systemResource' is possibly 'null'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 225,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'event' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 226,
+      "column": 7,
+      "code": "TS18047",
+      "message": "'systemResource' is possibly 'null'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 236,
+      "column": 43,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 240,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'process' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 246,
+      "column": 60,
+      "code": "TS2810",
+      "message": "Expected 1 argument, but got 0. 'new Promise()' needs a JSDoc hint to produce a 'resolve' that can be called without arguments."
+    },
+    {
+      "environment": "node",
+      "path": "src/application.js",
+      "line": 250,
+      "column": 7,
+      "code": "TS7005",
+      "message": "Variable 'releaseInstallationLock' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/authority-attribution.js",
+      "line": 6,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'event' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/authority-attribution.js",
+      "line": 23,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'store' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/authority-attribution.js",
+      "line": 23,
+      "column": 51,
+      "code": "TS7006",
+      "message": "Parameter 'event' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/bootstrap-operator-password.js",
+      "line": 7,
+      "column": 21,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/bootstrap-operator-password.js",
+      "line": 8,
+      "column": 59,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 10,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserAssetReader' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 11,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 13,
+      "column": 38,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 13,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 13,
+      "column": 57,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 24,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 25,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 35,
+      "column": 39,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 36,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 37,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 37,
+      "column": 57,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 46,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 48,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 54,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-asset-route.js",
+      "line": 55,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-assets.js",
+      "line": 9,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-assets.js",
+      "line": 9,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-assets.js",
+      "line": 9,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-assets.js",
+      "line": 16,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 16,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 17,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'implementerTokens' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 18,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'recordAuthorityAttribution' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 20,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 20,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 20,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 32,
+      "column": 17,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 56,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 61,
+      "column": 39,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 62,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 63,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 63,
+      "column": 57,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 79,
+      "column": 33,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 79,
+      "column": 45,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 111,
+      "column": 20,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 116,
+      "column": 37,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 117,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 118,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-page-route.js",
+      "line": 118,
+      "column": 55,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 3,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 7,
+      "column": 41,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 26,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 34,
+      "column": 11,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 40,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'intendedDestination' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-pages.js",
+      "line": 44,
+      "column": 32,
+      "code": "TS7031",
+      "message": "Binding element 'view' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 20,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 20,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 20,
+      "column": 63,
+      "code": "TS7006",
+      "message": "Parameter 'status' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 34,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserOrigin' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 35,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 36,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'implementerTokens' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 37,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'recordAuthorityAttribution' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 38,
+      "column": 3,
+      "code": "TS7031",
+      "message": "Binding element 'secureBrowserCookie' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 40,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 40,
+      "column": 55,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 40,
+      "column": 65,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 56,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 60,
+      "column": 24,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 64,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 74,
+      "column": 41,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 75,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 76,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 76,
+      "column": 59,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 77,
+      "column": 13,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 78,
+      "column": 41,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 102,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 125,
+      "column": 17,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 133,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 162,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 165,
+      "column": 63,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 187,
+      "column": 17,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 198,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 201,
+      "column": 63,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 242,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session-route.js",
+      "line": 245,
+      "column": 63,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 25,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 25,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 25,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 32,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 51,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 51,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 51,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 55,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 59,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 59,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'hash' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 67,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'randomBytes' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 80,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'now' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 88,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'session' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 88,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'timestamp' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 97,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 109,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 117,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 126,
+      "column": 20,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 132,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 141,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 158,
+      "column": 20,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 169,
+      "column": 18,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 181,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 185,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 198,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 198,
+      "column": 19,
+      "code": "TS7006",
+      "message": "Parameter 'csrfToken' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 209,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 234,
+      "column": 16,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 234,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'csrfToken' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 254,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'currentPassword' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 254,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'replacementPassword' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 260,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 275,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/browser-session.js",
+      "line": 277,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 1,
+      "column": 23,
+      "code": "TS7006",
+      "message": "Parameter 'properties' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 1,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'required' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 1,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'additionalProperties' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 5,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'properties' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 5,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'required' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 9,
+      "column": 23,
+      "code": "TS7006",
+      "message": "Parameter 'properties' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 9,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'required' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 13,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'codexCapabilityCatalog' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 88,
+      "column": 51,
+      "code": "TS7006",
+      "message": "Parameter 'model' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api-components.js",
+      "line": 226,
+      "column": 51,
+      "code": "TS7006",
+      "message": "Parameter 'model' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api.js",
+      "line": 32,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api.js",
+      "line": 32,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'operationId' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api.js",
+      "line": 32,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'responses' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api.js",
+      "line": 32,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'requestBody' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/canonical-api.js",
+      "line": 46,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'schema' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 25,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 25,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 32,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 32,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 36,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 53,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'configuration' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 68,
+      "column": 8,
+      "code": "TS18048",
+      "message": "'model' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/codex-capabilities.js",
+      "line": 74,
+      "column": 8,
+      "code": "TS18048",
+      "message": "'model' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 6,
+      "column": 19,
+      "code": "TS7006",
+      "message": "Parameter 'row' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 10,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 10,
+      "column": 49,
+      "code": "TS2339",
+      "message": "Property 'onStorageUnavailable' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 11,
+      "column": 7,
+      "code": "TS7034",
+      "message": "Variable 'storageFailure' implicitly has type 'any' in some locations where its type cannot be determined."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 14,
+      "column": 9,
+      "code": "TS7005",
+      "message": "Variable 'storageFailure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 19,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 20,
+      "column": 10,
+      "code": "TS7005",
+      "message": "Variable 'storageFailure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 33,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'method' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 33,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 33,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'parameters' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 45,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'transactionActive' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 55,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 55,
+      "column": 16,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 59,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 59,
+      "column": 16,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 63,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 63,
+      "column": 16,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 71,
+      "column": 9,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 71,
+      "column": 14,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 74,
+      "column": 9,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 74,
+      "column": 14,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 77,
+      "column": 9,
+      "code": "TS7006",
+      "message": "Parameter 'sql' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 77,
+      "column": 14,
+      "code": "TS7019",
+      "message": "Rest parameter 'parameters' implicitly has an 'any[]' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 80,
+      "column": 17,
+      "code": "TS7006",
+      "message": "Parameter 'callback' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 124,
+      "column": 20,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 125,
+      "column": 24,
+      "code": "TS2339",
+      "message": "Property 'cause' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 132,
+      "column": 20,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-access.js",
+      "line": 141,
+      "column": 18,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-core.js",
+      "line": 13,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-core.js",
+      "line": 26,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'databasePath' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-core.js",
+      "line": 26,
+      "column": 49,
+      "code": "TS2339",
+      "message": "Property 'onStorageUnavailable' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-core.js",
+      "line": 39,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'database' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 2,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 2,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 2,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 9,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 9,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-error.js",
+      "line": 9,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 15,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 19,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 29,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 33,
+      "column": 17,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 33,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'pragma' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 33,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'field' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 37,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-integrity.js",
+      "line": 92,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-schema.js",
+      "line": 68,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-schema.js",
+      "line": 68,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'statements' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/durable-schema.js",
+      "line": 80,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'database' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-port.js",
+      "line": 1,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 6,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 6,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'name' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 9,
+      "column": 11,
+      "code": "TS7006",
+      "message": "Parameter 'cookie' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 10,
+      "column": 15,
+      "code": "TS7031",
+      "message": "Binding element 'cookieName' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 11,
+      "column": 14,
+      "code": "TS7031",
+      "message": "Binding element 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 15,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 15,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'fields' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 19,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'field' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 27,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 45,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 52,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 56,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 60,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 64,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 68,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 78,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'secret' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 78,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'secure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 88,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'token' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 88,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'secure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 97,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'secure' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 117,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 131,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 140,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 147,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 156,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 160,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 162,
+      "column": 5,
+      "code": "TS7053",
+      "message": "Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ authentication_invalid: string; authentication_ambiguous: string; csrf_invalid: string; authentication_required: string; operator_password_uninitialized: string; operator_password_verifier_unavailable: string; ... 7 more ...; storage_unavailable: string; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 185,
+      "column": 38,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 185,
+      "column": 44,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 187,
+      "column": 9,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 191,
+      "column": 42,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 203,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 207,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 207,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 220,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 221,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 222,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'browserOrigin' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 237,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 238,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 239,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'browserOrigin' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 240,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 251,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 255,
+      "column": 10,
+      "code": "TS7053",
+      "message": "Element implicitly has an 'any' type because expression of type '1' can't be used to index type 'false | RegExpExecArray'. Property '1' does not exist on type 'false | RegExpExecArray'."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 258,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 265,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 266,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'implementerTokens' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 267,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 268,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 295,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 295,
+      "column": 58,
+      "code": "TS7006",
+      "message": "Parameter 'allowed' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-request.js",
+      "line": 303,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'requestUrl' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 3,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 3,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'status' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 3,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'body' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 11,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 11,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'body' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 16,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 16,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'body' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 21,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 38,
+      "code": "TS7006",
+      "message": "Parameter 'status' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 52,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 61,
+      "code": "TS7006",
+      "message": "Parameter 'headers' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 26,
+      "column": 70,
+      "code": "TS7006",
+      "message": "Parameter 'fields' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/http-response.js",
+      "line": 33,
+      "column": 11,
+      "code": "TS2339",
+      "message": "Property 'fields' does not exist on type '{ code: any; message: any; request_id: `${string}-${string}-${string}-${string}-${string}`; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 14,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 14,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 14,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 21,
+      "column": 58,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 37,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 37,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 37,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 41,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'randomBytes' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 61,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'token' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 65,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 71,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'token' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 71,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'verifier' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 86,
+      "column": 23,
+      "code": "TS7006",
+      "message": "Parameter 'reader' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 94,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 105,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 105,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'requireActive' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 107,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 147,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 150,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 153,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 154,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/implementer-token.js",
+      "line": 174,
+      "column": 18,
+      "code": "TS7006",
+      "message": "Parameter 'token' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 16,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 16,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 16,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 23,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 23,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 23,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 28,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'readFile' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 29,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 30,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'encoding' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 31,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'missingCode' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 32,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'missingMessage' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 37,
+      "column": 16,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 44,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'source' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 79,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 90,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 91,
+      "column": 35,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 92,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 93,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 94,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 95,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 96,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 106,
+      "column": 37,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 113,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'address' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 123,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'origin' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 123,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'trustedProxyAddresses' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 127,
+      "column": 6,
+      "code": "TS7006",
+      "message": "Parameter 'address' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 142,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'source' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 185,
+      "column": 21,
+      "code": "TS18048",
+      "message": "'origin' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 191,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'masterKey' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 206,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 206,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'masterKey' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 241,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 241,
+      "column": 52,
+      "code": "TS7006",
+      "message": "Parameter 'masterKey' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-configuration.js",
+      "line": 247,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 39,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 39,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 39,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 46,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 46,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 46,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 50,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'filesystem' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 50,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 72,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'filesystem' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 72,
+      "column": 48,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 94,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'filesystem' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 94,
+      "column": 41,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 94,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'requireReserve' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 132,
+      "column": 40,
+      "code": "TS7006",
+      "message": "Parameter 'filesystem' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 132,
+      "column": 52,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 153,
+      "column": 76,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 169,
+      "column": 23,
+      "code": "TS7006",
+      "message": "Parameter 'runTool' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 169,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'command' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 169,
+      "column": 41,
+      "code": "TS7006",
+      "message": "Parameter 'arguments_' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 169,
+      "column": 53,
+      "code": "TS7006",
+      "message": "Parameter 'expected' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 169,
+      "column": 63,
+      "code": "TS7006",
+      "message": "Parameter 'failureCode' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 193,
+      "column": 41,
+      "code": "TS7006",
+      "message": "Parameter 'createLock' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 194,
+      "column": 7,
+      "code": "TS7034",
+      "message": "Variable 'lock' implicitly has type 'any' in some locations where its type cannot be determined."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 213,
+      "column": 5,
+      "code": "TS7005",
+      "message": "Variable 'lock' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 224,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 233,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 237,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'command' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/installation-environment.js",
+      "line": 237,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'arguments_' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 8,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 8,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 8,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 15,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 15,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 19,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'store' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 19,
+      "column": 40,
+      "code": "TS7006",
+      "message": "Parameter 'key' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 37,
+      "column": 20,
+      "code": "TS7006",
+      "message": "Parameter 'store' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 49,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'store' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 49,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'key' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 49,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 58,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'now' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 67,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'attempts' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 74,
+      "column": 46,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 74,
+      "column": 59,
+      "code": "TS7006",
+      "message": "Parameter 'now' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 82,
+      "column": 11,
+      "code": "TS2339",
+      "message": "Property 'retryAfterSeconds' does not exist on type 'OperatorLoginThrottleError'."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 87,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 87,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'now' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 89,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-login-throttle.js",
+      "line": 107,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'store' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 20,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 20,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 20,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 24,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'source' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 45,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'input' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 45,
+      "column": 38,
+      "code": "TS7006",
+      "message": "Parameter 'output' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 54,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password-bootstrap.js",
+      "line": 66,
+      "column": 22,
+      "code": "TS7006",
+      "message": "Parameter 'characters' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 20,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 20,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 20,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'options' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 27,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 27,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 27,
+      "column": 30,
+      "code": "TS7006",
+      "message": "Parameter 'cause' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 31,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 35,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 35,
+      "column": 43,
+      "code": "TS7006",
+      "message": "Parameter 'randomBytes' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 66,
+      "column": 5,
+      "code": "TS18048",
+      "message": "'derivedKey' is possibly 'undefined'."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 70,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 114,
+      "column": 40,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 114,
+      "column": 53,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 144,
+      "column": 24,
+      "code": "TS2345",
+      "message": "Argument of type 'NonSharedBuffer | undefined' is not assignable to parameter of type 'ArrayBufferView<ArrayBufferLike>'. Type 'undefined' is not assignable to type 'ArrayBufferView<ArrayBufferLike>'."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 150,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 151,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'currentPassword' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 152,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'replacementPassword' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 172,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 173,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'password' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/operator-password.js",
+      "line": 189,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 4,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 4,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 11,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 11,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 15,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'address' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 23,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 23,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'expectedHost' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 72,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'externalOrigin' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 73,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'trustedProxyAddresses' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 87,
+      "column": 18,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/request-security.js",
+      "line": 104,
+      "column": 58,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 6,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 6,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 13,
+      "column": 15,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 13,
+      "column": 21,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 17,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 17,
+      "column": 31,
+      "code": "TS7006",
+      "message": "Parameter 'keys' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 24,
+      "column": 17,
+      "code": "TS7006",
+      "message": "Parameter 'key' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 28,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 28,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 28,
+      "column": 40,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 35,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'assignment' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 54,
+      "column": 27,
+      "code": "TS7006",
+      "message": "Parameter 'criteria' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 61,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'criterion' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 61,
+      "column": 35,
+      "code": "TS7006",
+      "message": "Parameter 'index' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 80,
+      "column": 29,
+      "code": "TS7006",
+      "message": "Parameter 'definition' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 114,
+      "column": 19,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 119,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 130,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'definition' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 138,
+      "column": 48,
+      "code": "TS7006",
+      "message": "Parameter 'criterion' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 138,
+      "column": 59,
+      "code": "TS7006",
+      "message": "Parameter 'index' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 144,
+      "column": 51,
+      "code": "TS7031",
+      "message": "Binding element 'id' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 152,
+      "column": 34,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/review.js",
+      "line": 222,
+      "column": 48,
+      "code": "TS7006",
+      "message": "Parameter 'error' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 18,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 18,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'message' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 24,
+      "column": 26,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 24,
+      "column": 33,
+      "code": "TS7006",
+      "message": "Parameter 'methods' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 24,
+      "column": 42,
+      "code": "TS7006",
+      "message": "Parameter 'name' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 53,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'browserSessions' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 55,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'implementerTokens' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 56,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'browserOrigin' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 57,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'requestSecurity' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 58,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'reviews' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 59,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'readDurableCoreStatus' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 60,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'readSystemStatus' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 61,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'listAuthorityAttributions' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 62,
+      "column": 3,
+      "code": "TS2339",
+      "message": "Property 'recordAuthorityAttribution' does not exist on type '{ browserAssetReader?: ((path: any) => string) | undefined; secureBrowserCookie?: boolean | undefined; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 110,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'request' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 110,
+      "column": 41,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 141,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 142,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 143,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 191,
+      "column": 22,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 196,
+      "column": 39,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 197,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 198,
+      "column": 11,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/server.js",
+      "line": 198,
+      "column": 57,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 12,
+      "column": 23,
+      "code": "TS7006",
+      "message": "Parameter 'code' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 14,
+      "column": 9,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type 'Error'."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 18,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'timestamp' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 22,
+      "column": 19,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 32,
+      "column": 24,
+      "code": "TS7006",
+      "message": "Parameter 'row' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 41,
+      "column": 14,
+      "code": "TS2339",
+      "message": "Property 'error_code' does not exist on type '{ action: any; channel: any; id: any; occurred_at: string; outcome: any; }'."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 47,
+      "column": 3,
+      "code": "TS7006",
+      "message": "Parameter 'durableCore' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 56,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'row' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 77,
+      "column": 25,
+      "code": "TS7006",
+      "message": "Parameter 'cursor' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 109,
+      "column": 20,
+      "code": "TS2339",
+      "message": "Property 'code' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 116,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'event' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 123,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'transaction' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 127,
+      "column": 17,
+      "code": "TS7031",
+      "message": "Binding element 'browserSessions' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 127,
+      "column": 34,
+      "code": "TS7031",
+      "message": "Binding element 'codex' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 127,
+      "column": 41,
+      "code": "TS7031",
+      "message": "Binding element 'implementerToken' implicitly has an 'any' type."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 159,
+      "column": 33,
+      "code": "TS2339",
+      "message": "Property 'cursor' does not exist on type '{}'."
+    },
+    {
+      "environment": "node",
+      "path": "src/system-resource.js",
+      "line": 159,
+      "column": 41,
+      "code": "TS2339",
+      "message": "Property 'limit' does not exist on type '{}'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 3,
+      "column": 22,
+      "code": "TS2339",
+      "message": "Property 'type' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 25,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 35,
+      "column": 1,
+      "code": "TS18047",
+      "message": "'form' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 37,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 40,
+      "column": 17,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 40,
+      "column": 53,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 49,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/login.js",
+      "line": 50,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 3,
+      "column": 22,
+      "code": "TS2339",
+      "message": "Property 'type' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 17,
+      "column": 9,
+      "code": "TS18046",
+      "message": "'error' is of type 'unknown'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 28,
+      "column": 36,
+      "code": "TS7006",
+      "message": "Parameter 'disabled' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 32,
+      "column": 15,
+      "code": "TS2339",
+      "message": "Property 'disabled' does not exist on type 'Element'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 38,
+      "column": 5,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 40,
+      "column": 5,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 42,
+      "column": 5,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 73,
+      "column": 32,
+      "code": "TS7006",
+      "message": "Parameter 'catalog' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 80,
+      "column": 19,
+      "code": "TS7006",
+      "message": "Parameter 'value' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 88,
+      "column": 8,
+      "code": "TS7006",
+      "message": "Parameter 'candidate' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 88,
+      "column": 39,
+      "code": "TS18047",
+      "message": "'model' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 88,
+      "column": 45,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 90,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'reasoningEffort' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 93,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'serviceTier' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 96,
+      "column": 28,
+      "code": "TS7006",
+      "message": "Parameter 'capability' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 108,
+      "column": 56,
+      "code": "TS7006",
+      "message": "Parameter 'response' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 121,
+      "column": 39,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 121,
+      "column": 45,
+      "code": "TS7006",
+      "message": "Parameter 'body' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 122,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 125,
+      "column": 5,
+      "code": "TS2322",
+      "message": "Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'HeadersInit | undefined'. Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'undefined'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 140,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 143,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 145,
+      "column": 47,
+      "code": "TS7006",
+      "message": "Parameter 'path' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 145,
+      "column": 53,
+      "code": "TS7006",
+      "message": "Parameter 'body' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 146,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 149,
+      "column": 5,
+      "code": "TS2322",
+      "message": "Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'HeadersInit | undefined'. Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'undefined'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 158,
+      "column": 7,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 159,
+      "column": 7,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 159,
+      "column": 59,
+      "code": "TS2339",
+      "message": "Property 'showModal' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 168,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 171,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 180,
+      "column": 5,
+      "code": "TS2322",
+      "message": "Type '{ \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'HeadersInit | undefined'. Type '{ \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'undefined'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 191,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 194,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 198,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 203,
+      "column": 25,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 205,
+      "column": 9,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 206,
+      "column": 21,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 207,
+      "column": 10,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 210,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 215,
+      "column": 21,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 216,
+      "column": 10,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 217,
+      "column": 17,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 217,
+      "column": 72,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 220,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 225,
+      "column": 17,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 226,
+      "column": 10,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 229,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 234,
+      "column": 17,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 235,
+      "column": 10,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 238,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 250,
+      "column": 17,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 251,
+      "column": 10,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 264,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 269,
+      "column": 18,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 269,
+      "column": 58,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 270,
+      "column": 29,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 271,
+      "column": 14,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 272,
+      "column": 25,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 272,
+      "column": 72,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 276,
+      "column": 21,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 277,
+      "column": 26,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 280,
+      "column": 22,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 280,
+      "column": 68,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 281,
+      "column": 15,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 281,
+      "column": 54,
+      "code": "TS2339",
+      "message": "Property 'value' does not exist on type 'HTMLElement'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 283,
+      "column": 7,
+      "code": "TS2322",
+      "message": "Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'HeadersInit | undefined'. Type '{ \"content-type\": string; \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'undefined'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 291,
+      "column": 7,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 300,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 303,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 306,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 309,
+      "column": 5,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 309,
+      "column": 57,
+      "code": "TS2551",
+      "message": "Property 'close' does not exist on type 'HTMLElement'. Did you mean 'closest'?"
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 311,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 314,
+      "column": 5,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 316,
+      "column": 1,
+      "code": "TS2531",
+      "message": "Object is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 317,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 319,
+      "column": 5,
+      "code": "TS2322",
+      "message": "Type '{ \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'HeadersInit | undefined'. Type '{ \"x-quality-bar-csrf\": string | undefined; }' is not assignable to type 'undefined'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 331,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 334,
+      "column": 3,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 349,
+      "column": 12,
+      "code": "TS7006",
+      "message": "Parameter 'model' implicitly has an 'any' type."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 376,
+      "column": 7,
+      "code": "TS18047",
+      "message": "'attention' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 377,
+      "column": 7,
+      "code": "TS18047",
+      "message": "'attention' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 381,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    },
+    {
+      "environment": "browser",
+      "path": "src/browser/operator.js",
+      "line": 382,
+      "column": 5,
+      "code": "TS18047",
+      "message": "'error' is possibly 'null'."
+    }
+  ],
+  "final_outcome": "pass",
+  "initial_capture_base": "52980575e9fa1f785a02db2f39cc7af54e37dcc5"
+}

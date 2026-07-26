@@ -1,6 +1,5 @@
 import {
   assertNoMixedCredentials,
-  authenticationFailureMessage,
   authenticationFailureStatus,
   sessionSecret,
 } from "./http-request.js";
@@ -10,13 +9,34 @@ import {
   operatorPage,
   safeInternalDestination,
 } from "./browser-pages.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeHtml } from "./http-response.js";
 
+/**
+ * @typedef {{
+ *   action: string,
+ *   channel: string,
+ *   errorCode?: string,
+ *   outcome: string
+ * }} AttributionEvent
+ */
+/**
+ * @param {{
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
+ *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
+ *   recordAuthorityAttribution: (event: AttributionEvent) => void
+ * }} dependencies
+ */
 export function createBrowserPageRoute({
   browserSessions,
   implementerTokens,
   recordAuthorityAttribution,
 }) {
+  /**
+   * @param {import("node:http").IncomingMessage} request
+   * @param {import("node:http").ServerResponse} response
+   * @param {URL} requestUrl
+   */
   return function handleBrowserPage(request, response, requestUrl) {
     if (request.method !== "GET" || requestUrl.pathname !== "/") {
       return false;
@@ -28,9 +48,9 @@ export function createBrowserPageRoute({
           /^Bearer ([A-Za-z0-9_-]{43})$/,
         )?.[1];
         if (!implementerTokens.authenticate(token)) {
-          const error = new Error("Machine authentication is invalid");
-          error.code = "authentication_invalid";
-          throw error;
+          throw Object.assign(new Error("Machine authentication is invalid"), {
+            code: "authentication_invalid",
+          });
         }
         recordAuthorityAttribution({
           action: "authentication",
@@ -50,17 +70,18 @@ export function createBrowserPageRoute({
           "Machine access is forbidden",
         );
       } catch (error) {
+        const failure = requireCodedError(error);
         recordAuthorityAttribution({
           action: "authentication",
           channel: "implementer_token",
-          errorCode: error.code ?? "authentication_unavailable",
+          errorCode: failure.code,
           outcome: "failure",
         });
         writeError(
           response,
-          authenticationFailureStatus(error.code),
-          error.code ?? "authentication_unavailable",
-          error.message ?? authenticationFailureMessage(error.code),
+          authenticationFailureStatus(failure.code),
+          failure.code,
+          failure.message,
         );
       }
       return true;
@@ -76,7 +97,8 @@ export function createBrowserPageRoute({
     try {
       view = browserView(requestUrl);
     } catch (error) {
-      writeError(response, 404, error.code, error.message);
+      const failure = requireCodedError(error);
+      writeError(response, 404, failure.code, failure.message);
       return true;
     }
     try {
@@ -105,17 +127,18 @@ export function createBrowserPageRoute({
         );
       }
     } catch (error) {
+      const failure = requireCodedError(error);
       recordAuthorityAttribution({
         action: "authentication",
         channel: "browser_session",
-        errorCode: error.code ?? "authentication_unavailable",
+        errorCode: failure.code,
         outcome: "failure",
       });
       writeError(
         response,
-        authenticationFailureStatus(error.code),
-        error.code ?? "authentication_unavailable",
-        error.message ?? authenticationFailureMessage(error.code),
+        authenticationFailureStatus(failure.code),
+        failure.code,
+        failure.message,
       );
     }
     return true;

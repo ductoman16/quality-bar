@@ -1,11 +1,30 @@
 import { readFileSync } from "node:fs";
 
-const assetPaths = new Map([
-  ["/assets/login.js", new URL("./browser/login.js", import.meta.url)],
-  ["/assets/operator.js", new URL("./browser/operator.js", import.meta.url)],
-]);
+const browserAssets = [
+  {
+    route: "/assets/login.js",
+    sourcePath: "src/browser/login.js",
+    url: new URL("./browser/login.js", import.meta.url),
+  },
+  {
+    route: "/assets/operator.js",
+    sourcePath: "src/browser/operator.js",
+    url: new URL("./browser/operator.js", import.meta.url),
+  },
+];
+
+export const BROWSER_ASSET_SOURCE_PATHS = browserAssets.map(
+  ({ sourcePath }) => sourcePath,
+);
+
+const assetPaths = new Map(browserAssets.map(({ route, url }) => [route, url]));
 
 export class BrowserAssetError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "BrowserAssetError";
@@ -13,6 +32,7 @@ export class BrowserAssetError extends Error {
   }
 }
 
+/** @param {string} path */
 export function readBrowserAsset(path) {
   const assetPath = assetPaths.get(path);
   if (!assetPath) {

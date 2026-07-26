@@ -28,6 +28,9 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       formatter: metadata.formatterVersion
         ? `prettier:${metadata.formatterVersion}`
         : null,
+      typeChecker: metadata.typeCheckerVersion
+        ? `typescript:${metadata.typeCheckerVersion}`
+        : null,
       git: packageFacts?.tools?.git ?? null,
       codex: packageFacts?.tools?.codex ?? null,
       codexCapabilityCatalog:
@@ -49,6 +52,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
     runnerVersions: {
       node: process.version,
       prettier: metadata.formatterVersion,
+      typescript: metadata.typeCheckerVersion,
       git: metadata.runnerGitVersion,
     },
     invokedGates: gates,

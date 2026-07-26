@@ -49,6 +49,16 @@ export function readVerificationMetadata(repositoryRoot) {
       `node_modules/.bin/prettier must report 3.7.4, received ${formatterVersion}`,
     );
   }
+  const typeCheckerVersion = captureCommand(
+    repositoryRoot,
+    resolve(repositoryRoot, "node_modules/.bin/tsc"),
+    ["--version"],
+  ).replace(/^Version /, "");
+  if (typeCheckerVersion !== "7.0.2") {
+    throw new Error(
+      `node_modules/.bin/tsc must report 7.0.2, received ${typeCheckerVersion}`,
+    );
+  }
 
   return {
     applicationVersion,
@@ -58,5 +68,6 @@ export function readVerificationMetadata(repositoryRoot) {
       "--version",
     ]).replace(/^git version /, ""),
     sourceCommit: captureCommand(repositoryRoot, "git", ["rev-parse", "HEAD"]),
+    typeCheckerVersion,
   };
 }

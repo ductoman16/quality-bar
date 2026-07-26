@@ -11,6 +11,11 @@ export const IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY =
   "implementer_token_verifier";
 
 export class ImplementerTokenError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "ImplementerTokenError";
@@ -18,8 +23,13 @@ export class ImplementerTokenError extends Error {
   }
 }
 
+/** @param {unknown} error */
 export function createUnavailableImplementerTokenService(error) {
-  if (!error || typeof error.code !== "string") {
+  if (
+    !(error instanceof Error) ||
+    !("code" in error) ||
+    typeof error.code !== "string"
+  ) {
     throw new TypeError("an exact unavailable-token error is required");
   }
   const unavailable = () => {
@@ -34,10 +44,17 @@ export function createUnavailableImplementerTokenService(error) {
   };
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
 function fail(code, message, cause) {
   throw new ImplementerTokenError(code, message, { cause });
 }
 
+/** @param {(size: number) => Buffer} randomBytes */
 function createToken(randomBytes) {
   let bytes;
   try {
@@ -58,16 +75,25 @@ function createToken(randomBytes) {
   return bytes.toString("base64url");
 }
 
+/** @param {string} token */
 function tokenVerifier(token) {
   return `sha256-v1.${createHash("sha256").update(token, "utf8").digest("base64")}`;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {value is string}
+ */
 function isTokenVerifier(value) {
   return (
     typeof value === "string" && /^sha256-v1\.[A-Za-z0-9+/]{43}=$/.test(value)
   );
 }
 
+/**
+ * @param {unknown} token
+ * @param {unknown} verifier
+ */
 function verifierMatches(token, verifier) {
   if (
     typeof token !== "string" ||
@@ -83,13 +109,32 @@ function verifierMatches(token, verifier) {
   );
 }
 
+/**
+ * @param {{
+ *   get: (
+ *     sql: string,
+ *     ...parameters: import("node:sqlite").SQLInputValue[]
+ *   ) => Record<string, import("node:sqlite").SQLInputValue> | undefined
+ * }} reader
+ */
 function readVerifier(reader) {
-  return reader.get(
-    "SELECT value FROM quality_bar_metadata WHERE key = ?",
-    IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY,
-  )?.value;
+  const row = /** @type {{ value: string } | undefined} */ (
+    reader.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY,
+    )
+  );
+  return row?.value;
 }
 
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {{
+ *   now?: () => number,
+ *   randomBytes?: (size: number) => Buffer,
+ *   recordAttribution?: typeof insertAuthorityAttribution
+ * }} [options]
+ */
 export function createImplementerTokenService(
   durableCore,
   {
@@ -102,8 +147,12 @@ export function createImplementerTokenService(
     throw new TypeError("durableCore is required");
   }
 
+  /**
+   * @param {string} password
+   * @param {boolean} requireActive
+   */
   function replace(password, requireActive) {
-    let token;
+    let token = "";
     durableCore.transaction((transaction) => {
       verifyOperatorPassword(transaction, password);
       const active = readVerifier(transaction) !== undefined;
@@ -144,12 +193,15 @@ export function createImplementerTokenService(
   }
 
   return {
+    /** @param {string} password */
     create(password) {
       return replace(password, false);
     },
+    /** @param {string} password */
     rotate(password) {
       return replace(password, true);
     },
+    /** @param {string} password */
     revoke(password) {
       durableCore.transaction((transaction) => {
         verifyOperatorPassword(transaction, password);
@@ -171,6 +223,7 @@ export function createImplementerTokenService(
         });
       });
     },
+    /** @param {unknown} token */
     authenticate(token) {
       const verifier = readVerifier(durableCore);
       if (verifier !== undefined && !isTokenVerifier(verifier)) {

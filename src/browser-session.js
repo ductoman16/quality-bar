@@ -22,6 +22,11 @@ export const BROWSER_SESSION_IDLE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
 export const BROWSER_SESSION_ABSOLUTE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export class BrowserSessionError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "BrowserSessionError";
@@ -29,8 +34,13 @@ export class BrowserSessionError extends Error {
   }
 }
 
+/** @param {unknown} error */
 export function createUnavailableBrowserSessionService(error) {
-  if (!error || typeof error.code !== "string") {
+  if (
+    !(error instanceof Error) ||
+    !("code" in error) ||
+    typeof error.code !== "string"
+  ) {
     throw new TypeError("an exact unavailable-session error is required");
   }
   const unavailable = () => {
@@ -48,14 +58,25 @@ export function createUnavailableBrowserSessionService(error) {
   };
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
 function fail(code, message, cause) {
   throw new BrowserSessionError(code, message, { cause });
 }
 
+/** @param {string} secret */
 function sessionHash(secret) {
   return createHash("sha256").update(secret, "utf8").digest("base64");
 }
 
+/**
+ * @param {string} secret
+ * @param {string} hash
+ */
 function matchesHash(secret, hash) {
   const candidate = Buffer.from(sessionHash(secret), "utf8");
   const stored = Buffer.from(hash, "utf8");
@@ -64,6 +85,7 @@ function matchesHash(secret, hash) {
   );
 }
 
+/** @param {(size: number) => Buffer} randomBytes */
 function createSessionSecret(randomBytes) {
   let bytes;
   try {
@@ -77,6 +99,7 @@ function createSessionSecret(randomBytes) {
   return bytes.toString("base64url");
 }
 
+/** @param {() => number} now */
 function currentTimestamp(now) {
   const timestamp = now();
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
@@ -85,6 +108,17 @@ function currentTimestamp(now) {
   return timestamp;
 }
 
+/**
+ * @typedef {{
+ *   created_at: number,
+ *   csrf_hash?: string,
+ *   last_authenticated_at: number
+ * }} BrowserSessionRow
+ */
+/**
+ * @param {BrowserSessionRow} session
+ * @param {number} timestamp
+ */
 function hasExpired(session, timestamp) {
   return (
     timestamp - session.created_at >= BROWSER_SESSION_ABSOLUTE_LIFETIME_MS ||
@@ -93,6 +127,14 @@ function hasExpired(session, timestamp) {
   );
 }
 
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {{
+ *   now?: () => number,
+ *   randomBytes?: (size: number) => Buffer,
+ *   recordAttribution?: typeof insertAuthorityAttribution
+ * }} options
+ */
 export function createBrowserSessionService(
   durableCore,
   {
@@ -106,15 +148,22 @@ export function createBrowserSessionService(
   }
 
   return {
+    /** @param {string} password */
     login(password) {
       const timestamp = currentTimestamp(now);
       try {
         rejectDuringFailedLoginDelay(durableCore, timestamp);
       } catch (error) {
+        const code =
+          error instanceof Error &&
+          "code" in error &&
+          typeof error.code === "string"
+            ? error.code
+            : "login_throttle_unavailable";
         recordAttribution(durableCore, {
           action: "authentication",
           channel: "browser_session",
-          errorCode: error.code,
+          errorCode: code,
           occurredAt: timestamp,
           outcome: "failure",
         });
@@ -123,13 +172,19 @@ export function createBrowserSessionService(
       try {
         verifyOperatorPassword(durableCore, password);
       } catch (error) {
-        if (error?.code === "authentication_invalid") {
+        const code =
+          error instanceof Error &&
+          "code" in error &&
+          typeof error.code === "string"
+            ? error.code
+            : "operator_password_verifier_unavailable";
+        if (code === "authentication_invalid") {
           recordFailedOperatorLogin(durableCore, timestamp);
         }
         recordAttribution(durableCore, {
           action: "authentication",
           channel: "browser_session",
-          errorCode: error.code,
+          errorCode: code,
           occurredAt: timestamp,
           outcome: "failure",
         });
@@ -155,7 +210,11 @@ export function createBrowserSessionService(
           });
         });
       } catch (error) {
-        if (error?.code === "storage_unavailable") {
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "storage_unavailable"
+        ) {
           throw error;
         }
         fail(
@@ -166,18 +225,22 @@ export function createBrowserSessionService(
       }
       return { csrfToken, secret };
     },
+    /** @param {string | undefined} secret */
     authenticate(secret) {
       if (typeof secret !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(secret)) {
         return false;
       }
       const timestamp = currentTimestamp(now);
       const hash = sessionHash(secret);
-      const session = durableCore.get(
-        "SELECT created_at, last_authenticated_at FROM browser_sessions WHERE session_hash = ?",
-        hash,
+      const session = /** @type {BrowserSessionRow | undefined} */ (
+        durableCore.get(
+          "SELECT created_at, last_authenticated_at FROM browser_sessions WHERE session_hash = ?",
+          hash,
+        )
       );
-      return Boolean(session) && !hasExpired(session, timestamp);
+      return session !== undefined && !hasExpired(session, timestamp);
     },
+    /** @param {string} secret */
     logout(secret) {
       if (!this.authenticate(secret)) {
         fail("authentication_required", "Browser session is required");
@@ -195,6 +258,10 @@ export function createBrowserSessionService(
         });
       });
     },
+    /**
+     * @param {string | undefined} secret
+     * @param {string | undefined} csrfToken
+     */
     touch(secret, csrfToken) {
       if (
         typeof secret !== "string" ||
@@ -207,14 +274,19 @@ export function createBrowserSessionService(
       const timestamp = currentTimestamp(now);
       const hash = sessionHash(secret);
       return durableCore.transaction((transaction) => {
-        const session = transaction.get(
-          "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
-          hash,
+        const session = /** @type {BrowserSessionRow | undefined} */ (
+          transaction.get(
+            "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
+            hash,
+          )
         );
         if (!session || hasExpired(session, timestamp)) {
           return false;
         }
-        if (!matchesHash(csrfToken, session.csrf_hash)) {
+        if (
+          typeof session.csrf_hash !== "string" ||
+          !matchesHash(csrfToken, session.csrf_hash)
+        ) {
           return false;
         }
         transaction.run(
@@ -231,6 +303,10 @@ export function createBrowserSessionService(
         return true;
       });
     },
+    /**
+     * @param {string | undefined} secret
+     * @param {string | undefined} csrfToken
+     */
     verifyCsrf(secret, csrfToken) {
       if (
         typeof secret !== "string" ||
@@ -241,16 +317,23 @@ export function createBrowserSessionService(
         return false;
       }
       const timestamp = currentTimestamp(now);
-      const session = durableCore.get(
-        "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
-        sessionHash(secret),
+      const session = /** @type {BrowserSessionRow | undefined} */ (
+        durableCore.get(
+          "SELECT created_at, last_authenticated_at, csrf_hash FROM browser_sessions WHERE session_hash = ?",
+          sessionHash(secret),
+        )
       );
       return Boolean(
         session &&
         !hasExpired(session, timestamp) &&
+        typeof session.csrf_hash === "string" &&
         matchesHash(csrfToken, session.csrf_hash),
       );
     },
+    /**
+     * @param {string} currentPassword
+     * @param {string} replacementPassword
+     */
     changePassword(currentPassword, replacementPassword) {
       const replacementVerifier = prepareOperatorPasswordReplacement(
         durableCore,
@@ -272,6 +355,7 @@ export function createBrowserSessionService(
         });
       });
     },
+    /** @param {string} password */
     revokeAll(password) {
       verifyOperatorPassword(durableCore, password);
       durableCore.transaction((transaction) => {

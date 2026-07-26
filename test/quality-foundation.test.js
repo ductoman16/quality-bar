@@ -43,6 +43,8 @@ test("Node declarations pin the same exact runtime", () => {
   assert.equal(packageJson.engines.node, "24.18.0");
   assert.equal(packageJson.packageManager, "npm@11.16.0");
   assert.equal(packageJson.devDependencies.prettier, "3.7.4");
+  assert.equal(packageJson.devDependencies.typescript, "7.0.2");
+  assert.equal(packageJson.devDependencies["@types/node"], "24.13.3");
   assert.equal(nodeVersionFile, "24.18.0\n");
   assert.equal(npmConfiguration, "engine-strict=true\n");
   assert.match(dockerfile, /^FROM node:24\.18\.0-alpine@sha256:/m);

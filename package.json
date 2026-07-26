@@ -12,6 +12,8 @@
     "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",
     "lint:correctness": "node scripts/run-with-exact-node.mjs scripts/core-js-lint.mjs",
     "lint:boundaries": "node scripts/run-with-exact-node.mjs scripts/node-boundary-lint.mjs",
+    "typecheck:node": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.node.json",
+    "typecheck:browser": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.browser.json",
     "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
     "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" fixtures/operator-browser-login.js",
     "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" fixtures/operator-browser-login.js",
@@ -19,10 +21,12 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
+    "@types/node": "24.13.3",
     "eslint": "9.39.1",
     "eslint-plugin-n": "18.2.2",
     "espree": "10.4.0",
     "globals": "14.0.0",
-    "prettier": "3.7.4"
+    "prettier": "3.7.4",
+    "typescript": "7.0.2"
   }
 }

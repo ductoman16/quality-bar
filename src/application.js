@@ -14,6 +14,7 @@ import {
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
+import { requireCodedError } from "./coded-error.js";
 import {
   createImplementerTokenService,
   createUnavailableImplementerTokenService,
@@ -31,14 +32,33 @@ import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 
+/**
+ * @typedef {ReturnType<typeof requireCodedError>} CodedError
+ */
+/**
+ * @param {(line: string) => unknown} writeLog
+ * @param {string} severity
+ * @param {string} event
+ * @param {string} component
+ * @param {string} outcome
+ * @param {CodedError} [error]
+ */
 function structuredLog(writeLog, severity, event, component, outcome, error) {
-  const record = {
+  const record = /** @type {{
+   *   component: string,
+   *   detail?: string,
+   *   error?: string,
+   *   event: string,
+   *   outcome: string,
+   *   severity: string,
+   *   timestamp: string
+   * }} */ ({
     timestamp: new Date().toISOString(),
     severity,
     event,
     component,
     outcome,
-  };
+  });
   if (error) {
     record.error = error.code;
     record.detail = error.message;
@@ -46,23 +66,28 @@ function structuredLog(writeLog, severity, event, component, outcome, error) {
   writeLog(`${JSON.stringify(record)}\n`);
 }
 
+/** @param {(line: string) => unknown} writeLog */
 function createHardStorageBoundary(writeLog) {
   const workers = new AbortController();
-  const codexProcesses = new Set();
+  const codexProcesses = new Set(
+    /** @type {import("node:child_process").ChildProcess[]} */ ([]),
+  );
+  /** @type {CodedError | null} */
   let failure = null;
 
-  function terminateCodexProcess(process) {
-    if (process.exitCode !== null || process.signalCode !== null) {
+  /** @param {import("node:child_process").ChildProcess} childProcess */
+  function terminateCodexProcess(childProcess) {
+    if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
       return;
     }
-    process.kill("SIGTERM");
+    childProcess.kill("SIGTERM");
     const forceKill = setTimeout(() => {
-      if (process.exitCode === null && process.signalCode === null) {
-        process.kill("SIGKILL");
+      if (childProcess.exitCode === null && childProcess.signalCode === null) {
+        childProcess.kill("SIGKILL");
       }
     }, CODEX_TERMINATION_GRACE_MS);
     forceKill.unref();
-    process.once("exit", () => clearTimeout(forceKill));
+    childProcess.once("exit", () => clearTimeout(forceKill));
   }
 
   return {
@@ -70,14 +95,15 @@ function createHardStorageBoundary(writeLog) {
     get failure() {
       return failure;
     },
+    /** @param {CodedError} error */
     enter(error) {
       if (failure) {
         return;
       }
       failure = error;
       workers.abort(error);
-      for (const process of codexProcesses) {
-        terminateCodexProcess(process);
+      for (const childProcess of codexProcesses) {
+        terminateCodexProcess(childProcess);
       }
       structuredLog(
         writeLog,
@@ -88,23 +114,38 @@ function createHardStorageBoundary(writeLog) {
         error,
       );
     },
-    registerCodexProcess(process) {
+    /** @param {import("node:child_process").ChildProcess} childProcess */
+    registerCodexProcess(childProcess) {
       if (
-        typeof process?.kill !== "function" ||
-        typeof process?.once !== "function"
+        typeof childProcess?.kill !== "function" ||
+        typeof childProcess?.once !== "function"
       ) {
         throw new TypeError("a running child process is required");
       }
       if (failure) {
-        terminateCodexProcess(process);
+        terminateCodexProcess(childProcess);
         return;
       }
-      codexProcesses.add(process);
-      process.once("exit", () => codexProcesses.delete(process));
+      codexProcesses.add(childProcess);
+      childProcess.once("exit", () => codexProcesses.delete(childProcess));
     },
   };
 }
 
+/**
+ * @param {{
+ *   databasePath: string,
+ *   loadInstallation?: typeof loadInstallationConfiguration,
+ *   validateInstallation?: typeof validateInstallationFilesystem,
+ *   validateSources?: typeof validateInstallationSources,
+ *   validateTools?: typeof validateBundledTools,
+ *   validateCodexAuthentication?: typeof validateCodexLogin,
+ *   createReviews?: typeof createReviewService,
+ *   readBrowserAsset?: (path: string) => string,
+ *   now?: () => number,
+ *   writeLog?: (line: string) => unknown
+ * }} options
+ */
 export function createApplication({
   databasePath,
   loadInstallation = loadInstallationConfiguration,
@@ -125,13 +166,16 @@ export function createApplication({
   let durableCore = null;
   let browserSessions = null;
   let implementerTokens = null;
-  let browserOrigin = null;
+  let browserOrigin = "";
   let requestSecurity = null;
   let reviews = null;
   let systemResource = null;
   let secureBrowserCookie = false;
+  /** @type {CodedError | null} */
   let codexCapabilityFailure = null;
+  /** @type {(() => void) | null} */
   let releaseInstallationLock = null;
+  /** @type {CodedError | null} */
   let startupFailure = null;
 
   try {
@@ -143,7 +187,7 @@ export function createApplication({
     ({ releaseInstallationLock } = validateInstallation());
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
-        storageBoundary.enter(error);
+        storageBoundary.enter(requireCodedError(error));
       },
     });
     verifyInstallationKey(durableCore, installation.masterKey);
@@ -156,14 +200,14 @@ export function createApplication({
     try {
       validateCodexAuthentication();
     } catch (error) {
-      codexCapabilityFailure = error;
+      codexCapabilityFailure = requireCodedError(error);
       structuredLog(
         writeLog,
         "error",
         "codex_capability_unavailable",
         "codex",
         "failure",
-        error,
+        codexCapabilityFailure,
       );
     }
     structuredLog(
@@ -178,7 +222,7 @@ export function createApplication({
     durableCore = null;
     releaseInstallationLock?.();
     releaseInstallationLock = null;
-    startupFailure = error;
+    startupFailure = requireCodedError(error);
     requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
     browserSessions = createUnavailableBrowserSessionService(startupFailure);
     implementerTokens =
@@ -190,7 +234,7 @@ export function createApplication({
       "installation_not_ready",
       "configuration",
       "failure",
-      error,
+      startupFailure,
     );
   }
 
@@ -209,21 +253,34 @@ export function createApplication({
     requestSecurity,
     reviews,
     readDurableCoreStatus,
-    readSystemStatus: () => ({
-      ...systemResource.readFacts({
-        browserSessions,
-        codex: codexCapabilityFailure
-          ? { error: codexCapabilityFailure.code, status: "unavailable" }
-          : { status: "available" },
-        implementerToken: implementerTokens?.hasActiveToken()
-          ? { status: "active" }
-          : { status: "revoked" },
-      }),
-    }),
-    listAuthorityAttributions: (query) =>
-      systemResource.listAuthorityAttributions(query),
-    recordAuthorityAttribution: (event) =>
-      systemResource.recordAuthorityAttribution(event),
+    readSystemStatus: () => {
+      if (!systemResource) {
+        throw startupFailure;
+      }
+      return {
+        ...systemResource.readFacts({
+          browserSessions,
+          codex: codexCapabilityFailure
+            ? { error: codexCapabilityFailure.code, status: "unavailable" }
+            : { status: "available" },
+          implementerToken: implementerTokens?.hasActiveToken()
+            ? { status: "active" }
+            : { status: "revoked" },
+        }),
+      };
+    },
+    listAuthorityAttributions: (query) => {
+      if (!systemResource) {
+        throw startupFailure;
+      }
+      return systemResource.listAuthorityAttributions(query);
+    },
+    recordAuthorityAttribution: (event) => {
+      if (!systemResource) {
+        throw startupFailure;
+      }
+      return systemResource.recordAuthorityAttribution(event);
+    },
     secureBrowserCookie,
   });
 
@@ -237,14 +294,17 @@ export function createApplication({
         : { status: "available" };
     },
     workerSignal: storageBoundary.signal,
-    registerCodexProcess(process) {
-      storageBoundary.registerCodexProcess(process);
+    /** @param {import("node:child_process").ChildProcess} childProcess */
+    registerCodexProcess(childProcess) {
+      storageBoundary.registerCodexProcess(childProcess);
     },
     async close() {
       if (server.listening) {
-        await new Promise((resolve, reject) => {
-          server.close((error) => (error ? reject(error) : resolve()));
-        });
+        await /** @type {Promise<void>} */ (
+          new Promise((resolve, reject) => {
+            server.close((error) => (error ? reject(error) : resolve()));
+          })
+        );
       }
       durableCore?.close();
       releaseInstallationLock?.();

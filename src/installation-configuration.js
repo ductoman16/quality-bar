@@ -13,6 +13,11 @@ const INSTALLATION_KEY_VERIFIER = "quality-bar-installation-key-v1";
 const INSTALLATION_KEY_VERIFIER_METADATA_KEY = "installation_key_verifier";
 
 export class InstallationConfigurationError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = "InstallationConfigurationError";
@@ -20,10 +25,23 @@ export class InstallationConfigurationError extends Error {
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
 function fail(code, message, cause) {
   throw new InstallationConfigurationError(code, message, { cause });
 }
 
+/**
+ * @param {(path: string, encoding?: BufferEncoding) => string | Buffer} readFile
+ * @param {string} path
+ * @param {BufferEncoding | undefined} encoding
+ * @param {string} missingCode
+ * @param {string} missingMessage
+ */
 function readRequiredFile(
   readFile,
   path,
@@ -34,13 +52,11 @@ function readRequiredFile(
   try {
     return readFile(path, encoding);
   } catch (error) {
-    if (error?.code === "ENOENT") {
-      fail(missingCode, missingMessage, error);
-    }
     fail(missingCode, missingMessage, error);
   }
 }
 
+/** @param {string} source */
 function parseConfiguration(source) {
   const entries = new Map();
   for (const line of source.split(/\r?\n/)) {
@@ -76,8 +92,15 @@ function parseConfiguration(source) {
   return entries;
 }
 
+/** @param {unknown} value */
 function parseExternalOrigin(value) {
-  let origin;
+  if (typeof value !== "string") {
+    fail(
+      "configuration_malformed",
+      "Configuration has a malformed external origin",
+    );
+  }
+  let origin = new URL("http://quality-bar.invalid");
   try {
     origin = new URL(value);
   } catch {
@@ -103,7 +126,14 @@ function parseExternalOrigin(value) {
   return origin;
 }
 
+/** @param {unknown} value */
 function parseTrustedProxyAddresses(value) {
+  if (typeof value !== "string") {
+    fail(
+      "configuration_malformed",
+      "Configuration has malformed trusted proxy addresses",
+    );
+  }
   if (value === "none") {
     return [];
   }
@@ -120,6 +150,10 @@ function parseTrustedProxyAddresses(value) {
   return addresses;
 }
 
+/**
+ * @param {URL} origin
+ * @param {string[]} trustedProxyAddresses
+ */
 function validateNetworkConfiguration(origin, trustedProxyAddresses) {
   const isLoopbackHttp =
     origin.protocol === "http:" && origin.hostname === "127.0.0.1";
@@ -139,6 +173,7 @@ function validateNetworkConfiguration(origin, trustedProxyAddresses) {
   }
 }
 
+/** @param {string | Buffer} source */
 function parseMasterKey(source) {
   const encodedKey = source.toString("utf8").trim();
   if (!/^[A-Za-z0-9+/]{43}=$/.test(encodedKey)) {
@@ -151,17 +186,26 @@ function parseMasterKey(source) {
   return masterKey;
 }
 
+/**
+ * @param {{
+ *   configPath?: string,
+ *   masterKeyPath?: string,
+ *   readFile?: (path: string, encoding?: BufferEncoding) => string | Buffer
+ * }} [options]
+ */
 export function loadInstallationConfiguration({
   configPath = CONFIGURATION_PATH,
   masterKeyPath = MASTER_KEY_PATH,
   readFile = readFileSync,
 } = {}) {
-  const source = readRequiredFile(
-    readFile,
-    configPath,
-    "utf8",
-    "configuration_missing",
-    "Configuration source is unavailable",
+  const source = /** @type {string} */ (
+    readRequiredFile(
+      readFile,
+      configPath,
+      "utf8",
+      "configuration_missing",
+      "Configuration source is unavailable",
+    )
   );
   const entries = parseConfiguration(source);
   const origin = parseExternalOrigin(
@@ -188,6 +232,7 @@ export function loadInstallationConfiguration({
   };
 }
 
+/** @param {Buffer} masterKey */
 function encryptVerifier(masterKey) {
   const initializationVector = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", masterKey, initializationVector);
@@ -203,6 +248,10 @@ function encryptVerifier(masterKey) {
   ].join(".");
 }
 
+/**
+ * @param {string} value
+ * @param {Buffer} masterKey
+ */
 function decryptVerifier(value, masterKey) {
   const [
     version,
@@ -238,11 +287,18 @@ function decryptVerifier(value, masterKey) {
   }
 }
 
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {Buffer} masterKey
+ */
 export function verifyInstallationKey(durableCore, masterKey) {
-  const storedVerifier = durableCore.get(
-    "SELECT value FROM quality_bar_metadata WHERE key = ?",
-    INSTALLATION_KEY_VERIFIER_METADATA_KEY,
-  )?.value;
+  const row = /** @type {{ value: string } | undefined} */ (
+    durableCore.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      INSTALLATION_KEY_VERIFIER_METADATA_KEY,
+    )
+  );
+  const storedVerifier = row?.value;
   if (storedVerifier === undefined) {
     durableCore.transaction((transaction) => {
       transaction.run(

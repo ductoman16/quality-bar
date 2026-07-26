@@ -22,6 +22,10 @@ export const CODEX_CAPABILITY_CATALOG = Object.freeze({
 });
 
 export class CodexConfigurationError extends Error {
+  /**
+   * @param {string} code
+   * @param {string} message
+   */
   constructor(code, message) {
     super(message);
     this.name = "CodexConfigurationError";
@@ -29,19 +33,39 @@ export class CodexConfigurationError extends Error {
   }
 }
 
+/**
+ * @param {string} code
+ * @param {string} message
+ * @returns {never}
+ */
 function fail(code, message) {
   throw new CodexConfigurationError(code, message);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {value is {
+ *   model: string,
+ *   reasoning_effort: string,
+ *   service_tier: string
+ * }}
+ */
 function isExactConfiguration(value) {
+  if (
+    !value ||
+    Array.isArray(value) ||
+    typeof value !== "object" ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    return false;
+  }
+  const configuration = /** @type {Record<string, unknown>} */ (value);
   return (
-    value &&
-    !Array.isArray(value) &&
-    typeof value === "object" &&
-    Object.getPrototypeOf(value) === Object.prototype &&
-    Object.keys(value).length === 3 &&
+    Object.keys(configuration).length === 3 &&
     ["model", "reasoning_effort", "service_tier"].every(
-      (key) => Object.hasOwn(value, key) && typeof value[key] === "string",
+      (key) =>
+        Object.hasOwn(configuration, key) &&
+        typeof configuration[key] === "string",
     )
   );
 }
@@ -50,6 +74,7 @@ export function readCodexCapabilityCatalog() {
   return structuredClone(CODEX_CAPABILITY_CATALOG);
 }
 
+/** @param {unknown} configuration */
 export function validateCodexConfiguration(configuration) {
   if (!isExactConfiguration(configuration)) {
     fail(

@@ -1,15 +1,27 @@
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   assertAllowedQueryParameters,
-  authenticationFailureMessage,
   browserMutationFailureStatus,
   isUnavailableError,
   readAuthorityAttributionQuery,
   readJsonRequest,
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
+import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 
+/**
+ * @typedef {{
+ *   action: string,
+ *   channel: string,
+ *   errorCode?: string,
+ *   outcome: string
+ * }} AttributionEvent
+ */
+/**
+ * @param {import("node:http").ServerResponse} response
+ * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
+ */
 function forbidMachineSystemAccess(response, recordAuthorityAttribution) {
   recordAuthorityAttribution({
     action: "authorization",
@@ -25,6 +37,16 @@ function forbidMachineSystemAccess(response, recordAuthorityAttribution) {
   );
 }
 
+/**
+ * @param {{
+ *   browserOrigin: string,
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
+ *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
+ *   readSystemStatus: () => unknown,
+ *   recordAuthorityAttribution: (event: AttributionEvent) => void,
+ *   reviews: ReturnType<typeof import("./review.js").createReviewService>
+ * }} dependencies
+ */
 export function createApiRoute({
   browserOrigin,
   browserSessions,
@@ -33,6 +55,12 @@ export function createApiRoute({
   recordAuthorityAttribution,
   reviews,
 }) {
+  /**
+   * @param {import("node:http").IncomingMessage} request
+   * @param {import("node:http").ServerResponse} response
+   * @param {URL} requestUrl
+   * @param {"machine" | "operator" | undefined} authority
+   */
   return async function handleApi(request, response, requestUrl, authority) {
     const { method } = request;
     const path = requestUrl.pathname;
@@ -50,14 +78,16 @@ export function createApiRoute({
       try {
         assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
       } catch (error) {
-        writeError(response, 400, error.code, error.message);
+        const failure = requireCodedError(error);
+        writeError(response, 400, failure.code, failure.message);
         return true;
       }
     } else {
       try {
         assertAllowedQueryParameters(requestUrl, new Set());
       } catch (error) {
-        writeError(response, 400, error.code, error.message);
+        const failure = requireCodedError(error);
+        writeError(response, 400, failure.code, failure.message);
         return true;
       }
     }
@@ -81,7 +111,15 @@ export function createApiRoute({
           reviews.create(await readJsonRequest(request)),
         );
       } catch (error) {
-        if (error.message === "request_malformed") {
+        if (
+          error instanceof Error &&
+          (!("code" in error) || typeof error.code !== "string")
+        ) {
+          writeError(response, 500, "review_creation_failed", error.message);
+          return true;
+        }
+        const failure = requireCodedError(error);
+        if (failure.message === "request_malformed") {
           writeError(
             response,
             400,
@@ -94,24 +132,21 @@ export function createApiRoute({
             "csrf_invalid",
             "origin_invalid",
             "authentication_required",
-          ].includes(error.code)
+          ].includes(failure.code)
         ) {
           writeError(
             response,
-            browserMutationFailureStatus(error.code),
-            error.code,
-            error.message ?? authenticationFailureMessage(error.code),
+            browserMutationFailureStatus(failure.code),
+            failure.code,
+            failure.message,
           );
         } else {
           const unavailable = isUnavailableError(error);
-          const code = unavailable
-            ? error.code
-            : (error.code ?? "review_creation_failed");
           writeError(
             response,
-            unavailable ? 503 : error.code ? 422 : 500,
-            code,
-            error.message ?? "Review creation failed",
+            unavailable ? 503 : 422,
+            failure.code,
+            failure.message,
           );
         }
       }
@@ -121,11 +156,12 @@ export function createApiRoute({
       try {
         writeJson(response, 200, readSystemStatus());
       } catch (error) {
+        const failure = requireCodedError(error);
         writeError(
           response,
           isUnavailableError(error) ? 503 : 500,
-          isUnavailableError(error) ? error.code : "internal_error",
-          isUnavailableError(error) ? error.message : "Internal server error",
+          isUnavailableError(error) ? failure.code : "internal_error",
+          isUnavailableError(error) ? failure.message : "Internal server error",
         );
       }
       return true;
@@ -138,11 +174,12 @@ export function createApiRoute({
           listAuthorityAttributions(readAuthorityAttributionQuery(requestUrl)),
         );
       } catch (error) {
+        const failure = requireCodedError(error);
         const status = [
           "cursor_invalid",
           "page_size_invalid",
           "request_malformed",
-        ].includes(error.code)
+        ].includes(failure.code)
           ? 400
           : isUnavailableError(error)
             ? 503
@@ -150,11 +187,11 @@ export function createApiRoute({
         writeError(
           response,
           status,
-          status === 400 || status === 503 ? error.code : "internal_error",
+          status === 400 || status === 503 ? failure.code : "internal_error",
           status === 400
             ? "Request is malformed"
             : status === 503
-              ? error.message
+              ? failure.message
               : "Internal server error",
         );
       }

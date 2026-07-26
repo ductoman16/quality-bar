@@ -29,6 +29,7 @@ export function runVerification({
     packagedNodeVersion: null,
     runnerGitVersion: null,
     sourceCommit: null,
+    typeCheckerVersion: null,
   };
 
   try {
