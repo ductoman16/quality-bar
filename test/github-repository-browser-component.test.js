@@ -8,6 +8,11 @@ import {
   browserElement,
   repositoryBrowserElements,
 } from "./repository-browser-component-support.js";
+import {
+  browserContext,
+  executeGitHubBrowserAsset,
+  verifiedConnection,
+} from "./github-connection-browser-component-support.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
@@ -89,4 +94,41 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
       },
     ],
   );
+});
+
+test("GitHub Repository selection rejects a duplicate success response without inferred registration", async () => {
+  const connection = verifiedConnection();
+  connection.verification_history[0].repositories.push({
+    api_url: "https://api.github.com/repos/operator/public",
+    clone_url: "https://github.com/operator/public.git",
+    full_name: "operator/public",
+    html_url: "https://github.com/operator/public",
+    id: 202,
+    private: false,
+  });
+  const browser = browserContext(async (path) => ({
+    ok: true,
+    async json() {
+      return path === "/api/v1/github-connections"
+        ? connection
+        : [{ forge_repository_id: 101 }, { forge_repository_id: 101 }];
+    },
+  }));
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  for (const label of browser.github.repositoryOptions.children) {
+    label.children[0].checked = true;
+  }
+
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+
+  assert.equal(
+    browser.error.textContent,
+    "GitHub Repository selection response is invalid",
+  );
+  assert.equal(browser.error.focused, true);
+  assert.equal(browser.status.textContent, "");
+  assert.equal(browser.context.location.assigned, "");
 });

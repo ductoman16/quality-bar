@@ -19,6 +19,7 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
   /** @type {any[]} */
   const requests = [];
+  let duplicateEnumeration = false;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -84,26 +85,47 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       url.pathname === "/installation/repositories"
     ) {
       send({
-        repositories: [
-          {
-            clone_url: "https://github.com/operator/private.git",
-            full_name: "operator/private",
-            html_url: "https://github.com/operator/private",
-            id: 101,
-            owner: { id: 91, login: "operator", type: "User" },
-            private: true,
-            url: "https://api.github.com/repos/operator/private",
-          },
-          {
-            clone_url: "https://github.com/operator/public.git",
-            full_name: "operator/public",
-            html_url: "https://github.com/operator/public",
-            id: 202,
-            owner: { id: 91, login: "operator", type: "User" },
-            private: false,
-            url: "https://api.github.com/repos/operator/public",
-          },
-        ],
+        repositories: duplicateEnumeration
+          ? [
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+            ]
+          : [
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+              {
+                clone_url: "https://github.com/operator/public.git",
+                full_name: "operator/public",
+                html_url: "https://github.com/operator/public",
+                id: 202,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: false,
+                url: "https://api.github.com/repos/operator/public",
+              },
+            ],
         total_count: 2,
       });
       return;
@@ -207,6 +229,15 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       url: "https://github.com/operator/private.git",
     },
   ]);
+  gitReads.length = 0;
+  duplicateEnumeration = true;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101, 202]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_selection_unavailable",
+  );
+  assert.deepEqual(gitReads, []);
   assert.equal(
     requests.every(
       ({ path, version }) =>

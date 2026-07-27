@@ -378,7 +378,9 @@ export function createGitHubVerifier({
             );
       if (
         repositoryIds !== undefined &&
-        repositoriesToVerify.length !== repositoryIds.length
+        (repositoriesToVerify.length !== repositoryIds.length ||
+          new Set(repositoriesToVerify.map(({ id }) => id)).size !==
+            repositoryIds.length)
       ) {
         fail(
           "github_repository_selection_unavailable",

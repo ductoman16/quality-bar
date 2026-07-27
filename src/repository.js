@@ -39,6 +39,7 @@ export { RepositoryError };
  *     normalizedUrl: string,
  *     credential?: {token: string, username: string}
  *   ) => Promise<void>
+ *   verifyForgeRepository?: (forgeRepositoryId: number) => Promise<void>
  * }} options
  */
 export function createRepositoryService(
@@ -48,6 +49,7 @@ export function createRepositoryService(
     masterKey,
     now = () => Date.now(),
     verifyRead = verifyRepositoryRead,
+    verifyForgeRepository,
   },
 ) {
   if (
@@ -316,7 +318,16 @@ export function createRepositoryService(
             )
           : undefined;
       try {
-        await verifyRead(repository.url, credential);
+        if ("forge_repository_id" in repository) {
+          if (typeof verifyForgeRepository !== "function") {
+            throw new TypeError(
+              "Forge Repository verification dependency is unavailable",
+            );
+          }
+          await verifyForgeRepository(repository.forge_repository_id);
+        } else {
+          await verifyRead(repository.url, credential);
+        }
       } catch (error) {
         if (error instanceof RepositoryError) {
           durableCore.transaction((transaction) => {

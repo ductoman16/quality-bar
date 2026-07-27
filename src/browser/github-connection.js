@@ -282,22 +282,27 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
   }
   try {
     const repositories = /** @type {unknown} */ (await response.json());
+    const registeredIds = new Set(
+      Array.isArray(repositories)
+        ? repositories.map((repository) =>
+            repository &&
+            typeof repository === "object" &&
+            "forge_repository_id" in repository
+              ? repository.forge_repository_id
+              : undefined,
+          )
+        : [],
+    );
     if (
       !Array.isArray(repositories) ||
       repositories.length !== selected.length ||
-      repositories.some(
-        (repository) =>
-          !repository ||
-          typeof repository !== "object" ||
-          !("forge_repository_id" in repository) ||
-          !selected.includes(
-            /** @type {number} */ (repository.forge_repository_id),
-          ),
-      )
+      registeredIds.size !== selected.length ||
+      selected.some((id) => !registeredIds.has(id))
     ) {
       throw new Error("github_repository_selection_response_invalid");
     }
-    location.assign("/?view=repositories&github_repositories=selected");
+    githubStatus.textContent = "GitHub Repositories registered.";
+    githubStatus.focus();
   } catch {
     showGitHubError("GitHub Repository selection response is invalid");
     githubRepositorySubmit.disabled = false;
@@ -323,10 +328,6 @@ async function loadGitHubConnection() {
       return;
     }
     if (query.get("github_connection") === "connected") {
-      githubStatus.focus();
-    }
-    if (query.get("github_repositories") === "selected") {
-      githubStatus.textContent = "GitHub Repositories registered.";
       githubStatus.focus();
     }
   } catch {

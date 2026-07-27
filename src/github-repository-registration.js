@@ -1,5 +1,9 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
 import { normalizeGitHubRepositorySelection } from "./github-repository-selection.js";
+import {
+  readRepositoryResource,
+  REPOSITORY_SELECTION,
+} from "./repository-resource.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 
 /** @param {string} code @param {string} message @returns {never} */
@@ -84,18 +88,31 @@ export function createGitHubRepositorySelector(
       /** @type {number} */ (connection.installation_id),
       repositoryIds,
     );
+    const verifiedRepositoryIds = new Set(
+      Array.isArray(repositories)
+        ? repositories.map((repository) => repository?.id)
+        : [],
+    );
     if (
       !Array.isArray(repositories) ||
       repositories.length !== repositoryIds.length ||
+      verifiedRepositoryIds.size !== repositoryIds.length ||
+      repositoryIds.some((id) => !verifiedRepositoryIds.has(id)) ||
       repositories.some(
         (repository) =>
           !repository ||
           !Number.isSafeInteger(repository.id) ||
-          !repositoryIds.includes(repository.id) ||
           typeof repository.full_name !== "string" ||
-          typeof repository.clone_url !== "string" ||
-          typeof repository.api_url !== "string" ||
-          typeof repository.html_url !== "string",
+          repository.full_name.split("/")[1]?.length === 0 ||
+          repository.full_name !==
+            `${connection.principal_login}/${
+              repository.full_name.split("/")[1] ?? ""
+            }` ||
+          repository.clone_url !==
+            `https://github.com/${repository.full_name}.git` ||
+          repository.api_url !==
+            `https://api.github.com/repos/${repository.full_name}` ||
+          repository.html_url !== `https://github.com/${repository.full_name}`,
       )
     ) {
       fail(
@@ -198,77 +215,16 @@ export function createGitHubRepositorySelector(
     const resources = new Map(
       durableCore
         .all(
-          `SELECT
-             repositories.id,
-             repositories.normalized_url,
-             repositories.lifecycle,
-             repositories.health,
-             repositories.health_error_code,
-             repositories.health_error_message,
-             repositories.verified_at,
-             github_repositories.connection_id,
-             github_repositories.forge_repository_id,
-             github_repositories.name,
-             github_repositories.api_url,
-             github_repositories.web_url,
-             (
-               SELECT count(*)
-               FROM review_assignment_repositories
-               WHERE review_assignment_repositories.repository_id =
-                 repositories.id
-             ) AS assignment_count
-           FROM github_repositories
-           JOIN repositories
-             ON repositories.id = github_repositories.repository_id
+          `${REPOSITORY_SELECTION}
            WHERE github_repositories.connection_id = ?`,
           connection.id,
         )
         .map((row) => {
-          if (
-            !row ||
-            typeof row.id !== "string" ||
-            typeof row.normalized_url !== "string" ||
-            !["enabled", "disabled", "retired"].includes(
-              /** @type {string} */ (row.lifecycle),
-            ) ||
-            !["healthy", "error"].includes(
-              /** @type {string} */ (row.health),
-            ) ||
-            !Number.isSafeInteger(row.verified_at) ||
-            typeof row.connection_id !== "string" ||
-            !Number.isSafeInteger(row.forge_repository_id) ||
-            typeof row.name !== "string" ||
-            typeof row.api_url !== "string" ||
-            typeof row.web_url !== "string" ||
-            !Number.isSafeInteger(row.assignment_count)
-          ) {
+          const resource = readRepositoryResource(row);
+          if (!("forge_repository_id" in resource)) {
             throw new TypeError("GitHub Repository row is invalid");
           }
-          return [
-            row.forge_repository_id,
-            {
-              api_url: row.api_url,
-              assignment_count: row.assignment_count,
-              credential_type: "forge_connection",
-              forge_connection_id: row.connection_id,
-              forge_repository_id: row.forge_repository_id,
-              health: row.health,
-              health_error:
-                row.health === "error"
-                  ? {
-                      code: row.health_error_code,
-                      message: row.health_error_message,
-                    }
-                  : null,
-              id: row.id,
-              lifecycle: row.lifecycle,
-              name: row.name,
-              provider: "github",
-              url: row.normalized_url,
-              verified_at: row.verified_at,
-              web_url: row.web_url,
-            },
-          ];
+          return [resource.forge_repository_id, resource];
         }),
     );
     return repositoryIds.map((id) => resources.get(id));

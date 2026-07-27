@@ -9,6 +9,7 @@ import {
   createGitHubConnectionService,
 } from "../src/github-connection.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { readGitHubConnection } from "../src/github-connection-read.js";
 import { createRepositoryService } from "../src/repository.js";
 
 const capabilities = /** @type {any} */ ({
@@ -47,6 +48,8 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let failSelection = true;
+  /** @type {any[] | undefined} */
+  let verificationResult;
   let timestamp = 1_000;
   /** @type {any[]} */
   const verificationCalls = [];
@@ -95,6 +98,9 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
             "GitHub private Repository read verification failed",
           );
         }
+        if (verificationResult) {
+          return verificationResult;
+        }
         return availableRepositories.filter(({ id }) =>
           repositoryIds.includes(id),
         );
@@ -129,6 +135,33 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
 
   failSelection = false;
   timestamp = 2_000;
+  for (const invalidResult of [
+    [availableRepositories[0], availableRepositories[0]],
+    [
+      availableRepositories[0],
+      {
+        ...availableRepositories[1],
+        clone_url: "not-a-canonical-github-url",
+      },
+    ],
+  ]) {
+    verificationResult = invalidResult;
+    await assert.rejects(
+      () => service.selectRepositories({ repository_ids: [101, 202] }),
+      (error) =>
+        error instanceof GitHubConnectionError &&
+        error.code === "github_repository_verification_invalid",
+    );
+    assert.equal(
+      core.get("SELECT count(*) AS count FROM repositories")?.count,
+      0,
+    );
+    assert.equal(
+      core.get("SELECT count(*) AS count FROM github_repositories")?.count,
+      0,
+    );
+  }
+  verificationResult = undefined;
   core.run(
     `INSERT INTO repositories (
        id, normalized_url, created_at, verified_at
@@ -201,7 +234,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     core.get("SELECT count(*) AS count FROM github_repositories")?.count,
     2,
   );
-  assert.equal(verificationCalls.length, 3);
+  assert.equal(verificationCalls.length, 5);
   assert.doesNotMatch(
     JSON.stringify(
       core.all(
@@ -249,6 +282,12 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   );
   const repositoryInventory = createRepositoryService(core, {
     masterKey: Buffer.alloc(32, 7),
+    now: () => timestamp,
+    async verifyForgeRepository(forgeRepositoryId) {
+      await service.selectRepositories({
+        repository_ids: [forgeRepositoryId],
+      });
+    },
   });
   assert.deepEqual(repositoryInventory.list()[0], {
     api_url: "https://api.github.com/repos/operator/alpha-renamed",
@@ -266,6 +305,16 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     verified_at: 3_000,
     web_url: "https://github.com/operator/alpha-renamed",
   });
+  timestamp = 4_000;
+  const enabled = await repositoryInventory.setLifecycle("repository-alpha", {
+    lifecycle: "enabled",
+  });
+  assert.equal(enabled.lifecycle, "enabled");
+  if (!("verified_at" in enabled)) {
+    throw new Error("GitHub Repository verification timestamp is missing");
+  }
+  assert.equal(enabled.verified_at, 4_000);
+  assert.equal(verificationCalls.at(-1).repositoryIds[0], 101);
 
   repositoryInventory.destroy();
   service.destroy();
@@ -279,6 +328,60 @@ test("SQLite migrates the completed GitHub Connection schema to stable Forge Rep
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  prior.run(
+    `INSERT INTO github_connections (
+       id, app_id, app_slug, installation_id, principal_id, principal_login,
+       api_profile, permissions, capabilities, repository_count, created_at,
+       verified_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "legacy-connection",
+    47,
+    "quality-bar-personal",
+    73,
+    91,
+    "operator",
+    "github-rest:2026-03-10",
+    JSON.stringify({
+      contents: "read",
+      issues: "write",
+      metadata: "read",
+      pull_requests: "write",
+      statuses: "write",
+    }),
+    JSON.stringify(capabilities),
+    1,
+    1_000,
+    1_000,
+  );
+  prior.run(
+    `INSERT INTO github_connection_verifications (
+       id, connection_id, trigger, api_profile, principal_id,
+       principal_login, permissions, capabilities, repositories, verified_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "legacy-verification",
+    "legacy-connection",
+    "onboarding",
+    "github-rest:2026-03-10",
+    91,
+    "operator",
+    JSON.stringify({
+      contents: "read",
+      issues: "write",
+      metadata: "read",
+      pull_requests: "write",
+      statuses: "write",
+    }),
+    JSON.stringify(capabilities),
+    JSON.stringify([
+      {
+        clone_url: "https://github.com/operator/legacy.git",
+        full_name: "operator/legacy",
+        id: 101,
+        private: true,
+      },
+    ]),
+    1_000,
+  );
   prior.run("DROP TABLE github_repositories");
   prior.run(
     "UPDATE quality_bar_metadata SET value = '13' WHERE key = 'schema_version'",
@@ -293,6 +396,17 @@ test("SQLite migrates the completed GitHub Connection schema to stable Forge Rep
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",
     ),
     { name: "github_repositories" },
+  );
+  assert.deepEqual(
+    readGitHubConnection(migrated)?.verification_history[0].repositories,
+    [
+      {
+        clone_url: "https://github.com/operator/legacy.git",
+        full_name: "operator/legacy",
+        id: 101,
+        private: true,
+      },
+    ],
   );
   migrated.close();
 });

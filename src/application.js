@@ -188,6 +188,7 @@ export function createApplication({
   let requestSecurity = null;
   let reviews = null;
   let repositories = null;
+  /** @type {any} */
   let githubConnections = null;
   let repositoryGuidance = null;
   let systemResource = null;
@@ -213,14 +214,19 @@ export function createApplication({
     });
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
-      repositories = createRepositories(durableCore, {
-        masterKey: installation.masterKey,
-        now,
-      });
       githubConnections = createGitHubConnections(durableCore, {
         externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
+      });
+      repositories = createRepositories(durableCore, {
+        masterKey: installation.masterKey,
+        now,
+        async verifyForgeRepository(forgeRepositoryId) {
+          await githubConnections.selectRepositories({
+            repository_ids: [forgeRepositoryId],
+          });
+        },
       });
     } finally {
       installation.masterKey.fill(0);

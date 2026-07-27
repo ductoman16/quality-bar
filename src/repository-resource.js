@@ -83,7 +83,7 @@ export function readRepositoryResource(row) {
     api_url: row.github_api_url,
     assignment_count: row.assignment_count,
     forge_connection_id: row.forge_connection_id,
-    forge_repository_id: row.forge_repository_id,
+    forge_repository_id: /** @type {number} */ (row.forge_repository_id),
     name: row.github_name,
     provider: "github",
     verified_at: row.verified_at,

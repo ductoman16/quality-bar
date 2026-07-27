@@ -46,6 +46,24 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     required: ["scope"],
     type: "object",
   });
+  assert.deepEqual(
+    contract.components.schemas.GitHubRepositoryEvidence.required,
+    ["clone_url", "full_name", "id", "private"],
+  );
+  assert.equal(contract.components.schemas.Repository.oneOf.length, 2);
+  assert.deepEqual(
+    contract.components.schemas.Repository.oneOf[1].required.slice(-8),
+    [
+      "api_url",
+      "assignment_count",
+      "forge_connection_id",
+      "forge_repository_id",
+      "name",
+      "provider",
+      "verified_at",
+      "web_url",
+    ],
+  );
   assert.equal(JSON.stringify(contract), before);
 });
 
