@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createUnavailableReviewService } from "../src/review.js";
 import {
   responseErrorCode,
   reviewRequest,
@@ -140,29 +141,7 @@ test("an unexpected Review archival failure surfaces its exact owning error", as
   const failure = new Error("exact Review archival failure");
   const { request } = await startApplication({
     createReviews() {
-      return {
-        create() {
-          throw failure;
-        },
-        list() {
-          throw failure;
-        },
-        reactivateVersion() {
-          throw failure;
-        },
-        saveVersion() {
-          throw failure;
-        },
-        setArchived() {
-          throw failure;
-        },
-        selectForNewEvaluation() {
-          throw failure;
-        },
-        updateMetadata() {
-          throw failure;
-        },
-      };
+      return createUnavailableReviewService(failure);
     },
   });
   const login = await request("/api/v1/session/login", {

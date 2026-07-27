@@ -25,6 +25,20 @@ function conflict(error) {
 }
 
 /**
+ * @param {ReviewTransaction} transaction
+ * @param {string} query
+ * @param {string} invalidCode
+ */
+function readReviewCollection(transaction, query, invalidCode) {
+  return transaction.all(query).map((row) => {
+    if (!row || typeof row.id !== "string") {
+      throw new Error(invalidCode);
+    }
+    return readReview(transaction, row.id);
+  });
+}
+
+/**
  * @typedef {{
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>,
@@ -58,40 +72,33 @@ export function createReviewService(
     list(state) {
       const validatedState = validateReviewListState(state);
       return durableCore.transaction((transaction) =>
-        transaction
-          .all(
-            `SELECT id
-             FROM reviews
-             WHERE archived_at IS ${validatedState === "active" ? "" : "NOT "}NULL
-             ORDER BY created_at, id`,
-          )
-          .map((row) => {
-            if (!row || typeof row.id !== "string") {
-              throw new Error("review_list_invalid");
-            }
-            return readReview(transaction, row.id);
-          }),
+        readReviewCollection(
+          transaction,
+          `SELECT id
+           FROM reviews
+           WHERE archived_at IS ${validatedState === "active" ? "" : "NOT "}NULL
+           ORDER BY created_at, id`,
+          "review_list_invalid",
+        ),
       );
     },
     selectForNewEvaluation() {
       return durableCore.transaction((transaction) =>
         selectReviewVersionsForNewEvaluation(
-          transaction
-            .all("SELECT id FROM reviews ORDER BY created_at, id")
-            .map((row) => {
-              if (!row || typeof row.id !== "string") {
-                throw new Error("review_selection_invalid");
-              }
-              const review = readReview(transaction, row.id);
-              if (typeof review.active_version.id !== "string") {
-                throw new Error("review_selection_invalid");
-              }
-              return {
-                active_version: { id: review.active_version.id },
-                archived: review.archived,
-                id: row.id,
-              };
-            }),
+          readReviewCollection(
+            transaction,
+            "SELECT id FROM reviews ORDER BY created_at, id",
+            "review_selection_invalid",
+          ).map((review) => {
+            if (typeof review.id !== "string") {
+              throw new Error("review_selection_invalid");
+            }
+            return {
+              active_version: { id: review.active_version.id },
+              archived: review.archived,
+              id: review.id,
+            };
+          }),
         ),
       );
     },

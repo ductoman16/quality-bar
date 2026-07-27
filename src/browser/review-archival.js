@@ -76,18 +76,6 @@
     return true;
   }
 
-  /** @param {Error} error */
-  function rethrowContractFailure(error) {
-    if (
-      [
-        "Review archival response was invalid",
-        "Review Version response was invalid",
-      ].includes(error.message)
-    ) {
-      throw error;
-    }
-  }
-
   /** @param {Response} response */
   async function readFailure(response) {
     const body = /** @type {{error?: {code?: unknown, message?: unknown}}} */ (
@@ -100,7 +88,7 @@
     ) {
       throw new Error("Review archival response was invalid");
     }
-    return body.error;
+    return /** @type {{code: string, message: string}} */ (body.error);
   }
 
   function updateAction() {
@@ -154,12 +142,6 @@
         throw new Error("Review archival response was invalid");
       }
       render(listed);
-    } catch (caught) {
-      if (!(caught instanceof Error)) {
-        throw caught;
-      }
-      rethrowContractFailure(caught);
-      showFailure(caught.message);
     } finally {
       pending = false;
       updateAction();
@@ -220,12 +202,6 @@
       state.value = archived ? "archived" : "active";
       render([updatedReview]);
       result.textContent = `${updatedReview.name} ${archived ? "archived" : "restored"}.`;
-    } catch (caught) {
-      if (!(caught instanceof Error)) {
-        throw caught;
-      }
-      rethrowContractFailure(caught);
-      showFailure(caught.message);
     } finally {
       pending = false;
       updateAction();

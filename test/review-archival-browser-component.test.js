@@ -106,7 +106,11 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
     /** @param {string} message */
     confirm(message) {
       confirmations.push(message);
-      return confirmationDecisions.shift() ?? false;
+      const decision = confirmationDecisions.shift();
+      if (decision === undefined) {
+        throw new Error("unexpected Review archival confirmation");
+      }
+      return decision;
     },
     document,
     /** @param {string} path @param {object} [options] */

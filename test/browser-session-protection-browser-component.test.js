@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createUnavailableReviewService } from "../src/review.js";
 import { createApplicationServer } from "../src/server.js";
 import { startApplication } from "./browser-session-component-support.js";
 
@@ -226,26 +227,11 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     reviews: {
+      ...createUnavailableReviewService(
+        new Error("unused Review service operation"),
+      ),
       list() {
         return [];
-      },
-      create() {
-        throw new Error("unused review create");
-      },
-      saveVersion() {
-        throw new Error("unused Review Version save");
-      },
-      reactivateVersion() {
-        throw new Error("unused Review Version reactivation");
-      },
-      setArchived() {
-        throw new Error("unused Review archival");
-      },
-      selectForNewEvaluation() {
-        throw new Error("unused Review selection");
-      },
-      updateMetadata() {
-        throw new Error("unused Review metadata update");
       },
     },
     requestSecurity: {
