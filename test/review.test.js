@@ -82,6 +82,7 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
       id: "review-fact-2",
       number: 1,
     },
+    archived: false,
     assignment: { scope: "installation_wide" },
     description: "Protect data access boundaries.",
     id: "review-fact-1",

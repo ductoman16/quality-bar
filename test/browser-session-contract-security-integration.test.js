@@ -173,6 +173,17 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.deepEqual(contract.paths["/api/v1/reviews"].get.security, [
     { browser_session: [] },
   ]);
+  const reviewStateParameter =
+    contract.paths["/api/v1/reviews"].get.parameters[0];
+  assert.ok("schema" in reviewStateParameter);
+  const reviewStateSchema = /** @type {{enum: string[]}} */ (
+    reviewStateParameter.schema
+  );
+  assert.deepEqual(reviewStateSchema.enum, ["active", "archived"]);
+  assert.deepEqual(
+    contract.paths["/api/v1/reviews/{review_id}/archival"].patch.security,
+    [{ browser_session: [] }],
+  );
   assert.deepEqual(
     contract.paths["/api/v1/reviews/{review_id}/metadata"].patch.security,
     [{ browser_session: [] }],
@@ -200,6 +211,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     contract.components.schemas.ReviewCreateRequest.properties.description
       .pattern,
     "\\S",
+  );
+  assert.equal(
+    contract.components.schemas.Review.properties.archived.type,
+    "boolean",
   );
   assert.equal(
     contract.components.schemas.CriterionCreateRequest.properties.instruction
@@ -260,7 +275,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
-    durable_core: { schema_version: 7, status: "ready" },
+    durable_core: { schema_version: 8, status: "ready" },
     implementer_token: { status: "active" },
   });
 

@@ -209,6 +209,34 @@ export function validateMetadata(metadata) {
 }
 
 /** @param {unknown} request */
+export function validateArchivalRequest(request) {
+  if (
+    !isExactObject(request, ["archived"]) ||
+    typeof request.archived !== "boolean"
+  ) {
+    fail(
+      "review_archival_request_malformed",
+      "Review archival request must contain only an exact archived state",
+    );
+  }
+  return { archived: request.archived };
+}
+
+/** @param {unknown} state */
+export function validateReviewListState(state) {
+  if (state === undefined) {
+    return "active";
+  }
+  if (state !== "active" && state !== "archived") {
+    fail(
+      "review_list_state_invalid",
+      "Review collection state must be active or archived",
+    );
+  }
+  return state;
+}
+
+/** @param {unknown} request */
 export function validateReactivationRequest(request) {
   if (!isExactObject(request, ["review_version_id"])) {
     fail(

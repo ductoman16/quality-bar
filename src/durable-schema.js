@@ -1,6 +1,6 @@
 import { DurableCoreError, fail } from "./durable-error.js";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -8,6 +8,7 @@ const REVIEW_SCHEMA = `
     name TEXT NOT NULL UNIQUE CHECK (length(trim(name)) > 0),
     description TEXT NOT NULL CHECK (length(trim(description)) > 0),
     active_version_id TEXT NOT NULL REFERENCES review_versions(id) DEFERRABLE INITIALLY DEFERRED,
+    archived_at INTEGER,
     created_at INTEGER NOT NULL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS review_versions (
@@ -244,8 +245,11 @@ export function initializeOrValidateSchema(database) {
             WHERE id = NEW.review_version_id
           ) IS NOT NULL
           BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+        ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
       `,
     );
+  } else if (version === 7) {
+    migration(database, "ALTER TABLE reviews ADD COLUMN archived_at INTEGER;");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

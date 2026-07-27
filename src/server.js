@@ -116,6 +116,7 @@ export function createApplicationServer({
   if (
     typeof reviews?.list !== "function" ||
     typeof reviews.create !== "function" ||
+    typeof reviews.setArchived !== "function" ||
     typeof reviews.updateMetadata !== "function"
   ) {
     throw new TypeError("reviews must provide the Review resource");

@@ -80,6 +80,7 @@ export function readReview(transaction, reviewId) {
        reviews.name,
        reviews.description,
        reviews.active_version_id,
+       reviews.archived_at,
        review_assignments.scope
      FROM reviews
      JOIN review_assignments ON review_assignments.review_id = reviews.id
@@ -117,6 +118,7 @@ export function readReview(transaction, reviewId) {
   }
   return {
     active_version: activeVersion,
+    archived: review.archived_at !== null,
     assignment: { scope: review.scope },
     description: review.description,
     id: review.id,

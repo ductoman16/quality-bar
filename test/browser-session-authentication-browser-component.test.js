@@ -180,6 +180,10 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
     reviewsHtml,
     /<script src="\/assets\/review-reactivation\.js"><\/script>/,
   );
+  assert.match(
+    reviewsHtml,
+    /<script src="\/assets\/review-archival\.js"><\/script>/,
+  );
   assert.match(reviewsHtml, /review-create-result/);
   assert.match(reviewsHtml, /id="review-metadata-form"/);
   assert.match(reviewsHtml, /id="review-metadata-name"/);
@@ -198,6 +202,9 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
     /id="review-version-add-criterion"[^>]*>Add Criterion<\/button>/,
   );
   assert.match(reviewsHtml, /id="review-version-result"/);
+  assert.match(reviewsHtml, /id="review-archival-form"/);
+  assert.match(reviewsHtml, /id="review-archival-state"/);
+  assert.match(reviewsHtml, /id="review-archival-result"/);
 });
 
 test("a malformed login request creates no session", async () => {

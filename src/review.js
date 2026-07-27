@@ -5,10 +5,12 @@ import { readReview } from "./review-read.js";
 import {
   fail,
   ReviewError,
+  validateArchivalRequest,
   validateDefinition,
   validateExecutableSnapshot,
   validateMetadata,
   validateReactivationRequest,
+  validateReviewListState,
 } from "./review-validation.js";
 
 export { ReviewError };
@@ -51,10 +53,17 @@ export function createReviewService(
   }
 
   return {
-    list() {
+    /** @param {unknown} [state] */
+    list(state) {
+      const validatedState = validateReviewListState(state);
       return durableCore.transaction((transaction) =>
         transaction
-          .all("SELECT id FROM reviews ORDER BY created_at, id")
+          .all(
+            `SELECT id
+             FROM reviews
+             WHERE archived_at IS ${validatedState === "active" ? "" : "NOT "}NULL
+             ORDER BY created_at, id`,
+          )
           .map((row) => {
             if (!row || typeof row.id !== "string") {
               throw new Error("review_list_invalid");
@@ -151,6 +160,7 @@ export function createReviewService(
           id: versionId,
           number: 1,
         },
+        archived: false,
         assignment: validated.assignment,
         description: validated.description,
         id: reviewId,
@@ -174,6 +184,12 @@ export function createReviewService(
       const { reviewVersionId } = validateReactivationRequest(request);
       return durableCore.transaction((transaction) => {
         const current = readReview(transaction, reviewId);
+        if (current.archived) {
+          fail(
+            "review_archived",
+            "Archived Review cannot reactivate a Review Version",
+          );
+        }
         const selected = current.versions.find(
           ({ id }) => id === reviewVersionId,
         );
@@ -203,6 +219,12 @@ export function createReviewService(
       const validated = validateExecutableSnapshot(snapshot);
       return durableCore.transaction((transaction) => {
         const current = readReview(transaction, reviewId);
+        if (current.archived) {
+          fail(
+            "review_archived",
+            "Archived Review cannot save a Review Version",
+          );
+        }
         const identities = new Set(
           transaction
             .all("SELECT id FROM criteria WHERE review_id = ?", reviewId)
@@ -335,6 +357,35 @@ export function createReviewService(
         throw error;
       }
     },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} request
+     */
+    setArchived(reviewId, request) {
+      const { archived } = validateArchivalRequest(request);
+      return durableCore.transaction((transaction) => {
+        const current = readReview(transaction, reviewId);
+        if (current.archived === archived) {
+          return { changed: false, review: current };
+        }
+        let archivedAt = null;
+        if (archived) {
+          archivedAt = now();
+          if (!Number.isSafeInteger(archivedAt)) {
+            throw new TypeError("now must return a safe integer timestamp");
+          }
+        }
+        const result = transaction.run(
+          "UPDATE reviews SET archived_at = ? WHERE id = ?",
+          archivedAt,
+          reviewId,
+        );
+        if (result.changes !== 1) {
+          throw new Error("review_archival_failed");
+        }
+        return { changed: true, review: readReview(transaction, reviewId) };
+      });
+    },
   };
 }
 
@@ -351,6 +402,9 @@ export function createUnavailableReviewService(error) {
       throw error;
     },
     reactivateVersion() {
+      throw error;
+    },
+    setArchived() {
       throw error;
     },
     updateMetadata() {
