@@ -12,6 +12,11 @@ const browserAssets = [
     url: new URL("./browser/operator.js", import.meta.url),
   },
   {
+    route: "/assets/repository.js",
+    sourcePath: "src/browser/repository.js",
+    url: new URL("./browser/repository.js", import.meta.url),
+  },
+  {
     route: "/assets/review-metadata.js",
     sourcePath: "src/browser/review-metadata.js",
     url: new URL("./browser/review-metadata.js", import.meta.url),

@@ -9,6 +9,7 @@
   "served_browser_modules": [
     "login.js",
     "operator.js",
+    "repository.js",
     "review-metadata.js",
     "review-create.js",
     "review-criteria.js",

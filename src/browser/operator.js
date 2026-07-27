@@ -102,87 +102,14 @@ async function displayMutationFailure(response) {
   error.textContent = body.error.message;
   error.hidden = false;
 }
-
-/**
- * @param {HTMLFormElement} form
- * @param {HTMLElement} result
- * @param {string} path
- * @param {Record<string, string>} body
- * @param {(repository: {id: string, url: string}) => string} successMessage
- */
-async function submitRepositoryMutation(
-  form,
-  result,
-  path,
-  body,
-  successMessage,
-) {
-  error.hidden = true;
-  result.textContent = "";
-  const response = await fetch(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(),
-    },
-    method: "POST",
-  });
-  if (!response.ok) {
-    await displayMutationFailure(response);
-    return;
-  }
-  const repository = /** @type {{id: string, url: string}} */ (
-    await response.json()
-  );
-  result.textContent = successMessage(repository);
-  form.reset();
-}
-/** @param {{id: string, url: string}} repository */
-function addRepositoryOption(repository) {
-  const select = /** @type {HTMLSelectElement | null} */ (
-    document.getElementById("repository-credential-rotate-repository")
-  );
-  if (!select) {
-    return;
-  }
-  const option = document.createElement("option");
-  option.textContent = repository.url;
-  option.value = repository.id;
-  select.append(option);
-}
-async function loadRepositoryOptions() {
-  const select = /** @type {HTMLSelectElement | null} */ (
-    document.getElementById("repository-credential-rotate-repository")
-  );
-  if (!select) {
-    return true;
-  }
-  let response;
-  try {
-    response = await fetch("/api/v1/repositories");
-  } catch {
-    error.textContent = "Repository listing failed";
-    error.hidden = false;
-    return false;
-  }
-  if (!response.ok) {
-    await displayMutationFailure(response);
-    return false;
-  }
-  const body = /** @type {{repositories: {id: string, url: string}[]}} */ (
-    await response.json()
-  );
-  select.replaceChildren();
-  for (const repository of body.repositories) {
-    addRepositoryOption(repository);
-  }
-  select.disabled = false;
-  /** @type {HTMLButtonElement} */ (
-    requiredElement("repository-credential-rotate-submit")
-  ).disabled = false;
-  return true;
-}
-const repositoryOptionsLoaded = loadRepositoryOptions();
+Object.assign(window, {
+  qualityBarOperator: Object.freeze({
+    csrfToken,
+    displayMutationFailure,
+    error,
+    requiredElement,
+  }),
+});
 /**
  * @param {string} path
  * @param {{
@@ -324,75 +251,6 @@ requiredElement("logout").addEventListener("click", async () => {
   }
   await displayMutationFailure(response);
 });
-const repositoryCreateForm = document.getElementById("repository-create-form");
-if (repositoryCreateForm) {
-  repositoryCreateForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!(await repositoryOptionsLoaded)) {
-      return;
-    }
-    const usernameControl = /** @type {HTMLInputElement} */ (
-      requiredElement("repository-username")
-    );
-    const tokenControl = /** @type {HTMLInputElement} */ (
-      requiredElement("repository-token")
-    );
-    const username = usernameControl.value;
-    const token = tokenControl.value;
-    const body = { url: controlValue("repository-url") };
-    if (username || token) {
-      Object.assign(body, { token, username });
-    }
-    usernameControl.value = "";
-    tokenControl.value = "";
-    await submitRepositoryMutation(
-      /** @type {HTMLFormElement} */ (repositoryCreateForm),
-      requiredElement("repository-create-result"),
-      "/api/v1/repositories",
-      body,
-      (repository) => {
-        if (username && token) {
-          addRepositoryOption(repository);
-        }
-        return `${repository.url} registered as ${repository.id}.`;
-      },
-    );
-  });
-}
-const repositoryCredentialRotateForm = document.getElementById(
-  "repository-credential-rotate-form",
-);
-if (repositoryCredentialRotateForm) {
-  repositoryCredentialRotateForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!(await repositoryOptionsLoaded)) {
-      return;
-    }
-    const result = requiredElement("repository-credential-rotate-result");
-    const repositoryId = controlValue(
-      "repository-credential-rotate-repository",
-    );
-    const usernameControl = /** @type {HTMLInputElement} */ (
-      requiredElement("repository-credential-rotate-username")
-    );
-    const tokenControl = /** @type {HTMLInputElement} */ (
-      requiredElement("repository-credential-rotate-token")
-    );
-    const body = {
-      token: tokenControl.value,
-      username: usernameControl.value,
-    };
-    usernameControl.value = "";
-    tokenControl.value = "";
-    await submitRepositoryMutation(
-      /** @type {HTMLFormElement} */ (repositoryCredentialRotateForm),
-      result,
-      `/api/v1/repositories/${encodeURIComponent(repositoryId)}/credential/rotate`,
-      body,
-      (repository) => repository.url + " credential rotated.",
-    );
-  });
-}
 const systemFacts = document.getElementById("system-facts");
 fetch("/api/v1/system")
   .then(async (response) => {

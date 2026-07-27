@@ -57,7 +57,10 @@ test("the Repository component rotates write-only credentials and surfaces the e
   const token = browserElement({ value: "private-token-value" });
   const result = browserElement();
   const rotationForm = browserElement();
-  const rotationRepository = browserElement({ value: "repository/private" });
+  const rotationRepository = browserElement({
+    disabled: true,
+    value: "repository/private",
+  });
   const rotationUsername = browserElement({ value: "replacement-operator" });
   const rotationToken = browserElement({ value: "replacement-private-token" });
   const rotationResult = browserElement();
@@ -107,109 +110,115 @@ test("the Repository component rotates write-only credentials and surfaces the e
   let registrationAttempt = 0;
   let rotationAttempt = 0;
 
+  const browserContext = {
+    Date,
+    document: {
+      cookie: "quality_bar_configured_csrf=csrf-token",
+      addEventListener() {},
+      createElement() {
+        return browserElement();
+      },
+      /** @param {string} id */
+      getElementById(id) {
+        return elements.get(id) ?? null;
+      },
+    },
+    /** @param {string} path @param {object} options */
+    async fetch(path, options) {
+      if (path === "/api/v1/system") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              bootstrap: { status: "ready" },
+              browser_sessions: { active_count: 1 },
+              codex: { catalog: { models: [] }, status: "available" },
+              durable_core: { status: "ready" },
+              implementer_token: { status: "revoked" },
+            };
+          },
+        };
+      }
+      if (path === "/api/v1/repositories" && !options) {
+        return repositoryListResponse;
+      }
+      requests.push({ options, path });
+      if (path === "/api/v1/repositories") {
+        registrationAttempt += 1;
+      } else {
+        rotationAttempt += 1;
+      }
+      if (registrationAttempt === 1 && rotationAttempt === 0) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              id: "repository-1",
+              url: "https://example.com/team/repository.git",
+            };
+          },
+        };
+      }
+      if (registrationAttempt === 2 && rotationAttempt === 0) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              id: "repository-public",
+              url: "https://example.com/team/public.git",
+            };
+          },
+        };
+      }
+      if (rotationAttempt === 1) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              id: "repository/private",
+              url: "https://example.com/team/repository.git",
+            };
+          },
+        };
+      }
+      if (rotationAttempt === 3) {
+        throw new Error("simulated browser network failure");
+      }
+      return {
+        ok: false,
+        async json() {
+          return {
+            error: {
+              code: "repository_git_read_failed",
+              message: "Repository Git read verification failed",
+            },
+          };
+        },
+      };
+    },
+    window: {},
+  };
   executeServedBrowserAsset(
     repositoryRoot,
     "src/browser/operator.js",
     readBrowserAsset("/assets/operator.js"),
-    {
-      Date,
-      document: {
-        cookie: "quality_bar_configured_csrf=csrf-token",
-        addEventListener() {},
-        createElement() {
-          return browserElement();
-        },
-        /** @param {string} id */
-        getElementById(id) {
-          return elements.get(id) ?? null;
-        },
-      },
-      /** @param {string} path @param {object} options */
-      async fetch(path, options) {
-        if (path === "/api/v1/system") {
-          return {
-            ok: true,
-            async json() {
-              return {
-                bootstrap: { status: "ready" },
-                browser_sessions: { active_count: 1 },
-                codex: { catalog: { models: [] }, status: "available" },
-                durable_core: { status: "ready" },
-                implementer_token: { status: "revoked" },
-              };
-            },
-          };
-        }
-        if (path === "/api/v1/repositories" && !options) {
-          return repositoryListResponse;
-        }
-        requests.push({ options, path });
-        if (path === "/api/v1/repositories") {
-          registrationAttempt += 1;
-        } else {
-          rotationAttempt += 1;
-        }
-        if (registrationAttempt === 1 && rotationAttempt === 0) {
-          return {
-            ok: true,
-            async json() {
-              return {
-                id: "repository-1",
-                url: "https://example.com/team/repository.git",
-              };
-            },
-          };
-        }
-        if (registrationAttempt === 2 && rotationAttempt === 0) {
-          return {
-            ok: true,
-            async json() {
-              return {
-                id: "repository-public",
-                url: "https://example.com/team/public.git",
-              };
-            },
-          };
-        }
-        if (rotationAttempt === 1) {
-          return {
-            ok: true,
-            async json() {
-              return {
-                id: "repository/private",
-                url: "https://example.com/team/repository.git",
-              };
-            },
-          };
-        }
-        return {
-          ok: false,
-          async json() {
-            return {
-              error: {
-                code: "repository_git_read_failed",
-                message: "Repository Git read verification failed",
-              },
-            };
-          },
-        };
-      },
-    },
+    browserContext,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository.js",
+    readBrowserAsset("/assets/repository.js"),
+    browserContext,
   );
   const registration = form.listener("submit")({ preventDefault() {} });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(requests, []);
+  assert.equal(requests.length, 1);
   resolveRepositoryList({
     ok: true,
     async json() {
-      return {
-        repositories: [
-          {
-            id: "repository/private",
-            url: "https://example.com/team/existing.git",
-          },
-        ],
-      };
+      assert.equal(rotationRepository.disabled, true);
+      assert.equal(rotationSubmit.disabled, true);
+      return { repositories: [] };
     },
   });
   await registration;
@@ -219,10 +228,6 @@ test("the Repository component rotates write-only credentials and surfaces the e
       value,
     })),
     [
-      {
-        textContent: "https://example.com/team/existing.git",
-        value: "repository/private",
-      },
       {
         textContent: "https://example.com/team/repository.git",
         value: "repository-1",
@@ -269,7 +274,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
     },
     path: "/api/v1/repositories",
   });
-  assert.equal(rotationRepository.options.length, 2);
+  assert.equal(rotationRepository.options.length, 1);
 
   token.value = "replacement-private-token";
   username.value = "replacement-operator";
@@ -319,6 +324,20 @@ test("the Repository component rotates write-only credentials and surfaces the e
   assert.doesNotMatch(
     `${error.textContent} ${rotationResult.textContent}`,
     /second-replacement-private-token|second-replacement-operator/,
+  );
+
+  rotationRepository.value = "repository/private";
+  rotationToken.value = "third-replacement-private-token";
+  rotationUsername.value = "third-replacement-operator";
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(error.textContent, "Repository credential rotation failed");
+  assert.equal(error.hidden, false);
+  assert.equal(rotationResult.textContent, "");
+  assert.equal(rotationToken.value, "");
+  assert.equal(rotationUsername.value, "");
+  assert.doesNotMatch(
+    `${error.textContent} ${rotationResult.textContent}`,
+    /third-replacement-private-token|third-replacement-operator/,
   );
 });
 
