@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
+import { createUnavailableReviewService } from "../src/review.js";
 import { createApplicationServer } from "../src/server.js";
 
 /** @type {import("node:http").Server | undefined} */
@@ -56,20 +57,11 @@ before(async () => {
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     reviews: {
+      ...createUnavailableReviewService(
+        new Error("unused Review service operation"),
+      ),
       list() {
         return [];
-      },
-      create() {
-        throw new Error("unused review create");
-      },
-      saveVersion() {
-        throw new Error("unused Review Version save");
-      },
-      reactivateVersion() {
-        throw new Error("unused Review Version reactivation");
-      },
-      updateMetadata() {
-        throw new Error("unused Review metadata update");
       },
     },
     requestSecurity: {

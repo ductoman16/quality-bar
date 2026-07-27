@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createUnavailableReviewService } from "../src/review.js";
 import {
   responseErrorCode,
   reviewRequest,
@@ -281,6 +282,7 @@ test("an unexpected Review resource failure has an exact owning error", async ()
   const { request } = await startApplication({
     createReviews() {
       return {
+        ...createUnavailableReviewService(failure),
         list() {
           listAttempt += 1;
           if (listAttempt === 2) {
@@ -293,15 +295,6 @@ test("an unexpected Review resource failure has an exact owning error", async ()
               code: "review_list_invalid",
             });
           }
-          throw failure;
-        },
-        create() {
-          throw failure;
-        },
-        saveVersion() {
-          throw failure;
-        },
-        reactivateVersion() {
           throw failure;
         },
         updateMetadata() {

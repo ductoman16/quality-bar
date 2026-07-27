@@ -226,6 +226,8 @@ export function createGateDefinitions(metadata) {
         "test/browser-session.test.js",
         "test/implementer-token.test.js",
         "test/request-security.test.js",
+        "test/review-archival.test.js",
+        "test/review-selection.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/verification-harness.test.js",
@@ -242,6 +244,7 @@ export function createGateDefinitions(metadata) {
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
         "test/review-criterion-retirement-browser-component.test.js",
+        "test/review-archival-browser-component.test.js",
         "test/review-version-reactivation-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
@@ -257,6 +260,7 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/review-criterion-identity.test.js",
+        "test/review-archival-sqlite-integration.test.js",
         "test/review-schema-migration.test.js",
         "test/review-version-change-detection.test.js",
         "test/review-version-reactivation-sqlite-integration.test.js",
@@ -270,6 +274,7 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/review-authorization-http-integration.test.js",
+        "test/review-archival-http-integration.test.js",
         "test/review-criterion-retirement-http-integration.test.js",
         "test/review-version-reactivation-http-integration.test.js",
         "test/review-http-integration.test.js",

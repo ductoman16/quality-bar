@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 
-test("migrates v6 Review facts into immutable executable snapshots", () => {
+test("migrates v6 Review facts into immutable executable snapshots with active lifecycle state", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-schema-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
   try {
@@ -85,6 +85,7 @@ test("migrates v6 Review facts into immutable executable snapshots", () => {
       transaction.run(
         "ALTER TABLE review_versions DROP COLUMN applicability_rule",
       );
+      transaction.run("ALTER TABLE reviews DROP COLUMN archived_at");
       transaction.run(`
         CREATE TRIGGER review_version_criteria_immutable_update
         BEFORE UPDATE ON review_version_criteria
@@ -112,7 +113,11 @@ test("migrates v6 Review facts into immutable executable snapshots", () => {
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 7);
+    assert.equal(migrated.facts.schemaVersion, 8);
+    assert.deepEqual(
+      migrated.get("SELECT archived_at FROM reviews WHERE id = ?", "review-1"),
+      { archived_at: null },
+    );
     assert.deepEqual(
       migrated.get(
         "SELECT applicability_rule FROM review_versions WHERE id = ?",

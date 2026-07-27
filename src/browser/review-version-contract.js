@@ -77,13 +77,14 @@
   /** @param {unknown} value */
   function requireReview(value) {
     const review =
-      /** @type {{id?: unknown, name?: unknown, active_version?: unknown}} */ (
+      /** @type {{id?: unknown, name?: unknown, archived?: unknown, active_version?: unknown}} */ (
         value
       );
     if (
       !review ||
       typeof review.id !== "string" ||
       typeof review.name !== "string" ||
+      typeof review.archived !== "boolean" ||
       !review.active_version ||
       typeof review.active_version !== "object"
     ) {
@@ -144,6 +145,7 @@
     const completeReview = /** @type {{
      * id: string,
      * name: string,
+     * archived: boolean,
      * active_version: {
      *   id: string,
      *   number: number,

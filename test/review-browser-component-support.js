@@ -73,6 +73,7 @@ export function reviewResource(metadata) {
   };
   return {
     active_version: activeVersion,
+    archived: false,
     assignment: { scope: "installation_wide" },
     ...metadata,
     versions: [activeVersion],

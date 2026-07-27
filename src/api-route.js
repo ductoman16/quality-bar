@@ -38,6 +38,73 @@ function forbidMachineSystemAccess(response, recordAuthorityAttribution) {
 }
 
 /**
+ * @param {import("node:http").IncomingMessage} request
+ * @param {import("node:http").ServerResponse} response
+ * @param {{
+ *   browserOrigin: string,
+ *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
+ *   failureCode: string,
+ *   mutate: (body: unknown) => unknown,
+ *   requestUrl: URL,
+ *   statusFor: (code: string, error: unknown) => number
+ * }} options
+ */
+async function reviewMutation(
+  request,
+  response,
+  {
+    browserOrigin,
+    browserSessions,
+    failureCode,
+    mutate,
+    requestUrl,
+    statusFor,
+  },
+) {
+  try {
+    requireBrowserMutationWithQuery(
+      browserSessions,
+      request,
+      browserOrigin,
+      requestUrl,
+    );
+    writeJson(response, 200, mutate(await readJsonRequest(request)));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (!("code" in error) || typeof error.code !== "string")
+    ) {
+      writeError(response, 500, failureCode, error.message);
+      return;
+    }
+    const failure = requireCodedError(error);
+    if (failure.message === "request_malformed") {
+      writeError(response, 400, "request_malformed", "Request is malformed");
+      return;
+    }
+    if (
+      ["csrf_invalid", "origin_invalid", "authentication_required"].includes(
+        failure.code,
+      )
+    ) {
+      writeError(
+        response,
+        browserMutationFailureStatus(failure.code),
+        failure.code,
+        failure.message,
+      );
+      return;
+    }
+    writeError(
+      response,
+      statusFor(failure.code, error),
+      failure.code,
+      failure.message,
+    );
+  }
+}
+
+/**
  * @param {{
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
@@ -70,6 +137,9 @@ export function createApiRoute({
     const reviewMetadataMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/metadata$/,
     );
+    const reviewArchivalMatch = path.match(
+      /^\/api\/v1\/reviews\/([^/]+)\/archival$/,
+    );
     const reviewActiveVersionMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/active-version$/,
     );
@@ -80,6 +150,7 @@ export function createApiRoute({
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
         (method === "PATCH" && reviewMetadataMatch) ||
+        (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch))
     ) {
@@ -101,6 +172,14 @@ export function createApiRoute({
         writeError(response, 400, failure.code, failure.message);
         return true;
       }
+    } else if (method === "GET" && path === "/api/v1/reviews") {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set(["state"]));
+      } catch (error) {
+        const failure = requireCodedError(error);
+        writeError(response, 400, failure.code, failure.message);
+        return true;
+      }
     } else {
       try {
         assertAllowedQueryParameters(requestUrl, new Set());
@@ -116,20 +195,46 @@ export function createApiRoute({
     }
     if (method === "GET" && path === "/api/v1/reviews") {
       try {
-        writeJson(response, 200, { reviews: reviews.list() });
+        writeJson(response, 200, {
+          reviews: reviews.list(
+            requestUrl.searchParams.get("state") ?? undefined,
+          ),
+        });
       } catch (error) {
         if (error instanceof Error && !("code" in error)) {
           writeError(response, 500, "review_list_failed", error.message);
           return true;
         }
         const failure = requireCodedError(error);
+        const invalidState = failure.code === "review_list_state_invalid";
         writeError(
           response,
-          isUnavailableError(error) ? 503 : 500,
-          isUnavailableError(error) ? failure.code : "review_list_failed",
+          invalidState ? 400 : isUnavailableError(error) ? 503 : 500,
+          invalidState
+            ? failure.code
+            : isUnavailableError(error)
+              ? failure.code
+              : "review_list_failed",
           failure.message,
         );
       }
+      return true;
+    }
+    if (method === "PATCH" && reviewArchivalMatch) {
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "review_archival_failed",
+        mutate: (body) =>
+          reviews.setArchived(decodeURIComponent(reviewArchivalMatch[1]), body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "review_not_found"
+            ? 404
+            : isUnavailableError(error)
+              ? 503
+              : 422,
+      });
       return true;
     }
     if (method === "POST" && path === "/api/v1/reviews") {
@@ -190,192 +295,66 @@ export function createApiRoute({
       return true;
     }
     if (method === "PATCH" && reviewMetadataMatch) {
-      try {
-        if (authority !== "machine") {
-          requireBrowserMutationWithQuery(
-            browserSessions,
-            request,
-            browserOrigin,
-            requestUrl,
-          );
-        }
-        writeJson(
-          response,
-          200,
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "review_metadata_update_failed",
+        mutate: (body) =>
           reviews.updateMetadata(
             decodeURIComponent(reviewMetadataMatch[1]),
-            await readJsonRequest(request),
+            body,
           ),
-        );
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          (!("code" in error) || typeof error.code !== "string")
-        ) {
-          writeError(
-            response,
-            500,
-            "review_metadata_update_failed",
-            error.message,
-          );
-          return true;
-        }
-        const failure = requireCodedError(error);
-        if (failure.message === "request_malformed") {
-          writeError(
-            response,
-            400,
-            "request_malformed",
-            "Request is malformed",
-          );
-        } else if (
-          authority !== "machine" &&
-          [
-            "csrf_invalid",
-            "origin_invalid",
-            "authentication_required",
-          ].includes(failure.code)
-        ) {
-          writeError(
-            response,
-            browserMutationFailureStatus(failure.code),
-            failure.code,
-            failure.message,
-          );
-        } else {
-          const status =
-            failure.code === "review_not_found"
-              ? 404
-              : failure.code === "review_name_conflict"
-                ? 409
-                : isUnavailableError(error)
-                  ? 503
-                  : 422;
-          writeError(response, status, failure.code, failure.message);
-        }
-      }
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "review_not_found"
+            ? 404
+            : code === "review_name_conflict"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+      });
       return true;
     }
     if (method === "POST" && reviewVersionsMatch) {
-      try {
-        requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
-        const saved = reviews.saveVersion(
-          decodeURIComponent(reviewVersionsMatch[1]),
-          await readJsonRequest(request),
-        );
-        writeJson(response, 200, saved);
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          (!("code" in error) || typeof error.code !== "string")
-        ) {
-          writeError(
-            response,
-            500,
-            "review_version_save_failed",
-            error.message,
-          );
-          return true;
-        }
-        const failure = requireCodedError(error);
-        if (failure.message === "request_malformed") {
-          writeError(
-            response,
-            400,
-            "request_malformed",
-            "Request is malformed",
-          );
-        } else if (
-          authority !== "machine" &&
-          [
-            "csrf_invalid",
-            "origin_invalid",
-            "authentication_required",
-          ].includes(failure.code)
-        ) {
-          writeError(
-            response,
-            browserMutationFailureStatus(failure.code),
-            failure.code,
-            failure.message,
-          );
-        } else {
-          const status =
-            failure.code === "review_not_found"
-              ? 404
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "review_version_save_failed",
+        mutate: (body) =>
+          reviews.saveVersion(decodeURIComponent(reviewVersionsMatch[1]), body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "review_not_found"
+            ? 404
+            : code === "review_archived"
+              ? 409
               : isUnavailableError(error)
                 ? 503
-                : 422;
-          writeError(response, status, failure.code, failure.message);
-        }
-      }
+                : 422,
+      });
       return true;
     }
     if (method === "PATCH" && reviewActiveVersionMatch) {
-      try {
-        requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
-        const reactivated = reviews.reactivateVersion(
-          decodeURIComponent(reviewActiveVersionMatch[1]),
-          await readJsonRequest(request),
-        );
-        writeJson(response, 200, reactivated);
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          (!("code" in error) || typeof error.code !== "string")
-        ) {
-          writeError(
-            response,
-            500,
-            "review_version_reactivation_failed",
-            error.message,
-          );
-          return true;
-        }
-        const failure = requireCodedError(error);
-        if (failure.message === "request_malformed") {
-          writeError(
-            response,
-            400,
-            "request_malformed",
-            "Request is malformed",
-          );
-        } else if (
-          authority !== "machine" &&
-          [
-            "csrf_invalid",
-            "origin_invalid",
-            "authentication_required",
-          ].includes(failure.code)
-        ) {
-          writeError(
-            response,
-            browserMutationFailureStatus(failure.code),
-            failure.code,
-            failure.message,
-          );
-        } else {
-          const status = [
-            "review_not_found",
-            "review_version_not_found",
-          ].includes(failure.code)
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "review_version_reactivation_failed",
+        mutate: (body) =>
+          reviews.reactivateVersion(
+            decodeURIComponent(reviewActiveVersionMatch[1]),
+            body,
+          ),
+        requestUrl,
+        statusFor: (code, error) =>
+          ["review_not_found", "review_version_not_found"].includes(code)
             ? 404
-            : isUnavailableError(error)
-              ? 503
-              : 422;
-          writeError(response, status, failure.code, failure.message);
-        }
-      }
+            : code === "review_archived"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+      });
       return true;
     }
     if (method === "GET" && path === "/api/v1/system") {

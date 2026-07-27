@@ -1,4 +1,5 @@
 import { createCanonicalComponents } from "./canonical-api-components.js";
+import { canonicalReviewArchivalPath } from "./canonical-review-archival-api.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 
 const errorResponse = {
@@ -199,6 +200,17 @@ export function canonicalOpenApiDocument() {
       "/api/v1/reviews": {
         get: {
           operationId: "listReviews",
+          parameters: [
+            {
+              in: "query",
+              name: "state",
+              schema: {
+                default: "active",
+                enum: ["active", "archived"],
+                type: "string",
+              },
+            },
+          ],
           responses: {
             200: {
               content: {
@@ -239,6 +251,7 @@ export function canonicalOpenApiDocument() {
           security: authenticated,
         },
       },
+      ...canonicalReviewArchivalPath(mutationParameters, errorResponse),
       "/api/v1/reviews/{review_id}/metadata": {
         patch: {
           operationId: "updateReviewMetadata",
@@ -302,6 +315,7 @@ export function canonicalOpenApiDocument() {
             401: errorResponse,
             403: errorResponse,
             404: errorResponse,
+            409: errorResponse,
             422: errorResponse,
             500: errorResponse,
             503: errorResponse,
@@ -338,6 +352,7 @@ export function canonicalOpenApiDocument() {
             401: errorResponse,
             403: errorResponse,
             404: errorResponse,
+            409: errorResponse,
             422: errorResponse,
             500: errorResponse,
             503: errorResponse,
