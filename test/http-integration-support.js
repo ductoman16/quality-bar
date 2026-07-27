@@ -30,7 +30,8 @@ function temporaryDatabasePath() {
  * @param {{
  *   createRepositories?: Parameters<typeof createApplication>[0]["createRepositories"],
  *   createRepositoryGuidance?: Parameters<typeof createApplication>[0]["createRepositoryGuidance"],
- *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"]
+ *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"],
+ *   writeLog?: Parameters<typeof createApplication>[0]["writeLog"]
  * }} [options]
  */
 export async function startApplication(options = {}) {
@@ -48,7 +49,7 @@ export async function startApplication(options = {}) {
     createRepositories: options.createRepositories,
     createRepositoryGuidance: options.createRepositoryGuidance,
     createReviews: options.createReviews,
-    writeLog() {},
+    writeLog: options.writeLog ?? (() => {}),
   });
   if (!application.durableCore || !application.implementerTokens) {
     throw new Error("http_application_not_ready");
@@ -79,6 +80,7 @@ export async function startApplication(options = {}) {
   request.invalidRequest = invalidRequest;
   return {
     application: readyApplication,
+    origin,
     request,
   };
 }

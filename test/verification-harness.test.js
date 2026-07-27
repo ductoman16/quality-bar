@@ -63,6 +63,10 @@ test("the verifier emits successful evidence and stops at a hard gate failure", 
     });
 
     assert.equal(successful.manifest.outcome, "pass");
+    assert.equal(
+      successful.manifest.componentVersions.adapterProtocol,
+      "mcp:2025-11-25",
+    );
     assert.deepEqual(successful.manifest.failures, []);
     assert.equal(
       successful.manifest.invokedGates[0].name,
@@ -187,6 +191,15 @@ test("the canonical verifier starts with six named static-quality gates", () => 
     "test/openapi-conformance.test.js",
   ]);
   assert.deepEqual(openApiRuntime.tools, openApiStructure.tools);
+  const mcpIntegration = definitions.find(
+    (definition) => definition.name === "mcp-integration",
+  );
+  assert.ok(mcpIntegration);
+  assert.deepEqual(mcpIntegration.arguments, [
+    "--test",
+    "test/mcp-http-integration.test.js",
+    "test/mcp-security-integration.test.js",
+  ]);
 });
 
 test("verification metadata reads the exact installed static tool versions", () => {

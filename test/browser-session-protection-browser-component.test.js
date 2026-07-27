@@ -250,6 +250,7 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     recordAuthorityAttribution() {
       throw failure;
     },
+    recordMcpOperation() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {

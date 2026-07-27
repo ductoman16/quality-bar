@@ -5,11 +5,13 @@ import { createApiRoute } from "./api-route.js";
 import { createBrowserAssetRoute } from "./browser-asset-route.js";
 import { createBrowserPageRoute } from "./browser-page-route.js";
 import { createBrowserSessionRoute } from "./browser-session-route.js";
+import { createMcpRoute } from "./mcp-route.js";
 import {
   authenticationFailureStatus,
   hasUrlToken,
   isProductSurface,
   isUnavailableError,
+  requireImplementerTokenAuthority,
   requireProductAuthority,
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
@@ -83,6 +85,14 @@ const TOKEN_METHODS = [
  *     errorCode?: string,
  *     outcome: string
  *   }) => void,
+ *   recordMcpOperation: (event: {
+ *     durationMs: number,
+ *     errorCode?: string,
+ *     operation: string,
+ *     outcome: "success" | "failure",
+ *     requestId: string,
+ *     resourceIds: string[]
+ *   }) => void,
  *   secureBrowserCookie?: boolean
  * }} options
  */
@@ -99,6 +109,7 @@ export function createApplicationServer({
   readSystemStatus,
   listAuthorityAttributions,
   recordAuthorityAttribution,
+  recordMcpOperation,
   secureBrowserCookie = false,
 }) {
   requireFunction(readDurableCoreStatus, "readDurableCoreStatus is required");
@@ -142,6 +153,7 @@ export function createApplicationServer({
       "repositoryGuidance must provide the Repository Guidance resource",
     );
   }
+  requireFunction(recordMcpOperation, "recordMcpOperation must be a function");
 
   const handleBrowserAsset = createBrowserAssetRoute({
     browserAssetReader,
@@ -168,6 +180,12 @@ export function createApplicationServer({
     repositories,
     repositoryGuidance,
     reviews,
+  });
+  const handleMcp = createMcpRoute({
+    browserOrigin,
+    recordMcpOperation,
+    repositories,
+    repositoryGuidance,
   });
 
   /**
@@ -246,15 +264,21 @@ export function createApplicationServer({
       writeError(response, 404, "not_found", "Resource was not found");
       return;
     }
+    /** @type {"machine" | "operator" | undefined} */
     let authority;
     if (isProductSurface(path)) {
       try {
-        authority = requireProductAuthority(
-          browserSessions,
-          implementerTokens,
-          request,
-          requestUrl,
-        );
+        if (path === "/mcp/v1") {
+          requireImplementerTokenAuthority(implementerTokens, request);
+          authority = "machine";
+        } else {
+          authority = requireProductAuthority(
+            browserSessions,
+            implementerTokens,
+            request,
+            requestUrl,
+          );
+        }
       } catch (error) {
         const failure = requireCodedError(error);
         recordAuthorityAttribution({
@@ -274,6 +298,9 @@ export function createApplicationServer({
         );
         return;
       }
+    }
+    if (await handleMcp(request, response, requestUrl)) {
+      return;
     }
     if (await handleApi(request, response, requestUrl, authority)) {
       return;

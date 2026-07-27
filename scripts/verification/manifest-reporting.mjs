@@ -1,6 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
+import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
+
 /**
  * @typedef {{
  *   applicationVersion: string | null,
@@ -104,7 +106,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       codexCapabilityCatalog:
         packageFacts?.authenticatedHttpSmoke?.codexCapabilityCatalogVersion ??
         null,
-      adapterProtocol: null,
+      adapterProtocol: `mcp:${MCP_PROTOCOL_VERSION}`,
       browser: operatorBrowserFacts?.executableVersion ?? null,
       database: packageFacts?.database?.databaseVersion
         ? `sqlite:${packageFacts.database.databaseVersion}`
