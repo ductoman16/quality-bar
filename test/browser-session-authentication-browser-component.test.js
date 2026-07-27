@@ -148,7 +148,10 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /<h1>Reviews<\/h1>/);
   assert.match(reviewsHtml, /id="review-create-form"/);
   assert.match(reviewsHtml, /id="review-criteria"/);
-  assert.match(reviewsHtml, /id="review-add-criterion"/);
+  assert.match(
+    reviewsHtml,
+    /id="review-add-criterion"[^>]*>Add another Criterion<\/button>/,
+  );
   assert.match(reviewsHtml, /id="review-model"/);
   assert.match(reviewsHtml, /id="review-reasoning-effort"/);
   assert.match(reviewsHtml, /id="review-service-tier"/);
@@ -181,6 +184,10 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /id="review-version-form"/);
   assert.match(reviewsHtml, /id="review-version-applicability-rule"/);
   assert.match(reviewsHtml, /id="review-version-criteria"/);
+  assert.match(
+    reviewsHtml,
+    /id="review-version-add-criterion"[^>]*>Add Criterion<\/button>/,
+  );
   assert.match(reviewsHtml, /id="review-version-result"/);
 });
 

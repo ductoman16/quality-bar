@@ -73,6 +73,10 @@ test("the Review Version component submits the selected complete executable snap
   assert.ok(secondCriterion);
   const [firstInstruction, firstInstructionError, firstImpact, firstHandle] =
     /** @type {any} */ (firstCriterion).children;
+  assert.throws(
+    () => /** @type {any} */ (firstCriterion).children[6].listener("click")({}),
+    /review_criterion_confirmation_unexpected/,
+  );
   assert.equal(firstInstruction.value, "Preserve the exact metadata boundary.");
   assert.equal(firstInstruction["aria-describedby"], firstInstructionError.id);
   assert.equal(firstInstruction["aria-required"], "true");

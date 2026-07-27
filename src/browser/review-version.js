@@ -18,7 +18,7 @@
    * @typedef {{
    *   applicabilityRule: string,
    *   configuration: {model: string, reasoningEffort: string, serviceTier: string},
-   *   criteria: Array<{id: string, impact: string, instruction: string}>,
+   *   criteria: Array<{id?: string, impact: string, instruction: string}>,
    *   reviewId: string
    * }} Submitted
    */
@@ -78,6 +78,9 @@
   const criteriaList = /** @type {HTMLOListElement} */ (
     requiredElement("review-version-criteria")
   );
+  const addCriterion = /** @type {HTMLButtonElement} */ (
+    requiredElement("review-version-add-criterion")
+  );
   const submit = /** @type {HTMLButtonElement} */ (
     requiredElement("review-version-submit")
   );
@@ -90,7 +93,7 @@
   let models = [];
   /** @type {{
    * clearErrors(): void,
-   * read(): Array<{id: string, impact: string, instruction: string}>,
+   * read(): Array<{id?: string, impact: string, instruction: string}>,
    * reset(criteria: Array<{id: string, impact: string, instruction: string}>): void,
    * showFailure(code: string, message: string): string | undefined,
    * validate(): {code: string, message: string} | undefined
@@ -199,6 +202,7 @@
     } else {
       criterionEditor = criterionAuthoring.createCriterionEditor(
         criteriaList,
+        addCriterion,
         review.active_version.criteria,
       );
     }

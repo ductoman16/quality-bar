@@ -203,3 +203,35 @@ test("executable snapshot validation preserves stable Criterion identity and aut
     },
   ]);
 });
+
+test("executable snapshot validation distinguishes a replacement Criterion from an existing identity", () => {
+  const validated = validateExecutableSnapshot(
+    validSnapshot({
+      criteria: [
+        {
+          impact: "blocking",
+          instruction: "Use the replacement meaning.",
+        },
+        {
+          id: "stable-existing",
+          impact: "advisory",
+          instruction: "Keep the existing meaning.",
+        },
+      ],
+    }),
+  );
+
+  assert.deepEqual(validated.criteria, [
+    {
+      impact: "blocking",
+      instruction: "Use the replacement meaning.",
+      position: 1,
+    },
+    {
+      id: "stable-existing",
+      impact: "advisory",
+      instruction: "Keep the existing meaning.",
+      position: 2,
+    },
+  ]);
+});

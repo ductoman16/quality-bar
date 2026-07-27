@@ -243,7 +243,7 @@ export function createReviewService(
             .map((row) => row?.id),
         );
         for (const criterion of validated.criteria) {
-          if (!identities.has(criterion.id)) {
+          if ("id" in criterion && !identities.has(criterion.id)) {
             fail(
               "review_criterion_not_found",
               "Criterion does not belong to the Review",
@@ -267,6 +267,28 @@ export function createReviewService(
         if (typeof versionId !== "string" || versionId.length === 0) {
           throw new TypeError("createId must return nonempty strings");
         }
+        const criteria = validated.criteria.map((criterion) => {
+          if (typeof criterion.id === "string") {
+            return {
+              id: criterion.id,
+              impact: criterion.impact,
+              instruction: criterion.instruction,
+              isNew: false,
+              position: criterion.position,
+            };
+          }
+          const id = createId();
+          if (typeof id !== "string" || id.length === 0) {
+            throw new TypeError("createId must return nonempty strings");
+          }
+          return {
+            id,
+            impact: criterion.impact,
+            instruction: criterion.instruction,
+            isNew: true,
+            position: criterion.position,
+          };
+        });
         const nextVersion = transaction.get(
           "SELECT max(number) + 1 AS number FROM review_versions WHERE review_id = ?",
           reviewId,
@@ -288,7 +310,17 @@ export function createReviewService(
           validated.applicabilityRule,
           createdAt,
         );
-        for (const criterion of validated.criteria) {
+        for (const criterion of criteria) {
+          if (criterion.isNew) {
+            transaction.run(
+              "INSERT INTO criteria (id, review_id, instruction, impact, created_at) VALUES (?, ?, ?, ?, ?)",
+              criterion.id,
+              reviewId,
+              criterion.instruction,
+              criterion.impact,
+              createdAt,
+            );
+          }
           transaction.run(
             "INSERT INTO review_version_criteria (review_version_id, criterion_id, position, instruction, impact) VALUES (?, ?, ?, ?, ?)",
             versionId,

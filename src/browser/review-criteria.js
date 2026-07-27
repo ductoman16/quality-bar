@@ -1,13 +1,17 @@
 {
   /**
    * @param {HTMLOListElement} list
+   * @param {HTMLButtonElement} addButton
    * @param {Array<{id: string, impact: string, instruction: string}>} criteria
    */
-  function createCriterionEditor(list, criteria) {
+  function createCriterionEditor(list, addButton, criteria) {
+    let nextLocalIdentity = 0;
+    /** @type {Array<{id?: string, impact: string, instruction: string, key: string}>} */
     let authoredCriteria = criteria.map(({ id, impact, instruction }) => ({
       id,
       impact,
       instruction,
+      key: id,
     }));
     /** @type {string | null} */
     let draggedCriterionId = null;
@@ -25,13 +29,13 @@
     }
 
     /**
-     * @param {string} criterionId
+     * @param {string} criterionKey
      * @param {number} targetIndex
      * @param {"handle" | "up" | "down"} focusControl
      */
-    function moveCriterion(criterionId, targetIndex, focusControl) {
+    function moveCriterion(criterionKey, targetIndex, focusControl) {
       const currentIndex = authoredCriteria.findIndex(
-        ({ id }) => id === criterionId,
+        ({ key }) => key === criterionKey,
       );
       if (
         currentIndex === -1 ||
@@ -46,11 +50,11 @@
         throw new Error("review_criterion_order_invalid");
       }
       authoredCriteria.splice(targetIndex, 0, criterion);
-      render({ criterionId, control: focusControl });
+      render({ criterionKey, control: focusControl });
     }
 
     /**
-     * @param {{criterionId: string, control: "handle" | "up" | "down"}} [focus]
+     * @param {{criterionKey: string, control: "handle" | "instruction" | "up" | "down"}} [focus]
      */
     function render(focus) {
       /** @type {HTMLElement | undefined} */
@@ -98,8 +102,8 @@
             throw new Error("review_criterion_drag_invalid");
           }
           dragEvent.dataTransfer.effectAllowed = "move";
-          dragEvent.dataTransfer.setData("text/plain", criterion.id);
-          draggedCriterionId = criterion.id;
+          dragEvent.dataTransfer.setData("text/plain", criterion.key);
+          draggedCriterionId = criterion.key;
         });
         handle.addEventListener("dragend", () => {
           draggedCriterionId = null;
@@ -111,7 +115,7 @@
         moveUp.textContent = moveUp.ariaLabel;
         moveUp.type = "button";
         moveUp.addEventListener("click", () => {
-          moveCriterion(criterion.id, index - 1, "up");
+          moveCriterion(criterion.key, index - 1, "up");
         });
 
         const moveDown = document.createElement("button");
@@ -120,7 +124,41 @@
         moveDown.textContent = moveDown.ariaLabel;
         moveDown.type = "button";
         moveDown.addEventListener("click", () => {
-          moveCriterion(criterion.id, index + 1, "down");
+          moveCriterion(criterion.key, index + 1, "down");
+        });
+
+        const retire = document.createElement("button");
+        retire.ariaLabel = `Retire Criterion ${index + 1}`;
+        retire.disabled = authoredCriteria.length === 1;
+        retire.textContent = retire.ariaLabel;
+        retire.type = "button";
+        retire.addEventListener("click", () => {
+          if (
+            !confirm(
+              `Retire Criterion ${index + 1} from the next Review Version?`,
+            )
+          ) {
+            return;
+          }
+          const retirementIndex = authoredCriteria.findIndex(
+            ({ key }) => key === criterion.key,
+          );
+          if (retirementIndex === -1 || authoredCriteria.length === 1) {
+            throw new Error("review_criterion_retirement_invalid");
+          }
+          authoredCriteria.splice(retirementIndex, 1);
+          const focusIndex = Math.min(
+            retirementIndex,
+            authoredCriteria.length - 1,
+          );
+          const focusCriterion = authoredCriteria[focusIndex];
+          if (!focusCriterion) {
+            throw new Error("review_criterion_retirement_invalid");
+          }
+          render({
+            criterionKey: focusCriterion.key,
+            control: "instruction",
+          });
         });
 
         item.addEventListener("dragover", (event) => {
@@ -141,10 +179,13 @@
           handle,
           moveUp,
           moveDown,
+          retire,
         );
-        if (focus?.criterionId === criterion.id) {
+        if (focus?.criterionKey === criterion.key) {
           if (focus.control === "handle") {
             focusTarget = handle;
+          } else if (focus.control === "instruction") {
+            focusTarget = instruction;
           } else if (focus.control === "up") {
             focusTarget = moveUp.disabled ? moveDown : moveUp;
           } else {
@@ -161,6 +202,16 @@
     }
 
     render();
+    addButton.addEventListener("click", () => {
+      nextLocalIdentity += 1;
+      const criterion = {
+        impact: "advisory",
+        instruction: "",
+        key: `new-criterion-${nextLocalIdentity}`,
+      };
+      authoredCriteria.push(criterion);
+      render({ criterionKey: criterion.key, control: "instruction" });
+    });
 
     /** @param {number} index @param {string} message */
     function showInstructionFailure(index, message) {
@@ -184,7 +235,7 @@
       },
       read() {
         return authoredCriteria.map(({ id, impact, instruction }) => ({
-          id,
+          ...(id === undefined ? {} : { id }),
           impact,
           instruction,
         }));
@@ -204,6 +255,12 @@
         return showInstructionFailure(Number(matched[1]) - 1, message);
       },
       validate() {
+        if (authoredCriteria.length === 0) {
+          return {
+            code: "review_criteria_invalid",
+            message: "Review must contain at least one Criterion",
+          };
+        }
         const index = authoredCriteria.findIndex(
           ({ instruction }) => instruction.trim().length === 0,
         );
@@ -222,6 +279,7 @@
           id,
           impact,
           instruction,
+          key: id,
         }));
         draggedCriterionId = null;
         render();

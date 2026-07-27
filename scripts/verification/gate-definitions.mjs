@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-and-review-version-validation-unit",
+        "browser-authority-request-security-and-review-criterion-retirement-validation-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -233,13 +233,14 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-and-review-authoring-browser-boundary",
+        "browser-authority-request-security-and-review-criterion-retirement-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
         "test/browser-assets-browser-component.test.js",
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
+        "test/review-criterion-retirement-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
@@ -249,7 +250,7 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "sqlite-integration",
-      testGroup: "review-version-identity-sqlite-resource-boundary",
+      testGroup: "review-criterion-retirement-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -261,11 +262,12 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "http-integration",
-      testGroup: "review-version-identity-http-resource-boundary",
+      testGroup: "review-criterion-retirement-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
         "test/review-authorization-http-integration.test.js",
+        "test/review-criterion-retirement-http-integration.test.js",
         "test/review-http-integration.test.js",
       ],
     },
