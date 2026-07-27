@@ -5,48 +5,12 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import {
+  browserElement,
+  repositoryBrowserElements,
+} from "./repository-browser-component-support.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
-
-/** @param {Record<string, unknown>} [properties] */
-function browserElement(properties = {}) {
-  /** @type {Map<string, (event: any) => unknown>} */
-  const listeners = new Map();
-  return {
-    disabled: false,
-    hidden: false,
-    options: /** @type {{textContent: string, value: string}[]} */ ([]),
-    resetCalled: false,
-    textContent: "",
-    value: "",
-    ...properties,
-    /** @param {string} name @param {(event: any) => unknown} listener */
-    addEventListener(name, listener) {
-      listeners.set(name, listener);
-    },
-    /** @param {{textContent: string, value: string}} option */
-    append(option) {
-      this.options.push(option);
-    },
-    /** @param {string} name */
-    listener(name) {
-      const listener = listeners.get(name);
-      if (!listener) {
-        throw new Error(`repository_listener_missing: ${name}`);
-      }
-      return listener;
-    },
-    querySelectorAll() {
-      return [];
-    },
-    replaceChildren() {
-      this.options = [];
-    },
-    reset() {
-      this.resetCalled = true;
-    },
-  };
-}
 
 test("the Repository component rotates write-only credentials and surfaces the exact owning error", async () => {
   const form = browserElement();
@@ -66,16 +30,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
   const rotationResult = browserElement();
   const rotationSubmit = browserElement({ disabled: true });
   const error = browserElement({ hidden: true });
-  const elements = new Map([
-    [
-      "browser-configuration",
-      browserElement({
-        textContent: JSON.stringify({
-          csrfCookieName: "quality_bar_configured_csrf",
-        }),
-        type: "application/json",
-      }),
-    ],
+  const elements = repositoryBrowserElements([
     ["error", error],
     ["repository-create-form", form],
     ["repository-token", token],
@@ -88,15 +43,6 @@ test("the Repository component rotates write-only credentials and surfaces the e
     ["repository-credential-rotate-token", rotationToken],
     ["repository-credential-rotate-result", rotationResult],
     ["repository-credential-rotate-submit", rotationSubmit],
-    ["password-change-form", browserElement()],
-    ["session-revocation-form", browserElement()],
-    ["implementer-token-create-form", browserElement()],
-    ["implementer-token-rotate-form", browserElement()],
-    ["implementer-token-revoke-form", browserElement()],
-    ["implementer-token-reveal", browserElement()],
-    ["implementer-token-reveal-close", browserElement()],
-    ["implementer-token-value", browserElement()],
-    ["logout", browserElement()],
   ]);
   /** @type {{path: string, options: object}[]} */
   const requests = [];
@@ -153,7 +99,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "username_token",
+              health: "healthy",
+              health_error: null,
               id: "repository-1",
+              lifecycle: "enabled",
               url: "https://example.com/team/repository.git",
             };
           },
@@ -164,7 +114,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "none",
+              health: "healthy",
+              health_error: null,
               id: "repository-public",
+              lifecycle: "enabled",
               url: "https://example.com/team/public.git",
             };
           },
@@ -175,7 +129,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "username_token",
+              health: "healthy",
+              health_error: null,
               id: "repository/private",
+              lifecycle: "enabled",
               url: "https://example.com/team/repository.git",
             };
           },
@@ -343,6 +301,10 @@ test("the Repository component rotates write-only credentials and surfaces the e
 
 test("the Repositories page keeps credential rotation on its owning resource surface", () => {
   const page = operatorPage({ view: "repositories" });
+  assert.match(page, /id="repository-inventory"/);
+  assert.match(page, /id="repository-lifecycle-form"/);
+  assert.match(page, /id="repository-lifecycle-repository"/);
+  assert.match(page, /id="repository-lifecycle-state"/);
   assert.match(page, /id="repository-create-form"/);
   assert.match(page, /id="repository-credential-rotate-form"/);
   assert.match(page, /id="repository-credential-rotate-repository"/);

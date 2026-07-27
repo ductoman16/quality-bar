@@ -127,7 +127,9 @@ export function createApplicationServer({
   if (
     typeof repositories?.list !== "function" ||
     typeof repositories.register !== "function" ||
-    typeof repositories.rotateCredential !== "function"
+    typeof repositories.requireAcceptsNewWork !== "function" ||
+    typeof repositories.rotateCredential !== "function" ||
+    typeof repositories.setLifecycle !== "function"
   ) {
     throw new TypeError("repositories must provide the Repository resource");
   }

@@ -64,7 +64,13 @@ function applicationServerOptions() {
       async register() {
         throw new Error("unused Repository service operation");
       },
+      requireAcceptsNewWork() {
+        throw new Error("unused Repository service operation");
+      },
       async rotateCredential() {
+        throw new Error("unused Repository service operation");
+      },
+      async setLifecycle() {
         throw new Error("unused Repository service operation");
       },
     },

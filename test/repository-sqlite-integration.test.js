@@ -19,7 +19,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 10);
+  assert.equal(core.facts.schemaVersion, 11);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {
@@ -57,7 +57,11 @@ test("a verified normalized Repository identity is inserted once and failed veri
     url: "https://EXAMPLE.com:443/%7Eteam/repository.git/",
   });
   assert.deepEqual(created, {
+    credential_type: "none",
+    health: "healthy",
+    health_error: null,
     id: "repository-1",
+    lifecycle: "enabled",
     url: "https://example.com/~team/repository.git",
   });
   assert.deepEqual(verifiedUrls, [
@@ -100,6 +104,15 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
   prior.run("DROP TABLE repository_credentials");
+  prior.run("DROP TABLE repositories");
+  prior.run(
+    `CREATE TABLE repositories (
+      id TEXT PRIMARY KEY,
+      normalized_url TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      verified_at INTEGER NOT NULL
+    ) STRICT`,
+  );
   prior.run(
     "UPDATE quality_bar_metadata SET value = '9' WHERE key = 'schema_version'",
   );
@@ -107,7 +120,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 10);
+  assert.equal(core.facts.schemaVersion, 11);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -153,7 +166,11 @@ test("credentialed registration atomically stores only a Repository-bound encryp
     username: "operator",
   });
   assert.deepEqual(created, {
+    credential_type: "username_token",
+    health: "healthy",
+    health_error: null,
     id: "repository-private",
+    lifecycle: "enabled",
     url: "https://example.com/private.git",
   });
   assert.deepEqual(verificationCredentials, [
@@ -207,6 +224,132 @@ test("credentialed registration atomically stores only a Repository-bound encryp
     (error) =>
       error instanceof RepositoryError &&
       error.code === "repository_credential_undecryptable",
+  );
+  reopened.close();
+  rmSync(directory, { force: true, recursive: true });
+});
+
+test("Repository lifecycle persists separately from observed health and preserves already-admitted work", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  prior.run("DROP TABLE repository_credentials");
+  prior.run("DROP TABLE repositories");
+  prior.run(
+    `CREATE TABLE repositories (
+      id TEXT PRIMARY KEY,
+      normalized_url TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      verified_at INTEGER NOT NULL
+    ) STRICT`,
+  );
+  prior.run(
+    `CREATE TABLE repository_credentials (
+      repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
+      encrypted_credential TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    ) STRICT`,
+  );
+  prior.run(
+    "UPDATE quality_bar_metadata SET value = '10' WHERE key = 'schema_version'",
+  );
+  prior.run("PRAGMA user_version = 10");
+  prior.close();
+
+  const core = openDurableCore(databasePath);
+  assert.equal(core.facts.schemaVersion, 11);
+  let verificationFails = false;
+  const repositories = createRepositoryService(core, {
+    createId: () => "repository-lifecycle",
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 50,
+    async verifyRead() {
+      if (verificationFails) {
+        return Promise.reject(
+          new RepositoryError(
+            "repository_git_read_failed",
+            "Repository Git read verification failed",
+          ),
+        );
+      }
+    },
+  });
+  await repositories.register({ url: "https://example.com/lifecycle.git" });
+
+  const alreadyCreatedWork = repositories.requireAcceptsNewWork(
+    "repository-lifecycle",
+  );
+  assert.equal(alreadyCreatedWork.id, "repository-lifecycle");
+  assert.deepEqual(
+    await repositories.setLifecycle("repository-lifecycle", {
+      lifecycle: "disabled",
+    }),
+    {
+      credential_type: "none",
+      health: "healthy",
+      health_error: null,
+      id: "repository-lifecycle",
+      lifecycle: "disabled",
+      url: "https://example.com/lifecycle.git",
+    },
+  );
+  assert.equal(alreadyCreatedWork.id, "repository-lifecycle");
+  assert.throws(
+    () => repositories.requireAcceptsNewWork("repository-lifecycle"),
+    (error) =>
+      error instanceof RepositoryError && error.code === "repository_disabled",
+  );
+
+  verificationFails = true;
+  await assert.rejects(
+    () =>
+      repositories.setLifecycle("repository-lifecycle", {
+        lifecycle: "enabled",
+      }),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "repository_git_read_failed",
+  );
+  assert.deepEqual(repositories.list(), [
+    {
+      credential_type: "none",
+      health: "error",
+      health_error: {
+        code: "repository_git_read_failed",
+        message: "Repository Git read verification failed",
+      },
+      id: "repository-lifecycle",
+      lifecycle: "disabled",
+      url: "https://example.com/lifecycle.git",
+    },
+  ]);
+
+  repositories.destroy();
+  core.close();
+  const reopened = openDurableCore(databasePath);
+  assert.deepEqual(
+    reopened.all(
+      `SELECT lifecycle, health, health_error_code, health_error_message
+       FROM repositories`,
+    ),
+    [
+      {
+        health: "error",
+        health_error_code: "repository_git_read_failed",
+        health_error_message: "Repository Git read verification failed",
+        lifecycle: "disabled",
+      },
+    ],
+  );
+  assert.throws(
+    () =>
+      reopened.run(
+        `UPDATE repositories
+         SET health = 'healthy',
+             health_error_code = 'stale_error',
+             health_error_message = 'Stale observed failure'`,
+      ),
+    /repository_health_invalid/,
   );
   reopened.close();
   rmSync(directory, { force: true, recursive: true });

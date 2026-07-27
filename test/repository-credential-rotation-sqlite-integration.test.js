@@ -80,6 +80,14 @@ test("credential rotation verifies before one atomic secret swap and preserves t
     },
   );
 
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'repository_git_read_failed',
+         health_error_message = 'Repository Git read verification failed'
+     WHERE id = ?`,
+    repository.id,
+  );
   const rotated = await repositories.rotateCredential(repository.id, {
     token: "replacement-private-token",
     username: "replacement-operator",
@@ -88,12 +96,18 @@ test("credential rotation verifies before one atomic secret swap and preserves t
   const active = /** @type {{
    *   created_at: number,
    *   encrypted_credential: string,
+   *   health: string,
+   *   health_error_code: null,
+   *   health_error_message: null,
    *   verified_at: number
    * }} */ (
     core.get(
       `SELECT
          repository_credentials.encrypted_credential,
          repository_credentials.created_at,
+         repositories.health,
+         repositories.health_error_code,
+         repositories.health_error_message,
          repositories.verified_at
        FROM repositories
        JOIN repository_credentials
@@ -104,6 +118,9 @@ test("credential rotation verifies before one atomic secret swap and preserves t
   );
   assert.equal(active.created_at, 49);
   assert.equal(active.verified_at, 49);
+  assert.equal(active.health, "healthy");
+  assert.equal(active.health_error_code, null);
+  assert.equal(active.health_error_message, null);
   assert.notEqual(active.encrypted_credential, original);
   assert.equal(
     core.get(

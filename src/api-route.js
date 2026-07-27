@@ -59,6 +59,9 @@ export function createApiRoute({
     const repositoryCredentialRotationMatch = path.match(
       /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
     );
+    const repositoryLifecycleMatch = path.match(
+      /^\/api\/v1\/repositories\/([^/]+)\/lifecycle$/,
+    );
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
@@ -68,7 +71,8 @@ export function createApiRoute({
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch) ||
         (method === "POST" && path === "/api/v1/repositories") ||
-        (method === "POST" && repositoryCredentialRotationMatch))
+        (method === "POST" && repositoryCredentialRotationMatch) ||
+        (method === "PATCH" && repositoryLifecycleMatch))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
       return true;
@@ -270,6 +274,33 @@ export function createApiRoute({
                 ? 503
                 : 422,
         unexpectedMessage: "Repository credential rotation failed",
+      });
+      return true;
+    }
+    if (method === "PATCH" && repositoryLifecycleMatch) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "repository_lifecycle_change_failed",
+        mutate: (body) =>
+          repositories.setLifecycle(
+            decodeURIComponent(repositoryLifecycleMatch[1]),
+            body,
+          ),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "repository_not_found"
+            ? 404
+            : [
+                  "repository_retired",
+                  "repository_retirement_unsupported",
+                ].includes(code)
+              ? 409
+              : isUnavailableError(error) ||
+                  code === "repository_git_verification_unavailable"
+                ? 503
+                : 422,
+        unexpectedMessage: "Repository lifecycle change failed",
       });
       return true;
     }

@@ -137,3 +137,60 @@ export function normalizeRepositoryCredentialRotation(request) {
     /** @type {{token?: unknown, username?: unknown}} */ (request),
   );
 }
+
+/** @param {unknown} request */
+export function normalizeRepositoryLifecycleChange(request) {
+  if (
+    !request ||
+    typeof request !== "object" ||
+    Array.isArray(request) ||
+    !("lifecycle" in request) ||
+    typeof request.lifecycle !== "string" ||
+    request.lifecycle.length === 0
+  ) {
+    fail("repository_lifecycle_required", "Repository lifecycle is required");
+  }
+  if (Object.keys(request).some((key) => key !== "lifecycle")) {
+    fail(
+      "repository_lifecycle_request_invalid",
+      "Repository lifecycle request is invalid",
+    );
+  }
+  if (request.lifecycle === "retired") {
+    fail(
+      "repository_retirement_unsupported",
+      "Repository retirement is not supported by this operation",
+    );
+  }
+  if (!["enabled", "disabled"].includes(request.lifecycle)) {
+    fail(
+      "repository_lifecycle_invalid",
+      "Repository lifecycle must be enabled or disabled",
+    );
+  }
+  return {
+    lifecycle: /** @type {"enabled" | "disabled"} */ (request.lifecycle),
+  };
+}
+
+/**
+ * @param {{
+ *   health: "healthy" | "error",
+ *   healthError: null | {code: string, message: string},
+ *   lifecycle: "enabled" | "disabled" | "retired"
+ * }} repository
+ */
+export function assertRepositoryAcceptsNewWork(repository) {
+  if (repository.lifecycle === "disabled") {
+    fail("repository_disabled", "Repository is disabled");
+  }
+  if (repository.lifecycle === "retired") {
+    fail("repository_retired", "Repository is retired");
+  }
+  if (repository.health === "error") {
+    if (!repository.healthError) {
+      throw new TypeError("Repository health error is unavailable");
+    }
+    fail(repository.healthError.code, repository.healthError.message);
+  }
+}

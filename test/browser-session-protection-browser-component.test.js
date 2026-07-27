@@ -260,7 +260,13 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       async register() {
         throw new Error("unused Repository service operation");
       },
+      requireAcceptsNewWork() {
+        throw new Error("unused Repository service operation");
+      },
       async rotateCredential() {
+        throw new Error("unused Repository service operation");
+      },
+      async setLifecycle() {
         throw new Error("unused Repository service operation");
       },
     },
