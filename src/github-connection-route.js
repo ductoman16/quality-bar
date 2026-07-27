@@ -160,6 +160,89 @@ export function createGitHubConnectionRoute({
       return true;
     }
     if (
+      method === "PATCH" &&
+      path === "/api/v1/github-connections/lifecycle" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "github_connection_lifecycle_failed",
+        mutate: (body) => githubConnections.retire(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "github_connection_not_found"
+            ? 404
+            : code === "github_connection_repositories_active"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        unexpectedMessage: "GitHub Connection retirement failed",
+      });
+      return true;
+    }
+    if (
+      method === "POST" &&
+      path === "/api/v1/github-connections/reactivate" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "github_connection_reactivation_failed",
+        mutate: (body) => githubConnections.reactivate(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "github_connection_not_found"
+            ? 404
+            : code === "github_connection_reactivation_unsupported"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        unexpectedMessage: "GitHub Connection reactivation failed",
+      });
+      return true;
+    }
+    if (
+      method === "DELETE" &&
+      path === "/api/v1/github-connections/lifecycle" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "github_connection_delete_failed",
+        requestUrl,
+        mutate: (body) => {
+          if (
+            !body ||
+            Array.isArray(body) ||
+            typeof body !== "object" ||
+            Object.keys(body).length
+          ) {
+            throw Object.assign(new Error("request_malformed"), {
+              code: "request_malformed",
+            });
+          }
+          githubConnections.remove();
+          return null;
+        },
+        statusFor: (code, error) =>
+          code === "github_connection_not_found"
+            ? 404
+            : code === "github_connection_delete_unsupported"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        successStatus: 200,
+        unexpectedMessage: "GitHub Connection deletion failed",
+      });
+      return true;
+    }
+    if (
       method === "POST" &&
       path === "/api/v1/github-connections/repositories" &&
       authority === "operator"

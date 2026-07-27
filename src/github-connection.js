@@ -1,21 +1,22 @@
 import { randomBytes as createRandomBytes, randomUUID } from "node:crypto";
-
 import { createGitHubVerifier } from "./github-api.js";
 import { createGitHubCallbackFailureStore } from "./github-callback-failure.js";
 import {
   GITHUB_API_PROFILE,
   GITHUB_REQUIRED_PERMISSIONS,
-  createGitHubAppManifest,
 } from "./github-app-manifest.js";
 import { createGitHubConnectionCredentialCipher } from "./github-connection-credential.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
+import { takeGitHubConnectionFlow } from "./github-connection-flow.js";
 import { readGitHubConnection } from "./github-connection-read.js";
+import { reactivateGitHubConnection } from "./github-connection-reactivation.js";
+import { startGitHubConnection } from "./github-connection-start.js";
+import {
+  removeNeverUsedGitHubConnection,
+  retireGitHubConnection,
+} from "./github-connection-lifecycle.js";
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
-
-const FLOW_LIFETIME_MS = 60 * 60 * 1_000;
-
 export { GitHubConnectionError } from "./github-connection-error.js";
-
 /**
  * @param {string} code
  * @param {string} message
@@ -29,31 +30,8 @@ function fail(code, message, cause) {
     cause === undefined ? undefined : { cause },
   );
 }
-
-/**
- * @typedef {{
- *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
- *   transaction<Result>(callback: (transaction: {
- *     run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
- *   }) => Result): Result
- * }} GitHubConnectionDurableCore
- */
-
-/**
- * @param {GitHubConnectionDurableCore} durableCore
- * @param {{
- *   createId?: () => string | undefined,
- *   externalOrigin: string,
- *   masterKey: Buffer,
- *   now?: () => number,
- *   randomBytes?: (size: number) => Buffer,
- *   verifier?: {
- *     exchangeManifest: ReturnType<typeof createGitHubVerifier>["exchangeManifest"],
- *     verifyInstallation: ReturnType<typeof createGitHubVerifier>["verifyInstallation"],
- *     verifyRepositories?: ReturnType<typeof createGitHubVerifier>["verifyRepositories"]
- *   }
- * }} options
- */
+/** @typedef {{exchangeManifest: (code: string) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories?: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
   {
@@ -104,27 +82,11 @@ export function createGitHubConnectionService(
       row.encrypted_credential,
     );
   }
-
-  /** @type {Map<string, {
-   *   createdAt: number,
-   *   stage: "manifest",
-   * } | {
-   *   createdAt: number,
-   *   stage: "installation",
-   *   credential: {
-   *     app_id: number,
-   *     app_slug: string,
-   *     client_id: string,
-   *     owner: {id: number, login: string, type: "User"},
-   *     pem: string
-   *   }
-   * }>} */
   const pending = new Map();
   const callbackFailures = createGitHubCallbackFailureStore({
     now: timestamp,
     randomBytes,
   });
-
   function timestamp() {
     const value = now();
     if (!Number.isSafeInteger(value)) {
@@ -132,7 +94,6 @@ export function createGitHubConnectionService(
     }
     return value;
   }
-
   function transientToken() {
     const value = randomBytes(32).toString("base64url");
     if (!/^[A-Za-z0-9_-]{8,256}$/.test(value)) {
@@ -140,51 +101,23 @@ export function createGitHubConnectionService(
     }
     return value;
   }
-
   const selectRepositories = createGitHubRepositorySelector(durableCore, {
     cipher,
     createId,
     timestamp,
     verifier,
   });
-
-  /** @param {string} state @param {"manifest" | "installation"} stage */
-  function take(state, stage) {
-    const flow = pending.get(state);
-    pending.delete(state);
-    if (
-      !flow ||
-      flow.stage !== stage ||
-      timestamp() - flow.createdAt > FLOW_LIFETIME_MS
-    ) {
-      fail(
-        "github_manifest_state_invalid",
-        "GitHub App Manifest state is invalid or expired",
-      );
-    }
-    return flow;
-  }
-
+  const take = takeGitHubConnectionFlow.bind(null, { pending, timestamp });
   return {
     read: () => readGitHubConnection(durableCore),
-    start() {
-      if (durableCore.all("SELECT id FROM github_connections LIMIT 1").length) {
-        fail(
-          "github_connection_conflict",
-          "A GitHub Connection is already configured",
-        );
-      }
-      const state = transientToken();
-      pending.set(state, { createdAt: timestamp(), stage: "manifest" });
-      return {
-        action: `https://github.com/settings/apps/new?state=${encodeURIComponent(
-          state,
-        )}`,
-        manifest: createGitHubAppManifest({ externalOrigin, state }),
-        method: "POST",
-        state,
-      };
-    },
+    start: () =>
+      startGitHubConnection({
+        durableCore,
+        externalOrigin,
+        pending,
+        timestamp,
+        transientToken,
+      }),
     /** @param {Error & {code: string}} error */
     recordCallbackFailure(error) {
       return callbackFailures.record(error);
@@ -253,7 +186,31 @@ export function createGitHubConnectionService(
         flow.credential,
         installation,
       );
-      const id = createId();
+      const [existing] = /** @type {any[]} */ (
+        durableCore.all(
+          `SELECT id, app_id, app_slug, installation_id, principal_id,
+                  principal_login, lifecycle
+         FROM github_connections LIMIT 1`,
+        )
+      );
+      const reactivating = existing?.lifecycle === "retired";
+      if (
+        reactivating &&
+        (!Number.isSafeInteger(existing.app_id) ||
+          !Number.isSafeInteger(existing.installation_id) ||
+          !Number.isSafeInteger(existing.principal_id) ||
+          existing.app_id !== flow.credential.app_id ||
+          existing.app_slug !== flow.credential.app_slug ||
+          existing.installation_id !== installation ||
+          existing.principal_id !== verification.principal.id ||
+          existing.principal_login !== verification.principal.login)
+      ) {
+        fail(
+          "github_connection_identity_mismatch",
+          "GitHub Connection reactivation must verify the same installation identity",
+        );
+      }
+      const id = reactivating ? existing.id : createId();
       const verificationId = createId();
       const verifiedAt = timestamp();
       if (
@@ -276,36 +233,60 @@ export function createGitHubConnectionService(
       const permissions = JSON.stringify(GITHUB_REQUIRED_PERMISSIONS);
       const repositories = JSON.stringify(verification.repositories);
       const affectedRepositoryIds = JSON.stringify(
-        verification.repositories.map((repository) => repository.id),
+        verification.repositories.map(
+          /** @param {any} repository */ (repository) => repository.id,
+        ),
       );
       const repositoryChecks = JSON.stringify(
-        verification.repositories.map((repository) => ({
-          outcome: "success",
-          repository_id: repository.id,
-        })),
+        verification.repositories.map(
+          /** @param {any} repository */ (repository) => ({
+            outcome: "success",
+            repository_id: repository.id,
+          }),
+        ),
       );
       try {
-        durableCore.transaction((transaction) => {
-          transaction.run(
-            `INSERT INTO github_connections (
+        durableCore.transaction((/** @type {any} */ transaction) => {
+          if (reactivating) {
+            transaction.run(
+              `UPDATE github_connections
+               SET lifecycle = 'enabled', app_slug = ?, principal_login = ?,
+                   api_profile = ?, permissions = ?, capabilities = ?,
+                   repository_count = ?, health = 'healthy',
+                   health_error_code = NULL, health_error_message = NULL,
+                   verified_at = ?
+               WHERE id = ?`,
+              flow.credential.app_slug,
+              verification.principal.login,
+              GITHUB_API_PROFILE,
+              permissions,
+              capabilities,
+              verification.repositories.length,
+              verifiedAt,
+              id,
+            );
+          } else {
+            transaction.run(
+              `INSERT INTO github_connections (
                id, app_id, app_slug, installation_id,
                principal_id, principal_login, api_profile,
                permissions, capabilities, repository_count,
                created_at, verified_at
              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            id,
-            flow.credential.app_id,
-            flow.credential.app_slug,
-            installation,
-            verification.principal.id,
-            verification.principal.login,
-            GITHUB_API_PROFILE,
-            permissions,
-            capabilities,
-            verification.repositories.length,
-            verifiedAt,
-            verifiedAt,
-          );
+              id,
+              flow.credential.app_id,
+              flow.credential.app_slug,
+              installation,
+              verification.principal.id,
+              verification.principal.login,
+              GITHUB_API_PROFILE,
+              permissions,
+              capabilities,
+              verification.repositories.length,
+              verifiedAt,
+              verifiedAt,
+            );
+          }
           transaction.run(
             `INSERT INTO github_connection_credentials (
                connection_id, encrypted_credential, created_at
@@ -322,11 +303,12 @@ export function createGitHubConnectionService(
                affected_repository_ids, repository_checks, repositories,
                verified_at
              ) VALUES (
-               ?, ?, 'onboarding', 'success', NULL, NULL, NULL,
+               ?, ?, ?, 'success', NULL, NULL, NULL,
                ?, ?, ?, ?, ?, ?, ?, ?, ?
              )`,
             verificationId,
             id,
+            reactivating ? "enablement" : "onboarding",
             GITHUB_API_PROFILE,
             verification.principal.id,
             verification.principal.login,
@@ -350,6 +332,9 @@ export function createGitHubConnectionService(
         }
         throw error;
       }
+      if (reactivating) {
+        return readGitHubConnection(durableCore);
+      }
       return {
         api_profile: GITHUB_API_PROFILE,
         app_id: flow.credential.app_id,
@@ -358,13 +343,14 @@ export function createGitHubConnectionService(
         health: "healthy",
         health_error: null,
         id,
+        lifecycle: "enabled",
         permissions: GITHUB_REQUIRED_PERMISSIONS,
         principal: verification.principal,
         repository_count: verification.repositories.length,
         verification_history: [
           {
             affected_repository_ids: verification.repositories.map(
-              (repository) => repository.id,
+              /** @param {any} repository */ (repository) => repository.id,
             ),
             api_profile: GITHUB_API_PROFILE,
             capabilities: verification.capabilities,
@@ -374,10 +360,12 @@ export function createGitHubConnectionService(
             permissions: GITHUB_REQUIRED_PERMISSIONS,
             principal: verification.principal,
             repositories: verification.repositories,
-            repository_checks: verification.repositories.map((repository) => ({
-              outcome: "success",
-              repository_id: repository.id,
-            })),
+            repository_checks: verification.repositories.map(
+              /** @param {any} repository */ (repository) => ({
+                outcome: "success",
+                repository_id: repository.id,
+              }),
+            ),
             trigger: "onboarding",
             verified_at: verifiedAt,
           },
@@ -385,6 +373,22 @@ export function createGitHubConnectionService(
         verified_at: verifiedAt,
       };
     },
+    /** @param {unknown} request */
+    async reactivate(request) {
+      return reactivateGitHubConnection(
+        {
+          completeInstallation: this.completeInstallation,
+          durableCore,
+          pending,
+          timestamp,
+          transientToken,
+        },
+        request,
+      );
+    },
+    retire: (/** @type {unknown} */ request) =>
+      retireGitHubConnection(durableCore, request),
+    remove: () => removeNeverUsedGitHubConnection(durableCore),
     selectRepositories,
     destroy() {
       pending.clear();
@@ -393,31 +397,4 @@ export function createGitHubConnectionService(
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableGitHubConnectionService(error) {
-  return {
-    read() {
-      throw error;
-    },
-    start() {
-      throw error;
-    },
-    async completeManifest() {
-      throw error;
-    },
-    async completeInstallation() {
-      throw error;
-    },
-    async selectRepositories() {
-      throw error;
-    },
-    recordCallbackFailure() {
-      throw error;
-    },
-    consumeCallbackFailure() {
-      throw error;
-    },
-    destroy() {},
-  };
-}
+export { createUnavailableGitHubConnectionService } from "./github-connection-unavailable.js";

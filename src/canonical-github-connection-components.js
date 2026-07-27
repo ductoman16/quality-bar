@@ -110,6 +110,14 @@ export function canonicalGitHubConnectionSchemas() {
       },
       ["repository_ids", "request_id"],
     ),
+    GitHubConnectionRetirementRequest: closedObject(
+      { lifecycle: { const: "retired", type: "string" } },
+      ["lifecycle"],
+    ),
+    GitHubConnectionReactivationRequest: closedObject(
+      { pem: { minLength: 1, type: "string" } },
+      ["pem"],
+    ),
     GitHubConnectionVerification: {
       ...closedObject(
         {
@@ -249,6 +257,7 @@ export function canonicalGitHubConnectionSchemas() {
             ],
           },
           id: { minLength: 1, type: "string" },
+          lifecycle: { enum: ["enabled", "retired"], type: "string" },
           permissions: { $ref: "#/components/schemas/GitHubPermissions" },
           principal: { $ref: "#/components/schemas/GitHubPrincipal" },
           repository_count: { minimum: 1, type: "integer" },
@@ -269,6 +278,7 @@ export function canonicalGitHubConnectionSchemas() {
           "health",
           "health_error",
           "id",
+          "lifecycle",
           "permissions",
           "principal",
           "repository_count",

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-
 import { operatorPage } from "../src/browser-pages.js";
 import {
   browserContext,
@@ -10,12 +9,11 @@ import {
   selectionRequestId,
   verifiedConnection,
 } from "./github-connection-browser-component-support.js";
-
 test("GitHub Connection control has semantic live states, deterministic focus, and submits the exact Manifest form", async () => {
   const page = operatorPage({ view: "repositories" });
   assert.match(
     page,
-    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*<form hidden id="github-repository-selection-form">.*<fieldset id="github-repository-selection-fieldset">.*<legend>GitHub Repositories<\/legend>.*<button id="github-repository-selection-submit" type="submit">Register selected Repositories<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
+    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<textarea hidden id="github-connection-pem"><\/textarea>.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*<form hidden id="github-repository-selection-form">.*<fieldset id="github-repository-selection-fieldset">.*<legend>GitHub Repositories<\/legend>.*<button id="github-repository-selection-submit" type="submit">Register selected Repositories<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
   );
   assert.match(page, /@media\(max-width:40rem\)/);
   assert.match(page, /thead\{position:absolute/);
@@ -24,7 +22,6 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
     page,
     /<script src="\/assets\/github-connection\.js"><\/script>/,
   );
-
   const form = element();
   const submit = element();
   const status = element();
@@ -72,9 +69,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         return {
           ok: true,
           async json() {
-            return {
-              ...verifiedConnection(),
-            };
+            return verifiedConnection();
           },
         };
       }
@@ -124,7 +119,6 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
     github.history.children[0].textContent,
     "onboarding; success; Repository checks 101: success; 1 enumerated Repositories; 1970-01-01T00:00:01.000Z",
   );
-
   await form.listener("submit")({ preventDefault() {} });
   assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
     options: {
@@ -161,7 +155,6 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
     ],
   );
 });
-
 test("GitHub Repository selection is a single accessible atomic mutation with deterministic pending, success, and invalid focus", async () => {
   /** @type {any[]} */
   const requests = [];
@@ -188,7 +181,6 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
   });
   executeGitHubBrowserAsset(browser.context);
   await new Promise((resolve) => setImmediate(resolve));
-
   assert.equal(browser.github.repositoryForm.hidden, false);
   assert.equal(browser.github.repositoryOptions.children.length, 1);
   const label = browser.github.repositoryOptions.children[0];
@@ -197,7 +189,6 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
   assert.equal(control.type, "checkbox");
   assert.equal(control.value, "101");
   assert.equal(label.children[1].textContent, "operator/private; private");
-
   await browser.github.repositoryForm.listener("submit")({
     preventDefault() {},
   });
@@ -207,7 +198,6 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
   );
   assert.equal(control.focused, true);
   assert.equal(requests.length, 1);
-
   control.checked = true;
   await browser.github.repositoryForm.listener("submit")({
     preventDefault() {},
@@ -231,7 +221,6 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
   assert.equal(browser.status.textContent, "GitHub Repositories registered.");
   assert.equal(browser.status.focused, true);
 });
-
 test("GitHub Connection failure preserves exact owning error, restores the control, and focuses the alert", async () => {
   const form = element();
   const submit = element();
@@ -285,7 +274,6 @@ test("GitHub Connection failure preserves exact owning error, restores the contr
   assert.equal(status.textContent, "");
   assert.equal(submit.disabled, false);
 });
-
 test("GitHub Connection loading failures expose one exact error without stale status", async () => {
   const cases = [
     {
@@ -323,7 +311,6 @@ test("GitHub Connection loading failures expose one exact error without stale st
     assert.equal(browser.status.textContent, "");
   }
 });
-
 test("GitHub callback failure returns to and focuses the exact operator error", async () => {
   let consumed = false;
   /** @param {string} path */
@@ -359,7 +346,6 @@ test("GitHub callback failure returns to and focuses the exact operator error", 
   assert.equal(browser.error.focused, true);
   assert.equal(browser.status.textContent, "");
   assert.deepEqual(browser.replacedUrls, ["/?view=repositories"]);
-
   const reload = browserContext(fetch);
   reload.context.location.search =
     "?view=repositories&github_connection_error=error-receipt";
@@ -369,7 +355,6 @@ test("GitHub callback failure returns to and focuses the exact operator error", 
   assert.equal(reload.error.textContent, "");
   assert.deepEqual(reload.replacedUrls, ["/?view=repositories"]);
 });
-
 test("GitHub Connection start failures restore the only operator control", async () => {
   let request = 0;
   const browser = browserContext(async () => {
@@ -393,7 +378,6 @@ test("GitHub Connection start failures restore the only operator control", async
   );
   assert.equal(browser.error.focused, true);
   assert.equal(browser.submit.disabled, false);
-
   let malformedRequest = 0;
   const malformed = browserContext(async () => {
     malformedRequest += 1;

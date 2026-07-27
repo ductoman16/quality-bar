@@ -68,6 +68,110 @@ export function canonicalGitHubConnectionPaths(
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/github-connections/lifecycle": {
+      patch: {
+        operationId: "retireGitHubConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GitHubConnectionRetirementRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/GitHubConnection" },
+              },
+            },
+            description: "Retired Connection with its credential destroyed",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+      delete: {
+        operationId: "deleteNeverUsedGitHubConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {},
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": { schema: { type: "null" } },
+            },
+            description: "Never-used Connection deleted",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+    "/api/v1/github-connections/reactivate": {
+      post: {
+        operationId: "reactivateGitHubConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GitHubConnectionReactivationRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/GitHubConnection" },
+              },
+            },
+            description:
+              "Reactivated Connection with a newly verified private key",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/github-connections/repositories": {
       post: {
         operationId: "selectGitHubRepositories",

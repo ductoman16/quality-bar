@@ -5,16 +5,12 @@ import {
 } from "./review-assignment-schema.js";
 import {
   GITHUB_CONNECTION_HEALTH_MIGRATION,
+  GITHUB_CONNECTION_LIFECYCLE_MIGRATION,
   GITHUB_CONNECTION_SCHEMA,
   GITHUB_REPOSITORY_SCHEMA,
 } from "./github-connection-schema.js";
-import {
-  CURRENT_SCHEMA_VERSION,
-  migrateSchema as migration,
-} from "./durable-schema-migration.js";
-
-export const SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
-
+import * as schemaMigration from "./durable-schema-migration.js";
+export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REPOSITORY_HEALTH_INTEGRITY = `
   CREATE TRIGGER IF NOT EXISTS repository_health_integrity_insert
     BEFORE INSERT ON repositories
@@ -42,7 +38,6 @@ const REPOSITORY_HEALTH_INTEGRITY = `
     )
     BEGIN SELECT RAISE(ABORT, 'repository_health_invalid'); END;
 `;
-
 const REPOSITORY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS repositories (
     id TEXT PRIMARY KEY,
@@ -63,7 +58,6 @@ const REPOSITORY_SCHEMA = `
   ) STRICT;
   ${REPOSITORY_HEALTH_INTEGRITY}
 `;
-
 const REPOSITORY_LIFECYCLE_MIGRATION = `
   ALTER TABLE repositories ADD COLUMN lifecycle TEXT NOT NULL
     DEFAULT 'enabled'
@@ -75,7 +69,6 @@ const REPOSITORY_LIFECYCLE_MIGRATION = `
   ALTER TABLE repositories ADD COLUMN health_error_message TEXT;
   ${REPOSITORY_HEALTH_INTEGRITY}
 `;
-
 const REPOSITORY_CREDENTIAL_SCHEMA = `
   CREATE TABLE IF NOT EXISTS repository_credentials (
     repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
@@ -83,7 +76,6 @@ const REPOSITORY_CREDENTIAL_SCHEMA = `
     created_at INTEGER NOT NULL
   ) STRICT;
 `;
-
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
@@ -146,7 +138,6 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
-
 /** @param {import("node:sqlite").DatabaseSync} database */
 export function initializeOrValidateSchema(database) {
   const version = /** @type {{ user_version: number }} */ (
@@ -196,7 +187,7 @@ export function initializeOrValidateSchema(database) {
       COMMIT;
     `);
   } else if (version === 1) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `
         CREATE TABLE browser_sessions (
@@ -223,7 +214,7 @@ export function initializeOrValidateSchema(database) {
       SCHEMA_VERSION,
     );
   } else if (version === 2 || version === 3) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `
         DROP TABLE browser_sessions;
@@ -250,7 +241,7 @@ export function initializeOrValidateSchema(database) {
       `,
     );
   } else if (version === 4) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `
         CREATE TABLE authority_attributions (
@@ -270,12 +261,12 @@ export function initializeOrValidateSchema(database) {
       `,
     );
   } else if (version === 5) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 6) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `
         ALTER TABLE review_versions ADD COLUMN applicability_rule TEXT;
@@ -331,7 +322,7 @@ export function initializeOrValidateSchema(database) {
       `,
     );
   } else if (version === 7) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
        ${REPOSITORY_SCHEMA}
@@ -340,36 +331,37 @@ export function initializeOrValidateSchema(database) {
        ${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 8) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 9) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 10) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 11) {
-    migration(
+    schemaMigration.migrateSchema(
       database,
       `${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 12) {
-    migration(database, GITHUB_CONNECTION_SCHEMA);
-  } else if (version === 13) {
-    migration(
+    schemaMigration.migrateSchema(database, GITHUB_CONNECTION_SCHEMA);
+  } else if (version === 13 || version === 14) {
+    schemaMigration.migrateSchema(
       database,
-      `${GITHUB_CONNECTION_HEALTH_MIGRATION}${GITHUB_REPOSITORY_SCHEMA}`,
+      version === 13
+        ? `${GITHUB_CONNECTION_HEALTH_MIGRATION}${GITHUB_CONNECTION_LIFECYCLE_MIGRATION}${GITHUB_REPOSITORY_SCHEMA}`
+        : GITHUB_CONNECTION_LIFECYCLE_MIGRATION,
     );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
-
   try {
     const storedVersion = database
       .prepare(
@@ -388,7 +380,6 @@ export function initializeOrValidateSchema(database) {
     }
     fail("schema_invalid", "SQLite schema metadata is invalid", error);
   }
-
   let foreignKeyViolation;
   try {
     foreignKeyViolation = database.prepare("PRAGMA foreign_key_check").get();

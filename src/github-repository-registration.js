@@ -47,7 +47,7 @@ function fail(code, message) {
  *   }) => Result): Result
  * }} durableCore
  * @param {{
- *   cipher: {decrypt(connection: {appId: number, id: string}, encrypted: string): {client_id: string, installation_id: number, pem: string}},
+ *   cipher: {decrypt(connection: {appId: number, id: string}, encrypted: string): {client_id: string | null, installation_id: number, pem: string}},
  *   createId: () => string | undefined,
  *   createVerificationId?: () => string | undefined,
  *   timestamp: () => number,

@@ -9,7 +9,7 @@
 export function readGitHubConnection(durableCore) {
   const [row] = durableCore.all(
     `SELECT
-       id, app_id, app_slug, principal_id, principal_login,
+       id, lifecycle, app_id, app_slug, principal_id, principal_login,
        api_profile, permissions, capabilities, repository_count,
        health, health_error_code, health_error_message, verified_at
      FROM github_connections
@@ -20,6 +20,7 @@ export function readGitHubConnection(durableCore) {
   }
   if (
     typeof row.id !== "string" ||
+    !["enabled", "retired"].includes(/** @type {string} */ (row.lifecycle)) ||
     !Number.isSafeInteger(row.app_id) ||
     typeof row.app_slug !== "string" ||
     !Number.isSafeInteger(row.principal_id) ||
@@ -182,6 +183,7 @@ export function readGitHubConnection(durableCore) {
     health: /** @type {"healthy" | "error"} */ (row.health),
     health_error: healthError,
     id: row.id,
+    lifecycle: /** @type {"enabled" | "retired"} */ (row.lifecycle),
     permissions: JSON.parse(row.permissions),
     principal: {
       id: row.principal_id,

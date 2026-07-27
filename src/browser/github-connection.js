@@ -23,16 +23,27 @@ const githubForm = /** @type {HTMLFormElement} */ (
 const githubSubmit = /** @type {HTMLButtonElement} */ (
   requiredElement("github-connection-submit")
 );
+const githubPem = /** @type {HTMLTextAreaElement} */ (
+  requiredElement("github-connection-pem")
+);
+const githubPemLabel = requiredElement("github-connection-pem-label");
 const githubStatus = requiredElement("github-connection-status");
 const githubError = requiredElement("github-connection-error");
 const githubDetails = requiredElement("github-connection-details");
 const githubIdentity = requiredElement("github-connection-identity");
 const githubProfile = requiredElement("github-connection-profile");
 const githubHealth = requiredElement("github-connection-health");
+const githubLifecycle = requiredElement("github-connection-lifecycle");
 const githubPermissions = requiredElement("github-connection-permissions");
 const githubCapabilities = requiredElement("github-connection-capabilities");
 const githubLatest = requiredElement("github-connection-latest");
 const githubHistory = requiredElement("github-connection-history");
+const githubRetire = /** @type {HTMLButtonElement} */ (
+  requiredElement("github-connection-retire")
+);
+const githubDelete = /** @type {HTMLButtonElement} */ (
+  requiredElement("github-connection-delete")
+);
 const githubRepositoryForm = /** @type {HTMLFormElement} */ (
   requiredElement("github-repository-selection-form")
 );
@@ -60,6 +71,13 @@ function renderGitHubConnection(value) {
     githubRepositoryOptions.replaceChildren();
     githubDetails.hidden = true;
     githubForm.hidden = false;
+    githubSubmit.textContent = "Connect GitHub App";
+    githubPem.hidden = true;
+    githubPemLabel.hidden = true;
+    githubPem.required = false;
+    githubPem.value = "";
+    githubRetire.hidden = true;
+    githubDelete.hidden = true;
     githubRepositoryForm.hidden = true;
     githubStatus.textContent = "";
     return;
@@ -80,6 +98,8 @@ function renderGitHubConnection(value) {
   const permissions = Object.entries(value.permissions);
   const capabilities = Object.entries(value.capabilities);
   githubIdentity.textContent = value.principal.login;
+  githubLifecycle.textContent =
+    value.lifecycle === "retired" ? "Retired" : "Enabled";
   githubProfile.textContent = `${value.api_profile}; compatible`;
   githubHealth.textContent =
     value.health === "healthy"
@@ -134,14 +154,44 @@ function renderGitHubConnection(value) {
       githubRepositoryOptions.append(label);
     }
   }
-  githubRepositoryForm.hidden = githubRepositoryOptions.children.length === 0;
+  githubRepositoryForm.hidden =
+    value.lifecycle === "retired" ||
+    githubRepositoryOptions.children.length === 0;
   githubDetails.hidden = false;
-  githubForm.hidden = true;
+  githubForm.hidden = value.lifecycle !== "retired";
+  githubPem.hidden = value.lifecycle !== "retired";
+  githubPemLabel.hidden = value.lifecycle !== "retired";
+  githubPem.required = value.lifecycle === "retired";
+  if (value.lifecycle !== "retired") {
+    githubPem.value = "";
+  }
+  githubSubmit.textContent =
+    value.lifecycle === "retired"
+      ? "Reactivate GitHub App"
+      : "Connect GitHub App";
+  githubRetire.hidden = value.lifecycle === "retired";
+  githubDelete.hidden = false;
   githubStatus.textContent =
     value.health === "healthy"
       ? "GitHub Connection verified."
       : "GitHub Connection verification failed.";
 }
+
+const bindLifecycleConfirmation = /** @type {(options: any) => void} */ (
+  Reflect.get(window, "qualityBarGitHubConnectionLifecycleConfirmation")
+);
+bindLifecycleConfirmation({
+  csrfToken,
+  error: githubError,
+  fetch,
+  identity: githubIdentity,
+  remove: githubDelete,
+  render: renderGitHubConnection,
+  responseErrorMessage,
+  retire: githubRetire,
+  showError: showGitHubError,
+  status: githubStatus,
+});
 
 githubRepositoryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -284,64 +334,20 @@ async function loadGitHubConnection() {
   }
 }
 
-githubForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  githubError.hidden = true;
-  githubStatus.textContent = "Starting GitHub Connection.";
-  githubSubmit.disabled = true;
-  let response;
-  try {
-    response = await fetch("/api/v1/github-connections/manifest", {
-      body: "{}",
-      headers: {
-        "content-type": "application/json",
-        "x-quality-bar-csrf": csrfToken(),
-      },
-      method: "POST",
-    });
-  } catch {
-    showGitHubError("GitHub App Manifest flow could not start");
-    githubSubmit.disabled = false;
-    return;
-  }
-  if (!response.ok) {
-    showGitHubError(await responseErrorMessage(response));
-    githubSubmit.disabled = false;
-    return;
-  }
-  try {
-    const start = /** @type {{
-     *   action?: unknown,
-     *   manifest?: unknown,
-     *   method?: unknown,
-     *   state?: unknown
-     * }} */ (await response.json());
-    if (
-      typeof start.action !== "string" ||
-      start.method !== "POST" ||
-      typeof start.state !== "string" ||
-      start.action !==
-        `https://github.com/settings/apps/new?state=${start.state}` ||
-      !start.manifest ||
-      Array.isArray(start.manifest) ||
-      typeof start.manifest !== "object"
-    ) {
-      throw new Error("github_manifest_start_invalid");
-    }
-    const continuation = document.createElement("form");
-    continuation.action = start.action;
-    continuation.method = "POST";
-    const control = document.createElement("input");
-    control.name = "manifest";
-    control.type = "hidden";
-    control.value = JSON.stringify(start.manifest);
-    continuation.append(control);
-    document.body.append(continuation);
-    continuation.submit();
-  } catch {
-    showGitHubError("GitHub App Manifest response is invalid");
-    githubSubmit.disabled = false;
-  }
+const bindGitHubSubmission = /** @type {(options: any) => void} */ (
+  Reflect.get(window, "qualityBarGitHubConnectionSubmission")
+);
+bindGitHubSubmission({
+  csrfToken,
+  error: githubError,
+  fetch,
+  form: githubForm,
+  pem: githubPem,
+  render: renderGitHubConnection,
+  responseErrorMessage,
+  showError: showGitHubError,
+  status: githubStatus,
+  submit: githubSubmit,
 });
 
 loadGitHubConnection();

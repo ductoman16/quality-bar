@@ -11,7 +11,9 @@ function createCore() {
   const writes = [];
   return {
     writes,
-    all() {
+    /** @param {string} sql @returns {any[]} */
+    all(sql) {
+      void sql;
       return [];
     },
     /** @param {(transaction: any) => any} callback */
@@ -130,6 +132,7 @@ test("manifest and installation callbacks atomically create one verified secret-
     health: "healthy",
     health_error: null,
     id: "connection-1",
+    lifecycle: "enabled",
     permissions: {
       contents: "read",
       issues: "write",
@@ -227,4 +230,80 @@ test("failed or replayed GitHub onboarding stores nothing and returns one exact 
       error.code === "github_manifest_state_invalid",
   );
   assert.deepEqual(core.writes, []);
+});
+
+test("retired GitHub Connection reactivation verifies the same App replacement key before persistence", async () => {
+  const core = createCore();
+  core.all = (sql) => {
+    if (sql.includes("SELECT id, app_id, app_slug")) {
+      return [
+        {
+          app_id: 47,
+          app_slug: "quality-bar-personal",
+          id: "connection-1",
+          installation_id: 73,
+          lifecycle: "retired",
+          principal_id: 91,
+          principal_login: "operator",
+        },
+      ];
+    }
+    return [];
+  };
+  /** @type {any[]} */
+  const verificationCalls = [];
+  const service = createGitHubConnectionService(core, {
+    externalOrigin: "https://quality-bar.example",
+    masterKey: Buffer.alloc(32, 7),
+    randomBytes: () => Buffer.alloc(32, 5),
+    verifier: {
+      async exchangeManifest() {
+        throw new Error("reactivation must not exchange a GitHub App Manifest");
+      },
+      async verifyInstallation(credential, installationId) {
+        verificationCalls.push([credential, installationId]);
+        throw new GitHubConnectionError(
+          "github_permissions_mismatch",
+          "GitHub App permissions do not match the required profile",
+        );
+      },
+    },
+  });
+  await assert.rejects(
+    () => service.reactivate({ pem: "replacement-private-key" }),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_permissions_mismatch",
+  );
+  assert.deepEqual(verificationCalls, [
+    [
+      {
+        app_id: 47,
+        app_slug: "quality-bar-personal",
+        client_id: null,
+        owner: { id: 91, login: "operator", type: "User" },
+        pem: "replacement-private-key",
+      },
+      73,
+    ],
+  ]);
+  assert.deepEqual(core.writes, []);
+});
+
+test("a retired GitHub Connection rejects a new App Manifest flow", () => {
+  const core = createCore();
+  core.all = (sql) =>
+    sql.includes("SELECT lifecycle") ? [{ lifecycle: "retired" }] : [];
+  const service = createGitHubConnectionService(core, {
+    externalOrigin: "https://quality-bar.example",
+    masterKey: Buffer.alloc(32, 7),
+  });
+  assert.throws(
+    () => service.start(),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_connection_conflict" &&
+      error.message ===
+        "A retired GitHub Connection must be reactivated with a replacement private key",
+  );
 });

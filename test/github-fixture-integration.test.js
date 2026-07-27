@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:http";
 import { test } from "node:test";
-
 import { createGitHubVerifier } from "../src/github-api.js";
 import { GitHubConnectionError } from "../src/github-connection.js";
-
 const permissions = {
   contents: "read",
   issues: "write",
@@ -13,14 +11,13 @@ const permissions = {
   pull_requests: "write",
   statuses: "write",
 };
-
-test("GitHub fixture verifies the pinned profile, personal installation, exact permissions, routes, enumeration, and private Git read", async (context) => {
+test("GitHub fixture verifies the pinned profile and reactivated installation credential", async (context) => {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
   /** @type {any[]} */
   const requests = [];
-  let duplicateEnumeration = false;
-  let repositoryAccessStatus = 0;
+  let duplicateEnumeration = false,
+    repositoryAccessStatus = 0;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -178,7 +175,10 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   });
   const credential = await verifier.exchangeManifest("temporary-code");
   const verified = await verifier.verifyInstallation(credential, 73);
-
+  const reverified = await verifier.verifyInstallation(
+    { ...credential, client_id: null, pem },
+    73,
+  );
   assert.deepEqual(verified, {
     capabilities: {
       aggregate_feedback: "verified",
@@ -209,9 +209,13 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       },
     ],
   });
+  assert.deepEqual(reverified, verified);
   assert.deepEqual(
     gitReads.map(({ url }) => url),
-    verified.repositories.map(({ clone_url }) => clone_url),
+    [
+      ...verified.repositories.map(({ clone_url }) => clone_url),
+      ...verified.repositories.map(({ clone_url }) => clone_url),
+    ],
   );
   assert.ok(
     gitReads.every(
@@ -282,9 +286,7 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       error.code === "github_api_transient_failure",
   );
   assert.deepEqual(gitReads, []);
-  repositoryAccessStatus = 0;
-  gitReads.length = 0;
-  duplicateEnumeration = true;
+  [repositoryAccessStatus, duplicateEnumeration] = [0, true];
   await assert.rejects(
     () => verifier.verifyRepositories(credential, 73, [101, 202]),
     (error) =>
@@ -292,22 +294,19 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       error.code === "github_repository_identity_invalid",
   );
   assert.deepEqual(gitReads, []);
-  assert.equal(
+  assert.ok(
     requests.every(
       ({ path, version }) =>
         path.includes("/app-manifests/") || version === "2026-03-10",
     ),
-    true,
   );
-  assert.equal(
+  assert.ok(
     requests
       .filter(({ path }) => !path.includes("/app-manifests/"))
       .every(({ authorization }) => /^Bearer /.test(authorization ?? "")),
-    true,
   );
   assert.doesNotMatch(JSON.stringify(requests), /installation-token-value/);
 });
-
 test("GitHub fixture permission drift fails before enumeration or Git access", async () => {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const verifier = createGitHubVerifier({
@@ -351,7 +350,6 @@ test("GitHub fixture permission drift fails before enumeration or Git access", a
       error.code === "github_permissions_mismatch",
   );
 });
-
 test("GitHub fixture rejects any installation scope beyond one personal account", async () => {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const verifier = createGitHubVerifier({
