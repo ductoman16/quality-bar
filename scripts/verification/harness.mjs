@@ -1,13 +1,9 @@
 import { resolve } from "node:path";
 
-import { createGateDefinitions } from "./gate-definitions.mjs";
-import { runGate } from "./gate-execution.mjs";
 import {
-  createManifest,
-  formatReport,
-  writeManifest,
-} from "./manifest-reporting.mjs";
-import { readVerificationMetadata } from "./metadata.mjs";
+  collectVerificationEvidence,
+  runVerification as coreRunVerification,
+} from "./verification-runner.mjs";
 
 /**
  * @param {{
@@ -15,66 +11,34 @@ import { readVerificationMetadata } from "./metadata.mjs";
  *   manifestPath?: string,
  *   metadataReader?: (repositoryRoot: string) => import("./manifest-reporting.mjs").VerificationMetadata,
  *   gateDefinitions?: import("./gate-definitions.mjs").GateDefinition[],
+ *   commandExecutor?: import("./command-executor.mjs").CommandExecutor,
+ *   gateRunner?: (repositoryRoot: string, definition: import("./gate-definitions.mjs").GateDefinition, options?: {
+ *     commandExecutor?: import("./command-executor.mjs").CommandExecutor,
+ *   }) => {
+ *     evidence: import("./manifest-reporting.mjs").VerificationGate,
+ *     failure: import("./manifest-reporting.mjs").VerificationFailure | undefined,
+ *     output: string | undefined,
+ *   },
+ *   manifestWriter?: (manifestPath: string, manifest: import("./manifest-reporting.mjs").VerificationManifest) => unknown,
  *   failureOutputWriter?: (output: string) => unknown,
  * }} [options]
  */
 export function runVerification({
   repositoryRoot = resolve(import.meta.dirname, "../.."),
-  manifestPath = resolve(
-    repositoryRoot,
-    process.env.QUALITY_BAR_EVIDENCE_PATH ??
-      "artifacts/verification/evidence.json",
-  ),
-  metadataReader = readVerificationMetadata,
-  gateDefinitions,
-  failureOutputWriter = (output) => process.stderr.write(output),
+  manifestPath,
+  ...options
 } = {}) {
-  const startedAt = performance.now();
-  /** @type {import("./manifest-reporting.mjs").VerificationGate[]} */
-  const gates = [];
-  /** @type {import("./manifest-reporting.mjs").VerificationFailure[]} */
-  const failures = [];
-  /** @type {import("./manifest-reporting.mjs").VerificationMetadata} */
-  let metadata = {
-    applicationVersion: null,
-    coverageToolVersion: null,
-    eslintPluginNodeVersion: null,
-    eslintVersion: null,
-    formatterVersion: null,
-    jsonSchemaFormatsVersion: null,
-    jsonSchemaValidatorVersion: null,
-    openApiValidatorVersion: null,
-    packagedNodeVersion: null,
-    runnerGitVersion: null,
-    sourceCommit: null,
-    typeCheckerVersion: null,
-  };
-
-  try {
-    metadata = metadataReader(repositoryRoot);
-  } catch (error) {
-    failures.push({
-      code: "verification_metadata_failed",
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  if (failures.length === 0) {
-    const definitions = gateDefinitions ?? createGateDefinitions(metadata);
-    for (const definition of definitions) {
-      const result = runGate(repositoryRoot, definition);
-      gates.push(result.evidence);
-      if (result.failure) {
-        failures.push(result.failure);
-        if (result.output) {
-          failureOutputWriter(`${result.output}\n`);
-        }
-        break;
-      }
-    }
-  }
-
-  const manifest = createManifest({ metadata, gates, failures, startedAt });
-  writeManifest(manifestPath, manifest);
-  return { manifest, report: formatReport(manifest, manifestPath) };
+  return coreRunVerification({
+    repositoryRoot,
+    manifestPath:
+      manifestPath ??
+      resolve(
+        repositoryRoot,
+        process.env.QUALITY_BAR_EVIDENCE_PATH ??
+          "artifacts/verification/evidence.json",
+      ),
+    ...options,
+  });
 }
+
+export { collectVerificationEvidence };
