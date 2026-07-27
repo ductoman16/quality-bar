@@ -133,14 +133,19 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["impact", "instruction"],
       ),
-      CriterionVersionRequest: closedObject(
-        {
-          id: { minLength: 1, pattern: "\\S", type: "string" },
-          impact: { enum: ["advisory", "blocking"], type: "string" },
-          instruction: { minLength: 1, pattern: "\\S", type: "string" },
-        },
-        ["id", "impact", "instruction"],
-      ),
+      CriterionVersionRequest: {
+        oneOf: [
+          closedObject(
+            {
+              id: { minLength: 1, pattern: "\\S", type: "string" },
+              impact: { enum: ["advisory", "blocking"], type: "string" },
+              instruction: { minLength: 1, pattern: "\\S", type: "string" },
+            },
+            ["id", "impact", "instruction"],
+          ),
+          { $ref: "#/components/schemas/CriterionCreateRequest" },
+        ],
+      },
       ReviewAssignment: closedObject(
         { scope: { const: "installation_wide", type: "string" } },
         ["scope"],

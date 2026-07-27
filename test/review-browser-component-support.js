@@ -77,7 +77,8 @@ export function reviewResource(metadata) {
   };
 }
 
-export function reviewVersionBrowserHarness() {
+/** @param {{confirm?: (message: string) => boolean}} [options] */
+export function reviewVersionBrowserHarness(options = {}) {
   const form = browserElement({ hidden: true });
   const selector = browserElement();
   const model = browserElement();
@@ -85,6 +86,7 @@ export function reviewVersionBrowserHarness() {
   const serviceTier = browserElement();
   const applicabilityRule = browserElement();
   const criteriaList = browserElement();
+  const addCriterion = browserElement();
   const result = browserElement();
   const submit = browserElement();
   const error = browserElement({ hidden: true });
@@ -104,6 +106,7 @@ export function reviewVersionBrowserHarness() {
     ["review-version-id", browserElement()],
     ["review-version-applicability-rule", applicabilityRule],
     ["review-version-criteria", criteriaList],
+    ["review-version-add-criterion", addCriterion],
     ["review-version-model", model],
     ["review-version-reasoning-effort", reasoningEffort],
     ["review-version-service-tier", serviceTier],
@@ -173,6 +176,7 @@ export function reviewVersionBrowserHarness() {
   };
   const browserContext = {
     CustomEvent: FakeCustomEvent,
+    confirm: options.confirm ?? (() => true),
     document,
     location: {
       /** @param {string} destination */
@@ -269,6 +273,7 @@ export function reviewVersionBrowserHarness() {
     );
   }
   return {
+    addCriterion,
     applicabilityRule,
     created,
     criteriaList,

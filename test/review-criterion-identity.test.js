@@ -110,3 +110,101 @@ test("Criterion edits and authored order preserve identity while prior version f
     rmSync(directory, { force: true, recursive: true });
   }
 });
+
+test("retiring and replacing a Criterion preserves its identity and complete history", () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-criterion-retirement-"),
+  );
+  try {
+    let nextId = 0;
+    const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+    const reviews = createReviewService(core, {
+      createId() {
+        nextId += 1;
+        return `identity-${nextId}`;
+      },
+      now: () => 1_800_000_000_000 + nextId,
+    });
+    const created = reviews.create({
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [
+        { impact: "blocking", instruction: "Retire this meaning." },
+        { impact: "advisory", instruction: "Keep this Criterion." },
+      ],
+      description: "Preserve retired Criterion history.",
+      name: "Criterion retirement",
+    });
+    const [retired, retained] = created.active_version.criteria;
+    assert.ok(retired);
+    assert.ok(retained);
+
+    const saved = reviews.saveVersion(created.id, {
+      applicability_rule: null,
+      codex_configuration: created.active_version.codex_configuration,
+      criteria: [
+        {
+          id: retained.id,
+          impact: retained.impact,
+          instruction: retained.instruction,
+        },
+        {
+          impact: "blocking",
+          instruction: "Use this replacement meaning.",
+        },
+      ],
+    });
+
+    assert.equal(saved.changed, true);
+    assert.equal(saved.review.active_version.number, 2);
+    assert.equal(saved.review.active_version.criteria[0]?.id, retained.id);
+    const replacement = saved.review.active_version.criteria[1];
+    assert.ok(replacement);
+    assert.notEqual(replacement.id, retired.id);
+    assert.deepEqual(
+      core.all(
+        `SELECT id, instruction
+         FROM criteria
+         WHERE review_id = ?
+         ORDER BY created_at, id`,
+        created.id,
+      ),
+      [
+        { id: retired.id, instruction: "Retire this meaning." },
+        { id: retained.id, instruction: "Keep this Criterion." },
+        {
+          id: replacement.id,
+          instruction: "Use this replacement meaning.",
+        },
+      ],
+    );
+    assert.deepEqual(
+      core.all(
+        `SELECT
+           review_versions.number,
+           review_version_criteria.criterion_id
+         FROM review_version_criteria
+         JOIN review_versions
+           ON review_versions.id = review_version_criteria.review_version_id
+         ORDER BY review_versions.number, review_version_criteria.position`,
+      ),
+      [
+        { number: 1, criterion_id: retired.id },
+        { number: 1, criterion_id: retained.id },
+        { number: 2, criterion_id: retained.id },
+        { number: 2, criterion_id: replacement.id },
+      ],
+    );
+    assert.throws(
+      () => core.run("DELETE FROM criteria WHERE id = ?", retired.id),
+      /criterion_immutable/,
+    );
+    core.close();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});

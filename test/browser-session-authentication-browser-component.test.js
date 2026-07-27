@@ -181,6 +181,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /id="review-version-form"/);
   assert.match(reviewsHtml, /id="review-version-applicability-rule"/);
   assert.match(reviewsHtml, /id="review-version-criteria"/);
+  assert.match(reviewsHtml, /id="review-version-add-criterion"/);
   assert.match(reviewsHtml, /id="review-version-result"/);
 });
 

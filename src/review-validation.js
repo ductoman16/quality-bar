@@ -109,21 +109,25 @@ function validateVersionCriteria(criteria) {
   }
   const identities = new Set();
   return criteria.map((criterion, index) => {
-    if (!isExactObject(criterion, ["id", "impact", "instruction"])) {
+    const existing = isExactObject(criterion, ["id", "impact", "instruction"]);
+    if (!existing && !isExactObject(criterion, ["impact", "instruction"])) {
       fail("review_criterion_malformed", `Criterion ${index + 1} is malformed`);
     }
-    const id = validateNonblank(
-      criterion.id,
-      "review_criterion_identity_invalid",
-      `Criterion ${index + 1} identity must be nonblank`,
-    );
-    if (identities.has(id)) {
-      fail(
-        "review_criterion_identity_duplicate",
-        "Review Version contains a duplicate Criterion identity",
+    let id;
+    if (existing) {
+      id = validateNonblank(
+        criterion.id,
+        "review_criterion_identity_invalid",
+        `Criterion ${index + 1} identity must be nonblank`,
       );
+      if (identities.has(id)) {
+        fail(
+          "review_criterion_identity_duplicate",
+          "Review Version contains a duplicate Criterion identity",
+        );
+      }
+      identities.add(id);
     }
-    identities.add(id);
     const instruction = validateNonblank(
       criterion.instruction,
       "review_criterion_instruction_invalid",
@@ -138,7 +142,12 @@ function validateVersionCriteria(criteria) {
         `Criterion ${index + 1} impact must be advisory or blocking`,
       );
     }
-    return { id, impact: criterion.impact, instruction, position: index + 1 };
+    return {
+      ...(id === undefined ? {} : { id }),
+      impact: criterion.impact,
+      instruction,
+      position: index + 1,
+    };
   });
 }
 
