@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  normalizeRepositoryCredentialRotation,
   RepositoryError,
   normalizeRepositoryRegistration,
   normalizePublicRepositoryUrl,
@@ -124,4 +125,43 @@ test("credentialed Repository registration rejects URL userinfo with its exact t
       return true;
     },
   );
+});
+
+test("a Generic Repository credential rotation accepts exactly one replacement username and token", () => {
+  assert.deepEqual(
+    normalizeRepositoryCredentialRotation({
+      token: "replacement-private-token",
+      username: "replacement-operator",
+    }),
+    {
+      token: "replacement-private-token",
+      username: "replacement-operator",
+    },
+  );
+
+  for (const [request, code] of [
+    [{ token: "replacement-private-token" }, "repository_username_required"],
+    [{ username: "replacement-operator" }, "repository_token_required"],
+    [
+      {
+        token: "replacement-private-token",
+        unexpected: true,
+        username: "replacement-operator",
+      },
+      "repository_request_invalid",
+    ],
+  ]) {
+    assert.throws(
+      () => normalizeRepositoryCredentialRotation(request),
+      (error) => {
+        assert.ok(error instanceof RepositoryError);
+        assert.equal(error.code, code);
+        assert.doesNotMatch(
+          error.message,
+          /replacement-private-token|replacement-operator/,
+        );
+        return true;
+      },
+    );
+  }
 });

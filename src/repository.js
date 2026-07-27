@@ -4,6 +4,7 @@ import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 import {
   fail,
+  normalizeRepositoryCredentialRotation,
   normalizeRepositoryRegistration,
   RepositoryError,
 } from "./repository-validation.js";
@@ -82,6 +83,26 @@ export function createRepositoryService(
   }
 
   return {
+    list() {
+      return durableCore
+        .all(
+          `SELECT repositories.id, repositories.normalized_url
+           FROM repositories
+           JOIN repository_credentials
+             ON repository_credentials.repository_id = repositories.id
+           ORDER BY repositories.normalized_url, repositories.id`,
+        )
+        .map((row) => {
+          if (
+            !row ||
+            typeof row.id !== "string" ||
+            typeof row.normalized_url !== "string"
+          ) {
+            throw new TypeError("Repository row is invalid");
+          }
+          return { id: row.id, url: row.normalized_url };
+        });
+    },
     /** @param {unknown} request */
     async register(request) {
       const { credential, url } = normalizeRepositoryRegistration(request);
@@ -126,6 +147,68 @@ export function createRepositoryService(
       }
       return { id, url };
     },
+    /**
+     * @param {string} id
+     * @param {unknown} request
+     */
+    async rotateCredential(id, request) {
+      const credential = normalizeRepositoryCredentialRotation(request);
+      if (typeof id !== "string" || id.length === 0) {
+        fail("repository_not_found", "Repository was not found");
+      }
+      const [row] = durableCore.all(
+        `SELECT
+           repositories.normalized_url,
+           repository_credentials.encrypted_credential
+         FROM repositories
+         LEFT JOIN repository_credentials
+           ON repository_credentials.repository_id = repositories.id
+         WHERE repositories.id = ?`,
+        id,
+      );
+      if (!row) {
+        fail("repository_not_found", "Repository was not found");
+      }
+      if (typeof row.encrypted_credential !== "string") {
+        fail(
+          "repository_credential_not_found",
+          "Repository has no credential to rotate",
+        );
+      }
+      const url = /** @type {string} */ (row.normalized_url);
+      await verifyRead(url, credential);
+      const timestamp = now();
+      if (!Number.isSafeInteger(timestamp)) {
+        throw new TypeError("now must return a safe integer timestamp");
+      }
+      const encryptedCredential = credentialCipher.encrypt(
+        { id, url },
+        credential,
+      );
+      durableCore.transaction((transaction) => {
+        const replacement = transaction.run(
+          `UPDATE repository_credentials
+           SET encrypted_credential = ?, created_at = ?
+           WHERE repository_id = ? AND encrypted_credential = ?`,
+          encryptedCredential,
+          timestamp,
+          id,
+          row.encrypted_credential,
+        );
+        if (replacement.changes !== 1) {
+          fail(
+            "repository_credential_rotation_conflict",
+            "Repository credential changed during rotation",
+          );
+        }
+        transaction.run(
+          "UPDATE repositories SET verified_at = ? WHERE id = ?",
+          timestamp,
+          id,
+        );
+      });
+      return { id, url };
+    },
     destroy() {
       credentialCipher.destroy();
     },
@@ -135,7 +218,13 @@ export function createRepositoryService(
 /** @param {unknown} error */
 export function createUnavailableRepositoryService(error) {
   return {
+    list() {
+      throw error;
+    },
     async register() {
+      throw error;
+    },
+    async rotateCredential() {
       throw error;
     },
     destroy() {},

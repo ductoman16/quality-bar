@@ -28,6 +28,8 @@ function openObject(properties, required) {
   return objectSchema(properties, required, true);
 }
 
+const credentialString = { minLength: 1, type: "string" };
+
 /**
  * @param {JsonSchemaProperties} properties
  * @param {string[]} required
@@ -137,6 +139,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           ),
         ],
       },
+      GenericRepositoryCredentialRotationRequest: closedObject(
+        { token: credentialString, username: credentialString },
+        ["token", "username"],
+      ),
       Repository: closedObject(
         {
           id: { minLength: 1, type: "string" },

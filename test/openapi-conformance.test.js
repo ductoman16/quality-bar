@@ -30,8 +30,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 18,
-    responseStatuses: 116,
+    operations: 20,
+    responseStatuses: 131,
     version: "3.1.0",
   });
   assert.equal(JSON.stringify(contract), before);
@@ -67,14 +67,31 @@ test("runtime conformance accepts a documented request and empty success", async
   );
 
   await assertion.assertExchange(documentedExchange());
+  await assertion.assertExchange(
+    documentedExchange({
+      request: {
+        body: JSON.stringify({
+          token: "replacement-private-token",
+          username: "replacement-operator",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        url: "http://127.0.0.1/api/v1/repositories/repository-1/credential/rotate",
+      },
+      response: Response.json({
+        id: "repository-1",
+        url: "https://example.com/private.git",
+      }),
+    }),
+  );
 
   assert.deepEqual(assertion.facts(), {
     canonicalErrors: 0,
-    exchanges: 1,
-    operations: 1,
-    requestDocuments: 1,
-    responseDocuments: 0,
-    statuses: 1,
+    exchanges: 2,
+    operations: 2,
+    requestDocuments: 2,
+    responseDocuments: 1,
+    statuses: 2,
   });
 });
 

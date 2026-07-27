@@ -1,3 +1,5 @@
+import { forbidMachineSystemAccess } from "./api-authorization.js";
+import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   assertAllowedQueryParameters,
@@ -11,106 +13,12 @@ import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 
 /**
- * @typedef {{
- *   action: string,
- *   channel: string,
- *   errorCode?: string,
- *   outcome: string
- * }} AttributionEvent
- */
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
- */
-function forbidMachineSystemAccess(response, recordAuthorityAttribution) {
-  recordAuthorityAttribution({
-    action: "authorization",
-    channel: "implementer_token",
-    errorCode: "authorization_forbidden",
-    outcome: "forbidden",
-  });
-  writeError(
-    response,
-    403,
-    "authorization_forbidden",
-    "Machine access is forbidden",
-  );
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @param {import("node:http").ServerResponse} response
- * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
- *   failureCode: string,
- *   mutate: (body: unknown) => unknown,
- *   requestUrl: URL,
- *   statusFor: (code: string, error: unknown) => number
- * }} options
- */
-async function reviewMutation(
-  request,
-  response,
-  {
-    browserOrigin,
-    browserSessions,
-    failureCode,
-    mutate,
-    requestUrl,
-    statusFor,
-  },
-) {
-  try {
-    requireBrowserMutationWithQuery(
-      browserSessions,
-      request,
-      browserOrigin,
-      requestUrl,
-    );
-    writeJson(response, 200, await mutate(await readJsonRequest(request)));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (!("code" in error) || typeof error.code !== "string")
-    ) {
-      writeError(response, 500, failureCode, error.message);
-      return;
-    }
-    const failure = requireCodedError(error);
-    if (failure.message === "request_malformed") {
-      writeError(response, 400, "request_malformed", "Request is malformed");
-      return;
-    }
-    if (
-      ["csrf_invalid", "origin_invalid", "authentication_required"].includes(
-        failure.code,
-      )
-    ) {
-      writeError(
-        response,
-        browserMutationFailureStatus(failure.code),
-        failure.code,
-        failure.message,
-      );
-      return;
-    }
-    writeError(
-      response,
-      statusFor(failure.code, error),
-      failure.code,
-      failure.message,
-    );
-  }
-}
-
-/**
  * @param {{
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
  *   readSystemStatus: () => unknown,
- *   recordAuthorityAttribution: (event: AttributionEvent) => void,
+ *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} dependencies
@@ -148,14 +56,19 @@ export function createApiRoute({
     const reviewVersionsMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/versions$/,
     );
+    const repositoryCredentialRotationMatch = path.match(
+      /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
+    );
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
+        (method === "GET" && path === "/api/v1/repositories") ||
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch) ||
-        (method === "POST" && path === "/api/v1/repositories"))
+        (method === "POST" && path === "/api/v1/repositories") ||
+        (method === "POST" && repositoryCredentialRotationMatch))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
       return true;
@@ -223,8 +136,26 @@ export function createApiRoute({
       }
       return true;
     }
+    if (method === "GET" && path === "/api/v1/repositories") {
+      try {
+        writeJson(response, 200, { repositories: repositories.list() });
+      } catch (error) {
+        if (isUnavailableError(error)) {
+          const failure = requireCodedError(error);
+          writeError(response, 503, failure.code, failure.message);
+        } else {
+          writeError(
+            response,
+            500,
+            "repository_list_failed",
+            "Repository listing failed",
+          );
+        }
+      }
+      return true;
+    }
     if (method === "PATCH" && reviewArchivalMatch) {
-      await reviewMutation(request, response, {
+      await writeBrowserJsonMutation(request, response, {
         browserOrigin,
         browserSessions,
         failureCode: "review_archival_failed",
@@ -298,7 +229,7 @@ export function createApiRoute({
       return true;
     }
     if (method === "POST" && path === "/api/v1/repositories") {
-      await reviewMutation(request, response, {
+      await writeBrowserJsonMutation(request, response, {
         browserOrigin,
         browserSessions,
         failureCode: "repository_registration_failed",
@@ -311,11 +242,39 @@ export function createApiRoute({
                 code === "repository_git_verification_unavailable"
               ? 503
               : 422,
+        unexpectedMessage: "Repository registration failed",
+      });
+      return true;
+    }
+    if (method === "POST" && repositoryCredentialRotationMatch) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "repository_credential_rotation_failed",
+        mutate: (body) =>
+          repositories.rotateCredential(
+            decodeURIComponent(repositoryCredentialRotationMatch[1]),
+            body,
+          ),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "repository_not_found"
+            ? 404
+            : [
+                  "repository_credential_not_found",
+                  "repository_credential_rotation_conflict",
+                ].includes(code)
+              ? 409
+              : isUnavailableError(error) ||
+                  code === "repository_git_verification_unavailable"
+                ? 503
+                : 422,
+        unexpectedMessage: "Repository credential rotation failed",
       });
       return true;
     }
     if (method === "PATCH" && reviewMetadataMatch) {
-      await reviewMutation(request, response, {
+      await writeBrowserJsonMutation(request, response, {
         browserOrigin,
         browserSessions,
         failureCode: "review_metadata_update_failed",
@@ -337,7 +296,7 @@ export function createApiRoute({
       return true;
     }
     if (method === "POST" && reviewVersionsMatch) {
-      await reviewMutation(request, response, {
+      await writeBrowserJsonMutation(request, response, {
         browserOrigin,
         browserSessions,
         failureCode: "review_version_save_failed",
@@ -356,7 +315,7 @@ export function createApiRoute({
       return true;
     }
     if (method === "PATCH" && reviewActiveVersionMatch) {
-      await reviewMutation(request, response, {
+      await writeBrowserJsonMutation(request, response, {
         browserOrigin,
         browserSessions,
         failureCode: "review_version_reactivation_failed",
