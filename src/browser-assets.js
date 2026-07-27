@@ -21,6 +21,11 @@ const browserAssets = [
     sourcePath: "src/browser/review-create.js",
     url: new URL("./browser/review-create.js", import.meta.url),
   },
+  {
+    route: "/assets/review-version.js",
+    sourcePath: "src/browser/review-version.js",
+    url: new URL("./browser/review-version.js", import.meta.url),
+  },
 ];
 
 export const BROWSER_ASSET_SOURCE_PATHS = browserAssets.map(

@@ -238,6 +238,7 @@ export function createGateDefinitions(metadata) {
         "test/browser-assets-browser-component.test.js",
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
+        "test/review-version-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
         "test/browser-session-protection-browser-component.test.js",
@@ -248,13 +249,22 @@ export function createGateDefinitions(metadata) {
       name: "sqlite-integration",
       testGroup: "review-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
-      arguments: ["--test", "test/review.test.js"],
+      arguments: [
+        "--test",
+        "test/review-schema-migration.test.js",
+        "test/review-version-change-detection.test.js",
+        "test/review.test.js",
+      ],
     },
     {
       name: "http-integration",
       testGroup: "review-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
-      arguments: ["--test", "test/review-http-integration.test.js"],
+      arguments: [
+        "--test",
+        "test/review-authorization-http-integration.test.js",
+        "test/review-http-integration.test.js",
+      ],
     },
     {
       name: "security-integration",

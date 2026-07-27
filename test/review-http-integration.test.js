@@ -1,129 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, test } from "node:test";
+import { test } from "node:test";
 
-import { createConformingFetch } from "../scripts/openapi-conformance.mjs";
-import { createApplication } from "../src/application.js";
-import { canonicalOpenApiDocument } from "../src/canonical-api.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
-
-/** @typedef {ReturnType<typeof createApplication>} Application */
-/**
- * @typedef {Application & {
- *   durableCore: NonNullable<Application["durableCore"]>,
- *   implementerTokens: NonNullable<Application["implementerTokens"]>,
- * }} ReadyApplication
- */
-/** @type {Application[]} */
-const applications = [];
-/** @type {string[]} */
-const temporaryDirectories = [];
-
-function temporaryDatabasePath() {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-http-"));
-  temporaryDirectories.push(directory);
-  return join(directory, "quality-bar.sqlite3");
-}
-
-/** @param {{createReviews?: Parameters<typeof createApplication>[0]["createReviews"]}} [options] */
-async function startApplication(options = {}) {
-  const application = createApplication({
-    databasePath: temporaryDatabasePath(),
-    loadInstallation: () => ({
-      externalOrigin: "http://127.0.0.1:3000",
-      masterKey: Buffer.alloc(32, 7),
-      trustedProxyAddresses: [],
-    }),
-    validateInstallation: () => ({ releaseInstallationLock() {} }),
-    validateSources() {},
-    validateTools() {},
-    validateCodexAuthentication() {},
-    createReviews: options.createReviews,
-    writeLog() {},
-  });
-  if (!application.durableCore || !application.implementerTokens) {
-    throw new Error("review_http_application_not_ready");
-  }
-  const readyApplication = /** @type {ReadyApplication} */ (application);
-  bootstrapOperatorPassword(
-    readyApplication.durableCore,
-    "a correct operator password",
-  );
-  await new Promise((resolve, reject) => {
-    readyApplication.server.once("error", reject);
-    readyApplication.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = readyApplication.server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("review_http_server_address_unavailable");
-  }
-  applications.push(readyApplication);
-  const origin = `http://127.0.0.1:${address.port}`;
-  const conformingFetch = await createConformingFetch(
-    canonicalOpenApiDocument(),
-  );
-  /** @param {string} path @param {RequestInit} [init] */
-  const request = (path, init) => conformingFetch(new URL(path, origin), init);
-  /** @param {string} path @param {RequestInit} [init] */
-  const invalidRequest = (path, init) =>
-    conformingFetch.invalidRequest(new URL(path, origin), init);
-  request.invalidRequest = invalidRequest;
-  return {
-    application: readyApplication,
-    request,
-  };
-}
-
-/** @param {Record<string, unknown>} [overrides] */
-function reviewRequest(overrides = {}) {
-  return {
-    assignment: { scope: "installation_wide" },
-    codex_configuration: {
-      model: "gpt-5.6-terra",
-      reasoning_effort: "high",
-      service_tier: "standard",
-    },
-    criteria: [
-      {
-        impact: "advisory",
-        instruction: "Preserve request authentication boundaries.",
-      },
-    ],
-    description: "Keep authenticated mutations safe.",
-    name: "HTTP boundaries",
-    ...overrides,
-  };
-}
-
-/** @param {Response} response */
-async function responseErrorCode(response) {
-  const body = /** @type {{error: {code: string}}} */ (await response.json());
-  return body.error.code;
-}
-
-/** @param {Response} response */
-function sessionCookies(response) {
-  const setCookie = response.headers.get("set-cookie");
-  const session = setCookie?.match(
-    /quality_bar_session=[A-Za-z0-9_-]{43}/,
-  )?.[0];
-  const csrf = setCookie?.match(/quality_bar_csrf=([A-Za-z0-9_-]{43})/)?.[1];
-  if (!session || !csrf) {
-    throw new Error("review_http_session_cookies_missing");
-  }
-  return { csrf, session };
-}
-
-afterEach(async () => {
-  for (const application of applications.splice(0)) {
-    await application.close();
-  }
-  for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { force: true, recursive: true });
-  }
-});
+import {
+  responseErrorCode,
+  reviewRequest,
+  sessionCookies,
+  startApplication,
+} from "./review-http-integration-support.js";
 
 test("an API-looking path outside the exact version boundary stays not found", async () => {
   const { request } = await startApplication();
@@ -260,65 +143,101 @@ test("the authenticated Review metadata resource edits only lineage metadata", a
   );
 });
 
-test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
+test("the authenticated Review Version resource saves a complete snapshot or explicitly does nothing", async () => {
   const { application, request } = await startApplication();
-  const token = application.implementerTokens.create(
-    "a correct operator password",
-  );
-
-  const created = await request("/api/v1/reviews", {
-    body: JSON.stringify(reviewRequest({ name: "Machine HTTP boundaries" })),
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    },
+  const login = await request("/api/v1/session/login", {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
     method: "POST",
   });
-  assert.equal(created.status, 201);
-  const createdReview = /** @type {{name: string}} */ (await created.json());
-  assert.equal(createdReview.name, "Machine HTTP boundaries");
-});
-
-test("a sole implementer bearer cannot read or edit Review authoring resources", async () => {
-  const { application, request } = await startApplication();
-  const token = application.implementerTokens.create(
-    "a correct operator password",
-  );
+  const { csrf, session } = sessionCookies(login);
   const headers = {
-    authorization: `Bearer ${token}`,
     "content-type": "application/json",
+    cookie: `${session}; quality_bar_csrf=${csrf}`,
+    origin: "http://127.0.0.1:3000",
+    "x-quality-bar-csrf": csrf,
   };
-  const firstResponse = await request("/api/v1/reviews", {
-    body: JSON.stringify(reviewRequest({ name: "First Review" })),
+  const createdResponse = await request("/api/v1/reviews", {
+    body: JSON.stringify(reviewRequest()),
     headers,
     method: "POST",
   });
-  const first = /** @type {{id: string}} */ (await firstResponse.json());
-  const listed = await request("/api/v1/reviews", {
-    headers,
-  });
-  assert.equal(listed.status, 403);
-  assert.equal(await responseErrorCode(listed), "authorization_forbidden");
+  const created =
+    /** @type {{id: string, active_version: {id: string, criteria: Array<{id: string}>}}} */ (
+      await createdResponse.json()
+    );
+  const snapshot = {
+    applicability_rule: "true",
+    codex_configuration: {
+      model: "gpt-5.6-sol",
+      reasoning_effort: "xhigh",
+      service_tier: "fast",
+    },
+    criteria: [
+      {
+        id: created.active_version.criteria[0].id,
+        impact: "blocking",
+        instruction: "Preserve authenticated mutation boundaries.",
+      },
+    ],
+  };
 
-  const forbidden = await request(`/api/v1/reviews/${first.id}/metadata`, {
-    body: JSON.stringify({
-      description: "A forbidden edit.",
-      name: "Forbidden Review",
-    }),
-    headers,
-    method: "PATCH",
-  });
-  assert.equal(forbidden.status, 403);
-  assert.equal(await responseErrorCode(forbidden), "authorization_forbidden");
-
-  const unchanged = application.durableCore.get(
-    "SELECT name, description FROM reviews WHERE id = ?",
-    first.id,
+  const savedResponse = await request(
+    `/api/v1/reviews/${created.id}/versions`,
+    {
+      body: JSON.stringify(snapshot),
+      headers,
+      method: "POST",
+    },
   );
-  assert.deepEqual(unchanged, {
-    name: "First Review",
-    description: "Keep authenticated mutations safe.",
+  assert.equal(savedResponse.status, 200);
+  const savedResult =
+    /** @type {{changed: boolean, review: {active_version: {id: string, number: number, applicability_rule: string | null}}}} */ (
+      await savedResponse.json()
+    );
+  assert.equal(savedResult.changed, true);
+  const saved = savedResult.review;
+  assert.notEqual(saved.active_version.id, created.active_version.id);
+  assert.equal(saved.active_version.number, 2);
+  assert.equal(saved.active_version.applicability_rule, "true");
+
+  const unchangedResponse = await request(
+    `/api/v1/reviews/${created.id}/versions`,
+    {
+      body: JSON.stringify(snapshot),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(unchangedResponse.status, 200);
+  assert.deepEqual(await unchangedResponse.json(), {
+    changed: false,
+    review: saved,
   });
+  assert.equal(
+    application.durableCore.get("SELECT count(*) AS count FROM review_versions")
+      ?.count,
+    2,
+  );
+
+  const rejectedResponse = await request.invalidRequest(
+    `/api/v1/reviews/${created.id}/versions`,
+    {
+      body: JSON.stringify({ ...snapshot, unexpected: true }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(rejectedResponse.status, 422);
+  assert.equal(
+    await responseErrorCode(rejectedResponse),
+    "review_version_request_malformed",
+  );
+  assert.equal(
+    application.durableCore.get("SELECT count(*) AS count FROM review_versions")
+      ?.count,
+    2,
+  );
 });
 
 test("an unexpected Review resource failure has an exact owning error", async () => {
@@ -342,6 +261,9 @@ test("an unexpected Review resource failure has an exact owning error", async ()
           throw failure;
         },
         create() {
+          throw failure;
+        },
+        saveVersion() {
           throw failure;
         },
         updateMetadata() {
@@ -407,4 +329,35 @@ test("an unexpected Review resource failure has an exact owning error", async ()
   assert.equal(body.error.code, "review_creation_failed");
   assert.equal(body.error.message, "exact Review resource failure");
   assert.match(body.error.request_id, /^[0-9a-f-]{36}$/);
+
+  const versionResponse = await request("/api/v1/reviews/review-1/versions", {
+    body: JSON.stringify({
+      applicability_rule: null,
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [
+        {
+          id: "criterion-1",
+          impact: "advisory",
+          instruction: "Keep failures exact.",
+        },
+      ],
+    }),
+    headers: {
+      "content-type": "application/json",
+      cookie: `${session}; quality_bar_csrf=${csrf}`,
+      origin: "http://127.0.0.1:3000",
+      "x-quality-bar-csrf": csrf,
+    },
+    method: "POST",
+  });
+  const versionFailure =
+    /** @type {{error: {code: string, message: string}}} */ (
+      await versionResponse.json()
+    );
+  assert.equal(versionFailure.error.code, "review_version_save_failed");
+  assert.equal(versionFailure.error.message, "exact Review resource failure");
 });

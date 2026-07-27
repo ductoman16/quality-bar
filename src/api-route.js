@@ -70,10 +70,14 @@ export function createApiRoute({
     const reviewMetadataMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/metadata$/,
     );
+    const reviewVersionsMatch = path.match(
+      /^\/api\/v1\/reviews\/([^/]+)\/versions$/,
+    );
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
-        (method === "PATCH" && reviewMetadataMatch))
+        (method === "PATCH" && reviewMetadataMatch) ||
+        (method === "POST" && reviewVersionsMatch))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
       return true;
@@ -243,6 +247,66 @@ export function createApiRoute({
                 : isUnavailableError(error)
                   ? 503
                   : 422;
+          writeError(response, status, failure.code, failure.message);
+        }
+      }
+      return true;
+    }
+    if (method === "POST" && reviewVersionsMatch) {
+      try {
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
+        const saved = reviews.saveVersion(
+          decodeURIComponent(reviewVersionsMatch[1]),
+          await readJsonRequest(request),
+        );
+        writeJson(response, 200, saved);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (!("code" in error) || typeof error.code !== "string")
+        ) {
+          writeError(
+            response,
+            500,
+            "review_version_save_failed",
+            error.message,
+          );
+          return true;
+        }
+        const failure = requireCodedError(error);
+        if (failure.message === "request_malformed") {
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
+        } else if (
+          authority !== "machine" &&
+          [
+            "csrf_invalid",
+            "origin_invalid",
+            "authentication_required",
+          ].includes(failure.code)
+        ) {
+          writeError(
+            response,
+            browserMutationFailureStatus(failure.code),
+            failure.code,
+            failure.message,
+          );
+        } else {
+          const status =
+            failure.code === "review_not_found"
+              ? 404
+              : isUnavailableError(error)
+                ? 503
+                : 422;
           writeError(response, status, failure.code, failure.message);
         }
       }

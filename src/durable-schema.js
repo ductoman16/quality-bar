@@ -1,6 +1,6 @@
 import { DurableCoreError, fail } from "./durable-error.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -17,6 +17,7 @@ const REVIEW_SCHEMA = `
     model TEXT NOT NULL,
     reasoning_effort TEXT NOT NULL,
     service_tier TEXT NOT NULL,
+    applicability_rule TEXT,
     created_at INTEGER NOT NULL,
     sealed_at INTEGER,
     UNIQUE (review_id, number)
@@ -32,6 +33,8 @@ const REVIEW_SCHEMA = `
     review_version_id TEXT NOT NULL REFERENCES review_versions(id),
     criterion_id TEXT NOT NULL REFERENCES criteria(id),
     position INTEGER NOT NULL CHECK (position > 0),
+    instruction TEXT NOT NULL CHECK (length(trim(instruction)) > 0),
+    impact TEXT NOT NULL CHECK (impact IN ('advisory', 'blocking')),
     PRIMARY KEY (review_version_id, criterion_id),
     UNIQUE (review_version_id, position)
   ) STRICT;
@@ -192,6 +195,57 @@ export function initializeOrValidateSchema(database) {
     );
   } else if (version === 5) {
     migration(database, REVIEW_SCHEMA);
+  } else if (version === 6) {
+    migration(
+      database,
+      `
+        ALTER TABLE review_versions ADD COLUMN applicability_rule TEXT;
+        DROP TRIGGER review_version_criteria_immutable_update;
+        DROP TRIGGER review_version_criteria_immutable_delete;
+        DROP TRIGGER review_version_criteria_immutable_insert;
+        ALTER TABLE review_version_criteria
+          RENAME TO review_version_criteria_v6;
+        CREATE TABLE review_version_criteria (
+          review_version_id TEXT NOT NULL REFERENCES review_versions(id),
+          criterion_id TEXT NOT NULL REFERENCES criteria(id),
+          position INTEGER NOT NULL CHECK (position > 0),
+          instruction TEXT NOT NULL CHECK (length(trim(instruction)) > 0),
+          impact TEXT NOT NULL CHECK (impact IN ('advisory', 'blocking')),
+          PRIMARY KEY (review_version_id, criterion_id),
+          UNIQUE (review_version_id, position)
+        ) STRICT;
+        INSERT INTO review_version_criteria (
+          review_version_id,
+          criterion_id,
+          position,
+          instruction,
+          impact
+        )
+        SELECT
+          version_criterion.review_version_id,
+          version_criterion.criterion_id,
+          version_criterion.position,
+          criteria.instruction,
+          criteria.impact
+        FROM review_version_criteria_v6 AS version_criterion
+        JOIN criteria ON criteria.id = version_criterion.criterion_id;
+        DROP TABLE review_version_criteria_v6;
+        CREATE TRIGGER review_version_criteria_immutable_update
+          BEFORE UPDATE ON review_version_criteria
+          BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+        CREATE TRIGGER review_version_criteria_immutable_delete
+          BEFORE DELETE ON review_version_criteria
+          BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+        CREATE TRIGGER review_version_criteria_immutable_insert
+          BEFORE INSERT ON review_version_criteria
+          WHEN (
+            SELECT sealed_at
+            FROM review_versions
+            WHERE id = NEW.review_version_id
+          ) IS NOT NULL
+          BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
+      `,
+    );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

@@ -44,6 +44,7 @@ export function failureResponse(code, message, status) {
 export function reviewResource(metadata) {
   return {
     active_version: {
+      applicability_rule: null,
       codex_configuration: {
         model: "gpt-5.6-terra",
         reasoning_effort: "high",

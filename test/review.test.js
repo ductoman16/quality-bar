@@ -33,6 +33,20 @@ function reviewDefinition(overrides = {}) {
   };
 }
 
+/** @param {{active_version: {
+ *   codex_configuration: {model: string, reasoning_effort: string, service_tier: string},
+ *   criteria: Array<{id: string, impact: string, instruction: string}>
+ * }}} review */
+function executableSnapshot(review) {
+  return {
+    applicability_rule: null,
+    codex_configuration: review.active_version.codex_configuration,
+    criteria: review.active_version.criteria.map(
+      ({ id, impact, instruction }) => ({ id, impact, instruction }),
+    ),
+  };
+}
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { force: true, recursive: true });
@@ -51,6 +65,7 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
 
   assert.deepEqual(reviews.create(reviewDefinition()), {
     active_version: {
+      applicability_rule: null,
       codex_configuration: {
         model: "gpt-5.6-terra",
         reasoning_effort: "high",
@@ -258,5 +273,158 @@ test("a failed Review metadata edit changes no durable fact", () => {
       },
     ],
   );
+  core.close();
+});
+
+test("saving an unchanged executable snapshot is an explicit no-op", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  let timestampReads = 0;
+  const reviews = createReviewService(core, {
+    createId: (() => {
+      let next = 0;
+      return () => `noop-fact-${++next}`;
+    })(),
+    now: () => {
+      timestampReads += 1;
+      return Date.parse("2026-07-26T20:00:00.000Z");
+    },
+  });
+  const created = reviews.create(reviewDefinition());
+
+  const saved = reviews.saveVersion(created.id, executableSnapshot(created));
+
+  assert.deepEqual(saved, { changed: false, review: created });
+  assert.equal(timestampReads, 1);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM review_versions")?.count,
+    1,
+  );
+  core.close();
+});
+
+test("changing only authored Criterion order creates the next version", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const reviews = createReviewService(core);
+  const created = reviews.create(
+    reviewDefinition({
+      criteria: [
+        { impact: "blocking", instruction: "First Criterion." },
+        { impact: "advisory", instruction: "Second Criterion." },
+      ],
+    }),
+  );
+  const [first, second] = created.active_version.criteria;
+  assert.ok(first);
+  assert.ok(second);
+
+  const saved = reviews.saveVersion(created.id, {
+    applicability_rule: null,
+    codex_configuration: created.active_version.codex_configuration,
+    criteria: [
+      {
+        id: second.id,
+        impact: second.impact,
+        instruction: second.instruction,
+      },
+      {
+        id: first.id,
+        impact: first.impact,
+        instruction: first.instruction,
+      },
+    ],
+  });
+
+  assert.equal(saved.changed, true);
+  assert.equal(saved.review.active_version.number, 2);
+  assert.deepEqual(
+    saved.review.active_version.criteria.map(({ id, position }) => ({
+      id,
+      position,
+    })),
+    [
+      { id: second.id, position: 1 },
+      { id: first.id, position: 2 },
+    ],
+  );
+  core.close();
+});
+
+test("executable snapshot saves are last-write-wins against the active version", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const reviews = createReviewService(core, {
+    createId: (() => {
+      let next = 0;
+      return () => `last-write-fact-${++next}`;
+    })(),
+    now: (() => {
+      let next = 0;
+      return () => Date.parse("2026-07-26T20:00:00.000Z") + ++next;
+    })(),
+  });
+  const created = reviews.create(reviewDefinition());
+  const openedCriterion = created.active_version.criteria[0];
+  const first = reviews.saveVersion(created.id, {
+    applicability_rule: "true",
+    codex_configuration: created.active_version.codex_configuration,
+    criteria: [
+      {
+        id: openedCriterion.id,
+        impact: openedCriterion.impact,
+        instruction: "First completed save.",
+      },
+    ],
+  });
+  const second = reviews.saveVersion(created.id, {
+    applicability_rule: null,
+    codex_configuration: created.active_version.codex_configuration,
+    criteria: [
+      {
+        id: openedCriterion.id,
+        impact: openedCriterion.impact,
+        instruction: "Later save from an older form.",
+      },
+    ],
+  });
+
+  assert.equal(first.review.active_version.number, 2);
+  assert.equal(second.review.active_version.number, 3);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM review_versions")?.count,
+    3,
+  );
+  const activeCriterion = second.review.active_version.criteria[0];
+  assert.ok(activeCriterion);
+  assert.equal(activeCriterion.instruction, "Later save from an older form.");
+  assert.deepEqual(reviews.list(), [second.review]);
+  core.close();
+});
+
+test("a failed executable snapshot save creates no partial or inferred version", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const reviews = createReviewService(core);
+  const created = reviews.create(reviewDefinition());
+
+  assert.throws(
+    () =>
+      reviews.saveVersion(created.id, {
+        applicability_rule: null,
+        codex_configuration: created.active_version.codex_configuration,
+        criteria: [
+          {
+            id: "criterion-from-another-review",
+            impact: "blocking",
+            instruction: "Must not be inferred.",
+          },
+        ],
+      }),
+    (error) =>
+      error instanceof ReviewError &&
+      error.code === "review_criterion_not_found",
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM review_versions")?.count,
+    1,
+  );
+  assert.deepEqual(reviews.list(), [created]);
   core.close();
 });

@@ -62,6 +62,9 @@ before(async () => {
       create() {
         throw new Error("unused review create");
       },
+      saveVersion() {
+        throw new Error("unused Review Version save");
+      },
       updateMetadata() {
         throw new Error("unused Review metadata update");
       },
