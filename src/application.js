@@ -23,6 +23,7 @@ import {
   createGitHubConnectionService,
   createUnavailableGitHubConnectionService,
 } from "./github-connection.js";
+import { GitHubConnectionError } from "./github-connection-error.js";
 import { createApplicationServer } from "./server.js";
 import {
   createRequestSecurityBoundary,
@@ -36,6 +37,7 @@ import {
   createRepositoryService,
   createUnavailableRepositoryService,
 } from "./repository.js";
+import { fail as failRepository } from "./repository-validation.js";
 import {
   createRepositoryGuidanceService,
   createUnavailableRepositoryGuidanceService,
@@ -43,6 +45,10 @@ import {
 import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
+const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
+  "github_private_git_read_failed",
+  "github_repository_selection_unavailable",
+]);
 
 /**
  * @typedef {ReturnType<typeof requireCodedError>} CodedError
@@ -223,9 +229,26 @@ export function createApplication({
         masterKey: installation.masterKey,
         now,
         async verifyForgeRepository(forgeRepositoryId) {
-          await githubConnections.selectRepositories({
-            repository_ids: [forgeRepositoryId],
-          });
+          try {
+            await githubConnections.selectRepositories({
+              repository_ids: [forgeRepositoryId],
+            });
+          } catch (error) {
+            if (
+              error instanceof GitHubConnectionError &&
+              REPOSITORY_SCOPED_GITHUB_ERRORS.has(error.code)
+            ) {
+              failRepository(error.code, error.message, error);
+            }
+            if (error instanceof GitHubConnectionError) {
+              throw new GitHubConnectionError(error.code, error.message, {
+                cause: error,
+              });
+            }
+            throw new TypeError("Forge Repository verification failed", {
+              cause: error,
+            });
+          }
         },
       });
     } finally {

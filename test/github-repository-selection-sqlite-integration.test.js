@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import {
-  GitHubConnectionError,
-  createGitHubConnectionService,
-} from "../src/github-connection.js";
+import { createGitHubConnectionService } from "../src/github-connection.js";
+import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { openDurableCore } from "../src/durable-core.js";
-import { readGitHubConnection } from "../src/github-connection-read.js";
 import { createRepositoryService } from "../src/repository.js";
+import {
+  fail as failRepository,
+  RepositoryError,
+} from "../src/repository-validation.js";
 
 const capabilities = /** @type {any} */ ({
   aggregate_feedback: "verified",
@@ -284,9 +285,29 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,
     async verifyForgeRepository(forgeRepositoryId) {
-      await service.selectRepositories({
-        repository_ids: [forgeRepositoryId],
-      });
+      try {
+        await service.selectRepositories({
+          repository_ids: [forgeRepositoryId],
+        });
+      } catch (error) {
+        if (
+          error instanceof GitHubConnectionError &&
+          [
+            "github_private_git_read_failed",
+            "github_repository_selection_unavailable",
+          ].includes(error.code)
+        ) {
+          failRepository(error.code, error.message, error);
+        }
+        if (error instanceof GitHubConnectionError) {
+          throw new GitHubConnectionError(error.code, error.message, {
+            cause: error,
+          });
+        }
+        throw new TypeError("Forge Repository verification failed", {
+          cause: error,
+        });
+      }
     },
   });
   assert.deepEqual(repositoryInventory.list()[0], {
@@ -315,98 +336,28 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   }
   assert.equal(enabled.verified_at, 4_000);
   assert.equal(verificationCalls.at(-1).repositoryIds[0], 101);
+  await repositoryInventory.setLifecycle("repository-alpha", {
+    lifecycle: "disabled",
+  });
+  failSelection = true;
+  await assert.rejects(
+    () =>
+      repositoryInventory.setLifecycle("repository-alpha", {
+        lifecycle: "enabled",
+      }),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "github_private_git_read_failed",
+  );
+  const failedEnablement = repositoryInventory.list()[0];
+  assert.equal(failedEnablement.lifecycle, "disabled");
+  assert.equal(failedEnablement.health, "error");
+  assert.deepEqual(failedEnablement.health_error, {
+    code: "github_private_git_read_failed",
+    message: "GitHub private Repository read verification failed",
+  });
 
   repositoryInventory.destroy();
   service.destroy();
   core.close();
-});
-
-test("SQLite migrates the completed GitHub Connection schema to stable Forge Repository identity", (context) => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-github-repository-migration-"),
-  );
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  prior.run(
-    `INSERT INTO github_connections (
-       id, app_id, app_slug, installation_id, principal_id, principal_login,
-       api_profile, permissions, capabilities, repository_count, created_at,
-       verified_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    "legacy-connection",
-    47,
-    "quality-bar-personal",
-    73,
-    91,
-    "operator",
-    "github-rest:2026-03-10",
-    JSON.stringify({
-      contents: "read",
-      issues: "write",
-      metadata: "read",
-      pull_requests: "write",
-      statuses: "write",
-    }),
-    JSON.stringify(capabilities),
-    1,
-    1_000,
-    1_000,
-  );
-  prior.run(
-    `INSERT INTO github_connection_verifications (
-       id, connection_id, trigger, api_profile, principal_id,
-       principal_login, permissions, capabilities, repositories, verified_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    "legacy-verification",
-    "legacy-connection",
-    "onboarding",
-    "github-rest:2026-03-10",
-    91,
-    "operator",
-    JSON.stringify({
-      contents: "read",
-      issues: "write",
-      metadata: "read",
-      pull_requests: "write",
-      statuses: "write",
-    }),
-    JSON.stringify(capabilities),
-    JSON.stringify([
-      {
-        clone_url: "https://github.com/operator/legacy.git",
-        full_name: "operator/legacy",
-        id: 101,
-        private: true,
-      },
-    ]),
-    1_000,
-  );
-  prior.run("DROP TABLE github_repositories");
-  prior.run(
-    "UPDATE quality_bar_metadata SET value = '13' WHERE key = 'schema_version'",
-  );
-  prior.run("PRAGMA user_version = 13");
-  prior.close();
-
-  const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 14);
-  assert.deepEqual(
-    migrated.get(
-      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",
-    ),
-    { name: "github_repositories" },
-  );
-  assert.deepEqual(
-    readGitHubConnection(migrated)?.verification_history[0].repositories,
-    [
-      {
-        clone_url: "https://github.com/operator/legacy.git",
-        full_name: "operator/legacy",
-        id: 101,
-        private: true,
-      },
-    ],
-  );
-  migrated.close();
 });

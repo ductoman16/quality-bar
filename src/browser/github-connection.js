@@ -303,6 +303,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
     }
     githubStatus.textContent = "GitHub Repositories registered.";
     githubStatus.focus();
+    location.assign("/?view=repositories");
   } catch {
     showGitHubError("GitHub Repository selection response is invalid");
     githubRepositorySubmit.disabled = false;

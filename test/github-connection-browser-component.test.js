@@ -223,7 +223,7 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
     path: "/api/v1/github-connections/repositories",
   });
   assert.equal(browser.github.repositorySubmit.disabled, true);
-  assert.equal(browser.context.location.assigned, "");
+  assert.equal(browser.context.location.assigned, "/?view=repositories");
   assert.equal(browser.status.textContent, "GitHub Repositories registered.");
   assert.equal(browser.status.focused, true);
 });
