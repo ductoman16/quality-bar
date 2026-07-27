@@ -251,7 +251,7 @@ export function canonicalOpenApiDocument() {
           security: authenticated,
         },
       },
-      ...canonicalReviewArchivalPath(mutationParameters),
+      ...canonicalReviewArchivalPath(mutationParameters, errorResponse),
       "/api/v1/reviews/{review_id}/metadata": {
         patch: {
           operationId: "updateReviewMetadata",

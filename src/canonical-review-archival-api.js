@@ -1,14 +1,5 @@
-const errorResponse = {
-  content: {
-    "application/json": {
-      schema: { $ref: "#/components/schemas/ErrorResponse" },
-    },
-  },
-  description: "A secret-safe canonical error",
-};
-
-/** @param {object[]} mutationParameters */
-export function canonicalReviewArchivalPath(mutationParameters) {
+/** @param {object[]} mutationParameters @param {object} errorResponse */
+export function canonicalReviewArchivalPath(mutationParameters, errorResponse) {
   return {
     "/api/v1/reviews/{review_id}/archival": {
       patch: {

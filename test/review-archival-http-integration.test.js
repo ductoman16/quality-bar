@@ -156,6 +156,9 @@ test("an unexpected Review archival failure surfaces its exact owning error", as
         setArchived() {
           throw failure;
         },
+        selectForNewEvaluation() {
+          throw failure;
+        },
         updateMetadata() {
           throw failure;
         },

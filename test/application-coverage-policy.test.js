@@ -72,6 +72,7 @@ test("coverage executes the deterministic application proof pyramid without smok
   );
   for (const path of [
     "test/review-archival.test.js",
+    "test/review-selection.test.js",
     "test/review-archival-browser-component.test.js",
     "test/review-archival-sqlite-integration.test.js",
     "test/review-archival-http-integration.test.js",

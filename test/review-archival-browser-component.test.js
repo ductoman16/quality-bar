@@ -78,6 +78,13 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
         return { changed: true, review: active };
       },
     },
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return { reviews: "invalid" };
+      },
+    },
   ];
   const document = {
     /** @param {string} name @param {(event: any) => unknown} listener */
@@ -180,4 +187,10 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
   assert.equal(error.hidden, true);
   assert.deepEqual(confirmations.at(-1), 'Restore Review "Review lifecycle"?');
   assert.deepEqual(destinations, []);
+
+  state.value = "archived";
+  await assert.rejects(
+    async () => state.listener("change")({}),
+    /Review archival response was invalid/,
+  );
 });

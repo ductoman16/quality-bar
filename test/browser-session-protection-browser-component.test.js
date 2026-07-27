@@ -241,6 +241,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       setArchived() {
         throw new Error("unused Review archival");
       },
+      selectForNewEvaluation() {
+        throw new Error("unused Review selection");
+      },
       updateMetadata() {
         throw new Error("unused Review metadata update");
       },

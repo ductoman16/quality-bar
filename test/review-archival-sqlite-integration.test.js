@@ -57,6 +57,7 @@ test("archiving excludes a Review from future selection and restoring preserves 
       versionCriteria: core.all("SELECT * FROM review_version_criteria"),
       versions: core.all("SELECT * FROM review_versions"),
     };
+    const existingEvaluationSelection = reviews.selectForNewEvaluation();
 
     const archived = reviews.setArchived(created.id, { archived: true });
 
@@ -66,6 +67,13 @@ test("archiving excludes a Review from future selection and restoring preserves 
     assert.deepEqual(archived.review.versions, saved.versions);
     assert.deepEqual(reviews.list(), []);
     assert.deepEqual(reviews.list("archived"), [archived.review]);
+    assert.deepEqual(reviews.selectForNewEvaluation(), []);
+    assert.deepEqual(existingEvaluationSelection, [
+      {
+        review_id: created.id,
+        review_version_id: saved.active_version.id,
+      },
+    ]);
     assert.deepEqual(
       core.get(
         "SELECT active_version_id, archived_at FROM reviews WHERE id = ?",
@@ -100,6 +108,12 @@ test("archiving excludes a Review from future selection and restoring preserves 
     assert.deepEqual(restored.review.versions, saved.versions);
     assert.deepEqual(reviews.list(), [restored.review]);
     assert.deepEqual(reviews.list("archived"), []);
+    assert.deepEqual(reviews.selectForNewEvaluation(), [
+      {
+        review_id: created.id,
+        review_version_id: saved.active_version.id,
+      },
+    ]);
     assert.equal(timestampReads, 3);
   } finally {
     core.close();

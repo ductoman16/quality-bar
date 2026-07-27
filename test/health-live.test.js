@@ -71,6 +71,9 @@ before(async () => {
       setArchived() {
         throw new Error("unused Review archival");
       },
+      selectForNewEvaluation() {
+        throw new Error("unused Review selection");
+      },
       updateMetadata() {
         throw new Error("unused Review metadata update");
       },

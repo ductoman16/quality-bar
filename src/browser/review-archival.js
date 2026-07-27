@@ -55,6 +55,39 @@
     result.textContent = "";
   }
 
+  function clearFeedback() {
+    error.hidden = true;
+    error.textContent = "";
+    error.replaceChildren();
+    result.textContent = "";
+  }
+
+  /**
+   * @param {Response} response
+   * @param {{code: string}} failure
+   */
+  function redirectForAuthentication(response, failure) {
+    if (response.status !== 401 || failure.code !== "authentication_required") {
+      return false;
+    }
+    location.assign(
+      "/?return_to=" + encodeURIComponent(location.pathname + location.search),
+    );
+    return true;
+  }
+
+  /** @param {Error} error */
+  function rethrowContractFailure(error) {
+    if (
+      [
+        "Review archival response was invalid",
+        "Review Version response was invalid",
+      ].includes(error.message)
+    ) {
+      throw error;
+    }
+  }
+
   /** @param {Response} response */
   async function readFailure(response) {
     const body = /** @type {{error?: {code?: unknown, message?: unknown}}} */ (
@@ -96,10 +129,7 @@
   async function load() {
     pending = true;
     updateAction();
-    error.hidden = true;
-    error.textContent = "";
-    error.replaceChildren();
-    result.textContent = "";
+    clearFeedback();
     try {
       const response = await fetch(
         state.value === "archived"
@@ -108,14 +138,7 @@
       );
       if (!response.ok) {
         const failure = await readFailure(response);
-        if (
-          response.status === 401 &&
-          failure.code === "authentication_required"
-        ) {
-          location.assign(
-            "/?return_to=" +
-              encodeURIComponent(location.pathname + location.search),
-          );
+        if (redirectForAuthentication(response, failure)) {
           return;
         }
         showFailure(failure.message);
@@ -135,6 +158,7 @@
       if (!(caught instanceof Error)) {
         throw caught;
       }
+      rethrowContractFailure(caught);
       showFailure(caught.message);
     } finally {
       pending = false;
@@ -159,10 +183,7 @@
     }
     pending = true;
     updateAction();
-    error.hidden = true;
-    error.textContent = "";
-    error.replaceChildren();
-    result.textContent = "";
+    clearFeedback();
     try {
       const response = await fetch(
         "/api/v1/reviews/" + encodeURIComponent(review.id) + "/archival",
@@ -177,14 +198,7 @@
       );
       if (!response.ok) {
         const failure = await readFailure(response);
-        if (
-          response.status === 401 &&
-          failure.code === "authentication_required"
-        ) {
-          location.assign(
-            "/?return_to=" +
-              encodeURIComponent(location.pathname + location.search),
-          );
+        if (redirectForAuthentication(response, failure)) {
           return;
         }
         showFailure(failure.message);
@@ -196,17 +210,21 @@
       if (typeof body.changed !== "boolean") {
         throw new Error("Review archival response was invalid");
       }
-      const changed = requireReview(body.review);
-      if (changed.id !== review.id || changed.archived !== archived) {
+      const updatedReview = requireReview(body.review);
+      if (
+        updatedReview.id !== review.id ||
+        updatedReview.archived !== archived
+      ) {
         throw new Error("Review archival response was invalid");
       }
       state.value = archived ? "archived" : "active";
-      render([changed]);
-      result.textContent = `${changed.name} ${archived ? "archived" : "restored"}.`;
+      render([updatedReview]);
+      result.textContent = `${updatedReview.name} ${archived ? "archived" : "restored"}.`;
     } catch (caught) {
       if (!(caught instanceof Error)) {
         throw caught;
       }
+      rethrowContractFailure(caught);
       showFailure(caught.message);
     } finally {
       pending = false;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { readReview } from "./review-read.js";
+import { selectReviewVersionsForNewEvaluation } from "./review-selection.js";
 import {
   fail,
   ReviewError,
@@ -70,6 +71,28 @@ export function createReviewService(
             }
             return readReview(transaction, row.id);
           }),
+      );
+    },
+    selectForNewEvaluation() {
+      return durableCore.transaction((transaction) =>
+        selectReviewVersionsForNewEvaluation(
+          transaction
+            .all("SELECT id FROM reviews ORDER BY created_at, id")
+            .map((row) => {
+              if (!row || typeof row.id !== "string") {
+                throw new Error("review_selection_invalid");
+              }
+              const review = readReview(transaction, row.id);
+              if (typeof review.active_version.id !== "string") {
+                throw new Error("review_selection_invalid");
+              }
+              return {
+                active_version: { id: review.active_version.id },
+                archived: review.archived,
+                id: row.id,
+              };
+            }),
+        ),
       );
     },
     /** @param {unknown} definition */
@@ -405,6 +428,9 @@ export function createUnavailableReviewService(error) {
       throw error;
     },
     setArchived() {
+      throw error;
+    },
+    selectForNewEvaluation() {
       throw error;
     },
     updateMetadata() {

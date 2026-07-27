@@ -227,6 +227,7 @@ export function createGateDefinitions(metadata) {
         "test/implementer-token.test.js",
         "test/request-security.test.js",
         "test/review-archival.test.js",
+        "test/review-selection.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/verification-harness.test.js",

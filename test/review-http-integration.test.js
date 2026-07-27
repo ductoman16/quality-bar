@@ -307,6 +307,9 @@ test("an unexpected Review resource failure has an exact owning error", async ()
         setArchived() {
           throw failure;
         },
+        selectForNewEvaluation() {
+          throw failure;
+        },
         updateMetadata() {
           throw new Error("unused Review metadata update");
         },
