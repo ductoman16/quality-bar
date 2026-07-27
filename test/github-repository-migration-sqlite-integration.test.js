@@ -51,9 +51,11 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   );
   prior.run(
     `INSERT INTO github_connection_verifications (
-       id, connection_id, trigger, api_profile, principal_id,
-       principal_login, permissions, capabilities, repositories, verified_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       id, connection_id, trigger, outcome, error_code, error_message,
+       error_repository_id, api_profile, principal_id, principal_login,
+       permissions, capabilities, affected_repository_ids, repository_checks,
+       repositories, verified_at
+     ) VALUES (?, ?, ?, 'success', NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     "legacy-verification",
     "legacy-connection",
     "onboarding",
@@ -68,6 +70,8 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
       statuses: "write",
     }),
     JSON.stringify(capabilities),
+    JSON.stringify([101]),
+    JSON.stringify([{ outcome: "success", repository_id: 101 }]),
     JSON.stringify([
       {
         clone_url: "https://github.com/operator/legacy.git",

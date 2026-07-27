@@ -144,6 +144,9 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     ) {
       if (repositoryAccessStatus) {
         response.statusCode = repositoryAccessStatus;
+        if (repositoryAccessStatus === 403) {
+          response.setHeader("retry-after", "60");
+        }
         send({ message: "not found" });
         return;
       }
@@ -224,7 +227,14 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   ]);
   gitReads.length = 0;
   const selected = await verifier.verifyRepositories(credential, 73, [101]);
-  assert.deepEqual(selected, [verified.repositories[0]]);
+  assert.deepEqual(selected, {
+    affectedRepositoryIds: [101],
+    capabilities: verified.capabilities,
+    permissions,
+    principal: verified.principal,
+    repositories: [verified.repositories[0]],
+    repositoryEvidence: verified.repositories,
+  });
   assert.deepEqual(gitReads, [
     {
       credential: {
@@ -234,15 +244,25 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       options: { followRedirects: false },
       url: "https://github.com/operator/private.git",
     },
-    {
-      credential: {
-        token: "installation-token-value",
-        username: "x-access-token",
-      },
-      options: { followRedirects: false },
-      url: "https://github.com/operator/public.git",
-    },
   ]);
+  gitReads.length = 0;
+  const selectedPublic = await verifier.verifyRepositories(
+    credential,
+    73,
+    [202],
+  );
+  assert.deepEqual(selectedPublic, {
+    affectedRepositoryIds: [202, 101],
+    capabilities: verified.capabilities,
+    permissions,
+    principal: verified.principal,
+    repositories: [verified.repositories[1]],
+    repositoryEvidence: verified.repositories,
+  });
+  assert.deepEqual(
+    gitReads.map((read) => read.url),
+    [verified.repositories[1].clone_url, verified.repositories[0].clone_url],
+  );
   gitReads.length = 0;
   repositoryAccessStatus = 404;
   await assert.rejects(
@@ -260,7 +280,16 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       error.code === "github_api_transient_failure",
   );
   assert.deepEqual(gitReads, []);
+  repositoryAccessStatus = 403;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_api_transient_failure",
+  );
+  assert.deepEqual(gitReads, []);
   repositoryAccessStatus = 0;
+  gitReads.length = 0;
   duplicateEnumeration = true;
   await assert.rejects(
     () => verifier.verifyRepositories(credential, 73, [101, 202]),

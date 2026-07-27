@@ -275,6 +275,15 @@ export function createGitHubConnectionService(
       const capabilities = JSON.stringify(verification.capabilities);
       const permissions = JSON.stringify(GITHUB_REQUIRED_PERMISSIONS);
       const repositories = JSON.stringify(verification.repositories);
+      const affectedRepositoryIds = JSON.stringify(
+        verification.repositories.map((repository) => repository.id),
+      );
+      const repositoryChecks = JSON.stringify(
+        verification.repositories.map((repository) => ({
+          outcome: "success",
+          repository_id: repository.id,
+        })),
+      );
       try {
         durableCore.transaction((transaction) => {
           transaction.run(
@@ -308,10 +317,13 @@ export function createGitHubConnectionService(
           transaction.run(
             `INSERT INTO github_connection_verifications (
                id, connection_id, trigger, outcome, error_code,
-               error_message, api_profile, principal_id, principal_login,
-               permissions, capabilities, repositories, verified_at
+               error_message, error_repository_id, api_profile, principal_id,
+               principal_login, permissions, capabilities,
+               affected_repository_ids, repository_checks, repositories,
+               verified_at
              ) VALUES (
-               ?, ?, 'onboarding', 'success', NULL, NULL, ?, ?, ?, ?, ?, ?, ?
+               ?, ?, 'onboarding', 'success', NULL, NULL, NULL,
+               ?, ?, ?, ?, ?, ?, ?, ?, ?
              )`,
             verificationId,
             id,
@@ -320,6 +332,8 @@ export function createGitHubConnectionService(
             verification.principal.login,
             permissions,
             capabilities,
+            affectedRepositoryIds,
+            repositoryChecks,
             repositories,
             verifiedAt,
           );
@@ -349,6 +363,9 @@ export function createGitHubConnectionService(
         repository_count: verification.repositories.length,
         verification_history: [
           {
+            affected_repository_ids: verification.repositories.map(
+              (repository) => repository.id,
+            ),
             api_profile: GITHUB_API_PROFILE,
             capabilities: verification.capabilities,
             error: null,
@@ -357,6 +374,10 @@ export function createGitHubConnectionService(
             permissions: GITHUB_REQUIRED_PERMISSIONS,
             principal: verification.principal,
             repositories: verification.repositories,
+            repository_checks: verification.repositories.map((repository) => ({
+              outcome: "success",
+              repository_id: repository.id,
+            })),
             trigger: "onboarding",
             verified_at: verifiedAt,
           },

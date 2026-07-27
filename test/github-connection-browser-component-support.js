@@ -53,9 +53,12 @@ export function verifiedConnection() {
     repository_count: 1,
     verification_history: [
       {
+        affected_repository_ids: [101],
         api_profile: "github-rest:2026-03-10",
+        capabilities: { private_git_read: "verified" },
         error: null,
         outcome: "success",
+        permissions: { contents: "read" },
         principal: { login: "operator" },
         repositories: [
           {
@@ -67,6 +70,7 @@ export function verifiedConnection() {
             private: true,
           },
         ],
+        repository_checks: [{ outcome: "success", repository_id: 101 }],
         trigger: "onboarding",
         verified_at: 1_000,
       },

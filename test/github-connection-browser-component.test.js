@@ -121,7 +121,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
   assert.equal(github.latest.textContent, "1970-01-01T00:00:01.000Z");
   assert.equal(
     github.history.children[0].textContent,
-    "onboarding; success; github-rest:2026-03-10; operator; 1 Repositories; 1970-01-01T00:00:01.000Z",
+    "onboarding; success; Repository checks 101: success; 1 enumerated Repositories; 1970-01-01T00:00:01.000Z",
   );
 
   await form.listener("submit")({ preventDefault() {} });

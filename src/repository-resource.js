@@ -11,6 +11,9 @@ export const REPOSITORY_SELECTION = `SELECT
   github_repositories.name AS github_name,
   github_repositories.api_url AS github_api_url,
   github_repositories.web_url AS github_web_url,
+  github_connections.health AS forge_connection_health,
+  github_connections.health_error_code AS forge_connection_health_error_code,
+  github_connections.health_error_message AS forge_connection_health_error_message,
   (
     SELECT count(*)
     FROM review_assignment_repositories
@@ -20,6 +23,8 @@ export const REPOSITORY_SELECTION = `SELECT
 FROM repositories
 LEFT JOIN github_repositories
   ON github_repositories.repository_id = repositories.id
+LEFT JOIN github_connections
+  ON github_connections.id = github_repositories.connection_id
 LEFT JOIN repository_credentials
   ON repository_credentials.repository_id = repositories.id`;
 

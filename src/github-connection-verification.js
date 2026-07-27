@@ -1,48 +1,19 @@
 /**
  * @param {{
- *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
- *   transaction<Result>(callback: (transaction: {
- *     run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
- *   }) => Result): Result
- * }} durableCore
- * @param {string} connectionId
- */
-export function readLatestGitHubRepositoryEvidence(durableCore, connectionId) {
-  const [row] = durableCore.all(
-    `SELECT repositories
-     FROM github_connection_verifications
-     WHERE connection_id = ?
-     ORDER BY verified_at DESC, id DESC
-     LIMIT 1`,
-    connectionId,
-  );
-  if (!row || typeof row.repositories !== "string") {
-    throw new TypeError("GitHub Connection verification evidence is missing");
-  }
-  const repositories = JSON.parse(row.repositories);
-  if (!Array.isArray(repositories) || repositories.length === 0) {
-    throw new TypeError("GitHub Connection Repository evidence is invalid");
-  }
-  return repositories;
-}
-
-/**
- * @param {{
- *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *   transaction<Result>(callback: (transaction: {
  *     run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
  *   }) => Result): Result
  * }} durableCore
  * @param {{
- *   capabilities: string,
+ *   affectedRepositoryIds: number[],
+ *   capabilities: object | null,
  *   createId: () => string | undefined,
  *   error?: {code: string, message: string, repositoryId?: number, scope: "connection" | "repository"},
  *   evidence: unknown[],
  *   id: string,
- *   permissions: string,
- *   principalId: number,
- *   principalLogin: string,
- *   profile: string,
+ *   permissions: object | null,
+ *   principal: {id: number, login: string} | null,
+ *   profile: string | null,
  *   timestamp: () => number,
  *   trigger: "enablement" | "repository_selection"
  * }} input
@@ -50,22 +21,48 @@ export function readLatestGitHubRepositoryEvidence(durableCore, connectionId) {
 export function recordGitHubConnectionVerification(durableCore, input) {
   const verificationId = input.createId();
   const verifiedAt = input.timestamp();
+  const affectedIds = new Set(input.affectedRepositoryIds);
   if (
     typeof verificationId !== "string" ||
     verificationId.length === 0 ||
-    !Number.isSafeInteger(verifiedAt)
+    !Number.isSafeInteger(verifiedAt) ||
+    affectedIds.size !== input.affectedRepositoryIds.length ||
+    [...affectedIds].some((id) => !Number.isSafeInteger(id) || id <= 0)
   ) {
     throw new TypeError("GitHub Connection verification identity is invalid");
   }
   if (
-    input.error?.scope === "repository" &&
-    !Number.isSafeInteger(input.error.repositoryId)
+    input.affectedRepositoryIds.length === 0 ||
+    (input.error?.scope === "repository" &&
+      (!Number.isSafeInteger(input.error.repositoryId) ||
+        !affectedIds.has(/** @type {number} */ (input.error.repositoryId))))
   ) {
     throw new TypeError("GitHub Repository verification scope is invalid");
   }
+  if (
+    !input.error &&
+    (!input.profile ||
+      !input.principal ||
+      !input.permissions ||
+      !input.capabilities ||
+      input.evidence.length === 0)
+  ) {
+    throw new TypeError(
+      "Successful GitHub verification evidence is incomplete",
+    );
+  }
   const errorCode = input.error?.code ?? null;
   const errorMessage = input.error?.message ?? null;
+  const errorRepositoryId = input.error?.repositoryId ?? null;
   const outcome = input.error ? "error" : "success";
+  const repositoryChecks = input.affectedRepositoryIds.map((repositoryId) => ({
+    outcome: !input.error
+      ? "success"
+      : repositoryId === errorRepositoryId
+        ? "error"
+        : "not_completed",
+    repository_id: repositoryId,
+  }));
   durableCore.transaction((transaction) => {
     if (!input.error) {
       transaction.run(
@@ -73,8 +70,10 @@ export function recordGitHubConnectionVerification(durableCore, input) {
          SET health = 'healthy',
              health_error_code = NULL,
              health_error_message = NULL,
+             repository_count = ?,
              verified_at = ?
          WHERE id = ?`,
+        input.evidence.length,
         verifiedAt,
         input.id,
       );
@@ -116,20 +115,24 @@ export function recordGitHubConnectionVerification(durableCore, input) {
     transaction.run(
       `INSERT INTO github_connection_verifications (
          id, connection_id, trigger, outcome, error_code, error_message,
-         api_profile, principal_id, principal_login, permissions,
-         capabilities, repositories, verified_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         error_repository_id, api_profile, principal_id, principal_login,
+         permissions, capabilities, affected_repository_ids,
+         repository_checks, repositories, verified_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       verificationId,
       input.id,
       input.trigger,
       outcome,
       errorCode,
       errorMessage,
+      errorRepositoryId,
       input.profile,
-      input.principalId,
-      input.principalLogin,
-      input.permissions,
-      input.capabilities,
+      input.principal?.id ?? null,
+      input.principal?.login ?? null,
+      input.permissions === null ? null : JSON.stringify(input.permissions),
+      input.capabilities === null ? null : JSON.stringify(input.capabilities),
+      JSON.stringify(input.affectedRepositoryIds),
+      JSON.stringify(repositoryChecks),
       JSON.stringify(input.evidence),
       verifiedAt,
     );

@@ -31,6 +31,28 @@ export function canonicalRepositorySchemas() {
     "lifecycle",
     "url",
   ];
+  /** @param {Record<string, unknown>} properties @param {string[]} required */
+  const repositoryObject = (properties, required) => ({
+    ...closedObject(properties, required),
+    oneOf: [
+      {
+        properties: {
+          health: { const: "healthy" },
+          health_error: { type: "null" },
+        },
+        required: ["health", "health_error"],
+      },
+      {
+        properties: {
+          health: { const: "error" },
+          health_error: {
+            $ref: "#/components/schemas/RepositoryHealthError",
+          },
+        },
+        required: ["health", "health_error"],
+      },
+    ],
+  });
   return {
     RepositoryGuidanceApplicability: {
       oneOf: [
@@ -167,7 +189,7 @@ export function canonicalRepositorySchemas() {
     ),
     Repository: {
       oneOf: [
-        closedObject(
+        repositoryObject(
           {
             ...repositoryBaseProperties,
             credential_type: {
@@ -177,7 +199,7 @@ export function canonicalRepositorySchemas() {
           },
           repositoryBaseRequired,
         ),
-        closedObject(
+        repositoryObject(
           {
             ...repositoryBaseProperties,
             api_url: { format: "uri", type: "string" },

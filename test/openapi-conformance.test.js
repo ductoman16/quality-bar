@@ -51,6 +51,11 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     ["clone_url", "full_name", "id", "private"],
   );
   assert.equal(contract.components.schemas.Repository.oneOf.length, 2);
+  assert.ok(
+    contract.components.schemas.Repository.oneOf.every(
+      (variant) => variant.oneOf.length === 2,
+    ),
+  );
   assert.equal(contract.components.schemas.GitHubConnection.oneOf.length, 2);
   assert.equal(
     contract.components.schemas.GitHubConnectionVerification.oneOf.length,
@@ -180,6 +185,34 @@ test("runtime conformance rejects invalid request, response, status, content typ
       message:
         "openapi_request_document_invalid: POST /api/v1/session/login / must NOT have additional properties",
     },
+  );
+
+  await assert.rejects(
+    () =>
+      assertion.assertExchange(
+        documentedExchange({
+          request: {
+            method: "GET",
+            url: "http://127.0.0.1/api/v1/repositories",
+          },
+          response: Response.json({
+            repositories: [
+              {
+                credential_type: "none",
+                health: "healthy",
+                health_error: {
+                  code: "stale_error",
+                  message: "must not accompany healthy state",
+                },
+                id: "repository-1",
+                lifecycle: "enabled",
+                url: "https://example.com/private.git",
+              },
+            ],
+          }),
+        }),
+      ),
+    /openapi_success_document_invalid.*health_error/,
   );
 
   await assert.rejects(

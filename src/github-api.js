@@ -6,6 +6,8 @@ import {
 } from "./github-app-manifest.js";
 import { createGitHubApiRequest } from "./github-api-request.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
+import { verifyGitHubRepositoryRead } from "./github-git-verification.js";
+import { verifyGitHubRepositories } from "./github-repository-verification.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
@@ -336,7 +338,7 @@ export function createGitHubVerifier({
           break;
         }
       }
-      const repositoriesToVerify =
+      const selectedRepositories =
         repositoryIds === undefined
           ? repositories
           : repositories.filter((repository) =>
@@ -344,56 +346,66 @@ export function createGitHubVerifier({
             );
       if (
         repositoryIds !== undefined &&
-        (repositoriesToVerify.length !== repositoryIds.length ||
-          new Set(repositoriesToVerify.map(({ id }) => id)).size !==
+        (selectedRepositories.length !== repositoryIds.length ||
+          new Set(selectedRepositories.map(({ id }) => id)).size !==
             repositoryIds.length)
       ) {
-        fail(
+        const repositoryId = repositoryIds.find(
+          (id) =>
+            !selectedRepositories.some((repository) => repository.id === id),
+        );
+        throw new GitHubConnectionError(
           "github_repository_selection_unavailable",
           "Selected GitHub Repository is not accessible to the Connection",
+          { affectedRepositoryIds: repositoryIds, repositoryId },
         );
       }
-      if (
-        repositoryIds === undefined &&
-        !repositories.some((repository) => repository.private)
-      ) {
+      const privateRepository = repositories.find(
+        (repository) => repository.private,
+      );
+      if (!privateRepository) {
         fail(
           "github_private_repository_required",
           "GitHub Connection must prove private Repository read access",
         );
       }
+      const repositoriesToVerify =
+        repositoryIds === undefined ||
+        selectedRepositories.some((repository) => repository.private)
+          ? selectedRepositories
+          : [...selectedRepositories, privateRepository];
+      const affectedRepositoryIds = repositoriesToVerify.map(({ id }) => id);
       for (const repository of repositoriesToVerify) {
         const repositoryPath = `/repos/${repository.full_name}`;
         await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
           authorization: token,
+          affectedRepositoryIds,
           repositoryId: repository.id,
         });
         await request(`${repositoryPath}/branches?per_page=1`, {
           authorization: token,
+          affectedRepositoryIds,
           repositoryId: repository.id,
         });
         await request(`${repositoryPath}/issues?per_page=1&state=all`, {
           authorization: token,
+          affectedRepositoryIds,
           repositoryId: repository.id,
         });
-        try {
-          await verifyGit(
-            repository.clone_url,
-            { token, username: "x-access-token" },
-            { followRedirects: false },
-          );
-        } catch (cause) {
-          throw new GitHubConnectionError(
-            "github_git_verification_failed",
-            "GitHub Repository Git verification could not complete",
-            { cause, repositoryId: repository.id },
-          );
-        }
+        await verifyGitHubRepositoryRead(
+          verifyGit,
+          repository,
+          token,
+          affectedRepositoryIds,
+        );
       }
       return {
         capabilities: GITHUB_VERIFIED_CAPABILITIES,
         principal: installationPrincipal,
         repositories: repositoriesToVerify,
+        ...(repositoryIds === undefined
+          ? {}
+          : { repositoryEvidence: repositories }),
       };
     },
     /**
@@ -408,28 +420,12 @@ export function createGitHubVerifier({
      * @param {number[]} repositoryIds
      */
     async verifyRepositories(credential, installationId, repositoryIds) {
-      const verification = await verifier.verifyInstallation(
+      return verifyGitHubRepositories(
+        verifier.verifyInstallation,
         credential,
         installationId,
+        repositoryIds,
       );
-      const repositories = verification.repositories.filter(({ id }) =>
-        repositoryIds.includes(id),
-      );
-      const repositoryIdsFound = new Set(repositories.map(({ id }) => id));
-      if (
-        repositories.length !== repositoryIds.length ||
-        repositoryIds.some((id) => !repositoryIdsFound.has(id))
-      ) {
-        const repositoryId = repositoryIds.find(
-          (id) => !repositoryIdsFound.has(id),
-        );
-        throw new GitHubConnectionError(
-          "github_repository_selection_unavailable",
-          "Selected GitHub Repository is not accessible to the Connection",
-          { repositoryId },
-        );
-      }
-      return repositories;
     },
   };
   return verifier;

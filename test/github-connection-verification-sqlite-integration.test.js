@@ -7,6 +7,8 @@ import { test } from "node:test";
 import { createGitHubConnectionService } from "../src/github-connection.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { createRepositoryService } from "../src/repository.js";
+import { RepositoryError } from "../src/repository-validation.js";
 
 const repository = {
   api_url: "https://api.github.com/repos/operator/private",
@@ -24,6 +26,13 @@ const publicRepository = {
   id: 202,
   private: false,
 };
+const permissions = /** @type {any} */ ({
+  contents: "read",
+  issues: "write",
+  metadata: "read",
+  pull_requests: "write",
+  statuses: "write",
+});
 
 test("SQLite records immutable scoped Connection verification without treating transient outages as health facts", async (context) => {
   const directory = mkdtempSync(
@@ -79,9 +88,24 @@ test("SQLite records immutable scoped Connection verification without treating t
         if (failure) {
           throw failure;
         }
-        return [repository, publicRepository].filter(({ id }) =>
-          repositoryIds.includes(id),
-        );
+        return {
+          affectedRepositoryIds: repositoryIds,
+          capabilities: {
+            aggregate_feedback: "verified",
+            branch_access: "verified",
+            commit_status: "verified",
+            enumeration: "verified",
+            inline_feedback: "verified",
+            private_git_read: "verified",
+            pull_request_access: "verified",
+          },
+          permissions,
+          principal: { id: 91, login: "operator", type: "User" },
+          repositories: [repository, publicRepository].filter(({ id }) =>
+            repositoryIds.includes(id),
+          ),
+          repositoryEvidence: [repository, publicRepository],
+        };
       },
     },
   });
@@ -106,6 +130,24 @@ test("SQLite records immutable scoped Connection verification without treating t
   );
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.verified_at, 1_100);
+  assert.deepEqual(service.read()?.verification_history.at(-1), {
+    affected_repository_ids: [101],
+    api_profile: "github-rest:2026-03-10",
+    capabilities: null,
+    error: {
+      code: "github_private_git_read_failed",
+      message: "GitHub private Repository read verification failed",
+      repository_id: 101,
+    },
+    id: service.read()?.verification_history.at(-1)?.id,
+    outcome: "error",
+    permissions: null,
+    principal: null,
+    repositories: [],
+    repository_checks: [{ outcome: "error", repository_id: 101 }],
+    trigger: "repository_selection",
+    verified_at: 1_100,
+  });
 
   const historyCount = service.read()?.verification_history.length;
   timestamp = 1_200;
@@ -140,6 +182,11 @@ test("SQLite records immutable scoped Connection verification without treating t
   await service.selectRepositories({ repository_ids: [101, 202] });
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.health_error, null);
+  await service.selectRepositories({ repository_ids: [202] });
+  assert.deepEqual(
+    service.read()?.verification_history.at(-1)?.affected_repository_ids,
+    [202],
+  );
 
   timestamp = 1_500;
   failure = new GitHubConnectionError(
@@ -186,6 +233,11 @@ test("SQLite records immutable scoped Connection verification without treating t
         trigger: "repository_selection",
       },
       {
+        error: null,
+        outcome: "success",
+        trigger: "repository_selection",
+      },
+      {
         error: "github_private_git_read_failed",
         outcome: "error",
         trigger: "enablement",
@@ -203,6 +255,23 @@ test("SQLite records immutable scoped Connection verification without treating t
     () => core.run("DELETE FROM github_connection_verifications"),
     /github_connection_verification_immutable/,
   );
+  core.run(
+    `UPDATE github_connections
+     SET health = 'error',
+         health_error_code = 'github_permissions_mismatch',
+         health_error_message = 'GitHub App permissions do not match'
+     WHERE id = 'connection-1'`,
+  );
+  const repositories = createRepositoryService(core, {
+    masterKey: Buffer.alloc(32, 7),
+  });
+  assert.throws(
+    () => repositories.requireAcceptsNewWork("repository-2"),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "github_permissions_mismatch",
+  );
+  repositories.destroy();
 
   service.destroy();
   core.close();

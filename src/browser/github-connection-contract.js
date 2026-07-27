@@ -76,7 +76,18 @@ function validGitHubVerificationOutcome(verification) {
     return false;
   }
   return verification.outcome === "success"
-    ? verification.error === null
+    ? verification.error === null &&
+        "api_profile" in verification &&
+        typeof verification.api_profile === "string" &&
+        "principal" in verification &&
+        Boolean(verification.principal) &&
+        "permissions" in verification &&
+        Boolean(verification.permissions) &&
+        "capabilities" in verification &&
+        Boolean(verification.capabilities) &&
+        "repositories" in verification &&
+        Array.isArray(verification.repositories) &&
+        verification.repositories.length > 0
     : verification.outcome === "error" &&
         Boolean(
           verification.error &&
@@ -84,7 +95,10 @@ function validGitHubVerificationOutcome(verification) {
           "code" in verification.error &&
           typeof verification.error.code === "string" &&
           "message" in verification.error &&
-          typeof verification.error.message === "string",
+          typeof verification.error.message === "string" &&
+          "repository_id" in verification.error &&
+          (verification.error.repository_id === null ||
+            Number.isSafeInteger(verification.error.repository_id)),
         );
 }
 
@@ -97,13 +111,20 @@ function githubVerificationTime(timestamp) {
   return value.toISOString();
 }
 
-/** @param {{api_profile: string, error: null | {code: string, message: string}, outcome: string, principal: {login: string}, repositories: unknown[], trigger: string, verified_at: number}} verification */
+/** @param {{affected_repository_ids: number[], api_profile: string | null, error: null | {code: string, message: string, repository_id: number | null}, outcome: string, principal: null | {login: string}, repositories: unknown[], repository_checks: {outcome: string, repository_id: number}[], trigger: string, verified_at: number}} verification */
 function githubVerificationHistoryText(verification) {
   const error =
     verification.outcome === "error"
-      ? `; ${verification.error?.message} (${verification.error?.code})`
+      ? `; ${verification.error?.message} (${verification.error?.code})${
+          verification.error?.repository_id === null
+            ? ""
+            : `; Repository ${verification.error?.repository_id}`
+        }`
       : "";
-  return `${verification.trigger}; ${verification.outcome}${error}; ${verification.api_profile}; ${verification.principal.login}; ${verification.repositories.length} Repositories; ${githubVerificationTime(verification.verified_at)}`;
+  const checks = verification.repository_checks
+    .map((check) => `${check.repository_id}: ${check.outcome}`)
+    .join(", ");
+  return `${verification.trigger}; ${verification.outcome}${error}; Repository checks ${checks}; ${verification.repositories.length} enumerated Repositories; ${githubVerificationTime(verification.verified_at)}`;
 }
 
 Reflect.set(

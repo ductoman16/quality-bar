@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { GitHubConnectionError } from "./github-connection-error.js";
-import {
-  readLatestGitHubRepositoryEvidence,
-  recordGitHubConnectionVerification,
-} from "./github-connection-verification.js";
+import { recordGitHubConnectionVerification } from "./github-connection-verification.js";
 import { normalizeGitHubRepositorySelection } from "./github-repository-selection.js";
 import {
   readRepositoryResource,
@@ -29,12 +26,29 @@ const CONNECTION_SCOPED_VERIFICATION_ERRORS = new Set([
 const REPOSITORY_SCOPED_VERIFICATION_ERRORS = new Set([
   "github_private_git_read_failed",
   "github_repository_api_access_failed",
+  "github_repository_git_read_failed",
   "github_repository_selection_unavailable",
 ]);
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
   throw new GitHubConnectionError(code, message);
+}
+
+/** @param {any} repository @param {string} principalLogin */
+function validRepositoryEvidence(repository, principalLogin) {
+  return (
+    repository &&
+    Number.isSafeInteger(repository.id) &&
+    typeof repository.full_name === "string" &&
+    repository.full_name.split("/")[1]?.length > 0 &&
+    repository.full_name ===
+      `${principalLogin}/${repository.full_name.split("/")[1] ?? ""}` &&
+    repository.clone_url === `https://github.com/${repository.full_name}.git` &&
+    repository.api_url ===
+      `https://api.github.com/repos/${repository.full_name}` &&
+    repository.html_url === `https://github.com/${repository.full_name}`
+  );
 }
 
 /**
@@ -112,13 +126,9 @@ export function createGitHubRepositorySelector(
       },
       connection.encrypted_credential,
     );
-    const priorEvidence = readLatestGitHubRepositoryEvidence(
-      durableCore,
-      connection.id,
-    );
-    let repositories;
+    let verification;
     try {
-      repositories = await verifier.verifyRepositories(
+      verification = await verifier.verifyRepositories(
         {
           app_id: /** @type {number} */ (connection.app_id),
           app_slug: connection.app_slug,
@@ -142,7 +152,8 @@ export function createGitHubRepositorySelector(
             : null;
         if (scope) {
           recordGitHubConnectionVerification(durableCore, {
-            capabilities: connection.capabilities,
+            affectedRepositoryIds: error.affectedRepositoryIds ?? repositoryIds,
+            capabilities: null,
             createId: createVerificationId,
             error: {
               code: error.code,
@@ -150,11 +161,10 @@ export function createGitHubRepositorySelector(
               repositoryId: error.repositoryId,
               scope,
             },
-            evidence: priorEvidence,
+            evidence: [],
             id: connection.id,
-            permissions: connection.permissions,
-            principalId: /** @type {number} */ (connection.principal_id),
-            principalLogin: connection.principal_login,
+            permissions: null,
+            principal: null,
             profile: connection.api_profile,
             timestamp,
             trigger: /** @type {"enablement" | "repository_selection"} */ (
@@ -165,6 +175,7 @@ export function createGitHubRepositorySelector(
       }
       if (error instanceof GitHubConnectionError) {
         throw new GitHubConnectionError(error.code, error.message, {
+          affectedRepositoryIds: error.affectedRepositoryIds,
           cause: error,
           repositoryId: error.repositoryId,
         });
@@ -173,6 +184,9 @@ export function createGitHubRepositorySelector(
         cause: error,
       });
     }
+    const repositories = verification?.repositories;
+    const repositoryEvidence = verification?.repositoryEvidence;
+    const affectedRepositoryIds = verification?.affectedRepositoryIds;
     const verifiedRepositoryIds = new Set(
       Array.isArray(repositories)
         ? repositories.map((repository) => repository?.id)
@@ -185,40 +199,49 @@ export function createGitHubRepositorySelector(
       repositoryIds.some((id) => !verifiedRepositoryIds.has(id)) ||
       repositories.some(
         (repository) =>
-          !repository ||
-          !Number.isSafeInteger(repository.id) ||
-          typeof repository.full_name !== "string" ||
-          repository.full_name.split("/")[1]?.length === 0 ||
-          repository.full_name !==
-            `${connection.principal_login}/${
-              repository.full_name.split("/")[1] ?? ""
-            }` ||
-          repository.clone_url !==
-            `https://github.com/${repository.full_name}.git` ||
-          repository.api_url !==
-            `https://api.github.com/repos/${repository.full_name}` ||
-          repository.html_url !== `https://github.com/${repository.full_name}`,
-      )
+          !validRepositoryEvidence(
+            repository,
+            /** @type {string} */ (connection.principal_login),
+          ),
+      ) ||
+      !Array.isArray(repositoryEvidence) ||
+      repositoryEvidence.length === 0 ||
+      new Set(repositoryEvidence.map((repository) => repository?.id)).size !==
+        repositoryEvidence.length ||
+      repositoryEvidence.some(
+        (repository) =>
+          !validRepositoryEvidence(
+            repository,
+            /** @type {string} */ (connection.principal_login),
+          ),
+      ) ||
+      !Array.isArray(affectedRepositoryIds) ||
+      affectedRepositoryIds.length === 0 ||
+      new Set(affectedRepositoryIds).size !== affectedRepositoryIds.length ||
+      affectedRepositoryIds.some(
+        (id) =>
+          !Number.isSafeInteger(id) ||
+          !repositoryEvidence.some((repository) => repository.id === id),
+      ) ||
+      repositoryIds.some((id) => !affectedRepositoryIds.includes(id)) ||
+      JSON.stringify(verification.permissions) !== connection.permissions ||
+      JSON.stringify(verification.capabilities) !== connection.capabilities ||
+      verification.principal?.id !== connection.principal_id ||
+      verification.principal?.login !== connection.principal_login
     ) {
       fail(
         "github_repository_verification_invalid",
         "GitHub Repository verification result is invalid",
       );
     }
-    const refreshedEvidence = new Map(
-      priorEvidence.map((repository) => [repository.id, repository]),
-    );
-    for (const repository of repositories) {
-      refreshedEvidence.set(repository.id, repository);
-    }
     const verifiedAt = recordGitHubConnectionVerification(durableCore, {
-      capabilities: connection.capabilities,
+      affectedRepositoryIds,
+      capabilities: verification.capabilities,
       createId: createVerificationId,
-      evidence: [...refreshedEvidence.values()],
+      evidence: repositoryEvidence,
       id: connection.id,
-      permissions: connection.permissions,
-      principalId: /** @type {number} */ (connection.principal_id),
-      principalLogin: connection.principal_login,
+      permissions: verification.permissions,
+      principal: verification.principal,
       profile: connection.api_profile,
       timestamp,
       trigger: /** @type {"enablement" | "repository_selection"} */ (trigger),

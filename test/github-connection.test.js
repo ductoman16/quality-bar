@@ -141,6 +141,7 @@ test("manifest and installation callbacks atomically create one verified secret-
     repository_count: 1,
     verification_history: [
       {
+        affected_repository_ids: [101],
         api_profile: "github-rest:2026-03-10",
         capabilities: {
           aggregate_feedback: "verified",
@@ -172,6 +173,7 @@ test("manifest and installation callbacks atomically create one verified secret-
             private: true,
           },
         ],
+        repository_checks: [{ outcome: "success", repository_id: 101 }],
         trigger: "onboarding",
         verified_at: 1_000,
       },

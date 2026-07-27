@@ -52,17 +52,37 @@ const GITHUB_CONNECTION_VERIFICATION_SCHEMA = `
       CHECK (outcome IN ('success', 'error')),
     error_code TEXT,
     error_message TEXT,
-    api_profile TEXT NOT NULL,
-    principal_id INTEGER NOT NULL CHECK (principal_id > 0),
-    principal_login TEXT NOT NULL CHECK (length(principal_login) > 0),
-    permissions TEXT NOT NULL CHECK (json_valid(permissions)),
-    capabilities TEXT NOT NULL CHECK (json_valid(capabilities)),
+    error_repository_id INTEGER CHECK (
+      error_repository_id IS NULL OR error_repository_id > 0
+    ),
+    api_profile TEXT,
+    principal_id INTEGER CHECK (principal_id IS NULL OR principal_id > 0),
+    principal_login TEXT,
+    permissions TEXT CHECK (permissions IS NULL OR json_valid(permissions)),
+    capabilities TEXT CHECK (
+      capabilities IS NULL OR json_valid(capabilities)
+    ),
+    affected_repository_ids TEXT NOT NULL CHECK (
+      json_valid(affected_repository_ids)
+      AND json_array_length(affected_repository_ids) > 0
+    ),
+    repository_checks TEXT NOT NULL CHECK (
+      json_valid(repository_checks)
+      AND json_array_length(repository_checks) > 0
+    ),
     repositories TEXT NOT NULL CHECK (json_valid(repositories)),
     verified_at INTEGER NOT NULL,
     CHECK (
       (outcome = 'success'
         AND error_code IS NULL
-        AND error_message IS NULL)
+        AND error_message IS NULL
+        AND error_repository_id IS NULL
+        AND api_profile IS NOT NULL
+        AND principal_id IS NOT NULL
+        AND principal_login IS NOT NULL
+        AND permissions IS NOT NULL
+        AND capabilities IS NOT NULL
+        AND json_array_length(repositories) > 0)
       OR
       (outcome = 'error'
         AND error_code IS NOT NULL
@@ -93,14 +113,27 @@ export const GITHUB_CONNECTION_HEALTH_MIGRATION = `
   ${GITHUB_CONNECTION_VERIFICATION_SCHEMA}
   INSERT INTO github_connection_verifications (
     id, connection_id, trigger, outcome, error_code, error_message,
-    api_profile, principal_id, principal_login, permissions, capabilities,
+    error_repository_id, api_profile, principal_id, principal_login,
+    permissions, capabilities, affected_repository_ids, repository_checks,
     repositories, verified_at
   )
   SELECT
-    id, connection_id, trigger, 'success', NULL, NULL,
+    id, connection_id, trigger, 'success', NULL, NULL, NULL,
     api_profile, principal_id, principal_login, permissions, capabilities,
+    (
+      SELECT json_group_array(json_extract(value, '$.id'))
+      FROM json_each(github_connection_verifications_v13.repositories)
+    ),
+    (
+      SELECT json_group_array(json_object(
+        'repository_id', json_extract(value, '$.id'),
+        'outcome', 'success'
+      ))
+      FROM json_each(github_connection_verifications_v13.repositories)
+    ),
     repositories, verified_at
-  FROM github_connection_verifications_v13;
+  FROM github_connection_verifications_v13
+  ORDER BY rowid;
   DROP TABLE github_connection_verifications_v13;
 `;
 

@@ -278,7 +278,23 @@ export function createRepositoryService(
     },
     /** @param {string} id */
     requireAcceptsNewWork(id) {
-      const repository = readRepositoryResource(find(id));
+      const row = find(id);
+      const repository = readRepositoryResource(row);
+      if (
+        "forge_repository_id" in repository &&
+        row.forge_connection_health === "error"
+      ) {
+        if (
+          typeof row.forge_connection_health_error_code !== "string" ||
+          typeof row.forge_connection_health_error_message !== "string"
+        ) {
+          throw new TypeError("Forge Connection health error is invalid");
+        }
+        fail(
+          row.forge_connection_health_error_code,
+          row.forge_connection_health_error_message,
+        );
+      }
       assertRepositoryAcceptsNewWork({
         health: repository.health,
         healthError: repository.health_error,

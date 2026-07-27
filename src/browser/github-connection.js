@@ -101,16 +101,22 @@ function renderGitHubConnection(value) {
         !("trigger" in verification) ||
         typeof verification.trigger !== "string" ||
         !validGitHubOutcome(verification) ||
+        !("affected_repository_ids" in verification) ||
+        !Array.isArray(verification.affected_repository_ids) ||
+        verification.affected_repository_ids.length === 0 ||
+        verification.affected_repository_ids.some(
+          /** @param {unknown} id */ (id) => !Number.isSafeInteger(id),
+        ) ||
         !("api_profile" in verification) ||
-        typeof verification.api_profile !== "string" ||
+        (verification.api_profile !== null &&
+          typeof verification.api_profile !== "string") ||
         !("principal" in verification) ||
-        !verification.principal ||
-        typeof verification.principal !== "object" ||
-        !("login" in verification.principal) ||
-        typeof verification.principal.login !== "string" ||
+        (verification.principal !== null &&
+          (typeof verification.principal !== "object" ||
+            !("login" in verification.principal) ||
+            typeof verification.principal.login !== "string")) ||
         !("repositories" in verification) ||
         !Array.isArray(verification.repositories) ||
-        verification.repositories.length === 0 ||
         verification.repositories.some(
           /** @param {unknown} repository */ (repository) =>
             !repository ||
@@ -121,6 +127,21 @@ function renderGitHubConnection(value) {
             typeof repository.full_name !== "string" ||
             !("private" in repository) ||
             typeof repository.private !== "boolean",
+        ) ||
+        !("repository_checks" in verification) ||
+        !Array.isArray(verification.repository_checks) ||
+        verification.repository_checks.length !==
+          verification.affected_repository_ids.length ||
+        verification.repository_checks.some(
+          /** @param {unknown} check */ (check) =>
+            !check ||
+            typeof check !== "object" ||
+            !("repository_id" in check) ||
+            !Number.isSafeInteger(check.repository_id) ||
+            !("outcome" in check) ||
+            !["success", "error", "not_completed"].includes(
+              /** @type {string} */ (check.outcome),
+            ),
         ) ||
         !("verified_at" in verification) ||
         !Number.isSafeInteger(verification.verified_at),
@@ -176,9 +197,13 @@ function renderGitHubConnection(value) {
     githubHistory.append(item);
   }
   githubRepositoryOptions.replaceChildren();
-  const latest =
-    value.verification_history[value.verification_history.length - 1];
-  for (const repository of latest.repositories) {
+  const latestSuccess = value.verification_history.findLast(
+    (verification) => verification.outcome === "success",
+  );
+  if (!latestSuccess) {
+    throw new Error("github_connection_response_invalid");
+  }
+  for (const repository of latestSuccess.repositories) {
     const label = document.createElement("label");
     const control = document.createElement("input");
     control.name = "repository_ids";

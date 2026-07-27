@@ -277,7 +277,11 @@ export function createGateDefinitions(metadata) {
       testGroup:
         "github-rest-profile-personal-installation-permissions-routes-atomic-selection-enumeration-and-private-git-boundary",
       failureCode: "github_fixture_integration_tests_failed",
-      arguments: ["--test", "test/github-fixture-integration.test.js"],
+      arguments: [
+        "--test",
+        "test/github-fixture-integration.test.js",
+        "test/github-git-verification.test.js",
+      ],
     },
     {
       name: "git-integration",

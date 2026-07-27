@@ -22,6 +22,16 @@ export function canonicalGitHubConnectionSchemas() {
       },
       ["code", "message"],
     ),
+    GitHubVerificationError: closedObject(
+      {
+        code: { minLength: 1, type: "string" },
+        message: { minLength: 1, type: "string" },
+        repository_id: {
+          oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
+        },
+      },
+      ["code", "message", "repository_id"],
+    ),
     GitHubCapabilityEvidence: closedObject(
       Object.fromEntries(
         [
@@ -73,6 +83,16 @@ export function canonicalGitHubConnectionSchemas() {
       },
       ["clone_url", "full_name", "id", "private"],
     ),
+    GitHubRepositoryVerificationCheck: closedObject(
+      {
+        outcome: {
+          enum: ["success", "error", "not_completed"],
+          type: "string",
+        },
+        repository_id: { minimum: 1, type: "integer" },
+      },
+      ["repository_id", "outcome"],
+    ),
     GitHubRepositorySelectionRequest: closedObject(
       {
         repository_ids: {
@@ -87,22 +107,52 @@ export function canonicalGitHubConnectionSchemas() {
     GitHubConnectionVerification: {
       ...closedObject(
         {
-          api_profile: { const: "github-rest:2026-03-10", type: "string" },
+          affected_repository_ids: {
+            items: { minimum: 1, type: "integer" },
+            minItems: 1,
+            type: "array",
+            uniqueItems: true,
+          },
+          api_profile: {
+            oneOf: [
+              { const: "github-rest:2026-03-10", type: "string" },
+              { type: "null" },
+            ],
+          },
           capabilities: {
-            $ref: "#/components/schemas/GitHubCapabilityEvidence",
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubCapabilityEvidence" },
+              { type: "null" },
+            ],
           },
           error: {
             oneOf: [
-              { $ref: "#/components/schemas/GitHubConnectionHealthError" },
+              { $ref: "#/components/schemas/GitHubVerificationError" },
               { type: "null" },
             ],
           },
           id: { minLength: 1, type: "string" },
           outcome: { enum: ["success", "error"], type: "string" },
-          permissions: { $ref: "#/components/schemas/GitHubPermissions" },
-          principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+          permissions: {
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubPermissions" },
+              { type: "null" },
+            ],
+          },
+          principal: {
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubPrincipal" },
+              { type: "null" },
+            ],
+          },
           repositories: {
             items: { $ref: "#/components/schemas/GitHubRepositoryEvidence" },
+            type: "array",
+          },
+          repository_checks: {
+            items: {
+              $ref: "#/components/schemas/GitHubRepositoryVerificationCheck",
+            },
             minItems: 1,
             type: "array",
           },
@@ -113,6 +163,7 @@ export function canonicalGitHubConnectionSchemas() {
           verified_at: { minimum: 0, type: "integer" },
         },
         [
+          "affected_repository_ids",
           "api_profile",
           "capabilities",
           "error",
@@ -121,6 +172,7 @@ export function canonicalGitHubConnectionSchemas() {
           "permissions",
           "principal",
           "repositories",
+          "repository_checks",
           "trigger",
           "verified_at",
         ],
@@ -128,15 +180,33 @@ export function canonicalGitHubConnectionSchemas() {
       oneOf: [
         {
           properties: {
+            api_profile: {
+              const: "github-rest:2026-03-10",
+              type: "string",
+            },
+            capabilities: {
+              $ref: "#/components/schemas/GitHubCapabilityEvidence",
+            },
             error: { type: "null" },
             outcome: { const: "success" },
+            permissions: { $ref: "#/components/schemas/GitHubPermissions" },
+            principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+            repositories: { minItems: 1 },
           },
-          required: ["error", "outcome"],
+          required: [
+            "api_profile",
+            "capabilities",
+            "error",
+            "outcome",
+            "permissions",
+            "principal",
+            "repositories",
+          ],
         },
         {
           properties: {
             error: {
-              $ref: "#/components/schemas/GitHubConnectionHealthError",
+              $ref: "#/components/schemas/GitHubVerificationError",
             },
             outcome: { const: "error" },
           },

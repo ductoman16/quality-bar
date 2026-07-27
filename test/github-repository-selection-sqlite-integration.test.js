@@ -22,7 +22,6 @@ const capabilities = /** @type {any} */ ({
   private_git_read: "verified",
   pull_request_access: "verified",
 });
-
 const availableRepositories = [
   {
     api_url: "https://api.github.com/repos/operator/alpha",
@@ -100,17 +99,24 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
         }
         if (failSelection) {
           throw new GitHubConnectionError(
-            "github_private_git_read_failed",
+            "github_repository_git_read_failed",
             "GitHub private Repository read verification failed",
             { repositoryId: repositoryIds[0] },
           );
         }
         if (verificationResult) {
-          return verificationResult;
+          return /** @type {any} */ (verificationResult);
         }
-        return availableRepositories.filter(({ id }) =>
-          repositoryIds.includes(id),
-        );
+        return {
+          affectedRepositoryIds: repositoryIds,
+          capabilities,
+          permissions: service.read()?.permissions,
+          principal: { id: 91, login: "operator", type: "User" },
+          repositories: availableRepositories.filter(({ id }) =>
+            repositoryIds.includes(id),
+          ),
+          repositoryEvidence: availableRepositories,
+        };
       },
     },
   });
@@ -121,7 +127,6 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     installationId: "73",
     state: started.state,
   });
-
   timestamp = 1_100;
   await assert.rejects(
     () =>
@@ -130,7 +135,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       }),
     (error) =>
       error instanceof GitHubConnectionError &&
-      error.code === "github_private_git_read_failed",
+      error.code === "github_repository_git_read_failed",
   );
   assert.equal(
     core.get("SELECT count(*) AS count FROM repositories")?.count,
@@ -142,7 +147,6 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   );
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.verified_at, 1_100);
-
   failSelection = false;
   connectionFailure = new GitHubConnectionError(
     "github_permissions_mismatch",
@@ -291,6 +295,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     html_url: "https://github.com/operator/alpha-renamed",
     api_url: "https://api.github.com/repos/operator/alpha-renamed",
   };
+  availableRepositories.pop();
   timestamp = 3_000;
   assert.deepEqual(
     await service.selectRepositories({ repository_ids: [101] }),
@@ -313,6 +318,9 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       },
     ],
   );
+  assert.equal(service.read()?.repository_count, 1);
+  const latestVerification = service.read()?.verification_history.at(-1);
+  assert.deepEqual(latestVerification?.repositories, availableRepositories);
   const repositoryInventory = createRepositoryService(core, {
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,
@@ -328,7 +336,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
         if (
           error instanceof GitHubConnectionError &&
           [
-            "github_private_git_read_failed",
+            "github_repository_git_read_failed",
             "github_repository_api_access_failed",
             "github_repository_selection_unavailable",
           ].includes(error.code)
@@ -383,13 +391,13 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       }),
     (error) =>
       error instanceof RepositoryError &&
-      error.code === "github_private_git_read_failed",
+      error.code === "github_repository_git_read_failed",
   );
   const failedEnablement = repositoryInventory.list()[0];
   assert.equal(failedEnablement.lifecycle, "disabled");
   assert.equal(failedEnablement.health, "error");
   assert.deepEqual(failedEnablement.health_error, {
-    code: "github_private_git_read_failed",
+    code: "github_repository_git_read_failed",
     message: "GitHub private Repository read verification failed",
   });
   repositoryInventory.destroy();

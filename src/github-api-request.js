@@ -2,17 +2,17 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 
 const API_VERSION = "2026-03-10";
 
-/** @param {string} code @param {string} message @param {{cause?: unknown, repositoryId?: number}} [options] @returns {never} */
+/** @param {string} code @param {string} message @param {{affectedRepositoryIds?: number[], cause?: unknown, repositoryId?: number}} [options] @returns {never} */
 function fail(code, message, options) {
   throw new GitHubConnectionError(code, message, options);
 }
 
 /** @param {string} apiBaseUrl @param {typeof fetch} fetchRequest */
 export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
-  /** @param {string} path @param {{authorization?: string, method?: "GET" | "POST", repositoryId?: number}} [options] */
+  /** @param {string} path @param {{affectedRepositoryIds?: number[], authorization?: string, method?: "GET" | "POST", repositoryId?: number}} [options] */
   return async function request(
     path,
-    { authorization, method = "GET", repositoryId } = {},
+    { affectedRepositoryIds, authorization, method = "GET", repositoryId } = {},
   ) {
     let response;
     try {
@@ -37,18 +37,20 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
         response.status === 429 ||
         response.status >= 500 ||
         (response.status === 403 &&
-          response.headers.get("x-ratelimit-remaining") === "0")
+          (response.headers.has("retry-after") ||
+            response.headers.get("x-ratelimit-remaining") === "0"))
       ) {
         fail(
           "github_api_transient_failure",
           `GitHub API request temporarily failed with HTTP ${response.status}`,
+          { affectedRepositoryIds, repositoryId },
         );
       }
       if (Number.isSafeInteger(repositoryId) && response.status === 404) {
         fail(
           "github_repository_api_access_failed",
           "GitHub Repository API access verification failed",
-          { repositoryId },
+          { affectedRepositoryIds, repositoryId },
         );
       }
       fail(
