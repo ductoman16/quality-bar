@@ -173,6 +173,7 @@ export function canonicalRepositorySchemas() {
         next_cursor: { type: ["string", "null"] },
         repositories: {
           deprecated: true,
+          description: "Complete legacy v1 Repository collection",
           items: { $ref: "#/components/schemas/Repository" },
           type: "array",
         },
