@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import { Script } from "node:vm";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { createApplication } from "../src/application.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import {
+  runLoginInNewContext,
+  runOperatorInNewContext,
+} from "./review-browser-component-support.js";
 
 /**
  * @typedef {{
@@ -32,28 +35,6 @@ import { bootstrapOperatorPassword } from "../src/operator-password.js";
  */
 /** @type {string[]} */
 const temporaryDirectories = [];
-const repositoryRoot = resolve(import.meta.dirname, "..");
-
-/** @param {string} source @param {object} context */
-function runLoginInNewContext(source, context) {
-  return executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/login.js",
-    source,
-    context,
-  );
-}
-
-/** @param {string} source @param {object} context */
-function runOperatorInNewContext(source, context) {
-  return executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/operator.js",
-    source,
-    context,
-  );
-}
-
 function temporaryDatabasePath() {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-browser-assets-"));
   temporaryDirectories.push(directory);
@@ -93,15 +74,21 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
           readBrowserAsset("/assets/operator.js"),
           readBrowserAsset("/assets/review-create.js"),
           readBrowserAsset("/assets/review-metadata.js"),
+          readBrowserAsset("/assets/review-criteria.js"),
+          readBrowserAsset("/assets/review-version-contract.js"),
           readBrowserAsset("/assets/review-version.js"),
         ].join("\n"),
       ),
   );
   const page = operatorPage({ view: "reviews" });
-  assert.match(page, /aria-required="true" id="review-metadata-name"/);
-  assert.match(page, /aria-required="true" id="review-metadata-description"/);
-  assert.doesNotMatch(page, /id="review-metadata-name" required/);
-  assert.doesNotMatch(page, /id="review-metadata-description" required/);
+  assert.match(
+    page,
+    /aria-required="true" id="review-metadata-name".*aria-required="true" id="review-metadata-description"/,
+  );
+  assert.doesNotMatch(
+    page,
+    /id="review-metadata-(?:name|description)" required/,
+  );
 });
 
 /** @param {{readBrowserAsset?: (path: string) => string}} [options] */

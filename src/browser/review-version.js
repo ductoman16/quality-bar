@@ -1,129 +1,64 @@
 {
-  function readBrowserConfiguration() {
-    const configuration = /** @type {HTMLScriptElement} */ (
-      document.getElementById("browser-configuration")
-    );
-    if (configuration?.type !== "application/json") {
-      throw new Error("browser_configuration_invalid");
-    }
-    const value = /** @type {{csrfCookieName?: unknown}} */ (
-      JSON.parse(configuration.textContent)
-    );
-    if (
-      !value ||
-      typeof value.csrfCookieName !== "string" ||
-      !/^[A-Za-z0-9_-]+$/.test(value.csrfCookieName)
-    ) {
-      throw new Error("browser_configuration_invalid");
-    }
-    return value.csrfCookieName;
+  /**
+   * @typedef {{
+   * id: string,
+   * name: string,
+   * active_version: {
+   *   id: string,
+   *   number: number,
+   *   applicability_rule: string | null,
+   *   codex_configuration: {
+   *     model: string,
+   *     reasoning_effort: string,
+   *     service_tier: string
+   *   },
+   *   criteria: Array<{id: string, impact: string, instruction: string}>
+   * }
+   * }} Review
+   * @typedef {{
+   *   applicabilityRule: string,
+   *   configuration: {model: string, reasoningEffort: string, serviceTier: string},
+   *   criteria: Array<{id: string, impact: string, instruction: string}>,
+   *   reviewId: string
+   * }} Submitted
+   */
+  const contract =
+    /** @type {Document & {qualityBarReviewVersionContract?: unknown}} */ (
+      document
+    ).qualityBarReviewVersionContract;
+  if (
+    !contract ||
+    typeof contract !== "object" ||
+    !("controlValue" in contract) ||
+    typeof contract.controlValue !== "function" ||
+    !("readBrowserConfiguration" in contract) ||
+    typeof contract.readBrowserConfiguration !== "function" ||
+    !("requiredElement" in contract) ||
+    typeof contract.requiredElement !== "function" ||
+    !("requireReview" in contract) ||
+    typeof contract.requireReview !== "function" ||
+    !("requireSaveResult" in contract) ||
+    typeof contract.requireSaveResult !== "function" ||
+    !("setControlValue" in contract) ||
+    typeof contract.setControlValue !== "function"
+  ) {
+    throw new Error("review_version_contract_unavailable");
   }
-
-  /** @param {string} id */
-  function requiredElement(id) {
-    const element = document.getElementById(id);
-    if (!element) {
-      throw new Error("browser_control_unavailable");
-    }
-    return element;
-  }
-
-  /** @param {string} id */
-  function controlValue(id) {
-    const element = requiredElement(id);
-    if (!("value" in element) || typeof element.value !== "string") {
-      throw new Error("browser_control_unavailable");
-    }
-    return element.value;
-  }
-
-  /** @param {string} id @param {string} value */
-  function setControlValue(id, value) {
-    const element = requiredElement(id);
-    if (!("value" in element)) {
-      throw new Error("browser_control_unavailable");
-    }
-    element.value = value;
-  }
-
-  /** @param {unknown} value */
-  function requireReview(value) {
-    const review =
-      /** @type {{id?: unknown, name?: unknown, active_version?: unknown}} */ (
-        value
-      );
-    if (
-      !review ||
-      typeof review.id !== "string" ||
-      typeof review.name !== "string" ||
-      !review.active_version ||
-      typeof review.active_version !== "object"
-    ) {
-      throw new Error("Review Version response was invalid");
-    }
-    const version =
-      /** @type {{id?: unknown, number?: unknown, applicability_rule?: unknown, codex_configuration?: unknown, criteria?: unknown}} */ (
-        review.active_version
-      );
-    const configuration =
-      /** @type {{model?: unknown, reasoning_effort?: unknown, service_tier?: unknown}} */ (
-        version.codex_configuration
-      );
-    if (
-      typeof version.id !== "string" ||
-      !Number.isSafeInteger(version.number) ||
-      !(
-        version.applicability_rule === null ||
-        typeof version.applicability_rule === "string"
-      ) ||
-      !configuration ||
-      typeof configuration.model !== "string" ||
-      typeof configuration.reasoning_effort !== "string" ||
-      typeof configuration.service_tier !== "string" ||
-      !Array.isArray(version.criteria) ||
-      version.criteria.length === 0 ||
-      !version.criteria.every(
-        (criterion) =>
-          criterion &&
-          typeof criterion === "object" &&
-          "id" in criterion &&
-          typeof criterion.id === "string" &&
-          "impact" in criterion &&
-          ["advisory", "blocking"].includes(
-            /** @type {string} */ (criterion.impact),
-          ) &&
-          "instruction" in criterion &&
-          typeof criterion.instruction === "string",
-      )
-    ) {
-      throw new Error("Review Version response was invalid");
-    }
-    const completeReview = /** @type {{
-     *   id: string,
-     *   name: string,
-     *   active_version: {
-     *     id: string,
-     *     number: number,
-     *     applicability_rule: string | null,
-     *     codex_configuration: {
-     *       model: string,
-     *       reasoning_effort: string,
-     *       service_tier: string
-     *     },
-     *     criteria: Array<{id: string, impact: string, instruction: string}>
-     *   }
-     * }} */ (review);
-    return completeReview;
-  }
-
-  /** @param {unknown} value */
-  function requireSaveResult(value) {
-    const result = /** @type {{changed?: unknown, review?: unknown}} */ (value);
-    if (!result || typeof result.changed !== "boolean") {
-      throw new Error("Review Version response was invalid");
-    }
-    return { changed: result.changed, review: requireReview(result.review) };
-  }
+  const {
+    controlValue,
+    readBrowserConfiguration,
+    requiredElement,
+    requireReview,
+    requireSaveResult,
+    setControlValue,
+  } = /** @type {{
+   * controlValue(id: string): string,
+   * readBrowserConfiguration(): string,
+   * requiredElement(id: string): HTMLElement,
+   * requireReview(value: unknown): Review,
+   * requireSaveResult(value: unknown): {changed: boolean, review: Review},
+   * setControlValue(id: string, value: string): void
+   * }} */ (contract);
 
   const form = /** @type {HTMLFormElement} */ (
     requiredElement("review-version-form")
@@ -140,16 +75,27 @@
   const serviceTier = /** @type {HTMLSelectElement} */ (
     requiredElement("review-version-service-tier")
   );
+  const criteriaList = /** @type {HTMLOListElement} */ (
+    requiredElement("review-version-criteria")
+  );
   const submit = /** @type {HTMLButtonElement} */ (
     requiredElement("review-version-submit")
   );
   const result = requiredElement("review-version-result");
   const error = requiredElement("error");
   const csrfCookieName = readBrowserConfiguration();
-  /** @type {Map<string, ReturnType<typeof requireReview>>} */
+  /** @type {Map<string, Review>} */
   const reviews = new Map();
   /** @type {{id: string, reasoning_efforts: string[], service_tiers: string[]}[]} */
   let models = [];
+  /** @type {{
+   * clearErrors(): void,
+   * read(): Array<{id: string, impact: string, instruction: string}>,
+   * reset(criteria: Array<{id: string, impact: string, instruction: string}>): void,
+   * showFailure(code: string, message: string): string | undefined,
+   * validate(): {code: string, message: string} | undefined
+   * } | undefined} */
+  let criterionEditor;
   let savePending = false;
 
   /** @param {string} value */
@@ -185,9 +131,8 @@
     }
   }
 
-  /** @param {ReturnType<typeof requireReview>} review */
-  function openReview(review) {
-    reviews.set(review.id, review);
+  /** @param {string} selectedId */
+  function renderReviewOptions(selectedId) {
     selector.replaceChildren(
       ...[...reviews.values()].map((candidate) => {
         const element = option(candidate.id);
@@ -195,7 +140,40 @@
         return element;
       }),
     );
-    selector.value = review.id;
+    selector.value = selectedId;
+  }
+
+  function clearErrors() {
+    error.hidden = true;
+    error.textContent = "";
+    error.replaceChildren();
+    criterionEditor?.clearErrors();
+  }
+
+  /** @param {string} message @param {string} [code] */
+  function showFailure(message, code) {
+    error.hidden = false;
+    error.replaceChildren();
+    const controlId =
+      code && criterionEditor
+        ? criterionEditor.showFailure(code, message)
+        : undefined;
+    if (controlId) {
+      const summaryLink = document.createElement("a");
+      summaryLink.href = "#" + controlId;
+      summaryLink.textContent = message;
+      error.replaceChildren(summaryLink);
+    } else {
+      error.textContent = message;
+    }
+  }
+
+  /** @param {Review} review */
+  function openReview(review) {
+    clearErrors();
+    result.textContent = "";
+    reviews.set(review.id, review);
+    renderReviewOptions(review.id);
     setControlValue("review-version-id", review.id);
     setControlValue(
       "review-version-applicability-rule",
@@ -207,7 +185,57 @@
       review.active_version.codex_configuration.reasoning_effort,
       review.active_version.codex_configuration.service_tier,
     );
+    const criterionAuthoring =
+      /** @type {{createCriterionEditor?: unknown}} */ (
+        /** @type {Document & {qualityBarReviewCriteria?: unknown}} */ (
+          document
+        ).qualityBarReviewCriteria
+      );
+    if (typeof criterionAuthoring?.createCriterionEditor !== "function") {
+      throw new Error("review_criterion_authoring_unavailable");
+    }
+    if (criterionEditor) {
+      criterionEditor.reset(review.active_version.criteria);
+    } else {
+      criterionEditor = criterionAuthoring.createCriterionEditor(
+        criteriaList,
+        review.active_version.criteria,
+      );
+    }
     form.hidden = false;
+  }
+
+  /**
+   * @param {Submitted} submitted
+   */
+  function matchesSubmission(submitted) {
+    if (!criterionEditor) {
+      throw new Error("review_criterion_authoring_unavailable");
+    }
+    return (
+      controlValue("review-version-id") === submitted.reviewId &&
+      controlValue("review-version-applicability-rule") ===
+        submitted.applicabilityRule &&
+      model.value === submitted.configuration.model &&
+      reasoningEffort.value === submitted.configuration.reasoningEffort &&
+      serviceTier.value === submitted.configuration.serviceTier &&
+      JSON.stringify(criterionEditor.read()) ===
+        JSON.stringify(submitted.criteria)
+    );
+  }
+
+  /**
+   * @param {Submitted} submitted
+   * @param {{code: string, message: string}} failure
+   */
+  function showSubmissionFailure(submitted, failure) {
+    const current = matchesSubmission(submitted);
+    showFailure(
+      current
+        ? failure.message
+        : `Review ${submitted.reviewId}: ${failure.message}`,
+      current ? failure.code : undefined,
+    );
   }
 
   function csrfToken() {
@@ -237,8 +265,14 @@
     return { code: failure.code, message: failure.message };
   }
 
-  /** @param {Response} response */
-  async function redirectIfAuthenticationRequired(response) {
+  /**
+   * @param {Response} response
+   * @param {(failure: {code: string, message: string}) => void} [show]
+   */
+  async function redirectIfAuthenticationRequired(
+    response,
+    show = (failure) => showFailure(failure.message, failure.code),
+  ) {
     if (response.status !== 401) {
       return false;
     }
@@ -249,8 +283,7 @@
           encodeURIComponent(location.pathname + location.search),
       );
     } else {
-      error.textContent = failure.message;
-      error.hidden = false;
+      show(failure);
     }
     return true;
   }
@@ -288,8 +321,7 @@
       }
       if (!response.ok) {
         const failure = await readFailure(response);
-        error.textContent = failure.message;
-        error.hidden = false;
+        showFailure(failure.message, failure.code);
         return;
       }
       const body = /** @type {{reviews?: unknown}} */ (await response.json());
@@ -310,8 +342,7 @@
       if (!(caught instanceof Error)) {
         throw caught;
       }
-      error.textContent = caught.message;
-      error.hidden = false;
+      showFailure(caught.message);
     }
   });
 
@@ -329,18 +360,39 @@
     }
     savePending = true;
     submit.disabled = true;
-    error.hidden = true;
-    error.textContent = "";
+    clearErrors();
     result.textContent = "";
     const reviewId = controlValue("review-version-id");
     const review = reviews.get(reviewId);
     if (!review) {
       throw new Error("review_selection_invalid");
     }
+    /** @type {Submitted | undefined} */
+    let submitted;
     try {
+      if (!criterionEditor) {
+        throw new Error("review_criterion_authoring_unavailable");
+      }
+      const criteria = criterionEditor.read();
       const applicabilityRule = controlValue(
         "review-version-applicability-rule",
       );
+      const currentSubmission = {
+        applicabilityRule,
+        configuration: {
+          model: model.value,
+          reasoningEffort: reasoningEffort.value,
+          serviceTier: serviceTier.value,
+        },
+        criteria,
+        reviewId,
+      };
+      submitted = currentSubmission;
+      const validationFailure = criterionEditor.validate();
+      if (validationFailure) {
+        showFailure(validationFailure.message, validationFailure.code);
+        return;
+      }
       const response = await fetch(
         "/api/v1/reviews/" + encodeURIComponent(reviewId) + "/versions",
         {
@@ -348,13 +400,11 @@
             applicability_rule:
               applicabilityRule.length === 0 ? null : applicabilityRule,
             codex_configuration: {
-              model: model.value,
-              reasoning_effort: reasoningEffort.value,
-              service_tier: serviceTier.value,
+              model: currentSubmission.configuration.model,
+              reasoning_effort: currentSubmission.configuration.reasoningEffort,
+              service_tier: currentSubmission.configuration.serviceTier,
             },
-            criteria: review.active_version.criteria.map(
-              ({ id, impact, instruction }) => ({ id, impact, instruction }),
-            ),
+            criteria,
           }),
           headers: {
             "content-type": "application/json",
@@ -363,31 +413,42 @@
           method: "POST",
         },
       );
-      if (await redirectIfAuthenticationRequired(response)) {
+      if (
+        await redirectIfAuthenticationRequired(response, (failure) =>
+          showSubmissionFailure(currentSubmission, failure),
+        )
+      ) {
         return;
       }
       if (!response.ok) {
         const failure = await readFailure(response);
-        error.textContent = failure.message;
-        error.hidden = false;
+        showSubmissionFailure(currentSubmission, failure);
         return;
       }
       const saved = requireSaveResult(await response.json());
       if (saved.review.id !== reviewId) {
         throw new Error("Review Version response was invalid");
       }
-      openReview(saved.review);
-      result.textContent =
-        saved.review.name +
-        " v" +
-        saved.review.active_version.number +
-        (saved.changed ? " active." : " unchanged.");
+      reviews.set(saved.review.id, saved.review);
+      if (matchesSubmission(currentSubmission)) {
+        openReview(saved.review);
+        result.textContent =
+          saved.review.name +
+          " v" +
+          saved.review.active_version.number +
+          (saved.changed ? " active." : " unchanged.");
+      } else {
+        renderReviewOptions(selector.value);
+      }
     } catch (caught) {
       if (!(caught instanceof Error)) {
         throw caught;
       }
-      error.textContent = caught.message;
-      error.hidden = false;
+      if (submitted && !matchesSubmission(submitted)) {
+        showFailure(`Review ${reviewId}: ${caught.message}`);
+      } else {
+        showFailure(caught.message);
+      }
     } finally {
       savePending = false;
       submit.disabled = false;

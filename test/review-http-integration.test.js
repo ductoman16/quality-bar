@@ -158,14 +158,30 @@ test("the authenticated Review Version resource saves a complete snapshot or exp
     "x-quality-bar-csrf": csrf,
   };
   const createdResponse = await request("/api/v1/reviews", {
-    body: JSON.stringify(reviewRequest()),
+    body: JSON.stringify(
+      reviewRequest({
+        criteria: [
+          {
+            impact: "advisory",
+            instruction: "Preserve request authentication boundaries.",
+          },
+          {
+            impact: "blocking",
+            instruction: "Keep durable writes atomic.",
+          },
+        ],
+      }),
+    ),
     headers,
     method: "POST",
   });
   const created =
-    /** @type {{id: string, active_version: {id: string, criteria: Array<{id: string}>}}} */ (
+    /** @type {{id: string, active_version: {id: string, criteria: Array<{id: string, impact: string, instruction: string, position: number}>}}} */ (
       await createdResponse.json()
     );
+  const [firstCriterion, secondCriterion] = created.active_version.criteria;
+  assert.ok(firstCriterion);
+  assert.ok(secondCriterion);
   const snapshot = {
     applicability_rule: "true",
     codex_configuration: {
@@ -175,7 +191,12 @@ test("the authenticated Review Version resource saves a complete snapshot or exp
     },
     criteria: [
       {
-        id: created.active_version.criteria[0].id,
+        id: secondCriterion.id,
+        impact: "blocking",
+        instruction: "Keep every durable write atomic.",
+      },
+      {
+        id: firstCriterion.id,
         impact: "blocking",
         instruction: "Preserve authenticated mutation boundaries.",
       },
@@ -192,7 +213,7 @@ test("the authenticated Review Version resource saves a complete snapshot or exp
   );
   assert.equal(savedResponse.status, 200);
   const savedResult =
-    /** @type {{changed: boolean, review: {active_version: {id: string, number: number, applicability_rule: string | null}}}} */ (
+    /** @type {{changed: boolean, review: {active_version: {id: string, number: number, applicability_rule: string | null, criteria: Array<{id: string, impact: string, instruction: string, position: number}>}}}} */ (
       await savedResponse.json()
     );
   assert.equal(savedResult.changed, true);
@@ -200,6 +221,20 @@ test("the authenticated Review Version resource saves a complete snapshot or exp
   assert.notEqual(saved.active_version.id, created.active_version.id);
   assert.equal(saved.active_version.number, 2);
   assert.equal(saved.active_version.applicability_rule, "true");
+  assert.deepEqual(saved.active_version.criteria, [
+    {
+      id: secondCriterion.id,
+      impact: "blocking",
+      instruction: "Keep every durable write atomic.",
+      position: 1,
+    },
+    {
+      id: firstCriterion.id,
+      impact: "blocking",
+      instruction: "Preserve authenticated mutation boundaries.",
+      position: 2,
+    },
+  ]);
 
   const unchangedResponse = await request(
     `/api/v1/reviews/${created.id}/versions`,

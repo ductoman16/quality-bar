@@ -11,6 +11,8 @@
     "operator.js",
     "review-metadata.js",
     "review-create.js",
+    "review-criteria.js",
+    "review-version-contract.js",
     "review-version.js"
   ],
   "initial_production_diagnostics": [
