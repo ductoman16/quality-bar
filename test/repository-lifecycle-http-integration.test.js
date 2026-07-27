@@ -72,7 +72,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
     headers: { cookie: headers.cookie },
   });
   assert.deepEqual(await afterFailedEnable.json(), {
-    repositories: [
+    items: [
       {
         credential_type: "none",
         health: "error",
@@ -85,6 +85,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
         url: "https://example.com/public.git",
       },
     ],
+    next_cursor: null,
   });
 
   verificationFails = false;

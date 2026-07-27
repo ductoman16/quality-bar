@@ -76,13 +76,6 @@ const jsonRequest = (schema) => ({
 export function canonicalOpenApiDocument() {
   const codexCapabilityCatalog = readCodexCapabilityCatalog();
   const mutationParameters = browserMutationParameters();
-  const browserOrBearerMutationParameters = mutationParameters.map(
-    (parameter) => ({
-      ...parameter,
-      description: "Required when authenticating with a browser session",
-      required: false,
-    }),
-  );
   return {
     info: { title: "Quality Bar API", version: "1.0.0" },
     jsonSchemaDialect: "https://spec.openapis.org/oas/3.1/dialect/base",
@@ -232,7 +225,7 @@ export function canonicalOpenApiDocument() {
         },
         post: {
           operationId: "createReview",
-          parameters: browserOrBearerMutationParameters,
+          parameters: mutationParameters,
           requestBody: jsonRequest("ReviewCreateRequest"),
           responses: {
             201: {
@@ -250,7 +243,7 @@ export function canonicalOpenApiDocument() {
             500: errorResponse,
             503: errorResponse,
           },
-          security: authenticated,
+          security: [{ browser_session: [] }],
         },
       },
       ...canonicalRepositoryPath(mutationParameters, errorResponse),

@@ -102,11 +102,47 @@ async function displayMutationFailure(response) {
   error.textContent = body.error.message;
   error.hidden = false;
 }
+
+async function readRepositoryCollection() {
+  /** @type {unknown[]} */
+  const items = [];
+  const seenCursors = new Set();
+  let path = "/api/v1/repositories";
+  while (true) {
+    const response = await fetch(path);
+    if (!response.ok) {
+      return { failure: response, items: [] };
+    }
+    const body = /** @type {{
+     *   items?: unknown,
+     *   next_cursor?: unknown
+     * }} */ (await response.json());
+    if (
+      !Array.isArray(body.items) ||
+      (body.next_cursor !== null &&
+        (typeof body.next_cursor !== "string" || body.next_cursor.length === 0))
+    ) {
+      throw new Error("repository_collection_invalid");
+    }
+    items.push(...body.items);
+    if (body.next_cursor === null) {
+      return { failure: null, items };
+    }
+    if (seenCursors.has(body.next_cursor)) {
+      throw new Error("repository_collection_invalid");
+    }
+    seenCursors.add(body.next_cursor);
+    path =
+      "/api/v1/repositories?cursor=" + encodeURIComponent(body.next_cursor);
+  }
+}
+
 Object.assign(window, {
   qualityBarOperator: Object.freeze({
     csrfToken,
     displayMutationFailure,
     error,
+    readRepositoryCollection,
     requiredElement,
   }),
 });

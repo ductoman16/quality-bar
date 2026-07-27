@@ -257,6 +257,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       list() {
         throw new Error("unused Repository service operation");
       },
+      listPage() {
+        throw new Error("unused Repository service operation");
+      },
       async register() {
         throw new Error("unused Repository service operation");
       },

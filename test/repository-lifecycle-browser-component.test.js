@@ -71,7 +71,7 @@ test("the Repository component displays lifecycle separately from health and sur
           ok: true,
           async json() {
             return {
-              repositories: [
+              items: [
                 {
                   credential_type: "none",
                   health: listAttempt === 1 ? "healthy" : "error",
@@ -98,6 +98,7 @@ test("the Repository component displays lifecycle separately from health and sur
                   url: "https://example.com/error.git",
                 },
               ],
+              next_cursor: null,
             };
           },
         };

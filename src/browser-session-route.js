@@ -14,6 +14,7 @@ import {
   requireBrowserMutationWithQuery,
   sessionCookie,
 } from "./http-request.js";
+import { forbidMachineSystemAccess } from "./api-authorization.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeEmpty, writeError, writeJson } from "./http-response.js";
 
@@ -78,6 +79,53 @@ export function createBrowserSessionRoute({
   return async function handleBrowserSession(request, response, requestUrl) {
     const { method } = request;
     const path = requestUrl.pathname;
+    if (
+      method === "POST" &&
+      [
+        "/api/v1/session/login",
+        "/api/v1/session/logout",
+        "/api/v1/session/activity",
+        "/api/v1/session/password",
+        "/api/v1/sessions/revoke",
+        "/api/v1/implementer-token",
+        "/api/v1/implementer-token/rotate",
+        "/api/v1/implementer-token/revoke",
+      ].includes(path) &&
+      request.headers.authorization !== undefined &&
+      request.headers.cookie === undefined
+    ) {
+      try {
+        const token = request.headers.authorization.match(
+          /^Bearer ([A-Za-z0-9_-]{43})$/,
+        )?.[1];
+        if (!implementerTokens.authenticate(token)) {
+          throw Object.assign(new Error("Machine authentication is invalid"), {
+            code: "authentication_invalid",
+          });
+        }
+        recordAuthorityAttribution({
+          action: "authentication",
+          channel: "implementer_token",
+          outcome: "success",
+        });
+        forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      } catch (error) {
+        const failure = requireCodedError(error);
+        recordAuthorityAttribution({
+          action: "authentication",
+          channel: "implementer_token",
+          errorCode: failure.code,
+          outcome: "failure",
+        });
+        writeError(
+          response,
+          authenticationFailureStatus(failure.code),
+          failure.code,
+          failure.message,
+        );
+      }
+      return true;
+    }
     if (method === "POST" && path === "/api/v1/session/login") {
       try {
         assertAllowedQueryParameters(requestUrl, new Set());

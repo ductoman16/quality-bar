@@ -8,7 +8,7 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
-test("a sole implementer bearer cannot access operator-owned Repository resources", async () => {
+test("a sole implementer bearer locates Repositories but cannot administer them", async () => {
   const { application, request } = await startApplication();
   const token = application.implementerTokens.create(
     "a correct operator password",
@@ -27,14 +27,14 @@ test("a sole implementer bearer cannot access operator-owned Repository resource
     await responseErrorCode(forbiddenRepository),
     "authorization_forbidden",
   );
-  const forbiddenRepositoryList = await request("/api/v1/repositories", {
+  const repositoryList = await request("/api/v1/repositories", {
     headers,
   });
-  assert.equal(forbiddenRepositoryList.status, 403);
-  assert.equal(
-    await responseErrorCode(forbiddenRepositoryList),
-    "authorization_forbidden",
-  );
+  assert.equal(repositoryList.status, 200);
+  assert.deepEqual(await repositoryList.json(), {
+    items: [],
+    next_cursor: null,
+  });
   const forbiddenCredentialRotation = await request(
     "/api/v1/repositories/repository-1/credential/rotate",
     {
@@ -64,6 +64,72 @@ test("a sole implementer bearer cannot access operator-owned Repository resource
     await responseErrorCode(forbiddenLifecycle),
     "authorization_forbidden",
   );
+});
+
+test("the machine Repository collection uses validated opaque keyset pagination", async () => {
+  const { application, request } = await startApplication();
+  for (let index = 0; index < 51; index += 1) {
+    application.durableCore.run(
+      "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+      `repository-${String(index).padStart(2, "0")}`,
+      `https://example.com/repository-${String(index).padStart(2, "0")}.git`,
+      index,
+      index,
+    );
+  }
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const headers = { authorization: `Bearer ${token}` };
+
+  const firstResponse = await request("/api/v1/repositories", { headers });
+  assert.equal(firstResponse.status, 200);
+  const firstPage = /** @type {{
+   *   items: Array<{id: string}>,
+   *   next_cursor: string | null
+   * }} */ (await firstResponse.json());
+  assert.equal(firstPage.items.length, 50);
+  assert.equal(firstPage.items[0]?.id, "repository-00");
+  assert.equal(firstPage.items[49]?.id, "repository-49");
+  assert.equal(typeof firstPage.next_cursor, "string");
+  assert.doesNotMatch(
+    /** @type {string} */ (firstPage.next_cursor),
+    /repository|example/,
+  );
+
+  const secondResponse = await request(
+    `/api/v1/repositories?cursor=${encodeURIComponent(
+      /** @type {string} */ (firstPage.next_cursor),
+    )}`,
+    { headers },
+  );
+  assert.equal(secondResponse.status, 200);
+  assert.deepEqual(await secondResponse.json(), {
+    items: [
+      {
+        credential_type: "none",
+        health: "healthy",
+        health_error: null,
+        id: "repository-50",
+        lifecycle: "enabled",
+        url: "https://example.com/repository-50.git",
+      },
+    ],
+    next_cursor: null,
+  });
+
+  const excessive = await request("/api/v1/repositories?limit=101", {
+    headers,
+  });
+  assert.equal(excessive.status, 400);
+  assert.equal(await responseErrorCode(excessive), "page_size_invalid");
+
+  const invalidCursor = await request(
+    "/api/v1/repositories?cursor=not-an-opaque-cursor",
+    { headers },
+  );
+  assert.equal(invalidCursor.status, 400);
+  assert.equal(await responseErrorCode(invalidCursor), "cursor_invalid");
 });
 
 test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
@@ -101,7 +167,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
   });
   assert.equal(listed.status, 200);
   assert.deepEqual(await listed.json(), {
-    repositories: [
+    items: [
       {
         credential_type: "username_token",
         health: "healthy",
@@ -111,6 +177,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
         url: "https://example.com/private.git",
       },
     ],
+    next_cursor: null,
   });
 
   const rotated = await request(

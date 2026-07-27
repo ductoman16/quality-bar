@@ -77,6 +77,22 @@ test("the authenticated Repository resource returns complete conditional Guidanc
   assert.equal(guidance.schema_version, 1);
   assert.equal(response.headers.get("etag"), `"${guidance.guidance_revision}"`);
 
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const machineResponse = await request(
+    "/api/v1/repositories/repository%2F1/guidance",
+    {
+      headers: { authorization: `Bearer ${token}` },
+    },
+  );
+  assert.equal(machineResponse.status, 200);
+  assert.deepEqual(await machineResponse.json(), guidance);
+  assert.equal(
+    machineResponse.headers.get("etag"),
+    `"${guidance.guidance_revision}"`,
+  );
+
   const unchanged = await request(
     "/api/v1/repositories/repository%2F1/guidance",
     {
@@ -90,7 +106,7 @@ test("the authenticated Repository resource returns complete conditional Guidanc
   assert.equal(await unchanged.text(), "");
 });
 
-test("Repository Guidance rejects unregistered and machine-only access without a fallback document", async () => {
+test("Repository Guidance rejects an unregistered Repository without a fallback document", async () => {
   const { application, request } = await startApplication();
   const operatorHeaders = await authenticatedOperatorHeaders(request);
   const missing = await request(
@@ -111,6 +127,6 @@ test("Repository Guidance rejects unregistered and machine-only access without a
       headers: { authorization: `Bearer ${token}` },
     },
   );
-  assert.equal(machine.status, 403);
-  assert.equal(await responseErrorCode(machine), "authorization_forbidden");
+  assert.equal(machine.status, 404);
+  assert.equal(await responseErrorCode(machine), "repository_not_found");
 });

@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-repository-guidance-and-lifecycle-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-and-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -227,6 +227,7 @@ export function createGateDefinitions(metadata) {
         "test/implementer-token.test.js",
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
+        "test/repository-collection.test.js",
         "test/review-archival.test.js",
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",
@@ -294,7 +295,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-guidance-and-repository-lifecycle-http-resource-boundary",
+        "review-assignment-version-machine-repository-guidance-and-repository-lifecycle-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",

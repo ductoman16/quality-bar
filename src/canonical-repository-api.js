@@ -4,20 +4,25 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
     "/api/v1/repositories": {
       get: {
         operationId: "listGenericRepositories",
+        parameters: [
+          { in: "query", name: "cursor", schema: { type: "string" } },
+          {
+            in: "query",
+            name: "limit",
+            schema: {
+              default: 50,
+              maximum: 100,
+              minimum: 1,
+              type: "integer",
+            },
+          },
+        ],
         responses: {
           200: {
             content: {
               "application/json": {
                 schema: {
-                  additionalProperties: false,
-                  properties: {
-                    repositories: {
-                      items: { $ref: "#/components/schemas/Repository" },
-                      type: "array",
-                    },
-                  },
-                  required: ["repositories"],
-                  type: "object",
+                  $ref: "#/components/schemas/RepositoryCollection",
                 },
               },
             },
@@ -30,7 +35,7 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
           500: errorResponse,
           503: errorResponse,
         },
-        security: [{ browser_session: [] }],
+        security: [{ browser_session: [] }, { implementer_token: [] }],
       },
       post: {
         operationId: "registerGenericRepository",
@@ -149,7 +154,7 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
           500: errorResponse,
           503: errorResponse,
         },
-        security: [{ browser_session: [] }],
+        security: [{ browser_session: [] }, { implementer_token: [] }],
       },
     },
     "/api/v1/repositories/{repository_id}/lifecycle": {

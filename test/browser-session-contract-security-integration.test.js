@@ -162,13 +162,12 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       ({ name, required }) => ({ name, required }),
     ),
     [
-      { name: "Origin", required: false },
-      { name: "x-quality-bar-csrf", required: false },
+      { name: "Origin", required: true },
+      { name: "x-quality-bar-csrf", required: true },
     ],
   );
   assert.deepEqual(contract.paths["/api/v1/reviews"].post.security, [
     { browser_session: [] },
-    { implementer_token: [] },
   ]);
   assert.deepEqual(contract.paths["/api/v1/reviews"].get.security, [
     { browser_session: [] },
@@ -180,6 +179,28 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     reviewStateParameter.schema
   );
   assert.deepEqual(reviewStateSchema.enum, ["active", "archived"]);
+  assert.deepEqual(contract.paths["/api/v1/repositories"].get.security, [
+    { browser_session: [] },
+    { implementer_token: [] },
+  ]);
+  assert.deepEqual(contract.paths["/api/v1/repositories"].post.security, [
+    { browser_session: [] },
+  ]);
+  assert.deepEqual(
+    contract.paths["/api/v1/repositories/{repository_id}/guidance"].get
+      .security,
+    [{ browser_session: [] }, { implementer_token: [] }],
+  );
+  assert.deepEqual(
+    contract.paths["/api/v1/repositories"].get.parameters.map(
+      ({ name }) => name,
+    ),
+    ["cursor", "limit"],
+  );
+  assert.equal(
+    contract.components.schemas.RepositoryCollection.additionalProperties,
+    false,
+  );
   assert.deepEqual(
     contract.paths["/api/v1/reviews/{review_id}/archival"].patch.security,
     [{ browser_session: [] }],
