@@ -3,10 +3,10 @@ import { test } from "node:test";
 
 import { createRepositoryService, RepositoryError } from "../src/repository.js";
 import {
+  authenticatedOperatorHeaders,
   responseErrorCode,
-  sessionCookies,
   startApplication,
-} from "./review-http-integration-support.js";
+} from "./http-integration-support.js";
 
 test("an authenticated operator changes Repository lifecycle through the canonical HTTP resource", async () => {
   let verificationFails = false;
@@ -28,18 +28,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
       });
     },
   });
-  const login = await request("/api/v1/session/login", {
-    body: JSON.stringify({ password: "a correct operator password" }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  const { csrf, session } = sessionCookies(login);
-  const headers = {
-    "content-type": "application/json",
-    cookie: `${session}; quality_bar_csrf=${csrf}`,
-    origin: "http://127.0.0.1:3000",
-    "x-quality-bar-csrf": csrf,
-  };
+  const headers = await authenticatedOperatorHeaders(request);
   const registered = await request("/api/v1/repositories", {
     body: JSON.stringify({ url: "https://example.com/public.git" }),
     headers,
