@@ -54,6 +54,7 @@ function applicationServerOptions() {
     },
     listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
     recordAuthorityAttribution() {},
+    recordMcpOperation() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {

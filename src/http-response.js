@@ -42,14 +42,11 @@ export function writeEmpty(response, headers = {}) {
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
- * @param {number} status
  * @param {string} code
  * @param {string} message
- * @param {import("node:http").OutgoingHttpHeaders} [headers]
  * @param {Array<{ code: string, message: string, path: string }>} [fields]
  */
-export function writeError(response, status, code, message, headers, fields) {
+export function createErrorDocument(code, message, fields) {
   const error = /** @type {{
    *   code: string,
    *   fields?: Array<{ code: string, message: string, path: string }>,
@@ -63,5 +60,18 @@ export function writeError(response, status, code, message, headers, fields) {
   if (fields?.length) {
     error.fields = fields;
   }
-  writeJson(response, status, { error }, headers);
+  return { error };
+}
+
+/**
+ * @param {import("node:http").ServerResponse} response
+ * @param {number} status
+ * @param {string} code
+ * @param {string} message
+ * @param {import("node:http").OutgoingHttpHeaders} [headers]
+ * @param {Array<{ code: string, message: string, path: string }>} [fields]
+ */
+export function writeError(response, status, code, message, headers, fields) {
+  const document = createErrorDocument(code, message, fields);
+  writeJson(response, status, document, headers);
 }

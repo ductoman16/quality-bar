@@ -8,6 +8,7 @@ import {
   fail,
   normalizeRepositoryCredentialRotation,
   normalizeRepositoryLifecycleChange,
+  normalizePublicRepositoryUrl,
   normalizeRepositoryRegistration,
   RepositoryError,
 } from "./repository-validation.js";
@@ -188,9 +189,44 @@ export function createRepositoryService(
         )
         .map(resource);
     },
-    /** @param {{cursor?: string, limit?: string}} [query] */
-    listPage(query) {
-      return repositoryCollection.read(query);
+    /** @param {{cursor?: string, limit?: string, remoteUrl?: string}} [query] */
+    listPage({ cursor, limit, remoteUrl } = {}) {
+      if (remoteUrl === undefined) {
+        return repositoryCollection.read({ cursor, limit });
+      }
+      const normalizedUrl = normalizePublicRepositoryUrl({ url: remoteUrl });
+      const exactCollection = createRepositoryCollection(
+        masterKey,
+        ({ after, limit: pageLimit }) => {
+          const afterClause = after
+            ? `AND (
+                 repositories.normalized_url > ?
+                 OR (
+                   repositories.normalized_url = ?
+                   AND repositories.id > ?
+                 )
+               )`
+            : "";
+          const parameters = after
+            ? [normalizedUrl, after.url, after.url, after.id, pageLimit]
+            : [normalizedUrl, pageLimit];
+          return durableCore
+            .all(
+              `${repositorySelection}
+               WHERE repositories.normalized_url = ?
+               ${afterClause}
+               ORDER BY repositories.normalized_url, repositories.id
+               LIMIT ?`,
+              ...parameters,
+            )
+            .map(resource);
+        },
+      );
+      try {
+        return exactCollection.read({ cursor, limit });
+      } finally {
+        exactCollection.destroy();
+      }
     },
     /** @param {unknown} request */
     async register(request) {

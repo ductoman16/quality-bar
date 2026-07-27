@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-and-lifecycle-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-mcp-contract-and-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -231,6 +231,7 @@ export function createGateDefinitions(metadata) {
         "test/review-archival.test.js",
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",
+        "test/mcp-contract.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",
@@ -309,6 +310,17 @@ export function createGateDefinitions(metadata) {
         "test/review-criterion-retirement-http-integration.test.js",
         "test/review-version-reactivation-http-integration.test.js",
         "test/review-http-integration.test.js",
+      ],
+    },
+    {
+      name: "mcp-integration",
+      testGroup:
+        "authenticated-streamable-http-mcp-repository-guidance-resource-and-security-boundary",
+      failureCode: "mcp_integration_tests_failed",
+      arguments: [
+        "--test",
+        "test/mcp-http-integration.test.js",
+        "test/mcp-security-integration.test.js",
       ],
     },
     {

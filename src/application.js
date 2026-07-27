@@ -309,6 +309,29 @@ export function createApplication({
       }
       return systemResource.recordAuthorityAttribution(event);
     },
+    recordMcpOperation: ({
+      durationMs,
+      errorCode,
+      operation,
+      outcome,
+      requestId,
+      resourceIds,
+    }) => {
+      writeLog(
+        `${JSON.stringify({
+          timestamp: new Date().toISOString(),
+          severity: outcome === "success" ? "info" : "error",
+          event: "mcp_request",
+          component: "mcp",
+          outcome,
+          request_id: requestId,
+          operation,
+          resource_ids: resourceIds,
+          duration_ms: durationMs,
+          ...(errorCode ? { error: errorCode } : {}),
+        })}\n`,
+      );
+    },
     secureBrowserCookie,
   });
 
