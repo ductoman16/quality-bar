@@ -18,6 +18,7 @@ import {
 } from "../src/repository-git.js";
 import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
+import { createReviewService } from "../src/review.js";
 import { openDurableCore } from "../src/durable-core.js";
 
 /** @param {string} directory @param {string} name @param {boolean} populated */
@@ -281,6 +282,46 @@ test("public Repository verification performs a non-mutating read over real HTTP
   await lifecycleRepositories.register({
     url: `https://127.0.0.1:${address.port}/populated.git`,
   });
+  const reviews = createReviewService(lifecycleCore, {
+    createId: (() => {
+      let next = 0;
+      return () => `git-assignment-fact-${++next}`;
+    })(),
+  });
+  /** @param {string} name */
+  const reviewDefinition = (name) => ({
+    assignment: { scope: "installation_wide" },
+    codex_configuration: {
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
+    },
+    criteria: [
+      {
+        impact: "blocking",
+        instruction: "Keep verified Repository scope exact.",
+      },
+    ],
+    description: "Select only admitted Git Repositories.",
+    name,
+  });
+  const installationWide = reviews.create(
+    reviewDefinition("Verified Git installation-wide"),
+  );
+  const repositorySpecific = reviews.create(
+    reviewDefinition("Verified Git Repository"),
+  );
+  reviews.setAssignment(repositorySpecific.id, {
+    repository_ids: ["repository-lifecycle"],
+    scope: "repository_set",
+  });
+  assert.deepEqual(
+    reviews.selectForNewEvaluation("repository-lifecycle"),
+    [installationWide, repositorySpecific].map((review) => ({
+      review_id: review.id,
+      review_version_id: review.active_version.id,
+    })),
+  );
   await lifecycleRepositories.setLifecycle("repository-lifecycle", {
     lifecycle: "disabled",
   });

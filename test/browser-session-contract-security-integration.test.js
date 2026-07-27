@@ -223,7 +223,6 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   );
   for (const schema of [
     "CriterionCreateRequest",
-    "ReviewAssignment",
     "ReviewCreateRequest",
     "Criterion",
     "ReviewVersion",
@@ -233,6 +232,9 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       contract.components.schemas[schema].additionalProperties,
       false,
     );
+  }
+  for (const assignment of contract.components.schemas.ReviewAssignment.oneOf) {
+    assert.equal(assignment.additionalProperties, false);
   }
   for (const configuration of contract.components.schemas.CodexConfiguration
     .oneOf) {
@@ -275,7 +277,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
-    durable_core: { schema_version: 11, status: "ready" },
+    durable_core: { schema_version: 12, status: "ready" },
     implementer_token: { status: "active" },
   });
 

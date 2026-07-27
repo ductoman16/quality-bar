@@ -63,9 +63,13 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
         "review_version_criteria_immutable_update",
         "review_version_criteria_immutable_delete",
         "review_version_criteria_immutable_insert",
+        "review_assignment_repository_scope_insert",
+        "review_assignment_repository_scope_update",
+        "review_assignment_scope_update",
       ]) {
         transaction.run(`DROP TRIGGER ${trigger}`);
       }
+      transaction.run("DROP TABLE review_assignment_repositories");
       transaction.run(
         "ALTER TABLE review_version_criteria RENAME TO review_version_criteria_v7",
       );
@@ -113,7 +117,7 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 11);
+    assert.equal(migrated.facts.schemaVersion, 12);
     assert.deepEqual(
       migrated.get("SELECT archived_at FROM reviews WHERE id = ?", "review-1"),
       { archived_at: null },
@@ -134,6 +138,17 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
         instruction: "Preserve this instruction.",
         impact: "blocking",
       },
+    );
+    assert.deepEqual(
+      migrated.get(
+        "SELECT scope FROM review_assignments WHERE review_id = ?",
+        "review-1",
+      ),
+      { scope: "installation_wide" },
+    );
+    assert.deepEqual(
+      migrated.all("SELECT * FROM review_assignment_repositories"),
+      [],
     );
     migrated.close();
   } finally {

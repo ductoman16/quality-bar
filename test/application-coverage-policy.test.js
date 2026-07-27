@@ -31,6 +31,7 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/review-version.js",
       "src/browser/review-reactivation.js",
       "src/browser/review-archival.js",
+      "src/browser/review-assignment.js",
     ],
   });
   assert.deepEqual(
@@ -74,8 +75,11 @@ test("coverage executes the deterministic application proof pyramid without smok
   for (const path of [
     "test/applicability-rule.test.js",
     "test/review-applicability-rule-browser-component.test.js",
+    "test/review-assignment-browser-component.test.js",
     "test/review-applicability-rule-sqlite-integration.test.js",
+    "test/review-assignment-sqlite-integration.test.js",
     "test/review-applicability-rule-http-integration.test.js",
+    "test/review-assignment-http-integration.test.js",
     "test/review-archival.test.js",
     "test/review-selection.test.js",
     "test/review-archival-browser-component.test.js",

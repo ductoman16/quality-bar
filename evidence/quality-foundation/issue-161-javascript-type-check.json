@@ -16,7 +16,8 @@
     "review-version-contract.js",
     "review-version.js",
     "review-reactivation.js",
-    "review-archival.js"
+    "review-archival.js",
+    "review-assignment.js"
   ],
   "initial_production_diagnostics": [
     {

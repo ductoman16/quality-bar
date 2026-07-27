@@ -113,6 +113,19 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     await responseErrorCode(forbiddenArchival),
     "authorization_forbidden",
   );
+  const forbiddenAssignment = await request(
+    `/api/v1/reviews/${first.id}/assignment`,
+    {
+      body: JSON.stringify({ scope: "installation_wide" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(forbiddenAssignment.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenAssignment),
+    "authorization_forbidden",
+  );
 
   assert.deepEqual(
     application.durableCore.get(

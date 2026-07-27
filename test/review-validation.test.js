@@ -3,7 +3,10 @@ import { test } from "node:test";
 
 import { CodexConfigurationError } from "../src/codex-capabilities.js";
 import { createReviewService, ReviewError } from "../src/review.js";
-import { validateExecutableSnapshot } from "../src/review-validation.js";
+import {
+  validateAssignmentRequest,
+  validateExecutableSnapshot,
+} from "../src/review-validation.js";
 
 function validDefinition(overrides = {}) {
   return {
@@ -61,8 +64,10 @@ test("invalid Review definitions fail before a durable transaction can begin", (
       "review_criterion_impact_invalid",
     ],
     [
-      validDefinition({ assignment: { scope: "repository_set" } }),
-      "review_assignment_unsupported",
+      validDefinition({
+        assignment: { repository_ids: [], scope: "repository_set" },
+      }),
+      "review_assignment_repository_set_empty",
     ],
     [
       validDefinition({
@@ -85,6 +90,45 @@ test("invalid Review definitions fail before a durable transaction can begin", (
     );
   }
   assert.equal(transactionCount, 0);
+});
+
+test("Review Assignment validation accepts exactly one mode and a unique nonempty Repository set", () => {
+  assert.deepEqual(validateAssignmentRequest({ scope: "installation_wide" }), {
+    scope: "installation_wide",
+  });
+  assert.deepEqual(
+    validateAssignmentRequest({
+      repository_ids: ["repository-2", "repository-1"],
+      scope: "repository_set",
+    }),
+    {
+      repository_ids: ["repository-1", "repository-2"],
+      scope: "repository_set",
+    },
+  );
+  for (const [assignment, code] of [
+    [
+      { repository_ids: [], scope: "repository_set" },
+      "review_assignment_repository_set_empty",
+    ],
+    [
+      {
+        repository_ids: ["repository-1", "repository-1"],
+        scope: "repository_set",
+      },
+      "review_assignment_repository_duplicate",
+    ],
+    [
+      { repository_ids: ["repository-1"], scope: "installation_wide" },
+      "review_assignment_malformed",
+    ],
+    [{ scope: "repository_set" }, "review_assignment_malformed"],
+  ]) {
+    assert.throws(
+      () => validateAssignmentRequest(assignment),
+      (error) => error instanceof ReviewError && error.code === code,
+    );
+  }
 });
 
 test("invalid Review metadata edits fail before a durable transaction can begin", () => {

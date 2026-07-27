@@ -1,6 +1,10 @@
 import { DurableCoreError, fail } from "./durable-error.js";
+import {
+  REVIEW_ASSIGNMENT_MIGRATION,
+  REVIEW_ASSIGNMENT_SCHEMA,
+} from "./review-assignment-schema.js";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 const REPOSITORY_HEALTH_INTEGRITY = `
   CREATE TRIGGER IF NOT EXISTS repository_health_integrity_insert
@@ -108,11 +112,7 @@ const REVIEW_SCHEMA = `
     PRIMARY KEY (review_version_id, criterion_id),
     UNIQUE (review_version_id, position)
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS review_assignments (
-    review_id TEXT PRIMARY KEY REFERENCES reviews(id),
-    scope TEXT NOT NULL CHECK (scope = 'installation_wide'),
-    created_at INTEGER NOT NULL
-  ) STRICT;
+  ${REVIEW_ASSIGNMENT_SCHEMA}
   CREATE TRIGGER IF NOT EXISTS review_versions_immutable_update
     BEFORE UPDATE ON review_versions
     WHEN OLD.sealed_at IS NOT NULL OR NEW.sealed_at IS NULL
@@ -328,6 +328,7 @@ export function initializeOrValidateSchema(database) {
         ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
+        ${REVIEW_ASSIGNMENT_MIGRATION}
       `,
     );
   } else if (version === 7) {
@@ -335,17 +336,26 @@ export function initializeOrValidateSchema(database) {
       database,
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
        ${REPOSITORY_SCHEMA}
-       ${REPOSITORY_CREDENTIAL_SCHEMA}`,
+       ${REPOSITORY_CREDENTIAL_SCHEMA}
+       ${REVIEW_ASSIGNMENT_MIGRATION}`,
     );
   } else if (version === 8) {
-    migration(database, `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}`);
+    migration(
+      database,
+      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}`,
+    );
   } else if (version === 9) {
     migration(
       database,
-      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}`,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}`,
     );
   } else if (version === 10) {
-    migration(database, REPOSITORY_LIFECYCLE_MIGRATION);
+    migration(
+      database,
+      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}`,
+    );
+  } else if (version === 11) {
+    migration(database, REVIEW_ASSIGNMENT_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
