@@ -71,6 +71,7 @@ const TOKEN_METHODS = [
  *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
+ *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
  *   readSystemStatus: () => unknown,
@@ -90,6 +91,7 @@ export function createApplicationServer({
   implementerTokens,
   browserOrigin,
   requestSecurity,
+  repositories,
   reviews,
   readDurableCoreStatus,
   readSystemStatus,
@@ -122,6 +124,9 @@ export function createApplicationServer({
   ) {
     throw new TypeError("reviews must provide the Review resource");
   }
+  if (typeof repositories?.registerPublic !== "function") {
+    throw new TypeError("repositories must provide the Repository resource");
+  }
 
   const handleBrowserAsset = createBrowserAssetRoute({
     browserAssetReader,
@@ -145,6 +150,7 @@ export function createApplicationServer({
     listAuthorityAttributions,
     readSystemStatus,
     recordAuthorityAttribution,
+    repositories,
     reviews,
   });
 

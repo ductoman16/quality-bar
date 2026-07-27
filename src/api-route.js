@@ -68,7 +68,7 @@ async function reviewMutation(
       browserOrigin,
       requestUrl,
     );
-    writeJson(response, 200, mutate(await readJsonRequest(request)));
+    writeJson(response, 200, await mutate(await readJsonRequest(request)));
   } catch (error) {
     if (
       error instanceof Error &&
@@ -111,6 +111,7 @@ async function reviewMutation(
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
  *   readSystemStatus: () => unknown,
  *   recordAuthorityAttribution: (event: AttributionEvent) => void,
+ *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} dependencies
  */
@@ -120,6 +121,7 @@ export function createApiRoute({
   listAuthorityAttributions,
   readSystemStatus,
   recordAuthorityAttribution,
+  repositories,
   reviews,
 }) {
   /**
@@ -152,7 +154,8 @@ export function createApiRoute({
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
-        (method === "POST" && reviewVersionsMatch))
+        (method === "POST" && reviewVersionsMatch) ||
+        (method === "POST" && path === "/api/v1/repositories"))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
       return true;
@@ -292,6 +295,23 @@ export function createApiRoute({
           );
         }
       }
+      return true;
+    }
+    if (method === "POST" && path === "/api/v1/repositories") {
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "repository_registration_failed",
+        mutate: (body) => repositories.registerPublic(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "repository_identity_conflict"
+            ? 409
+            : isUnavailableError(error) ||
+                code === "repository_git_verification_unavailable"
+              ? 503
+              : 422,
+      });
       return true;
     }
     if (method === "PATCH" && reviewMetadataMatch) {

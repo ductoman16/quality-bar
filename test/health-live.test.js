@@ -56,6 +56,11 @@ before(async () => {
     recordAuthorityAttribution() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
+    repositories: {
+      async registerPublic() {
+        throw new Error("unused Repository service operation");
+      },
+    },
     reviews: {
       ...createUnavailableReviewService(
         new Error("unused Review service operation"),
