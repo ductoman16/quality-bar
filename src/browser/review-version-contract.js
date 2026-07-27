@@ -46,6 +46,34 @@
     element.value = value;
   }
 
+  function csrfToken() {
+    const cookieName = readBrowserConfiguration();
+    const token = document.cookie
+      .split(";")
+      .map((cookie) => cookie.trim().split("=", 2))
+      .find(([name]) => name === cookieName)?.[1];
+    if (!token) {
+      throw new Error("browser_csrf_unavailable");
+    }
+    return token;
+  }
+
+  /** @param {Response} response */
+  async function readFailure(response) {
+    const body = /** @type {{error?: {code?: unknown, message?: unknown}}} */ (
+      await response.json()
+    );
+    const failure = body.error;
+    if (
+      !failure ||
+      typeof failure.code !== "string" ||
+      typeof failure.message !== "string"
+    ) {
+      throw new Error("Review Version response was invalid");
+    }
+    return { code: failure.code, message: failure.message };
+  }
+
   /** @param {unknown} value */
   function requireReview(value) {
     const review =
@@ -61,39 +89,54 @@
     ) {
       throw new Error("Review Version response was invalid");
     }
-    const version =
-      /** @type {{id?: unknown, number?: unknown, applicability_rule?: unknown, codex_configuration?: unknown, criteria?: unknown}} */ (
-        review.active_version
-      );
-    const configuration =
-      /** @type {{model?: unknown, reasoning_effort?: unknown, service_tier?: unknown}} */ (
-        version.codex_configuration
-      );
+    /** @param {unknown} candidate */
+    function requireVersion(candidate) {
+      const version =
+        /** @type {{id?: unknown, number?: unknown, applicability_rule?: unknown, codex_configuration?: unknown, criteria?: unknown}} */ (
+          candidate
+        );
+      const configuration =
+        /** @type {{model?: unknown, reasoning_effort?: unknown, service_tier?: unknown}} */ (
+          version.codex_configuration
+        );
+      if (
+        typeof version.id !== "string" ||
+        !Number.isSafeInteger(version.number) ||
+        !(
+          version.applicability_rule === null ||
+          typeof version.applicability_rule === "string"
+        ) ||
+        !configuration ||
+        typeof configuration.model !== "string" ||
+        typeof configuration.reasoning_effort !== "string" ||
+        typeof configuration.service_tier !== "string" ||
+        !Array.isArray(version.criteria) ||
+        version.criteria.length === 0 ||
+        !version.criteria.every(
+          (criterion) =>
+            criterion &&
+            typeof criterion === "object" &&
+            "id" in criterion &&
+            typeof criterion.id === "string" &&
+            "impact" in criterion &&
+            ["advisory", "blocking"].includes(
+              /** @type {string} */ (criterion.impact),
+            ) &&
+            "instruction" in criterion &&
+            typeof criterion.instruction === "string",
+        )
+      ) {
+        throw new Error("Review Version response was invalid");
+      }
+      return version;
+    }
+    const activeVersion = requireVersion(review.active_version);
+    const versions = /** @type {{versions?: unknown}} */ (review).versions;
     if (
-      typeof version.id !== "string" ||
-      !Number.isSafeInteger(version.number) ||
-      !(
-        version.applicability_rule === null ||
-        typeof version.applicability_rule === "string"
-      ) ||
-      !configuration ||
-      typeof configuration.model !== "string" ||
-      typeof configuration.reasoning_effort !== "string" ||
-      typeof configuration.service_tier !== "string" ||
-      !Array.isArray(version.criteria) ||
-      version.criteria.length === 0 ||
-      !version.criteria.every(
-        (criterion) =>
-          criterion &&
-          typeof criterion === "object" &&
-          "id" in criterion &&
-          typeof criterion.id === "string" &&
-          "impact" in criterion &&
-          ["advisory", "blocking"].includes(
-            /** @type {string} */ (criterion.impact),
-          ) &&
-          "instruction" in criterion &&
-          typeof criterion.instruction === "string",
+      !Array.isArray(versions) ||
+      versions.length === 0 ||
+      !versions.some(
+        (version) => requireVersion(version).id === activeVersion.id,
       )
     ) {
       throw new Error("Review Version response was invalid");
@@ -111,7 +154,18 @@
      *     service_tier: string
      *   },
      *   criteria: Array<{id: string, impact: string, instruction: string}>
-     * }
+     * },
+     * versions: Array<{
+     *   id: string,
+     *   number: number,
+     *   applicability_rule: string | null,
+     *   codex_configuration: {
+     *     model: string,
+     *     reasoning_effort: string,
+     *     service_tier: string
+     *   },
+     *   criteria: Array<{id: string, impact: string, instruction: string}>
+     * }>
      * }} */ (review);
     return completeReview;
   }
@@ -131,6 +185,8 @@
     );
   browserDocument.qualityBarReviewVersionContract = {
     controlValue,
+    csrfToken,
+    readFailure,
     readBrowserConfiguration,
     requiredElement,
     requireReview,

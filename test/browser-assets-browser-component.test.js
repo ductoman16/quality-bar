@@ -77,6 +77,7 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
           readBrowserAsset("/assets/review-criteria.js"),
           readBrowserAsset("/assets/review-version-contract.js"),
           readBrowserAsset("/assets/review-version.js"),
+          readBrowserAsset("/assets/review-reactivation.js"),
         ].join("\n"),
       ),
   );

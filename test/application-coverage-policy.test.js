@@ -28,6 +28,7 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/review-criteria.js",
       "src/browser/review-version-contract.js",
       "src/browser/review-version.js",
+      "src/browser/review-reactivation.js",
     ],
   });
   assert.deepEqual(

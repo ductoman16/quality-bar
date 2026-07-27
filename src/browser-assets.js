@@ -36,6 +36,11 @@ const browserAssets = [
     sourcePath: "src/browser/review-version.js",
     url: new URL("./browser/review-version.js", import.meta.url),
   },
+  {
+    route: "/assets/review-reactivation.js",
+    sourcePath: "src/browser/review-reactivation.js",
+    url: new URL("./browser/review-reactivation.js", import.meta.url),
+  },
 ];
 
 export const BROWSER_ASSET_SOURCE_PATHS = browserAssets.map(

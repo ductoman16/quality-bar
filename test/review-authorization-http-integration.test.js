@@ -40,7 +40,9 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     headers,
     method: "POST",
   });
-  const first = /** @type {{id: string}} */ (await firstResponse.json());
+  const first = /** @type {{id: string, active_version: {id: string}}} */ (
+    await firstResponse.json()
+  );
   const listed = await request("/api/v1/reviews", { headers });
   assert.equal(listed.status, 403);
   assert.equal(await responseErrorCode(listed), "authorization_forbidden");
@@ -81,6 +83,21 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
   assert.equal(forbiddenVersion.status, 403);
   assert.equal(
     await responseErrorCode(forbiddenVersion),
+    "authorization_forbidden",
+  );
+  const forbiddenReactivation = await request(
+    `/api/v1/reviews/${first.id}/active-version`,
+    {
+      body: JSON.stringify({
+        review_version_id: first.active_version.id,
+      }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(forbiddenReactivation.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenReactivation),
     "authorization_forbidden",
   );
 

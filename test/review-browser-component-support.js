@@ -53,27 +53,29 @@ export function failureResponse(code, message, status) {
 
 /** @param {{id: string, name: string, description: string}} metadata */
 export function reviewResource(metadata) {
-  return {
-    active_version: {
-      applicability_rule: null,
-      codex_configuration: {
-        model: "gpt-5.6-terra",
-        reasoning_effort: "high",
-        service_tier: "standard",
-      },
-      criteria: [
-        {
-          id: metadata.id + "-criterion",
-          impact: "advisory",
-          instruction: "Preserve the exact metadata boundary.",
-          position: 1,
-        },
-      ],
-      id: metadata.id + "-v1",
-      number: 1,
+  const activeVersion = {
+    applicability_rule: /** @type {string | null} */ (null),
+    codex_configuration: {
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
     },
+    criteria: [
+      {
+        id: metadata.id + "-criterion",
+        impact: "advisory",
+        instruction: "Preserve the exact metadata boundary.",
+        position: 1,
+      },
+    ],
+    id: metadata.id + "-v1",
+    number: 1,
+  };
+  return {
+    active_version: activeVersion,
     assignment: { scope: "installation_wide" },
     ...metadata,
+    versions: [activeVersion],
   };
 }
 
@@ -81,6 +83,8 @@ export function reviewResource(metadata) {
 export function reviewVersionBrowserHarness(options = {}) {
   const form = browserElement({ hidden: true });
   const selector = browserElement();
+  const activationSelector = browserElement();
+  const activateVersion = browserElement();
   const model = browserElement();
   const reasoningEffort = browserElement();
   const serviceTier = browserElement();
@@ -104,6 +108,8 @@ export function reviewVersionBrowserHarness(options = {}) {
     ["review-version-form", form],
     ["review-version-review", selector],
     ["review-version-id", browserElement()],
+    ["review-version-activation", activationSelector],
+    ["review-version-activate", activateVersion],
     ["review-version-applicability-rule", applicabilityRule],
     ["review-version-criteria", criteriaList],
     ["review-version-add-criterion", addCriterion],
@@ -151,6 +157,13 @@ export function reviewVersionBrowserHarness(options = {}) {
       number: 2,
     },
   };
+  saved.versions = [created.active_version, saved.active_version];
+  const reactivated = {
+    ...saved,
+    active_version: created.active_version,
+  };
+  /** @type {object[]} */
+  const reactivationResponses = [];
   /** @type {(response: object) => void} */
   let resolveFirstSave = () => {
     throw new Error("first_save_not_started");
@@ -172,6 +185,11 @@ export function reviewVersionBrowserHarness(options = {}) {
     /** @param {string} id */
     getElementById(id) {
       return elements.get(id) ?? null;
+    },
+    /** @param {FakeCustomEvent} event */
+    dispatchEvent(event) {
+      documentListeners.get(event.type)?.(event);
+      return true;
     },
   };
   const browserContext = {
@@ -202,6 +220,17 @@ export function reviewVersionBrowserHarness(options = {}) {
             return { reviews: [created] };
           },
         };
+      }
+      if (path.endsWith("/active-version")) {
+        return (
+          reactivationResponses.shift() ?? {
+            ok: true,
+            status: 200,
+            async json() {
+              return { changed: true, review: reactivated };
+            },
+          }
+        );
       }
       if (responseNumber === 2) {
         return firstSave;
@@ -268,6 +297,7 @@ export function reviewVersionBrowserHarness(options = {}) {
     "src/browser/review-criteria.js",
     "src/browser/review-version-contract.js",
     "src/browser/review-version.js",
+    "src/browser/review-reactivation.js",
   ]) {
     executeServedBrowserAsset(
       repositoryRoot,
@@ -277,6 +307,8 @@ export function reviewVersionBrowserHarness(options = {}) {
     );
   }
   return {
+    activateVersion,
+    activationSelector,
     addCriterion,
     applicabilityRule,
     created,
@@ -289,6 +321,10 @@ export function reviewVersionBrowserHarness(options = {}) {
     model,
     reasoningEffort,
     requests,
+    /** @param {object} response */
+    queueReactivationResponse(response) {
+      reactivationResponses.push(response);
+    },
     resolveFirstSave,
     result,
     saved,
