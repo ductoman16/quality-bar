@@ -62,11 +62,70 @@ test("lost selection response reconciles server state without exposing stale cho
   });
 
   assert.equal(browser.repositoryRefreshes(), 1);
-  assert.equal(browser.github.repositoryForm.hidden, true);
-  assert.equal(browser.github.repositoryOptions.children.length, 0);
+  assert.equal(browser.github.repositoryForm.hidden, false);
+  assert.equal(browser.github.repositoryOptions.children.length, 1);
+  assert.equal(
+    browser.github.repositoryOptions.children[0].children[1].textContent,
+    "Forge Repository 101; verification required",
+  );
   assert.equal(
     browser.error.textContent,
     "GitHub Repository selection result is unavailable",
   );
   assert.equal(browser.github.repositorySubmit.disabled, false);
+});
+
+test("lost selection response reports confirmed server registration", async () => {
+  const browser = browserContext(
+    async (path) => {
+      if (path === "/api/v1/github-connections/repositories") {
+        throw new Error("response lost after commit");
+      }
+      return { json: async () => verifiedConnection(), ok: true };
+    },
+    [101],
+  );
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  browser.github.repositoryOptions.children[0].children[0].checked = true;
+
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+
+  assert.equal(browser.context.location.assigned, "/?view=repositories");
+  assert.equal(browser.status.textContent, "GitHub Repositories registered.");
+  assert.equal(browser.error.hidden, true);
+});
+
+test("failed selection reconciliation disables stale controls", async () => {
+  let reads = 0;
+  const browser = browserContext(
+    async (path) => {
+      if (path === "/api/v1/github-connections/repositories") {
+        throw new Error("response lost");
+      }
+      reads += 1;
+      if (reads > 1) {
+        throw new Error("reconciliation unavailable");
+      }
+      return { json: async () => verifiedConnection(), ok: true };
+    },
+    [],
+    false,
+  );
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  browser.github.repositoryOptions.children[0].children[0].checked = true;
+
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+
+  assert.equal(browser.github.repositoryForm.hidden, true);
+  assert.equal(browser.github.repositorySubmit.disabled, true);
+  assert.equal(
+    browser.error.textContent,
+    "GitHub Repository selection reconciliation failed",
+  );
 });

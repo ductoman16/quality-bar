@@ -81,7 +81,7 @@ export function canonicalGitHubConnectionSchemas() {
         id: { minimum: 1, type: "integer" },
         private: { type: "boolean" },
       },
-      ["clone_url", "full_name", "id", "private"],
+      ["api_url", "clone_url", "full_name", "html_url", "id", "private"],
     ),
     GitHubRepositoryVerificationCheck: closedObject(
       {

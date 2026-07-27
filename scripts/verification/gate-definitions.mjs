@@ -281,7 +281,7 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/github-fixture-integration.test.js",
-        "test/github-git-verification.test.js",
+        "test/github-private-proof-failure-fixture-integration.test.js",
       ],
     },
     {

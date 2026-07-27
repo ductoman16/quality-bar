@@ -273,8 +273,7 @@ export function createGitHubRepositorySelector(
       .filter(
         (repository) =>
           selectedRepositoryIds.has(repository.id) ||
-          (affectedRepositoryIds.includes(repository.id) &&
-            existing.has(repository.id)),
+          existing.has(repository.id),
       )
       .map((repository) => {
         const id = existing.get(repository.id) ?? createId();
@@ -287,18 +286,26 @@ export function createGitHubRepositorySelector(
       durableCore.transaction((transaction) => {
         for (const { id, repository } of records) {
           if (existing.has(repository.id)) {
-            transaction.run(
-              `UPDATE repositories
-               SET normalized_url = ?,
-                   verified_at = ?,
-                   health = 'healthy',
-                   health_error_code = NULL,
-                   health_error_message = NULL
-               WHERE id = ?`,
-              repository.clone_url,
-              verifiedAt,
-              id,
-            );
+            if (affectedRepositoryIds.includes(repository.id)) {
+              transaction.run(
+                `UPDATE repositories
+                 SET normalized_url = ?,
+                     verified_at = ?,
+                     health = 'healthy',
+                     health_error_code = NULL,
+                     health_error_message = NULL
+                 WHERE id = ?`,
+                repository.clone_url,
+                verifiedAt,
+                id,
+              );
+            } else {
+              transaction.run(
+                "UPDATE repositories SET normalized_url = ? WHERE id = ?",
+                repository.clone_url,
+                id,
+              );
+            }
             transaction.run(
               `UPDATE github_repositories
                SET name = ?, api_url = ?, web_url = ?
@@ -332,6 +339,25 @@ export function createGitHubRepositorySelector(
             );
           }
         }
+        transaction.run(
+          `UPDATE repositories
+           SET verified_at = ?,
+               health = 'error',
+               health_error_code = 'github_repository_selection_unavailable',
+               health_error_message =
+                 'GitHub Repository is no longer accessible to the Connection'
+           WHERE id IN (
+             SELECT repository_id
+             FROM github_repositories
+             WHERE connection_id = ?
+               AND forge_repository_id NOT IN (${repositoryEvidence
+                 .map(() => "?")
+                 .join(", ")})
+           )`,
+          verifiedAt,
+          connection.id,
+          ...repositoryEvidence.map((repository) => repository.id),
+        );
       });
     } catch (error) {
       if (

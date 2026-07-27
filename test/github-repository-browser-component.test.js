@@ -126,7 +126,7 @@ test("GitHub Repository selection rejects a duplicate success response without i
 
   assert.equal(
     browser.error.textContent,
-    "GitHub Repository selection response is invalid",
+    "GitHub Repository selection result is unavailable",
   );
   assert.equal(browser.error.focused, true);
   assert.equal(browser.status.textContent, "");

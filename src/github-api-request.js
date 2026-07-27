@@ -29,7 +29,9 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
       });
     } catch (cause) {
       fail("github_api_unavailable", "GitHub API request could not complete", {
+        affectedRepositoryIds,
         cause,
+        repositoryId,
       });
     }
     if (!response.ok) {
@@ -72,13 +74,16 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
       fail(
         "github_api_request_failed",
         `GitHub API request failed with HTTP ${response.status}`,
+        { affectedRepositoryIds, repositoryId },
       );
     }
     try {
       return /** @type {unknown} */ (await response.json());
     } catch (cause) {
       fail("github_api_response_invalid", "GitHub API response is invalid", {
+        affectedRepositoryIds,
         cause,
+        repositoryId,
       });
     }
   };

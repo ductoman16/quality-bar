@@ -99,6 +99,7 @@ const GITHUB_CONNECTION_VERIFICATION_SCHEMA = `
       OR EXISTS (
         SELECT 1 FROM json_each(NEW.repository_checks)
         WHERE json_type(value, '$.repository_id') != 'integer'
+          OR json_extract(value, '$.repository_id') <= 0
           OR json_extract(value, '$.repository_id') NOT IN (
             SELECT value FROM json_each(NEW.affected_repository_ids)
           )

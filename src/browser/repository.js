@@ -102,6 +102,15 @@ Reflect.set(
   window,
   "qualityBarRepositories",
   Object.freeze({
+    /** @param {number[]} ids */
+    hasForgeRepositoryIds(ids) {
+      const registered = new Set(
+        [...repositoryResources.values()].map(
+          (repository) => repository.forge_repository_id,
+        ),
+      );
+      return ids.every((id) => registered.has(id));
+    },
     refresh: loadRepositoryOptions,
     /** @param {(repositories: RepositoryResource[]) => unknown} subscriber */
     subscribe(subscriber) {

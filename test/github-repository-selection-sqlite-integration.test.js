@@ -17,6 +17,8 @@ import {
   capabilities,
   markPrivateRepositoryUnhealthy,
   readPrivateRepositoryState,
+  readRemovedRepositoryState,
+  removedRepositoryState,
   renamePrivateRepository,
 } from "./github-repository-selection-fixtures.js";
 
@@ -317,6 +319,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   assert.equal(service.read()?.repository_count, 1);
   const latestVerification = service.read()?.verification_history.at(-1);
   assert.deepEqual(latestVerification?.repositories, availableRepositories);
+  assert.deepEqual(readRemovedRepositoryState(core), removedRepositoryState);
   const repositoryInventory = createRepositoryService(core, {
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,

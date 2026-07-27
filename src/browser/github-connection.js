@@ -51,11 +51,6 @@ function showGitHubError(message) {
   githubError.focus();
 }
 
-/** @param {Response} response */
-async function showGitHubResponseError(response) {
-  showGitHubError(await responseErrorMessage(response));
-}
-
 /** @param {unknown} value */
 function renderGitHubConnection(value) {
   if (value === null) {
@@ -198,22 +193,38 @@ function renderGitHubConnection(value) {
   }
   githubRepositoryOptions.replaceChildren();
   const latestVerification = value.verification_history.at(-1);
-  if (latestVerification?.outcome === "success") {
-    for (const repository of latestVerification.repositories) {
+  if (latestVerification) {
+    const options =
+      latestVerification.outcome === "success"
+        ? latestVerification.repositories.map(
+            /** @param {{full_name: string, id: number, private: boolean}} repository */ (
+              repository,
+            ) => ({
+              id: repository.id,
+              label: `${repository.full_name}; ${
+                repository.private ? "private" : "public"
+              }`,
+            }),
+          )
+        : latestVerification.affected_repository_ids.map(
+            /** @param {number} id */ (id) => ({
+              id,
+              label: `Forge Repository ${id}; verification required`,
+            }),
+          );
+    for (const option of options) {
       const label = document.createElement("label");
       const control = document.createElement("input");
       control.name = "repository_ids";
       control.type = "checkbox";
-      control.value = String(repository.id);
+      control.value = String(option.id);
       const identity = document.createElement("span");
-      identity.textContent = `${repository.full_name}; ${
-        repository.private ? "private" : "public"
-      }`;
+      identity.textContent = option.label;
       label.append(control, identity);
       githubRepositoryOptions.append(label);
     }
   }
-  githubRepositoryForm.hidden = latestVerification?.outcome !== "success";
+  githubRepositoryForm.hidden = githubRepositoryOptions.children.length === 0;
   githubDetails.hidden = false;
   githubForm.hidden = true;
   githubStatus.textContent =
@@ -251,15 +262,15 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       method: "POST",
     });
   } catch {
-    await refreshGitHubRepositoryState();
-    showGitHubError("GitHub Repository selection result is unavailable");
-    githubRepositorySubmit.disabled = false;
+    await reconcileGitHubRepositorySelection(selected);
     return;
   }
   if (!response.ok) {
-    await showGitHubResponseError(response);
-    await refreshGitHubRepositoryState();
-    githubRepositorySubmit.disabled = false;
+    const message = await responseErrorMessage(response);
+    const refreshed = await refreshGitHubRepositoryState();
+    showGitHubError(message);
+    githubRepositoryForm.hidden = !refreshed;
+    githubRepositorySubmit.disabled = !refreshed;
     return;
   }
   try {
@@ -287,17 +298,39 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
     githubStatus.focus();
     location.assign("/?view=repositories");
   } catch {
-    await refreshGitHubRepositoryState();
-    showGitHubError("GitHub Repository selection response is invalid");
-    githubRepositorySubmit.disabled = false;
+    await reconcileGitHubRepositorySelection(selected);
   }
 });
 
+/** @param {number[]} selected */
+async function reconcileGitHubRepositorySelection(selected) {
+  const repositories = /** @type {{
+   *   hasForgeRepositoryIds: (ids: number[]) => boolean,
+   *   refresh: () => Promise<boolean>
+   * }} */ (Reflect.get(window, "qualityBarRepositories"));
+  const connectionLoaded = await loadGitHubConnection();
+  const repositoriesLoaded = await repositories.refresh();
+  if (!connectionLoaded || !repositoriesLoaded) {
+    githubRepositoryForm.hidden = true;
+    showGitHubError("GitHub Repository selection reconciliation failed");
+    return;
+  }
+  if (repositories.hasForgeRepositoryIds(selected)) {
+    githubStatus.textContent = "GitHub Repositories registered.";
+    githubStatus.focus();
+    location.assign("/?view=repositories");
+    return;
+  }
+  showGitHubError("GitHub Repository selection result is unavailable");
+  githubRepositorySubmit.disabled = false;
+}
+
 async function refreshGitHubRepositoryState() {
-  await loadGitHubConnection();
-  await /** @type {{refresh: () => Promise<boolean>}} */ (
-    Reflect.get(window, "qualityBarRepositories")
-  ).refresh();
+  const connectionLoaded = await loadGitHubConnection();
+  const repositoriesLoaded = await /** @type {{
+   *   refresh: () => Promise<boolean>
+   * }} */ (Reflect.get(window, "qualityBarRepositories")).refresh();
+  return connectionLoaded && repositoriesLoaded;
 }
 
 async function loadGitHubConnection() {
@@ -306,23 +339,25 @@ async function loadGitHubConnection() {
     response = await fetch("/api/v1/github-connections");
   } catch {
     showGitHubError("GitHub Connection loading failed");
-    return;
+    return false;
   }
   if (!response.ok) {
-    await showGitHubResponseError(response);
-    return;
+    showGitHubError(await responseErrorMessage(response));
+    return false;
   }
   try {
     renderGitHubConnection(await response.json());
     const query = new URLSearchParams(location.search);
     if (await consumeGitHubCallback(query, showGitHubError)) {
-      return;
+      return false;
     }
     if (query.get("github_connection") === "connected") {
       githubStatus.focus();
     }
+    return true;
   } catch {
     showGitHubError("GitHub Connection response is invalid");
+    return false;
   }
 }
 
@@ -347,7 +382,7 @@ githubForm.addEventListener("submit", async (event) => {
     return;
   }
   if (!response.ok) {
-    await showGitHubResponseError(response);
+    showGitHubError(await responseErrorMessage(response));
     githubSubmit.disabled = false;
     return;
   }

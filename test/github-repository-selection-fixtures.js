@@ -26,6 +26,10 @@ export const availableRepositories = [
     private: false,
   },
 ];
+export const removedRepositoryState = {
+  health: "error",
+  health_error_code: "github_repository_selection_unavailable",
+};
 
 /** @param {{run(sql: string): unknown}} core */
 export function markPrivateRepositoryUnhealthy(core) {
@@ -55,5 +59,14 @@ export function readPrivateRepositoryState(core) {
      FROM repositories
      JOIN github_repositories ON repository_id = repositories.id
      WHERE repositories.id = 'repository-alpha'`,
+  );
+}
+
+/** @param {{get(sql: string): unknown}} core */
+export function readRemovedRepositoryState(core) {
+  return core.get(
+    `SELECT health, health_error_code
+     FROM repositories
+     WHERE id = 'repository-beta'`,
   );
 }

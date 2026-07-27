@@ -133,8 +133,16 @@ export function githubElements(form, submit, status, error) {
   };
 }
 
-/** @param {(path: string, options?: any) => Promise<any>} fetch */
-export function browserContext(fetch) {
+/**
+ * @param {(path: string, options?: any) => Promise<any>} fetch
+ * @param {number[]} [registeredForgeRepositoryIds]
+ * @param {boolean} [repositoryRefreshResult]
+ */
+export function browserContext(
+  fetch,
+  registeredForgeRepositoryIds = [],
+  repositoryRefreshResult = true,
+) {
   const form = element();
   const submit = element();
   const status = element();
@@ -171,9 +179,13 @@ export function browserContext(fetch) {
           requiredElement: (id) => github.elements.get(id),
         },
         qualityBarRepositories: {
+          /** @param {number[]} ids */
+          hasForgeRepositoryIds(ids) {
+            return ids.every((id) => registeredForgeRepositoryIds.includes(id));
+          },
           async refresh() {
             repositoryRefreshes += 1;
-            return true;
+            return repositoryRefreshResult;
           },
         },
       },

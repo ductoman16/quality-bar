@@ -99,6 +99,16 @@ export function recordGitHubConnectionVerification(durableCore, input) {
       );
     } else {
       transaction.run(
+        `UPDATE github_connections
+         SET health = 'healthy',
+             health_error_code = NULL,
+             health_error_message = NULL,
+             verified_at = ?
+         WHERE id = ?`,
+        verifiedAt,
+        input.id,
+      );
+      transaction.run(
         `UPDATE repositories
          SET health = 'error',
              health_error_code = ?,
