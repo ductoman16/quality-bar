@@ -61,6 +61,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
   const rotationUsername = browserElement({ value: "replacement-operator" });
   const rotationToken = browserElement({ value: "replacement-private-token" });
   const rotationResult = browserElement();
+  const rotationSubmit = browserElement({ disabled: true });
   const error = browserElement({ hidden: true });
   const elements = new Map([
     [
@@ -83,6 +84,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
     ["repository-credential-rotate-username", rotationUsername],
     ["repository-credential-rotate-token", rotationToken],
     ["repository-credential-rotate-result", rotationResult],
+    ["repository-credential-rotate-submit", rotationSubmit],
     ["password-change-form", browserElement()],
     ["session-revocation-form", browserElement()],
     ["implementer-token-create-form", browserElement()],
@@ -158,6 +160,17 @@ test("the Repository component rotates write-only credentials and surfaces the e
             },
           };
         }
+        if (registrationAttempt === 2 && rotationAttempt === 0) {
+          return {
+            ok: true,
+            async json() {
+              return {
+                id: "repository-public",
+                url: "https://example.com/team/public.git",
+              };
+            },
+          };
+        }
         if (rotationAttempt === 1) {
           return {
             ok: true,
@@ -217,6 +230,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
     ],
   );
   assert.equal(rotationRepository.disabled, false);
+  assert.equal(rotationSubmit.disabled, false);
   assert.deepEqual(JSON.parse(JSON.stringify(requests[0])), {
     options: {
       body: JSON.stringify({
@@ -240,6 +254,23 @@ test("the Repository component rotates write-only credentials and surfaces the e
   assert.equal(token.value, "");
   assert.equal(username.value, "");
 
+  url.value = "https://example.com/team/public.git";
+  await form.listener("submit")({ preventDefault() {} });
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
+    options: {
+      body: JSON.stringify({
+        url: "https://example.com/team/public.git",
+      }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": "csrf-token",
+      },
+      method: "POST",
+    },
+    path: "/api/v1/repositories",
+  });
+  assert.equal(rotationRepository.options.length, 2);
+
   token.value = "replacement-private-token";
   username.value = "replacement-operator";
   await form.listener("submit")({ preventDefault() {} });
@@ -254,7 +285,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
   );
 
   await rotationForm.listener("submit")({ preventDefault() {} });
-  assert.deepEqual(JSON.parse(JSON.stringify(requests[2])), {
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[3])), {
     options: {
       body: JSON.stringify({
         token: "replacement-private-token",
@@ -296,6 +327,7 @@ test("the Repositories page keeps credential rotation on its owning resource sur
   assert.match(page, /id="repository-create-form"/);
   assert.match(page, /id="repository-credential-rotate-form"/);
   assert.match(page, /id="repository-credential-rotate-repository"/);
+  assert.match(page, /id="repository-credential-rotate-submit"/);
   assert.match(page, /id="repository-credential-rotate-username"/);
   assert.match(page, /id="repository-credential-rotate-token"/);
   assert.doesNotMatch(

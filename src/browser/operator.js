@@ -155,12 +155,19 @@ async function loadRepositoryOptions() {
     document.getElementById("repository-credential-rotate-repository")
   );
   if (!select) {
-    return;
+    return true;
   }
-  const response = await fetch("/api/v1/repositories");
+  let response;
+  try {
+    response = await fetch("/api/v1/repositories");
+  } catch {
+    error.textContent = "Repository listing failed";
+    error.hidden = false;
+    return false;
+  }
   if (!response.ok) {
     await displayMutationFailure(response);
-    return;
+    return false;
   }
   const body = /** @type {{repositories: {id: string, url: string}[]}} */ (
     await response.json()
@@ -170,6 +177,10 @@ async function loadRepositoryOptions() {
     addRepositoryOption(repository);
   }
   select.disabled = false;
+  /** @type {HTMLButtonElement} */ (
+    requiredElement("repository-credential-rotate-submit")
+  ).disabled = false;
+  return true;
 }
 const repositoryOptionsLoaded = loadRepositoryOptions();
 /**
@@ -317,7 +328,9 @@ const repositoryCreateForm = document.getElementById("repository-create-form");
 if (repositoryCreateForm) {
   repositoryCreateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await repositoryOptionsLoaded;
+    if (!(await repositoryOptionsLoaded)) {
+      return;
+    }
     const usernameControl = /** @type {HTMLInputElement} */ (
       requiredElement("repository-username")
     );
@@ -338,7 +351,9 @@ if (repositoryCreateForm) {
       "/api/v1/repositories",
       body,
       (repository) => {
-        addRepositoryOption(repository);
+        if (username && token) {
+          addRepositoryOption(repository);
+        }
         return `${repository.url} registered as ${repository.id}.`;
       },
     );
@@ -350,6 +365,9 @@ const repositoryCredentialRotateForm = document.getElementById(
 if (repositoryCredentialRotateForm) {
   repositoryCredentialRotateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!(await repositoryOptionsLoaded)) {
+      return;
+    }
     const result = requiredElement("repository-credential-rotate-result");
     const repositoryId = controlValue(
       "repository-credential-rotate-repository",
