@@ -208,6 +208,23 @@ export function validateMetadata(metadata) {
   };
 }
 
+/** @param {unknown} request */
+export function validateReactivationRequest(request) {
+  if (!isExactObject(request, ["review_version_id"])) {
+    fail(
+      "review_version_reactivation_request_malformed",
+      "Review Version reactivation request must contain only an exact Review Version identity",
+    );
+  }
+  return {
+    reviewVersionId: validateNonblank(
+      request.review_version_id,
+      "review_version_reactivation_request_malformed",
+      "Review Version reactivation request must contain only an exact Review Version identity",
+    ),
+  };
+}
+
 /** @param {unknown} snapshot */
 export function validateExecutableSnapshot(snapshot) {
   if (

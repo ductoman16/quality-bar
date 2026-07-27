@@ -86,6 +86,26 @@ test("creating a Review atomically creates its active immutable v1, stable Crite
     description: "Protect data access boundaries.",
     id: "review-fact-1",
     name: "Data access",
+    versions: [
+      {
+        applicability_rule: null,
+        codex_configuration: {
+          model: "gpt-5.6-terra",
+          reasoning_effort: "high",
+          service_tier: "standard",
+        },
+        criteria: [
+          {
+            id: "review-fact-3",
+            impact: "blocking",
+            instruction: "Reject unsafe SQL construction.",
+            position: 1,
+          },
+        ],
+        id: "review-fact-2",
+        number: 1,
+      },
+    ],
   });
   assert.deepEqual(
     core.all("SELECT id, name, description, active_version_id FROM reviews"),

@@ -235,6 +235,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       saveVersion() {
         throw new Error("unused Review Version save");
       },
+      reactivateVersion() {
+        throw new Error("unused Review Version reactivation");
+      },
       updateMetadata() {
         throw new Error("unused Review metadata update");
       },

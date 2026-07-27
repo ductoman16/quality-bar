@@ -193,6 +193,16 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["applicability_rule", "codex_configuration", "criteria"],
       ),
+      ReviewVersionReactivationRequest: closedObject(
+        {
+          review_version_id: {
+            minLength: 1,
+            pattern: "\\S",
+            type: "string",
+          },
+        },
+        ["review_version_id"],
+      ),
       Criterion: closedObject(
         {
           id: { type: "string" },
@@ -231,10 +241,29 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           description: { type: "string" },
           id: { type: "string" },
           name: { type: "string" },
+          versions: {
+            items: { $ref: "#/components/schemas/ReviewVersion" },
+            minItems: 1,
+            type: "array",
+          },
         },
-        ["id", "name", "description", "assignment", "active_version"],
+        [
+          "id",
+          "name",
+          "description",
+          "assignment",
+          "active_version",
+          "versions",
+        ],
       ),
       ReviewVersionSaveResult: closedObject(
+        {
+          changed: { type: "boolean" },
+          review: { $ref: "#/components/schemas/Review" },
+        },
+        ["changed", "review"],
+      ),
+      ReviewVersionReactivationResult: closedObject(
         {
           changed: { type: "boolean" },
           review: { $ref: "#/components/schemas/Review" },

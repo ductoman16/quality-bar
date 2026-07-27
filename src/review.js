@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 
+import { validateCodexConfiguration } from "./codex-capabilities.js";
+import { readReview } from "./review-read.js";
 import {
   fail,
   ReviewError,
   validateDefinition,
   validateExecutableSnapshot,
   validateMetadata,
+  validateReactivationRequest,
 } from "./review-validation.js";
 
 export { ReviewError };
@@ -16,81 +19,6 @@ function conflict(error) {
     error instanceof Error &&
     /UNIQUE constraint failed: reviews\.name/.test(error.message)
   );
-}
-
-/**
- * @param {ReviewTransaction} transaction
- * @param {string} reviewId
- */
-function readReview(transaction, reviewId) {
-  const review = transaction.get(
-    `SELECT
-       reviews.id,
-       reviews.name,
-       reviews.description,
-       review_assignments.scope,
-       review_versions.id AS version_id,
-       review_versions.number,
-       review_versions.model,
-       review_versions.reasoning_effort,
-       review_versions.service_tier,
-       review_versions.applicability_rule
-     FROM reviews
-     JOIN review_assignments ON review_assignments.review_id = reviews.id
-     JOIN review_versions ON review_versions.id = reviews.active_version_id
-     WHERE reviews.id = ?`,
-    reviewId,
-  );
-  if (!review) {
-    fail("review_not_found", "Review was not found");
-  }
-  const criteria = transaction
-    .all(
-      `SELECT
-         criteria.id,
-         review_version_criteria.impact,
-         review_version_criteria.instruction,
-         review_version_criteria.position
-       FROM review_version_criteria
-       JOIN criteria ON criteria.id = review_version_criteria.criterion_id
-       WHERE review_version_criteria.review_version_id = ?
-       ORDER BY review_version_criteria.position`,
-      review.version_id,
-    )
-    .map((criterion) => {
-      if (
-        !criterion ||
-        typeof criterion.id !== "string" ||
-        typeof criterion.impact !== "string" ||
-        typeof criterion.instruction !== "string" ||
-        typeof criterion.position !== "number"
-      ) {
-        throw new Error("review_version_criteria_invalid");
-      }
-      return {
-        id: criterion.id,
-        impact: criterion.impact,
-        instruction: criterion.instruction,
-        position: criterion.position,
-      };
-    });
-  return {
-    active_version: {
-      codex_configuration: {
-        model: review.model,
-        reasoning_effort: review.reasoning_effort,
-        service_tier: review.service_tier,
-      },
-      applicability_rule: review.applicability_rule,
-      criteria,
-      id: review.version_id,
-      number: review.number,
-    },
-    assignment: { scope: review.scope },
-    description: review.description,
-    id: review.id,
-    name: review.name,
-  };
 }
 
 /**
@@ -227,7 +155,45 @@ export function createReviewService(
         description: validated.description,
         id: reviewId,
         name: validated.name,
+        versions: [
+          {
+            applicability_rule: null,
+            codex_configuration: validated.codexConfiguration,
+            criteria,
+            id: versionId,
+            number: 1,
+          },
+        ],
       };
+    },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} request
+     */
+    reactivateVersion(reviewId, request) {
+      const { reviewVersionId } = validateReactivationRequest(request);
+      return durableCore.transaction((transaction) => {
+        const current = readReview(transaction, reviewId);
+        const selected = current.versions.find(
+          ({ id }) => id === reviewVersionId,
+        );
+        if (!selected) {
+          fail("review_version_not_found", "Review Version was not found");
+        }
+        validateCodexConfiguration(selected.codex_configuration);
+        if (selected.id === current.active_version.id) {
+          return { changed: false, review: current };
+        }
+        const result = transaction.run(
+          "UPDATE reviews SET active_version_id = ? WHERE id = ?",
+          selected.id,
+          reviewId,
+        );
+        if (result.changes !== 1) {
+          throw new Error("review_version_reactivation_failed");
+        }
+        return { changed: true, review: readReview(transaction, reviewId) };
+      });
     },
     /**
      * @param {string} reviewId
@@ -382,6 +348,9 @@ export function createUnavailableReviewService(error) {
       throw error;
     },
     saveVersion() {
+      throw error;
+    },
+    reactivateVersion() {
       throw error;
     },
     updateMetadata() {

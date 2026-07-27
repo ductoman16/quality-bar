@@ -70,6 +70,9 @@ export function createApiRoute({
     const reviewMetadataMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/metadata$/,
     );
+    const reviewActiveVersionMatch = path.match(
+      /^\/api\/v1\/reviews\/([^/]+)\/active-version$/,
+    );
     const reviewVersionsMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/versions$/,
     );
@@ -77,6 +80,7 @@ export function createApiRoute({
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
         (method === "PATCH" && reviewMetadataMatch) ||
+        (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
@@ -307,6 +311,68 @@ export function createApiRoute({
               : isUnavailableError(error)
                 ? 503
                 : 422;
+          writeError(response, status, failure.code, failure.message);
+        }
+      }
+      return true;
+    }
+    if (method === "PATCH" && reviewActiveVersionMatch) {
+      try {
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
+        const reactivated = reviews.reactivateVersion(
+          decodeURIComponent(reviewActiveVersionMatch[1]),
+          await readJsonRequest(request),
+        );
+        writeJson(response, 200, reactivated);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (!("code" in error) || typeof error.code !== "string")
+        ) {
+          writeError(
+            response,
+            500,
+            "review_version_reactivation_failed",
+            error.message,
+          );
+          return true;
+        }
+        const failure = requireCodedError(error);
+        if (failure.message === "request_malformed") {
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
+        } else if (
+          authority !== "machine" &&
+          [
+            "csrf_invalid",
+            "origin_invalid",
+            "authentication_required",
+          ].includes(failure.code)
+        ) {
+          writeError(
+            response,
+            browserMutationFailureStatus(failure.code),
+            failure.code,
+            failure.message,
+          );
+        } else {
+          const status = [
+            "review_not_found",
+            "review_version_not_found",
+          ].includes(failure.code)
+            ? 404
+            : isUnavailableError(error)
+              ? 503
+              : 422;
           writeError(response, status, failure.code, failure.message);
         }
       }

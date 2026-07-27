@@ -13,7 +13,8 @@
     "review-create.js",
     "review-criteria.js",
     "review-version-contract.js",
-    "review-version.js"
+    "review-version.js",
+    "review-reactivation.js"
   ],
   "initial_production_diagnostics": [
     {

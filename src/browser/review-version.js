@@ -31,8 +31,10 @@
     typeof contract !== "object" ||
     !("controlValue" in contract) ||
     typeof contract.controlValue !== "function" ||
-    !("readBrowserConfiguration" in contract) ||
-    typeof contract.readBrowserConfiguration !== "function" ||
+    !("csrfToken" in contract) ||
+    typeof contract.csrfToken !== "function" ||
+    !("readFailure" in contract) ||
+    typeof contract.readFailure !== "function" ||
     !("requiredElement" in contract) ||
     typeof contract.requiredElement !== "function" ||
     !("requireReview" in contract) ||
@@ -46,14 +48,16 @@
   }
   const {
     controlValue,
-    readBrowserConfiguration,
+    csrfToken,
+    readFailure,
     requiredElement,
     requireReview,
     requireSaveResult,
     setControlValue,
   } = /** @type {{
    * controlValue(id: string): string,
-   * readBrowserConfiguration(): string,
+   * csrfToken(): string,
+   * readFailure(response: Response): Promise<{code: string, message: string}>,
    * requiredElement(id: string): HTMLElement,
    * requireReview(value: unknown): Review,
    * requireSaveResult(value: unknown): {changed: boolean, review: Review},
@@ -86,7 +90,6 @@
   );
   const result = requiredElement("review-version-result");
   const error = requiredElement("error");
-  const csrfCookieName = readBrowserConfiguration();
   /** @type {Map<string, Review>} */
   const reviews = new Map();
   /** @type {{id: string, reasoning_efforts: string[], service_tiers: string[]}[]} */
@@ -99,7 +102,7 @@
    * validate(): {code: string, message: string} | undefined
    * } | undefined} */
   let criterionEditor;
-  let savePending = false;
+  let mutationPending = false;
 
   /** @param {string} value */
   function option(value) {
@@ -151,6 +154,15 @@
     error.textContent = "";
     error.replaceChildren();
     criterionEditor?.clearErrors();
+  }
+
+  /** @param {boolean} pending */
+  function announceMutation(pending) {
+    document.dispatchEvent(
+      new CustomEvent("quality-bar:review-version-mutation", {
+        detail: { pending },
+      }),
+    );
   }
 
   /** @param {string} message @param {string} [code] */
@@ -207,6 +219,9 @@
       );
     }
     form.hidden = false;
+    document.dispatchEvent(
+      new CustomEvent("quality-bar:review-opened", { detail: review }),
+    );
   }
 
   /**
@@ -242,33 +257,6 @@
     );
   }
 
-  function csrfToken() {
-    const token = document.cookie
-      .split(";")
-      .map((cookie) => cookie.trim().split("=", 2))
-      .find(([name]) => name === csrfCookieName)?.[1];
-    if (!token) {
-      throw new Error("browser_csrf_unavailable");
-    }
-    return token;
-  }
-
-  /** @param {Response} response */
-  async function readFailure(response) {
-    const body = /** @type {{error?: {code?: unknown, message?: unknown}}} */ (
-      await response.json()
-    );
-    const failure = body.error;
-    if (
-      !failure ||
-      typeof failure.code !== "string" ||
-      typeof failure.message !== "string"
-    ) {
-      throw new Error("Review Version response was invalid");
-    }
-    return { code: failure.code, message: failure.message };
-  }
-
   /**
    * @param {Response} response
    * @param {(failure: {code: string, message: string}) => void} [show]
@@ -300,7 +288,6 @@
     }
     openReview(review);
   });
-
   document.addEventListener("quality-bar:system-loaded", async (event) => {
     if (!(event instanceof CustomEvent)) {
       throw new Error("system_loaded_event_invalid");
@@ -357,13 +344,35 @@
     openReview(requireReview(event.detail));
   });
 
+  document.addEventListener("quality-bar:review-reactivated", (event) => {
+    if (
+      !(event instanceof CustomEvent) ||
+      typeof event.detail?.open !== "boolean"
+    ) {
+      throw new Error("review_reactivated_event_invalid");
+    }
+    const reactivated = requireSaveResult(event.detail.reactivated);
+    reviews.set(reactivated.review.id, reactivated.review);
+    if (event.detail.open) {
+      openReview(reactivated.review);
+      result.textContent =
+        reactivated.review.name +
+        " v" +
+        reactivated.review.active_version.number +
+        (reactivated.changed ? " active." : " unchanged.");
+    } else {
+      renderReviewOptions(selector.value);
+    }
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (savePending) {
+    if (mutationPending) {
       return;
     }
-    savePending = true;
+    mutationPending = true;
     submit.disabled = true;
+    announceMutation(true);
     clearErrors();
     result.textContent = "";
     const reviewId = controlValue("review-version-id");
@@ -454,8 +463,9 @@
         showFailure(caught.message);
       }
     } finally {
-      savePending = false;
+      mutationPending = false;
       submit.disabled = false;
+      announceMutation(false);
     }
   });
 }

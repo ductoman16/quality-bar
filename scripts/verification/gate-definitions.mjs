@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-and-review-criterion-retirement-validation-unit",
+        "browser-authority-request-security-and-review-version-lifecycle-validation-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -227,13 +227,14 @@ export function createGateDefinitions(metadata) {
         "test/implementer-token.test.js",
         "test/request-security.test.js",
         "test/review-validation.test.js",
+        "test/review-version-reactivation.test.js",
         "test/verification-harness.test.js",
       ],
     },
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-and-review-criterion-retirement-browser-boundary",
+        "browser-authority-request-security-and-review-version-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -241,6 +242,7 @@ export function createGateDefinitions(metadata) {
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
         "test/review-criterion-retirement-browser-component.test.js",
+        "test/review-version-reactivation-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
@@ -250,24 +252,26 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "sqlite-integration",
-      testGroup: "review-criterion-retirement-sqlite-resource-boundary",
+      testGroup: "review-version-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
         "test/review-criterion-identity.test.js",
         "test/review-schema-migration.test.js",
         "test/review-version-change-detection.test.js",
+        "test/review-version-reactivation-sqlite-integration.test.js",
         "test/review.test.js",
       ],
     },
     {
       name: "http-integration",
-      testGroup: "review-criterion-retirement-http-resource-boundary",
+      testGroup: "review-version-lifecycle-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
         "test/review-authorization-http-integration.test.js",
         "test/review-criterion-retirement-http-integration.test.js",
+        "test/review-version-reactivation-http-integration.test.js",
         "test/review-http-integration.test.js",
       ],
     },

@@ -18,6 +18,7 @@
     "src/browser/review-create.js",
     "src/browser/review-criteria.js",
     "src/browser/review-version-contract.js",
-    "src/browser/review-version.js"
+    "src/browser/review-version.js",
+    "src/browser/review-reactivation.js"
   ]
 }

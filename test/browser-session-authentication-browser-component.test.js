@@ -176,12 +176,21 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
     reviewsHtml,
     /<script src="\/assets\/review-version\.js"><\/script>/,
   );
+  assert.match(
+    reviewsHtml,
+    /<script src="\/assets\/review-reactivation\.js"><\/script>/,
+  );
   assert.match(reviewsHtml, /review-create-result/);
   assert.match(reviewsHtml, /id="review-metadata-form"/);
   assert.match(reviewsHtml, /id="review-metadata-name"/);
   assert.match(reviewsHtml, /id="review-metadata-description"/);
   assert.match(reviewsHtml, /id="review-metadata-result"/);
   assert.match(reviewsHtml, /id="review-version-form"/);
+  assert.match(reviewsHtml, /id="review-version-activation"/);
+  assert.match(
+    reviewsHtml,
+    /id="review-version-activate"[^>]*>Reactivate<\/button>/,
+  );
   assert.match(reviewsHtml, /id="review-version-applicability-rule"/);
   assert.match(reviewsHtml, /id="review-version-criteria"/);
   assert.match(
