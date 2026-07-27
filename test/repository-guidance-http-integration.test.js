@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createUnavailableRepositoryGuidanceService } from "../src/repository-guidance.js";
 import { createReviewService } from "../src/review.js";
 import {
   authenticatedOperatorHeaders,
@@ -77,6 +78,22 @@ test("the authenticated Repository resource returns complete conditional Guidanc
   assert.equal(guidance.schema_version, 1);
   assert.equal(response.headers.get("etag"), `"${guidance.guidance_revision}"`);
 
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const machineResponse = await request(
+    "/api/v1/repositories/repository%2F1/guidance",
+    {
+      headers: { authorization: `Bearer ${token}` },
+    },
+  );
+  assert.equal(machineResponse.status, 200);
+  assert.deepEqual(await machineResponse.json(), guidance);
+  assert.equal(
+    machineResponse.headers.get("etag"),
+    `"${guidance.guidance_revision}"`,
+  );
+
   const unchanged = await request(
     "/api/v1/repositories/repository%2F1/guidance",
     {
@@ -90,7 +107,7 @@ test("the authenticated Repository resource returns complete conditional Guidanc
   assert.equal(await unchanged.text(), "");
 });
 
-test("Repository Guidance rejects unregistered and machine-only access without a fallback document", async () => {
+test("Repository Guidance rejects an unregistered Repository without a fallback document", async () => {
   const { application, request } = await startApplication();
   const operatorHeaders = await authenticatedOperatorHeaders(request);
   const missing = await request(
@@ -111,6 +128,42 @@ test("Repository Guidance rejects unregistered and machine-only access without a
       headers: { authorization: `Bearer ${token}` },
     },
   );
-  assert.equal(machine.status, 403);
-  assert.equal(await responseErrorCode(machine), "authorization_forbidden");
+  assert.equal(machine.status, 404);
+  assert.equal(await responseErrorCode(machine), "repository_not_found");
+
+  const malformed = await request("/api/v1/repositories/%ZZ/guidance", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal(await responseErrorCode(malformed), "request_malformed");
+});
+
+test("Repository Guidance surfaces its exact owning unavailability without a partial document", async () => {
+  const unavailable = Object.assign(
+    new Error("Repository Guidance is unavailable"),
+    { code: "repository_guidance_unavailable" },
+  );
+  const { application, request } = await startApplication({
+    createRepositoryGuidance() {
+      return createUnavailableRepositoryGuidanceService(unavailable);
+    },
+  });
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+
+  const response = await request("/api/v1/repositories/repository-1/guidance", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  assert.equal(response.status, 503);
+  const body = /** @type {{
+   *   error: {code: string, message: string},
+   *   repository?: unknown,
+   *   reviews?: unknown
+   * }} */ (await response.json());
+  assert.equal(body.error.code, "repository_guidance_unavailable");
+  assert.equal(body.error.message, "Repository Guidance is unavailable");
+  assert.equal("repository" in body, false);
+  assert.equal("reviews" in body, false);
 });

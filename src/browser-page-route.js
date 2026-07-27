@@ -3,6 +3,7 @@ import {
   authenticationFailureStatus,
   sessionSecret,
 } from "./http-request.js";
+import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
 import {
   browserView,
   loginPage,
@@ -42,48 +43,12 @@ export function createBrowserPageRoute({
       return false;
     }
     if (request.headers.authorization !== undefined) {
-      try {
-        assertNoMixedCredentials(request);
-        const token = request.headers.authorization.match(
-          /^Bearer ([A-Za-z0-9_-]{43})$/,
-        )?.[1];
-        if (!implementerTokens.authenticate(token)) {
-          throw Object.assign(new Error("Machine authentication is invalid"), {
-            code: "authentication_invalid",
-          });
-        }
-        recordAuthorityAttribution({
-          action: "authentication",
-          channel: "implementer_token",
-          outcome: "success",
-        });
-        recordAuthorityAttribution({
-          action: "authorization",
-          channel: "implementer_token",
-          errorCode: "authorization_forbidden",
-          outcome: "forbidden",
-        });
-        writeError(
-          response,
-          403,
-          "authorization_forbidden",
-          "Machine access is forbidden",
-        );
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: "authentication",
-          channel: "implementer_token",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeError(
-          response,
-          authenticationFailureStatus(failure.code),
-          failure.code,
-          failure.message,
-        );
-      }
+      writeMachineOperatorAccessDenial(
+        request,
+        response,
+        implementerTokens,
+        recordAuthorityAttribution,
+      );
       return true;
     }
     if (!browserSessions.isBootstrapped()) {

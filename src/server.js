@@ -129,6 +129,7 @@ export function createApplicationServer({
   }
   if (
     typeof repositories?.list !== "function" ||
+    typeof repositories.listPage !== "function" ||
     typeof repositories.register !== "function" ||
     typeof repositories.requireAcceptsNewWork !== "function" ||
     typeof repositories.rotateCredential !== "function" ||

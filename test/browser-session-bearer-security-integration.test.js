@@ -25,6 +25,29 @@ test("machine credentials are accepted only as a sole Authorization bearer value
   assert.equal(validBearer.status, 403);
   assert.equal(await responseErrorCode(validBearer), "authorization_forbidden");
 
+  for (const path of [
+    "/api/v1/session/logout",
+    "/api/v1/sessions/revoke",
+    "/api/v1/implementer-token/rotate",
+  ]) {
+    const forbiddenAdministration = await fetch(
+      `${application.origin}${path}`,
+      {
+        headers: { authorization: `Bearer ${token}` },
+        method: "POST",
+      },
+    );
+    assert.equal(forbiddenAdministration.status, 403);
+    assert.equal(
+      await responseErrorCode(forbiddenAdministration),
+      "authorization_forbidden",
+    );
+  }
+  assert.equal(
+    application.application.implementerTokens.hasActiveToken(),
+    true,
+  );
+
   const browserSurface = await fetch(`${application.origin}/`, {
     headers: { authorization: `Bearer ${token}` },
   });

@@ -350,6 +350,20 @@ function bearerToken(request) {
   return match?.[1];
 }
 
+/**
+ * @param {ImplementerTokenAuthority} implementerTokens
+ * @param {import("node:http").IncomingMessage} request
+ */
+export function requireImplementerTokenAuthority(implementerTokens, request) {
+  assertNoMixedCredentials(request);
+  if (!implementerTokens.authenticate(bearerToken(request))) {
+    throw browserMutationError(
+      "authentication_invalid",
+      "Machine authentication is invalid",
+    );
+  }
+}
+
 /** @param {URL} requestUrl */
 export function hasUrlToken(requestUrl) {
   return [...requestUrl.searchParams.keys()].some((name) =>
@@ -378,12 +392,7 @@ export function requireProductAuthority(
     );
   }
   if (request.headers.authorization !== undefined) {
-    if (!implementerTokens.authenticate(bearerToken(request))) {
-      throw browserMutationError(
-        "authentication_invalid",
-        "Machine authentication is invalid",
-      );
-    }
+    requireImplementerTokenAuthority(implementerTokens, request);
     return "machine";
   }
   if (!browserSessions.authenticate(sessionSecret(request))) {

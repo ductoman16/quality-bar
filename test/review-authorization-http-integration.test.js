@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  authenticatedOperatorHeaders,
   responseErrorCode,
   reviewRequest,
   startApplication,
 } from "./review-http-integration-support.js";
 
-test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
+test("a sole implementer bearer cannot create a Review", async () => {
   const { application, request } = await startApplication();
   const token = application.implementerTokens.create(
     "a correct operator password",
@@ -21,9 +22,12 @@ test("a sole implementer bearer creates the same Review resource without browser
     },
     method: "POST",
   });
-  assert.equal(created.status, 201);
-  const createdReview = /** @type {{name: string}} */ (await created.json());
-  assert.equal(createdReview.name, "Machine HTTP boundaries");
+  assert.equal(created.status, 403);
+  assert.equal(await responseErrorCode(created), "authorization_forbidden");
+  assert.equal(
+    application.durableCore.get("SELECT count(*) AS count FROM reviews")?.count,
+    0,
+  );
 });
 
 test("a sole implementer bearer cannot read or edit Review authoring resources", async () => {
@@ -31,19 +35,22 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
   const token = application.implementerTokens.create(
     "a correct operator password",
   );
-  const headers = {
+  const machineHeaders = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+  const operatorHeaders = await authenticatedOperatorHeaders(request);
   const firstResponse = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest({ name: "First Review" })),
-    headers,
+    headers: operatorHeaders,
     method: "POST",
   });
   const first = /** @type {{id: string, active_version: {id: string}}} */ (
     await firstResponse.json()
   );
-  const listed = await request("/api/v1/reviews", { headers });
+  const listed = await request("/api/v1/reviews", {
+    headers: machineHeaders,
+  });
   assert.equal(listed.status, 403);
   assert.equal(await responseErrorCode(listed), "authorization_forbidden");
 
@@ -52,7 +59,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
       description: "A forbidden edit.",
       name: "Forbidden Review",
     }),
-    headers,
+    headers: machineHeaders,
     method: "PATCH",
   });
   assert.equal(forbidden.status, 403);
@@ -76,7 +83,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
           },
         ],
       }),
-      headers,
+      headers: machineHeaders,
       method: "POST",
     },
   );
@@ -91,7 +98,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
       body: JSON.stringify({
         review_version_id: first.active_version.id,
       }),
-      headers,
+      headers: machineHeaders,
       method: "PATCH",
     },
   );
@@ -104,7 +111,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     `/api/v1/reviews/${first.id}/archival`,
     {
       body: JSON.stringify({ archived: true }),
-      headers,
+      headers: machineHeaders,
       method: "PATCH",
     },
   );
@@ -117,7 +124,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     `/api/v1/reviews/${first.id}/assignment`,
     {
       body: JSON.stringify({ scope: "installation_wide" }),
-      headers,
+      headers: machineHeaders,
       method: "PATCH",
     },
   );

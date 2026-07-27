@@ -1,4 +1,4 @@
-import { forbidMachineSystemAccess } from "./api-authorization.js";
+import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { apiResourceMatches } from "./api-resource-matches.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
@@ -12,6 +12,7 @@ import {
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeRepositoryGuidance } from "./repository-guidance-route.js";
+import { writeRepositoryList } from "./repository-list-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
 import { writeReviewList } from "./review-list-route.js";
 import { writeError, writeJson } from "./http-response.js";
@@ -52,8 +53,7 @@ export function createApiRoute({
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
-        (method === "GET" && path === "/api/v1/repositories") ||
-        (method === "GET" && repositoryGuidanceMatch) ||
+        (method === "POST" && path === "/api/v1/reviews") ||
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewAssignmentId) ||
@@ -63,17 +63,25 @@ export function createApiRoute({
         (method === "POST" && repositoryCredentialRotationMatch) ||
         (method === "PATCH" && repositoryLifecycleMatch))
     ) {
-      forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     if (
       authority === "machine" &&
       ["/api/v1/system", "/api/v1/system/authority-attributions"].includes(path)
     ) {
-      forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     if (path === "/api/v1/system/authority-attributions") {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
+      } catch (error) {
+        const failure = requireCodedError(error);
+        writeError(response, 400, failure.code, failure.message);
+        return true;
+      }
+    } else if (method === "GET" && path === "/api/v1/repositories") {
       try {
         assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
       } catch (error) {
@@ -111,28 +119,17 @@ export function createApiRoute({
       return true;
     }
     if (method === "GET" && path === "/api/v1/repositories") {
-      try {
-        writeJson(response, 200, { repositories: repositories.list() });
-      } catch (error) {
-        if (isUnavailableError(error)) {
-          const failure = requireCodedError(error);
-          writeError(response, 503, failure.code, failure.message);
-        } else {
-          writeError(
-            response,
-            500,
-            "repository_list_failed",
-            "Repository listing failed",
-          );
-        }
-      }
+      writeRepositoryList(response, repositories, {
+        cursor: requestUrl.searchParams.get("cursor") ?? undefined,
+        limit: requestUrl.searchParams.get("limit") ?? undefined,
+      });
       return true;
     }
     if (method === "GET" && repositoryGuidanceMatch) {
       writeRepositoryGuidance(
         response,
         repositoryGuidance,
-        decodeURIComponent(repositoryGuidanceMatch[1]),
+        repositoryGuidanceMatch[1],
         request.headers["if-none-match"],
       );
       return true;
@@ -166,14 +163,12 @@ export function createApiRoute({
     }
     if (method === "POST" && path === "/api/v1/reviews") {
       try {
-        if (authority !== "machine") {
-          requireBrowserMutationWithQuery(
-            browserSessions,
-            request,
-            browserOrigin,
-            requestUrl,
-          );
-        }
+        requireBrowserMutationWithQuery(
+          browserSessions,
+          request,
+          browserOrigin,
+          requestUrl,
+        );
         writeJson(
           response,
           201,
@@ -196,7 +191,6 @@ export function createApiRoute({
             "Request is malformed",
           );
         } else if (
-          authority !== "machine" &&
           [
             "csrf_invalid",
             "origin_invalid",

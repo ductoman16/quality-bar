@@ -33,6 +33,16 @@
      * requiredElement(id: string): HTMLElement,
      * requireReview(value: unknown): Review
      * }} */ (contract);
+  const operator = /** @type {{
+   *   readRepositoryCollection?: () => Promise<{
+   *     failure: Response | null,
+   *     items: unknown[]
+   *   }>
+   * } | null} */ (Reflect.get(window, "qualityBarOperator"));
+  if (typeof operator?.readRepositoryCollection !== "function") {
+    throw new Error("repository_collection_contract_unavailable");
+  }
+  const readRepositoryCollection = operator.readRepositoryCollection;
   const form = /** @type {HTMLFormElement} */ (
     requiredElement("review-assignment-form")
   );
@@ -174,11 +184,14 @@
     updateDisabledState();
     clearFeedback();
     try {
-      const [reviewResponse, repositoryResponse] = await Promise.all([
+      const [reviewResponse, repositoryCollection] = await Promise.all([
         fetch("/api/v1/reviews"),
-        fetch("/api/v1/repositories"),
+        readRepositoryCollection(),
       ]);
-      for (const response of [reviewResponse, repositoryResponse]) {
+      for (const response of [
+        reviewResponse,
+        repositoryCollection.failure,
+      ].filter((value) => value !== null)) {
         if (!response.ok) {
           const failure = await readFailure(response);
           if (
@@ -198,17 +211,11 @@
       const reviewBody = /** @type {{reviews?: unknown}} */ (
         await reviewResponse.json()
       );
-      const repositoryBody = /** @type {{repositories?: unknown}} */ (
-        await repositoryResponse.json()
-      );
-      if (
-        !Array.isArray(reviewBody.reviews) ||
-        !Array.isArray(repositoryBody.repositories)
-      ) {
+      if (!Array.isArray(reviewBody.reviews)) {
         throw new Error("Review Assignment response was invalid");
       }
       renderReviews(reviewBody.reviews);
-      renderRepositories(repositoryBody.repositories);
+      renderRepositories(repositoryCollection.items);
       form.hidden = false;
       showSelectedReview();
       return true;

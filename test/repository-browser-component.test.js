@@ -88,6 +88,14 @@ test("the Repository component rotates write-only credentials and surfaces the e
       if (path === "/api/v1/repositories" && !options) {
         return repositoryListResponse;
       }
+      if (path === "/api/v1/repositories?cursor=next-page" && !options) {
+        return {
+          ok: true,
+          async json() {
+            return { items: [], next_cursor: null };
+          },
+        };
+      }
       requests.push({ options, path });
       if (path === "/api/v1/repositories") {
         registrationAttempt += 1;
@@ -176,7 +184,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
     async json() {
       assert.equal(rotationRepository.disabled, true);
       assert.equal(rotationSubmit.disabled, true);
-      return { repositories: [] };
+      return { items: [], next_cursor: "next-page" };
     },
   });
   await registration;

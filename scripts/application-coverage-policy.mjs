@@ -30,6 +30,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/implementer-token.test.js",
   "test/request-security.test.js",
   "test/applicability-rule.test.js",
+  "test/repository-collection.test.js",
   "test/review-validation.test.js",
   "test/review-archival.test.js",
   "test/review-selection.test.js",

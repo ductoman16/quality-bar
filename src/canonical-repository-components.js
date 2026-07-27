@@ -164,5 +164,21 @@ export function canonicalRepositorySchemas() {
       },
       ["credential_type", "health", "health_error", "id", "lifecycle", "url"],
     ),
+    RepositoryCollection: closedObject(
+      {
+        items: {
+          items: { $ref: "#/components/schemas/Repository" },
+          type: "array",
+        },
+        next_cursor: { type: ["string", "null"] },
+        repositories: {
+          deprecated: true,
+          description: "Complete legacy v1 Repository collection",
+          items: { $ref: "#/components/schemas/Repository" },
+          type: "array",
+        },
+      },
+      ["repositories"],
+    ),
   };
 }

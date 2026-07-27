@@ -81,10 +81,11 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       status: 200,
       async json() {
         return {
-          repositories: [
+          items: [
             { id: "repository-2", url: "https://example.com/aaa.git" },
             { id: "repository-1", url: "https://example.com/zzz.git" },
           ],
+          next_cursor: null,
         };
       },
     },
@@ -119,10 +120,11 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       status: 200,
       async json() {
         return {
-          repositories: [
+          items: [
             { id: "repository-2", url: "https://example.com/aaa.git" },
             { id: "repository-1", url: "https://example.com/zzz.git" },
           ],
+          next_cursor: null,
         };
       },
     },
@@ -138,7 +140,7 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       ok: true,
       status: 200,
       async json() {
-        return { repositories: [] };
+        return { items: [], next_cursor: null };
       },
     },
   ];
@@ -180,6 +182,20 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       },
       pathname: "/",
       search: "?view=reviews",
+    },
+    window: {
+      qualityBarOperator: {
+        async readRepositoryCollection() {
+          const response = await context.fetch("/api/v1/repositories");
+          if (!response.ok) {
+            return { failure: response, items: [] };
+          }
+          const body = /** @type {{items: unknown[]}} */ (
+            await response.json()
+          );
+          return { failure: null, items: body.items };
+        },
+      },
     },
   };
   for (const sourcePath of [

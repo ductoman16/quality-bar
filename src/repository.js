@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { createRepositoryCollection } from "./repository-collection.js";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 import {
@@ -153,6 +154,31 @@ export function createRepositoryService(
     return row;
   }
 
+  const repositoryCollection = createRepositoryCollection(
+    masterKey,
+    ({ after, limit }) => {
+      const afterClause = after
+        ? `WHERE repositories.normalized_url > ?
+             OR (
+               repositories.normalized_url = ?
+               AND repositories.id > ?
+             )`
+        : "";
+      const parameters = after
+        ? [after.url, after.url, after.id, limit]
+        : [limit];
+      return durableCore
+        .all(
+          `${repositorySelection}
+           ${afterClause}
+           ORDER BY repositories.normalized_url, repositories.id
+           LIMIT ?`,
+          ...parameters,
+        )
+        .map(resource);
+    },
+  );
+
   return {
     list() {
       return durableCore
@@ -161,6 +187,10 @@ export function createRepositoryService(
            ORDER BY repositories.normalized_url, repositories.id`,
         )
         .map(resource);
+    },
+    /** @param {{cursor?: string, limit?: string}} [query] */
+    listPage(query) {
+      return repositoryCollection.read(query);
     },
     /** @param {unknown} request */
     async register(request) {
@@ -338,6 +368,7 @@ export function createRepositoryService(
       return resource(find(id));
     },
     destroy() {
+      repositoryCollection.destroy();
       credentialCipher.destroy();
     },
   };
@@ -347,6 +378,9 @@ export function createRepositoryService(
 export function createUnavailableRepositoryService(error) {
   return {
     list() {
+      throw error;
+    },
+    listPage() {
       throw error;
     },
     async register() {

@@ -61,6 +61,9 @@ function applicationServerOptions() {
       list() {
         throw new Error("unused Repository service operation");
       },
+      listPage() {
+        throw new Error("unused Repository service operation");
+      },
       async register() {
         throw new Error("unused Repository service operation");
       },

@@ -2,11 +2,16 @@ const {
   csrfToken: repositoryCsrfToken,
   displayMutationFailure: displayRepositoryMutationFailure,
   error: repositoryError,
+  readRepositoryCollection: readRepositoryPages,
   requiredElement: requiredRepositoryElement,
 } = /** @type {{
  *   csrfToken: () => string,
  *   displayMutationFailure: (response: Response) => Promise<void>,
  *   error: HTMLElement,
+ *   readRepositoryCollection: () => Promise<{
+ *     failure: Response | null,
+ *     items: unknown[]
+ *   }>,
  *   requiredElement: (id: string) => HTMLElement
  * }} */ (Reflect.get(window, "qualityBarOperator"));
 
@@ -203,22 +208,21 @@ function clearRepositoryOptions() {
 
 async function loadRepositoryOptions() {
   clearRepositoryOptions();
-  let response;
+  let collection;
   try {
-    response = await fetch("/api/v1/repositories");
+    collection = await readRepositoryPages();
   } catch {
     repositoryError.textContent = "Repository listing failed";
     repositoryError.hidden = false;
     return false;
   }
-  if (!response.ok) {
-    await displayRepositoryMutationFailure(response);
+  if (collection.failure) {
+    await displayRepositoryMutationFailure(collection.failure);
     return false;
   }
-  const body = /** @type {{repositories: RepositoryResource[]}} */ (
-    await response.json()
-  );
-  for (const repository of body.repositories) {
+  for (const repository of /** @type {RepositoryResource[]} */ (
+    collection.items
+  )) {
     renderRepository(repository);
     addLifecycleOption(repository);
     addRepositoryOption(repository);

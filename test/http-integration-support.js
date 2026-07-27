@@ -29,6 +29,7 @@ function temporaryDatabasePath() {
 /**
  * @param {{
  *   createRepositories?: Parameters<typeof createApplication>[0]["createRepositories"],
+ *   createRepositoryGuidance?: Parameters<typeof createApplication>[0]["createRepositoryGuidance"],
  *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"]
  * }} [options]
  */
@@ -45,6 +46,7 @@ export async function startApplication(options = {}) {
     validateTools() {},
     validateCodexAuthentication() {},
     createRepositories: options.createRepositories,
+    createRepositoryGuidance: options.createRepositoryGuidance,
     createReviews: options.createReviews,
     writeLog() {},
   });
