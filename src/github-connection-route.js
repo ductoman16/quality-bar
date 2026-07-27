@@ -9,13 +9,13 @@ import { writeError, writeJson } from "./http-response.js";
 /**
  * @param {import("node:http").ServerResponse} response
  * @param {unknown} error
+ * @param {ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>} githubConnections
  */
-function redirectCallbackFailure(response, error) {
+function redirectCallbackFailure(response, error, githubConnections) {
   const failure = requireCodedError(error);
+  const receipt = githubConnections.recordCallbackFailure(failure);
   response.writeHead(303, {
-    location: `/?view=repositories&github_connection_error=${encodeURIComponent(
-      failure.message,
-    )}`,
+    location: `/?view=repositories&github_connection_error=${receipt}`,
   });
   response.end();
 }
@@ -62,7 +62,7 @@ export function createGitHubConnectionRoute({
         response.writeHead(303, { location });
         response.end();
       } catch (error) {
-        redirectCallbackFailure(response, error);
+        redirectCallbackFailure(response, error, githubConnections);
       }
       return true;
     }
@@ -87,7 +87,27 @@ export function createGitHubConnectionRoute({
         });
         response.end();
       } catch (error) {
-        redirectCallbackFailure(response, error);
+        redirectCallbackFailure(response, error, githubConnections);
+      }
+      return true;
+    }
+    if (
+      method === "GET" &&
+      path === "/api/v1/github-connections/callback-error" &&
+      authority === "operator"
+    ) {
+      try {
+        assertAllowedQueryParameters(requestUrl, new Set(["receipt"]));
+        writeJson(
+          response,
+          200,
+          githubConnections.consumeCallbackFailure(
+            requestUrl.searchParams.get("receipt") ?? "",
+          ),
+        );
+      } catch (error) {
+        const failure = requireCodedError(error);
+        writeError(response, 400, failure.code, failure.message);
       }
       return true;
     }

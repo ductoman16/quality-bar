@@ -38,6 +38,12 @@ function connectionService() {
           calls.push(["installation", input]);
           return {};
         },
+        recordCallbackFailure() {
+          return "error-receipt";
+        },
+        consumeCallbackFailure() {
+          return null;
+        },
         destroy() {},
       };
     },
@@ -100,6 +106,8 @@ test("canonical HTTP flow starts under operator authority and completes both sta
 });
 
 test("GitHub callbacks return the exact owning error to the operator surface without inferred success", async () => {
+  /** @type {{code: string, message: string} | null} */
+  let callbackFailure = null;
   const { request } = await startApplication({
     createGitHubConnections: () => ({
       read() {
@@ -117,6 +125,20 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
           "GitHub App permissions do not match the required profile",
         );
       },
+      /** @param {GitHubConnectionError} error */
+      recordCallbackFailure(error) {
+        callbackFailure = { code: error.code, message: error.message };
+        return "error-receipt";
+      },
+      /** @param {string} receipt */
+      consumeCallbackFailure(receipt) {
+        if (receipt !== "error-receipt") {
+          return null;
+        }
+        const failure = callbackFailure;
+        callbackFailure = null;
+        return failure;
+      },
       destroy() {},
     }),
   });
@@ -127,6 +149,22 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
   assert.equal(response.status, 303);
   assert.equal(
     response.headers.get("location"),
-    "/?view=repositories&github_connection_error=GitHub%20App%20permissions%20do%20not%20match%20the%20required%20profile",
+    "/?view=repositories&github_connection_error=error-receipt",
   );
+  const headers = await authenticatedOperatorHeaders(request);
+  const failure = await request(
+    "/api/v1/github-connections/callback-error?receipt=error-receipt",
+    { headers },
+  );
+  assert.equal(failure.status, 200);
+  assert.deepEqual(await failure.json(), {
+    code: "github_permissions_mismatch",
+    message: "GitHub App permissions do not match the required profile",
+  });
+  const replay = await request(
+    "/api/v1/github-connections/callback-error?receipt=error-receipt",
+    { headers },
+  );
+  assert.equal(replay.status, 200);
+  assert.equal(await replay.json(), null);
 });

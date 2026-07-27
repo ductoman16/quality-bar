@@ -1,6 +1,7 @@
 import { randomBytes as createRandomBytes, randomUUID } from "node:crypto";
 
 import { createGitHubVerifier } from "./github-api.js";
+import { createGitHubCallbackFailureStore } from "./github-callback-failure.js";
 import {
   GITHUB_API_PROFILE,
   GITHUB_REQUIRED_PERMISSIONS,
@@ -114,11 +115,23 @@ export function createGitHubConnectionService(
    *   }
    * }>} */
   const pending = new Map();
+  const callbackFailures = createGitHubCallbackFailureStore({
+    now: timestamp,
+    randomBytes,
+  });
 
   function timestamp() {
     const value = now();
     if (!Number.isSafeInteger(value)) {
       throw new TypeError("now must return a safe integer timestamp");
+    }
+    return value;
+  }
+
+  function transientToken() {
+    const value = randomBytes(32).toString("base64url");
+    if (!/^[A-Za-z0-9_-]{8,256}$/.test(value)) {
+      throw new TypeError("randomBytes must return usable entropy");
     }
     return value;
   }
@@ -149,10 +162,7 @@ export function createGitHubConnectionService(
           "A GitHub Connection is already configured",
         );
       }
-      const state = randomBytes(32).toString("base64url");
-      if (!/^[A-Za-z0-9_-]{8,256}$/.test(state)) {
-        throw new TypeError("randomBytes must return usable entropy");
-      }
+      const state = transientToken();
       pending.set(state, { createdAt: timestamp(), stage: "manifest" });
       return {
         action: `https://github.com/settings/apps/new?state=${encodeURIComponent(
@@ -162,6 +172,14 @@ export function createGitHubConnectionService(
         method: "POST",
         state,
       };
+    },
+    /** @param {Error & {code: string}} error */
+    recordCallbackFailure(error) {
+      return callbackFailures.record(error);
+    },
+    /** @param {string} receipt */
+    consumeCallbackFailure(receipt) {
+      return callbackFailures.consume(receipt);
     },
     /** @param {{code: string, state: string}} input */
     async completeManifest({ code, state }) {
@@ -330,6 +348,7 @@ export function createGitHubConnectionService(
     },
     destroy() {
       pending.clear();
+      callbackFailures.destroy();
       cipher.destroy();
     },
   };
@@ -348,6 +367,12 @@ export function createUnavailableGitHubConnectionService(error) {
       throw error;
     },
     async completeInstallation() {
+      throw error;
+    },
+    recordCallbackFailure() {
+      throw error;
+    },
+    consumeCallbackFailure() {
       throw error;
     },
     destroy() {},

@@ -254,22 +254,49 @@ test("GitHub Connection loading failures expose one exact error without stale st
 });
 
 test("GitHub callback failure returns to and focuses the exact operator error", async () => {
-  const browser = browserContext(async () => ({
+  let consumed = false;
+  /** @param {string} path */
+  const fetch = async (path) => ({
     ok: true,
     async json() {
+      if (path === "/api/v1/github-connections") {
+        return null;
+      }
+      if (
+        path ===
+          "/api/v1/github-connections/callback-error?receipt=error-receipt" &&
+        !consumed
+      ) {
+        consumed = true;
+        return {
+          code: "github_permissions_mismatch",
+          message: "GitHub App permissions do not match the required profile",
+        };
+      }
       return null;
     },
-  }));
+  });
+  const browser = browserContext(fetch);
   browser.context.location.search =
-    "?view=repositories&github_connection_error=GitHub%20App%20permissions%20do%20not%20match%20the%20required%20profile";
+    "?view=repositories&github_connection_error=error-receipt";
   executeGitHubBrowserAsset(browser.context);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(
     browser.error.textContent,
-    "GitHub App permissions do not match the required profile",
+    "GitHub App permissions do not match the required profile (github_permissions_mismatch)",
   );
   assert.equal(browser.error.focused, true);
   assert.equal(browser.status.textContent, "");
+  assert.deepEqual(browser.replacedUrls, ["/?view=repositories"]);
+
+  const reload = browserContext(fetch);
+  reload.context.location.search =
+    "?view=repositories&github_connection_error=error-receipt";
+  executeGitHubBrowserAsset(reload.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(reload.error.hidden, true);
+  assert.equal(reload.error.textContent, "");
+  assert.deepEqual(reload.replacedUrls, ["/?view=repositories"]);
 });
 
 test("GitHub Connection start failures restore the only operator control", async () => {

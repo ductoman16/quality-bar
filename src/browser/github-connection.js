@@ -64,6 +64,57 @@ function verificationTime(timestamp) {
   return value.toISOString();
 }
 
+/** @param {URLSearchParams} query */
+async function consumeCallbackFailure(query) {
+  const receipt = query.get("github_connection_error");
+  if (receipt === null) {
+    return false;
+  }
+  query.delete("github_connection_error");
+  history.replaceState(
+    null,
+    "",
+    query.size > 0 ? `/?${query.toString()}` : "/",
+  );
+  let response;
+  try {
+    response = await fetch(
+      `/api/v1/github-connections/callback-error?receipt=${encodeURIComponent(
+        receipt,
+      )}`,
+    );
+  } catch {
+    showGitHubError("GitHub callback error loading failed");
+    return true;
+  }
+  if (!response.ok) {
+    await showGitHubResponseError(response);
+    return true;
+  }
+  try {
+    const failure = /** @type {unknown} */ (await response.json());
+    if (failure === null) {
+      return false;
+    }
+    if (
+      !failure ||
+      Array.isArray(failure) ||
+      typeof failure !== "object" ||
+      !("code" in failure) ||
+      typeof failure.code !== "string" ||
+      !("message" in failure) ||
+      typeof failure.message !== "string"
+    ) {
+      throw new Error("github_callback_error_response_invalid");
+    }
+    showGitHubError(`${failure.message} (${failure.code})`);
+    return true;
+  } catch {
+    showGitHubError("GitHub callback error response is invalid");
+    return true;
+  }
+}
+
 /** @param {unknown} value */
 function renderGitHubConnection(value) {
   if (value === null) {
@@ -167,10 +218,10 @@ async function loadGitHubConnection() {
   try {
     renderGitHubConnection(await response.json());
     const query = new URLSearchParams(location.search);
-    const callbackError = query.get("github_connection_error");
-    if (callbackError !== null) {
-      showGitHubError(callbackError);
-    } else if (query.get("github_connection") === "connected") {
+    if (await consumeCallbackFailure(query)) {
+      return;
+    }
+    if (query.get("github_connection") === "connected") {
       githubStatus.focus();
     }
   } catch {

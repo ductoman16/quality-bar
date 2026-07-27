@@ -125,9 +125,9 @@ export function verifyRepositoryRead(
         complete(unavailable(new Error("Git credential pipe is unavailable")));
         return;
       }
-      credentialPipe.once("error", (cause) => {
-        complete(unavailable(cause));
-      });
+      // Git's exit status owns the verification result. A rejected pipe write
+      // only means Git exited before requesting credentials.
+      credentialPipe.on("error", () => {});
       credentialPipe.end(`${credential.username}\n${credential.token}\n`);
     }
     child.once("error", (cause) => {

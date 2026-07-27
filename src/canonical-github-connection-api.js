@@ -68,6 +68,43 @@ export function canonicalGitHubConnectionPaths(
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/github-connections/callback-error": {
+      get: {
+        operationId: "consumeGitHubCallbackFailure",
+        parameters: [
+          {
+            in: "query",
+            name: "receipt",
+            required: true,
+            schema: {
+              pattern: "^[A-Za-z0-9_-]{8,256}$",
+              type: "string",
+            },
+          },
+        ],
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: {
+                  anyOf: [
+                    { $ref: "#/components/schemas/GitHubCallbackFailure" },
+                    { type: "null" },
+                  ],
+                },
+              },
+            },
+            description: "One-time exact callback failure or no stale result",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/github-connections/manifest/callback": {
       get: {
         operationId: "completeGitHubAppManifest",
@@ -87,12 +124,10 @@ export function canonicalGitHubConnectionPaths(
         ],
         responses: {
           303: {
-            description: "Continue to the exact created App installation",
+            description:
+              "Continue to App installation or return one failure receipt",
           },
-          400: errorResponse,
-          422: errorResponse,
           500: errorResponse,
-          503: errorResponse,
         },
         security: [],
       },
@@ -122,13 +157,10 @@ export function canonicalGitHubConnectionPaths(
         ],
         responses: {
           303: {
-            description: "Verified GitHub Connection stored atomically",
+            description:
+              "Return one verified Connection or one failure receipt",
           },
-          400: errorResponse,
-          409: errorResponse,
-          422: errorResponse,
           500: errorResponse,
-          503: errorResponse,
         },
         security: [],
       },

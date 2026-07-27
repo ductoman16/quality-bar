@@ -239,6 +239,7 @@ export function createGateDefinitions(metadata) {
         "test/repository-rotation.test.js",
         "test/repository-validation.test.js",
         "test/github-app-manifest.test.js",
+        "test/github-callback-failure.test.js",
         "test/github-connection.test.js",
         "test/verification-harness.test.js",
       ],

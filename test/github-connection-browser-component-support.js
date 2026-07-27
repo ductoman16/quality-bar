@@ -101,11 +101,21 @@ export function browserContext(fetch) {
   const status = element();
   const error = element({ hidden: true });
   const github = githubElements(form, submit, status, error);
+  /** @type {string[]} */
+  const replacedUrls = [];
   return {
     context: {
       URLSearchParams,
       document: { body: { append() {} }, createElement: () => element() },
       fetch,
+      history: {
+        /** @param {unknown} state @param {string} title @param {string} url */
+        replaceState(state, title, url) {
+          void state;
+          void title;
+          replacedUrls.push(url);
+        },
+      },
       location: { search: "" },
       window: {
         qualityBarOperator: {
@@ -118,6 +128,7 @@ export function browserContext(fetch) {
     error,
     form,
     github,
+    replacedUrls,
     status,
     submit,
   };

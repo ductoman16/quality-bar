@@ -8,6 +8,13 @@ const closedObject = (properties, required) => ({
 
 export function canonicalGitHubConnectionSchemas() {
   return {
+    GitHubCallbackFailure: closedObject(
+      {
+        code: { minLength: 1, type: "string" },
+        message: { minLength: 1, type: "string" },
+      },
+      ["code", "message"],
+    ),
     GitHubCapabilityEvidence: closedObject(
       Object.fromEntries(
         [

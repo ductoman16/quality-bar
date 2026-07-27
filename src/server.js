@@ -154,7 +154,9 @@ export function createApplicationServer({
     typeof githubConnections?.read !== "function" ||
     typeof githubConnections.start !== "function" ||
     typeof githubConnections.completeManifest !== "function" ||
-    typeof githubConnections.completeInstallation !== "function"
+    typeof githubConnections.completeInstallation !== "function" ||
+    typeof githubConnections.recordCallbackFailure !== "function" ||
+    typeof githubConnections.consumeCallbackFailure !== "function"
   ) {
     throw new TypeError(
       "githubConnections must provide the GitHub Connection resource",
