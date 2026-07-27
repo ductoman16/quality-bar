@@ -46,6 +46,18 @@ function writeProtocolError(response, id, code, message) {
 /**
  * @param {import("node:http").ServerResponse} response
  * @param {unknown} id
+ */
+function writeProtocolVersionError(response, id) {
+  writeJson(response, 400, {
+    error: { code: -32600, message: "Invalid Request" },
+    id,
+    jsonrpc: "2.0",
+  });
+}
+
+/**
+ * @param {import("node:http").ServerResponse} response
+ * @param {unknown} id
  * @param {number} code
  * @param {string} message
  * @param {unknown} [data]
@@ -304,12 +316,7 @@ export function createMcpRoute({
       return true;
     }
     if (request.headers["mcp-protocol-version"] !== MCP_PROTOCOL_VERSION) {
-      writeProtocolError(
-        response,
-        mcpRequestId(message),
-        -32600,
-        "Invalid Request",
-      );
+      writeProtocolVersionError(response, mcpRequestId(message));
       return true;
     }
     if (isMcpNotification(message)) {
@@ -386,6 +393,7 @@ export function createMcpRoute({
           const document = {
             items: page.items,
             next_cursor: page.next_cursor,
+            repositories: repositories.list(),
           };
           const result = toolSuccess(document, page.items.map(repositoryLink));
           recordOutcome(

@@ -210,12 +210,26 @@ test("MCP requires the implementer bearer, exact protocol header, and valid Orig
     "authentication_invalid",
   );
 
-  const missingProtocol = await callMcp(origin, mcpHeaders(token), message);
-  assert.deepEqual(missingProtocol.error, {
-    code: -32600,
-    message: "Invalid Request",
-  });
-  assert.equal("result" in missingProtocol, false);
+  for (const protocolVersion of [undefined, "2025-06-18"]) {
+    const headers = mcpHeaders(
+      token,
+      protocolVersion === undefined
+        ? {}
+        : { "mcp-protocol-version": protocolVersion },
+    );
+    const protocolFailure = await fetch(`${origin}/mcp/v1`, {
+      body: JSON.stringify(message),
+      headers,
+      method: "POST",
+    });
+    assert.equal(protocolFailure.status, 400);
+    const document = /** @type {any} */ (await protocolFailure.json());
+    assert.deepEqual(document.error, {
+      code: -32600,
+      message: "Invalid Request",
+    });
+    assert.equal("result" in document, false);
+  }
 
   const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
     body: JSON.stringify(message),
