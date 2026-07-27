@@ -5,6 +5,15 @@ import { join } from "node:path";
 
 import { RepositoryError } from "./repository-validation.js";
 
+/** @param {unknown} cause */
+function unavailable(cause) {
+  return new RepositoryError(
+    "repository_git_verification_unavailable",
+    "Repository Git read verification could not run",
+    { cause },
+  );
+}
+
 /**
  * @param {string} normalizedUrl
  * @param {{
@@ -26,13 +35,7 @@ export function verifyPublicRepositoryRead(
       join(tmpdir(), "quality-bar-git-read-"),
     );
   } catch (cause) {
-    return Promise.reject(
-      new RepositoryError(
-        "repository_git_verification_unavailable",
-        "Repository Git read verification could not run",
-        { cause },
-      ),
-    );
+    return Promise.reject(unavailable(cause));
   }
   return new Promise((resolve, reject) => {
     const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
@@ -59,11 +62,7 @@ export function verifyPublicRepositoryRead(
       try {
         removeDirectory(verificationDirectory);
       } catch (cause) {
-        error = new RepositoryError(
-          "repository_git_verification_unavailable",
-          "Repository Git read verification could not run",
-          { cause },
-        );
+        error = unavailable(cause);
       }
       if (error) {
         reject(error);
@@ -72,13 +71,7 @@ export function verifyPublicRepositoryRead(
       }
     }
     child.once("error", (cause) => {
-      complete(
-        new RepositoryError(
-          "repository_git_verification_unavailable",
-          "Repository Git read verification could not run",
-          { cause },
-        ),
-      );
+      complete(unavailable(cause));
     });
     child.once("exit", (code, signal) => {
       if (code === 0 && signal === null) {

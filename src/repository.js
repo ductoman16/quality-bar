@@ -6,16 +6,9 @@ import {
   normalizePublicRepositoryUrl,
   RepositoryError,
 } from "./repository-validation.js";
+import { isUniqueConstraintFailure } from "./sqlite-error.js";
 
 export { RepositoryError };
-
-/** @param {unknown} error */
-function identityConflict(error) {
-  return (
-    error instanceof Error &&
-    /UNIQUE constraint failed: repositories\.normalized_url/.test(error.message)
-  );
-}
 
 /**
  * @typedef {{
@@ -76,7 +69,7 @@ export function createRepositoryService(
           );
         });
       } catch (error) {
-        if (identityConflict(error)) {
+        if (isUniqueConstraintFailure(error, "repositories.normalized_url")) {
           fail(
             "repository_identity_conflict",
             "Repository identity is already registered",
