@@ -15,6 +15,8 @@ test("the restricted CEL profile compiles its complete Boolean and File Change s
     'file_changes.exists(file, file.renamed && file.paths.exists(path, path.matches(":(glob)src/**")))',
     'file_changes.exists(file, file.before_path.matches(":(glob)src/**/*.js") && file.after_path.matches(":(glob)lib/**/*.js"))',
     'file_changes.exists(file, file.after_path.matches(":(glob)**/README.md"))',
+    'file_changes.exists(file, file.after_path.matches(":(glob)src/api\\\\-route.js"))',
+    'file_changes.exists(file, file.after_path.matches(":(glob)src[/]api-route.js"))',
     'file_changes.exists(file, file.before_content.matches("(?i)deprecated") || file.after_content.matches("^export "))',
     "(file_changes.exists(file, file.modified) && file_changes.exists(file, file.deleted)) || false",
   ]) {
@@ -24,18 +26,19 @@ test("the restricted CEL profile compiles its complete Boolean and File Change s
   }
 });
 
-test("the restricted CEL compiler produces executable Git-glob and RE2 matchers", () => {
+test("the restricted CEL compiler preserves exact Git pathspec and produces a native RE2 matcher", () => {
   const pathProgram = compileApplicabilityRule(
     'file_changes.exists(file, file.after_path.matches(":(glob)src/**/*.js"))',
   );
-  assert.equal(
-    pathProgram.expression.predicate.matcher.test("src/browser/review.js"),
-    true,
+  assert.deepEqual(pathProgram.expression.predicate.matcher, {
+    pathspec: ":(glob)src/**/*.js",
+  });
+  const escapedPathProgram = compileApplicabilityRule(
+    'file_changes.exists(file, file.after_path.matches(":(glob)src/api\\\\-route.js"))',
   );
-  assert.equal(
-    pathProgram.expression.predicate.matcher.test("test/review.test.js"),
-    false,
-  );
+  assert.deepEqual(escapedPathProgram.expression.predicate.matcher, {
+    pathspec: ":(glob)src/api\\-route.js",
+  });
   const contentProgram = compileApplicabilityRule(
     'file_changes.exists(file, file.after_content.matches("(?i)^export "))',
   );
@@ -58,10 +61,6 @@ test("the restricted CEL profile rejects every unowned CEL feature and ambiguous
       "review_applicability_rule_git_glob_invalid",
     ],
     [
-      'file_changes.exists(file, file.after_path.matches(":(glob)[z-a].js"))',
-      "review_applicability_rule_git_glob_invalid",
-    ],
-    [
       'file_changes.exists(file, file.after_path.matches(":(glob)src/**test.js"))',
       "review_applicability_rule_git_glob_invalid",
     ],
@@ -71,6 +70,14 @@ test("the restricted CEL profile rejects every unowned CEL feature and ambiguous
     ],
     [
       'file_changes.exists(file, file.after_content.matches("(?=unsafe)"))',
+      "review_applicability_rule_re2_invalid",
+    ],
+    [
+      'file_changes.exists(file, file.after_content.matches("\\\\cA"))',
+      "review_applicability_rule_re2_invalid",
+    ],
+    [
+      'file_changes.exists(file, file.after_content.matches("\\\\u0041"))',
       "review_applicability_rule_re2_invalid",
     ],
     [

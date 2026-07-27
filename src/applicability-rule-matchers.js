@@ -1,6 +1,21 @@
-import { RE2 } from "re2-wasm";
+import re2Wasm from "re2-wasm/build/wasm/re2.js";
 
 import { failApplicabilityRule } from "./applicability-rule-error.js";
+
+const { WrappedRE2 } = re2Wasm;
+
+/** @param {string} pattern @param {number} index */
+function escaped(pattern, index) {
+  let backslashes = 0;
+  for (
+    let cursor = index - 1;
+    cursor >= 0 && pattern[cursor] === "\\";
+    cursor -= 1
+  ) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
+}
 
 /** @param {string} glob */
 export function compileGitGlob(glob) {
@@ -9,7 +24,6 @@ export function compileGitGlob(glob) {
     !glob.startsWith(prefix) ||
     glob.length === prefix.length ||
     glob.startsWith(prefix + "/") ||
-    glob.includes("\\") ||
     glob.includes("\0") ||
     glob
       .slice(prefix.length)
@@ -22,11 +36,15 @@ export function compileGitGlob(glob) {
     );
   }
   const pattern = glob.slice(prefix.length);
-  for (
-    let index = pattern.indexOf("**");
-    index !== -1;
-    index = pattern.indexOf("**", index + 2)
-  ) {
+  for (let index = 0; index < pattern.length - 1; index += 1) {
+    if (
+      pattern[index] !== "*" ||
+      pattern[index + 1] !== "*" ||
+      escaped(pattern, index) ||
+      escaped(pattern, index + 1)
+    ) {
+      continue;
+    }
     const before = pattern[index - 1];
     const after = pattern[index + 2];
     const valid =
@@ -38,74 +56,30 @@ export function compileGitGlob(glob) {
         "Applicability Rule contains an invalid Git glob",
       );
     }
+    index += 1;
   }
-  let expression = "^";
-  for (let index = 0; index < pattern.length; index += 1) {
-    const character = pattern[index];
-    if (character === "*") {
-      if (pattern[index + 1] === "*") {
-        index += 1;
-        if (pattern[index + 1] === "/") {
-          index += 1;
-          expression += "(?:.*/)?";
-        } else {
-          expression += ".*";
-        }
-      } else {
-        expression += "[^/]*";
-      }
-      continue;
-    }
-    if (character === "?") {
-      expression += "[^/]";
-      continue;
-    }
-    if (character === "[") {
-      const closing = pattern.indexOf("]", index + 1);
-      if (closing === -1 || closing === index + 1) {
-        failApplicabilityRule(
-          "review_applicability_rule_git_glob_invalid",
-          "Applicability Rule contains an invalid Git glob",
-        );
-      }
-      const content = pattern.slice(index + 1, closing);
-      const negated = content.startsWith("!");
-      const members = (negated ? content.slice(1) : content).replace(
-        /[\\\]]/g,
-        "\\$&",
+  return Object.freeze({ pathspec: glob });
+}
+
+class NativeRe2Matcher {
+  /** @param {string} pattern */
+  constructor(pattern) {
+    this.compiled = new WrappedRE2(pattern, false, false, false);
+    if (!this.compiled.ok()) {
+      failApplicabilityRule(
+        "review_applicability_rule_re2_invalid",
+        "Applicability Rule contains an invalid RE2 content pattern",
       );
-      if (members.length === 0) {
-        failApplicabilityRule(
-          "review_applicability_rule_git_glob_invalid",
-          "Applicability Rule contains an invalid Git glob",
-        );
-      }
-      expression += `[${negated ? "^" : ""}${members}]`;
-      index = closing;
-      continue;
     }
-    expression += /[\\^$.*+?()[\]{}|]/.test(character)
-      ? `\\${character}`
-      : character;
   }
-  try {
-    return new RegExp(expression + "$", "u");
-  } catch {
-    failApplicabilityRule(
-      "review_applicability_rule_git_glob_invalid",
-      "Applicability Rule contains an invalid Git glob",
-    );
+
+  /** @param {string} value */
+  test(value) {
+    return this.compiled.match(value, 0, false).index >= 0;
   }
 }
 
 /** @param {string} pattern */
 export function compileRe2(pattern) {
-  try {
-    return new RE2(pattern, "u");
-  } catch {
-    failApplicabilityRule(
-      "review_applicability_rule_re2_invalid",
-      "Applicability Rule contains an invalid RE2 content pattern",
-    );
-  }
+  return new NativeRe2Matcher(pattern);
 }
