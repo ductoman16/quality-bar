@@ -159,6 +159,13 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "name",
         ],
       ),
+      ReviewMetadataUpdateRequest: closedObject(
+        {
+          description: { minLength: 1, pattern: "\\S", type: "string" },
+          name: { minLength: 1, pattern: "\\S", type: "string" },
+        },
+        ["name", "description"],
+      ),
       Criterion: closedObject(
         {
           id: { type: "string" },
@@ -192,6 +199,15 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           name: { type: "string" },
         },
         ["id", "name", "description", "assignment", "active_version"],
+      ),
+      ReviewCollection: closedObject(
+        {
+          reviews: {
+            items: { $ref: "#/components/schemas/Review" },
+            type: "array",
+          },
+        },
+        ["reviews"],
       ),
       System: openObject(
         {

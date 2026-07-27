@@ -11,5 +11,10 @@
     "target": "ES2024",
     "types": []
   },
-  "files": ["src/browser/login.js", "src/browser/operator.js"]
+  "files": [
+    "src/browser/login.js",
+    "src/browser/operator.js",
+    "src/browser/review-metadata.js",
+    "src/browser/review-create.js"
+  ]
 }

@@ -236,6 +236,8 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/browser-assets-browser-component.test.js",
+        "test/review-metadata-browser-component.test.js",
+        "test/review-create-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
         "test/browser-session-protection-browser-component.test.js",

@@ -31,6 +31,8 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/request-security.test.js",
   "test/review-validation.test.js",
   "test/browser-assets-browser-component.test.js",
+  "test/review-metadata-browser-component.test.js",
+  "test/review-create-browser-component.test.js",
   "test/operator-password-browser-component.test.js",
   "test/browser-session-authentication-browser-component.test.js",
   "test/browser-session-protection-browser-component.test.js",

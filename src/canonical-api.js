@@ -197,6 +197,25 @@ export function canonicalOpenApiDocument() {
         jsonRequest("CurrentPasswordRequest"),
       ),
       "/api/v1/reviews": {
+        get: {
+          operationId: "listReviews",
+          responses: {
+            200: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ReviewCollection" },
+                },
+              },
+              description: "Review lineage collection",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            500: errorResponse,
+            503: errorResponse,
+          },
+          security: [{ browser_session: [] }],
+        },
         post: {
           operationId: "createReview",
           parameters: browserOrBearerMutationParameters,
@@ -218,6 +237,40 @@ export function canonicalOpenApiDocument() {
             503: errorResponse,
           },
           security: authenticated,
+        },
+      },
+      "/api/v1/reviews/{review_id}/metadata": {
+        patch: {
+          operationId: "updateReviewMetadata",
+          parameters: [
+            {
+              in: "path",
+              name: "review_id",
+              required: true,
+              schema: { minLength: 1, type: "string" },
+            },
+            ...mutationParameters,
+          ],
+          requestBody: jsonRequest("ReviewMetadataUpdateRequest"),
+          responses: {
+            200: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Review" },
+                },
+              },
+              description: "Review with updated lineage metadata",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            404: errorResponse,
+            409: errorResponse,
+            422: errorResponse,
+            500: errorResponse,
+            503: errorResponse,
+          },
+          security: [{ browser_session: [] }],
         },
       },
       "/api/v1/system": {

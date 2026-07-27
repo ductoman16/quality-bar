@@ -56,8 +56,14 @@ before(async () => {
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     reviews: {
+      list() {
+        return [];
+      },
       create() {
         throw new Error("unused review create");
+      },
+      updateMetadata() {
+        throw new Error("unused Review metadata update");
       },
     },
     requestSecurity: {

@@ -173,6 +173,93 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
   assert.equal(reviewCount?.count, 1);
 });
 
+test("the authenticated Review metadata resource edits only lineage metadata", async () => {
+  const { application, request } = await startApplication();
+  const login = await request("/api/v1/session/login", {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const { csrf, session } = sessionCookies(login);
+  const headers = {
+    "content-type": "application/json",
+    cookie: `${session}; quality_bar_csrf=${csrf}`,
+    origin: "http://127.0.0.1:3000",
+    "x-quality-bar-csrf": csrf,
+  };
+  const createdResponse = await request("/api/v1/reviews", {
+    body: JSON.stringify(reviewRequest()),
+    headers,
+    method: "POST",
+  });
+  const created =
+    /** @type {{id: string, active_version: {id: string, number: number}}} */ (
+      await createdResponse.json()
+    );
+  const listedResponse = await request("/api/v1/reviews", {
+    headers: { cookie: session },
+  });
+  assert.equal(listedResponse.status, 200);
+  assert.deepEqual(await listedResponse.json(), { reviews: [created] });
+
+  const updatedResponse = await request(
+    `/api/v1/reviews/${created.id}/metadata`,
+    {
+      body: JSON.stringify({
+        description: "Keep every authenticated mutation boundary safe.",
+        name: "Authenticated HTTP boundaries",
+      }),
+      headers,
+      method: "PATCH",
+    },
+  );
+
+  assert.equal(updatedResponse.status, 200);
+  const updated =
+    /** @type {{name: string, description: string, active_version: {id: string, number: number}}} */ (
+      await updatedResponse.json()
+    );
+  assert.equal(updated.name, "Authenticated HTTP boundaries");
+  assert.equal(
+    updated.description,
+    "Keep every authenticated mutation boundary safe.",
+  );
+  assert.deepEqual(updated.active_version, created.active_version);
+  assert.equal(
+    application.durableCore.get("SELECT count(*) AS count FROM review_versions")
+      ?.count,
+    1,
+  );
+
+  const rejectedResponse = await request.invalidRequest(
+    `/api/v1/reviews/${created.id}/metadata`,
+    {
+      body: JSON.stringify({
+        description: "Keep this local value.",
+        name: " ",
+      }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(rejectedResponse.status, 422);
+  assert.equal(
+    await responseErrorCode(rejectedResponse),
+    "review_name_invalid",
+  );
+  assert.deepEqual(
+    application.durableCore.get(
+      "SELECT name, description, active_version_id FROM reviews WHERE id = ?",
+      created.id,
+    ),
+    {
+      name: "Authenticated HTTP boundaries",
+      description: "Keep every authenticated mutation boundary safe.",
+      active_version_id: created.active_version.id,
+    },
+  );
+});
+
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
   const { application, request } = await startApplication();
   const token = application.implementerTokens.create(
@@ -192,13 +279,73 @@ test("a sole implementer bearer creates the same Review resource without browser
   assert.equal(createdReview.name, "Machine HTTP boundaries");
 });
 
+test("a sole implementer bearer cannot read or edit Review authoring resources", async () => {
+  const { application, request } = await startApplication();
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const firstResponse = await request("/api/v1/reviews", {
+    body: JSON.stringify(reviewRequest({ name: "First Review" })),
+    headers,
+    method: "POST",
+  });
+  const first = /** @type {{id: string}} */ (await firstResponse.json());
+  const listed = await request("/api/v1/reviews", {
+    headers,
+  });
+  assert.equal(listed.status, 403);
+  assert.equal(await responseErrorCode(listed), "authorization_forbidden");
+
+  const forbidden = await request(`/api/v1/reviews/${first.id}/metadata`, {
+    body: JSON.stringify({
+      description: "A forbidden edit.",
+      name: "Forbidden Review",
+    }),
+    headers,
+    method: "PATCH",
+  });
+  assert.equal(forbidden.status, 403);
+  assert.equal(await responseErrorCode(forbidden), "authorization_forbidden");
+
+  const unchanged = application.durableCore.get(
+    "SELECT name, description FROM reviews WHERE id = ?",
+    first.id,
+  );
+  assert.deepEqual(unchanged, {
+    name: "First Review",
+    description: "Keep authenticated mutations safe.",
+  });
+});
+
 test("an unexpected Review resource failure has an exact owning error", async () => {
   const failure = new Error("exact Review resource failure");
+  let listAttempt = 0;
   const { request } = await startApplication({
     createReviews() {
       return {
+        list() {
+          listAttempt += 1;
+          if (listAttempt === 2) {
+            throw Object.assign(new Error("Review storage is unavailable"), {
+              code: "storage_unavailable",
+            });
+          }
+          if (listAttempt === 3) {
+            throw Object.assign(new Error("Review list is invalid"), {
+              code: "review_list_invalid",
+            });
+          }
+          throw failure;
+        },
         create() {
           throw failure;
+        },
+        updateMetadata() {
+          throw new Error("unused Review metadata update");
         },
       };
     },
@@ -209,6 +356,39 @@ test("an unexpected Review resource failure has an exact owning error", async ()
     method: "POST",
   });
   const { csrf, session } = sessionCookies(login);
+  const listed = await request("/api/v1/reviews", {
+    headers: { cookie: session },
+  });
+  assert.equal(listed.status, 500);
+  const listedFailure =
+    /** @type {{error: {code: string, message: string}}} */ (
+      await listed.json()
+    );
+  assert.equal(listedFailure.error.code, "review_list_failed");
+  assert.equal(listedFailure.error.message, "exact Review resource failure");
+  const unavailableList = await request("/api/v1/reviews", {
+    headers: { cookie: session },
+  });
+  assert.equal(unavailableList.status, 503);
+  const unavailableFailure =
+    /** @type {{error: {code: string, message: string}}} */ (
+      await unavailableList.json()
+    );
+  assert.equal(unavailableFailure.error.code, "storage_unavailable");
+  assert.equal(
+    unavailableFailure.error.message,
+    "Review storage is unavailable",
+  );
+  const invalidList = await request("/api/v1/reviews", {
+    headers: { cookie: session },
+  });
+  assert.equal(invalidList.status, 500);
+  const invalidFailure =
+    /** @type {{error: {code: string, message: string}}} */ (
+      await invalidList.json()
+    );
+  assert.equal(invalidFailure.error.code, "review_list_failed");
+  assert.equal(invalidFailure.error.message, "Review list is invalid");
   const response = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest()),
     headers: {

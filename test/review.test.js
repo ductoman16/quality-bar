@@ -159,3 +159,104 @@ test("a malformed Review definition creates no partial durable facts", () => {
   }
   core.close();
 });
+
+test("editing Review metadata preserves the active immutable version and Criterion selection", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const reviews = createReviewService(core, {
+    createId: (() => {
+      let next = 0;
+      return () => `metadata-fact-${++next}`;
+    })(),
+    now: () => Date.parse("2026-07-26T20:00:00.000Z"),
+  });
+  const created = reviews.create(reviewDefinition());
+
+  const updated = reviews.updateMetadata(created.id, {
+    description: "Protect every durable data boundary.",
+    name: "Durable data access",
+  });
+
+  assert.deepEqual(reviews.list(), [updated]);
+  assert.deepEqual(updated, {
+    ...created,
+    description: "Protect every durable data boundary.",
+    name: "Durable data access",
+  });
+  assert.deepEqual(
+    core.all(
+      "SELECT id, name, description, active_version_id FROM reviews WHERE id = ?",
+      created.id,
+    ),
+    [
+      {
+        id: created.id,
+        name: "Durable data access",
+        description: "Protect every durable data boundary.",
+        active_version_id: created.active_version.id,
+      },
+    ],
+  );
+  assert.deepEqual(
+    core.all(
+      "SELECT id, review_id, number, model, reasoning_effort, service_tier, created_at, sealed_at FROM review_versions",
+    ),
+    [
+      {
+        id: created.active_version.id,
+        review_id: created.id,
+        number: 1,
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+        created_at: Date.parse("2026-07-26T20:00:00.000Z"),
+        sealed_at: Date.parse("2026-07-26T20:00:00.000Z"),
+      },
+    ],
+  );
+  assert.deepEqual(
+    core.all(
+      "SELECT review_version_id, criterion_id, position FROM review_version_criteria",
+    ),
+    [
+      {
+        review_version_id: created.active_version.id,
+        criterion_id: created.active_version.criteria[0].id,
+        position: 1,
+      },
+    ],
+  );
+  core.close();
+});
+
+test("a failed Review metadata edit changes no durable fact", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const reviews = createReviewService(core, {
+    createId: (() => {
+      let next = 0;
+      return () => `failed-metadata-fact-${++next}`;
+    })(),
+  });
+  const created = reviews.create(reviewDefinition());
+
+  assert.throws(
+    () =>
+      reviews.updateMetadata("missing-review", {
+        description: "Missing.",
+        name: "Missing",
+      }),
+    (error) =>
+      error instanceof ReviewError && error.code === "review_not_found",
+  );
+  assert.deepEqual(
+    core.all("SELECT id, name, description, active_version_id FROM reviews"),
+    [
+      {
+        id: created.id,
+        name: created.name,
+        description: created.description,
+        active_version_id: created.active_version.id,
+      },
+    ],
+  );
+  core.close();
+});

@@ -3,9 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
+import { Script } from "node:vm";
 
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { createApplication } from "../src/application.js";
+import { readBrowserAsset } from "../src/browser-assets.js";
+import { operatorPage } from "../src/browser-pages.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
 /**
@@ -81,6 +84,24 @@ function browserElement(properties = {}) {
     close() {},
   };
 }
+
+test("the Reviews page composes its exact classic scripts and owns metadata validation", () => {
+  assert.doesNotThrow(
+    () =>
+      new Script(
+        [
+          readBrowserAsset("/assets/operator.js"),
+          readBrowserAsset("/assets/review-create.js"),
+          readBrowserAsset("/assets/review-metadata.js"),
+        ].join("\n"),
+      ),
+  );
+  const page = operatorPage({ view: "reviews" });
+  assert.match(page, /aria-required="true" id="review-metadata-name"/);
+  assert.match(page, /aria-required="true" id="review-metadata-description"/);
+  assert.doesNotMatch(page, /id="review-metadata-name" required/);
+  assert.doesNotMatch(page, /id="review-metadata-description" required/);
+});
 
 /** @param {{readBrowserAsset?: (path: string) => string}} [options] */
 async function startApplication(options = {}) {

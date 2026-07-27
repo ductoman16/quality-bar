@@ -20,7 +20,12 @@ test("application coverage has one positive maintained-code boundary", () => {
   assert.deepEqual(APPLICATION_COVERAGE_BOUNDARY, {
     include: ["src/**/*.js"],
     excludedRoots: ["artifacts", "evidence", "fixtures", "scripts", "test"],
-    servedBrowserAssets: ["src/browser/login.js", "src/browser/operator.js"],
+    servedBrowserAssets: [
+      "src/browser/login.js",
+      "src/browser/operator.js",
+      "src/browser/review-metadata.js",
+      "src/browser/review-create.js",
+    ],
   });
   assert.deepEqual(
     APPLICATION_COVERAGE_BOUNDARY.servedBrowserAssets,
@@ -33,6 +38,16 @@ test("coverage executes the deterministic application proof pyramid without smok
   assert.ok(
     APPLICATION_COVERAGE_TEST_PATHS.includes(
       "test/browser-assets-browser-component.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/review-metadata-browser-component.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/review-create-browser-component.test.js",
     ),
   );
   assert.ok(
