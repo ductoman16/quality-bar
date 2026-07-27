@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { createServer } from "node:https";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
@@ -10,7 +16,9 @@ import {
   verifyPublicRepositoryRead,
   verifyRepositoryRead,
 } from "../src/repository-git.js";
+import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
+import { openDurableCore } from "../src/durable-core.js";
 
 /** @param {string} directory @param {string} name @param {boolean} populated */
 function createBareRepository(directory, name, populated) {
@@ -257,4 +265,61 @@ test("public Repository verification performs a non-mutating read over real HTTP
       error instanceof RepositoryError &&
       error.code === "repository_git_verification_unavailable",
   );
+
+  const lifecycleCore = openDurableCore(
+    join(directory, "repository-lifecycle.sqlite3"),
+  );
+  const lifecycleRepositories = createRepositoryService(lifecycleCore, {
+    createId: () => "repository-lifecycle",
+    masterKey: Buffer.alloc(32, 7),
+    async verifyRead(url, credential) {
+      await verifyRepositoryRead(url, credential, {
+        certificateAuthorityPath: certificate,
+      });
+    },
+  });
+  await lifecycleRepositories.register({
+    url: `https://127.0.0.1:${address.port}/populated.git`,
+  });
+  await lifecycleRepositories.setLifecycle("repository-lifecycle", {
+    lifecycle: "disabled",
+  });
+  renameSync(
+    join(directory, "populated.git"),
+    join(directory, "populated-unavailable.git"),
+  );
+  await assert.rejects(
+    () =>
+      lifecycleRepositories.setLifecycle("repository-lifecycle", {
+        lifecycle: "enabled",
+      }),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "repository_git_read_failed",
+  );
+  assert.deepEqual(lifecycleRepositories.list()[0], {
+    credential_type: "none",
+    health: "error",
+    health_error: {
+      code: "repository_git_read_failed",
+      message: "Repository Git read verification failed",
+    },
+    id: "repository-lifecycle",
+    lifecycle: "disabled",
+    url: `https://127.0.0.1:${address.port}/populated.git`,
+  });
+  renameSync(
+    join(directory, "populated-unavailable.git"),
+    join(directory, "populated.git"),
+  );
+  assert.equal(
+    (
+      await lifecycleRepositories.setLifecycle("repository-lifecycle", {
+        lifecycle: "enabled",
+      })
+    ).health,
+    "healthy",
+  );
+  lifecycleRepositories.destroy();
+  lifecycleCore.close();
 });

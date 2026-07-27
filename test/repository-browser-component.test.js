@@ -77,6 +77,12 @@ test("the Repository component rotates write-only credentials and surfaces the e
       }),
     ],
     ["error", error],
+    ["repository-inventory", browserElement()],
+    ["repository-lifecycle-form", browserElement()],
+    ["repository-lifecycle-repository", browserElement()],
+    ["repository-lifecycle-state", browserElement()],
+    ["repository-lifecycle-result", browserElement()],
+    ["repository-lifecycle-submit", browserElement()],
     ["repository-create-form", form],
     ["repository-token", token],
     ["repository-url", url],
@@ -153,7 +159,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "username_token",
+              health: "healthy",
+              health_error: null,
               id: "repository-1",
+              lifecycle: "enabled",
               url: "https://example.com/team/repository.git",
             };
           },
@@ -164,7 +174,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "none",
+              health: "healthy",
+              health_error: null,
               id: "repository-public",
+              lifecycle: "enabled",
               url: "https://example.com/team/public.git",
             };
           },
@@ -175,7 +189,11 @@ test("the Repository component rotates write-only credentials and surfaces the e
           ok: true,
           async json() {
             return {
+              credential_type: "username_token",
+              health: "healthy",
+              health_error: null,
               id: "repository/private",
+              lifecycle: "enabled",
               url: "https://example.com/team/repository.git",
             };
           },
@@ -343,6 +361,10 @@ test("the Repository component rotates write-only credentials and surfaces the e
 
 test("the Repositories page keeps credential rotation on its owning resource surface", () => {
   const page = operatorPage({ view: "repositories" });
+  assert.match(page, /id="repository-inventory"/);
+  assert.match(page, /id="repository-lifecycle-form"/);
+  assert.match(page, /id="repository-lifecycle-repository"/);
+  assert.match(page, /id="repository-lifecycle-state"/);
   assert.match(page, /id="repository-create-form"/);
   assert.match(page, /id="repository-credential-rotate-form"/);
   assert.match(page, /id="repository-credential-rotate-repository"/);

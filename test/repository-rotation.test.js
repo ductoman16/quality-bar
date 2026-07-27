@@ -80,7 +80,7 @@ test("credential rotation rejects missing and public Repositories before verific
   repositories.destroy();
 });
 
-test("credential rotation targets expose only secret-free credentialed Repository identity", () => {
+test("Repository listing exposes lifecycle and health without credential values", () => {
   /** @type {string[]} */
   const reads = [];
   const repositories = createRepositoryService(
@@ -90,7 +90,12 @@ test("credential rotation targets expose only secret-free credentialed Repositor
         return sql.includes("ORDER BY repositories.normalized_url")
           ? [
               {
+                encrypted_credential: "encrypted-value",
+                health: "healthy",
+                health_error_code: null,
+                health_error_message: null,
                 id: "repository-private",
+                lifecycle: "enabled",
                 normalized_url: "https://example.com/private.git",
               },
             ]
@@ -105,12 +110,19 @@ test("credential rotation targets expose only secret-free credentialed Repositor
 
   assert.deepEqual(repositories.list(), [
     {
+      credential_type: "username_token",
+      health: "healthy",
+      health_error: null,
       id: "repository-private",
+      lifecycle: "enabled",
       url: "https://example.com/private.git",
     },
   ]);
-  assert.match(reads.at(-1) ?? "", /JOIN repository_credentials/);
-  assert.doesNotMatch(JSON.stringify(repositories.list()), /credential|token/);
+  assert.match(reads.at(-1) ?? "", /LEFT JOIN repository_credentials/);
+  assert.doesNotMatch(
+    JSON.stringify(repositories.list()),
+    /encrypted-value|token-value/,
+  );
   repositories.destroy();
 });
 

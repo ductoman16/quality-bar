@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-and-repository-credential-unit",
+        "browser-authority-request-security-review-version-and-repository-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -232,6 +232,7 @@ export function createGateDefinitions(metadata) {
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",
+        "test/repository-lifecycle.test.js",
         "test/repository-rotation.test.js",
         "test/repository-validation.test.js",
         "test/verification-harness.test.js",
@@ -240,7 +241,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-review-version-and-repository-browser-boundary",
+        "browser-authority-request-security-review-version-and-repository-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -253,6 +254,7 @@ export function createGateDefinitions(metadata) {
         "test/review-version-reactivation-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/repository-browser-component.test.js",
+        "test/repository-lifecycle-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
         "test/browser-session-protection-browser-component.test.js",
@@ -262,14 +264,14 @@ export function createGateDefinitions(metadata) {
     {
       name: "git-integration",
       testGroup:
-        "public-and-credentialed-generic-https-repository-read-boundary",
+        "generic-https-repository-read-and-lifecycle-verification-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: ["--test", "test/repository-git-integration.test.js"],
     },
     {
       name: "sqlite-integration",
       testGroup:
-        "review-version-and-encrypted-repository-credential-sqlite-resource-boundary",
+        "review-version-credential-and-repository-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -286,7 +288,8 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "http-integration",
-      testGroup: "review-version-and-repository-http-resource-boundary",
+      testGroup:
+        "review-version-and-repository-lifecycle-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",

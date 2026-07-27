@@ -15,8 +15,9 @@ const {
  * @param {HTMLElement} result
  * @param {string} path
  * @param {Record<string, string>} body
- * @param {(repository: {id: string, url: string}) => Promise<string> | string} successMessage
+ * @param {(repository: RepositoryResource) => Promise<string> | string} successMessage
  * @param {string} networkFailureMessage
+ * @param {"PATCH" | "POST"} [method]
  */
 async function submitRepositoryMutation(
   form,
@@ -25,6 +26,7 @@ async function submitRepositoryMutation(
   body,
   successMessage,
   networkFailureMessage,
+  method = "POST",
 ) {
   repositoryError.hidden = true;
   result.textContent = "";
@@ -36,7 +38,7 @@ async function submitRepositoryMutation(
         "content-type": "application/json",
         "x-quality-bar-csrf": repositoryCsrfToken(),
       },
-      method: "POST",
+      method,
     });
   } catch {
     repositoryError.textContent = networkFailureMessage;
@@ -47,15 +49,69 @@ async function submitRepositoryMutation(
     await displayRepositoryMutationFailure(response);
     return;
   }
-  const repository = /** @type {{id: string, url: string}} */ (
-    await response.json()
-  );
+  const repository = /** @type {RepositoryResource} */ (await response.json());
   result.textContent = await successMessage(repository);
   form.reset();
 }
 
-/** @param {{id: string, url: string}} repository */
+/**
+ * @typedef {{
+ *   credential_type: "none" | "username_token",
+ *   health: "healthy" | "error",
+ *   health_error: null | {code: string, message: string},
+ *   id: string,
+ *   lifecycle: "enabled" | "disabled" | "retired",
+ *   url: string
+ * }} RepositoryResource
+ */
+
+/** @type {Map<string, HTMLElement>} */
+const repositoryRows = new Map();
+
+/** @param {RepositoryResource} repository */
+function renderRepository(repository) {
+  let observedHealth = "healthy";
+  if (repository.health === "error") {
+    const healthError = repository.health_error;
+    if (!healthError) {
+      throw new Error("repository_health_error_missing");
+    }
+    observedHealth = `error: ${healthError.message}`;
+  }
+  let row = repositoryRows.get(repository.id);
+  if (!row) {
+    row = document.createElement("tr");
+    repositoryRows.set(repository.id, row);
+    requiredRepositoryElement("repository-inventory").append(row);
+  }
+  row.textContent = `${repository.url} — ${repository.lifecycle} — ${observedHealth}`;
+}
+
+/** @param {RepositoryResource} repository */
+function addLifecycleOption(repository) {
+  const select = /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  );
+  for (const option of select.options) {
+    if (option.value === repository.id) {
+      return;
+    }
+  }
+  const option = document.createElement("option");
+  option.textContent = repository.url;
+  option.value = repository.id;
+  select.append(option);
+  select.disabled = false;
+  /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-lifecycle-submit")
+  ).disabled = false;
+}
+
+/** @param {RepositoryResource} repository */
 function addRepositoryOption(repository) {
+  if (repository.credential_type !== "username_token") {
+    return;
+  }
   const select = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-credential-rotate-repository")
   );
@@ -87,13 +143,20 @@ async function loadRepositoryOptions() {
     await displayRepositoryMutationFailure(response);
     return false;
   }
-  const body = /** @type {{repositories: {id: string, url: string}[]}} */ (
+  const body = /** @type {{repositories: RepositoryResource[]}} */ (
     await response.json()
   );
+  requiredRepositoryElement("repository-inventory").replaceChildren();
+  repositoryRows.clear();
+  /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  ).replaceChildren();
   /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-credential-rotate-repository")
   ).replaceChildren();
   for (const repository of body.repositories) {
+    renderRepository(repository);
+    addLifecycleOption(repository);
     addRepositoryOption(repository);
   }
   return true;
@@ -129,12 +192,42 @@ repositoryCreateForm.addEventListener("submit", async (event) => {
     "/api/v1/repositories",
     body,
     async (repository) => {
-      if (username && token && (await repositoryOptionsLoaded)) {
+      if (await repositoryOptionsLoaded) {
+        renderRepository(repository);
+        addLifecycleOption(repository);
         addRepositoryOption(repository);
       }
       return `${repository.url} registered as ${repository.id}.`;
     },
     "Repository registration failed",
+  );
+});
+
+const repositoryLifecycleForm = /** @type {HTMLFormElement} */ (
+  requiredRepositoryElement("repository-lifecycle-form")
+);
+repositoryLifecycleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!(await repositoryOptionsLoaded)) {
+    return;
+  }
+  const repositoryId = /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  ).value;
+  const lifecycle = /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-state")
+  ).value;
+  await submitRepositoryMutation(
+    repositoryLifecycleForm,
+    requiredRepositoryElement("repository-lifecycle-result"),
+    `/api/v1/repositories/${encodeURIComponent(repositoryId)}/lifecycle`,
+    { lifecycle },
+    (repository) => {
+      renderRepository(repository);
+      return `${repository.url} is ${repository.lifecycle}.`;
+    },
+    "Repository lifecycle change failed",
+    "PATCH",
   );
 });
 
@@ -166,7 +259,10 @@ repositoryCredentialRotateForm.addEventListener("submit", async (event) => {
     requiredRepositoryElement("repository-credential-rotate-result"),
     `/api/v1/repositories/${encodeURIComponent(repositoryId)}/credential/rotate`,
     body,
-    (repository) => repository.url + " credential rotated.",
+    (repository) => {
+      renderRepository(repository);
+      return repository.url + " credential rotated.";
+    },
     "Repository credential rotation failed",
   );
 });

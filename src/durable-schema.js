@@ -1,14 +1,66 @@
 import { DurableCoreError, fail } from "./durable-error.js";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
+
+const REPOSITORY_HEALTH_INTEGRITY = `
+  CREATE TRIGGER IF NOT EXISTS repository_health_integrity_insert
+    BEFORE INSERT ON repositories
+    WHEN NOT (
+      (NEW.health = 'healthy'
+        AND NEW.health_error_code IS NULL
+        AND NEW.health_error_message IS NULL)
+      OR
+      (NEW.health = 'error'
+        AND NEW.health_error_code IS NOT NULL
+        AND NEW.health_error_message IS NOT NULL)
+    )
+    BEGIN SELECT RAISE(ABORT, 'repository_health_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS repository_health_integrity_update
+    BEFORE UPDATE OF health, health_error_code, health_error_message
+    ON repositories
+    WHEN NOT (
+      (NEW.health = 'healthy'
+        AND NEW.health_error_code IS NULL
+        AND NEW.health_error_message IS NULL)
+      OR
+      (NEW.health = 'error'
+        AND NEW.health_error_code IS NOT NULL
+        AND NEW.health_error_message IS NOT NULL)
+    )
+    BEGIN SELECT RAISE(ABORT, 'repository_health_invalid'); END;
+`;
 
 const REPOSITORY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS repositories (
     id TEXT PRIMARY KEY,
     normalized_url TEXT NOT NULL UNIQUE,
     created_at INTEGER NOT NULL,
-    verified_at INTEGER NOT NULL
+    verified_at INTEGER NOT NULL,
+    lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'disabled', 'retired')),
+    health TEXT NOT NULL DEFAULT 'healthy'
+      CHECK (health IN ('healthy', 'error')),
+    health_error_code TEXT,
+    health_error_message TEXT,
+    CHECK (
+      (health = 'healthy' AND health_error_code IS NULL AND health_error_message IS NULL)
+      OR
+      (health = 'error' AND health_error_code IS NOT NULL AND health_error_message IS NOT NULL)
+    )
   ) STRICT;
+  ${REPOSITORY_HEALTH_INTEGRITY}
+`;
+
+const REPOSITORY_LIFECYCLE_MIGRATION = `
+  ALTER TABLE repositories ADD COLUMN lifecycle TEXT NOT NULL
+    DEFAULT 'enabled'
+    CHECK (lifecycle IN ('enabled', 'disabled', 'retired'));
+  ALTER TABLE repositories ADD COLUMN health TEXT NOT NULL
+    DEFAULT 'healthy'
+    CHECK (health IN ('healthy', 'error'));
+  ALTER TABLE repositories ADD COLUMN health_error_code TEXT;
+  ALTER TABLE repositories ADD COLUMN health_error_message TEXT;
+  ${REPOSITORY_HEALTH_INTEGRITY}
 `;
 
 const REPOSITORY_CREDENTIAL_SCHEMA = `
@@ -288,7 +340,12 @@ export function initializeOrValidateSchema(database) {
   } else if (version === 8) {
     migration(database, `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}`);
   } else if (version === 9) {
-    migration(database, REPOSITORY_CREDENTIAL_SCHEMA);
+    migration(
+      database,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}`,
+    );
+  } else if (version === 10) {
+    migration(database, REPOSITORY_LIFECYCLE_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

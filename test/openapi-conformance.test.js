@@ -30,8 +30,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 20,
-    responseStatuses: 131,
+    operations: 21,
+    responseStatuses: 140,
     version: "3.1.0",
   });
   assert.equal(JSON.stringify(contract), before);
@@ -79,7 +79,11 @@ test("runtime conformance accepts a documented request and empty success", async
         url: "http://127.0.0.1/api/v1/repositories/repository-1/credential/rotate",
       },
       response: Response.json({
+        credential_type: "username_token",
+        health: "healthy",
+        health_error: null,
         id: "repository-1",
+        lifecycle: "enabled",
         url: "https://example.com/private.git",
       }),
     }),

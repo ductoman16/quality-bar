@@ -108,5 +108,49 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/repositories/{repository_id}/lifecycle": {
+      patch: {
+        operationId: "setRepositoryLifecycle",
+        parameters: [
+          {
+            in: "path",
+            name: "repository_id",
+            required: true,
+            schema: { minLength: 1, type: "string" },
+          },
+          ...mutationParameters,
+        ],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/RepositoryLifecycleRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Repository" },
+              },
+            },
+            description:
+              "Repository with separate operator lifecycle and observed health",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
   };
 }

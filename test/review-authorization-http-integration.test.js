@@ -7,7 +7,7 @@ import {
   sessionCookies,
   startApplication,
 } from "./review-http-integration-support.js";
-import { createRepositoryService } from "../src/repository.js";
+import { createRepositoryService, RepositoryError } from "../src/repository.js";
 
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
   const { application, request } = await startApplication();
@@ -71,6 +71,19 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
   assert.equal(forbiddenCredentialRotation.status, 403);
   assert.equal(
     await responseErrorCode(forbiddenCredentialRotation),
+    "authorization_forbidden",
+  );
+  const forbiddenLifecycle = await request(
+    "/api/v1/repositories/repository-1/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "disabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(forbiddenLifecycle.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenLifecycle),
     "authorization_forbidden",
   );
   const firstResponse = await request("/api/v1/reviews", {
@@ -172,6 +185,7 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
 test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
   /** @type {object[]} */
   const verifications = [];
+  let publicVerificationFails = false;
   const repositoryIds = ["repository/public", "repository/private"];
   const { request } = await startApplication({
     createRepositories(core, options) {
@@ -180,6 +194,17 @@ test("an authenticated operator rotates a Generic credential through the secret-
         createId: () => repositoryIds.shift() ?? "repository-unexpected",
         async verifyRead(url, credential) {
           verifications.push({ credential, url });
+          if (
+            publicVerificationFails &&
+            url === "https://example.com/public.git"
+          ) {
+            return Promise.reject(
+              new RepositoryError(
+                "repository_git_read_failed",
+                "Repository Git read verification failed",
+              ),
+            );
+          }
           if (credential?.token === "unexpected-sensitive-token") {
             throw new Error(
               `unexpected verifier detail: ${credential.username} ${credential.token}`,
@@ -226,10 +251,86 @@ test("an authenticated operator rotates a Generic credential through the secret-
   assert.deepEqual(await listed.json(), {
     repositories: [
       {
+        credential_type: "username_token",
+        health: "healthy",
+        health_error: null,
         id: "repository/private",
+        lifecycle: "enabled",
         url: "https://example.com/private.git",
       },
+      {
+        credential_type: "none",
+        health: "healthy",
+        health_error: null,
+        id: "repository/public",
+        lifecycle: "enabled",
+        url: "https://example.com/public.git",
+      },
     ],
+  });
+
+  const disabled = await request(
+    "/api/v1/repositories/repository%2Fpublic/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "disabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(disabled.status, 200);
+
+  publicVerificationFails = true;
+  const failedEnable = await request(
+    "/api/v1/repositories/repository%2Fpublic/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(failedEnable.status, 422);
+  assert.equal(
+    await responseErrorCode(failedEnable),
+    "repository_git_read_failed",
+  );
+  const afterFailedEnable = await request("/api/v1/repositories", {
+    headers: { cookie: headers.cookie },
+  });
+  const failedRepositories = /** @type {{repositories: any[]}} */ (
+    await afterFailedEnable.json()
+  ).repositories;
+  assert.deepEqual(
+    failedRepositories.find(({ id }) => id === "repository/public"),
+    {
+      credential_type: "none",
+      health: "error",
+      health_error: {
+        code: "repository_git_read_failed",
+        message: "Repository Git read verification failed",
+      },
+      id: "repository/public",
+      lifecycle: "disabled",
+      url: "https://example.com/public.git",
+    },
+  );
+
+  publicVerificationFails = false;
+  const enabled = await request(
+    "/api/v1/repositories/repository%2Fpublic/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(enabled.status, 200);
+  assert.deepEqual(await enabled.json(), {
+    credential_type: "none",
+    health: "healthy",
+    health_error: null,
+    id: "repository/public",
+    lifecycle: "enabled",
+    url: "https://example.com/public.git",
   });
 
   const rotated = await request(
@@ -245,7 +346,11 @@ test("an authenticated operator rotates a Generic credential through the secret-
   );
   assert.equal(rotated.status, 200);
   assert.deepEqual(await rotated.json(), {
+    credential_type: "username_token",
+    health: "healthy",
+    health_error: null,
     id: "repository/private",
+    lifecycle: "enabled",
     url: "https://example.com/private.git",
   });
   assert.deepEqual(verifications, [
@@ -259,6 +364,14 @@ test("an authenticated operator rotates a Generic credential through the secret-
         username: "original-operator",
       },
       url: "https://example.com/private.git",
+    },
+    {
+      credential: undefined,
+      url: "https://example.com/public.git",
+    },
+    {
+      credential: undefined,
+      url: "https://example.com/public.git",
     },
     {
       credential: {

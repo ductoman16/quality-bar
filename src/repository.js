@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 import {
+  assertRepositoryAcceptsNewWork,
   fail,
   normalizeRepositoryCredentialRotation,
+  normalizeRepositoryLifecycleChange,
   normalizeRepositoryRegistration,
   RepositoryError,
 } from "./repository-validation.js";
@@ -82,26 +84,83 @@ export function createRepositoryService(
     throw error;
   }
 
+  const repositorySelection = `SELECT
+    repositories.id,
+    repositories.normalized_url,
+    repositories.lifecycle,
+    repositories.health,
+    repositories.health_error_code,
+    repositories.health_error_message,
+    repository_credentials.encrypted_credential
+  FROM repositories
+  LEFT JOIN repository_credentials
+    ON repository_credentials.repository_id = repositories.id`;
+
+  /** @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row */
+  function resource(row) {
+    if (
+      !row ||
+      typeof row.id !== "string" ||
+      typeof row.normalized_url !== "string" ||
+      !["enabled", "disabled", "retired"].includes(
+        /** @type {string} */ (row.lifecycle),
+      ) ||
+      !["healthy", "error"].includes(/** @type {string} */ (row.health))
+    ) {
+      throw new TypeError("Repository row is invalid");
+    }
+    const healthError =
+      row.health === "error"
+        ? {
+            code: /** @type {string} */ (row.health_error_code),
+            message: /** @type {string} */ (row.health_error_message),
+          }
+        : null;
+    if (
+      row.health === "error" &&
+      (typeof healthError?.code !== "string" ||
+        typeof healthError.message !== "string")
+    ) {
+      throw new TypeError("Repository health error is invalid");
+    }
+    return {
+      credential_type:
+        typeof row.encrypted_credential === "string"
+          ? "username_token"
+          : "none",
+      health: /** @type {"healthy" | "error"} */ (row.health),
+      health_error: healthError,
+      id: row.id,
+      lifecycle: /** @type {"enabled" | "disabled" | "retired"} */ (
+        row.lifecycle
+      ),
+      url: row.normalized_url,
+    };
+  }
+
+  /** @param {string} id */
+  function find(id) {
+    if (typeof id !== "string" || id.length === 0) {
+      fail("repository_not_found", "Repository was not found");
+    }
+    const [row] = durableCore.all(
+      `${repositorySelection} WHERE repositories.id = ?`,
+      id,
+    );
+    if (!row) {
+      fail("repository_not_found", "Repository was not found");
+    }
+    return row;
+  }
+
   return {
     list() {
       return durableCore
         .all(
-          `SELECT repositories.id, repositories.normalized_url
-           FROM repositories
-           JOIN repository_credentials
-             ON repository_credentials.repository_id = repositories.id
+          `${repositorySelection}
            ORDER BY repositories.normalized_url, repositories.id`,
         )
-        .map((row) => {
-          if (
-            !row ||
-            typeof row.id !== "string" ||
-            typeof row.normalized_url !== "string"
-          ) {
-            throw new TypeError("Repository row is invalid");
-          }
-          return { id: row.id, url: row.normalized_url };
-        });
+        .map(resource);
     },
     /** @param {unknown} request */
     async register(request) {
@@ -145,7 +204,7 @@ export function createRepositoryService(
         }
         throw error;
       }
-      return { id, url };
+      return resource(find(id));
     },
     /**
      * @param {string} id
@@ -153,22 +212,7 @@ export function createRepositoryService(
      */
     async rotateCredential(id, request) {
       const credential = normalizeRepositoryCredentialRotation(request);
-      if (typeof id !== "string" || id.length === 0) {
-        fail("repository_not_found", "Repository was not found");
-      }
-      const [row] = durableCore.all(
-        `SELECT
-           repositories.normalized_url,
-           repository_credentials.encrypted_credential
-         FROM repositories
-         LEFT JOIN repository_credentials
-           ON repository_credentials.repository_id = repositories.id
-         WHERE repositories.id = ?`,
-        id,
-      );
-      if (!row) {
-        fail("repository_not_found", "Repository was not found");
-      }
+      const row = find(id);
       if (typeof row.encrypted_credential !== "string") {
         fail(
           "repository_credential_not_found",
@@ -207,7 +251,86 @@ export function createRepositoryService(
           id,
         );
       });
-      return { id, url };
+      return resource(find(id));
+    },
+    /** @param {string} id */
+    requireAcceptsNewWork(id) {
+      const repository = resource(find(id));
+      assertRepositoryAcceptsNewWork({
+        health: repository.health,
+        healthError: repository.health_error,
+        lifecycle: repository.lifecycle,
+      });
+      return repository;
+    },
+    /**
+     * @param {string} id
+     * @param {unknown} request
+     */
+    async setLifecycle(id, request) {
+      const { lifecycle } = normalizeRepositoryLifecycleChange(request);
+      const row = find(id);
+      const repository = resource(row);
+      if (repository.lifecycle === "retired") {
+        fail(
+          "repository_retired",
+          "Repository retirement must be reversed through reactivation",
+        );
+      }
+      if (lifecycle === "disabled") {
+        durableCore.transaction((transaction) => {
+          transaction.run(
+            "UPDATE repositories SET lifecycle = 'disabled' WHERE id = ?",
+            id,
+          );
+        });
+        return resource(find(id));
+      }
+
+      const credential =
+        typeof row.encrypted_credential === "string"
+          ? credentialCipher.decrypt(
+              { id: repository.id, url: repository.url },
+              row.encrypted_credential,
+            )
+          : undefined;
+      try {
+        await verifyRead(repository.url, credential);
+      } catch (error) {
+        if (error instanceof RepositoryError) {
+          durableCore.transaction((transaction) => {
+            transaction.run(
+              `UPDATE repositories
+               SET health = 'error',
+                   health_error_code = ?,
+                   health_error_message = ?
+               WHERE id = ?`,
+              error.code,
+              error.message,
+              id,
+            );
+          });
+        }
+        throw error;
+      }
+      const timestamp = now();
+      if (!Number.isSafeInteger(timestamp)) {
+        throw new TypeError("now must return a safe integer timestamp");
+      }
+      durableCore.transaction((transaction) => {
+        transaction.run(
+          `UPDATE repositories
+           SET lifecycle = 'enabled',
+               health = 'healthy',
+               health_error_code = NULL,
+               health_error_message = NULL,
+               verified_at = ?
+           WHERE id = ?`,
+          timestamp,
+          id,
+        );
+      });
+      return resource(find(id));
     },
     destroy() {
       credentialCipher.destroy();
@@ -225,6 +348,12 @@ export function createUnavailableRepositoryService(error) {
       throw error;
     },
     async rotateCredential() {
+      throw error;
+    },
+    requireAcceptsNewWork() {
+      throw error;
+    },
+    async setLifecycle() {
       throw error;
     },
     destroy() {},

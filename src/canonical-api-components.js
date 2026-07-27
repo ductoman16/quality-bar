@@ -1,3 +1,5 @@
+import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
+
 /**
  * @typedef {Record<string, unknown>} JsonSchema
  * @typedef {Record<string, JsonSchema>} JsonSchemaProperties
@@ -27,8 +29,6 @@ function objectSchema(properties, required, additionalProperties) {
 function openObject(properties, required) {
   return objectSchema(properties, required, true);
 }
-
-const credentialString = { minLength: 1, type: "string" };
 
 /**
  * @param {JsonSchemaProperties} properties
@@ -113,43 +113,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["confirmation", "password"],
       ),
-      GenericRepositoryRegistrationRequest: {
-        oneOf: [
-          closedObject(
-            {
-              url: {
-                format: "uri",
-                pattern: "^[hH][tT][tT][pP][sS]://",
-                type: "string",
-              },
-            },
-            ["url"],
-          ),
-          closedObject(
-            {
-              token: { minLength: 1, type: "string" },
-              url: {
-                format: "uri",
-                pattern: "^[hH][tT][tT][pP][sS]://",
-                type: "string",
-              },
-              username: { minLength: 1, type: "string" },
-            },
-            ["token", "url", "username"],
-          ),
-        ],
-      },
-      GenericRepositoryCredentialRotationRequest: closedObject(
-        { token: credentialString, username: credentialString },
-        ["token", "username"],
-      ),
-      Repository: closedObject(
-        {
-          id: { minLength: 1, type: "string" },
-          url: { format: "uri", pattern: "^https://", type: "string" },
-        },
-        ["id", "url"],
-      ),
+      ...canonicalRepositorySchemas(),
       CodexConfiguration: {
         oneOf: codexCapabilityCatalog.models.map((model) =>
           closedObject(
