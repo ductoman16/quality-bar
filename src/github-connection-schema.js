@@ -91,6 +91,61 @@ const GITHUB_CONNECTION_VERIFICATION_SCHEMA = `
         AND length(error_message) > 0)
     )
   ) STRICT;
+  CREATE TRIGGER IF NOT EXISTS github_connection_verification_checks_valid
+    BEFORE INSERT ON github_connection_verifications
+    WHEN
+      json_array_length(NEW.repository_checks)
+        != json_array_length(NEW.affected_repository_ids)
+      OR EXISTS (
+        SELECT 1 FROM json_each(NEW.repository_checks)
+        WHERE json_type(value, '$.repository_id') != 'integer'
+          OR json_extract(value, '$.repository_id') NOT IN (
+            SELECT value FROM json_each(NEW.affected_repository_ids)
+          )
+          OR json_extract(value, '$.outcome')
+            NOT IN ('success', 'error', 'not_completed')
+      )
+      OR (
+        SELECT count(DISTINCT json_extract(value, '$.repository_id'))
+        FROM json_each(NEW.repository_checks)
+      ) != json_array_length(NEW.repository_checks)
+      OR (
+        NEW.outcome = 'success'
+        AND EXISTS (
+          SELECT 1 FROM json_each(NEW.repository_checks)
+          WHERE json_extract(value, '$.outcome') != 'success'
+        )
+      )
+      OR (
+        NEW.outcome = 'error'
+        AND (
+          (
+            NEW.error_repository_id IS NULL
+            AND EXISTS (
+              SELECT 1 FROM json_each(NEW.repository_checks)
+              WHERE json_extract(value, '$.outcome') = 'error'
+            )
+          )
+          OR (
+            NEW.error_repository_id IS NOT NULL
+            AND (
+              SELECT count(*) FROM json_each(NEW.repository_checks)
+              WHERE json_extract(value, '$.repository_id')
+                = NEW.error_repository_id
+                AND json_extract(value, '$.outcome') = 'error'
+            ) != 1
+            OR EXISTS (
+              SELECT 1 FROM json_each(NEW.repository_checks)
+              WHERE json_extract(value, '$.outcome') = 'error'
+                AND json_extract(value, '$.repository_id')
+                  != NEW.error_repository_id
+            )
+          )
+        )
+      )
+    BEGIN SELECT RAISE(
+      ABORT, 'github_connection_verification_checks_invalid'
+    ); END;
   CREATE TRIGGER IF NOT EXISTS github_connection_verification_immutable_update
     BEFORE UPDATE ON github_connection_verifications
     BEGIN SELECT RAISE(ABORT, 'github_connection_verification_immutable'); END;

@@ -192,6 +192,17 @@ export function canonicalGitHubConnectionSchemas() {
             permissions: { $ref: "#/components/schemas/GitHubPermissions" },
             principal: { $ref: "#/components/schemas/GitHubPrincipal" },
             repositories: { minItems: 1 },
+            repository_checks: {
+              items: closedObject(
+                {
+                  outcome: { const: "success", type: "string" },
+                  repository_id: { minimum: 1, type: "integer" },
+                },
+                ["repository_id", "outcome"],
+              ),
+              minItems: 1,
+              type: "array",
+            },
           },
           required: [
             "api_profile",
@@ -201,6 +212,7 @@ export function canonicalGitHubConnectionSchemas() {
             "permissions",
             "principal",
             "repositories",
+            "repository_checks",
           ],
         },
         {

@@ -25,15 +25,20 @@ test("private Git credentials cross only an anonymous pipe, never child environm
           captured.options = options;
           const child = new EventEmitter();
           const credentialPipe = new PassThrough();
+          const stderr = new PassThrough();
           credentialPipe.setEncoding("utf8");
           credentialPipe.on("data", (chunk) => {
             credentialInput += chunk;
           });
           Object.assign(child, {
             kill() {},
-            stdio: [null, null, null, credentialPipe],
+            stderr,
+            stdio: [null, null, stderr, credentialPipe],
           });
-          queueMicrotask(() => child.emit("exit", 0, null));
+          queueMicrotask(() => {
+            stderr.end();
+            child.emit("close", 0, null);
+          });
           return child;
         }
       ),

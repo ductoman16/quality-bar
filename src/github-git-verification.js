@@ -17,7 +17,10 @@ export async function verifyGitHubRepositoryRead(
     await verifyGit(
       repository.clone_url,
       { token, username: "x-access-token" },
-      { followRedirects: false },
+      {
+        definitiveHttpStatuses: [401, 403, 404],
+        followRedirects: false,
+      },
     );
   } catch (cause) {
     if (

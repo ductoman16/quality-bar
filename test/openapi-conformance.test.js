@@ -61,6 +61,14 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     contract.components.schemas.GitHubConnectionVerification.oneOf.length,
     2,
   );
+  const successVerificationSchema = /** @type {any} */ (
+    contract.components.schemas.GitHubConnectionVerification.oneOf[0]
+  );
+  assert.equal(
+    successVerificationSchema.properties.repository_checks.items.properties
+      .outcome.const,
+    "success",
+  );
   assert.deepEqual(
     contract.components.schemas.Repository.oneOf[1].required.slice(-8),
     [

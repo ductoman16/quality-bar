@@ -87,7 +87,16 @@ function validGitHubVerificationOutcome(verification) {
         Boolean(verification.capabilities) &&
         "repositories" in verification &&
         Array.isArray(verification.repositories) &&
-        verification.repositories.length > 0
+        verification.repositories.length > 0 &&
+        "repository_checks" in verification &&
+        Array.isArray(verification.repository_checks) &&
+        verification.repository_checks.every(
+          (check) =>
+            check &&
+            typeof check === "object" &&
+            "outcome" in check &&
+            check.outcome === "success",
+        )
     : verification.outcome === "error" &&
         Boolean(
           verification.error &&

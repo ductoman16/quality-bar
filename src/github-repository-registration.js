@@ -47,7 +47,8 @@ function validRepositoryEvidence(repository, principalLogin) {
     repository.clone_url === `https://github.com/${repository.full_name}.git` &&
     repository.api_url ===
       `https://api.github.com/repos/${repository.full_name}` &&
-    repository.html_url === `https://github.com/${repository.full_name}`
+    repository.html_url === `https://github.com/${repository.full_name}` &&
+    typeof repository.private === "boolean"
   );
 }
 
@@ -154,6 +155,7 @@ export function createGitHubRepositorySelector(
           recordGitHubConnectionVerification(durableCore, {
             affectedRepositoryIds: error.affectedRepositoryIds ?? repositoryIds,
             capabilities: null,
+            completedRepositoryIds: error.completedRepositoryIds,
             createId: createVerificationId,
             error: {
               code: error.code,
@@ -177,6 +179,7 @@ export function createGitHubRepositorySelector(
         throw new GitHubConnectionError(error.code, error.message, {
           affectedRepositoryIds: error.affectedRepositoryIds,
           cause: error,
+          completedRepositoryIds: error.completedRepositoryIds,
           repositoryId: error.repositoryId,
         });
       }
@@ -265,13 +268,21 @@ export function createGitHubRepositorySelector(
           return [row.forge_repository_id, row.repository_id];
         }),
     );
-    const records = repositories.map((repository) => {
-      const id = existing.get(repository.id) ?? createId();
-      if (typeof id !== "string" || id.length === 0) {
-        throw new TypeError("createId must return nonempty strings");
-      }
-      return { id, repository };
-    });
+    const selectedRepositoryIds = new Set(repositoryIds);
+    const records = repositoryEvidence
+      .filter(
+        (repository) =>
+          selectedRepositoryIds.has(repository.id) ||
+          (affectedRepositoryIds.includes(repository.id) &&
+            existing.has(repository.id)),
+      )
+      .map((repository) => {
+        const id = existing.get(repository.id) ?? createId();
+        if (typeof id !== "string" || id.length === 0) {
+          throw new TypeError("createId must return nonempty strings");
+        }
+        return { id, repository };
+      });
     try {
       durableCore.transaction((transaction) => {
         for (const { id, repository } of records) {

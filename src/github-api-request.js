@@ -33,12 +33,28 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
       });
     }
     if (!response.ok) {
+      let rateLimitResponse = false;
+      if (response.status === 403) {
+        try {
+          const body = /** @type {{message?: unknown}} */ (
+            await response.clone().json()
+          );
+          rateLimitResponse =
+            typeof body.message === "string" &&
+            /(secondary rate limit|api rate limit exceeded)/i.test(
+              body.message,
+            );
+        } catch {
+          rateLimitResponse = false;
+        }
+      }
       if (
         response.status === 429 ||
         response.status >= 500 ||
         (response.status === 403 &&
           (response.headers.has("retry-after") ||
-            response.headers.get("x-ratelimit-remaining") === "0"))
+            response.headers.get("x-ratelimit-remaining") === "0" ||
+            rateLimitResponse))
       ) {
         fail(
           "github_api_transient_failure",

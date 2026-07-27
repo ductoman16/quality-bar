@@ -12,34 +12,13 @@ import {
   fail as failRepository,
   RepositoryError,
 } from "../src/repository-validation.js";
-
-const capabilities = /** @type {any} */ ({
-  aggregate_feedback: "verified",
-  branch_access: "verified",
-  commit_status: "verified",
-  enumeration: "verified",
-  inline_feedback: "verified",
-  private_git_read: "verified",
-  pull_request_access: "verified",
-});
-const availableRepositories = [
-  {
-    api_url: "https://api.github.com/repos/operator/alpha",
-    clone_url: "https://github.com/operator/alpha.git",
-    full_name: "operator/alpha",
-    html_url: "https://github.com/operator/alpha",
-    id: 101,
-    private: true,
-  },
-  {
-    api_url: "https://api.github.com/repos/operator/beta",
-    clone_url: "https://github.com/operator/beta.git",
-    full_name: "operator/beta",
-    html_url: "https://github.com/operator/beta",
-    id: 202,
-    private: false,
-  },
-];
+import {
+  availableRepositories,
+  capabilities,
+  markPrivateRepositoryUnhealthy,
+  readPrivateRepositoryState,
+  renamePrivateRepository,
+} from "./github-repository-selection-fixtures.js";
 
 test("SQLite registers a verified GitHub Repository set atomically by Connection and stable Forge identity", async (context) => {
   const directory = mkdtempSync(
@@ -50,7 +29,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   let failSelection = true;
   /** @type {GitHubConnectionError | undefined} */
   let connectionFailure;
-  /** @type {any[] | undefined} */
+  /** @type {any} */
   let verificationResult;
   let timestamp = 1_000;
   /** @type {any[]} */
@@ -107,8 +86,11 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
         if (verificationResult) {
           return /** @type {any} */ (verificationResult);
         }
+        const affectedRepositoryIds = repositoryIds.includes(101)
+          ? repositoryIds
+          : [...repositoryIds, 101];
         return {
-          affectedRepositoryIds: repositoryIds,
+          affectedRepositoryIds,
           capabilities,
           permissions: service.read()?.permissions,
           principal: { id: 91, login: "operator", type: "User" },
@@ -176,8 +158,19 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
         clone_url: "not-a-canonical-github-url",
       },
     ],
+    [
+      { ...availableRepositories[0], private: undefined },
+      availableRepositories[1],
+    ],
   ]) {
-    verificationResult = invalidResult;
+    verificationResult = {
+      affectedRepositoryIds: [101, 202],
+      capabilities,
+      permissions: service.read()?.permissions,
+      principal: { id: 91, login: "operator", type: "User" },
+      repositories: invalidResult,
+      repositoryEvidence: invalidResult,
+    };
     await assert.rejects(
       () => service.selectRepositories({ repository_ids: [101, 202] }),
       (error) =>
@@ -272,7 +265,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.health_error, null);
   assert.equal(service.read()?.verified_at, 2_000);
-  assert.equal(verificationCalls.length, 6);
+  assert.equal(verificationCalls.length, 7);
   assert.doesNotMatch(
     JSON.stringify(
       core.all(
@@ -284,17 +277,20 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     ),
     /private-key-value|Iv1\.client/,
   );
+  markPrivateRepositoryUnhealthy(core);
+  renamePrivateRepository();
+  timestamp = 2_500;
+  await service.selectRepositories({ repository_ids: [202] });
+  assert.deepEqual(readPrivateRepositoryState(core), {
+    health: "healthy",
+    name: "operator/alpha-renamed",
+    normalized_url: "https://github.com/operator/alpha-renamed.git",
+    verified_at: 2_500,
+  });
   core.run(
     "UPDATE repositories SET lifecycle = 'disabled' WHERE id = ?",
     "repository-alpha",
   );
-  availableRepositories[0] = {
-    ...availableRepositories[0],
-    clone_url: "https://github.com/operator/alpha-renamed.git",
-    full_name: "operator/alpha-renamed",
-    html_url: "https://github.com/operator/alpha-renamed",
-    api_url: "https://api.github.com/repos/operator/alpha-renamed",
-  };
   availableRepositories.pop();
   timestamp = 3_000;
   assert.deepEqual(

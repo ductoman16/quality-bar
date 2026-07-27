@@ -7,6 +7,7 @@
  * @param {{
  *   affectedRepositoryIds: number[],
  *   capabilities: object | null,
+ *   completedRepositoryIds?: number[],
  *   createId: () => string | undefined,
  *   error?: {code: string, message: string, repositoryId?: number, scope: "connection" | "repository"},
  *   evidence: unknown[],
@@ -22,6 +23,7 @@ export function recordGitHubConnectionVerification(durableCore, input) {
   const verificationId = input.createId();
   const verifiedAt = input.timestamp();
   const affectedIds = new Set(input.affectedRepositoryIds);
+  const completedIds = new Set(input.completedRepositoryIds ?? []);
   if (
     typeof verificationId !== "string" ||
     verificationId.length === 0 ||
@@ -33,9 +35,12 @@ export function recordGitHubConnectionVerification(durableCore, input) {
   }
   if (
     input.affectedRepositoryIds.length === 0 ||
+    completedIds.size !== (input.completedRepositoryIds ?? []).length ||
+    [...completedIds].some((id) => !affectedIds.has(id)) ||
     (input.error?.scope === "repository" &&
       (!Number.isSafeInteger(input.error.repositoryId) ||
-        !affectedIds.has(/** @type {number} */ (input.error.repositoryId))))
+        !affectedIds.has(/** @type {number} */ (input.error.repositoryId)) ||
+        completedIds.has(/** @type {number} */ (input.error.repositoryId))))
   ) {
     throw new TypeError("GitHub Repository verification scope is invalid");
   }
@@ -58,9 +63,11 @@ export function recordGitHubConnectionVerification(durableCore, input) {
   const repositoryChecks = input.affectedRepositoryIds.map((repositoryId) => ({
     outcome: !input.error
       ? "success"
-      : repositoryId === errorRepositoryId
-        ? "error"
-        : "not_completed",
+      : completedIds.has(repositoryId)
+        ? "success"
+        : repositoryId === errorRepositoryId
+          ? "error"
+          : "not_completed",
     repository_id: repositoryId,
   }));
   durableCore.transaction((transaction) => {

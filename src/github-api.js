@@ -375,29 +375,43 @@ export function createGitHubVerifier({
           ? selectedRepositories
           : [...selectedRepositories, privateRepository];
       const affectedRepositoryIds = repositoriesToVerify.map(({ id }) => id);
+      const completedRepositoryIds = [];
       for (const repository of repositoriesToVerify) {
-        const repositoryPath = `/repos/${repository.full_name}`;
-        await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
-          authorization: token,
-          affectedRepositoryIds,
-          repositoryId: repository.id,
-        });
-        await request(`${repositoryPath}/branches?per_page=1`, {
-          authorization: token,
-          affectedRepositoryIds,
-          repositoryId: repository.id,
-        });
-        await request(`${repositoryPath}/issues?per_page=1&state=all`, {
-          authorization: token,
-          affectedRepositoryIds,
-          repositoryId: repository.id,
-        });
-        await verifyGitHubRepositoryRead(
-          verifyGit,
-          repository,
-          token,
-          affectedRepositoryIds,
-        );
+        try {
+          const repositoryPath = `/repos/${repository.full_name}`;
+          await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await request(`${repositoryPath}/branches?per_page=1`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await request(`${repositoryPath}/issues?per_page=1&state=all`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await verifyGitHubRepositoryRead(
+            verifyGit,
+            repository,
+            token,
+            affectedRepositoryIds,
+          );
+          completedRepositoryIds.push(repository.id);
+        } catch (error) {
+          if (error instanceof GitHubConnectionError) {
+            throw new GitHubConnectionError(error.code, error.message, {
+              affectedRepositoryIds: error.affectedRepositoryIds,
+              cause: error,
+              completedRepositoryIds,
+              repositoryId: error.repositoryId,
+            });
+          }
+          throw error;
+        }
       }
       return {
         capabilities: GITHUB_VERIFIED_CAPABILITIES,

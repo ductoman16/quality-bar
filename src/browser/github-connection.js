@@ -197,26 +197,23 @@ function renderGitHubConnection(value) {
     githubHistory.append(item);
   }
   githubRepositoryOptions.replaceChildren();
-  const latestSuccess = value.verification_history.findLast(
-    (verification) => verification.outcome === "success",
-  );
-  if (!latestSuccess) {
-    throw new Error("github_connection_response_invalid");
+  const latestVerification = value.verification_history.at(-1);
+  if (latestVerification?.outcome === "success") {
+    for (const repository of latestVerification.repositories) {
+      const label = document.createElement("label");
+      const control = document.createElement("input");
+      control.name = "repository_ids";
+      control.type = "checkbox";
+      control.value = String(repository.id);
+      const identity = document.createElement("span");
+      identity.textContent = `${repository.full_name}; ${
+        repository.private ? "private" : "public"
+      }`;
+      label.append(control, identity);
+      githubRepositoryOptions.append(label);
+    }
   }
-  for (const repository of latestSuccess.repositories) {
-    const label = document.createElement("label");
-    const control = document.createElement("input");
-    control.name = "repository_ids";
-    control.type = "checkbox";
-    control.value = String(repository.id);
-    const identity = document.createElement("span");
-    identity.textContent = `${repository.full_name}; ${
-      repository.private ? "private" : "public"
-    }`;
-    label.append(control, identity);
-    githubRepositoryOptions.append(label);
-  }
-  githubRepositoryForm.hidden = false;
+  githubRepositoryForm.hidden = latestVerification?.outcome !== "success";
   githubDetails.hidden = false;
   githubForm.hidden = true;
   githubStatus.textContent =
@@ -254,16 +251,14 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       method: "POST",
     });
   } catch {
-    showGitHubError("GitHub Repository selection failed");
+    await refreshGitHubRepositoryState();
+    showGitHubError("GitHub Repository selection result is unavailable");
     githubRepositorySubmit.disabled = false;
     return;
   }
   if (!response.ok) {
     await showGitHubResponseError(response);
-    await loadGitHubConnection();
-    await /** @type {{refresh: () => Promise<boolean>}} */ (
-      Reflect.get(window, "qualityBarRepositories")
-    ).refresh();
+    await refreshGitHubRepositoryState();
     githubRepositorySubmit.disabled = false;
     return;
   }
@@ -292,10 +287,18 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
     githubStatus.focus();
     location.assign("/?view=repositories");
   } catch {
+    await refreshGitHubRepositoryState();
     showGitHubError("GitHub Repository selection response is invalid");
     githubRepositorySubmit.disabled = false;
   }
 });
+
+async function refreshGitHubRepositoryState() {
+  await loadGitHubConnection();
+  await /** @type {{refresh: () => Promise<boolean>}} */ (
+    Reflect.get(window, "qualityBarRepositories")
+  ).refresh();
+}
 
 async function loadGitHubConnection() {
   let response;

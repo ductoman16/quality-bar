@@ -269,6 +269,7 @@ export function createGateDefinitions(metadata) {
         "test/browser-session-protection-browser-component.test.js",
         "test/browser-session-operator-browser-component.test.js",
         "test/github-connection-browser-component.test.js",
+        "test/github-repository-reconciliation-browser-component.test.js",
         "test/github-repository-browser-component.test.js",
       ],
     },
@@ -291,6 +292,7 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/repository-git-integration.test.js",
+        "test/github-git-integration.test.js",
         "test/repository-git-credential-integration.test.js",
       ],
     },

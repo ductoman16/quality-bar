@@ -118,33 +118,40 @@ test("SQLite records immutable scoped Connection verification without treating t
 
   timestamp = 1_100;
   failure = new GitHubConnectionError(
-    "github_private_git_read_failed",
-    "GitHub private Repository read verification failed",
-    { repositoryId: 101 },
+    "github_repository_git_read_failed",
+    "GitHub Repository Git read verification failed",
+    {
+      affectedRepositoryIds: [101, 202],
+      completedRepositoryIds: [101],
+      repositoryId: 202,
+    },
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101] }),
+    () => service.selectRepositories({ repository_ids: [101, 202] }),
     (error) =>
       error instanceof GitHubConnectionError &&
-      error.code === "github_private_git_read_failed",
+      error.code === "github_repository_git_read_failed",
   );
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.verified_at, 1_100);
   assert.deepEqual(service.read()?.verification_history.at(-1), {
-    affected_repository_ids: [101],
+    affected_repository_ids: [101, 202],
     api_profile: "github-rest:2026-03-10",
     capabilities: null,
     error: {
-      code: "github_private_git_read_failed",
-      message: "GitHub private Repository read verification failed",
-      repository_id: 101,
+      code: "github_repository_git_read_failed",
+      message: "GitHub Repository Git read verification failed",
+      repository_id: 202,
     },
     id: service.read()?.verification_history.at(-1)?.id,
     outcome: "error",
     permissions: null,
     principal: null,
     repositories: [],
-    repository_checks: [{ outcome: "error", repository_id: 101 }],
+    repository_checks: [
+      { outcome: "success", repository_id: 101 },
+      { outcome: "error", repository_id: 202 },
+    ],
     trigger: "repository_selection",
     verified_at: 1_100,
   });
@@ -218,7 +225,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     [
       { error: null, outcome: "success", trigger: "onboarding" },
       {
-        error: "github_private_git_read_failed",
+        error: "github_repository_git_read_failed",
         outcome: "error",
         trigger: "repository_selection",
       },
@@ -254,6 +261,22 @@ test("SQLite records immutable scoped Connection verification without treating t
   assert.throws(
     () => core.run("DELETE FROM github_connection_verifications"),
     /github_connection_verification_immutable/,
+  );
+  assert.throws(
+    () =>
+      core.run(
+        `INSERT INTO github_connection_verifications
+         SELECT 'invalid-success-check', connection_id, trigger, outcome,
+                error_code, error_message, error_repository_id, api_profile,
+                principal_id, principal_login, permissions, capabilities,
+                affected_repository_ids,
+                json_set(repository_checks, '$[0].outcome', 'error'),
+                repositories, verified_at
+         FROM github_connection_verifications
+         WHERE outcome = 'success'
+         LIMIT 1`,
+      ),
+    /github_connection_verification_checks_invalid/,
   );
   core.run(
     `UPDATE github_connections

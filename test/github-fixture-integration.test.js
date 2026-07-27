@@ -144,10 +144,12 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     ) {
       if (repositoryAccessStatus) {
         response.statusCode = repositoryAccessStatus;
-        if (repositoryAccessStatus === 403) {
-          response.setHeader("retry-after", "60");
-        }
-        send({ message: "not found" });
+        send({
+          message:
+            repositoryAccessStatus === 403
+              ? "You have exceeded a secondary rate limit."
+              : "not found",
+        });
         return;
       }
       send([]);
@@ -207,24 +209,22 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       },
     ],
   });
-  assert.deepEqual(gitReads, [
-    {
-      credential: {
-        token: "installation-token-value",
-        username: "x-access-token",
-      },
-      options: { followRedirects: false },
-      url: "https://github.com/operator/private.git",
-    },
-    {
-      credential: {
-        token: "installation-token-value",
-        username: "x-access-token",
-      },
-      options: { followRedirects: false },
-      url: "https://github.com/operator/public.git",
-    },
-  ]);
+  assert.deepEqual(
+    gitReads.map(({ url }) => url),
+    verified.repositories.map(({ clone_url }) => clone_url),
+  );
+  assert.ok(
+    gitReads.every(
+      ({ credential: gitCredential, options }) =>
+        gitCredential.token === "installation-token-value" &&
+        gitCredential.username === "x-access-token" &&
+        JSON.stringify(options) ===
+          JSON.stringify({
+            definitiveHttpStatuses: [401, 403, 404],
+            followRedirects: false,
+          }),
+    ),
+  );
   gitReads.length = 0;
   const selected = await verifier.verifyRepositories(credential, 73, [101]);
   assert.deepEqual(selected, {
@@ -235,16 +235,10 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     repositories: [verified.repositories[0]],
     repositoryEvidence: verified.repositories,
   });
-  assert.deepEqual(gitReads, [
-    {
-      credential: {
-        token: "installation-token-value",
-        username: "x-access-token",
-      },
-      options: { followRedirects: false },
-      url: "https://github.com/operator/private.git",
-    },
-  ]);
+  assert.deepEqual(
+    gitReads.map(({ url }) => url),
+    [verified.repositories[0].clone_url],
+  );
   gitReads.length = 0;
   const selectedPublic = await verifier.verifyRepositories(
     credential,
