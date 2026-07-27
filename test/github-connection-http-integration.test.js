@@ -8,6 +8,8 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
+const selectionRequestId = "00000000-0000-4000-8000-000000000001";
+
 function connectionService() {
   /** @type {any[]} */
   const calls = [];
@@ -37,6 +39,29 @@ function connectionService() {
         async completeInstallation(input) {
           calls.push(["installation", input]);
           return {};
+        },
+        /** @param {any} input */
+        async selectRepositories(input) {
+          calls.push(["selection", input]);
+          return [
+            {
+              api_url: "https://api.github.com/repos/operator/private",
+              assignment_count: 0,
+              credential_type: "forge_connection",
+              forge_connection_id: "connection-1",
+              forge_repository_id: 101,
+              health: "healthy",
+              health_error: null,
+              id: "repository-1",
+              lifecycle: "enabled",
+              name: "operator/private",
+              provider: "github",
+              url: "https://github.com/operator/private.git",
+              verification_id: "verification-1",
+              verified_at: 1_000,
+              web_url: "https://github.com/operator/private",
+            },
+          ];
         },
         recordCallbackFailure() {
           return "error-receipt";
@@ -96,6 +121,38 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   const read = await request("/api/v1/github-connections", { headers });
   assert.equal(read.status, 200);
   assert.equal(await read.json(), null);
+  const selection = await request("/api/v1/github-connections/repositories", {
+    body: JSON.stringify({
+      repository_ids: [101],
+      request_id: selectionRequestId,
+    }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(selection.status, 201);
+  assert.deepEqual(await selection.json(), [
+    {
+      api_url: "https://api.github.com/repos/operator/private",
+      assignment_count: 0,
+      credential_type: "forge_connection",
+      forge_connection_id: "connection-1",
+      forge_repository_id: 101,
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      name: "operator/private",
+      provider: "github",
+      url: "https://github.com/operator/private.git",
+      verification_id: "verification-1",
+      verified_at: 1_000,
+      web_url: "https://github.com/operator/private",
+    },
+  ]);
+  assert.deepEqual(service.calls.at(-1), [
+    "selection",
+    { repository_ids: [101], request_id: selectionRequestId },
+  ]);
   const unsupportedPat = await request("/api/v1/github-connections/pat", {
     body: "{}",
     headers,
@@ -124,6 +181,9 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
           "github_permissions_mismatch",
           "GitHub App permissions do not match the required profile",
         );
+      },
+      async selectRepositories() {
+        throw new Error("not used");
       },
       /** @param {GitHubConnectionError} error */
       recordCallbackFailure(error) {
@@ -167,4 +227,55 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
   );
   assert.equal(replay.status, 200);
   assert.equal(await replay.json(), null);
+});
+
+test("transient GitHub Repository verification failures retain their exact owning error and unavailable status", async () => {
+  for (const failure of [
+    new GitHubConnectionError(
+      "github_api_transient_failure",
+      "GitHub API request temporarily failed with HTTP 503",
+    ),
+    new GitHubConnectionError(
+      "github_git_verification_failed",
+      "GitHub Repository Git verification could not complete",
+    ),
+  ]) {
+    const { request } = await startApplication({
+      createGitHubConnections: () => ({
+        read() {
+          return null;
+        },
+        start() {
+          return {};
+        },
+        async completeManifest() {
+          throw new Error("not used");
+        },
+        async completeInstallation() {
+          throw new Error("not used");
+        },
+        async selectRepositories() {
+          throw failure;
+        },
+        recordCallbackFailure() {
+          return "not-used";
+        },
+        consumeCallbackFailure() {
+          return null;
+        },
+        destroy() {},
+      }),
+    });
+    const headers = await authenticatedOperatorHeaders(request);
+    const response = await request("/api/v1/github-connections/repositories", {
+      body: JSON.stringify({
+        repository_ids: [101],
+        request_id: selectionRequestId,
+      }),
+      headers,
+      method: "POST",
+    });
+    assert.equal(response.status, 503);
+    assert.equal(await responseErrorCode(response), failure.code);
+  }
 });

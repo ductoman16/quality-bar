@@ -30,8 +30,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 28,
-    responseStatuses: 181,
+    operations: 29,
+    responseStatuses: 189,
     version: "3.1.0",
   });
   assert.equal(
@@ -46,6 +46,47 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     required: ["scope"],
     type: "object",
   });
+  assert.deepEqual(
+    contract.components.schemas.GitHubRepositoryEvidence.required,
+    ["api_url", "clone_url", "full_name", "html_url", "id", "private"],
+  );
+  assert.deepEqual(
+    contract.components.schemas.GitHubRepositorySelectionRequest.required,
+    ["repository_ids", "request_id"],
+  );
+  assert.equal(contract.components.schemas.Repository.oneOf.length, 2);
+  assert.ok(
+    contract.components.schemas.Repository.oneOf.every(
+      (variant) => variant.oneOf.length === 2,
+    ),
+  );
+  assert.equal(contract.components.schemas.GitHubConnection.oneOf.length, 2);
+  assert.equal(
+    contract.components.schemas.GitHubConnectionVerification.oneOf.length,
+    2,
+  );
+  const successVerificationSchema = /** @type {any} */ (
+    contract.components.schemas.GitHubConnectionVerification.oneOf[0]
+  );
+  assert.equal(
+    successVerificationSchema.properties.repository_checks.items.properties
+      .outcome.const,
+    "success",
+  );
+  assert.deepEqual(
+    contract.components.schemas.Repository.oneOf[1].required.slice(-9),
+    [
+      "api_url",
+      "assignment_count",
+      "forge_connection_id",
+      "forge_repository_id",
+      "name",
+      "provider",
+      "verification_id",
+      "verified_at",
+      "web_url",
+    ],
+  );
   assert.equal(JSON.stringify(contract), before);
 });
 
@@ -157,6 +198,34 @@ test("runtime conformance rejects invalid request, response, status, content typ
       message:
         "openapi_request_document_invalid: POST /api/v1/session/login / must NOT have additional properties",
     },
+  );
+
+  await assert.rejects(
+    () =>
+      assertion.assertExchange(
+        documentedExchange({
+          request: {
+            method: "GET",
+            url: "http://127.0.0.1/api/v1/repositories",
+          },
+          response: Response.json({
+            repositories: [
+              {
+                credential_type: "none",
+                health: "healthy",
+                health_error: {
+                  code: "stale_error",
+                  message: "must not accompany healthy state",
+                },
+                id: "repository-1",
+                lifecycle: "enabled",
+                url: "https://example.com/private.git",
+              },
+            ],
+          }),
+        }),
+      ),
+    /openapi_success_document_invalid.*health_error/,
   );
 
   await assert.rejects(

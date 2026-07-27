@@ -4,6 +4,7 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
+export const selectionRequestId = "00000000-0000-4000-8000-000000000001";
 
 /** @param {Record<string, any>} [properties] */
 export function element(properties = {}) {
@@ -20,9 +21,9 @@ export function element(properties = {}) {
     addEventListener(name, listener) {
       listeners.set(name, listener);
     },
-    /** @param {any} child */
-    append(child) {
-      this.children.push(child);
+    /** @param {...any} children */
+    append(...children) {
+      this.children.push(...children);
     },
     focus() {
       this.focused = true;
@@ -35,6 +36,10 @@ export function element(properties = {}) {
       }
       return listener;
     },
+    /** @param {...any} children */
+    replaceChildren(...children) {
+      this.children = children;
+    },
   };
 }
 
@@ -42,14 +47,32 @@ export function verifiedConnection() {
   return {
     api_profile: "github-rest:2026-03-10",
     capabilities: { private_git_read: "verified" },
+    health: "healthy",
+    health_error: null,
     permissions: { contents: "read" },
     principal: { login: "operator" },
     repository_count: 1,
     verification_history: [
       {
+        affected_repository_ids: [101],
         api_profile: "github-rest:2026-03-10",
+        capabilities: { private_git_read: "verified" },
+        error: null,
+        id: "verification-1",
+        outcome: "success",
+        permissions: { contents: "read" },
         principal: { login: "operator" },
-        repositories: [{ full_name: "operator/private" }],
+        repositories: [
+          {
+            api_url: "https://api.github.com/repos/operator/private",
+            clone_url: "https://github.com/operator/private.git",
+            full_name: "operator/private",
+            html_url: "https://github.com/operator/private",
+            id: 101,
+            private: true,
+          },
+        ],
+        repository_checks: [{ outcome: "success", repository_id: 101 }],
         trigger: "onboarding",
         verified_at: 1_000,
       },
@@ -68,6 +91,18 @@ export function githubElements(form, submit, status, error) {
   const capabilities = element();
   const latest = element();
   const history = element();
+  const repositoryForm = element({ hidden: true });
+  const repositoryOptions = element({
+    querySelector() {
+      return this.children[0]?.children[0] ?? null;
+    },
+    querySelectorAll() {
+      return this.children
+        .map(/** @param {any} label */ (label) => label.children[0])
+        .filter(/** @param {any} control */ (control) => control.checked);
+    },
+  });
+  const repositorySubmit = element();
   return {
     capabilities,
     details,
@@ -84,6 +119,9 @@ export function githubElements(form, submit, status, error) {
       ["github-connection-capabilities", capabilities],
       ["github-connection-latest", latest],
       ["github-connection-history", history],
+      ["github-repository-selection-form", repositoryForm],
+      ["github-repository-selection-options", repositoryOptions],
+      ["github-repository-selection-submit", repositorySubmit],
     ]),
     health,
     history,
@@ -91,11 +129,24 @@ export function githubElements(form, submit, status, error) {
     latest,
     permissions,
     profile,
+    repositoryForm,
+    repositoryOptions,
+    repositorySubmit,
   };
 }
 
-/** @param {(path: string, options?: any) => Promise<any>} fetch */
-export function browserContext(fetch) {
+/**
+ * @param {(path: string, options?: any) => Promise<any>} fetch
+ * @param {number[]} [registeredForgeRepositoryIds]
+ * @param {boolean} [repositoryRefreshResult]
+ * @param {string} [registeredVerificationId]
+ */
+export function browserContext(
+  fetch,
+  registeredForgeRepositoryIds = [],
+  repositoryRefreshResult = true,
+  registeredVerificationId = selectionRequestId,
+) {
   const form = element();
   const submit = element();
   const status = element();
@@ -103,9 +154,11 @@ export function browserContext(fetch) {
   const github = githubElements(form, submit, status, error);
   /** @type {string[]} */
   const replacedUrls = [];
+  let repositoryRefreshes = 0;
   return {
     context: {
       URLSearchParams,
+      crypto: { randomUUID: () => selectionRequestId },
       document: { body: { append() {} }, createElement: () => element() },
       fetch,
       history: {
@@ -116,12 +169,32 @@ export function browserContext(fetch) {
           replacedUrls.push(url);
         },
       },
-      location: { search: "" },
+      location: {
+        assigned: "",
+        /** @param {string} url */
+        assign(url) {
+          this.assigned = url;
+        },
+        search: "",
+      },
       window: {
         qualityBarOperator: {
           csrfToken: () => "csrf-token",
           /** @param {string} id */
           requiredElement: (id) => github.elements.get(id),
+        },
+        qualityBarRepositories: {
+          /** @param {number[]} ids @param {string} verificationId */
+          hasVerifiedForgeRepositoryIds(ids, verificationId) {
+            return (
+              verificationId === registeredVerificationId &&
+              ids.every((id) => registeredForgeRepositoryIds.includes(id))
+            );
+          },
+          async refresh() {
+            repositoryRefreshes += 1;
+            return repositoryRefreshResult;
+          },
         },
       },
     },
@@ -129,6 +202,7 @@ export function browserContext(fetch) {
     form,
     github,
     replacedUrls,
+    repositoryRefreshes: () => repositoryRefreshes,
     status,
     submit,
   };
@@ -136,6 +210,12 @@ export function browserContext(fetch) {
 
 /** @param {Record<string, any>} context */
 export function executeGitHubBrowserAsset(context) {
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/github-connection-contract.js",
+    readBrowserAsset("/assets/github-connection-contract.js"),
+    context,
+  );
   executeServedBrowserAsset(
     repositoryRoot,
     "src/browser/github-connection.js",

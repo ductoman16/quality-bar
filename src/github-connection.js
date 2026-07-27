@@ -10,6 +10,7 @@ import {
 import { createGitHubConnectionCredentialCipher } from "./github-connection-credential.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
 import { readGitHubConnection } from "./github-connection-read.js";
+import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 
 const FLOW_LIFETIME_MS = 60 * 60 * 1_000;
 
@@ -46,7 +47,11 @@ function fail(code, message, cause) {
  *   masterKey: Buffer,
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,
- *   verifier?: ReturnType<typeof createGitHubVerifier>
+ *   verifier?: {
+ *     exchangeManifest: ReturnType<typeof createGitHubVerifier>["exchangeManifest"],
+ *     verifyInstallation: ReturnType<typeof createGitHubVerifier>["verifyInstallation"],
+ *     verifyRepositories?: ReturnType<typeof createGitHubVerifier>["verifyRepositories"]
+ *   }
  * }} options
  */
 export function createGitHubConnectionService(
@@ -135,6 +140,13 @@ export function createGitHubConnectionService(
     }
     return value;
   }
+
+  const selectRepositories = createGitHubRepositorySelector(durableCore, {
+    cipher,
+    createId,
+    timestamp,
+    verifier,
+  });
 
   /** @param {string} state @param {"manifest" | "installation"} stage */
   function take(state, stage) {
@@ -263,6 +275,15 @@ export function createGitHubConnectionService(
       const capabilities = JSON.stringify(verification.capabilities);
       const permissions = JSON.stringify(GITHUB_REQUIRED_PERMISSIONS);
       const repositories = JSON.stringify(verification.repositories);
+      const affectedRepositoryIds = JSON.stringify(
+        verification.repositories.map((repository) => repository.id),
+      );
+      const repositoryChecks = JSON.stringify(
+        verification.repositories.map((repository) => ({
+          outcome: "success",
+          repository_id: repository.id,
+        })),
+      );
       try {
         durableCore.transaction((transaction) => {
           transaction.run(
@@ -295,10 +316,15 @@ export function createGitHubConnectionService(
           );
           transaction.run(
             `INSERT INTO github_connection_verifications (
-               id, connection_id, trigger, api_profile, principal_id,
-               principal_login, permissions, capabilities, repositories,
+               id, connection_id, trigger, outcome, error_code,
+               error_message, error_repository_id, api_profile, principal_id,
+               principal_login, permissions, capabilities,
+               affected_repository_ids, repository_checks, repositories,
                verified_at
-             ) VALUES (?, ?, 'onboarding', ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (
+               ?, ?, 'onboarding', 'success', NULL, NULL, NULL,
+               ?, ?, ?, ?, ?, ?, ?, ?, ?
+             )`,
             verificationId,
             id,
             GITHUB_API_PROFILE,
@@ -306,6 +332,8 @@ export function createGitHubConnectionService(
             verification.principal.login,
             permissions,
             capabilities,
+            affectedRepositoryIds,
+            repositoryChecks,
             repositories,
             verifiedAt,
           );
@@ -327,18 +355,29 @@ export function createGitHubConnectionService(
         app_id: flow.credential.app_id,
         app_slug: flow.credential.app_slug,
         capabilities: verification.capabilities,
+        health: "healthy",
+        health_error: null,
         id,
         permissions: GITHUB_REQUIRED_PERMISSIONS,
         principal: verification.principal,
         repository_count: verification.repositories.length,
         verification_history: [
           {
+            affected_repository_ids: verification.repositories.map(
+              (repository) => repository.id,
+            ),
             api_profile: GITHUB_API_PROFILE,
             capabilities: verification.capabilities,
+            error: null,
             id: verificationId,
+            outcome: "success",
             permissions: GITHUB_REQUIRED_PERMISSIONS,
             principal: verification.principal,
             repositories: verification.repositories,
+            repository_checks: verification.repositories.map((repository) => ({
+              outcome: "success",
+              repository_id: repository.id,
+            })),
             trigger: "onboarding",
             verified_at: verifiedAt,
           },
@@ -346,6 +385,7 @@ export function createGitHubConnectionService(
         verified_at: verifiedAt,
       };
     },
+    selectRepositories,
     destroy() {
       pending.clear();
       callbackFailures.destroy();
@@ -367,6 +407,9 @@ export function createUnavailableGitHubConnectionService(error) {
       throw error;
     },
     async completeInstallation() {
+      throw error;
+    },
+    async selectRepositories() {
       throw error;
     },
     recordCallbackFailure() {

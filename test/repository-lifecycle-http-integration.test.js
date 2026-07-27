@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { GitHubConnectionError } from "../src/github-connection.js";
 import { createRepositoryService, RepositoryError } from "../src/repository.js";
 import {
   authenticatedOperatorHeaders,
@@ -119,4 +120,159 @@ test("an authenticated operator changes Repository lifecycle through the canonic
     lifecycle: "enabled",
     url: "https://example.com/public.git",
   });
+});
+
+test("failed GitHub lifecycle verification returns its exact error and records Repository health", async () => {
+  let verificationError = new GitHubConnectionError(
+    "github_permissions_mismatch",
+    "GitHub App permissions do not match the required profile",
+  );
+  const { request } = await startApplication({
+    createGitHubConnections(core) {
+      const writableCore = /** @type {any} */ (core);
+      writableCore.run(
+        `INSERT INTO github_connections (
+           id, app_id, app_slug, installation_id, principal_id,
+           principal_login, api_profile, permissions, capabilities,
+           repository_count, created_at, verified_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "connection-1",
+        47,
+        "quality-bar-personal",
+        73,
+        91,
+        "operator",
+        "github-rest:2026-03-10",
+        "{}",
+        "{}",
+        1,
+        1_000,
+        1_000,
+      );
+      return {
+        async selectRepositories() {
+          throw verificationError;
+        },
+        read() {
+          return null;
+        },
+        start() {
+          throw new Error("unexpected");
+        },
+        async completeManifest() {
+          throw new Error("unexpected");
+        },
+        async completeInstallation() {
+          throw new Error("unexpected");
+        },
+        recordCallbackFailure() {
+          throw new Error("unexpected");
+        },
+        consumeCallbackFailure() {
+          return null;
+        },
+        destroy() {},
+      };
+    },
+    createRepositories(core, options) {
+      const writableCore = /** @type {any} */ (core);
+      writableCore.run(
+        `INSERT INTO github_connection_verifications (
+           id, connection_id, trigger, outcome, error_code, error_message,
+           error_repository_id, affected_repository_ids, repository_checks,
+           repositories, verified_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "verification-1",
+        "connection-1",
+        "enablement",
+        "error",
+        "github_repository_git_read_failed",
+        "GitHub Repository Git read verification failed",
+        101,
+        JSON.stringify([101]),
+        JSON.stringify([{ outcome: "error", repository_id: 101 }]),
+        "[]",
+        1_000,
+      );
+      writableCore.run(
+        `INSERT INTO repositories (
+           id, normalized_url, lifecycle, health, created_at, verified_at
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
+        "github-repository",
+        "https://github.com/operator/private.git",
+        "enabled",
+        "healthy",
+        1_000,
+        1_000,
+      );
+      writableCore.run(
+        `INSERT INTO github_repositories (
+           repository_id, connection_id, verification_id, forge_repository_id,
+           name, api_url, web_url
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        "github-repository",
+        "connection-1",
+        "verification-1",
+        101,
+        "operator/private",
+        "https://api.github.com/repos/operator/private",
+        "https://github.com/operator/private",
+      );
+      return createRepositoryService(core, options);
+    },
+  });
+  const headers = await authenticatedOperatorHeaders(request);
+  await request("/api/v1/repositories/github-repository/lifecycle", {
+    body: JSON.stringify({ lifecycle: "disabled" }),
+    headers,
+    method: "PATCH",
+  });
+
+  const failedEnable = await request(
+    "/api/v1/repositories/github-repository/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(failedEnable.status, 422);
+  assert.equal(
+    await responseErrorCode(failedEnable),
+    "github_permissions_mismatch",
+  );
+  let inventory = await request("/api/v1/repositories", {
+    headers: { cookie: headers.cookie },
+  });
+  let body = /** @type {any} */ (await inventory.json());
+  assert.equal(body.items[0].health, "healthy");
+  assert.equal(body.items[0].health_error, null);
+
+  verificationError = new GitHubConnectionError(
+    "github_private_git_read_failed",
+    "GitHub private Repository read verification failed",
+  );
+  const repositoryFailure = await request(
+    "/api/v1/repositories/github-repository/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(repositoryFailure.status, 422);
+  assert.equal(
+    await responseErrorCode(repositoryFailure),
+    "github_private_git_read_failed",
+  );
+  inventory = await request("/api/v1/repositories", {
+    headers: { cookie: headers.cookie },
+  });
+  body = /** @type {any} */ (await inventory.json());
+  assert.deepEqual(body.items[0].health_error, {
+    code: "github_private_git_read_failed",
+    message: "GitHub private Repository read verification failed",
+  });
+  assert.equal(body.items[0].health, "error");
+  assert.equal(body.items[0].lifecycle, "disabled");
 });

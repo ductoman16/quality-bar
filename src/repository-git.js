@@ -19,6 +19,7 @@ function unavailable(cause) {
  * @param {{token: string, username: string} | undefined} credential
  * @param {{
  *   certificateAuthorityPath?: string,
+ *   definitiveHttpStatuses?: number[],
  *   followRedirects?: boolean,
  *   removeDirectory?: (path: string) => void,
  *   spawnProcess?: typeof spawn
@@ -29,6 +30,7 @@ export function verifyRepositoryRead(
   credential,
   {
     certificateAuthorityPath,
+    definitiveHttpStatuses,
     followRedirects = true,
     removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
     spawnProcess = spawn,
@@ -95,7 +97,9 @@ export function verifyRepositoryRead(
       child = spawnProcess("git", arguments_, {
         cwd: verificationDirectory,
         env: environment,
-        stdio: credential ? ["ignore", "ignore", "ignore", "pipe"] : "ignore",
+        stdio: credential
+          ? ["ignore", "ignore", "pipe", "pipe"]
+          : ["ignore", "ignore", "pipe"],
       });
     } catch (cause) {
       reject(cleanupUnavailable(cause, false));
@@ -118,6 +122,29 @@ export function verifyRepositoryRead(
         resolve(undefined);
       }
     }
+    let definitiveFailure = definitiveHttpStatuses === undefined;
+    let stderrTail = "";
+    const stderr = child.stderr;
+    if (!stderr) {
+      child.kill();
+      complete(unavailable(new Error("Git stderr pipe is unavailable")));
+      return;
+    }
+    stderr.on("data", (chunk) => {
+      const message = `${stderrTail}${String(chunk)}`;
+      stderrTail = message.slice(-256);
+      const status = /returned error: (\d{3})\b/.exec(message)?.[1];
+      if (
+        (status &&
+          definitiveHttpStatuses?.includes(Number.parseInt(status, 10))) ||
+        (definitiveHttpStatuses?.includes(401) &&
+          /Authentication failed/i.test(message)) ||
+        (definitiveHttpStatuses?.includes(404) &&
+          /Repository not found/i.test(message))
+      ) {
+        definitiveFailure = true;
+      }
+    });
     if (credential) {
       const credentialPipe = child.stdio[3];
       if (!credentialPipe || !("end" in credentialPipe)) {
@@ -133,16 +160,18 @@ export function verifyRepositoryRead(
     child.once("error", (cause) => {
       complete(unavailable(cause));
     });
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       if (code === 0 && signal === null) {
         complete(null);
         return;
       }
       complete(
-        new RepositoryError(
-          "repository_git_read_failed",
-          "Repository Git read verification failed",
-        ),
+        definitiveFailure
+          ? new RepositoryError(
+              "repository_git_read_failed",
+              "Repository Git read verification failed",
+            )
+          : unavailable(undefined),
       );
     });
   });

@@ -3,7 +3,11 @@ import {
   REVIEW_ASSIGNMENT_MIGRATION,
   REVIEW_ASSIGNMENT_SCHEMA,
 } from "./review-assignment-schema.js";
-import { GITHUB_CONNECTION_SCHEMA } from "./github-connection-schema.js";
+import {
+  GITHUB_CONNECTION_HEALTH_MIGRATION,
+  GITHUB_CONNECTION_SCHEMA,
+  GITHUB_REPOSITORY_SCHEMA,
+} from "./github-connection-schema.js";
 import {
   CURRENT_SCHEMA_VERSION,
   migrateSchema as migration,
@@ -357,6 +361,11 @@ export function initializeOrValidateSchema(database) {
     );
   } else if (version === 12) {
     migration(database, GITHUB_CONNECTION_SCHEMA);
+  } else if (version === 13) {
+    migration(
+      database,
+      `${GITHUB_CONNECTION_HEALTH_MIGRATION}${GITHUB_REPOSITORY_SCHEMA}`,
+    );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

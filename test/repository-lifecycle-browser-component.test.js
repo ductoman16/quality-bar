@@ -154,11 +154,21 @@ test("the Repository component displays lifecycle separately from health and sur
       ),
     ),
     [
-      ["https://example.com/disabled.git", "disabled", "healthy"],
       [
+        "Generic HTTPS Git",
+        "https://example.com/disabled.git",
+        "disabled",
+        "healthy",
+        "Unavailable",
+        "Unavailable",
+      ],
+      [
+        "Generic HTTPS Git",
         "https://example.com/error.git",
         "enabled",
         "error: Repository Git read verification failed",
+        "Unavailable",
+        "Unavailable",
       ],
     ],
   );
@@ -175,9 +185,12 @@ test("the Repository component displays lifecycle separately from health and sur
       (/** @type {{textContent: string}} */ cell) => cell.textContent,
     ),
     [
+      "Generic HTTPS Git",
       "https://example.com/disabled.git",
       "disabled",
       "error: Repository Git read verification failed",
+      "Unavailable",
+      "Unavailable",
     ],
   );
 
@@ -220,9 +233,12 @@ test("the Repository component displays lifecycle separately from health and sur
       (/** @type {{textContent: string}} */ cell) => cell.textContent,
     ),
     [
+      "Generic HTTPS Git",
       "https://example.com/error.git",
       "disabled",
       "error: Repository Git read verification failed",
+      "Unavailable",
+      "Unavailable",
     ],
   );
 

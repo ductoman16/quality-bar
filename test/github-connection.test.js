@@ -66,9 +66,11 @@ test("manifest and installation callbacks atomically create one verified secret-
           principal: { id: 91, login: "operator", type: "User" },
           repositories: [
             {
+              api_url: "https://api.github.com/repos/operator/private",
               clone_url: "https://github.com/operator/private.git",
               id: 101,
               full_name: "operator/private",
+              html_url: "https://github.com/operator/private",
               private: true,
             },
           ],
@@ -125,6 +127,8 @@ test("manifest and installation callbacks atomically create one verified secret-
       private_git_read: "verified",
       pull_request_access: "verified",
     },
+    health: "healthy",
+    health_error: null,
     id: "connection-1",
     permissions: {
       contents: "read",
@@ -137,6 +141,7 @@ test("manifest and installation callbacks atomically create one verified secret-
     repository_count: 1,
     verification_history: [
       {
+        affected_repository_ids: [101],
         api_profile: "github-rest:2026-03-10",
         capabilities: {
           aggregate_feedback: "verified",
@@ -147,7 +152,9 @@ test("manifest and installation callbacks atomically create one verified secret-
           private_git_read: "verified",
           pull_request_access: "verified",
         },
+        error: null,
         id: "verification-1",
+        outcome: "success",
         permissions: {
           contents: "read",
           issues: "write",
@@ -158,12 +165,15 @@ test("manifest and installation callbacks atomically create one verified secret-
         principal: { id: 91, login: "operator", type: "User" },
         repositories: [
           {
+            api_url: "https://api.github.com/repos/operator/private",
             clone_url: "https://github.com/operator/private.git",
             id: 101,
             full_name: "operator/private",
+            html_url: "https://github.com/operator/private",
             private: true,
           },
         ],
+        repository_checks: [{ outcome: "success", repository_id: 101 }],
         trigger: "onboarding",
         verified_at: 1_000,
       },

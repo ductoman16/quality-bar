@@ -23,6 +23,7 @@ import {
   createGitHubConnectionService,
   createUnavailableGitHubConnectionService,
 } from "./github-connection.js";
+import { GitHubConnectionError } from "./github-connection-error.js";
 import { createApplicationServer } from "./server.js";
 import {
   createRequestSecurityBoundary,
@@ -36,6 +37,7 @@ import {
   createRepositoryService,
   createUnavailableRepositoryService,
 } from "./repository.js";
+import { fail as failRepository } from "./repository-validation.js";
 import {
   createRepositoryGuidanceService,
   createUnavailableRepositoryGuidanceService,
@@ -43,6 +45,12 @@ import {
 import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
+const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
+  "github_private_git_read_failed",
+  "github_repository_api_access_failed",
+  "github_repository_git_read_failed",
+  "github_repository_selection_unavailable",
+]);
 
 /**
  * @typedef {ReturnType<typeof requireCodedError>} CodedError
@@ -188,6 +196,7 @@ export function createApplication({
   let requestSecurity = null;
   let reviews = null;
   let repositories = null;
+  /** @type {any} */
   let githubConnections = null;
   let repositoryGuidance = null;
   let systemResource = null;
@@ -213,14 +222,39 @@ export function createApplication({
     });
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
-      repositories = createRepositories(durableCore, {
-        masterKey: installation.masterKey,
-        now,
-      });
       githubConnections = createGitHubConnections(durableCore, {
         externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
+      });
+      repositories = createRepositories(durableCore, {
+        masterKey: installation.masterKey,
+        now,
+        async verifyForgeRepository(forgeRepositoryId) {
+          try {
+            await githubConnections.selectRepositories(
+              {
+                repository_ids: [forgeRepositoryId],
+              },
+              "enablement",
+            );
+          } catch (error) {
+            if (
+              error instanceof GitHubConnectionError &&
+              REPOSITORY_SCOPED_GITHUB_ERRORS.has(error.code)
+            ) {
+              failRepository(error.code, error.message, error);
+            }
+            if (error instanceof GitHubConnectionError) {
+              throw new GitHubConnectionError(error.code, error.message, {
+                cause: error,
+              });
+            }
+            throw new TypeError("Forge Repository verification failed", {
+              cause: error,
+            });
+          }
+        },
       });
     } finally {
       installation.masterKey.fill(0);

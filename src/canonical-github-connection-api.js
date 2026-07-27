@@ -68,6 +68,44 @@ export function canonicalGitHubConnectionPaths(
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/github-connections/repositories": {
+      post: {
+        operationId: "selectGitHubRepositories",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GitHubRepositorySelectionRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          201: {
+            content: {
+              "application/json": {
+                schema: {
+                  items: { $ref: "#/components/schemas/Repository" },
+                  minItems: 1,
+                  type: "array",
+                },
+              },
+            },
+            description: "Atomically verified and registered Repositories",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/github-connections/callback-error": {
       get: {
         operationId: "consumeGitHubCallbackFailure",

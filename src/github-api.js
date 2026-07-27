@@ -4,10 +4,12 @@ import {
   GITHUB_REQUIRED_PERMISSIONS,
   GITHUB_VERIFIED_CAPABILITIES,
 } from "./github-app-manifest.js";
+import { createGitHubApiRequest } from "./github-api-request.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
+import * as gitVerification from "./github-git-verification.js";
+import { verifyGitHubRepositories } from "./github-repository-verification.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
-const API_VERSION = "2026-03-10";
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
 function fail(code, message, cause) {
   throw new GitHubConnectionError(
@@ -108,46 +110,9 @@ export function createGitHubVerifier({
     throw new TypeError("GitHub verifier dependencies are invalid");
   }
 
-  /** @param {string} path @param {{authorization?: string, method?: "GET" | "POST"}} [options] */
-  async function request(path, { authorization, method = "GET" } = {}) {
-    let response;
-    try {
-      response = await fetchRequest(new URL(path, apiBaseUrl), {
-        headers: {
-          accept: "application/vnd.github+json",
-          ...(authorization
-            ? { authorization: `Bearer ${authorization}` }
-            : {}),
-          "x-github-api-version": API_VERSION,
-        },
-        method,
-        redirect: "error",
-      });
-    } catch (cause) {
-      fail(
-        "github_api_unavailable",
-        "GitHub API request could not complete",
-        cause,
-      );
-    }
-    if (!response.ok) {
-      fail(
-        "github_api_request_failed",
-        `GitHub API request failed with HTTP ${response.status}`,
-      );
-    }
-    try {
-      return /** @type {unknown} */ (await response.json());
-    } catch (cause) {
-      fail(
-        "github_api_response_invalid",
-        "GitHub API response is invalid",
-        cause,
-      );
-    }
-  }
+  const request = createGitHubApiRequest(apiBaseUrl, fetchRequest);
 
-  return {
+  const verifier = {
     /** @param {string} code */
     async exchangeManifest(code) {
       if (typeof code !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(code)) {
@@ -194,8 +159,9 @@ export function createGitHubVerifier({
      *   pem: string
      * }} credential
      * @param {number} installationId
+     * @param {number[] | undefined} [repositoryIds]
      */
-    async verifyInstallation(credential, installationId) {
+    async verifyInstallation(credential, installationId, repositoryIds) {
       const jwt = appJwt(credential.app_id, credential.pem, now());
       const app = object(await request("/app", { authorization: jwt }));
       if (
@@ -289,12 +255,15 @@ export function createGitHubVerifier({
       );
 
       /** @type {{
+       *   api_url: string,
        *   clone_url: string,
        *   full_name: string,
+       *   html_url: string,
        *   id: number,
        *   private: boolean
        * }[]} */
       const repositories = [];
+      const repositoryIdsSeen = new Set();
       for (let page = 1; ; page += 1) {
         const collection = object(
           await request(
@@ -320,27 +289,39 @@ export function createGitHubVerifier({
             repository?.clone_url,
             "GitHub Repository identity is invalid",
           );
+          const apiUrl = nonemptyString(
+            repository?.url,
+            "GitHub Repository identity is invalid",
+          );
+          const htmlUrl = nonemptyString(
+            repository?.html_url,
+            "GitHub Repository identity is invalid",
+          );
+          const evidence = {
+            api_url: apiUrl,
+            clone_url: cloneUrl,
+            full_name: fullName,
+            html_url: htmlUrl,
+            id: /** @type {number} */ (repository?.id),
+            private: /** @type {boolean} */ (repository?.private),
+          };
           if (
             !repository ||
-            !Number.isSafeInteger(repository.id) ||
-            fullName !==
-              `${installationPrincipal.login}/${fullName.split("/")[1] ?? ""}` ||
+            !gitVerification.validGitHubRepositoryEvidence(
+              evidence,
+              installationPrincipal.login,
+            ) ||
+            repositoryIdsSeen.has(evidence.id) ||
             owner.id !== installationPrincipal.id ||
-            owner.login !== installationPrincipal.login ||
-            typeof repository.private !== "boolean" ||
-            cloneUrl !== `https://github.com/${fullName}.git`
+            owner.login !== installationPrincipal.login
           ) {
             fail(
               "github_repository_identity_invalid",
               "GitHub Repository identity is invalid or outside the personal account",
             );
           }
-          repositories.push({
-            clone_url: cloneUrl,
-            full_name: fullName,
-            id: /** @type {number} */ (repository.id),
-            private: /** @type {boolean} */ (repository.private),
-          });
+          repositoryIdsSeen.add(evidence.id);
+          repositories.push(evidence);
         }
         if (repositoryPage.length < 100) {
           if (
@@ -355,42 +336,114 @@ export function createGitHubVerifier({
           break;
         }
       }
-      if (!repositories.some((repository) => repository.private)) {
-        fail(
-          "github_private_repository_required",
-          "GitHub Connection must prove private Repository read access",
+      const selectedRepositories =
+        repositoryIds === undefined
+          ? repositories
+          : repositories.filter((repository) =>
+              repositoryIds.includes(repository.id),
+            );
+      if (
+        repositoryIds !== undefined &&
+        (selectedRepositories.length !== repositoryIds.length ||
+          new Set(selectedRepositories.map(({ id }) => id)).size !==
+            repositoryIds.length)
+      ) {
+        const repositoryId = repositoryIds.find(
+          (id) =>
+            !selectedRepositories.some((repository) => repository.id === id),
+        );
+        gitVerification.failGitHubRepositoryVerification(
+          "github_repository_selection_unavailable",
+          "Selected GitHub Repository is not accessible to the Connection",
+          repositoryIds,
+          repositories,
+          repositoryId,
         );
       }
-      for (const repository of repositories) {
-        const repositoryPath = `/repos/${repository.full_name}`;
-        await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
-          authorization: token,
-        });
-        await request(`${repositoryPath}/branches?per_page=1`, {
-          authorization: token,
-        });
-        await request(`${repositoryPath}/issues?per_page=1&state=all`, {
-          authorization: token,
-        });
+      const privateRepository = repositories.find(
+        (repository) => repository.private,
+      );
+      if (!privateRepository) {
+        gitVerification.failGitHubRepositoryVerification(
+          "github_private_repository_required",
+          "GitHub Connection must prove private Repository read access",
+          repositoryIds,
+          repositories,
+        );
+      }
+      const repositoriesToVerify =
+        repositoryIds === undefined ||
+        selectedRepositories.some((repository) => repository.private)
+          ? selectedRepositories
+          : [...selectedRepositories, privateRepository];
+      const affectedRepositoryIds = repositoriesToVerify.map(({ id }) => id);
+      const completedRepositoryIds = [];
+      for (const repository of repositoriesToVerify) {
         try {
-          await verifyGit(
-            repository.clone_url,
-            { token, username: "x-access-token" },
-            { followRedirects: false },
+          const repositoryPath = `/repos/${repository.full_name}`;
+          await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await request(`${repositoryPath}/branches?per_page=1`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await request(`${repositoryPath}/issues?per_page=1&state=all`, {
+            authorization: token,
+            affectedRepositoryIds,
+            repositoryId: repository.id,
+          });
+          await gitVerification.verifyGitHubRepositoryRead(
+            verifyGit,
+            repository,
+            token,
+            affectedRepositoryIds,
           );
-        } catch (cause) {
-          fail(
-            "github_private_git_read_failed",
-            "GitHub private Repository read verification failed",
-            cause,
-          );
+          completedRepositoryIds.push(repository.id);
+        } catch (error) {
+          if (error instanceof GitHubConnectionError) {
+            throw new GitHubConnectionError(error.code, error.message, {
+              affectedRepositoryIds: error.affectedRepositoryIds,
+              cause: error,
+              completedRepositoryIds,
+              repositoryEvidence: repositories,
+              repositoryId: error.repositoryId,
+            });
+          }
+          throw error;
         }
       }
       return {
         capabilities: GITHUB_VERIFIED_CAPABILITIES,
         principal: installationPrincipal,
-        repositories,
+        repositories: repositoriesToVerify,
+        ...(repositoryIds === undefined
+          ? {}
+          : { repositoryEvidence: repositories }),
       };
     },
+    /**
+     * @param {{
+     *   app_id: number,
+     *   app_slug: string,
+     *   client_id: string,
+     *   owner: {id: number, login: string, type: "User"},
+     *   pem: string
+     * }} credential
+     * @param {number} installationId
+     * @param {number[]} repositoryIds
+     */
+    async verifyRepositories(credential, installationId, repositoryIds) {
+      return verifyGitHubRepositories(
+        verifier.verifyInstallation,
+        credential,
+        installationId,
+        repositoryIds,
+      );
+    },
   };
+  return verifier;
 }

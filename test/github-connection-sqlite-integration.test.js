@@ -24,8 +24,10 @@ const verifiedInstallation = {
   principal: { id: 91, login: "operator", type: "User" },
   repositories: [
     {
+      api_url: "https://api.github.com/repos/operator/private",
       clone_url: "https://github.com/operator/private.git",
       full_name: "operator/private",
+      html_url: "https://github.com/operator/private",
       id: 101,
       private: true,
     },
@@ -46,7 +48,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 13);
+  assert.equal(core.facts.schemaVersion, 14);
   const service = createGitHubConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1"];

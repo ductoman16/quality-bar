@@ -8,6 +8,51 @@ function closedObject(properties, required) {
 
 export function canonicalRepositorySchemas() {
   const credentialString = { minLength: 1, type: "string" };
+  const repositoryBaseProperties = {
+    health: { enum: ["healthy", "error"], type: "string" },
+    health_error: {
+      oneOf: [
+        { $ref: "#/components/schemas/RepositoryHealthError" },
+        { type: "null" },
+      ],
+    },
+    id: { minLength: 1, type: "string" },
+    lifecycle: {
+      enum: ["enabled", "disabled", "retired"],
+      type: "string",
+    },
+    url: { format: "uri", pattern: "^https://", type: "string" },
+  };
+  const repositoryBaseRequired = [
+    "credential_type",
+    "health",
+    "health_error",
+    "id",
+    "lifecycle",
+    "url",
+  ];
+  /** @param {Record<string, unknown>} properties @param {string[]} required */
+  const repositoryObject = (properties, required) => ({
+    ...closedObject(properties, required),
+    oneOf: [
+      {
+        properties: {
+          health: { const: "healthy" },
+          health_error: { type: "null" },
+        },
+        required: ["health", "health_error"],
+      },
+      {
+        properties: {
+          health: { const: "error" },
+          health_error: {
+            $ref: "#/components/schemas/RepositoryHealthError",
+          },
+        },
+        required: ["health", "health_error"],
+      },
+    ],
+  });
   return {
     RepositoryGuidanceApplicability: {
       oneOf: [
@@ -142,28 +187,50 @@ export function canonicalRepositorySchemas() {
       },
       ["code", "message"],
     ),
-    Repository: closedObject(
-      {
-        credential_type: {
-          enum: ["none", "username_token"],
-          type: "string",
-        },
-        health: { enum: ["healthy", "error"], type: "string" },
-        health_error: {
-          oneOf: [
-            { $ref: "#/components/schemas/RepositoryHealthError" },
-            { type: "null" },
+    Repository: {
+      oneOf: [
+        repositoryObject(
+          {
+            ...repositoryBaseProperties,
+            credential_type: {
+              enum: ["none", "username_token"],
+              type: "string",
+            },
+          },
+          repositoryBaseRequired,
+        ),
+        repositoryObject(
+          {
+            ...repositoryBaseProperties,
+            api_url: { format: "uri", type: "string" },
+            assignment_count: { minimum: 0, type: "integer" },
+            credential_type: {
+              const: "forge_connection",
+              type: "string",
+            },
+            forge_connection_id: { minLength: 1, type: "string" },
+            forge_repository_id: { minimum: 1, type: "integer" },
+            name: { minLength: 1, type: "string" },
+            provider: { const: "github", type: "string" },
+            verification_id: { minLength: 1, type: "string" },
+            verified_at: { minimum: 0, type: "integer" },
+            web_url: { format: "uri", type: "string" },
+          },
+          [
+            ...repositoryBaseRequired,
+            "api_url",
+            "assignment_count",
+            "forge_connection_id",
+            "forge_repository_id",
+            "name",
+            "provider",
+            "verification_id",
+            "verified_at",
+            "web_url",
           ],
-        },
-        id: { minLength: 1, type: "string" },
-        lifecycle: {
-          enum: ["enabled", "disabled", "retired"],
-          type: "string",
-        },
-        url: { format: "uri", pattern: "^https://", type: "string" },
-      },
-      ["credential_type", "health", "health_error", "id", "lifecycle", "url"],
-    ),
+        ),
+      ],
+    },
     RepositoryCollection: closedObject(
       {
         items: {

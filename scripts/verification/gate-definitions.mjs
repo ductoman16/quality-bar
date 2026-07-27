@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-mcp-contract-and-lifecycle-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-mcp-contract-and-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -241,6 +241,7 @@ export function createGateDefinitions(metadata) {
         "test/github-app-manifest.test.js",
         "test/github-callback-failure.test.js",
         "test/github-connection.test.js",
+        "test/github-repository-selection.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -268,30 +269,37 @@ export function createGateDefinitions(metadata) {
         "test/browser-session-protection-browser-component.test.js",
         "test/browser-session-operator-browser-component.test.js",
         "test/github-connection-browser-component.test.js",
+        "test/github-repository-reconciliation-browser-component.test.js",
+        "test/github-repository-browser-component.test.js",
       ],
     },
     {
       name: "github-fixture-integration",
       testGroup:
-        "github-rest-profile-personal-installation-permissions-routes-enumeration-and-private-git-boundary",
+        "github-rest-profile-personal-installation-permissions-routes-atomic-selection-enumeration-and-private-git-boundary",
       failureCode: "github_fixture_integration_tests_failed",
-      arguments: ["--test", "test/github-fixture-integration.test.js"],
+      arguments: [
+        "--test",
+        "test/github-fixture-integration.test.js",
+        "test/github-private-proof-failure-fixture-integration.test.js",
+      ],
     },
     {
       name: "git-integration",
       testGroup:
-        "generic-https-repository-read-guidance-assignment-and-lifecycle-verification-boundary",
+        "generic-and-github-app-https-repository-read-guidance-assignment-and-lifecycle-verification-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: [
         "--test",
         "test/repository-git-integration.test.js",
+        "test/github-git-integration.test.js",
         "test/repository-git-credential-integration.test.js",
       ],
     },
     {
       name: "sqlite-integration",
       testGroup:
-        "review-assignment-version-guidance-credential-and-repository-lifecycle-sqlite-resource-boundary",
+        "review-assignment-version-guidance-credential-github-repository-selection-and-repository-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -307,6 +315,9 @@ export function createGateDefinitions(metadata) {
         "test/repository-credential-rotation-sqlite-integration.test.js",
         "test/repository-sqlite-integration.test.js",
         "test/github-connection-sqlite-integration.test.js",
+        "test/github-connection-verification-sqlite-integration.test.js",
+        "test/github-repository-migration-sqlite-integration.test.js",
+        "test/github-repository-selection-sqlite-integration.test.js",
       ],
     },
     {

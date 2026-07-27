@@ -1,0 +1,142 @@
+import assert from "node:assert/strict";
+
+export const capabilities = /** @type {any} */ ({
+  aggregate_feedback: "verified",
+  branch_access: "verified",
+  commit_status: "verified",
+  enumeration: "verified",
+  inline_feedback: "verified",
+  private_git_read: "verified",
+  pull_request_access: "verified",
+});
+
+export const availableRepositories = [
+  {
+    api_url: "https://api.github.com/repos/operator/alpha",
+    clone_url: "https://github.com/operator/alpha.git",
+    full_name: "operator/alpha",
+    html_url: "https://github.com/operator/alpha",
+    id: 101,
+    private: true,
+  },
+  {
+    api_url: "https://api.github.com/repos/operator/beta",
+    clone_url: "https://github.com/operator/beta.git",
+    full_name: "operator/beta",
+    html_url: "https://github.com/operator/beta",
+    id: 202,
+    private: false,
+  },
+];
+export const removedRepositoryState = {
+  health: "error",
+  health_error_code: "github_repository_selection_unavailable",
+};
+
+export function createSelectionRequests() {
+  let sequence = 0;
+  /** @param {number[]} repositoryIds */
+  return (repositoryIds) => {
+    sequence += 1;
+    return {
+      repository_ids: repositoryIds,
+      request_id: `00000000-0000-4000-8000-${String(sequence).padStart(
+        12,
+        "0",
+      )}`,
+    };
+  };
+}
+const removedVerificationState = {
+  affected_repository_ids: [202],
+  error: {
+    code: "github_repository_selection_unavailable",
+    message: "GitHub Repository is no longer accessible to the Connection",
+    repository_id: 202,
+  },
+  outcome: "error",
+  repository_checks: [{ outcome: "error", repository_id: 202 }],
+  trigger: "repository_selection",
+  verified_at: 3_000,
+};
+
+/** @param {any} connection @param {any[]} repositories */
+export function assertRemovedVerificationState(connection, repositories) {
+  const verification = connection?.verification_history.at(-1);
+  assert.deepEqual(
+    {
+      affected_repository_ids: verification?.affected_repository_ids,
+      capabilities: verification?.capabilities,
+      error: verification?.error,
+      outcome: verification?.outcome,
+      permissions: verification?.permissions,
+      principal: verification?.principal,
+      repositories: verification?.repositories,
+      repository_checks: verification?.repository_checks,
+      trigger: verification?.trigger,
+      verified_at: verification?.verified_at,
+    },
+    {
+      ...removedVerificationState,
+      capabilities,
+      permissions: {
+        contents: "read",
+        issues: "write",
+        metadata: "read",
+        pull_requests: "write",
+        statuses: "write",
+      },
+      principal: { id: 91, login: "operator", type: "User" },
+      repositories,
+    },
+  );
+}
+
+/** @param {any} service @param {{repository_ids: number[], request_id: string}} request */
+export async function assertCorrelatedSelection(service, request) {
+  await service.selectRepositories(request);
+  assert.equal(
+    service.read()?.verification_history.at(-1)?.id,
+    request.request_id,
+  );
+}
+
+/** @param {{run(sql: string): unknown}} core */
+export function markPrivateRepositoryUnhealthy(core) {
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'github_repository_git_read_failed',
+         health_error_message = 'GitHub Repository Git read verification failed'
+     WHERE id = 'repository-alpha'`,
+  );
+}
+
+export function renamePrivateRepository() {
+  availableRepositories[0] = {
+    ...availableRepositories[0],
+    clone_url: "https://github.com/operator/alpha-renamed.git",
+    full_name: "operator/alpha-renamed",
+    html_url: "https://github.com/operator/alpha-renamed",
+    api_url: "https://api.github.com/repos/operator/alpha-renamed",
+  };
+}
+
+/** @param {{get(sql: string): unknown}} core */
+export function readPrivateRepositoryState(core) {
+  return core.get(
+    `SELECT normalized_url, verified_at, health, name, verification_id
+     FROM repositories
+     JOIN github_repositories ON repository_id = repositories.id
+     WHERE repositories.id = 'repository-alpha'`,
+  );
+}
+
+/** @param {{get(sql: string): unknown}} core */
+export function readRemovedRepositoryState(core) {
+  return core.get(
+    `SELECT health, health_error_code
+     FROM repositories
+     WHERE id = 'repository-beta'`,
+  );
+}

@@ -67,12 +67,21 @@ async function submitRepositoryMutation(
 
 /**
  * @typedef {{
- *   credential_type: "none" | "username_token",
+ *   api_url?: string,
+ *   assignment_count?: number,
+ *   credential_type: "forge_connection" | "none" | "username_token",
+ *   forge_connection_id?: string,
+ *   forge_repository_id?: number,
  *   health: "healthy" | "error",
  *   health_error: null | {code: string, message: string},
  *   id: string,
  *   lifecycle: "enabled" | "disabled" | "retired",
- *   url: string
+ *   name?: string,
+ *   provider?: "github",
+ *   url: string,
+ *   verification_id?: string,
+ *   verified_at?: number,
+ *   web_url?: string
  * }} RepositoryResource
  */
 
@@ -94,6 +103,17 @@ Reflect.set(
   window,
   "qualityBarRepositories",
   Object.freeze({
+    /** @param {number[]} ids @param {string} verificationId */
+    hasVerifiedForgeRepositoryIds(ids, verificationId) {
+      return ids.every((id) =>
+        [...repositoryResources.values()].some(
+          (repository) =>
+            repository.forge_repository_id === id &&
+            repository.verification_id === verificationId,
+        ),
+      );
+    },
+    refresh: loadRepositoryOptions,
     /** @param {(repositories: RepositoryResource[]) => unknown} subscriber */
     subscribe(subscriber) {
       if (typeof subscriber !== "function") {
@@ -130,8 +150,43 @@ function renderRepository(repository) {
     requiredRepositoryElement("repository-inventory").append(row);
   }
   row.replaceChildren();
-  for (const value of [repository.url, repository.lifecycle, observedHealth]) {
+  let provider = "Generic HTTPS Git";
+  let identity = repository.url;
+  let assignments = "Unavailable";
+  let latestVerification = "Unavailable";
+  if (repository.provider === "github") {
+    if (
+      repository.credential_type !== "forge_connection" ||
+      typeof repository.forge_connection_id !== "string" ||
+      !Number.isSafeInteger(repository.forge_repository_id) ||
+      /** @type {number} */ (repository.forge_repository_id) <= 0 ||
+      typeof repository.name !== "string" ||
+      typeof repository.api_url !== "string" ||
+      typeof repository.web_url !== "string" ||
+      !Number.isSafeInteger(repository.assignment_count) ||
+      typeof repository.verification_id !== "string" ||
+      !Number.isSafeInteger(repository.verified_at)
+    ) {
+      throw new Error("github_repository_response_invalid");
+    }
+    provider = `GitHub; ${repository.forge_connection_id}`;
+    identity = `${repository.name}; Forge Repository ${repository.forge_repository_id}; ${repository.url}; ${repository.web_url}; ${repository.api_url}`;
+    assignments = String(/** @type {number} */ (repository.assignment_count));
+    latestVerification = new Date(
+      /** @type {number} */ (repository.verified_at),
+    ).toISOString();
+  }
+  const values = [
+    ["Provider and Connection", provider],
+    ["Identity", identity],
+    ["Lifecycle", repository.lifecycle],
+    ["Health", observedHealth],
+    ["Assignments", assignments],
+    ["Latest verification", latestVerification],
+  ];
+  for (const [label, value] of values) {
     const cell = document.createElement("td");
+    cell.setAttribute("data-label", label);
     cell.textContent = value;
     row.append(cell);
   }

@@ -155,6 +155,7 @@ export function createApplicationServer({
     typeof githubConnections.start !== "function" ||
     typeof githubConnections.completeManifest !== "function" ||
     typeof githubConnections.completeInstallation !== "function" ||
+    typeof githubConnections.selectRepositories !== "function" ||
     typeof githubConnections.recordCallbackFailure !== "function" ||
     typeof githubConnections.consumeCallbackFailure !== "function"
   ) {

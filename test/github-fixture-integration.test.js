@@ -19,6 +19,8 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
   /** @type {any[]} */
   const requests = [];
+  let duplicateEnumeration = false;
+  let repositoryAccessStatus = 0;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -84,16 +86,48 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       url.pathname === "/installation/repositories"
     ) {
       send({
-        repositories: [
-          {
-            clone_url: "https://github.com/operator/private.git",
-            full_name: "operator/private",
-            id: 101,
-            owner: { id: 91, login: "operator", type: "User" },
-            private: true,
-          },
-        ],
-        total_count: 1,
+        repositories: duplicateEnumeration
+          ? [
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+            ]
+          : [
+              {
+                clone_url: "https://github.com/operator/private.git",
+                full_name: "operator/private",
+                html_url: "https://github.com/operator/private",
+                id: 101,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: true,
+                url: "https://api.github.com/repos/operator/private",
+              },
+              {
+                clone_url: "https://github.com/operator/public.git",
+                full_name: "operator/public",
+                html_url: "https://github.com/operator/public",
+                id: 202,
+                owner: { id: 91, login: "operator", type: "User" },
+                private: false,
+                url: "https://api.github.com/repos/operator/public",
+              },
+            ],
+        total_count: 2,
       });
       return;
     }
@@ -103,8 +137,21 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
         "/repos/operator/private/branches",
         "/repos/operator/private/issues",
         "/repos/operator/private/pulls",
+        "/repos/operator/public/branches",
+        "/repos/operator/public/issues",
+        "/repos/operator/public/pulls",
       ].includes(url.pathname)
     ) {
+      if (repositoryAccessStatus) {
+        response.statusCode = repositoryAccessStatus;
+        send({
+          message:
+            repositoryAccessStatus === 403
+              ? "You have exceeded a secondary rate limit."
+              : "not found",
+        });
+        return;
+      }
       send([]);
       return;
     }
@@ -145,23 +192,106 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     principal: { id: 91, login: "operator", type: "User" },
     repositories: [
       {
+        api_url: "https://api.github.com/repos/operator/private",
         clone_url: "https://github.com/operator/private.git",
         full_name: "operator/private",
+        html_url: "https://github.com/operator/private",
         id: 101,
         private: true,
       },
+      {
+        api_url: "https://api.github.com/repos/operator/public",
+        clone_url: "https://github.com/operator/public.git",
+        full_name: "operator/public",
+        html_url: "https://github.com/operator/public",
+        id: 202,
+        private: false,
+      },
     ],
   });
-  assert.deepEqual(gitReads, [
-    {
-      credential: {
-        token: "installation-token-value",
-        username: "x-access-token",
-      },
-      options: { followRedirects: false },
-      url: "https://github.com/operator/private.git",
-    },
-  ]);
+  assert.deepEqual(
+    gitReads.map(({ url }) => url),
+    verified.repositories.map(({ clone_url }) => clone_url),
+  );
+  assert.ok(
+    gitReads.every(
+      ({ credential: gitCredential, options }) =>
+        gitCredential.token === "installation-token-value" &&
+        gitCredential.username === "x-access-token" &&
+        JSON.stringify(options) ===
+          JSON.stringify({
+            definitiveHttpStatuses: [401, 403, 404],
+            followRedirects: false,
+          }),
+    ),
+  );
+  gitReads.length = 0;
+  const selected = await verifier.verifyRepositories(credential, 73, [101]);
+  assert.deepEqual(selected, {
+    affectedRepositoryIds: [101],
+    capabilities: verified.capabilities,
+    permissions,
+    principal: verified.principal,
+    repositories: [verified.repositories[0]],
+    repositoryEvidence: verified.repositories,
+  });
+  assert.deepEqual(
+    gitReads.map(({ url }) => url),
+    [verified.repositories[0].clone_url],
+  );
+  gitReads.length = 0;
+  const selectedPublic = await verifier.verifyRepositories(
+    credential,
+    73,
+    [202],
+  );
+  assert.deepEqual(selectedPublic, {
+    affectedRepositoryIds: [202, 101],
+    capabilities: verified.capabilities,
+    permissions,
+    principal: verified.principal,
+    repositories: [verified.repositories[1]],
+    repositoryEvidence: verified.repositories,
+  });
+  assert.deepEqual(
+    gitReads.map((read) => read.url),
+    [verified.repositories[1].clone_url, verified.repositories[0].clone_url],
+  );
+  gitReads.length = 0;
+  repositoryAccessStatus = 404;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_api_access_failed",
+  );
+  assert.deepEqual(gitReads, []);
+  repositoryAccessStatus = 503;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_api_transient_failure",
+  );
+  assert.deepEqual(gitReads, []);
+  repositoryAccessStatus = 403;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_api_transient_failure",
+  );
+  assert.deepEqual(gitReads, []);
+  repositoryAccessStatus = 0;
+  gitReads.length = 0;
+  duplicateEnumeration = true;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101, 202]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_identity_invalid",
+  );
+  assert.deepEqual(gitReads, []);
   assert.equal(
     requests.every(
       ({ path, version }) =>
