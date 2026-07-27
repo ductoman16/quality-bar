@@ -63,6 +63,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/repository-lifecycle.test.js",
   "test/repository-rotation.test.js",
   "test/repository-git-integration.test.js",
+  "test/repository-git-credential-integration.test.js",
   "test/repository-browser-component.test.js",
   "test/github-connection-browser-component.test.js",
   "test/repository-http-integration.test.js",

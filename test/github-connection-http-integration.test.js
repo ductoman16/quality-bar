@@ -22,7 +22,7 @@ function connectionService() {
         start() {
           calls.push(["start"]);
           return {
-            action: "https://github.com/settings/apps/new",
+            action: "https://github.com/settings/apps/new?state=manifest-state",
             manifest: { default_events: [], public: false },
             method: "POST",
             state: "manifest-state",
@@ -57,7 +57,7 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   });
   assert.equal(start.status, 200);
   assert.deepEqual(await start.json(), {
-    action: "https://github.com/settings/apps/new",
+    action: "https://github.com/settings/apps/new?state=manifest-state",
     manifest: { default_events: [], public: false },
     method: "POST",
     state: "manifest-state",
@@ -99,7 +99,7 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   assert.equal(await responseErrorCode(unsupportedPat), "not_found");
 });
 
-test("GitHub callbacks expose the exact owning verification error and never redirect inferred success", async () => {
+test("GitHub callbacks return the exact owning error to the operator surface without inferred success", async () => {
   const { request } = await startApplication({
     createGitHubConnections: () => ({
       read() {
@@ -124,10 +124,9 @@ test("GitHub callbacks expose the exact owning verification error and never redi
     "/api/v1/github-connections/setup?installation_id=73&setup_action=install&state=manifest-state",
     { redirect: "manual" },
   );
-  assert.equal(response.status, 422);
+  assert.equal(response.status, 303);
   assert.equal(
-    await responseErrorCode(response),
-    "github_permissions_mismatch",
+    response.headers.get("location"),
+    "/?view=repositories&github_connection_error=GitHub%20App%20permissions%20do%20not%20match%20the%20required%20profile",
   );
-  assert.equal(response.headers.get("location"), null);
 });

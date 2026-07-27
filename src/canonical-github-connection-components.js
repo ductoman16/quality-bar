@@ -122,7 +122,8 @@ export function canonicalGitHubConnectionSchemas() {
     GitHubManifestStart: closedObject(
       {
         action: {
-          const: "https://github.com/settings/apps/new",
+          pattern:
+            "^https://github\\.com/settings/apps/new\\?state=[A-Za-z0-9_-]{8,256}$",
           type: "string",
         },
         manifest: { type: "object" },

@@ -281,7 +281,11 @@ export function createGateDefinitions(metadata) {
       testGroup:
         "generic-https-repository-read-guidance-assignment-and-lifecycle-verification-boundary",
       failureCode: "git_integration_tests_failed",
-      arguments: ["--test", "test/repository-git-integration.test.js"],
+      arguments: [
+        "--test",
+        "test/repository-git-integration.test.js",
+        "test/repository-git-credential-integration.test.js",
+      ],
     },
     {
       name: "sqlite-integration",

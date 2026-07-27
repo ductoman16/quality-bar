@@ -155,7 +155,9 @@ export function createGitHubConnectionService(
       }
       pending.set(state, { createdAt: timestamp(), stage: "manifest" });
       return {
-        action: "https://github.com/settings/apps/new",
+        action: `https://github.com/settings/apps/new?state=${encodeURIComponent(
+          state,
+        )}`,
         manifest: createGitHubAppManifest({ externalOrigin, state }),
         method: "POST",
         state,

@@ -78,7 +78,10 @@ test("manifest and installation callbacks atomically create one verified secret-
   });
 
   const started = service.start();
-  assert.equal(started.action, "https://github.com/settings/apps/new");
+  assert.equal(
+    started.action,
+    `https://github.com/settings/apps/new?state=${started.state}`,
+  );
   assert.equal(started.method, "POST");
   assert.match(started.state, /^[A-Za-z0-9_-]+$/);
   assert.deepEqual(started.manifest.default_events, []);

@@ -7,6 +7,20 @@ import {
 import { writeError, writeJson } from "./http-response.js";
 
 /**
+ * @param {import("node:http").ServerResponse} response
+ * @param {unknown} error
+ */
+function redirectCallbackFailure(response, error) {
+  const failure = requireCodedError(error);
+  response.writeHead(303, {
+    location: `/?view=repositories&github_connection_error=${encodeURIComponent(
+      failure.message,
+    )}`,
+  });
+  response.end();
+}
+
+/**
  * @param {{
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
@@ -48,17 +62,7 @@ export function createGitHubConnectionRoute({
         response.writeHead(303, { location });
         response.end();
       } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(
-          response,
-          failure.code === "request_malformed"
-            ? 400
-            : isUnavailableError(error)
-              ? 503
-              : 422,
-          failure.code,
-          failure.message,
-        );
+        redirectCallbackFailure(response, error);
       }
       return true;
     }
@@ -83,19 +87,7 @@ export function createGitHubConnectionRoute({
         });
         response.end();
       } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(
-          response,
-          failure.code === "request_malformed"
-            ? 400
-            : failure.code === "github_connection_conflict"
-              ? 409
-              : isUnavailableError(error)
-                ? 503
-                : 422,
-          failure.code,
-          failure.message,
-        );
+        redirectCallbackFailure(response, error);
       }
       return true;
     }

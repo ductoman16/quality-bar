@@ -1,91 +1,23 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
-import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
-
-const repositoryRoot = resolve(import.meta.dirname, "..");
-
-/** @param {Record<string, any>} [properties] */
-function element(properties = {}) {
-  /** @type {Map<string, (event: any) => any>} */
-  const listeners = new Map();
-  return {
-    disabled: false,
-    focused: false,
-    hidden: false,
-    textContent: "",
-    ...properties,
-    /** @param {string} name @param {(event: any) => any} listener */
-    addEventListener(name, listener) {
-      listeners.set(name, listener);
-    },
-    focus() {
-      this.focused = true;
-    },
-    /** @param {string} name */
-    listener(name) {
-      const listener = listeners.get(name);
-      if (!listener) {
-        throw new Error(`listener_missing:${name}`);
-      }
-      return listener;
-    },
-  };
-}
-
-/** @param {(path: string, options?: any) => Promise<any>} fetch */
-function browserContext(fetch) {
-  const form = element();
-  const submit = element();
-  const status = element();
-  const error = element({ hidden: true });
-  const elements = new Map([
-    ["github-connection-form", form],
-    ["github-connection-submit", submit],
-    ["github-connection-status", status],
-    ["github-connection-error", error],
-  ]);
-  return {
-    context: {
-      URLSearchParams,
-      document: { body: { append() {} }, createElement: () => ({}) },
-      fetch,
-      location: { search: "" },
-      window: {
-        qualityBarOperator: {
-          csrfToken: () => "csrf-token",
-          /** @param {string} id */
-          requiredElement: (id) => elements.get(id),
-        },
-      },
-    },
-    error,
-    form,
-    status,
-    submit,
-  };
-}
-
-/** @param {Record<string, any>} context */
-function executeGitHubBrowserAsset(context) {
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/github-connection.js",
-    readBrowserAsset("/assets/github-connection.js"),
-    context,
-  );
-}
+import {
+  browserContext,
+  element,
+  executeGitHubBrowserAsset,
+  githubElements,
+  verifiedConnection,
+} from "./github-connection-browser-component-support.js";
 
 test("GitHub Connection control has semantic live states, deterministic focus, and submits the exact Manifest form", async () => {
   const page = operatorPage({ view: "repositories" });
   assert.match(
     page,
-    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
+    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
   );
   assert.match(page, /@media\(max-width:40rem\)/);
+  assert.doesNotMatch(page, /thead\{position:absolute/);
   assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
   assert.match(
     page,
@@ -96,12 +28,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
   const submit = element();
   const status = element();
   const error = element({ hidden: true });
-  const elements = new Map([
-    ["github-connection-form", form],
-    ["github-connection-submit", submit],
-    ["github-connection-status", status],
-    ["github-connection-error", error],
-  ]);
+  const github = githubElements(form, submit, status, error);
   /** @type {any[]} */
   const requests = [];
   /** @type {any[]} */
@@ -145,9 +72,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
           ok: true,
           async json() {
             return {
-              principal: { login: "operator" },
-              repository_count: 1,
-              verification_history: [{ id: "verification-1" }],
+              ...verifiedConnection(),
             };
           },
         };
@@ -156,7 +81,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         ok: true,
         async json() {
           return {
-            action: "https://github.com/settings/apps/new",
+            action: "https://github.com/settings/apps/new?state=manifest-state",
             manifest: { default_events: [], public: false },
             method: "POST",
             state: "manifest-state",
@@ -170,7 +95,7 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         csrfToken: () => "csrf-token",
         /** @param {string} id */
         requiredElement(id) {
-          const value = elements.get(id);
+          const value = github.elements.get(id);
           if (!value) {
             throw new Error("missing element");
           }
@@ -179,18 +104,25 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
       },
     },
   };
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/github-connection.js",
-    readBrowserAsset("/assets/github-connection.js"),
-    context,
-  );
+  executeGitHubBrowserAsset(context);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(
-    status.textContent,
-    "operator connected; 1 accessible Repositories; 1 verified history record.",
-  );
+  assert.equal(status.textContent, "GitHub Connection verified.");
   assert.equal(status.focused, true);
+  assert.equal(github.details.hidden, false);
+  assert.equal(form.hidden, true);
+  assert.equal(github.identity.textContent, "operator");
+  assert.equal(
+    github.profile.textContent,
+    "github-rest:2026-03-10; compatible",
+  );
+  assert.equal(github.health.textContent, "Verified");
+  assert.equal(github.permissions.textContent, "contents: read");
+  assert.equal(github.capabilities.textContent, "private git read");
+  assert.equal(github.latest.textContent, "1970-01-01T00:00:01.000Z");
+  assert.equal(
+    github.history.children[0].textContent,
+    "onboarding; github-rest:2026-03-10; operator; 1 Repositories; 1970-01-01T00:00:01.000Z",
+  );
 
   await form.listener("submit")({ preventDefault() {} });
   assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
@@ -205,7 +137,10 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
     path: "/api/v1/github-connections/manifest",
   });
   assert.equal(externalForms.length, 1);
-  assert.equal(externalForms[0].action, "https://github.com/settings/apps/new");
+  assert.equal(
+    externalForms[0].action,
+    "https://github.com/settings/apps/new?state=manifest-state",
+  );
   assert.equal(externalForms[0].method, "POST");
   assert.equal(externalForms[0].submitted, true);
   assert.deepEqual(
@@ -222,7 +157,6 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         type: "hidden",
         value: JSON.stringify({ default_events: [], public: false }),
       },
-      { name: "state", type: "hidden", value: "manifest-state" },
     ],
   );
 });
@@ -232,16 +166,11 @@ test("GitHub Connection failure preserves exact owning error, restores the contr
   const submit = element();
   const status = element();
   const error = element({ hidden: true });
-  const elements = new Map([
-    ["github-connection-form", form],
-    ["github-connection-submit", submit],
-    ["github-connection-status", status],
-    ["github-connection-error", error],
-  ]);
+  const github = githubElements(form, submit, status, error);
   let request = 0;
   const context = {
     URLSearchParams,
-    document: { body: { append() {} }, createElement: () => ({}) },
+    document: { body: { append() {} }, createElement: () => element() },
     fetch: async () => {
       request += 1;
       if (request === 1) {
@@ -269,16 +198,11 @@ test("GitHub Connection failure preserves exact owning error, restores the contr
       qualityBarOperator: {
         csrfToken: () => "csrf-token",
         /** @param {string} id */
-        requiredElement: (id) => elements.get(id),
+        requiredElement: (id) => github.elements.get(id),
       },
     },
   };
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/github-connection.js",
-    readBrowserAsset("/assets/github-connection.js"),
-    context,
-  );
+  executeGitHubBrowserAsset(context);
   await new Promise((resolve) => setImmediate(resolve));
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(
@@ -327,6 +251,25 @@ test("GitHub Connection loading failures expose one exact error without stale st
     assert.equal(browser.error.focused, true);
     assert.equal(browser.status.textContent, "");
   }
+});
+
+test("GitHub callback failure returns to and focuses the exact operator error", async () => {
+  const browser = browserContext(async () => ({
+    ok: true,
+    async json() {
+      return null;
+    },
+  }));
+  browser.context.location.search =
+    "?view=repositories&github_connection_error=GitHub%20App%20permissions%20do%20not%20match%20the%20required%20profile";
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    browser.error.textContent,
+    "GitHub App permissions do not match the required profile",
+  );
+  assert.equal(browser.error.focused, true);
+  assert.equal(browser.status.textContent, "");
 });
 
 test("GitHub Connection start failures restore the only operator control", async () => {
