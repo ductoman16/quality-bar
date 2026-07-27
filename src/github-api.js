@@ -6,7 +6,7 @@ import {
 } from "./github-app-manifest.js";
 import { createGitHubApiRequest } from "./github-api-request.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
-import { verifyGitHubRepositoryRead } from "./github-git-verification.js";
+import * as gitVerification from "./github-git-verification.js";
 import { verifyGitHubRepositories } from "./github-repository-verification.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
@@ -354,19 +354,23 @@ export function createGitHubVerifier({
           (id) =>
             !selectedRepositories.some((repository) => repository.id === id),
         );
-        throw new GitHubConnectionError(
+        gitVerification.failGitHubRepositoryVerification(
           "github_repository_selection_unavailable",
           "Selected GitHub Repository is not accessible to the Connection",
-          { affectedRepositoryIds: repositoryIds, repositoryId },
+          repositoryIds,
+          repositories,
+          repositoryId,
         );
       }
       const privateRepository = repositories.find(
         (repository) => repository.private,
       );
       if (!privateRepository) {
-        fail(
+        gitVerification.failGitHubRepositoryVerification(
           "github_private_repository_required",
           "GitHub Connection must prove private Repository read access",
+          repositoryIds,
+          repositories,
         );
       }
       const repositoriesToVerify =
@@ -394,7 +398,7 @@ export function createGitHubVerifier({
             affectedRepositoryIds,
             repositoryId: repository.id,
           });
-          await verifyGitHubRepositoryRead(
+          await gitVerification.verifyGitHubRepositoryRead(
             verifyGit,
             repository,
             token,
@@ -407,6 +411,7 @@ export function createGitHubVerifier({
               affectedRepositoryIds: error.affectedRepositoryIds,
               cause: error,
               completedRepositoryIds,
+              repositoryEvidence: repositories,
               repositoryId: error.repositoryId,
             });
           }

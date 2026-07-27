@@ -33,6 +33,15 @@ const permissions = /** @type {any} */ ({
   pull_requests: "write",
   statuses: "write",
 });
+const capabilities = /** @type {any} */ ({
+  aggregate_feedback: "verified",
+  branch_access: "verified",
+  commit_status: "verified",
+  enumeration: "verified",
+  inline_feedback: "verified",
+  private_git_read: "verified",
+  pull_request_access: "verified",
+});
 
 test("SQLite records immutable scoped Connection verification without treating transient outages as health facts", async (context) => {
   const directory = mkdtempSync(
@@ -69,15 +78,7 @@ test("SQLite records immutable scoped Connection verification without treating t
       },
       async verifyInstallation() {
         return {
-          capabilities: {
-            aggregate_feedback: "verified",
-            branch_access: "verified",
-            commit_status: "verified",
-            enumeration: "verified",
-            inline_feedback: "verified",
-            private_git_read: "verified",
-            pull_request_access: "verified",
-          },
+          capabilities,
           principal: { id: 91, login: "operator", type: "User" },
           repositories: [repository, publicRepository],
         };
@@ -90,15 +91,7 @@ test("SQLite records immutable scoped Connection verification without treating t
         }
         return {
           affectedRepositoryIds: repositoryIds,
-          capabilities: {
-            aggregate_feedback: "verified",
-            branch_access: "verified",
-            commit_status: "verified",
-            enumeration: "verified",
-            inline_feedback: "verified",
-            private_git_read: "verified",
-            pull_request_access: "verified",
-          },
+          capabilities,
           permissions,
           principal: { id: 91, login: "operator", type: "User" },
           repositories: [repository, publicRepository].filter(({ id }) =>
@@ -123,6 +116,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     {
       affectedRepositoryIds: [101, 202],
       completedRepositoryIds: [101],
+      repositoryEvidence: [repository, publicRepository],
       repositoryId: 202,
     },
   );
@@ -137,7 +131,7 @@ test("SQLite records immutable scoped Connection verification without treating t
   assert.deepEqual(service.read()?.verification_history.at(-1), {
     affected_repository_ids: [101, 202],
     api_profile: "github-rest:2026-03-10",
-    capabilities: null,
+    capabilities,
     error: {
       code: "github_repository_git_read_failed",
       message: "GitHub Repository Git read verification failed",
@@ -145,9 +139,9 @@ test("SQLite records immutable scoped Connection verification without treating t
     },
     id: service.read()?.verification_history.at(-1)?.id,
     outcome: "error",
-    permissions: null,
-    principal: null,
-    repositories: [],
+    permissions,
+    principal: { id: 91, login: "operator", type: "User" },
+    repositories: [repository, publicRepository],
     repository_checks: [
       { outcome: "success", repository_id: 101 },
       { outcome: "error", repository_id: 202 },
@@ -220,16 +214,27 @@ test("SQLite records immutable scoped Connection verification without treating t
   );
 
   timestamp = 1_500;
-  failure = new GitHubConnectionError(
-    "github_private_git_read_failed",
-    "GitHub private Repository read verification failed",
-    { repositoryId: 101 },
-  );
   core.run(
     `UPDATE github_connections
      SET health = 'error',
          health_error_code = 'github_permissions_mismatch',
          health_error_message = 'GitHub App permissions do not match'`,
+  );
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'stale',
+         health_error_message = 'stale'`,
+  );
+  failure = new GitHubConnectionError(
+    "github_private_git_read_failed",
+    "GitHub private Repository read verification failed",
+    {
+      affectedRepositoryIds: [202, 101],
+      completedRepositoryIds: [202],
+      repositoryEvidence: [repository, publicRepository],
+      repositoryId: 101,
+    },
   );
   await assert.rejects(
     () => service.selectRepositories({ repository_ids: [101] }, "enablement"),
@@ -239,10 +244,10 @@ test("SQLite records immutable scoped Connection verification without treating t
   );
   assert.equal(service.read()?.health, "healthy");
   assert.deepEqual(
-    core.all("SELECT id, health FROM repositories ORDER BY id"),
+    core.all("SELECT id, health, verified_at FROM repositories ORDER BY id"),
     [
-      { health: "error", id: "repository-1" },
-      { health: "healthy", id: "repository-2" },
+      { health: "error", id: "repository-1", verified_at: 1_500 },
+      { health: "healthy", id: "repository-2", verified_at: 1_500 },
     ],
   );
 

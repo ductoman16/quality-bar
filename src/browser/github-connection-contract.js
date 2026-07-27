@@ -111,6 +111,124 @@ function validGitHubVerificationOutcome(verification) {
         );
 }
 
+/** @param {unknown} value */
+function validGitHubConnection(value) {
+  if (
+    !value ||
+    Array.isArray(value) ||
+    typeof value !== "object" ||
+    !("principal" in value) ||
+    !value.principal ||
+    typeof value.principal !== "object" ||
+    !("login" in value.principal) ||
+    typeof value.principal.login !== "string" ||
+    !("api_profile" in value) ||
+    typeof value.api_profile !== "string" ||
+    !("permissions" in value) ||
+    !value.permissions ||
+    Array.isArray(value.permissions) ||
+    typeof value.permissions !== "object" ||
+    Object.values(value.permissions).some(
+      (permission) => typeof permission !== "string",
+    ) ||
+    Object.keys(value.permissions).length === 0 ||
+    !("capabilities" in value) ||
+    !value.capabilities ||
+    Array.isArray(value.capabilities) ||
+    typeof value.capabilities !== "object" ||
+    Object.values(value.capabilities).some((state) => state !== "verified") ||
+    Object.keys(value.capabilities).length === 0 ||
+    !("health" in value) ||
+    !["healthy", "error"].includes(/** @type {string} */ (value.health)) ||
+    !("health_error" in value) ||
+    !("repository_count" in value) ||
+    !Number.isSafeInteger(value.repository_count) ||
+    !("verified_at" in value) ||
+    !Number.isSafeInteger(value.verified_at) ||
+    !("verification_history" in value) ||
+    !Array.isArray(value.verification_history) ||
+    value.verification_history.length === 0
+  ) {
+    return false;
+  }
+  const healthError =
+    value.health_error &&
+    typeof value.health_error === "object" &&
+    "code" in value.health_error &&
+    typeof value.health_error.code === "string" &&
+    "message" in value.health_error &&
+    typeof value.health_error.message === "string";
+  return (
+    ((value.health === "healthy" && value.health_error === null) ||
+      (value.health === "error" && healthError)) &&
+    value.verification_history.every(validGitHubVerification)
+  );
+}
+
+/** @param {unknown} verification */
+function validGitHubVerification(verification) {
+  return Boolean(
+    verification &&
+    typeof verification === "object" &&
+    "id" in verification &&
+    typeof verification.id === "string" &&
+    verification.id.length > 0 &&
+    "trigger" in verification &&
+    typeof verification.trigger === "string" &&
+    validGitHubVerificationOutcome(verification) &&
+    "affected_repository_ids" in verification &&
+    Array.isArray(verification.affected_repository_ids) &&
+    verification.affected_repository_ids.length > 0 &&
+    verification.affected_repository_ids.every(Number.isSafeInteger) &&
+    "api_profile" in verification &&
+    (verification.api_profile === null ||
+      typeof verification.api_profile === "string") &&
+    "principal" in verification &&
+    (verification.principal === null ||
+      (typeof verification.principal === "object" &&
+        "login" in verification.principal &&
+        typeof verification.principal.login === "string")) &&
+    "repositories" in verification &&
+    Array.isArray(verification.repositories) &&
+    verification.repositories.every(validGitHubRepositoryEvidence) &&
+    "repository_checks" in verification &&
+    Array.isArray(verification.repository_checks) &&
+    verification.repository_checks.length ===
+      verification.affected_repository_ids.length &&
+    verification.repository_checks.every(validGitHubRepositoryCheck) &&
+    "verified_at" in verification &&
+    Number.isSafeInteger(verification.verified_at),
+  );
+}
+
+/** @param {unknown} repository */
+function validGitHubRepositoryEvidence(repository) {
+  return Boolean(
+    repository &&
+    typeof repository === "object" &&
+    "id" in repository &&
+    Number.isSafeInteger(repository.id) &&
+    "full_name" in repository &&
+    typeof repository.full_name === "string" &&
+    "private" in repository &&
+    typeof repository.private === "boolean",
+  );
+}
+
+/** @param {unknown} check */
+function validGitHubRepositoryCheck(check) {
+  return Boolean(
+    check &&
+    typeof check === "object" &&
+    "repository_id" in check &&
+    Number.isSafeInteger(check.repository_id) &&
+    "outcome" in check &&
+    ["success", "error", "not_completed"].includes(
+      /** @type {string} */ (check.outcome),
+    ),
+  );
+}
+
 /** @param {number} timestamp */
 function githubVerificationTime(timestamp) {
   const value = new Date(timestamp);
@@ -143,6 +261,7 @@ Reflect.set(
     consumeCallbackFailure: consumeGitHubCallbackFailure,
     historyText: githubVerificationHistoryText,
     responseErrorMessage: githubResponseErrorMessage,
+    validConnection: validGitHubConnection,
     validOutcome: validGitHubVerificationOutcome,
     verificationTime: githubVerificationTime,
   }),

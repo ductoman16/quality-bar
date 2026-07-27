@@ -7,13 +7,13 @@ const {
   consumeCallbackFailure: consumeGitHubCallback,
   historyText: githubHistoryText,
   responseErrorMessage,
-  validOutcome: validGitHubOutcome,
+  validConnection: validateGitHubConnection,
   verificationTime,
 } = /** @type {{
  * consumeCallbackFailure: (query: URLSearchParams, showError: (message: string) => void) => Promise<boolean>,
  * historyText: (verification: any) => string,
  * responseErrorMessage: (response: Response) => Promise<string>,
- * validOutcome: (verification: unknown) => boolean,
+ * validConnection: (connection: unknown) => boolean,
  * verificationTime: (timestamp: number) => string
  * }} */ (Reflect.get(window, "qualityBarGitHubConnectionContract"));
 
@@ -42,6 +42,8 @@ const githubRepositoryOptions = requiredElement(
 const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
   requiredElement("github-repository-selection-submit")
 );
+/** @type {null | {affected_repository_ids: number[], id: string, outcome: string, trigger: string}} */
+let latestGitHubVerification = null;
 
 /** @param {string} message */
 function showGitHubError(message) {
@@ -51,97 +53,18 @@ function showGitHubError(message) {
   githubError.focus();
 }
 
-/** @param {unknown} value */
+/** @param {any} value */
 function renderGitHubConnection(value) {
   if (value === null) {
+    latestGitHubVerification = null;
+    githubRepositoryOptions.replaceChildren();
     githubDetails.hidden = true;
     githubForm.hidden = false;
     githubRepositoryForm.hidden = true;
     githubStatus.textContent = "";
     return;
   }
-  if (
-    !value ||
-    Array.isArray(value) ||
-    typeof value !== "object" ||
-    !("principal" in value) ||
-    !value.principal ||
-    typeof value.principal !== "object" ||
-    !("login" in value.principal) ||
-    typeof value.principal.login !== "string" ||
-    !("api_profile" in value) ||
-    typeof value.api_profile !== "string" ||
-    !("permissions" in value) ||
-    !value.permissions ||
-    Array.isArray(value.permissions) ||
-    typeof value.permissions !== "object" ||
-    !("capabilities" in value) ||
-    !value.capabilities ||
-    Array.isArray(value.capabilities) ||
-    typeof value.capabilities !== "object" ||
-    !("health" in value) ||
-    !["healthy", "error"].includes(/** @type {string} */ (value.health)) ||
-    !("health_error" in value) ||
-    !("repository_count" in value) ||
-    !Number.isSafeInteger(value.repository_count) ||
-    !("verified_at" in value) ||
-    !Number.isSafeInteger(value.verified_at) ||
-    !("verification_history" in value) ||
-    !Array.isArray(value.verification_history) ||
-    value.verification_history.length === 0 ||
-    value.verification_history.some(
-      (verification) =>
-        !verification ||
-        typeof verification !== "object" ||
-        !("trigger" in verification) ||
-        typeof verification.trigger !== "string" ||
-        !validGitHubOutcome(verification) ||
-        !("affected_repository_ids" in verification) ||
-        !Array.isArray(verification.affected_repository_ids) ||
-        verification.affected_repository_ids.length === 0 ||
-        verification.affected_repository_ids.some(
-          /** @param {unknown} id */ (id) => !Number.isSafeInteger(id),
-        ) ||
-        !("api_profile" in verification) ||
-        (verification.api_profile !== null &&
-          typeof verification.api_profile !== "string") ||
-        !("principal" in verification) ||
-        (verification.principal !== null &&
-          (typeof verification.principal !== "object" ||
-            !("login" in verification.principal) ||
-            typeof verification.principal.login !== "string")) ||
-        !("repositories" in verification) ||
-        !Array.isArray(verification.repositories) ||
-        verification.repositories.some(
-          /** @param {unknown} repository */ (repository) =>
-            !repository ||
-            typeof repository !== "object" ||
-            !("id" in repository) ||
-            !Number.isSafeInteger(repository.id) ||
-            !("full_name" in repository) ||
-            typeof repository.full_name !== "string" ||
-            !("private" in repository) ||
-            typeof repository.private !== "boolean",
-        ) ||
-        !("repository_checks" in verification) ||
-        !Array.isArray(verification.repository_checks) ||
-        verification.repository_checks.length !==
-          verification.affected_repository_ids.length ||
-        verification.repository_checks.some(
-          /** @param {unknown} check */ (check) =>
-            !check ||
-            typeof check !== "object" ||
-            !("repository_id" in check) ||
-            !Number.isSafeInteger(check.repository_id) ||
-            !("outcome" in check) ||
-            !["success", "error", "not_completed"].includes(
-              /** @type {string} */ (check.outcome),
-            ),
-        ) ||
-        !("verified_at" in verification) ||
-        !Number.isSafeInteger(verification.verified_at),
-    )
-  ) {
+  if (!validateGitHubConnection(value)) {
     throw new Error("github_connection_response_invalid");
   }
   const healthError =
@@ -154,22 +77,8 @@ function renderGitHubConnection(value) {
     typeof value.health_error.message === "string"
       ? value.health_error
       : null;
-  if (
-    (value.health === "healthy" && value.health_error !== null) ||
-    (value.health === "error" && healthError === null)
-  ) {
-    throw new Error("github_connection_response_invalid");
-  }
   const permissions = Object.entries(value.permissions);
   const capabilities = Object.entries(value.capabilities);
-  if (
-    permissions.length === 0 ||
-    permissions.some(([, permission]) => typeof permission !== "string") ||
-    capabilities.length === 0 ||
-    capabilities.some(([, state]) => state !== "verified")
-  ) {
-    throw new Error("github_connection_response_invalid");
-  }
   githubIdentity.textContent = value.principal.login;
   githubProfile.textContent = `${value.api_profile}; compatible`;
   githubHealth.textContent =
@@ -193,6 +102,7 @@ function renderGitHubConnection(value) {
   }
   githubRepositoryOptions.replaceChildren();
   const latestVerification = value.verification_history.at(-1);
+  latestGitHubVerification = latestVerification;
   if (latestVerification) {
     const options =
       latestVerification.outcome === "success"
@@ -251,6 +161,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
   }
   githubStatus.textContent = "Registering selected GitHub Repositories.";
   githubRepositorySubmit.disabled = true;
+  const priorVerificationId = latestGitHubVerification?.id ?? null;
   let response;
   try {
     response = await fetch("/api/v1/github-connections/repositories", {
@@ -262,7 +173,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       method: "POST",
     });
   } catch {
-    await reconcileGitHubRepositorySelection(selected);
+    await reconcileGitHubRepositorySelection(selected, priorVerificationId);
     return;
   }
   if (!response.ok) {
@@ -298,12 +209,15 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
     githubStatus.focus();
     location.assign("/?view=repositories");
   } catch {
-    await reconcileGitHubRepositorySelection(selected);
+    await reconcileGitHubRepositorySelection(selected, priorVerificationId);
   }
 });
 
-/** @param {number[]} selected */
-async function reconcileGitHubRepositorySelection(selected) {
+/** @param {number[]} selected @param {string | null} priorVerificationId */
+async function reconcileGitHubRepositorySelection(
+  selected,
+  priorVerificationId,
+) {
   const repositories = /** @type {{
    *   hasForgeRepositoryIds: (ids: number[]) => boolean,
    *   refresh: () => Promise<boolean>
@@ -315,7 +229,15 @@ async function reconcileGitHubRepositorySelection(selected) {
     showGitHubError("GitHub Repository selection reconciliation failed");
     return;
   }
-  if (repositories.hasForgeRepositoryIds(selected)) {
+  if (
+    latestGitHubVerification?.id !== priorVerificationId &&
+    latestGitHubVerification?.trigger === "repository_selection" &&
+    latestGitHubVerification?.outcome === "success" &&
+    selected.every((id) =>
+      latestGitHubVerification?.affected_repository_ids.includes(id),
+    ) &&
+    repositories.hasForgeRepositoryIds(selected)
+  ) {
     githubStatus.textContent = "GitHub Repositories registered.";
     githubStatus.focus();
     location.assign("/?view=repositories");
@@ -346,7 +268,8 @@ async function loadGitHubConnection() {
     return false;
   }
   try {
-    renderGitHubConnection(await response.json());
+    const connection = await response.json();
+    renderGitHubConnection(connection);
     const query = new URLSearchParams(location.search);
     if (await consumeGitHubCallback(query, showGitHubError)) {
       return false;
@@ -354,7 +277,7 @@ async function loadGitHubConnection() {
     if (query.get("github_connection") === "connected") {
       githubStatus.focus();
     }
-    return true;
+    return connection !== null;
   } catch {
     showGitHubError("GitHub Connection response is invalid");
     return false;

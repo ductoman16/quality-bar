@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+
 export const capabilities = /** @type {any} */ ({
   aggregate_feedback: "verified",
   branch_access: "verified",
@@ -30,6 +32,36 @@ export const removedRepositoryState = {
   health: "error",
   health_error_code: "github_repository_selection_unavailable",
 };
+const removedVerificationState = {
+  affected_repository_ids: [202],
+  error: {
+    code: "github_repository_selection_unavailable",
+    message: "GitHub Repository is no longer accessible to the Connection",
+    repository_id: 202,
+  },
+  outcome: "error",
+  repositories: [],
+  repository_checks: [{ outcome: "error", repository_id: 202 }],
+  trigger: "repository_selection",
+  verified_at: 3_000,
+};
+
+/** @param {any} connection */
+export function assertRemovedVerificationState(connection) {
+  const verification = connection?.verification_history.at(-1);
+  assert.deepEqual(
+    {
+      affected_repository_ids: verification?.affected_repository_ids,
+      error: verification?.error,
+      outcome: verification?.outcome,
+      repositories: verification?.repositories,
+      repository_checks: verification?.repository_checks,
+      trigger: verification?.trigger,
+      verified_at: verification?.verified_at,
+    },
+    removedVerificationState,
+  );
+}
 
 /** @param {{run(sql: string): unknown}} core */
 export function markPrivateRepositoryUnhealthy(core) {

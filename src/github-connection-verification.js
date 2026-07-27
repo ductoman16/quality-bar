@@ -110,7 +110,8 @@ export function recordGitHubConnectionVerification(durableCore, input) {
       );
       transaction.run(
         `UPDATE repositories
-         SET health = 'error',
+         SET verified_at = ?,
+             health = 'error',
              health_error_code = ?,
              health_error_message = ?
          WHERE id = (
@@ -118,15 +119,31 @@ export function recordGitHubConnectionVerification(durableCore, input) {
            FROM github_repositories
            WHERE connection_id = ? AND forge_repository_id = ?
          )`,
+        verifiedAt,
         errorCode,
         errorMessage,
         input.id,
         /** @type {number} */ (input.error.repositoryId),
       );
+    }
+    if (completedIds.size > 0) {
       transaction.run(
-        "UPDATE github_connections SET verified_at = ? WHERE id = ?",
+        `UPDATE repositories
+         SET verified_at = ?,
+             health = 'healthy',
+             health_error_code = NULL,
+             health_error_message = NULL
+         WHERE id IN (
+           SELECT repository_id
+           FROM github_repositories
+           WHERE connection_id = ?
+             AND forge_repository_id IN (${[...completedIds]
+               .map(() => "?")
+               .join(", ")})
+         )`,
         verifiedAt,
         input.id,
+        ...completedIds,
       );
     }
     transaction.run(

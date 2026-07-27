@@ -187,7 +187,25 @@ export const GITHUB_CONNECTION_HEALTH_MIGRATION = `
       ))
       FROM json_each(github_connection_verifications_v13.repositories)
     ),
-    repositories, verified_at
+    (
+      SELECT json_group_array(json_object(
+        'api_url',
+          'https://api.github.com/repos/' || json_extract(value, '$.full_name'),
+        'clone_url', json_extract(value, '$.clone_url'),
+        'full_name', json_extract(value, '$.full_name'),
+        'html_url',
+          'https://github.com/' || json_extract(value, '$.full_name'),
+        'id', json_extract(value, '$.id'),
+        'private', json(
+          CASE json_extract(value, '$.private')
+            WHEN 1 THEN 'true'
+            ELSE 'false'
+          END
+        )
+      ))
+      FROM json_each(github_connection_verifications_v13.repositories)
+    ),
+    verified_at
   FROM github_connection_verifications_v13
   ORDER BY rowid;
   DROP TABLE github_connection_verifications_v13;

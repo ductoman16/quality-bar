@@ -4,6 +4,10 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 import { recordGitHubConnectionVerification } from "./github-connection-verification.js";
 import { normalizeGitHubRepositorySelection } from "./github-repository-selection.js";
 import {
+  validGitHubRepositoryEvidence,
+  verifiedGitHubRepositoryEvidence,
+} from "./github-verification-error.js";
+import {
   readRepositoryResource,
   REPOSITORY_SELECTION,
 } from "./repository-resource.js";
@@ -33,23 +37,6 @@ const REPOSITORY_SCOPED_VERIFICATION_ERRORS = new Set([
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
   throw new GitHubConnectionError(code, message);
-}
-
-/** @param {any} repository @param {string} principalLogin */
-function validRepositoryEvidence(repository, principalLogin) {
-  return (
-    repository &&
-    Number.isSafeInteger(repository.id) &&
-    typeof repository.full_name === "string" &&
-    repository.full_name.split("/")[1]?.length > 0 &&
-    repository.full_name ===
-      `${principalLogin}/${repository.full_name.split("/")[1] ?? ""}` &&
-    repository.clone_url === `https://github.com/${repository.full_name}.git` &&
-    repository.api_url ===
-      `https://api.github.com/repos/${repository.full_name}` &&
-    repository.html_url === `https://github.com/${repository.full_name}` &&
-    typeof repository.private === "boolean"
-  );
 }
 
 /**
@@ -152,9 +139,16 @@ export function createGitHubRepositorySelector(
             ? "repository"
             : null;
         if (scope) {
+          const evidence = verifiedGitHubRepositoryEvidence(
+            error,
+            connection.principal_login,
+          );
+          const completedEnumeration = evidence.length > 0;
           recordGitHubConnectionVerification(durableCore, {
             affectedRepositoryIds: error.affectedRepositoryIds ?? repositoryIds,
-            capabilities: null,
+            capabilities: completedEnumeration
+              ? JSON.parse(connection.capabilities)
+              : null,
             completedRepositoryIds: error.completedRepositoryIds,
             createId: createVerificationId,
             error: {
@@ -163,10 +157,17 @@ export function createGitHubRepositorySelector(
               repositoryId: error.repositoryId,
               scope,
             },
-            evidence: [],
+            evidence,
             id: connection.id,
-            permissions: null,
-            principal: null,
+            permissions: completedEnumeration
+              ? JSON.parse(connection.permissions)
+              : null,
+            principal: completedEnumeration
+              ? {
+                  id: /** @type {number} */ (connection.principal_id),
+                  login: connection.principal_login,
+                }
+              : null,
             profile: connection.api_profile,
             timestamp,
             trigger: /** @type {"enablement" | "repository_selection"} */ (
@@ -180,6 +181,7 @@ export function createGitHubRepositorySelector(
           affectedRepositoryIds: error.affectedRepositoryIds,
           cause: error,
           completedRepositoryIds: error.completedRepositoryIds,
+          repositoryEvidence: error.repositoryEvidence,
           repositoryId: error.repositoryId,
         });
       }
@@ -202,7 +204,7 @@ export function createGitHubRepositorySelector(
       repositoryIds.some((id) => !verifiedRepositoryIds.has(id)) ||
       repositories.some(
         (repository) =>
-          !validRepositoryEvidence(
+          !validGitHubRepositoryEvidence(
             repository,
             /** @type {string} */ (connection.principal_login),
           ),
@@ -213,7 +215,7 @@ export function createGitHubRepositorySelector(
         repositoryEvidence.length ||
       repositoryEvidence.some(
         (repository) =>
-          !validRepositoryEvidence(
+          !validGitHubRepositoryEvidence(
             repository,
             /** @type {string} */ (connection.principal_login),
           ),
@@ -265,10 +267,41 @@ export function createGitHubRepositorySelector(
           ) {
             throw new TypeError("GitHub Repository identity row is invalid");
           }
-          return [row.forge_repository_id, row.repository_id];
+          return /** @type {[number, string]} */ ([
+            row.forge_repository_id,
+            row.repository_id,
+          ]);
         }),
     );
     const selectedRepositoryIds = new Set(repositoryIds);
+    const currentRepositoryIds = new Set(
+      repositoryEvidence.map((repository) => repository.id),
+    );
+    for (const forgeRepositoryId of existing.keys()) {
+      if (!currentRepositoryIds.has(forgeRepositoryId)) {
+        recordGitHubConnectionVerification(durableCore, {
+          affectedRepositoryIds: [forgeRepositoryId],
+          capabilities: null,
+          createId: createVerificationId,
+          error: {
+            code: "github_repository_selection_unavailable",
+            message:
+              "GitHub Repository is no longer accessible to the Connection",
+            repositoryId: forgeRepositoryId,
+            scope: "repository",
+          },
+          evidence: [],
+          id: connection.id,
+          permissions: null,
+          principal: null,
+          profile: connection.api_profile,
+          timestamp,
+          trigger: /** @type {"enablement" | "repository_selection"} */ (
+            trigger
+          ),
+        });
+      }
+    }
     const records = repositoryEvidence
       .filter(
         (repository) =>
@@ -339,25 +372,6 @@ export function createGitHubRepositorySelector(
             );
           }
         }
-        transaction.run(
-          `UPDATE repositories
-           SET verified_at = ?,
-               health = 'error',
-               health_error_code = 'github_repository_selection_unavailable',
-               health_error_message =
-                 'GitHub Repository is no longer accessible to the Connection'
-           WHERE id IN (
-             SELECT repository_id
-             FROM github_repositories
-             WHERE connection_id = ?
-               AND forge_repository_id NOT IN (${repositoryEvidence
-                 .map(() => "?")
-                 .join(", ")})
-           )`,
-          verifiedAt,
-          connection.id,
-          ...repositoryEvidence.map((repository) => repository.id),
-        );
       });
     } catch (error) {
       if (

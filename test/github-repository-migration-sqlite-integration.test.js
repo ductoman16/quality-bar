@@ -151,8 +151,10 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
     readGitHubConnection(migrated)?.verification_history[0].repositories,
     [
       {
+        api_url: "https://api.github.com/repos/operator/legacy",
         clone_url: "https://github.com/operator/legacy.git",
         full_name: "operator/legacy",
+        html_url: "https://github.com/operator/legacy",
         id: 101,
         private: true,
       },

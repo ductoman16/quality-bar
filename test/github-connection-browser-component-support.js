@@ -57,6 +57,7 @@ export function verifiedConnection() {
         api_profile: "github-rest:2026-03-10",
         capabilities: { private_git_read: "verified" },
         error: null,
+        id: "verification-1",
         outcome: "success",
         permissions: { contents: "read" },
         principal: { login: "operator" },

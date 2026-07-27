@@ -96,7 +96,10 @@ test("public selection preserves exact mandatory private-proof failure context",
       error.repositoryId === 101 &&
       JSON.stringify(error.affectedRepositoryIds) ===
         JSON.stringify([202, 101]) &&
-      JSON.stringify(error.completedRepositoryIds) === JSON.stringify([202]),
+      JSON.stringify(error.completedRepositoryIds) === JSON.stringify([202]) &&
+      error.repositoryEvidence?.length === 2 &&
+      /** @type {any[]} */ (error.repositoryEvidence)[0]?.api_url ===
+        "https://api.github.com/repos/operator/private",
   );
   assert.deepEqual(gitReads, ["https://github.com/operator/public.git"]);
 });
