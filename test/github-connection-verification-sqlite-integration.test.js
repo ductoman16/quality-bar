@@ -165,6 +165,17 @@ test("SQLite records immutable scoped Connection verification without treating t
   assert.equal(service.read()?.verification_history.length, historyCount);
   assert.equal(service.read()?.verified_at, 1_100);
 
+  failure = new GitHubConnectionError(
+    "github_api_request_failed",
+    "GitHub API request failed before completed evidence",
+    { affectedRepositoryIds: [101], completedRepositoryIds: [101] },
+  );
+  await assert.rejects(
+    () => service.selectRepositories({ repository_ids: [101] }),
+    /Completed GitHub Repository evidence is incomplete/,
+  );
+  assert.equal(service.read()?.verification_history.length, historyCount);
+
   timestamp = 1_250;
   failure = new GitHubConnectionError(
     "github_api_request_failed",
@@ -172,6 +183,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     {
       affectedRepositoryIds: [202, 101],
       completedRepositoryIds: [202],
+      repositoryEvidence: [repository, publicRepository],
       repositoryId: 101,
     },
   );
@@ -201,6 +213,7 @@ test("SQLite records immutable scoped Connection verification without treating t
       error.code === "github_permissions_mismatch",
   );
   assert.equal(service.read()?.health, "error");
+  assert.equal(service.read()?.verification_history.at(-1)?.api_profile, null);
 
   timestamp = 1_400;
   failure = undefined;

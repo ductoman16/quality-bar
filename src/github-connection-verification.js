@@ -45,6 +45,16 @@ export function recordGitHubConnectionVerification(durableCore, input) {
     throw new TypeError("GitHub Repository verification scope is invalid");
   }
   if (
+    completedIds.size > 0 &&
+    (!input.profile ||
+      !input.principal ||
+      !input.permissions ||
+      !input.capabilities ||
+      input.evidence.length === 0)
+  ) {
+    throw new TypeError("Completed GitHub Repository evidence is incomplete");
+  }
+  if (
     !input.error &&
     (!input.profile ||
       !input.principal ||

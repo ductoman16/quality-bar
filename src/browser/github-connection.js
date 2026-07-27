@@ -42,8 +42,8 @@ const githubRepositoryOptions = requiredElement(
 const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
   requiredElement("github-repository-selection-submit")
 );
-/** @type {null | {affected_repository_ids: number[], id: string, outcome: string, trigger: string}} */
-let latestGitHubVerification = null;
+/** @type {{affected_repository_ids: number[], id: string, outcome: string, trigger: string, verified_at: number}[]} */
+let githubVerificationHistory = [];
 
 /** @param {string} message */
 function showGitHubError(message) {
@@ -56,7 +56,7 @@ function showGitHubError(message) {
 /** @param {any} value */
 function renderGitHubConnection(value) {
   if (value === null) {
-    latestGitHubVerification = null;
+    githubVerificationHistory = [];
     githubRepositoryOptions.replaceChildren();
     githubDetails.hidden = true;
     githubForm.hidden = false;
@@ -102,10 +102,10 @@ function renderGitHubConnection(value) {
   }
   githubRepositoryOptions.replaceChildren();
   const latestVerification = value.verification_history.at(-1);
-  latestGitHubVerification = latestVerification;
+  githubVerificationHistory = value.verification_history;
   if (latestVerification) {
     const options =
-      latestVerification.outcome === "success"
+      latestVerification.repositories.length > 0
         ? latestVerification.repositories.map(
             /** @param {{full_name: string, id: number, private: boolean}} repository */ (
               repository,
@@ -161,11 +161,14 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
   }
   githubStatus.textContent = "Registering selected GitHub Repositories.";
   githubRepositorySubmit.disabled = true;
-  const priorVerificationId = latestGitHubVerification?.id ?? null;
+  const requestId = crypto.randomUUID();
   let response;
   try {
     response = await fetch("/api/v1/github-connections/repositories", {
-      body: JSON.stringify({ repository_ids: selected }),
+      body: JSON.stringify({
+        repository_ids: selected,
+        request_id: requestId,
+      }),
       headers: {
         "content-type": "application/json",
         "x-quality-bar-csrf": csrfToken(),
@@ -173,7 +176,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       method: "POST",
     });
   } catch {
-    await reconcileGitHubRepositorySelection(selected, priorVerificationId);
+    await reconcileGitHubRepositorySelection(selected, requestId);
     return;
   }
   if (!response.ok) {
@@ -209,17 +212,14 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
     githubStatus.focus();
     location.assign("/?view=repositories");
   } catch {
-    await reconcileGitHubRepositorySelection(selected, priorVerificationId);
+    await reconcileGitHubRepositorySelection(selected, requestId);
   }
 });
 
-/** @param {number[]} selected @param {string | null} priorVerificationId */
-async function reconcileGitHubRepositorySelection(
-  selected,
-  priorVerificationId,
-) {
+/** @param {number[]} selected @param {string} requestId */
+async function reconcileGitHubRepositorySelection(selected, requestId) {
   const repositories = /** @type {{
-   *   hasForgeRepositoryIds: (ids: number[]) => boolean,
+   *   hasVerifiedForgeRepositoryIds: (ids: number[], verifiedAt: number) => boolean,
    *   refresh: () => Promise<boolean>
    * }} */ (Reflect.get(window, "qualityBarRepositories"));
   const connectionLoaded = await loadGitHubConnection();
@@ -229,14 +229,17 @@ async function reconcileGitHubRepositorySelection(
     showGitHubError("GitHub Repository selection reconciliation failed");
     return;
   }
+  const verification = githubVerificationHistory.find(
+    ({ id }) => id === requestId,
+  );
   if (
-    latestGitHubVerification?.id !== priorVerificationId &&
-    latestGitHubVerification?.trigger === "repository_selection" &&
-    latestGitHubVerification?.outcome === "success" &&
-    selected.every((id) =>
-      latestGitHubVerification?.affected_repository_ids.includes(id),
-    ) &&
-    repositories.hasForgeRepositoryIds(selected)
+    verification?.trigger === "repository_selection" &&
+    verification.outcome === "success" &&
+    selected.every((id) => verification.affected_repository_ids.includes(id)) &&
+    repositories.hasVerifiedForgeRepositoryIds(
+      selected,
+      verification.verified_at,
+    )
   ) {
     githubStatus.textContent = "GitHub Repositories registered.";
     githubStatus.focus();

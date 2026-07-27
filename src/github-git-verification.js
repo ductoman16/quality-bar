@@ -1,5 +1,6 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
 export { failGitHubRepositoryVerification } from "./github-verification-error.js";
+export { validGitHubRepositoryEvidence } from "./github-verification-error.js";
 import { RepositoryError } from "./repository-validation.js";
 
 /**

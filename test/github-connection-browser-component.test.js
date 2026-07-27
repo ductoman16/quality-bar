@@ -7,6 +7,7 @@ import {
   element,
   executeGitHubBrowserAsset,
   githubElements,
+  selectionRequestId,
   verifiedConnection,
 } from "./github-connection-browser-component-support.js";
 
@@ -213,7 +214,10 @@ test("GitHub Repository selection is a single accessible atomic mutation with de
   });
   assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
     options: {
-      body: JSON.stringify({ repository_ids: [101] }),
+      body: JSON.stringify({
+        repository_ids: [101],
+        request_id: selectionRequestId,
+      }),
       headers: {
         "content-type": "application/json",
         "x-quality-bar-csrf": "csrf-token",

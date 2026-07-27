@@ -14,6 +14,7 @@ import {
 } from "../src/repository-validation.js";
 import {
   availableRepositories,
+  assertCorrelatedSelection,
   assertRemovedVerificationState,
   capabilities,
   markPrivateRepositoryUnhealthy,
@@ -283,7 +284,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   markPrivateRepositoryUnhealthy(core);
   renamePrivateRepository();
   timestamp = 2_500;
-  await service.selectRepositories({ repository_ids: [202] });
+  await assertCorrelatedSelection(service);
   assert.deepEqual(readPrivateRepositoryState(core), {
     health: "healthy",
     name: "operator/alpha-renamed",
@@ -318,7 +319,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     ],
   );
   assert.equal(service.read()?.repository_count, 1);
-  assertRemovedVerificationState(service.read());
+  assertRemovedVerificationState(service.read(), availableRepositories);
   assert.deepEqual(readRemovedRepositoryState(core), removedRepositoryState);
   const repositoryInventory = createRepositoryService(core, {
     masterKey: Buffer.alloc(32, 7),

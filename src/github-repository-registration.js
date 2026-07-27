@@ -63,7 +63,8 @@ export function createGitHubRepositorySelector(
     request,
     trigger = "repository_selection",
   ) {
-    const repositoryIds = normalizeGitHubRepositorySelection(request);
+    const { repositoryIds, requestId } =
+      normalizeGitHubRepositorySelection(request);
     if (!["enablement", "repository_selection"].includes(trigger)) {
       throw new TypeError("GitHub Repository verification trigger is invalid");
     }
@@ -72,6 +73,8 @@ export function createGitHubRepositorySelector(
         "GitHub verifier must provide Repository verification",
       );
     }
+    const createAttemptId =
+      requestId === undefined ? createVerificationId : () => requestId;
     const [connection] = durableCore.all(
       `SELECT
          github_connections.id,
@@ -150,7 +153,7 @@ export function createGitHubRepositorySelector(
               ? JSON.parse(connection.capabilities)
               : null,
             completedRepositoryIds: error.completedRepositoryIds,
-            createId: createVerificationId,
+            createId: createAttemptId,
             error: {
               code: error.code,
               message: error.message,
@@ -168,7 +171,7 @@ export function createGitHubRepositorySelector(
                   login: connection.principal_login,
                 }
               : null,
-            profile: connection.api_profile,
+            profile: completedEnumeration ? connection.api_profile : null,
             timestamp,
             trigger: /** @type {"enablement" | "repository_selection"} */ (
               trigger
@@ -242,7 +245,7 @@ export function createGitHubRepositorySelector(
     const verifiedAt = recordGitHubConnectionVerification(durableCore, {
       affectedRepositoryIds,
       capabilities: verification.capabilities,
-      createId: createVerificationId,
+      createId: createAttemptId,
       evidence: repositoryEvidence,
       id: connection.id,
       permissions: verification.permissions,
@@ -281,7 +284,7 @@ export function createGitHubRepositorySelector(
       if (!currentRepositoryIds.has(forgeRepositoryId)) {
         recordGitHubConnectionVerification(durableCore, {
           affectedRepositoryIds: [forgeRepositoryId],
-          capabilities: null,
+          capabilities: verification.capabilities,
           createId: createVerificationId,
           error: {
             code: "github_repository_selection_unavailable",
@@ -290,10 +293,10 @@ export function createGitHubRepositorySelector(
             repositoryId: forgeRepositoryId,
             scope: "repository",
           },
-          evidence: [],
+          evidence: repositoryEvidence,
           id: connection.id,
-          permissions: null,
-          principal: null,
+          permissions: verification.permissions,
+          principal: verification.principal,
           profile: connection.api_profile,
           timestamp,
           trigger: /** @type {"enablement" | "repository_selection"} */ (

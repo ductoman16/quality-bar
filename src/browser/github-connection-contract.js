@@ -179,7 +179,9 @@ function validGitHubVerification(verification) {
     "affected_repository_ids" in verification &&
     Array.isArray(verification.affected_repository_ids) &&
     verification.affected_repository_ids.length > 0 &&
-    verification.affected_repository_ids.every(Number.isSafeInteger) &&
+    verification.affected_repository_ids.every(
+      (id) => Number.isSafeInteger(id) && id > 0,
+    ) &&
     "api_profile" in verification &&
     (verification.api_profile === null ||
       typeof verification.api_profile === "string") &&
@@ -208,6 +210,7 @@ function validGitHubRepositoryEvidence(repository) {
     typeof repository === "object" &&
     "id" in repository &&
     Number.isSafeInteger(repository.id) &&
+    /** @type {number} */ (repository.id) > 0 &&
     "full_name" in repository &&
     typeof repository.full_name === "string" &&
     "private" in repository &&
@@ -222,6 +225,7 @@ function validGitHubRepositoryCheck(check) {
     typeof check === "object" &&
     "repository_id" in check &&
     Number.isSafeInteger(check.repository_id) &&
+    /** @type {number} */ (check.repository_id) > 0 &&
     "outcome" in check &&
     ["success", "error", "not_completed"].includes(
       /** @type {string} */ (check.outcome),

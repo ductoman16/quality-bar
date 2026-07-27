@@ -40,27 +40,51 @@ const removedVerificationState = {
     repository_id: 202,
   },
   outcome: "error",
-  repositories: [],
   repository_checks: [{ outcome: "error", repository_id: 202 }],
   trigger: "repository_selection",
   verified_at: 3_000,
 };
 
-/** @param {any} connection */
-export function assertRemovedVerificationState(connection) {
+/** @param {any} connection @param {any[]} repositories */
+export function assertRemovedVerificationState(connection, repositories) {
   const verification = connection?.verification_history.at(-1);
   assert.deepEqual(
     {
       affected_repository_ids: verification?.affected_repository_ids,
+      capabilities: verification?.capabilities,
       error: verification?.error,
       outcome: verification?.outcome,
+      permissions: verification?.permissions,
+      principal: verification?.principal,
       repositories: verification?.repositories,
       repository_checks: verification?.repository_checks,
       trigger: verification?.trigger,
       verified_at: verification?.verified_at,
     },
-    removedVerificationState,
+    {
+      ...removedVerificationState,
+      capabilities,
+      permissions: {
+        contents: "read",
+        issues: "write",
+        metadata: "read",
+        pull_requests: "write",
+        statuses: "write",
+      },
+      principal: { id: 91, login: "operator", type: "User" },
+      repositories,
+    },
   );
+}
+
+/** @param {any} service */
+export async function assertCorrelatedSelection(service) {
+  const requestId = "00000000-0000-4000-8000-000000000001";
+  await service.selectRepositories({
+    repository_ids: [202],
+    request_id: requestId,
+  });
+  assert.equal(service.read()?.verification_history.at(-1)?.id, requestId);
 }
 
 /** @param {{run(sql: string): unknown}} core */

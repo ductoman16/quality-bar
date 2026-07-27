@@ -8,6 +8,8 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
+const selectionRequestId = "00000000-0000-4000-8000-000000000001";
+
 function connectionService() {
   /** @type {any[]} */
   const calls = [];
@@ -119,7 +121,10 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   assert.equal(read.status, 200);
   assert.equal(await read.json(), null);
   const selection = await request("/api/v1/github-connections/repositories", {
-    body: JSON.stringify({ repository_ids: [101] }),
+    body: JSON.stringify({
+      repository_ids: [101],
+      request_id: selectionRequestId,
+    }),
     headers,
     method: "POST",
   });
@@ -144,7 +149,7 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   ]);
   assert.deepEqual(service.calls.at(-1), [
     "selection",
-    { repository_ids: [101] },
+    { repository_ids: [101], request_id: selectionRequestId },
   ]);
   const unsupportedPat = await request("/api/v1/github-connections/pat", {
     body: "{}",
@@ -261,7 +266,10 @@ test("transient GitHub Repository verification failures retain their exact ownin
     });
     const headers = await authenticatedOperatorHeaders(request);
     const response = await request("/api/v1/github-connections/repositories", {
-      body: JSON.stringify({ repository_ids: [101] }),
+      body: JSON.stringify({
+        repository_ids: [101],
+        request_id: selectionRequestId,
+      }),
       headers,
       method: "POST",
     });

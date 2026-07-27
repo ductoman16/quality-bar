@@ -4,6 +4,7 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
+export const selectionRequestId = "00000000-0000-4000-8000-000000000001";
 
 /** @param {Record<string, any>} [properties] */
 export function element(properties = {}) {
@@ -138,11 +139,13 @@ export function githubElements(form, submit, status, error) {
  * @param {(path: string, options?: any) => Promise<any>} fetch
  * @param {number[]} [registeredForgeRepositoryIds]
  * @param {boolean} [repositoryRefreshResult]
+ * @param {number} [registeredVerificationTime]
  */
 export function browserContext(
   fetch,
   registeredForgeRepositoryIds = [],
   repositoryRefreshResult = true,
+  registeredVerificationTime = 2_000,
 ) {
   const form = element();
   const submit = element();
@@ -155,6 +158,7 @@ export function browserContext(
   return {
     context: {
       URLSearchParams,
+      crypto: { randomUUID: () => selectionRequestId },
       document: { body: { append() {} }, createElement: () => element() },
       fetch,
       history: {
@@ -180,9 +184,12 @@ export function browserContext(
           requiredElement: (id) => github.elements.get(id),
         },
         qualityBarRepositories: {
-          /** @param {number[]} ids */
-          hasForgeRepositoryIds(ids) {
-            return ids.every((id) => registeredForgeRepositoryIds.includes(id));
+          /** @param {number[]} ids @param {number} verifiedAt */
+          hasVerifiedForgeRepositoryIds(ids, verifiedAt) {
+            return (
+              verifiedAt === registeredVerificationTime &&
+              ids.every((id) => registeredForgeRepositoryIds.includes(id))
+            );
           },
           async refresh() {
             repositoryRefreshes += 1;

@@ -101,8 +101,14 @@ export function canonicalGitHubConnectionSchemas() {
           type: "array",
           uniqueItems: true,
         },
+        request_id: {
+          format: "uuid",
+          pattern:
+            "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          type: "string",
+        },
       },
-      ["repository_ids"],
+      ["repository_ids", "request_id"],
     ),
     GitHubConnectionVerification: {
       ...closedObject(

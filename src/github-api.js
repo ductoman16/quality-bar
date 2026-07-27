@@ -297,33 +297,31 @@ export function createGitHubVerifier({
             repository?.html_url,
             "GitHub Repository identity is invalid",
           );
+          const evidence = {
+            api_url: apiUrl,
+            clone_url: cloneUrl,
+            full_name: fullName,
+            html_url: htmlUrl,
+            id: /** @type {number} */ (repository?.id),
+            private: /** @type {boolean} */ (repository?.private),
+          };
           if (
             !repository ||
-            !Number.isSafeInteger(repository.id) ||
-            repositoryIdsSeen.has(repository.id) ||
-            fullName !==
-              `${installationPrincipal.login}/${fullName.split("/")[1] ?? ""}` ||
+            !gitVerification.validGitHubRepositoryEvidence(
+              evidence,
+              installationPrincipal.login,
+            ) ||
+            repositoryIdsSeen.has(evidence.id) ||
             owner.id !== installationPrincipal.id ||
-            owner.login !== installationPrincipal.login ||
-            typeof repository.private !== "boolean" ||
-            cloneUrl !== `https://github.com/${fullName}.git` ||
-            apiUrl !== `https://api.github.com/repos/${fullName}` ||
-            htmlUrl !== `https://github.com/${fullName}`
+            owner.login !== installationPrincipal.login
           ) {
             fail(
               "github_repository_identity_invalid",
               "GitHub Repository identity is invalid or outside the personal account",
             );
           }
-          repositoryIdsSeen.add(/** @type {number} */ (repository.id));
-          repositories.push({
-            api_url: apiUrl,
-            clone_url: cloneUrl,
-            full_name: fullName,
-            html_url: htmlUrl,
-            id: /** @type {number} */ (repository.id),
-            private: /** @type {boolean} */ (repository.private),
-          });
+          repositoryIdsSeen.add(evidence.id);
+          repositories.push(evidence);
         }
         if (repositoryPage.length < 100) {
           if (

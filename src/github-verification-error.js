@@ -5,6 +5,7 @@ export function validGitHubRepositoryEvidence(repository, principalLogin) {
   return (
     repository &&
     Number.isSafeInteger(repository.id) &&
+    repository.id > 0 &&
     typeof repository.full_name === "string" &&
     repository.full_name.split("/")[1]?.length > 0 &&
     repository.full_name ===
