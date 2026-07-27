@@ -249,8 +249,22 @@ if (repositoryCreateForm) {
     event.preventDefault();
     error.hidden = true;
     requiredElement("repository-create-result").textContent = "";
+    const usernameControl = /** @type {HTMLInputElement} */ (
+      requiredElement("repository-username")
+    );
+    const tokenControl = /** @type {HTMLInputElement} */ (
+      requiredElement("repository-token")
+    );
+    const username = usernameControl.value;
+    const token = tokenControl.value;
+    const body = { url: controlValue("repository-url") };
+    if (username || token) {
+      Object.assign(body, { token, username });
+    }
+    usernameControl.value = "";
+    tokenControl.value = "";
     const response = await fetch("/api/v1/repositories", {
-      body: JSON.stringify({ url: controlValue("repository-url") }),
+      body: JSON.stringify(body),
       headers: {
         "content-type": "application/json",
         "x-quality-bar-csrf": csrfToken(),

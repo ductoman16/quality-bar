@@ -111,16 +111,32 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["confirmation", "password"],
       ),
-      PublicRepositoryRegistrationRequest: closedObject(
-        {
-          url: {
-            format: "uri",
-            pattern: "^[hH][tT][tT][pP][sS]://",
-            type: "string",
-          },
-        },
-        ["url"],
-      ),
+      GenericRepositoryRegistrationRequest: {
+        oneOf: [
+          closedObject(
+            {
+              url: {
+                format: "uri",
+                pattern: "^[hH][tT][tT][pP][sS]://",
+                type: "string",
+              },
+            },
+            ["url"],
+          ),
+          closedObject(
+            {
+              token: { minLength: 1, type: "string" },
+              url: {
+                format: "uri",
+                pattern: "^[hH][tT][tT][pP][sS]://",
+                type: "string",
+              },
+              username: { minLength: 1, type: "string" },
+            },
+            ["token", "url", "username"],
+          ),
+        ],
+      },
       Repository: closedObject(
         {
           id: { minLength: 1, type: "string" },

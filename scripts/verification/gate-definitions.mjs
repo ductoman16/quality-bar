@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-and-repository-validation-unit",
+        "browser-authority-request-security-review-version-and-repository-credential-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -231,6 +231,7 @@ export function createGateDefinitions(metadata) {
         "test/review-selection.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
+        "test/repository-credential.test.js",
         "test/repository-validation.test.js",
         "test/verification-harness.test.js",
       ],
@@ -259,13 +260,15 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "git-integration",
-      testGroup: "public-generic-https-repository-read-boundary",
+      testGroup:
+        "public-and-credentialed-generic-https-repository-read-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: ["--test", "test/repository-git-integration.test.js"],
     },
     {
       name: "sqlite-integration",
-      testGroup: "review-version-and-repository-sqlite-resource-boundary",
+      testGroup:
+        "review-version-and-encrypted-repository-credential-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",

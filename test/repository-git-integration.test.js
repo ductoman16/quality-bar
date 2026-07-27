@@ -6,7 +6,10 @@ import { extname, join, normalize, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 
-import { verifyPublicRepositoryRead } from "../src/repository-git.js";
+import {
+  verifyPublicRepositoryRead,
+  verifyRepositoryRead,
+} from "../src/repository-git.js";
 import { RepositoryError } from "../src/repository-validation.js";
 
 /** @param {string} directory @param {string} name @param {boolean} populated */
@@ -48,6 +51,7 @@ test("public Repository verification performs a non-mutating read over real HTTP
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   createBareRepository(directory, "populated", true);
   createBareRepository(directory, "empty", false);
+  createBareRepository(directory, "private", true);
 
   const key = join(directory, "server.key");
   const certificate = join(directory, "server.crt");
@@ -72,6 +76,8 @@ test("public Repository verification performs a non-mutating read over real HTTP
     ],
     { stdio: "ignore" },
   );
+  /** @type {string[]} */
+  const privateAuthorizationHeaders = [];
   const server = createServer(
     {
       cert: readFileSync(certificate),
@@ -81,6 +87,19 @@ test("public Repository verification performs a non-mutating read over real HTTP
       const pathname = decodeURIComponent(
         new URL(request.url ?? "/", "https://127.0.0.1").pathname,
       );
+      if (pathname.startsWith("/private.git/")) {
+        const authorization = request.headers.authorization ?? "";
+        privateAuthorizationHeaders.push(authorization);
+        if (
+          authorization !==
+          `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`
+        ) {
+          response
+            .writeHead(401, { "www-authenticate": 'Basic realm="private"' })
+            .end();
+          return;
+        }
+      }
       const path = normalize(join(directory, pathname));
       if (!path.startsWith(`${resolve(directory)}/`)) {
         response.writeHead(404).end();
@@ -120,6 +139,30 @@ test("public Repository verification performs a non-mutating read over real HTTP
     `https://127.0.0.1:${address.port}/empty.git`,
     { certificateAuthorityPath: certificate },
   );
+  await assert.rejects(
+    () =>
+      verifyPublicRepositoryRead(
+        `https://127.0.0.1:${address.port}/private.git`,
+        { certificateAuthorityPath: certificate },
+      ),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "repository_git_read_failed",
+  );
+  await verifyRepositoryRead(
+    `https://127.0.0.1:${address.port}/private.git`,
+    {
+      token: "private-token-value",
+      username: "operator",
+    },
+    { certificateAuthorityPath: certificate },
+  );
+  assert.deepEqual(privateAuthorizationHeaders, [
+    "",
+    "",
+    `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
+    `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
+  ]);
   await assert.rejects(
     () =>
       verifyPublicRepositoryRead(

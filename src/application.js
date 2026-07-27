@@ -197,12 +197,18 @@ export function createApplication({
         storageBoundary.enter(requireCodedError(error));
       },
     });
-    verifyInstallationKey(durableCore, installation.masterKey);
-    installation.masterKey.fill(0);
+    try {
+      verifyInstallationKey(durableCore, installation.masterKey);
+      repositories = createRepositories(durableCore, {
+        masterKey: installation.masterKey,
+        now,
+      });
+    } finally {
+      installation.masterKey.fill(0);
+    }
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
-    repositories = createRepositories(durableCore, { now });
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {
@@ -226,6 +232,7 @@ export function createApplication({
       "success",
     );
   } catch (error) {
+    repositories?.destroy?.();
     durableCore?.close();
     durableCore = null;
     releaseInstallationLock?.();
@@ -316,6 +323,7 @@ export function createApplication({
           })
         );
       }
+      repositories?.destroy?.();
       durableCore?.close();
       releaseInstallationLock?.();
       releaseInstallationLock = null;

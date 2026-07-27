@@ -14,14 +14,18 @@ export class RepositoryError extends Error {
 /**
  * @param {string} code
  * @param {string} message
+ * @param {unknown} [cause]
  * @returns {never}
  */
-export function fail(code, message) {
-  throw new RepositoryError(code, message);
+export function fail(code, message, cause) {
+  throw new RepositoryError(code, message, { cause });
 }
 
-/** @param {unknown} request */
-export function normalizePublicRepositoryUrl(request) {
+/**
+ * @param {unknown} request
+ * @param {Set<string>} allowedKeys
+ */
+function normalizeRepositoryUrl(request, allowedKeys) {
   if (
     !request ||
     typeof request !== "object" ||
@@ -33,7 +37,9 @@ export function normalizePublicRepositoryUrl(request) {
     fail("repository_url_required", "Repository HTTPS URL is required");
   }
   if (
-    Object.keys(/** @type {object} */ (request)).some((key) => key !== "url")
+    Object.keys(/** @type {object} */ (request)).some(
+      (key) => !allowedKeys.has(key),
+    )
   ) {
     fail(
       "repository_request_invalid",
@@ -75,4 +81,44 @@ export function normalizePublicRepositoryUrl(request) {
     url.pathname = url.pathname.replace(/\/+$/, "");
   }
   return url.href;
+}
+
+/** @param {unknown} request */
+export function normalizePublicRepositoryUrl(request) {
+  return normalizeRepositoryUrl(request, new Set(["url"]));
+}
+
+/** @param {unknown} request */
+export function normalizeRepositoryRegistration(request) {
+  const url = normalizeRepositoryUrl(
+    request,
+    new Set(["token", "url", "username"]),
+  );
+  const registration = /** @type {{token?: unknown, username?: unknown}} */ (
+    request
+  );
+  const hasUsername = Object.hasOwn(registration, "username");
+  const hasToken = Object.hasOwn(registration, "token");
+  if (!hasUsername && !hasToken) {
+    return { url };
+  }
+  if (
+    typeof registration.username !== "string" ||
+    registration.username.length === 0
+  ) {
+    fail("repository_username_required", "Repository username is required");
+  }
+  if (
+    typeof registration.token !== "string" ||
+    registration.token.length === 0
+  ) {
+    fail("repository_token_required", "Repository token is required");
+  }
+  return {
+    credential: {
+      token: registration.token,
+      username: registration.username,
+    },
+    url,
+  };
 }

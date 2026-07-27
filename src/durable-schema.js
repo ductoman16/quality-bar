@@ -1,6 +1,6 @@
 import { DurableCoreError, fail } from "./durable-error.js";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 const REPOSITORY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS repositories (
@@ -8,6 +8,14 @@ const REPOSITORY_SCHEMA = `
     normalized_url TEXT NOT NULL UNIQUE,
     created_at INTEGER NOT NULL,
     verified_at INTEGER NOT NULL
+  ) STRICT;
+`;
+
+const REPOSITORY_CREDENTIAL_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS repository_credentials (
+    repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
+    encrypted_credential TEXT NOT NULL,
+    created_at INTEGER NOT NULL
   ) STRICT;
 `;
 
@@ -135,6 +143,7 @@ export function initializeOrValidateSchema(database) {
         ON authority_attributions (occurred_at DESC, id DESC);
       ${REVIEW_SCHEMA}
       ${REPOSITORY_SCHEMA}
+      ${REPOSITORY_CREDENTIAL_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -162,6 +171,7 @@ export function initializeOrValidateSchema(database) {
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
+        ${REPOSITORY_CREDENTIAL_SCHEMA}
       `,
     );
   } else if (version === 2 || version === 3) {
@@ -187,6 +197,7 @@ export function initializeOrValidateSchema(database) {
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
+        ${REPOSITORY_CREDENTIAL_SCHEMA}
       `,
     );
   } else if (version === 4) {
@@ -205,10 +216,14 @@ export function initializeOrValidateSchema(database) {
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
+        ${REPOSITORY_CREDENTIAL_SCHEMA}
       `,
     );
   } else if (version === 5) {
-    migration(database, `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}`);
+    migration(
+      database,
+      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}`,
+    );
   } else if (version === 6) {
     migration(
       database,
@@ -260,16 +275,20 @@ export function initializeOrValidateSchema(database) {
           BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
         ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
         ${REPOSITORY_SCHEMA}
+        ${REPOSITORY_CREDENTIAL_SCHEMA}
       `,
     );
   } else if (version === 7) {
     migration(
       database,
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
-       ${REPOSITORY_SCHEMA}`,
+       ${REPOSITORY_SCHEMA}
+       ${REPOSITORY_CREDENTIAL_SCHEMA}`,
     );
   } else if (version === 8) {
-    migration(database, REPOSITORY_SCHEMA);
+    migration(database, `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}`);
+  } else if (version === 9) {
+    migration(database, REPOSITORY_CREDENTIAL_SCHEMA);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

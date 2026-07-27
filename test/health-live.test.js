@@ -57,7 +57,8 @@ before(async () => {
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {
-      async registerPublic() {
+      destroy() {},
+      async register() {
         throw new Error("unused Repository service operation");
       },
     },
