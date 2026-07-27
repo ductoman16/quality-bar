@@ -1,3 +1,4 @@
+import { forbidMachineSystemAccess } from "./api-authorization.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   assertAllowedQueryParameters,
@@ -9,33 +10,6 @@ import {
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
-
-/**
- * @typedef {{
- *   action: string,
- *   channel: string,
- *   errorCode?: string,
- *   outcome: string
- * }} AttributionEvent
- */
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
- */
-function forbidMachineSystemAccess(response, recordAuthorityAttribution) {
-  recordAuthorityAttribution({
-    action: "authorization",
-    channel: "implementer_token",
-    errorCode: "authorization_forbidden",
-    outcome: "forbidden",
-  });
-  writeError(
-    response,
-    403,
-    "authorization_forbidden",
-    "Machine access is forbidden",
-  );
-}
 
 /**
  * @param {import("node:http").IncomingMessage} request
@@ -110,7 +84,7 @@ async function reviewMutation(
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
  *   readSystemStatus: () => unknown,
- *   recordAuthorityAttribution: (event: AttributionEvent) => void,
+ *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} dependencies
@@ -148,6 +122,9 @@ export function createApiRoute({
     const reviewVersionsMatch = path.match(
       /^\/api\/v1\/reviews\/([^/]+)\/versions$/,
     );
+    const repositoryCredentialRotationMatch = path.match(
+      /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
+    );
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
@@ -155,7 +132,8 @@ export function createApiRoute({
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch) ||
-        (method === "POST" && path === "/api/v1/repositories"))
+        (method === "POST" && path === "/api/v1/repositories") ||
+        (method === "POST" && repositoryCredentialRotationMatch))
     ) {
       forbidMachineSystemAccess(response, recordAuthorityAttribution);
       return true;
@@ -311,6 +289,32 @@ export function createApiRoute({
                 code === "repository_git_verification_unavailable"
               ? 503
               : 422,
+      });
+      return true;
+    }
+    if (method === "POST" && repositoryCredentialRotationMatch) {
+      await reviewMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "repository_credential_rotation_failed",
+        mutate: (body) =>
+          repositories.rotateCredential(
+            decodeURIComponent(repositoryCredentialRotationMatch[1]),
+            body,
+          ),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "repository_not_found"
+            ? 404
+            : [
+                  "repository_credential_not_found",
+                  "repository_credential_rotation_conflict",
+                ].includes(code)
+              ? 409
+              : isUnavailableError(error) ||
+                  code === "repository_git_verification_unavailable"
+                ? 503
+                : 422,
       });
       return true;
     }

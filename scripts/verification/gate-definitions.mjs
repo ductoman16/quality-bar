@@ -279,6 +279,7 @@ export function createGateDefinitions(metadata) {
         "test/review-version-change-detection.test.js",
         "test/review-version-reactivation-sqlite-integration.test.js",
         "test/review.test.js",
+        "test/repository-credential-rotation-sqlite-integration.test.js",
         "test/repository-sqlite-integration.test.js",
       ],
     },

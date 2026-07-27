@@ -144,6 +144,13 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
       { confirmation: "REVOKE ALL SESSIONS", password },
     ],
     ["/api/v1/repositories", { url: "https://example.com/repository.git" }],
+    [
+      "/api/v1/repositories/repository-1/credential/rotate",
+      {
+        token: "replacement-private-token",
+        username: "replacement-operator",
+      },
+    ],
   ]) {
     const response = await fetch(`${origin}${path}`, {
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -248,6 +255,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     repositories: {
       destroy() {},
       async register() {
+        throw new Error("unused Repository service operation");
+      },
+      async rotateCredential() {
         throw new Error("unused Repository service operation");
       },
     },

@@ -275,10 +275,56 @@ if (repositoryCreateForm) {
       await displayMutationFailure(response);
       return;
     }
-    const repository = /** @type {{url: string}} */ (await response.json());
+    const repository = /** @type {{id: string, url: string}} */ (
+      await response.json()
+    );
     requiredElement("repository-create-result").textContent =
-      repository.url + " registered.";
+      `${repository.url} registered as ${repository.id}.`;
     /** @type {HTMLFormElement} */ (repositoryCreateForm).reset();
+  });
+}
+const repositoryCredentialRotateForm = document.getElementById(
+  "repository-credential-rotate-form",
+);
+if (repositoryCredentialRotateForm) {
+  repositoryCredentialRotateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    const result = requiredElement("repository-credential-rotate-result");
+    result.textContent = "";
+    const repositoryId = controlValue(
+      "repository-credential-rotate-repository",
+    );
+    const usernameControl = /** @type {HTMLInputElement} */ (
+      requiredElement("repository-credential-rotate-username")
+    );
+    const tokenControl = /** @type {HTMLInputElement} */ (
+      requiredElement("repository-credential-rotate-token")
+    );
+    const body = {
+      token: tokenControl.value,
+      username: usernameControl.value,
+    };
+    usernameControl.value = "";
+    tokenControl.value = "";
+    const response = await fetch(
+      `/api/v1/repositories/${encodeURIComponent(repositoryId)}/credential/rotate`,
+      {
+        body: JSON.stringify(body),
+        headers: {
+          "content-type": "application/json",
+          "x-quality-bar-csrf": csrfToken(),
+        },
+        method: "POST",
+      },
+    );
+    if (!response.ok) {
+      await displayMutationFailure(response);
+      return;
+    }
+    const repository = /** @type {{url: string}} */ (await response.json());
+    result.textContent = repository.url + " credential rotated.";
+    /** @type {HTMLFormElement} */ (repositoryCredentialRotateForm).reset();
   });
 }
 const systemFacts = document.getElementById("system-facts");

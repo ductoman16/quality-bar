@@ -88,6 +88,20 @@ export function normalizePublicRepositoryUrl(request) {
   return normalizeRepositoryUrl(request, new Set(["url"]));
 }
 
+/** @param {{token?: unknown, username?: unknown}} request */
+function normalizeCredential(request) {
+  if (typeof request.username !== "string" || request.username.length === 0) {
+    fail("repository_username_required", "Repository username is required");
+  }
+  if (typeof request.token !== "string" || request.token.length === 0) {
+    fail("repository_token_required", "Repository token is required");
+  }
+  return {
+    token: request.token,
+    username: request.username,
+  };
+}
+
 /** @param {unknown} request */
 export function normalizeRepositoryRegistration(request) {
   const url = normalizeRepositoryUrl(
@@ -97,28 +111,29 @@ export function normalizeRepositoryRegistration(request) {
   const registration = /** @type {{token?: unknown, username?: unknown}} */ (
     request
   );
-  const hasUsername = Object.hasOwn(registration, "username");
-  const hasToken = Object.hasOwn(registration, "token");
-  if (!hasUsername && !hasToken) {
+  if (
+    !Object.hasOwn(registration, "username") &&
+    !Object.hasOwn(registration, "token")
+  ) {
     return { url };
   }
+  return { credential: normalizeCredential(registration), url };
+}
+
+/** @param {unknown} request */
+export function normalizeRepositoryCredentialRotation(request) {
   if (
-    typeof registration.username !== "string" ||
-    registration.username.length === 0
+    !request ||
+    typeof request !== "object" ||
+    Array.isArray(request) ||
+    Object.keys(request).some((key) => !new Set(["token", "username"]).has(key))
   ) {
-    fail("repository_username_required", "Repository username is required");
+    fail(
+      "repository_request_invalid",
+      "Repository credential rotation request is invalid",
+    );
   }
-  if (
-    typeof registration.token !== "string" ||
-    registration.token.length === 0
-  ) {
-    fail("repository_token_required", "Repository token is required");
-  }
-  return {
-    credential: {
-      token: registration.token,
-      username: registration.username,
-    },
-    url,
-  };
+  return normalizeCredential(
+    /** @type {{token?: unknown, username?: unknown}} */ (request),
+  );
 }

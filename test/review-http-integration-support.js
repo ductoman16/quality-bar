@@ -26,7 +26,12 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
-/** @param {{createReviews?: Parameters<typeof createApplication>[0]["createReviews"]}} [options] */
+/**
+ * @param {{
+ *   createRepositories?: Parameters<typeof createApplication>[0]["createRepositories"],
+ *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"]
+ * }} [options]
+ */
 export async function startApplication(options = {}) {
   const application = createApplication({
     databasePath: temporaryDatabasePath(),
@@ -39,6 +44,7 @@ export async function startApplication(options = {}) {
     validateSources() {},
     validateTools() {},
     validateCodexAuthentication() {},
+    createRepositories: options.createRepositories,
     createReviews: options.createReviews,
     writeLog() {},
   });

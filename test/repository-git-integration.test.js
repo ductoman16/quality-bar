@@ -78,6 +78,7 @@ test("public Repository verification performs a non-mutating read over real HTTP
   );
   /** @type {string[]} */
   const privateAuthorizationHeaders = [];
+  let acceptedPrivateCredential = "operator:private-token-value";
   const server = createServer(
     {
       cert: readFileSync(certificate),
@@ -92,7 +93,7 @@ test("public Repository verification performs a non-mutating read over real HTTP
         privateAuthorizationHeaders.push(authorization);
         if (
           authorization !==
-          `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`
+          `Basic ${Buffer.from(acceptedPrivateCredential).toString("base64")}`
         ) {
           response
             .writeHead(401, { "www-authenticate": 'Basic realm="private"' })
@@ -157,11 +158,23 @@ test("public Repository verification performs a non-mutating read over real HTTP
     },
     { certificateAuthorityPath: certificate },
   );
+  acceptedPrivateCredential = "replacement-operator:replacement-private-token";
+  await verifyRepositoryRead(
+    `https://127.0.0.1:${address.port}/private.git`,
+    {
+      token: "replacement-private-token",
+      username: "replacement-operator",
+    },
+    { certificateAuthorityPath: certificate },
+  );
   assert.deepEqual(privateAuthorizationHeaders, [
     "",
     "",
     `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
     `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
+    "",
+    `Basic ${Buffer.from("replacement-operator:replacement-private-token").toString("base64")}`,
+    `Basic ${Buffer.from("replacement-operator:replacement-private-token").toString("base64")}`,
   ]);
   let rejectedCredentialDirectory = "";
   await assert.rejects(

@@ -124,7 +124,10 @@ export function createApplicationServer({
   ) {
     throw new TypeError("reviews must provide the Review resource");
   }
-  if (typeof repositories?.register !== "function") {
+  if (
+    typeof repositories?.register !== "function" ||
+    typeof repositories.rotateCredential !== "function"
+  ) {
     throw new TypeError("repositories must provide the Repository resource");
   }
 

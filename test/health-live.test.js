@@ -61,6 +61,9 @@ before(async () => {
       async register() {
         throw new Error("unused Repository service operation");
       },
+      async rotateCredential() {
+        throw new Error("unused Repository service operation");
+      },
     },
     reviews: {
       ...createUnavailableReviewService(

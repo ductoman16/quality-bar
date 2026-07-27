@@ -35,5 +35,48 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/repositories/{repository_id}/credential/rotate": {
+      post: {
+        operationId: "rotateGenericRepositoryCredential",
+        parameters: [
+          {
+            in: "path",
+            name: "repository_id",
+            required: true,
+            schema: { minLength: 1, type: "string" },
+          },
+          ...mutationParameters,
+        ],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GenericRepositoryCredentialRotationRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Repository" },
+              },
+            },
+            description: "Repository with its verified replacement credential",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
   };
 }

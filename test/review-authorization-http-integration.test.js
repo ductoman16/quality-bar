@@ -4,8 +4,10 @@ import { test } from "node:test";
 import {
   responseErrorCode,
   reviewRequest,
+  sessionCookies,
   startApplication,
 } from "./review-http-integration-support.js";
+import { createRepositoryService } from "../src/repository.js";
 
 test("a sole implementer bearer creates the same Review resource without browser CSRF", async () => {
   const { application, request } = await startApplication();
@@ -45,6 +47,22 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
   assert.equal(forbiddenRepository.status, 403);
   assert.equal(
     await responseErrorCode(forbiddenRepository),
+    "authorization_forbidden",
+  );
+  const forbiddenCredentialRotation = await request(
+    "/api/v1/repositories/repository-1/credential/rotate",
+    {
+      body: JSON.stringify({
+        token: "replacement-private-token",
+        username: "replacement-operator",
+      }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(forbiddenCredentialRotation.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenCredentialRotation),
     "authorization_forbidden",
   );
   const firstResponse = await request("/api/v1/reviews", {
@@ -141,4 +159,75 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
       ?.count,
     1,
   );
+});
+
+test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
+  /** @type {object[]} */
+  const verifications = [];
+  const { request } = await startApplication({
+    createRepositories(core, options) {
+      return createRepositoryService(core, {
+        ...options,
+        createId: () => "repository/private",
+        async verifyRead(url, credential) {
+          verifications.push({ credential, url });
+        },
+      });
+    },
+  });
+  const login = await request("/api/v1/session/login", {
+    body: JSON.stringify({ password: "a correct operator password" }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const { csrf, session } = sessionCookies(login);
+  const headers = {
+    "content-type": "application/json",
+    cookie: `${session}; quality_bar_csrf=${csrf}`,
+    origin: "http://127.0.0.1:3000",
+    "x-quality-bar-csrf": csrf,
+  };
+  const registered = await request("/api/v1/repositories", {
+    body: JSON.stringify({
+      token: "original-private-token",
+      url: "https://example.com/private.git",
+      username: "original-operator",
+    }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(registered.status, 200);
+
+  const rotated = await request(
+    "/api/v1/repositories/repository%2Fprivate/credential/rotate",
+    {
+      body: JSON.stringify({
+        token: "replacement-private-token",
+        username: "replacement-operator",
+      }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(rotated.status, 200);
+  assert.deepEqual(await rotated.json(), {
+    id: "repository/private",
+    url: "https://example.com/private.git",
+  });
+  assert.deepEqual(verifications, [
+    {
+      credential: {
+        token: "original-private-token",
+        username: "original-operator",
+      },
+      url: "https://example.com/private.git",
+    },
+    {
+      credential: {
+        token: "replacement-private-token",
+        username: "replacement-operator",
+      },
+      url: "https://example.com/private.git",
+    },
+  ]);
 });
