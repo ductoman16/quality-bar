@@ -1,20 +1,18 @@
-import { spawnSync } from "node:child_process";
-
 import { commandFailure } from "./failure-reporting.mjs";
+import { runCommand } from "./command-executor.mjs";
 
 /** @typedef {import("./manifest-reporting.mjs").VerificationGate} GateEvidence */
 
 /**
  * @param {string} repositoryRoot
  * @param {import("./gate-definitions.mjs").GateDefinition} definition
+ * @param {{ commandExecutor?: import("./command-executor.mjs").CommandExecutor }} [options]
  */
-export function runGate(repositoryRoot, definition) {
+export function runGate(repositoryRoot, definition, options = {}) {
+  const { commandExecutor = runCommand } = options;
   const gateStartedAt = performance.now();
   const command = definition.command ?? process.execPath;
-  const result = spawnSync(command, definition.arguments, {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  });
+  const result = commandExecutor(command, definition.arguments, repositoryRoot);
   const durationMs = Math.round(performance.now() - gateStartedAt);
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
   const testCountMatch = output.match(/^(?:#|ℹ) tests (\d+)$/m);
