@@ -64,6 +64,9 @@ test("the Repository component displays lifecycle separately from health and sur
       }
       if (path === "/api/v1/repositories" && !options) {
         listAttempt += 1;
+        if (listAttempt === 3) {
+          throw new Error("Repository listing unavailable");
+        }
         return {
           ok: true,
           async json() {
@@ -225,9 +228,11 @@ test("the Repository component displays lifecycle separately from health and sur
   lifecycleRepository.value = "repository-disabled";
   lifecycleState.value = "enabled";
   await lifecycleForm.listener("submit")({ preventDefault() {} });
-  assert.equal(error.textContent, "Repository lifecycle change failed");
+  assert.equal(error.textContent, "Repository listing failed");
   assert.equal(error.hidden, false);
   assert.equal(lifecycleResult.textContent, "");
   assert.equal(listAttempt, 3);
-  assert.equal(lifecycleSubmit.disabled, false);
+  assert.equal(inventory.options.length, 0);
+  assert.equal(lifecycleRepository.options.length, 0);
+  assert.equal(lifecycleSubmit.disabled, true);
 });

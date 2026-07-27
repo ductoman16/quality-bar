@@ -293,6 +293,8 @@ export function createGateDefinitions(metadata) {
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
+        "test/repository-http-integration.test.js",
+        "test/repository-lifecycle-http-integration.test.js",
         "test/review-authorization-http-integration.test.js",
         "test/review-archival-http-integration.test.js",
         "test/review-applicability-rule-http-integration.test.js",

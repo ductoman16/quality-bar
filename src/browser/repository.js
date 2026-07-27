@@ -154,22 +154,7 @@ function addRepositoryOption(repository) {
   ).disabled = false;
 }
 
-async function loadRepositoryOptions() {
-  let response;
-  try {
-    response = await fetch("/api/v1/repositories");
-  } catch {
-    repositoryError.textContent = "Repository listing failed";
-    repositoryError.hidden = false;
-    return false;
-  }
-  if (!response.ok) {
-    await displayRepositoryMutationFailure(response);
-    return false;
-  }
-  const body = /** @type {{repositories: RepositoryResource[]}} */ (
-    await response.json()
-  );
+function clearRepositoryOptions() {
   requiredRepositoryElement("repository-inventory").replaceChildren();
   repositoryRows.clear();
   repositoryResources.clear();
@@ -189,6 +174,25 @@ async function loadRepositoryOptions() {
   /** @type {HTMLButtonElement} */ (
     requiredRepositoryElement("repository-credential-rotate-submit")
   ).disabled = true;
+}
+
+async function loadRepositoryOptions() {
+  clearRepositoryOptions();
+  let response;
+  try {
+    response = await fetch("/api/v1/repositories");
+  } catch {
+    repositoryError.textContent = "Repository listing failed";
+    repositoryError.hidden = false;
+    return false;
+  }
+  if (!response.ok) {
+    await displayRepositoryMutationFailure(response);
+    return false;
+  }
+  const body = /** @type {{repositories: RepositoryResource[]}} */ (
+    await response.json()
+  );
   for (const repository of body.repositories) {
     renderRepository(repository);
     addLifecycleOption(repository);

@@ -90,6 +90,16 @@ test("coverage executes the deterministic application proof pyramid without smok
     ),
   );
   assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/repository-lifecycle-http-integration.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/repository-http-integration.test.js",
+    ),
+  );
+  assert.ok(
     !APPLICATION_COVERAGE_TEST_PATHS.some(
       (path) => path.includes("smoke") || path.includes("package"),
     ),
