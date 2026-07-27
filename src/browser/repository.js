@@ -18,6 +18,7 @@ const {
  * @param {(repository: RepositoryResource) => Promise<string> | string} successMessage
  * @param {string} networkFailureMessage
  * @param {"PATCH" | "POST"} [method]
+ * @returns {Promise<"network_failure" | "response_failure" | "success">}
  */
 async function submitRepositoryMutation(
   form,
@@ -43,15 +44,16 @@ async function submitRepositoryMutation(
   } catch {
     repositoryError.textContent = networkFailureMessage;
     repositoryError.hidden = false;
-    return;
+    return "network_failure";
   }
   if (!response.ok) {
     await displayRepositoryMutationFailure(response);
-    return;
+    return "response_failure";
   }
   const repository = /** @type {RepositoryResource} */ (await response.json());
   result.textContent = await successMessage(repository);
   form.reset();
+  return "success";
 }
 
 /**
@@ -67,28 +69,46 @@ async function submitRepositoryMutation(
 
 /** @type {Map<string, HTMLElement>} */
 const repositoryRows = new Map();
+/** @type {Map<string, RepositoryResource>} */
+const repositoryResources = new Map();
 
 /** @param {RepositoryResource} repository */
 function renderRepository(repository) {
-  let observedHealth = "healthy";
-  if (repository.health === "error") {
+  let observedHealth;
+  if (repository.health === "healthy") {
+    observedHealth = "healthy";
+  } else if (repository.health === "error") {
     const healthError = repository.health_error;
     if (!healthError) {
       throw new Error("repository_health_error_missing");
     }
     observedHealth = `error: ${healthError.message}`;
+  } else {
+    throw new Error("repository_health_invalid");
   }
+  if (!["enabled", "disabled", "retired"].includes(repository.lifecycle)) {
+    throw new Error("repository_lifecycle_invalid");
+  }
+  repositoryResources.set(repository.id, repository);
   let row = repositoryRows.get(repository.id);
   if (!row) {
     row = document.createElement("tr");
     repositoryRows.set(repository.id, row);
     requiredRepositoryElement("repository-inventory").append(row);
   }
-  row.textContent = `${repository.url} — ${repository.lifecycle} — ${observedHealth}`;
+  row.replaceChildren();
+  for (const value of [repository.url, repository.lifecycle, observedHealth]) {
+    const cell = document.createElement("td");
+    cell.textContent = value;
+    row.append(cell);
+  }
 }
 
 /** @param {RepositoryResource} repository */
 function addLifecycleOption(repository) {
+  if (repository.lifecycle === "retired") {
+    return;
+  }
   const select = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-repository")
   );
@@ -148,12 +168,23 @@ async function loadRepositoryOptions() {
   );
   requiredRepositoryElement("repository-inventory").replaceChildren();
   repositoryRows.clear();
-  /** @type {HTMLSelectElement} */ (
+  repositoryResources.clear();
+  const lifecycleSelect = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-repository")
-  ).replaceChildren();
-  /** @type {HTMLSelectElement} */ (
+  );
+  lifecycleSelect.replaceChildren();
+  lifecycleSelect.disabled = true;
+  /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-lifecycle-submit")
+  ).disabled = true;
+  const credentialSelect = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-credential-rotate-repository")
-  ).replaceChildren();
+  );
+  credentialSelect.replaceChildren();
+  credentialSelect.disabled = true;
+  /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-credential-rotate-submit")
+  ).disabled = true;
   for (const repository of body.repositories) {
     renderRepository(repository);
     addLifecycleOption(repository);
@@ -217,7 +248,25 @@ repositoryLifecycleForm.addEventListener("submit", async (event) => {
   const lifecycle = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-state")
   ).value;
-  await submitRepositoryMutation(
+  if (!["enabled", "disabled"].includes(lifecycle)) {
+    throw new Error("repository_lifecycle_invalid");
+  }
+  const repository = repositoryResources.get(repositoryId);
+  if (!repository) {
+    throw new Error("repository_lifecycle_target_missing");
+  }
+  const consequence =
+    lifecycle === "disabled"
+      ? "New work will be rejected; already-created work may finish."
+      : "Complete current verification must succeed before new work is accepted.";
+  if (
+    !window.confirm(
+      `${lifecycle === "disabled" ? "Disable" : "Enable"} ${repository.url}? ${consequence}`,
+    )
+  ) {
+    return;
+  }
+  const outcome = await submitRepositoryMutation(
     repositoryLifecycleForm,
     requiredRepositoryElement("repository-lifecycle-result"),
     `/api/v1/repositories/${encodeURIComponent(repositoryId)}/lifecycle`,
@@ -229,6 +278,9 @@ repositoryLifecycleForm.addEventListener("submit", async (event) => {
     "Repository lifecycle change failed",
     "PATCH",
   );
+  if (outcome === "response_failure") {
+    await loadRepositoryOptions();
+  }
 });
 
 const repositoryCredentialRotateForm = /** @type {HTMLFormElement} */ (

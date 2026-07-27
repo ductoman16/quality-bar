@@ -246,7 +246,12 @@ export function createRepositoryService(
           );
         }
         transaction.run(
-          "UPDATE repositories SET verified_at = ? WHERE id = ?",
+          `UPDATE repositories
+           SET verified_at = ?,
+               health = 'healthy',
+               health_error_code = NULL,
+               health_error_message = NULL
+           WHERE id = ?`,
           timestamp,
           id,
         );
