@@ -15,6 +15,7 @@
     "src/browser/login.js",
     "src/browser/operator.js",
     "src/browser/repository.js",
+    "src/browser/repository-guidance.js",
     "src/browser/review-metadata.js",
     "src/browser/review-create.js",
     "src/browser/review-criteria.js",

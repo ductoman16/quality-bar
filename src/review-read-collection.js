@@ -12,9 +12,15 @@ import { readReview } from "./review-read.js";
  * @param {ReviewTransaction} transaction
  * @param {string} query
  * @param {string} invalidCode
+ * @param {...import("node:sqlite").SQLInputValue} parameters
  */
-export function readReviewCollection(transaction, query, invalidCode) {
-  return transaction.all(query).map((row) => {
+export function readReviewCollection(
+  transaction,
+  query,
+  invalidCode,
+  ...parameters
+) {
+  return transaction.all(query, ...parameters).map((row) => {
     if (!row || typeof row.id !== "string") {
       throw new Error(invalidCode);
     }

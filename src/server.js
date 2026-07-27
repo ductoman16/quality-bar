@@ -72,6 +72,7 @@ const TOKEN_METHODS = [
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
  *   readSystemStatus: () => unknown,
@@ -92,6 +93,7 @@ export function createApplicationServer({
   browserOrigin,
   requestSecurity,
   repositories,
+  repositoryGuidance,
   reviews,
   readDurableCoreStatus,
   readSystemStatus,
@@ -134,6 +136,11 @@ export function createApplicationServer({
   ) {
     throw new TypeError("repositories must provide the Repository resource");
   }
+  if (typeof repositoryGuidance?.read !== "function") {
+    throw new TypeError(
+      "repositoryGuidance must provide the Repository Guidance resource",
+    );
+  }
 
   const handleBrowserAsset = createBrowserAssetRoute({
     browserAssetReader,
@@ -158,6 +165,7 @@ export function createApplicationServer({
     readSystemStatus,
     recordAuthorityAttribution,
     repositories,
+    repositoryGuidance,
     reviews,
   });
 

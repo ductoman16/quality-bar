@@ -108,6 +108,50 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/repositories/{repository_id}/guidance": {
+      get: {
+        operationId: "getRepositoryGuidance",
+        parameters: [
+          {
+            in: "path",
+            name: "repository_id",
+            required: true,
+            schema: { minLength: 1, type: "string" },
+          },
+          {
+            in: "header",
+            name: "If-None-Match",
+            required: false,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/RepositoryGuidance",
+                },
+              },
+            },
+            description: "Complete current Repository Guidance",
+            headers: {
+              ETag: {
+                schema: { type: "string" },
+              },
+            },
+          },
+          304: { description: "Repository Guidance is unchanged" },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/repositories/{repository_id}/lifecycle": {
       patch: {
         operationId: "setRepositoryLifecycle",

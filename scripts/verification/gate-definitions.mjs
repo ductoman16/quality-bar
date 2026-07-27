@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-and-repository-lifecycle-unit",
+        "browser-authority-request-security-review-version-repository-guidance-and-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -229,6 +229,7 @@ export function createGateDefinitions(metadata) {
         "test/applicability-rule.test.js",
         "test/review-archival.test.js",
         "test/review-selection.test.js",
+        "test/repository-guidance.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",
@@ -241,7 +242,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-review-assignment-version-and-repository-lifecycle-browser-boundary",
+        "browser-authority-request-security-review-assignment-version-repository-guidance-and-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -252,6 +253,7 @@ export function createGateDefinitions(metadata) {
         "test/review-archival-browser-component.test.js",
         "test/review-applicability-rule-browser-component.test.js",
         "test/review-assignment-browser-component.test.js",
+        "test/repository-guidance-browser-component.test.js",
         "test/review-version-reactivation-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/repository-browser-component.test.js",
@@ -265,14 +267,14 @@ export function createGateDefinitions(metadata) {
     {
       name: "git-integration",
       testGroup:
-        "generic-https-repository-read-assignment-and-lifecycle-verification-boundary",
+        "generic-https-repository-read-guidance-assignment-and-lifecycle-verification-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: ["--test", "test/repository-git-integration.test.js"],
     },
     {
       name: "sqlite-integration",
       testGroup:
-        "review-assignment-version-credential-and-repository-lifecycle-sqlite-resource-boundary",
+        "review-assignment-version-guidance-credential-and-repository-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -280,6 +282,7 @@ export function createGateDefinitions(metadata) {
         "test/review-archival-sqlite-integration.test.js",
         "test/review-applicability-rule-sqlite-integration.test.js",
         "test/review-assignment-sqlite-integration.test.js",
+        "test/repository-guidance-sqlite-integration.test.js",
         "test/review-schema-migration.test.js",
         "test/review-version-change-detection.test.js",
         "test/review-version-reactivation-sqlite-integration.test.js",
@@ -291,11 +294,12 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-and-repository-lifecycle-http-resource-boundary",
+        "review-assignment-version-guidance-and-repository-lifecycle-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
         "test/repository-http-integration.test.js",
+        "test/repository-guidance-http-integration.test.js",
         "test/repository-lifecycle-http-integration.test.js",
         "test/review-authorization-http-integration.test.js",
         "test/review-archival-http-integration.test.js",

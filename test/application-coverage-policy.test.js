@@ -24,6 +24,7 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/login.js",
       "src/browser/operator.js",
       "src/browser/repository.js",
+      "src/browser/repository-guidance.js",
       "src/browser/review-metadata.js",
       "src/browser/review-create.js",
       "src/browser/review-criteria.js",
@@ -76,10 +77,13 @@ test("coverage executes the deterministic application proof pyramid without smok
     "test/applicability-rule.test.js",
     "test/review-applicability-rule-browser-component.test.js",
     "test/review-assignment-browser-component.test.js",
+    "test/repository-guidance-browser-component.test.js",
     "test/review-applicability-rule-sqlite-integration.test.js",
     "test/review-assignment-sqlite-integration.test.js",
+    "test/repository-guidance-sqlite-integration.test.js",
     "test/review-applicability-rule-http-integration.test.js",
     "test/review-assignment-http-integration.test.js",
+    "test/repository-guidance-http-integration.test.js",
     "test/review-archival.test.js",
     "test/review-selection.test.js",
     "test/review-archival-browser-component.test.js",
@@ -88,6 +92,11 @@ test("coverage executes the deterministic application proof pyramid without smok
   ]) {
     assert.ok(APPLICATION_COVERAGE_TEST_PATHS.includes(path));
   }
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/repository-guidance.test.js",
+    ),
+  );
   assert.ok(
     APPLICATION_COVERAGE_TEST_PATHS.includes(
       "test/review-http-integration.test.js",

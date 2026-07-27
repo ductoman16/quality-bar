@@ -270,6 +270,11 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
         throw new Error("unused Repository service operation");
       },
     },
+    repositoryGuidance: {
+      read() {
+        throw new Error("unused Repository Guidance service operation");
+      },
+    },
     reviews: {
       ...createUnavailableReviewService(
         new Error("unused Review service operation"),

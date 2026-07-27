@@ -1,15 +1,13 @@
 {
   "ticket": 161,
-  "focused_commands": [
-    "npm run typecheck:node",
-    "npm run typecheck:browser"
-  ],
+  "focused_commands": ["npm run typecheck:node", "npm run typecheck:browser"],
   "typescript_version": "7.0.2",
   "node_types_version": "24.13.3",
   "served_browser_modules": [
     "login.js",
     "operator.js",
     "repository.js",
+    "repository-guidance.js",
     "review-metadata.js",
     "review-create.js",
     "review-criteria.js",
