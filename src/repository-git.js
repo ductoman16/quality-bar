@@ -10,7 +10,7 @@ function unavailable(cause) {
   return new RepositoryError(
     "repository_git_verification_unavailable",
     "Repository Git read verification could not run",
-    { cause },
+    cause === undefined ? undefined : { cause },
   );
 }
 
@@ -39,6 +39,19 @@ export function verifyRepositoryRead(
   } catch (cause) {
     return Promise.reject(unavailable(cause));
   }
+  /**
+   * @param {unknown} cause
+   * @param {boolean} preserveCause
+   */
+  function cleanupUnavailable(cause, preserveCause) {
+    let failure = preserveCause ? cause : undefined;
+    try {
+      removeDirectory(verificationDirectory);
+    } catch (cleanupCause) {
+      failure = cleanupCause;
+    }
+    return unavailable(failure);
+  }
   /** @type {Record<string, string>} */
   const environment = {
     GIT_CONFIG_GLOBAL: "/dev/null",
@@ -62,13 +75,7 @@ export function verifyRepositoryRead(
         { mode: 0o700 },
       );
     } catch (cause) {
-      let preparationFailure = cause;
-      try {
-        removeDirectory(verificationDirectory);
-      } catch (cleanupCause) {
-        preparationFailure = new AggregateError([cause, cleanupCause]);
-      }
-      return Promise.reject(unavailable(preparationFailure));
+      return Promise.reject(cleanupUnavailable(cause, true));
     }
     environment.GIT_ASKPASS = askPassPath;
     environment.GIT_ASKPASS_REQUIRE = "force";
@@ -81,11 +88,18 @@ export function verifyRepositoryRead(
       arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
     }
     arguments_.push("ls-remote", "--", normalizedUrl);
-    const child = spawn("git", arguments_, {
-      cwd: verificationDirectory,
-      env: environment,
-      stdio: "ignore",
-    });
+    /** @type {import("node:child_process").ChildProcess} */
+    let child;
+    try {
+      child = spawn("git", arguments_, {
+        cwd: verificationDirectory,
+        env: environment,
+        stdio: "ignore",
+      });
+    } catch (cause) {
+      reject(cleanupUnavailable(cause, false));
+      return;
+    }
     let completed = false;
     /** @param {RepositoryError | null} error */
     function complete(error) {

@@ -63,7 +63,7 @@ function normalizeRepositoryUrl(request, allowedKeys) {
   if (url.username || url.password) {
     fail(
       "repository_credentials_unsupported",
-      "Public Repository URL must not contain credentials",
+      "Repository URL must not contain credentials",
     );
   }
   if (url.search || url.hash) {

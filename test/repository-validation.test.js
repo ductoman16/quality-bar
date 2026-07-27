@@ -101,3 +101,27 @@ test("credentialed Repository registration rejects incomplete credentials withou
     );
   }
 });
+
+test("credentialed Repository registration rejects URL userinfo with its exact transport-neutral error", () => {
+  assert.throws(
+    () =>
+      normalizeRepositoryRegistration({
+        token: "private-token-value",
+        url: "https://embedded:credential@example.com/private.git",
+        username: "operator",
+      }),
+    (error) => {
+      assert.ok(error instanceof RepositoryError);
+      assert.equal(error.code, "repository_credentials_unsupported");
+      assert.equal(
+        error.message,
+        "Repository URL must not contain credentials",
+      );
+      assert.doesNotMatch(
+        error.message,
+        /embedded|private-token-value|operator/,
+      );
+      return true;
+    },
+  );
+});

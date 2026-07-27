@@ -163,6 +163,31 @@ test("public Repository verification performs a non-mutating read over real HTTP
     `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
     `Basic ${Buffer.from("operator:private-token-value").toString("base64")}`,
   ]);
+  let rejectedCredentialDirectory = "";
+  await assert.rejects(
+    () =>
+      verifyRepositoryRead(
+        `https://127.0.0.1:${address.port}/private.git`,
+        {
+          token: "prefix\u0000sensitive-token",
+          username: "operator",
+        },
+        {
+          certificateAuthorityPath: certificate,
+          removeDirectory(path) {
+            rejectedCredentialDirectory = path;
+            rmSync(path, { force: true, recursive: true });
+          },
+        },
+      ),
+    (error) => {
+      assert.ok(error instanceof RepositoryError);
+      assert.equal(error.code, "repository_git_verification_unavailable");
+      assert.doesNotMatch(error.message, /sensitive-token|prefix|operator/);
+      return true;
+    },
+  );
+  assert.match(rejectedCredentialDirectory, /quality-bar-git-read-/);
   await assert.rejects(
     () =>
       verifyPublicRepositoryRead(
