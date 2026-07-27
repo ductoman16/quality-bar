@@ -67,6 +67,17 @@ export function createApiRoute({
     if (path !== "/api/v1" && !path.startsWith("/api/v1/")) {
       return false;
     }
+    const reviewMetadataMatch = path.match(
+      /^\/api\/v1\/reviews\/([^/]+)\/metadata$/,
+    );
+    if (
+      authority === "machine" &&
+      ((method === "GET" && path === "/api/v1/reviews") ||
+        (method === "PATCH" && reviewMetadataMatch))
+    ) {
+      forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      return true;
+    }
     if (
       authority === "machine" &&
       ["/api/v1/system", "/api/v1/system/authority-attributions"].includes(path)
@@ -93,6 +104,24 @@ export function createApiRoute({
     }
     if (method === "GET" && path === "/api/v1/openapi.json") {
       writeJson(response, 200, canonicalOpenApiDocument());
+      return true;
+    }
+    if (method === "GET" && path === "/api/v1/reviews") {
+      try {
+        writeJson(response, 200, { reviews: reviews.list() });
+      } catch (error) {
+        if (error instanceof Error && !("code" in error)) {
+          writeError(response, 500, "review_list_failed", error.message);
+          return true;
+        }
+        const failure = requireCodedError(error);
+        writeError(
+          response,
+          isUnavailableError(error) ? 503 : 500,
+          isUnavailableError(error) ? failure.code : "review_list_failed",
+          failure.message,
+        );
+      }
       return true;
     }
     if (method === "POST" && path === "/api/v1/reviews") {
@@ -148,6 +177,73 @@ export function createApiRoute({
             failure.code,
             failure.message,
           );
+        }
+      }
+      return true;
+    }
+    if (method === "PATCH" && reviewMetadataMatch) {
+      try {
+        if (authority !== "machine") {
+          requireBrowserMutationWithQuery(
+            browserSessions,
+            request,
+            browserOrigin,
+            requestUrl,
+          );
+        }
+        writeJson(
+          response,
+          200,
+          reviews.updateMetadata(
+            decodeURIComponent(reviewMetadataMatch[1]),
+            await readJsonRequest(request),
+          ),
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (!("code" in error) || typeof error.code !== "string")
+        ) {
+          writeError(
+            response,
+            500,
+            "review_metadata_update_failed",
+            error.message,
+          );
+          return true;
+        }
+        const failure = requireCodedError(error);
+        if (failure.message === "request_malformed") {
+          writeError(
+            response,
+            400,
+            "request_malformed",
+            "Request is malformed",
+          );
+        } else if (
+          authority !== "machine" &&
+          [
+            "csrf_invalid",
+            "origin_invalid",
+            "authentication_required",
+          ].includes(failure.code)
+        ) {
+          writeError(
+            response,
+            browserMutationFailureStatus(failure.code),
+            failure.code,
+            failure.message,
+          );
+        } else {
+          const status =
+            failure.code === "review_not_found"
+              ? 404
+              : failure.code === "review_name_conflict"
+                ? 409
+                : isUnavailableError(error)
+                  ? 503
+                  : 422;
+          writeError(response, status, failure.code, failure.message);
         }
       }
       return true;

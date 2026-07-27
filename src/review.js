@@ -136,12 +136,89 @@ function validateDefinition(definition) {
   };
 }
 
+/** @param {unknown} metadata */
+function validateMetadata(metadata) {
+  if (!isExactObject(metadata, ["description", "name"])) {
+    fail(
+      "review_metadata_request_malformed",
+      "Review metadata request contains unsupported or missing fields",
+    );
+  }
+  return {
+    name: validateNonblank(
+      metadata.name,
+      "review_name_invalid",
+      "Review name must be nonblank",
+    ),
+    description: validateNonblank(
+      metadata.description,
+      "review_description_invalid",
+      "Review description must be nonblank",
+    ),
+  };
+}
+
 /** @param {unknown} error */
 function conflict(error) {
   return (
     error instanceof Error &&
     /UNIQUE constraint failed: reviews\.name/.test(error.message)
   );
+}
+
+/**
+ * @param {ReviewTransaction} transaction
+ * @param {string} reviewId
+ */
+function readReview(transaction, reviewId) {
+  const review = transaction.get(
+    `SELECT
+       reviews.id,
+       reviews.name,
+       reviews.description,
+       review_assignments.scope,
+       review_versions.id AS version_id,
+       review_versions.number,
+       review_versions.model,
+       review_versions.reasoning_effort,
+       review_versions.service_tier
+     FROM reviews
+     JOIN review_assignments ON review_assignments.review_id = reviews.id
+     JOIN review_versions ON review_versions.id = reviews.active_version_id
+     WHERE reviews.id = ?`,
+    reviewId,
+  );
+  if (!review) {
+    fail("review_not_found", "Review was not found");
+  }
+  const criteria = transaction.all(
+    `SELECT
+       criteria.id,
+       criteria.impact,
+       criteria.instruction,
+       review_version_criteria.position
+     FROM review_version_criteria
+     JOIN criteria ON criteria.id = review_version_criteria.criterion_id
+     WHERE review_version_criteria.review_version_id = ?
+     ORDER BY review_version_criteria.position`,
+    review.version_id,
+  );
+  return {
+    active_version: {
+      codex_configuration: {
+        model: review.model,
+        reasoning_effort: review.reasoning_effort,
+        service_tier: review.service_tier,
+      },
+      criteria,
+      id: review.version_id,
+      number: review.number,
+    },
+    assignment: { scope: review.scope },
+    description: review.description,
+    id: review.id,
+    name: review.name,
+  };
 }
 
 /**
@@ -174,6 +251,18 @@ export function createReviewService(
   }
 
   return {
+    list() {
+      return durableCore.transaction((transaction) =>
+        transaction
+          .all("SELECT id FROM reviews ORDER BY created_at, id")
+          .map((row) => {
+            if (!row || typeof row.id !== "string") {
+              throw new Error("review_list_invalid");
+            }
+            return readReview(transaction, row.id);
+          }),
+      );
+    },
     /** @param {unknown} definition */
     create(definition) {
       const validated = validateDefinition(definition);
@@ -264,13 +353,45 @@ export function createReviewService(
         name: validated.name,
       };
     },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} metadata
+     */
+    updateMetadata(reviewId, metadata) {
+      const validated = validateMetadata(metadata);
+      try {
+        return durableCore.transaction((transaction) => {
+          const result = transaction.run(
+            "UPDATE reviews SET name = ?, description = ? WHERE id = ?",
+            validated.name,
+            validated.description,
+            reviewId,
+          );
+          if (result.changes !== 1) {
+            fail("review_not_found", "Review was not found");
+          }
+          return readReview(transaction, reviewId);
+        });
+      } catch (error) {
+        if (conflict(error)) {
+          fail("review_name_conflict", "Review name is already in use");
+        }
+        throw error;
+      }
+    },
   };
 }
 
 /** @param {unknown} error */
 export function createUnavailableReviewService(error) {
   return {
+    list() {
+      throw error;
+    },
     create() {
+      throw error;
+    },
+    updateMetadata() {
       throw error;
     },
   };

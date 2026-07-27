@@ -113,7 +113,11 @@ export function createApplicationServer({
     throw new TypeError("requestSecurity must provide the request boundary");
   }
   requireFunction(readSystemStatus, "readSystemStatus must be a function");
-  if (typeof reviews?.create !== "function") {
+  if (
+    typeof reviews?.list !== "function" ||
+    typeof reviews.create !== "function" ||
+    typeof reviews.updateMetadata !== "function"
+  ) {
     throw new TypeError("reviews must provide the Review resource");
   }
 

@@ -8,7 +8,9 @@
   "node_types_version": "24.13.3",
   "served_browser_modules": [
     "login.js",
-    "operator.js"
+    "operator.js",
+    "review-metadata.js",
+    "review-create.js"
   ],
   "initial_production_diagnostics": [
     {

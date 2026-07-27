@@ -66,3 +66,29 @@ test("invalid Review definitions fail before a durable transaction can begin", (
   }
   assert.equal(transactionCount, 0);
 });
+
+test("invalid Review metadata edits fail before a durable transaction can begin", () => {
+  let transactionCount = 0;
+  const reviews = createReviewService({
+    transaction() {
+      transactionCount += 1;
+      throw new Error("validation started a transaction");
+    },
+  });
+
+  for (const [metadata, code] of [
+    [{ description: " \n", name: " \t" }, "review_name_invalid"],
+    [{ description: "Still valid.", name: " \t" }, "review_name_invalid"],
+    [{ description: "\n", name: "Still valid" }, "review_description_invalid"],
+    [
+      { description: "Still valid.", name: "Still valid", extra: true },
+      "review_metadata_request_malformed",
+    ],
+  ]) {
+    assert.throws(
+      () => reviews.updateMetadata("review-1", metadata),
+      (error) => error instanceof ReviewError && error.code === code,
+    );
+  }
+  assert.equal(transactionCount, 0);
+});

@@ -36,7 +36,7 @@ import {
  * @typedef {{
  *   openapi: string,
  *   components: {schemas: Record<string, OpenApiSchema>},
- *   paths: Record<string, {get: OpenApiOperation, post: OpenApiOperation}>,
+ *   paths: Record<string, {get: OpenApiOperation, patch: OpenApiOperation, post: OpenApiOperation}>,
  * }} OpenApiDocument
  */
 
@@ -170,6 +170,23 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     { browser_session: [] },
     { implementer_token: [] },
   ]);
+  assert.deepEqual(contract.paths["/api/v1/reviews"].get.security, [
+    { browser_session: [] },
+  ]);
+  assert.deepEqual(
+    contract.paths["/api/v1/reviews/{review_id}/metadata"].patch.security,
+    [{ browser_session: [] }],
+  );
+  assert.deepEqual(
+    contract.paths["/api/v1/reviews/{review_id}/metadata"].patch.parameters.map(
+      ({ name, required }) => ({ name, required }),
+    ),
+    [
+      { name: "review_id", required: true },
+      { name: "Origin", required: true },
+      { name: "x-quality-bar-csrf", required: true },
+    ],
+  );
   assert.equal(
     contract.paths["/api/v1/reviews"].post.responses[201].description,
     "Review with its active immutable v1",

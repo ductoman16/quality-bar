@@ -128,6 +128,28 @@ function parseJson(body, owner) {
 }
 
 /**
+ * @param {Record<string, unknown>} paths
+ * @param {string} requestPath
+ */
+function documentedPath(paths, requestPath) {
+  if (Object.hasOwn(paths, requestPath)) {
+    return requestPath;
+  }
+  return Object.keys(paths).find((path) => {
+    const segments = path.split("/");
+    const requestSegments = requestPath.split("/");
+    return (
+      segments.length === requestSegments.length &&
+      segments.every(
+        (segment, index) =>
+          (/^\{[^{}]+\}$/.test(segment) && requestSegments[index].length > 0) ||
+          segment === requestSegments[index],
+      )
+    );
+  });
+}
+
+/**
  * @typedef {{
  *   request: {
  *     body?: string,
@@ -162,7 +184,11 @@ export async function createHttpConformanceAssertion(document) {
     const method = (request.method ?? "GET").toLowerCase();
     const methodLabel = method.toUpperCase();
     const path = new URL(request.url).pathname;
-    const operation = asRecord(asRecord(document.paths)[path])[method];
+    const paths = asRecord(document.paths);
+    const operationPath = documentedPath(paths, path);
+    const operation = asRecord(
+      operationPath ? paths[operationPath] : undefined,
+    )[method];
 
     if (!operation) {
       if (response.status !== 404) {
@@ -243,7 +269,7 @@ export async function createHttpConformanceAssertion(document) {
         `openapi_success_document_invalid: ${methodLabel} ${path} status ${response.status} must have an empty body`,
       );
     }
-    recordFacts(facts, methodLabel, path, response.status);
+    recordFacts(facts, methodLabel, operationPath ?? path, response.status);
   }
 
   /** @param {HttpExchange} exchange */
