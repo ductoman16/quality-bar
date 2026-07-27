@@ -2,6 +2,9 @@ export const GITHUB_REPOSITORY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS github_repositories (
     repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
     connection_id TEXT NOT NULL REFERENCES github_connections(id),
+    verification_id TEXT NOT NULL
+      REFERENCES github_connection_verifications(id)
+      DEFERRABLE INITIALLY DEFERRED,
     forge_repository_id INTEGER NOT NULL CHECK (forge_repository_id > 0),
     name TEXT NOT NULL CHECK (length(name) > 0),
     api_url TEXT NOT NULL CHECK (length(api_url) > 0),

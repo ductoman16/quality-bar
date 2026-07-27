@@ -5,7 +5,7 @@ import { normalizeGitHubRepositorySelection } from "../src/github-repository-sel
 
 test("GitHub Repository selection requires one exact nonempty set of stable Forge Repository IDs", () => {
   assert.deepEqual(
-    normalizeGitHubRepositorySelection({ repository_ids: [101, 202] }),
+    normalizeGitHubRepositorySelection({ repository_ids: [101, 202] }, false),
     { repositoryIds: [101, 202], requestId: undefined },
   );
   assert.deepEqual(
@@ -26,6 +26,7 @@ test("GitHub Repository selection requires one exact nonempty set of stable Forg
     { repository_ids: [101, 101] },
     { repository_ids: [0] },
     { repository_ids: ["101"] },
+    { repository_ids: [101] },
     { repository_ids: [101], request_id: "not-a-uuid" },
     { repository_ids: [101], unexpected: true },
   ]) {

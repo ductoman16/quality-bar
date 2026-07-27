@@ -151,7 +151,7 @@ test("pre-existing registration does not infer a lost selection succeeded", asyn
     },
     [101],
     true,
-    1_000,
+    "verification-1",
   );
   executeGitHubBrowserAsset(browser.context);
   await new Promise((resolve) => setImmediate(resolve));

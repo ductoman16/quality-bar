@@ -219,7 +219,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
 /** @param {number[]} selected @param {string} requestId */
 async function reconcileGitHubRepositorySelection(selected, requestId) {
   const repositories = /** @type {{
-   *   hasVerifiedForgeRepositoryIds: (ids: number[], verifiedAt: number) => boolean,
+   *   hasVerifiedForgeRepositoryIds: (ids: number[], verificationId: string) => boolean,
    *   refresh: () => Promise<boolean>
    * }} */ (Reflect.get(window, "qualityBarRepositories"));
   const connectionLoaded = await loadGitHubConnection();
@@ -236,10 +236,7 @@ async function reconcileGitHubRepositorySelection(selected, requestId) {
     verification?.trigger === "repository_selection" &&
     verification.outcome === "success" &&
     selected.every((id) => verification.affected_repository_ids.includes(id)) &&
-    repositories.hasVerifiedForgeRepositoryIds(
-      selected,
-      verification.verified_at,
-    )
+    repositories.hasVerifiedForgeRepositoryIds(selected, verification.id)
   ) {
     githubStatus.textContent = "GitHub Repositories registered.";
     githubStatus.focus();

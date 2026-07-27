@@ -74,7 +74,7 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     "success",
   );
   assert.deepEqual(
-    contract.components.schemas.Repository.oneOf[1].required.slice(-8),
+    contract.components.schemas.Repository.oneOf[1].required.slice(-9),
     [
       "api_url",
       "assignment_count",
@@ -82,6 +82,7 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
       "forge_repository_id",
       "name",
       "provider",
+      "verification_id",
       "verified_at",
       "web_url",
     ],

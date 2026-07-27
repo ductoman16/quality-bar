@@ -3,8 +3,11 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 const INVALID_SELECTION_MESSAGE =
   "GitHub Repository selection must contain unique stable Repository IDs";
 
-/** @param {unknown} request */
-export function normalizeGitHubRepositorySelection(request) {
+/** @param {unknown} request @param {boolean} [requestIdRequired] */
+export function normalizeGitHubRepositorySelection(
+  request,
+  requestIdRequired = true,
+) {
   if (
     !request ||
     Array.isArray(request) ||
@@ -15,6 +18,7 @@ export function normalizeGitHubRepositorySelection(request) {
     request.repository_ids.length === 0 ||
     request.repository_ids.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
     new Set(request.repository_ids).size !== request.repository_ids.length ||
+    (requestIdRequired && !("request_id" in request)) ||
     ("request_id" in request &&
       (typeof request.request_id !== "string" ||
         !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(

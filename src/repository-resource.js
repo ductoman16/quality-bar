@@ -7,6 +7,7 @@ export const REPOSITORY_SELECTION = `SELECT
   repositories.health_error_message,
   repositories.verified_at,
   github_repositories.connection_id AS forge_connection_id,
+  github_repositories.verification_id,
   github_repositories.forge_repository_id,
   github_repositories.name AS github_name,
   github_repositories.api_url AS github_api_url,
@@ -78,6 +79,7 @@ export function readRepositoryResource(row) {
     typeof row.github_name !== "string" ||
     typeof row.github_api_url !== "string" ||
     typeof row.github_web_url !== "string" ||
+    typeof row.verification_id !== "string" ||
     !Number.isSafeInteger(row.verified_at) ||
     !Number.isSafeInteger(row.assignment_count)
   ) {
@@ -91,6 +93,7 @@ export function readRepositoryResource(row) {
     forge_repository_id: /** @type {number} */ (row.forge_repository_id),
     name: row.github_name,
     provider: "github",
+    verification_id: row.verification_id,
     verified_at: row.verified_at,
     web_url: row.github_web_url,
   };

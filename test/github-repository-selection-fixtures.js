@@ -32,6 +32,21 @@ export const removedRepositoryState = {
   health: "error",
   health_error_code: "github_repository_selection_unavailable",
 };
+
+export function createSelectionRequests() {
+  let sequence = 0;
+  /** @param {number[]} repositoryIds */
+  return (repositoryIds) => {
+    sequence += 1;
+    return {
+      repository_ids: repositoryIds,
+      request_id: `00000000-0000-4000-8000-${String(sequence).padStart(
+        12,
+        "0",
+      )}`,
+    };
+  };
+}
 const removedVerificationState = {
   affected_repository_ids: [202],
   error: {
@@ -77,14 +92,13 @@ export function assertRemovedVerificationState(connection, repositories) {
   );
 }
 
-/** @param {any} service */
-export async function assertCorrelatedSelection(service) {
-  const requestId = "00000000-0000-4000-8000-000000000001";
-  await service.selectRepositories({
-    repository_ids: [202],
-    request_id: requestId,
-  });
-  assert.equal(service.read()?.verification_history.at(-1)?.id, requestId);
+/** @param {any} service @param {{repository_ids: number[], request_id: string}} request */
+export async function assertCorrelatedSelection(service, request) {
+  await service.selectRepositories(request);
+  assert.equal(
+    service.read()?.verification_history.at(-1)?.id,
+    request.request_id,
+  );
 }
 
 /** @param {{run(sql: string): unknown}} core */
@@ -111,7 +125,7 @@ export function renamePrivateRepository() {
 /** @param {{get(sql: string): unknown}} core */
 export function readPrivateRepositoryState(core) {
   return core.get(
-    `SELECT normalized_url, verified_at, health, name
+    `SELECT normalized_url, verified_at, health, name, verification_id
      FROM repositories
      JOIN github_repositories ON repository_id = repositories.id
      WHERE repositories.id = 'repository-alpha'`,

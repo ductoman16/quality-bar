@@ -17,6 +17,7 @@ import {
   assertCorrelatedSelection,
   assertRemovedVerificationState,
   capabilities,
+  createSelectionRequests,
   markPrivateRepositoryUnhealthy,
   readPrivateRepositoryState,
   readRemovedRepositoryState,
@@ -30,6 +31,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   );
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const selection = createSelectionRequests();
   let failSelection = true;
   /** @type {GitHubConnectionError | undefined} */
   let connectionFailure;
@@ -115,10 +117,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   });
   timestamp = 1_100;
   await assert.rejects(
-    () =>
-      service.selectRepositories({
-        repository_ids: [101, 202],
-      }),
+    () => service.selectRepositories(selection([101, 202])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_repository_git_read_failed",
@@ -140,7 +139,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   );
   timestamp = 1_500;
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101] }),
+    () => service.selectRepositories(selection([101])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_permissions_mismatch",
@@ -176,7 +175,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       repositoryEvidence: invalidResult,
     };
     await assert.rejects(
-      () => service.selectRepositories({ repository_ids: [101, 202] }),
+      () => service.selectRepositories(selection([101, 202])),
       (error) =>
         error instanceof GitHubConnectionError &&
         error.code === "github_repository_verification_invalid",
@@ -201,7 +200,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     1_500,
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101, 202] }),
+    () => service.selectRepositories(selection([101, 202])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_repository_identity_conflict",
@@ -221,9 +220,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     "DELETE FROM repositories WHERE id = ?",
     "conflicting-generic-repository",
   );
-  const selected = await service.selectRepositories({
-    repository_ids: [101, 202],
-  });
+  const selected = await service.selectRepositories(selection([101, 202]));
   assert.deepEqual(selected, [
     {
       api_url: "https://api.github.com/repos/operator/alpha",
@@ -238,6 +235,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       name: "operator/alpha",
       provider: "github",
       url: "https://github.com/operator/alpha.git",
+      verification_id: "00000000-0000-4000-8000-000000000007",
       verified_at: 2_000,
       web_url: "https://github.com/operator/alpha",
     },
@@ -254,6 +252,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       name: "operator/beta",
       provider: "github",
       url: "https://github.com/operator/beta.git",
+      verification_id: "00000000-0000-4000-8000-000000000007",
       verified_at: 2_000,
       web_url: "https://github.com/operator/beta",
     },
@@ -284,11 +283,12 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   markPrivateRepositoryUnhealthy(core);
   renamePrivateRepository();
   timestamp = 2_500;
-  await assertCorrelatedSelection(service);
+  await assertCorrelatedSelection(service, selection([202]));
   assert.deepEqual(readPrivateRepositoryState(core), {
     health: "healthy",
     name: "operator/alpha-renamed",
     normalized_url: "https://github.com/operator/alpha-renamed.git",
+    verification_id: "00000000-0000-4000-8000-000000000008",
     verified_at: 2_500,
   });
   core.run(
@@ -297,27 +297,25 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   );
   availableRepositories.pop();
   timestamp = 3_000;
-  assert.deepEqual(
-    await service.selectRepositories({ repository_ids: [101] }),
-    [
-      {
-        api_url: "https://api.github.com/repos/operator/alpha-renamed",
-        assignment_count: 0,
-        credential_type: "forge_connection",
-        forge_connection_id: "connection-1",
-        forge_repository_id: 101,
-        health: "healthy",
-        health_error: null,
-        id: "repository-alpha",
-        lifecycle: "disabled",
-        name: "operator/alpha-renamed",
-        provider: "github",
-        url: "https://github.com/operator/alpha-renamed.git",
-        verified_at: 3_000,
-        web_url: "https://github.com/operator/alpha-renamed",
-      },
-    ],
-  );
+  assert.deepEqual(await service.selectRepositories(selection([101])), [
+    {
+      api_url: "https://api.github.com/repos/operator/alpha-renamed",
+      assignment_count: 0,
+      credential_type: "forge_connection",
+      forge_connection_id: "connection-1",
+      forge_repository_id: 101,
+      health: "healthy",
+      health_error: null,
+      id: "repository-alpha",
+      lifecycle: "disabled",
+      name: "operator/alpha-renamed",
+      provider: "github",
+      url: "https://github.com/operator/alpha-renamed.git",
+      verification_id: "00000000-0000-4000-8000-000000000009",
+      verified_at: 3_000,
+      web_url: "https://github.com/operator/alpha-renamed",
+    },
+  ]);
   assert.equal(service.read()?.repository_count, 1);
   assertRemovedVerificationState(service.read(), availableRepositories);
   assert.deepEqual(readRemovedRepositoryState(core), removedRepositoryState);
@@ -367,6 +365,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     name: "operator/alpha-renamed",
     provider: "github",
     url: "https://github.com/operator/alpha-renamed.git",
+    verification_id: "00000000-0000-4000-8000-000000000009",
     verified_at: 3_000,
     web_url: "https://github.com/operator/alpha-renamed",
   });

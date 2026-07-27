@@ -9,6 +9,7 @@ import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
+import { createSelectionRequests } from "./github-repository-selection-fixtures.js";
 
 const repository = {
   api_url: "https://api.github.com/repos/operator/private",
@@ -49,6 +50,7 @@ test("SQLite records immutable scoped Connection verification without treating t
   );
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const selection = createSelectionRequests();
   let timestamp = 1_000;
   /** @type {GitHubConnectionError | undefined} */
   let failure;
@@ -121,7 +123,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     },
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101, 202] }),
+    () => service.selectRepositories(selection([101, 202])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_repository_git_read_failed",
@@ -157,7 +159,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     "GitHub API request temporarily failed with HTTP 503",
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101] }),
+    () => service.selectRepositories(selection([101])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_api_transient_failure",
@@ -171,7 +173,21 @@ test("SQLite records immutable scoped Connection verification without treating t
     { affectedRepositoryIds: [101], completedRepositoryIds: [101] },
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101] }),
+    () => service.selectRepositories(selection([101])),
+    /Completed GitHub Repository evidence is incomplete/,
+  );
+  failure = new GitHubConnectionError(
+    "github_repository_git_read_failed",
+    "GitHub Repository completed evidence does not match",
+    {
+      affectedRepositoryIds: [101, 202],
+      completedRepositoryIds: [101],
+      repositoryEvidence: [publicRepository],
+      repositoryId: 202,
+    },
+  );
+  await assert.rejects(
+    () => service.selectRepositories(selection([101])),
     /Completed GitHub Repository evidence is incomplete/,
   );
   assert.equal(service.read()?.verification_history.length, historyCount);
@@ -188,7 +204,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     },
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [202] }),
+    () => service.selectRepositories(selection([202])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_api_request_failed",
@@ -207,7 +223,7 @@ test("SQLite records immutable scoped Connection verification without treating t
     "GitHub App permissions do not match the required profile",
   );
   await assert.rejects(
-    () => service.selectRepositories({ repository_ids: [101] }),
+    () => service.selectRepositories(selection([101])),
     (error) =>
       error instanceof GitHubConnectionError &&
       error.code === "github_permissions_mismatch",
@@ -217,10 +233,10 @@ test("SQLite records immutable scoped Connection verification without treating t
 
   timestamp = 1_400;
   failure = undefined;
-  await service.selectRepositories({ repository_ids: [101, 202] });
+  await service.selectRepositories(selection([101, 202]));
   assert.equal(service.read()?.health, "healthy");
   assert.equal(service.read()?.health_error, null);
-  await service.selectRepositories({ repository_ids: [202] });
+  await service.selectRepositories(selection([202]));
   assert.deepEqual(
     service.read()?.verification_history.at(-1)?.affected_repository_ids,
     [202],

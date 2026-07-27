@@ -51,6 +51,7 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
                 name: "operator/private-renamed",
                 provider: "github",
                 url: "https://github.com/operator/private-renamed.git",
+                verification_id: "verification-1",
                 verified_at: 1_000,
                 web_url: "https://github.com/operator/private-renamed",
               },

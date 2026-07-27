@@ -177,6 +177,24 @@ test("failed GitHub lifecycle verification returns its exact error and records R
     createRepositories(core, options) {
       const writableCore = /** @type {any} */ (core);
       writableCore.run(
+        `INSERT INTO github_connection_verifications (
+           id, connection_id, trigger, outcome, error_code, error_message,
+           error_repository_id, affected_repository_ids, repository_checks,
+           repositories, verified_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "verification-1",
+        "connection-1",
+        "enablement",
+        "error",
+        "github_repository_git_read_failed",
+        "GitHub Repository Git read verification failed",
+        101,
+        JSON.stringify([101]),
+        JSON.stringify([{ outcome: "error", repository_id: 101 }]),
+        "[]",
+        1_000,
+      );
+      writableCore.run(
         `INSERT INTO repositories (
            id, normalized_url, lifecycle, health, created_at, verified_at
          ) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -189,11 +207,12 @@ test("failed GitHub lifecycle verification returns its exact error and records R
       );
       writableCore.run(
         `INSERT INTO github_repositories (
-           repository_id, connection_id, forge_repository_id,
+           repository_id, connection_id, verification_id, forge_repository_id,
            name, api_url, web_url
-         ) VALUES (?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         "github-repository",
         "connection-1",
+        "verification-1",
         101,
         "operator/private",
         "https://api.github.com/repos/operator/private",

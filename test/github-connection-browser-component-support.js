@@ -139,13 +139,13 @@ export function githubElements(form, submit, status, error) {
  * @param {(path: string, options?: any) => Promise<any>} fetch
  * @param {number[]} [registeredForgeRepositoryIds]
  * @param {boolean} [repositoryRefreshResult]
- * @param {number} [registeredVerificationTime]
+ * @param {string} [registeredVerificationId]
  */
 export function browserContext(
   fetch,
   registeredForgeRepositoryIds = [],
   repositoryRefreshResult = true,
-  registeredVerificationTime = 2_000,
+  registeredVerificationId = selectionRequestId,
 ) {
   const form = element();
   const submit = element();
@@ -184,10 +184,10 @@ export function browserContext(
           requiredElement: (id) => github.elements.get(id),
         },
         qualityBarRepositories: {
-          /** @param {number[]} ids @param {number} verifiedAt */
-          hasVerifiedForgeRepositoryIds(ids, verifiedAt) {
+          /** @param {number[]} ids @param {string} verificationId */
+          hasVerifiedForgeRepositoryIds(ids, verificationId) {
             return (
-              verifiedAt === registeredVerificationTime &&
+              verificationId === registeredVerificationId &&
               ids.every((id) => registeredForgeRepositoryIds.includes(id))
             );
           },

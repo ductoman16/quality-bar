@@ -79,6 +79,7 @@ async function submitRepositoryMutation(
  *   name?: string,
  *   provider?: "github",
  *   url: string,
+ *   verification_id?: string,
  *   verified_at?: number,
  *   web_url?: string
  * }} RepositoryResource
@@ -102,13 +103,13 @@ Reflect.set(
   window,
   "qualityBarRepositories",
   Object.freeze({
-    /** @param {number[]} ids @param {number} verifiedAt */
-    hasVerifiedForgeRepositoryIds(ids, verifiedAt) {
+    /** @param {number[]} ids @param {string} verificationId */
+    hasVerifiedForgeRepositoryIds(ids, verificationId) {
       return ids.every((id) =>
         [...repositoryResources.values()].some(
           (repository) =>
             repository.forge_repository_id === id &&
-            repository.verified_at === verifiedAt,
+            repository.verification_id === verificationId,
         ),
       );
     },
@@ -158,10 +159,12 @@ function renderRepository(repository) {
       repository.credential_type !== "forge_connection" ||
       typeof repository.forge_connection_id !== "string" ||
       !Number.isSafeInteger(repository.forge_repository_id) ||
+      /** @type {number} */ (repository.forge_repository_id) <= 0 ||
       typeof repository.name !== "string" ||
       typeof repository.api_url !== "string" ||
       typeof repository.web_url !== "string" ||
       !Number.isSafeInteger(repository.assignment_count) ||
+      typeof repository.verification_id !== "string" ||
       !Number.isSafeInteger(repository.verified_at)
     ) {
       throw new Error("github_repository_response_invalid");

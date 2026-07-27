@@ -24,6 +24,16 @@ export function recordGitHubConnectionVerification(durableCore, input) {
   const verifiedAt = input.timestamp();
   const affectedIds = new Set(input.affectedRepositoryIds);
   const completedIds = new Set(input.completedRepositoryIds ?? []);
+  const evidenceIds = new Set(
+    input.evidence.map((repository) =>
+      repository &&
+      typeof repository === "object" &&
+      "id" in repository &&
+      Number.isSafeInteger(repository.id)
+        ? repository.id
+        : null,
+    ),
+  );
   if (
     typeof verificationId !== "string" ||
     verificationId.length === 0 ||
@@ -50,7 +60,8 @@ export function recordGitHubConnectionVerification(durableCore, input) {
       !input.principal ||
       !input.permissions ||
       !input.capabilities ||
-      input.evidence.length === 0)
+      input.evidence.length === 0 ||
+      [...completedIds].some((id) => !evidenceIds.has(id)))
   ) {
     throw new TypeError("Completed GitHub Repository evidence is incomplete");
   }
@@ -135,6 +146,14 @@ export function recordGitHubConnectionVerification(durableCore, input) {
         input.id,
         /** @type {number} */ (input.error.repositoryId),
       );
+      transaction.run(
+        `UPDATE github_repositories
+         SET verification_id = ?
+         WHERE connection_id = ? AND forge_repository_id = ?`,
+        verificationId,
+        input.id,
+        /** @type {number} */ (input.error.repositoryId),
+      );
     }
     if (completedIds.size > 0) {
       transaction.run(
@@ -152,6 +171,17 @@ export function recordGitHubConnectionVerification(durableCore, input) {
                .join(", ")})
          )`,
         verifiedAt,
+        input.id,
+        ...completedIds,
+      );
+      transaction.run(
+        `UPDATE github_repositories
+         SET verification_id = ?
+         WHERE connection_id = ?
+           AND forge_repository_id IN (${[...completedIds]
+             .map(() => "?")
+             .join(", ")})`,
+        verificationId,
         input.id,
         ...completedIds,
       );
@@ -181,5 +211,5 @@ export function recordGitHubConnectionVerification(durableCore, input) {
       verifiedAt,
     );
   });
-  return verifiedAt;
+  return { id: verificationId, verifiedAt };
 }

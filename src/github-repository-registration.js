@@ -63,11 +63,13 @@ export function createGitHubRepositorySelector(
     request,
     trigger = "repository_selection",
   ) {
-    const { repositoryIds, requestId } =
-      normalizeGitHubRepositorySelection(request);
     if (!["enablement", "repository_selection"].includes(trigger)) {
       throw new TypeError("GitHub Repository verification trigger is invalid");
     }
+    const { repositoryIds, requestId } = normalizeGitHubRepositorySelection(
+      request,
+      trigger === "repository_selection",
+    );
     if (typeof verifier.verifyRepositories !== "function") {
       throw new TypeError(
         "GitHub verifier must provide Repository verification",
@@ -242,7 +244,7 @@ export function createGitHubRepositorySelector(
         "GitHub Repository verification result is invalid",
       );
     }
-    const verifiedAt = recordGitHubConnectionVerification(durableCore, {
+    const verified = recordGitHubConnectionVerification(durableCore, {
       affectedRepositoryIds,
       capabilities: verification.capabilities,
       createId: createAttemptId,
@@ -332,7 +334,7 @@ export function createGitHubRepositorySelector(
                      health_error_message = NULL
                  WHERE id = ?`,
                 repository.clone_url,
-                verifiedAt,
+                verified.verifiedAt,
                 id,
               );
             } else {
@@ -344,11 +346,18 @@ export function createGitHubRepositorySelector(
             }
             transaction.run(
               `UPDATE github_repositories
-               SET name = ?, api_url = ?, web_url = ?
+               SET name = ?, api_url = ?, web_url = ?${
+                 affectedRepositoryIds.includes(repository.id)
+                   ? ", verification_id = ?"
+                   : ""
+               }
                WHERE repository_id = ?`,
               repository.full_name,
               repository.api_url,
               repository.html_url,
+              ...(affectedRepositoryIds.includes(repository.id)
+                ? [verified.id]
+                : []),
               id,
             );
           } else {
@@ -358,20 +367,21 @@ export function createGitHubRepositorySelector(
                ) VALUES (?, ?, ?, ?)`,
               id,
               repository.clone_url,
-              verifiedAt,
-              verifiedAt,
+              verified.verifiedAt,
+              verified.verifiedAt,
             );
             transaction.run(
               `INSERT INTO github_repositories (
-                 repository_id, connection_id, forge_repository_id,
-                 name, api_url, web_url
-               ) VALUES (?, ?, ?, ?, ?, ?)`,
+               repository_id, connection_id, forge_repository_id,
+                 name, api_url, web_url, verification_id
+               ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
               id,
               connection.id,
               repository.id,
               repository.full_name,
               repository.api_url,
               repository.html_url,
+              verified.id,
             );
           }
         }
