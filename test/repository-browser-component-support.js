@@ -35,6 +35,10 @@ export function browserElement(properties = {}) {
     reset() {
       this.resetCalled = true;
     },
+    /** @param {string} name @param {unknown} value */
+    setAttribute(name, value) {
+      Reflect.set(this, name, value);
+    },
   };
 }
 

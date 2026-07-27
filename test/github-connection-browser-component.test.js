@@ -14,10 +14,10 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
   const page = operatorPage({ view: "repositories" });
   assert.match(
     page,
-    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
+    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*<form hidden id="github-repository-selection-form">.*<fieldset id="github-repository-selection-fieldset">.*<legend>GitHub Repositories<\/legend>.*<button id="github-repository-selection-submit" type="submit">Register selected Repositories<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
   );
   assert.match(page, /@media\(max-width:40rem\)/);
-  assert.doesNotMatch(page, /thead\{position:absolute/);
+  assert.match(page, /thead\{position:absolute/);
   assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
   assert.match(
     page,
@@ -158,6 +158,74 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         value: JSON.stringify({ default_events: [], public: false }),
       },
     ],
+  );
+});
+
+test("GitHub Repository selection is a single accessible atomic mutation with deterministic pending, success, and invalid focus", async () => {
+  /** @type {any[]} */
+  const requests = [];
+  const browser = browserContext(async (path, options) => {
+    requests.push({ options, path });
+    if (path === "/api/v1/github-connections") {
+      return {
+        ok: true,
+        async json() {
+          return verifiedConnection();
+        },
+      };
+    }
+    return {
+      ok: true,
+      async json() {
+        return [
+          {
+            forge_repository_id: 101,
+          },
+        ];
+      },
+    };
+  });
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(browser.github.repositoryForm.hidden, false);
+  assert.equal(browser.github.repositoryOptions.children.length, 1);
+  const label = browser.github.repositoryOptions.children[0];
+  const control = label.children[0];
+  assert.equal(control.name, "repository_ids");
+  assert.equal(control.type, "checkbox");
+  assert.equal(control.value, "101");
+  assert.equal(label.children[1].textContent, "operator/private; private");
+
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+  assert.equal(
+    browser.error.textContent,
+    "Select at least one GitHub Repository",
+  );
+  assert.equal(control.focused, true);
+  assert.equal(requests.length, 1);
+
+  control.checked = true;
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
+    options: {
+      body: JSON.stringify({ repository_ids: [101] }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": "csrf-token",
+      },
+      method: "POST",
+    },
+    path: "/api/v1/github-connections/repositories",
+  });
+  assert.equal(browser.github.repositorySubmit.disabled, true);
+  assert.equal(
+    browser.context.location.assigned,
+    "/?view=repositories&github_repositories=selected",
   );
 });
 

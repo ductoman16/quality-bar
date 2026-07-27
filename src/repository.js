@@ -4,6 +4,10 @@ import { createRepositoryCollection } from "./repository-collection.js";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 import {
+  readRepositoryResource,
+  REPOSITORY_SELECTION,
+} from "./repository-resource.js";
+import {
   assertRepositoryAcceptsNewWork,
   fail,
   normalizeRepositoryCredentialRotation,
@@ -86,67 +90,13 @@ export function createRepositoryService(
     throw error;
   }
 
-  const repositorySelection = `SELECT
-    repositories.id,
-    repositories.normalized_url,
-    repositories.lifecycle,
-    repositories.health,
-    repositories.health_error_code,
-    repositories.health_error_message,
-    repository_credentials.encrypted_credential
-  FROM repositories
-  LEFT JOIN repository_credentials
-    ON repository_credentials.repository_id = repositories.id`;
-
-  /** @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row */
-  function resource(row) {
-    if (
-      !row ||
-      typeof row.id !== "string" ||
-      typeof row.normalized_url !== "string" ||
-      !["enabled", "disabled", "retired"].includes(
-        /** @type {string} */ (row.lifecycle),
-      ) ||
-      !["healthy", "error"].includes(/** @type {string} */ (row.health))
-    ) {
-      throw new TypeError("Repository row is invalid");
-    }
-    const healthError =
-      row.health === "error"
-        ? {
-            code: /** @type {string} */ (row.health_error_code),
-            message: /** @type {string} */ (row.health_error_message),
-          }
-        : null;
-    if (
-      row.health === "error" &&
-      (typeof healthError?.code !== "string" ||
-        typeof healthError.message !== "string")
-    ) {
-      throw new TypeError("Repository health error is invalid");
-    }
-    return {
-      credential_type:
-        typeof row.encrypted_credential === "string"
-          ? "username_token"
-          : "none",
-      health: /** @type {"healthy" | "error"} */ (row.health),
-      health_error: healthError,
-      id: row.id,
-      lifecycle: /** @type {"enabled" | "disabled" | "retired"} */ (
-        row.lifecycle
-      ),
-      url: row.normalized_url,
-    };
-  }
-
   /** @param {string} id */
   function find(id) {
     if (typeof id !== "string" || id.length === 0) {
       fail("repository_not_found", "Repository was not found");
     }
     const [row] = durableCore.all(
-      `${repositorySelection} WHERE repositories.id = ?`,
+      `${REPOSITORY_SELECTION} WHERE repositories.id = ?`,
       id,
     );
     if (!row) {
@@ -170,13 +120,13 @@ export function createRepositoryService(
         : [limit];
       return durableCore
         .all(
-          `${repositorySelection}
+          `${REPOSITORY_SELECTION}
            ${afterClause}
            ORDER BY repositories.normalized_url, repositories.id
            LIMIT ?`,
           ...parameters,
         )
-        .map(resource);
+        .map(readRepositoryResource);
     },
   );
 
@@ -184,10 +134,10 @@ export function createRepositoryService(
     list() {
       return durableCore
         .all(
-          `${repositorySelection}
+          `${REPOSITORY_SELECTION}
            ORDER BY repositories.normalized_url, repositories.id`,
         )
-        .map(resource);
+        .map(readRepositoryResource);
     },
     /** @param {{cursor?: string, limit?: string, remoteUrl?: string}} [query] */
     listPage({ cursor, limit, remoteUrl } = {}) {
@@ -212,14 +162,14 @@ export function createRepositoryService(
             : [normalizedUrl, pageLimit];
           return durableCore
             .all(
-              `${repositorySelection}
+              `${REPOSITORY_SELECTION}
                WHERE repositories.normalized_url = ?
                ${afterClause}
                ORDER BY repositories.normalized_url, repositories.id
                LIMIT ?`,
               ...parameters,
             )
-            .map(resource);
+            .map(readRepositoryResource);
         },
       );
       try {
@@ -270,7 +220,7 @@ export function createRepositoryService(
         }
         throw error;
       }
-      return resource(find(id));
+      return readRepositoryResource(find(id));
     },
     /**
      * @param {string} id
@@ -322,11 +272,11 @@ export function createRepositoryService(
           id,
         );
       });
-      return resource(find(id));
+      return readRepositoryResource(find(id));
     },
     /** @param {string} id */
     requireAcceptsNewWork(id) {
-      const repository = resource(find(id));
+      const repository = readRepositoryResource(find(id));
       assertRepositoryAcceptsNewWork({
         health: repository.health,
         healthError: repository.health_error,
@@ -341,7 +291,7 @@ export function createRepositoryService(
     async setLifecycle(id, request) {
       const { lifecycle } = normalizeRepositoryLifecycleChange(request);
       const row = find(id);
-      const repository = resource(row);
+      const repository = readRepositoryResource(row);
       if (repository.lifecycle === "retired") {
         fail(
           "repository_retired",
@@ -355,7 +305,7 @@ export function createRepositoryService(
             id,
           );
         });
-        return resource(find(id));
+        return readRepositoryResource(find(id));
       }
 
       const credential =
@@ -401,7 +351,7 @@ export function createRepositoryService(
           id,
         );
       });
-      return resource(find(id));
+      return readRepositoryResource(find(id));
     },
     destroy() {
       repositoryCollection.destroy();

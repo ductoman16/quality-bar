@@ -20,9 +20,9 @@ export function element(properties = {}) {
     addEventListener(name, listener) {
       listeners.set(name, listener);
     },
-    /** @param {any} child */
-    append(child) {
-      this.children.push(child);
+    /** @param {...any} children */
+    append(...children) {
+      this.children.push(...children);
     },
     focus() {
       this.focused = true;
@@ -34,6 +34,10 @@ export function element(properties = {}) {
         throw new Error(`listener_missing:${name}`);
       }
       return listener;
+    },
+    /** @param {...any} children */
+    replaceChildren(...children) {
+      this.children = children;
     },
   };
 }
@@ -49,7 +53,16 @@ export function verifiedConnection() {
       {
         api_profile: "github-rest:2026-03-10",
         principal: { login: "operator" },
-        repositories: [{ full_name: "operator/private" }],
+        repositories: [
+          {
+            api_url: "https://api.github.com/repos/operator/private",
+            clone_url: "https://github.com/operator/private.git",
+            full_name: "operator/private",
+            html_url: "https://github.com/operator/private",
+            id: 101,
+            private: true,
+          },
+        ],
         trigger: "onboarding",
         verified_at: 1_000,
       },
@@ -68,6 +81,18 @@ export function githubElements(form, submit, status, error) {
   const capabilities = element();
   const latest = element();
   const history = element();
+  const repositoryForm = element({ hidden: true });
+  const repositoryOptions = element({
+    querySelector() {
+      return this.children[0]?.children[0] ?? null;
+    },
+    querySelectorAll() {
+      return this.children
+        .map(/** @param {any} label */ (label) => label.children[0])
+        .filter(/** @param {any} control */ (control) => control.checked);
+    },
+  });
+  const repositorySubmit = element();
   return {
     capabilities,
     details,
@@ -84,6 +109,9 @@ export function githubElements(form, submit, status, error) {
       ["github-connection-capabilities", capabilities],
       ["github-connection-latest", latest],
       ["github-connection-history", history],
+      ["github-repository-selection-form", repositoryForm],
+      ["github-repository-selection-options", repositoryOptions],
+      ["github-repository-selection-submit", repositorySubmit],
     ]),
     health,
     history,
@@ -91,6 +119,9 @@ export function githubElements(form, submit, status, error) {
     latest,
     permissions,
     profile,
+    repositoryForm,
+    repositoryOptions,
+    repositorySubmit,
   };
 }
 
@@ -116,7 +147,14 @@ export function browserContext(fetch) {
           replacedUrls.push(url);
         },
       },
-      location: { search: "" },
+      location: {
+        assigned: "",
+        /** @param {string} url */
+        assign(url) {
+          this.assigned = url;
+        },
+        search: "",
+      },
       window: {
         qualityBarOperator: {
           csrfToken: () => "csrf-token",

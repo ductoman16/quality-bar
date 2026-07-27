@@ -10,6 +10,7 @@ import {
 import { createGitHubConnectionCredentialCipher } from "./github-connection-credential.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
 import { readGitHubConnection } from "./github-connection-read.js";
+import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 
 const FLOW_LIFETIME_MS = 60 * 60 * 1_000;
 
@@ -46,7 +47,11 @@ function fail(code, message, cause) {
  *   masterKey: Buffer,
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,
- *   verifier?: ReturnType<typeof createGitHubVerifier>
+ *   verifier?: {
+ *     exchangeManifest: ReturnType<typeof createGitHubVerifier>["exchangeManifest"],
+ *     verifyInstallation: ReturnType<typeof createGitHubVerifier>["verifyInstallation"],
+ *     verifyRepositories?: ReturnType<typeof createGitHubVerifier>["verifyRepositories"]
+ *   }
  * }} options
  */
 export function createGitHubConnectionService(
@@ -135,6 +140,13 @@ export function createGitHubConnectionService(
     }
     return value;
   }
+
+  const selectRepositories = createGitHubRepositorySelector(durableCore, {
+    cipher,
+    createId,
+    timestamp,
+    verifier,
+  });
 
   /** @param {string} state @param {"manifest" | "installation"} stage */
   function take(state, stage) {
@@ -346,6 +358,7 @@ export function createGitHubConnectionService(
         verified_at: verifiedAt,
       };
     },
+    selectRepositories,
     destroy() {
       pending.clear();
       callbackFailures.destroy();
@@ -367,6 +380,9 @@ export function createUnavailableGitHubConnectionService(error) {
       throw error;
     },
     async completeInstallation() {
+      throw error;
+    },
+    async selectRepositories() {
       throw error;
     },
     recordCallbackFailure() {

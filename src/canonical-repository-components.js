@@ -145,9 +145,13 @@ export function canonicalRepositorySchemas() {
     Repository: closedObject(
       {
         credential_type: {
-          enum: ["none", "username_token"],
+          enum: ["none", "username_token", "forge_connection"],
           type: "string",
         },
+        api_url: { format: "uri", type: "string" },
+        assignment_count: { minimum: 0, type: "integer" },
+        forge_connection_id: { minLength: 1, type: "string" },
+        forge_repository_id: { minimum: 1, type: "integer" },
         health: { enum: ["healthy", "error"], type: "string" },
         health_error: {
           oneOf: [
@@ -160,7 +164,11 @@ export function canonicalRepositorySchemas() {
           enum: ["enabled", "disabled", "retired"],
           type: "string",
         },
+        name: { minLength: 1, type: "string" },
+        provider: { const: "github", type: "string" },
         url: { format: "uri", pattern: "^https://", type: "string" },
+        verified_at: { minimum: 0, type: "integer" },
+        web_url: { format: "uri", type: "string" },
       },
       ["credential_type", "health", "health_error", "id", "lifecycle", "url"],
     ),

@@ -16,6 +16,7 @@ import { writeError, writeJson } from "./http-response.js";
  *   mutate: (body: unknown) => unknown,
  *   requestUrl: URL,
  *   statusFor: (code: string, error: unknown) => number,
+ *   successStatus?: number,
  *   unexpectedMessage?: string
  * }} options
  */
@@ -29,6 +30,7 @@ export async function writeBrowserJsonMutation(
     mutate,
     requestUrl,
     statusFor,
+    successStatus = 200,
     unexpectedMessage,
   },
 ) {
@@ -39,7 +41,11 @@ export async function writeBrowserJsonMutation(
       browserOrigin,
       requestUrl,
     );
-    writeJson(response, 200, await mutate(await readJsonRequest(request)));
+    writeJson(
+      response,
+      successStatus,
+      await mutate(await readJsonRequest(request)),
+    );
   } catch (error) {
     if (
       error instanceof Error &&

@@ -37,4 +37,25 @@ export const GITHUB_CONNECTION_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS github_connection_verification_immutable_delete
     BEFORE DELETE ON github_connection_verifications
     BEGIN SELECT RAISE(ABORT, 'github_connection_verification_immutable'); END;
+  CREATE TABLE IF NOT EXISTS github_repositories (
+    repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
+    connection_id TEXT NOT NULL REFERENCES github_connections(id),
+    forge_repository_id INTEGER NOT NULL CHECK (forge_repository_id > 0),
+    name TEXT NOT NULL CHECK (length(name) > 0),
+    api_url TEXT NOT NULL CHECK (length(api_url) > 0),
+    web_url TEXT NOT NULL CHECK (length(web_url) > 0),
+    UNIQUE (connection_id, forge_repository_id)
+  ) STRICT;
+`;
+
+export const GITHUB_REPOSITORY_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS github_repositories (
+    repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
+    connection_id TEXT NOT NULL REFERENCES github_connections(id),
+    forge_repository_id INTEGER NOT NULL CHECK (forge_repository_id > 0),
+    name TEXT NOT NULL CHECK (length(name) > 0),
+    api_url TEXT NOT NULL CHECK (length(api_url) > 0),
+    web_url TEXT NOT NULL CHECK (length(web_url) > 0),
+    UNIQUE (connection_id, forge_repository_id)
+  ) STRICT;
 `;

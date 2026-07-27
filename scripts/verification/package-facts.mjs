@@ -216,8 +216,8 @@ export function validatePackageFacts(facts, applicationVersion) {
       "database.journalMode must equal wal",
     ],
     [
-      packageFacts?.database?.schemaVersion === 13,
-      "database.schemaVersion must equal 13",
+      packageFacts?.database?.schemaVersion === SCHEMA_VERSION,
+      `database.schemaVersion must equal ${SCHEMA_VERSION}`,
     ],
     [
       packageFacts?.database?.synchronous === "full",
@@ -227,3 +227,4 @@ export function validatePackageFacts(facts, applicationVersion) {
 
   return requirements.find(([valid]) => !valid)?.[1] ?? null;
 }
+import { SCHEMA_VERSION } from "../../src/durable-schema.js";

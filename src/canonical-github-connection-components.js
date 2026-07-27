@@ -57,12 +57,25 @@ export function canonicalGitHubConnectionSchemas() {
     ),
     GitHubRepositoryEvidence: closedObject(
       {
+        api_url: { format: "uri", type: "string" },
         clone_url: { format: "uri", type: "string" },
         full_name: { minLength: 3, type: "string" },
+        html_url: { format: "uri", type: "string" },
         id: { minimum: 1, type: "integer" },
         private: { type: "boolean" },
       },
-      ["clone_url", "full_name", "id", "private"],
+      ["api_url", "clone_url", "full_name", "html_url", "id", "private"],
+    ),
+    GitHubRepositorySelectionRequest: closedObject(
+      {
+        repository_ids: {
+          items: { minimum: 1, type: "integer" },
+          minItems: 1,
+          type: "array",
+          uniqueItems: true,
+        },
+      },
+      ["repository_ids"],
     ),
     GitHubConnectionVerification: closedObject(
       {

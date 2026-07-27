@@ -88,12 +88,23 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
           {
             clone_url: "https://github.com/operator/private.git",
             full_name: "operator/private",
+            html_url: "https://github.com/operator/private",
             id: 101,
             owner: { id: 91, login: "operator", type: "User" },
             private: true,
+            url: "https://api.github.com/repos/operator/private",
+          },
+          {
+            clone_url: "https://github.com/operator/public.git",
+            full_name: "operator/public",
+            html_url: "https://github.com/operator/public",
+            id: 202,
+            owner: { id: 91, login: "operator", type: "User" },
+            private: false,
+            url: "https://api.github.com/repos/operator/public",
           },
         ],
-        total_count: 1,
+        total_count: 2,
       });
       return;
     }
@@ -103,6 +114,9 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
         "/repos/operator/private/branches",
         "/repos/operator/private/issues",
         "/repos/operator/private/pulls",
+        "/repos/operator/public/branches",
+        "/repos/operator/public/issues",
+        "/repos/operator/public/pulls",
       ].includes(url.pathname)
     ) {
       send([]);
@@ -145,13 +159,44 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     principal: { id: 91, login: "operator", type: "User" },
     repositories: [
       {
+        api_url: "https://api.github.com/repos/operator/private",
         clone_url: "https://github.com/operator/private.git",
         full_name: "operator/private",
+        html_url: "https://github.com/operator/private",
         id: 101,
         private: true,
       },
+      {
+        api_url: "https://api.github.com/repos/operator/public",
+        clone_url: "https://github.com/operator/public.git",
+        full_name: "operator/public",
+        html_url: "https://github.com/operator/public",
+        id: 202,
+        private: false,
+      },
     ],
   });
+  assert.deepEqual(gitReads, [
+    {
+      credential: {
+        token: "installation-token-value",
+        username: "x-access-token",
+      },
+      options: { followRedirects: false },
+      url: "https://github.com/operator/private.git",
+    },
+    {
+      credential: {
+        token: "installation-token-value",
+        username: "x-access-token",
+      },
+      options: { followRedirects: false },
+      url: "https://github.com/operator/public.git",
+    },
+  ]);
+  gitReads.length = 0;
+  const selected = await verifier.verifyRepositories(credential, 73, [101]);
+  assert.deepEqual(selected, [verified.repositories[0]]);
   assert.deepEqual(gitReads, [
     {
       credential: {

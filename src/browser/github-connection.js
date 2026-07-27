@@ -31,6 +31,15 @@ const githubLatest = githubOperator.requiredElement("github-connection-latest");
 const githubHistory = githubOperator.requiredElement(
   "github-connection-history",
 );
+const githubRepositoryForm = /** @type {HTMLFormElement} */ (
+  githubOperator.requiredElement("github-repository-selection-form")
+);
+const githubRepositoryOptions = githubOperator.requiredElement(
+  "github-repository-selection-options",
+);
+const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
+  githubOperator.requiredElement("github-repository-selection-submit")
+);
 
 /** @param {string} message */
 function showGitHubError(message) {
@@ -120,6 +129,7 @@ function renderGitHubConnection(value) {
   if (value === null) {
     githubDetails.hidden = true;
     githubForm.hidden = false;
+    githubRepositoryForm.hidden = true;
     githubStatus.textContent = "";
     return;
   }
@@ -164,6 +174,18 @@ function renderGitHubConnection(value) {
         typeof verification.principal.login !== "string" ||
         !("repositories" in verification) ||
         !Array.isArray(verification.repositories) ||
+        verification.repositories.length === 0 ||
+        verification.repositories.some(
+          /** @param {unknown} repository */ (repository) =>
+            !repository ||
+            typeof repository !== "object" ||
+            !("id" in repository) ||
+            !Number.isSafeInteger(repository.id) ||
+            !("full_name" in repository) ||
+            typeof repository.full_name !== "string" ||
+            !("private" in repository) ||
+            typeof repository.private !== "boolean",
+        ) ||
         !("verified_at" in verification) ||
         !Number.isSafeInteger(verification.verified_at),
     )
@@ -198,10 +220,89 @@ function renderGitHubConnection(value) {
     item.textContent = `${verification.trigger}; ${verification.api_profile}; ${verification.principal.login}; ${verification.repositories.length} Repositories; ${verificationTime(verification.verified_at)}`;
     githubHistory.append(item);
   }
+  githubRepositoryOptions.replaceChildren();
+  const latest =
+    value.verification_history[value.verification_history.length - 1];
+  for (const repository of latest.repositories) {
+    const label = document.createElement("label");
+    const control = document.createElement("input");
+    control.name = "repository_ids";
+    control.type = "checkbox";
+    control.value = String(repository.id);
+    const identity = document.createElement("span");
+    identity.textContent = `${repository.full_name}; ${
+      repository.private ? "private" : "public"
+    }`;
+    label.append(control, identity);
+    githubRepositoryOptions.append(label);
+  }
+  githubRepositoryForm.hidden = false;
   githubDetails.hidden = false;
   githubForm.hidden = true;
   githubStatus.textContent = "GitHub Connection verified.";
 }
+
+githubRepositoryForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  githubError.hidden = true;
+  const selected = [
+    ...githubRepositoryOptions.querySelectorAll(
+      'input[name="repository_ids"]:checked',
+    ),
+  ].map((control) => Number(/** @type {HTMLInputElement} */ (control).value));
+  if (selected.length === 0) {
+    showGitHubError("Select at least one GitHub Repository");
+    const first = /** @type {HTMLInputElement | null} */ (
+      githubRepositoryOptions.querySelector('input[name="repository_ids"]')
+    );
+    first?.focus();
+    return;
+  }
+  githubStatus.textContent = "Registering selected GitHub Repositories.";
+  githubRepositorySubmit.disabled = true;
+  let response;
+  try {
+    response = await fetch("/api/v1/github-connections/repositories", {
+      body: JSON.stringify({ repository_ids: selected }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": githubOperator.csrfToken(),
+      },
+      method: "POST",
+    });
+  } catch {
+    showGitHubError("GitHub Repository selection failed");
+    githubRepositorySubmit.disabled = false;
+    return;
+  }
+  if (!response.ok) {
+    await showGitHubResponseError(response);
+    githubRepositorySubmit.disabled = false;
+    return;
+  }
+  try {
+    const repositories = /** @type {unknown} */ (await response.json());
+    if (
+      !Array.isArray(repositories) ||
+      repositories.length !== selected.length ||
+      repositories.some(
+        (repository) =>
+          !repository ||
+          typeof repository !== "object" ||
+          !("forge_repository_id" in repository) ||
+          !selected.includes(
+            /** @type {number} */ (repository.forge_repository_id),
+          ),
+      )
+    ) {
+      throw new Error("github_repository_selection_response_invalid");
+    }
+    location.assign("/?view=repositories&github_repositories=selected");
+  } catch {
+    showGitHubError("GitHub Repository selection response is invalid");
+    githubRepositorySubmit.disabled = false;
+  }
+});
 
 async function loadGitHubConnection() {
   let response;
@@ -222,6 +323,10 @@ async function loadGitHubConnection() {
       return;
     }
     if (query.get("github_connection") === "connected") {
+      githubStatus.focus();
+    }
+    if (query.get("github_repositories") === "selected") {
+      githubStatus.textContent = "GitHub Repositories registered.";
       githubStatus.focus();
     }
   } catch {

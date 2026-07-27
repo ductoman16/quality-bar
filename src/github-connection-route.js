@@ -159,6 +159,32 @@ export function createGitHubConnectionRoute({
       });
       return true;
     }
+    if (
+      method === "POST" &&
+      path === "/api/v1/github-connections/repositories" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "github_repository_selection_failed",
+        mutate: (body) => githubConnections.selectRepositories(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "github_connection_not_found"
+            ? 409
+            : code === "github_repository_identity_conflict"
+              ? 409
+              : isUnavailableError(error) ||
+                  code === "github_api_unavailable" ||
+                  code === "github_private_git_read_failed"
+                ? 503
+                : 422,
+        successStatus: 201,
+        unexpectedMessage: "GitHub Repository selection failed",
+      });
+      return true;
+    }
     return false;
   };
 }

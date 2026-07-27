@@ -66,9 +66,11 @@ test("manifest and installation callbacks atomically create one verified secret-
           principal: { id: 91, login: "operator", type: "User" },
           repositories: [
             {
+              api_url: "https://api.github.com/repos/operator/private",
               clone_url: "https://github.com/operator/private.git",
               id: 101,
               full_name: "operator/private",
+              html_url: "https://github.com/operator/private",
               private: true,
             },
           ],
@@ -158,9 +160,11 @@ test("manifest and installation callbacks atomically create one verified secret-
         principal: { id: 91, login: "operator", type: "User" },
         repositories: [
           {
+            api_url: "https://api.github.com/repos/operator/private",
             clone_url: "https://github.com/operator/private.git",
             id: 101,
             full_name: "operator/private",
+            html_url: "https://github.com/operator/private",
             private: true,
           },
         ],

@@ -38,6 +38,28 @@ function connectionService() {
           calls.push(["installation", input]);
           return {};
         },
+        /** @param {any} input */
+        async selectRepositories(input) {
+          calls.push(["selection", input]);
+          return [
+            {
+              api_url: "https://api.github.com/repos/operator/private",
+              assignment_count: 0,
+              credential_type: "forge_connection",
+              forge_connection_id: "connection-1",
+              forge_repository_id: 101,
+              health: "healthy",
+              health_error: null,
+              id: "repository-1",
+              lifecycle: "enabled",
+              name: "operator/private",
+              provider: "github",
+              url: "https://github.com/operator/private.git",
+              verified_at: 1_000,
+              web_url: "https://github.com/operator/private",
+            },
+          ];
+        },
         recordCallbackFailure() {
           return "error-receipt";
         },
@@ -96,6 +118,34 @@ test("canonical HTTP flow starts under operator authority and completes both sta
   const read = await request("/api/v1/github-connections", { headers });
   assert.equal(read.status, 200);
   assert.equal(await read.json(), null);
+  const selection = await request("/api/v1/github-connections/repositories", {
+    body: JSON.stringify({ repository_ids: [101] }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(selection.status, 201);
+  assert.deepEqual(await selection.json(), [
+    {
+      api_url: "https://api.github.com/repos/operator/private",
+      assignment_count: 0,
+      credential_type: "forge_connection",
+      forge_connection_id: "connection-1",
+      forge_repository_id: 101,
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      name: "operator/private",
+      provider: "github",
+      url: "https://github.com/operator/private.git",
+      verified_at: 1_000,
+      web_url: "https://github.com/operator/private",
+    },
+  ]);
+  assert.deepEqual(service.calls.at(-1), [
+    "selection",
+    { repository_ids: [101] },
+  ]);
   const unsupportedPat = await request("/api/v1/github-connections/pat", {
     body: "{}",
     headers,
@@ -124,6 +174,9 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
           "github_permissions_mismatch",
           "GitHub App permissions do not match the required profile",
         );
+      },
+      async selectRepositories() {
+        throw new Error("not used");
       },
       /** @param {GitHubConnectionError} error */
       recordCallbackFailure(error) {
