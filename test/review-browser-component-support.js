@@ -176,7 +176,11 @@ export function reviewVersionBrowserHarness(options = {}) {
   };
   const browserContext = {
     CustomEvent: FakeCustomEvent,
-    confirm: options.confirm ?? (() => true),
+    confirm:
+      options.confirm ??
+      (() => {
+        throw new Error("review_criterion_confirmation_unexpected");
+      }),
     document,
     location: {
       /** @param {string} destination */
