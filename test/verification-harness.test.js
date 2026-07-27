@@ -67,6 +67,10 @@ test("the verifier emits successful evidence and stops at a hard gate failure", 
       successful.manifest.componentVersions.adapterProtocol,
       "mcp:2025-11-25",
     );
+    assert.equal(
+      successful.manifest.componentVersions.fixtures,
+      "github-rest:2026-03-10",
+    );
     assert.deepEqual(successful.manifest.failures, []);
     assert.equal(
       successful.manifest.invokedGates[0].name,

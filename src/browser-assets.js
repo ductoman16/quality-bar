@@ -12,6 +12,11 @@ const browserAssets = [
     url: new URL("./browser/operator.js", import.meta.url),
   },
   {
+    route: "/assets/github-connection.js",
+    sourcePath: "src/browser/github-connection.js",
+    url: new URL("./browser/github-connection.js", import.meta.url),
+  },
+  {
     route: "/assets/repository.js",
     sourcePath: "src/browser/repository.js",
     url: new URL("./browser/repository.js", import.meta.url),

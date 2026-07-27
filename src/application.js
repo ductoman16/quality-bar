@@ -19,6 +19,10 @@ import {
   createImplementerTokenService,
   createUnavailableImplementerTokenService,
 } from "./implementer-token.js";
+import {
+  createGitHubConnectionService,
+  createUnavailableGitHubConnectionService,
+} from "./github-connection.js";
 import { createApplicationServer } from "./server.js";
 import {
   createRequestSecurityBoundary,
@@ -150,6 +154,7 @@ function createHardStorageBoundary(writeLog) {
  *   validateCodexAuthentication?: typeof validateCodexLogin,
  *   createReviews?: typeof createReviewService,
  *   createRepositories?: typeof createRepositoryService,
+ *   createGitHubConnections?: (...arguments_: any[]) => any,
  *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
@@ -165,6 +170,7 @@ export function createApplication({
   validateCodexAuthentication = validateCodexLogin,
   createReviews = createReviewService,
   createRepositories = createRepositoryService,
+  createGitHubConnections = createGitHubConnectionService,
   createRepositoryGuidance = createRepositoryGuidanceService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
@@ -182,6 +188,7 @@ export function createApplication({
   let requestSecurity = null;
   let reviews = null;
   let repositories = null;
+  let githubConnections = null;
   let repositoryGuidance = null;
   let systemResource = null;
   let secureBrowserCookie = false;
@@ -207,6 +214,11 @@ export function createApplication({
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       repositories = createRepositories(durableCore, {
+        masterKey: installation.masterKey,
+        now,
+      });
+      githubConnections = createGitHubConnections(durableCore, {
+        externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
       });
@@ -241,6 +253,7 @@ export function createApplication({
     );
   } catch (error) {
     repositories?.destroy?.();
+    githubConnections?.destroy?.();
     durableCore?.close();
     durableCore = null;
     releaseInstallationLock?.();
@@ -252,6 +265,8 @@ export function createApplication({
       createUnavailableImplementerTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
     repositories = createUnavailableRepositoryService(startupFailure);
+    githubConnections =
+      createUnavailableGitHubConnectionService(startupFailure);
     repositoryGuidance =
       createUnavailableRepositoryGuidanceService(startupFailure);
     structuredLog(
@@ -278,6 +293,7 @@ export function createApplication({
     browserOrigin,
     requestSecurity,
     repositories,
+    githubConnections,
     repositoryGuidance,
     reviews,
     readDurableCoreStatus,
@@ -358,6 +374,7 @@ export function createApplication({
         );
       }
       repositories?.destroy?.();
+      githubConnections?.destroy?.();
       durableCore?.close();
       releaseInstallationLock?.();
       releaseInstallationLock = null;

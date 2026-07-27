@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import { createUnavailableReviewService } from "../src/review.js";
+import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
 
 /** @type {import("node:http").Server | undefined} */
@@ -16,6 +17,9 @@ function callApplicationServer(options) {
 
 function applicationServerOptions() {
   return {
+    githubConnections: createUnavailableGitHubConnectionService(
+      new Error("unused GitHub Connection"),
+    ),
     browserSessions: {
       authenticate() {
         return false;

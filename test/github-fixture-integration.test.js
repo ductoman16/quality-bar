@@ -1,0 +1,272 @@
+import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
+import { createServer } from "node:http";
+import { test } from "node:test";
+
+import { createGitHubVerifier } from "../src/github-api.js";
+import { GitHubConnectionError } from "../src/github-connection.js";
+
+const permissions = {
+  contents: "read",
+  issues: "write",
+  metadata: "read",
+  pull_requests: "write",
+  statuses: "write",
+};
+
+test("GitHub fixture verifies the pinned profile, personal installation, exact permissions, routes, enumeration, and private Git read", async (context) => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+  /** @type {any[]} */
+  const requests = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://fixture.invalid");
+    requests.push({
+      authorization: request.headers.authorization
+        ? "Bearer <redacted>"
+        : undefined,
+      method: request.method,
+      path: `${url.pathname}${url.search}`,
+      version: request.headers["x-github-api-version"],
+    });
+    response.setHeader("content-type", "application/json");
+    /** @param {unknown} body */
+    const send = (body) => response.end(JSON.stringify(body));
+    if (
+      request.method === "POST" &&
+      url.pathname === "/app-manifests/temporary-code/conversions"
+    ) {
+      send({
+        id: 47,
+        slug: "quality-bar-personal",
+        client_id: "Iv1.client",
+        owner: { id: 91, login: "operator", type: "User" },
+        pem,
+      });
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/app") {
+      send({
+        events: [],
+        id: 47,
+        client_id: "Iv1.client",
+        owner: { id: 91, login: "operator", type: "User" },
+        permissions,
+        public: false,
+        slug: "quality-bar-personal",
+      });
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/app/installations") {
+      send([
+        {
+          account: { id: 91, login: "operator", type: "User" },
+          app_id: 47,
+          events: [],
+          id: 73,
+          permissions,
+          repository_selection: "selected",
+          suspended_at: null,
+          target_type: "User",
+        },
+      ]);
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/app/installations/73/access_tokens"
+    ) {
+      send({ permissions, token: "installation-token-value" });
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      url.pathname === "/installation/repositories"
+    ) {
+      send({
+        repositories: [
+          {
+            clone_url: "https://github.com/operator/private.git",
+            full_name: "operator/private",
+            id: 101,
+            owner: { id: 91, login: "operator", type: "User" },
+            private: true,
+          },
+        ],
+        total_count: 1,
+      });
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      [
+        "/repos/operator/private/branches",
+        "/repos/operator/private/issues",
+        "/repos/operator/private/pulls",
+      ].includes(url.pathname)
+    ) {
+      send([]);
+      return;
+    }
+    response.statusCode = 404;
+    send({ message: "fixture route missing" });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
+  });
+  context.after(
+    () => new Promise((resolve) => server.close(() => resolve(undefined))),
+  );
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  /** @type {any[]} */
+  const gitReads = [];
+  const verifier = createGitHubVerifier({
+    apiBaseUrl: `http://127.0.0.1:${address.port}`,
+    now: () => 2_000_000_000_000,
+    async verifyGit(url, credential, options) {
+      gitReads.push({ credential, options, url });
+    },
+  });
+  const credential = await verifier.exchangeManifest("temporary-code");
+  const verified = await verifier.verifyInstallation(credential, 73);
+
+  assert.deepEqual(verified, {
+    capabilities: {
+      aggregate_feedback: "verified",
+      branch_access: "verified",
+      commit_status: "verified",
+      enumeration: "verified",
+      inline_feedback: "verified",
+      private_git_read: "verified",
+      pull_request_access: "verified",
+    },
+    principal: { id: 91, login: "operator", type: "User" },
+    repositories: [
+      {
+        clone_url: "https://github.com/operator/private.git",
+        full_name: "operator/private",
+        id: 101,
+        private: true,
+      },
+    ],
+  });
+  assert.deepEqual(gitReads, [
+    {
+      credential: {
+        token: "installation-token-value",
+        username: "x-access-token",
+      },
+      options: { followRedirects: false },
+      url: "https://github.com/operator/private.git",
+    },
+  ]);
+  assert.equal(
+    requests.every(
+      ({ path, version }) =>
+        path.includes("/app-manifests/") || version === "2026-03-10",
+    ),
+    true,
+  );
+  assert.equal(
+    requests
+      .filter(({ path }) => !path.includes("/app-manifests/"))
+      .every(({ authorization }) => /^Bearer /.test(authorization ?? "")),
+    true,
+  );
+  assert.doesNotMatch(JSON.stringify(requests), /installation-token-value/);
+});
+
+test("GitHub fixture permission drift fails before enumeration or Git access", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const verifier = createGitHubVerifier({
+    fetch: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === "/app") {
+        return new Response(
+          JSON.stringify({
+            events: [],
+            id: 47,
+            client_id: "Iv1.client",
+            owner: { id: 91, login: "operator", type: "User" },
+            permissions: { ...permissions, contents: "write" },
+            public: false,
+            slug: "quality-bar-personal",
+          }),
+          { status: 200 },
+        );
+      }
+      throw new Error("unexpected fixture request");
+    },
+    now: () => 2_000_000_000_000,
+    async verifyGit() {
+      throw new Error("Git must not run");
+    },
+  });
+  await assert.rejects(
+    () =>
+      verifier.verifyInstallation(
+        {
+          app_id: 47,
+          app_slug: "quality-bar-personal",
+          client_id: "Iv1.client",
+          owner: { id: 91, login: "operator", type: "User" },
+          pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+        },
+        73,
+      ),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_permissions_mismatch",
+  );
+});
+
+test("GitHub fixture rejects any installation scope beyond one personal account", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const verifier = createGitHubVerifier({
+    fetch: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === "/app") {
+        return new Response(
+          JSON.stringify({
+            events: [],
+            id: 47,
+            client_id: "Iv1.client",
+            owner: { id: 91, login: "operator", type: "User" },
+            permissions,
+            public: false,
+            slug: "quality-bar-personal",
+          }),
+          { status: 200 },
+        );
+      }
+      if (path === "/app/installations") {
+        return new Response(JSON.stringify([{ id: 73 }, { id: 74 }]), {
+          status: 200,
+        });
+      }
+      throw new Error("unexpected fixture request");
+    },
+    now: () => 2_000_000_000_000,
+    async verifyGit() {
+      throw new Error("Git must not run");
+    },
+  });
+  await assert.rejects(
+    () =>
+      verifier.verifyInstallation(
+        {
+          app_id: 47,
+          app_slug: "quality-bar-personal",
+          client_id: "Iv1.client",
+          owner: { id: 91, login: "operator", type: "User" },
+          pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+        },
+        73,
+      ),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_installation_scope_invalid",
+  );
+});

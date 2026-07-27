@@ -3,8 +3,13 @@ import {
   REVIEW_ASSIGNMENT_MIGRATION,
   REVIEW_ASSIGNMENT_SCHEMA,
 } from "./review-assignment-schema.js";
+import { GITHUB_CONNECTION_SCHEMA } from "./github-connection-schema.js";
+import {
+  CURRENT_SCHEMA_VERSION,
+  migrateSchema as migration,
+} from "./durable-schema-migration.js";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 
 const REPOSITORY_HEALTH_INTEGRITY = `
   CREATE TRIGGER IF NOT EXISTS repository_health_integrity_insert
@@ -138,22 +143,6 @@ const REVIEW_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
 
-/**
- * @param {import("node:sqlite").DatabaseSync} database
- * @param {string} statements
- */
-function migration(database, statements) {
-  database.exec(`
-    BEGIN IMMEDIATE;
-    ${statements}
-    UPDATE quality_bar_metadata
-    SET value = '${SCHEMA_VERSION}'
-    WHERE key = 'schema_version';
-    PRAGMA user_version = ${SCHEMA_VERSION};
-    COMMIT;
-  `);
-}
-
 /** @param {import("node:sqlite").DatabaseSync} database */
 export function initializeOrValidateSchema(database) {
   const version = /** @type {{ user_version: number }} */ (
@@ -196,6 +185,7 @@ export function initializeOrValidateSchema(database) {
       ${REVIEW_SCHEMA}
       ${REPOSITORY_SCHEMA}
       ${REPOSITORY_CREDENTIAL_SCHEMA}
+      ${GITHUB_CONNECTION_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -224,7 +214,9 @@ export function initializeOrValidateSchema(database) {
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
+        ${GITHUB_CONNECTION_SCHEMA}
       `,
+      SCHEMA_VERSION,
     );
   } else if (version === 2 || version === 3) {
     migration(
@@ -250,6 +242,7 @@ export function initializeOrValidateSchema(database) {
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
+        ${GITHUB_CONNECTION_SCHEMA}
       `,
     );
   } else if (version === 4) {
@@ -269,12 +262,13 @@ export function initializeOrValidateSchema(database) {
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
+        ${GITHUB_CONNECTION_SCHEMA}
       `,
     );
   } else if (version === 5) {
     migration(
       database,
-      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}`,
+      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 6) {
     migration(
@@ -329,6 +323,7 @@ export function initializeOrValidateSchema(database) {
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${REVIEW_ASSIGNMENT_MIGRATION}
+        ${GITHUB_CONNECTION_SCHEMA}
       `,
     );
   } else if (version === 7) {
@@ -337,25 +332,31 @@ export function initializeOrValidateSchema(database) {
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
        ${REPOSITORY_SCHEMA}
        ${REPOSITORY_CREDENTIAL_SCHEMA}
-       ${REVIEW_ASSIGNMENT_MIGRATION}`,
+       ${REVIEW_ASSIGNMENT_MIGRATION}
+       ${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 8) {
     migration(
       database,
-      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}`,
+      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 9) {
     migration(
       database,
-      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}`,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 10) {
     migration(
       database,
-      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}`,
+      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
     );
   } else if (version === 11) {
-    migration(database, REVIEW_ASSIGNMENT_MIGRATION);
+    migration(
+      database,
+      `${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
+    );
+  } else if (version === 12) {
+    migration(database, GITHUB_CONNECTION_SCHEMA);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

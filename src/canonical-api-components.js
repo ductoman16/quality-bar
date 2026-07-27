@@ -1,8 +1,8 @@
 import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
+import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
+import { closedObject, openObject } from "./canonical-schema.js";
 
 /**
- * @typedef {Record<string, unknown>} JsonSchema
- * @typedef {Record<string, JsonSchema>} JsonSchemaProperties
  * @typedef {{
  *   codex_cli_version: string,
  *   models: ReadonlyArray<{
@@ -12,31 +12,6 @@ import { canonicalRepositorySchemas } from "./canonical-repository-components.js
  *   }>
  * }} CodexCapabilityCatalog
  */
-
-/**
- * @param {JsonSchemaProperties} properties
- * @param {string[]} required
- * @param {boolean} additionalProperties
- */
-function objectSchema(properties, required, additionalProperties) {
-  return { additionalProperties, properties, required, type: "object" };
-}
-
-/**
- * @param {JsonSchemaProperties} properties
- * @param {string[]} required
- */
-function openObject(properties, required) {
-  return objectSchema(properties, required, true);
-}
-
-/**
- * @param {JsonSchemaProperties} properties
- * @param {string[]} required
- */
-function closedObject(properties, required) {
-  return objectSchema(properties, required, false);
-}
 
 /** @param {CodexCapabilityCatalog} codexCapabilityCatalog */
 export function createCanonicalComponents(codexCapabilityCatalog) {
@@ -93,6 +68,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         { error: { $ref: "#/components/schemas/Error" } },
         ["error"],
       ),
+      ...canonicalGitHubConnectionSchemas(),
       CurrentPasswordRequest: closedObject({ password: { type: "string" } }, [
         "password",
       ]),

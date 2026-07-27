@@ -1,9 +1,9 @@
 import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
+import { assertApiQueryParameters } from "./api-query.js";
 import { apiResourceMatches } from "./api-resource-matches.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
-  assertAllowedQueryParameters,
   browserMutationFailureStatus,
   isUnavailableError,
   readAuthorityAttributionQuery,
@@ -11,6 +11,7 @@ import {
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
+import { createGitHubConnectionRoute } from "./github-connection-route.js";
 import { writeRepositoryGuidance } from "./repository-guidance-route.js";
 import { writeRepositoryList } from "./repository-list-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
@@ -25,14 +26,20 @@ export function createApiRoute({
   readSystemStatus,
   recordAuthorityAttribution,
   repositories,
+  githubConnections,
   repositoryGuidance,
   reviews,
 }) {
+  const handleGitHubConnection = createGitHubConnectionRoute({
+    browserOrigin,
+    browserSessions,
+    githubConnections,
+  });
   /**
    * @param {import("node:http").IncomingMessage} request
    * @param {import("node:http").ServerResponse} response
    * @param {URL} requestUrl
-   * @param {"machine" | "operator" | undefined} authority
+   * @param {"callback" | "machine" | "operator" | undefined} authority
    */
   return async function handleApi(request, response, requestUrl, authority) {
     const { method } = request;
@@ -61,7 +68,8 @@ export function createApiRoute({
         (method === "POST" && reviewVersionsMatch) ||
         (method === "POST" && path === "/api/v1/repositories") ||
         (method === "POST" && repositoryCredentialRotationMatch) ||
-        (method === "PATCH" && repositoryLifecycleMatch))
+        (method === "PATCH" && repositoryLifecycleMatch) ||
+        path.startsWith("/api/v1/github-connections"))
     ) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
@@ -73,38 +81,17 @@ export function createApiRoute({
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
-    if (path === "/api/v1/system/authority-attributions") {
-      try {
-        assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
-      } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(response, 400, failure.code, failure.message);
-        return true;
-      }
-    } else if (method === "GET" && path === "/api/v1/repositories") {
-      try {
-        assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
-      } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(response, 400, failure.code, failure.message);
-        return true;
-      }
-    } else if (method === "GET" && path === "/api/v1/reviews") {
-      try {
-        assertAllowedQueryParameters(requestUrl, new Set(["state"]));
-      } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(response, 400, failure.code, failure.message);
-        return true;
-      }
-    } else {
-      try {
-        assertAllowedQueryParameters(requestUrl, new Set());
-      } catch (error) {
-        const failure = requireCodedError(error);
-        writeError(response, 400, failure.code, failure.message);
-        return true;
-      }
+    if (
+      await handleGitHubConnection(request, response, requestUrl, authority)
+    ) {
+      return true;
+    }
+    try {
+      assertApiQueryParameters(method, path, requestUrl);
+    } catch (error) {
+      const failure = requireCodedError(error);
+      writeError(response, 400, failure.code, failure.message);
+      return true;
     }
     if (method === "GET" && path === "/api/v1/openapi.json") {
       writeJson(response, 200, canonicalOpenApiDocument());
