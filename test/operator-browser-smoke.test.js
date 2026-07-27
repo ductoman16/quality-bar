@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -139,6 +145,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const applicationOrigin = `http://127.0.0.1:${applicationAddress.port}`;
   let sawAuthenticatedShell = false;
   let sawSystemFetch = false;
+  /** @type {string[]} */
+  const requestFacts = [];
   /** @type {() => void} */
   let complete = () => {
     throw new Error("operator_browser_completion_not_initialized");
@@ -149,6 +157,12 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const proxy = createServer(async (request, response) => {
     if (!request.method || !request.url) {
       throw new Error("operator_browser_proxy_request_invalid");
+    }
+    requestFacts.push(
+      `${request.method} ${request.url} cookie=${String(Boolean(request.headers.cookie))}`,
+    );
+    if (requestFacts.length > 20) {
+      requestFacts.shift();
     }
     if (
       request.method === "GET" &&
@@ -210,16 +224,44 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     throw new Error("operator_browser_proxy_address_unavailable");
   }
   const proxyOrigin = `http://127.0.0.1:${proxyAddress.port}`;
+  const firefoxProfilePath = join(directory, "firefox-profile");
+  mkdirSync(firefoxProfilePath, { mode: 0o700 });
   const firefox = spawn(firefoxBinary(), [
     "--headless",
     "--no-remote",
     "--profile",
-    join(directory, "firefox-profile"),
+    firefoxProfilePath,
     `${proxyOrigin}/`,
   ]);
+  let firefoxStandardError = "";
+  firefox.stderr.on("data", (chunk) => {
+    firefoxStandardError = `${firefoxStandardError}${String(chunk)}`.slice(
+      -4096,
+    );
+  });
+  const { promise: firefoxExited, reject: rejectFirefoxExit } =
+    Promise.withResolvers();
+  firefox.once("error", rejectFirefoxExit);
+  firefox.once("exit", (code, signal) => {
+    rejectFirefoxExit(
+      new Error(
+        `Firefox exited before completing the smoke (code ${String(code)}, signal ${String(signal)})`,
+      ),
+    );
+  });
 
   try {
-    await waitFor(completed);
+    try {
+      await waitFor(Promise.race([completed, firefoxExited]), 30_000);
+    } catch (error) {
+      throw new Error(
+        `operator_browser_firefox_failed: ${
+          error instanceof Error ? error.message : String(error)
+        }; requests: ${JSON.stringify(requestFacts)}; stderr: ${
+          firefoxStandardError.trim() || "unavailable"
+        }`,
+      );
+    }
     assert.equal(sawAuthenticatedShell, true);
     assert.equal(sawSystemFetch, true);
   } finally {
