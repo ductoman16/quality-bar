@@ -14,9 +14,20 @@ import {
   requireBrowserMutationWithQuery,
   sessionCookie,
 } from "./http-request.js";
-import { forbidMachineSystemAccess } from "./api-authorization.js";
+import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeEmpty, writeError, writeJson } from "./http-response.js";
+
+const BROWSER_SESSION_ROUTES = new Map([
+  ["/api/v1/session/login", "login"],
+  ["/api/v1/session/logout", "session_logout"],
+  ["/api/v1/session/activity", "session_activity"],
+  ["/api/v1/session/password", "password_change"],
+  ["/api/v1/sessions/revoke", "session_revoke_all"],
+  ["/api/v1/implementer-token", "implementer_token_create"],
+  ["/api/v1/implementer-token/rotate", "implementer_token_rotate"],
+  ["/api/v1/implementer-token/revoke", "implementer_token_revoke"],
+]);
 
 /**
  * @typedef {{
@@ -79,54 +90,23 @@ export function createBrowserSessionRoute({
   return async function handleBrowserSession(request, response, requestUrl) {
     const { method } = request;
     const path = requestUrl.pathname;
+    const route = method === "POST" ? BROWSER_SESSION_ROUTES.get(path) : null;
+    if (!route) {
+      return false;
+    }
     if (
-      method === "POST" &&
-      [
-        "/api/v1/session/login",
-        "/api/v1/session/logout",
-        "/api/v1/session/activity",
-        "/api/v1/session/password",
-        "/api/v1/sessions/revoke",
-        "/api/v1/implementer-token",
-        "/api/v1/implementer-token/rotate",
-        "/api/v1/implementer-token/revoke",
-      ].includes(path) &&
       request.headers.authorization !== undefined &&
       request.headers.cookie === undefined
     ) {
-      try {
-        const token = request.headers.authorization.match(
-          /^Bearer ([A-Za-z0-9_-]{43})$/,
-        )?.[1];
-        if (!implementerTokens.authenticate(token)) {
-          throw Object.assign(new Error("Machine authentication is invalid"), {
-            code: "authentication_invalid",
-          });
-        }
-        recordAuthorityAttribution({
-          action: "authentication",
-          channel: "implementer_token",
-          outcome: "success",
-        });
-        forbidMachineSystemAccess(response, recordAuthorityAttribution);
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: "authentication",
-          channel: "implementer_token",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeError(
-          response,
-          authenticationFailureStatus(failure.code),
-          failure.code,
-          failure.message,
-        );
-      }
+      writeMachineOperatorAccessDenial(
+        request,
+        response,
+        implementerTokens,
+        recordAuthorityAttribution,
+      );
       return true;
     }
-    if (method === "POST" && path === "/api/v1/session/login") {
+    if (route === "login") {
       try {
         assertAllowedQueryParameters(requestUrl, new Set());
         assertNoMixedCredentials(request);
@@ -169,7 +149,7 @@ export function createBrowserSessionRoute({
       }
       return true;
     }
-    if (method === "POST" && path === "/api/v1/session/logout") {
+    if (route === "session_logout") {
       try {
         browserSessions.logout(
           requireBrowserMutationWithQuery(
@@ -198,7 +178,7 @@ export function createBrowserSessionRoute({
       }
       return true;
     }
-    if (method === "POST" && path === "/api/v1/session/activity") {
+    if (route === "session_activity") {
       try {
         const secret = requireBrowserMutationWithQuery(
           browserSessions,
@@ -235,7 +215,7 @@ export function createBrowserSessionRoute({
       }
       return true;
     }
-    if (method === "POST" && path === "/api/v1/session/password") {
+    if (route === "password_change") {
       try {
         requireBrowserMutationWithQuery(
           browserSessions,
@@ -265,7 +245,7 @@ export function createBrowserSessionRoute({
       }
       return true;
     }
-    if (method === "POST" && path === "/api/v1/sessions/revoke") {
+    if (route === "session_revoke_all") {
       try {
         requireBrowserMutationWithQuery(
           browserSessions,
@@ -301,14 +281,7 @@ export function createBrowserSessionRoute({
       }
       return true;
     }
-    if (
-      method === "POST" &&
-      [
-        "/api/v1/implementer-token",
-        "/api/v1/implementer-token/rotate",
-        "/api/v1/implementer-token/revoke",
-      ].includes(path)
-    ) {
+    if (route.startsWith("implementer_token_")) {
       try {
         requireBrowserMutationWithQuery(
           browserSessions,
@@ -317,23 +290,26 @@ export function createBrowserSessionRoute({
           requestUrl,
         );
         const { password } = await readImplementerTokenRequest(request);
-        if (path === "/api/v1/implementer-token/revoke") {
+        if (route === "implementer_token_revoke") {
           implementerTokens.revoke(password);
           writeEmpty(response);
         } else {
-          const token = path.endsWith("/rotate")
-            ? implementerTokens.rotate(password)
-            : implementerTokens.create(password);
-          writeJson(response, path.endsWith("/rotate") ? 200 : 201, { token });
+          const token =
+            route === "implementer_token_rotate"
+              ? implementerTokens.rotate(password)
+              : implementerTokens.create(password);
+          writeJson(
+            response,
+            route === "implementer_token_rotate" ? 200 : 201,
+            {
+              token,
+            },
+          );
         }
       } catch (error) {
         const failure = requireCodedError(error);
         recordAuthorityAttribution({
-          action: path.endsWith("/rotate")
-            ? "implementer_token_rotate"
-            : path.endsWith("/revoke")
-              ? "implementer_token_revoke"
-              : "implementer_token_create",
+          action: route,
           channel: "browser_session",
           errorCode: failure.code,
           outcome: "failure",

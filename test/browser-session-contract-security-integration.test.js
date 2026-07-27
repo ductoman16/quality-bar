@@ -201,6 +201,17 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     contract.components.schemas.RepositoryCollection.additionalProperties,
     false,
   );
+  assert.deepEqual(contract.components.schemas.RepositoryCollection.required, [
+    "items",
+    "next_cursor",
+    "repositories",
+  ]);
+  assert.equal(
+    /** @type {{deprecated?: boolean}} */ (
+      contract.components.schemas.RepositoryCollection.properties.repositories
+    ).deprecated,
+    true,
+  );
   assert.deepEqual(
     contract.paths["/api/v1/reviews/{review_id}/archival"].patch.security,
     [{ browser_session: [] }],

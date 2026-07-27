@@ -150,6 +150,7 @@ function createHardStorageBoundary(writeLog) {
  *   validateCodexAuthentication?: typeof validateCodexLogin,
  *   createReviews?: typeof createReviewService,
  *   createRepositories?: typeof createRepositoryService,
+ *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -164,6 +165,7 @@ export function createApplication({
   validateCodexAuthentication = validateCodexLogin,
   createReviews = createReviewService,
   createRepositories = createRepositoryService,
+  createRepositoryGuidance = createRepositoryGuidanceService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -214,7 +216,7 @@ export function createApplication({
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
-    repositoryGuidance = createRepositoryGuidanceService(durableCore);
+    repositoryGuidance = createRepositoryGuidance(durableCore);
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {

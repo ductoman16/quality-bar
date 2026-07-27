@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositoryService } from "../src/repository.js";
+import {
+  createRepositoryService,
+  createUnavailableRepositoryService,
+} from "../src/repository.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
@@ -34,6 +37,7 @@ test("a sole implementer bearer locates Repositories but cannot administer them"
   assert.deepEqual(await repositoryList.json(), {
     items: [],
     next_cursor: null,
+    repositories: [],
   });
   const forbiddenCredentialRotation = await request(
     "/api/v1/repositories/repository-1/credential/rotate",
@@ -86,11 +90,13 @@ test("the machine Repository collection uses validated opaque keyset pagination"
   assert.equal(firstResponse.status, 200);
   const firstPage = /** @type {{
    *   items: Array<{id: string}>,
-   *   next_cursor: string | null
+   *   next_cursor: string | null,
+   *   repositories: Array<{id: string}>
    * }} */ (await firstResponse.json());
   assert.equal(firstPage.items.length, 50);
   assert.equal(firstPage.items[0]?.id, "repository-00");
   assert.equal(firstPage.items[49]?.id, "repository-49");
+  assert.deepEqual(firstPage.repositories, firstPage.items);
   assert.equal(typeof firstPage.next_cursor, "string");
   assert.doesNotMatch(
     /** @type {string} */ (firstPage.next_cursor),
@@ -116,6 +122,16 @@ test("the machine Repository collection uses validated opaque keyset pagination"
       },
     ],
     next_cursor: null,
+    repositories: [
+      {
+        credential_type: "none",
+        health: "healthy",
+        health_error: null,
+        id: "repository-50",
+        lifecycle: "enabled",
+        url: "https://example.com/repository-50.git",
+      },
+    ],
   });
 
   const excessive = await request("/api/v1/repositories?limit=101", {
@@ -130,6 +146,36 @@ test("the machine Repository collection uses validated opaque keyset pagination"
   );
   assert.equal(invalidCursor.status, 400);
   assert.equal(await responseErrorCode(invalidCursor), "cursor_invalid");
+});
+
+test("Repository discovery surfaces its exact owning unavailability without a partial collection", async () => {
+  const unavailable = Object.assign(
+    new Error("Repository discovery is unavailable"),
+    { code: "repository_discovery_unavailable" },
+  );
+  const { application, request } = await startApplication({
+    createRepositories() {
+      return createUnavailableRepositoryService(unavailable);
+    },
+  });
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+
+  const response = await request("/api/v1/repositories", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  assert.equal(response.status, 503);
+  const body = /** @type {{
+   *   error: {code: string, message: string},
+   *   items?: unknown,
+   *   repositories?: unknown
+   * }} */ (await response.json());
+  assert.equal(body.error.code, "repository_discovery_unavailable");
+  assert.equal(body.error.message, "Repository discovery is unavailable");
+  assert.equal("items" in body, false);
+  assert.equal("repositories" in body, false);
 });
 
 test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
@@ -178,6 +224,16 @@ test("an authenticated operator rotates a Generic credential through the secret-
       },
     ],
     next_cursor: null,
+    repositories: [
+      {
+        credential_type: "username_token",
+        health: "healthy",
+        health_error: null,
+        id: "repository/private",
+        lifecycle: "enabled",
+        url: "https://example.com/private.git",
+      },
+    ],
   });
 
   const rotated = await request(

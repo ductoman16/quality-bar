@@ -64,9 +64,6 @@ test("the Repository component displays lifecycle separately from health and sur
       }
       if (path === "/api/v1/repositories" && !options) {
         listAttempt += 1;
-        if (listAttempt === 3) {
-          throw new Error("Repository listing unavailable");
-        }
         return {
           ok: true,
           async json() {
@@ -98,10 +95,13 @@ test("the Repository component displays lifecycle separately from health and sur
                   url: "https://example.com/error.git",
                 },
               ],
-              next_cursor: null,
+              next_cursor: listAttempt === 3 ? "failing-page" : null,
             };
           },
         };
+      }
+      if (path === "/api/v1/repositories?cursor=failing-page" && !options) {
+        throw new Error("Repository listing unavailable");
       }
       if (path.endsWith("/lifecycle")) {
         lifecycleAttempt += 1;

@@ -1,3 +1,8 @@
+import { requireCodedError } from "./coded-error.js";
+import {
+  authenticationFailureStatus,
+  requireImplementerTokenAuthority,
+} from "./http-request.js";
 import { writeError } from "./http-response.js";
 
 /**
@@ -13,7 +18,7 @@ import { writeError } from "./http-response.js";
  * @param {import("node:http").ServerResponse} response
  * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
  */
-export function forbidMachineSystemAccess(
+export function forbidMachineOperatorAccess(
   response,
   recordAuthorityAttribution,
 ) {
@@ -29,4 +34,41 @@ export function forbidMachineSystemAccess(
     "authorization_forbidden",
     "Machine access is forbidden",
   );
+}
+
+/**
+ * @param {import("node:http").IncomingMessage} request
+ * @param {import("node:http").ServerResponse} response
+ * @param {ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>} implementerTokens
+ * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
+ */
+export function writeMachineOperatorAccessDenial(
+  request,
+  response,
+  implementerTokens,
+  recordAuthorityAttribution,
+) {
+  try {
+    requireImplementerTokenAuthority(implementerTokens, request);
+    recordAuthorityAttribution({
+      action: "authentication",
+      channel: "implementer_token",
+      outcome: "success",
+    });
+    forbidMachineOperatorAccess(response, recordAuthorityAttribution);
+  } catch (error) {
+    const failure = requireCodedError(error);
+    recordAuthorityAttribution({
+      action: "authentication",
+      channel: "implementer_token",
+      errorCode: failure.code,
+      outcome: "failure",
+    });
+    writeError(
+      response,
+      authenticationFailureStatus(failure.code),
+      failure.code,
+      failure.message,
+    );
+  }
 }

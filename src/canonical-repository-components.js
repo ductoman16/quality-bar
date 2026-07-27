@@ -171,8 +171,13 @@ export function canonicalRepositorySchemas() {
           type: "array",
         },
         next_cursor: { type: ["string", "null"] },
+        repositories: {
+          deprecated: true,
+          items: { $ref: "#/components/schemas/Repository" },
+          type: "array",
+        },
       },
-      ["items", "next_cursor"],
+      ["items", "next_cursor", "repositories"],
     ),
   };
 }

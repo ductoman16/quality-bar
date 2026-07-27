@@ -9,7 +9,8 @@ import { writeError, writeJson } from "./http-response.js";
  */
 export function writeRepositoryList(response, repositories, query) {
   try {
-    writeJson(response, 200, repositories.listPage(query));
+    const page = repositories.listPage(query);
+    writeJson(response, 200, { ...page, repositories: page.items });
   } catch (error) {
     const failure = requireCodedError(error);
     if (["cursor_invalid", "page_size_invalid"].includes(failure.code)) {

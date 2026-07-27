@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createUnavailableRepositoryGuidanceService } from "../src/repository-guidance.js";
 import { createReviewService } from "../src/review.js";
 import {
   authenticatedOperatorHeaders,
@@ -129,4 +130,40 @@ test("Repository Guidance rejects an unregistered Repository without a fallback 
   );
   assert.equal(machine.status, 404);
   assert.equal(await responseErrorCode(machine), "repository_not_found");
+
+  const malformed = await request("/api/v1/repositories/%ZZ/guidance", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal(await responseErrorCode(malformed), "request_malformed");
+});
+
+test("Repository Guidance surfaces its exact owning unavailability without a partial document", async () => {
+  const unavailable = Object.assign(
+    new Error("Repository Guidance is unavailable"),
+    { code: "repository_guidance_unavailable" },
+  );
+  const { application, request } = await startApplication({
+    createRepositoryGuidance() {
+      return createUnavailableRepositoryGuidanceService(unavailable);
+    },
+  });
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+
+  const response = await request("/api/v1/repositories/repository-1/guidance", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  assert.equal(response.status, 503);
+  const body = /** @type {{
+   *   error: {code: string, message: string},
+   *   repository?: unknown,
+   *   reviews?: unknown
+   * }} */ (await response.json());
+  assert.equal(body.error.code, "repository_guidance_unavailable");
+  assert.equal(body.error.message, "Repository Guidance is unavailable");
+  assert.equal("repository" in body, false);
+  assert.equal("reviews" in body, false);
 });

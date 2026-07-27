@@ -1,4 +1,4 @@
-import { forbidMachineSystemAccess } from "./api-authorization.js";
+import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { apiResourceMatches } from "./api-resource-matches.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
@@ -63,14 +63,14 @@ export function createApiRoute({
         (method === "POST" && repositoryCredentialRotationMatch) ||
         (method === "PATCH" && repositoryLifecycleMatch))
     ) {
-      forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     if (
       authority === "machine" &&
       ["/api/v1/system", "/api/v1/system/authority-attributions"].includes(path)
     ) {
-      forbidMachineSystemAccess(response, recordAuthorityAttribution);
+      forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     if (path === "/api/v1/system/authority-attributions") {
@@ -129,7 +129,7 @@ export function createApiRoute({
       writeRepositoryGuidance(
         response,
         repositoryGuidance,
-        decodeURIComponent(repositoryGuidanceMatch[1]),
+        repositoryGuidanceMatch[1],
         request.headers["if-none-match"],
       );
       return true;
