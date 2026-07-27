@@ -80,7 +80,12 @@ export function reviewResource(metadata) {
   };
 }
 
-/** @param {{confirm?: (message: string) => boolean}} [options] */
+/**
+ * @param {{
+ *   confirm?: (message: string) => boolean,
+ *   versionResponses?: object[]
+ * }} [options]
+ */
 export function reviewVersionBrowserHarness(options = {}) {
   const form = browserElement({ hidden: true });
   const selector = browserElement();
@@ -165,6 +170,7 @@ export function reviewVersionBrowserHarness(options = {}) {
   };
   /** @type {object[]} */
   const reactivationResponses = [];
+  const versionResponses = [...(options.versionResponses ?? [])];
   /** @type {(response: object) => void} */
   let resolveFirstSave = () => {
     throw new Error("first_save_not_started");
@@ -232,6 +238,9 @@ export function reviewVersionBrowserHarness(options = {}) {
             },
           }
         );
+      }
+      if (versionResponses.length > 0) {
+        return versionResponses.shift();
       }
       if (responseNumber === 2) {
         return firstSave;

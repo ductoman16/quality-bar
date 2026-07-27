@@ -39,5 +39,8 @@
     "prettier": "3.7.4",
     "typescript": "7.0.2",
     "yaml": "2.9.0"
+  },
+  "dependencies": {
+    "re2-wasm": "1.0.2"
   }
 }

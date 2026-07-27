@@ -1,4 +1,8 @@
 import { validateCodexConfiguration } from "./codex-capabilities.js";
+import {
+  ApplicabilityRuleError,
+  compileApplicabilityRule,
+} from "./applicability-rule.js";
 
 export class ReviewError extends Error {
   /**
@@ -275,6 +279,16 @@ export function validateExecutableSnapshot(snapshot) {
       "review_applicability_rule_malformed",
       "Applicability Rule must be a string or null",
     );
+  }
+  if (typeof snapshot.applicability_rule === "string") {
+    try {
+      compileApplicabilityRule(snapshot.applicability_rule);
+    } catch (error) {
+      if (error instanceof ApplicabilityRuleError) {
+        fail(error.code, error.message);
+      }
+      throw error;
+    }
   }
   return {
     applicabilityRule: snapshot.applicability_rule,

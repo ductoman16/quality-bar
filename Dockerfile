@@ -20,7 +20,9 @@ RUN apk add --no-cache "git=${BUNDLED_GIT_VERSION}" \
 
 WORKDIR /app
 
-COPY --chown=10001:10001 package.json ./
+COPY --chown=10001:10001 package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts \
+    && npm cache clean --force
 COPY --chown=10001:10001 src ./src
 
 ENV NODE_ENV=production
