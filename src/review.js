@@ -1,162 +1,14 @@
 import { randomUUID } from "node:crypto";
 
-import { validateCodexConfiguration } from "./codex-capabilities.js";
+import {
+  fail,
+  ReviewError,
+  validateDefinition,
+  validateExecutableSnapshot,
+  validateMetadata,
+} from "./review-validation.js";
 
-export class ReviewError extends Error {
-  /**
-   * @param {string} code
-   * @param {string} message
-   */
-  constructor(code, message) {
-    super(message);
-    this.name = "ReviewError";
-    this.code = code;
-  }
-}
-
-/**
- * @param {string} code
- * @param {string} message
- * @returns {never}
- */
-function fail(code, message) {
-  throw new ReviewError(code, message);
-}
-
-/**
- * @param {unknown} value
- * @param {string[]} keys
- * @returns {value is Record<string, unknown>}
- */
-function isExactObject(value, keys) {
-  if (!value || Array.isArray(value) || typeof value !== "object") {
-    return false;
-  }
-  return (
-    Object.getPrototypeOf(value) === Object.prototype &&
-    Object.keys(value).length === keys.length &&
-    keys.every((key) => Object.hasOwn(value, key))
-  );
-}
-
-/**
- * @param {unknown} value
- * @param {string} code
- * @param {string} message
- */
-function validateNonblank(value, code, message) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    fail(code, message);
-  }
-  return value;
-}
-
-/** @param {unknown} assignment */
-function validateAssignment(assignment) {
-  if (
-    !isExactObject(assignment, ["scope"]) ||
-    typeof assignment.scope !== "string"
-  ) {
-    fail(
-      "review_assignment_malformed",
-      "Review Assignment must contain only an exact scope",
-    );
-  }
-  if (assignment.scope !== "installation_wide") {
-    fail(
-      "review_assignment_unsupported",
-      "Only an installation-wide Review Assignment is supported",
-    );
-  }
-  return { scope: assignment.scope };
-}
-
-/** @param {unknown} criteria */
-function validateCriteria(criteria) {
-  if (!Array.isArray(criteria) || criteria.length === 0) {
-    fail(
-      "review_criteria_invalid",
-      "Review must contain at least one Criterion",
-    );
-  }
-  return criteria.map((criterion, index) => {
-    if (!isExactObject(criterion, ["impact", "instruction"])) {
-      fail("review_criterion_malformed", `Criterion ${index + 1} is malformed`);
-    }
-    const instruction = validateNonblank(
-      criterion.instruction,
-      "review_criterion_instruction_invalid",
-      `Criterion ${index + 1} instruction must be nonblank`,
-    );
-    if (
-      typeof criterion.impact !== "string" ||
-      !["advisory", "blocking"].includes(criterion.impact)
-    ) {
-      fail(
-        "review_criterion_impact_invalid",
-        `Criterion ${index + 1} impact must be advisory or blocking`,
-      );
-    }
-    return { impact: criterion.impact, instruction };
-  });
-}
-
-/** @param {unknown} definition */
-function validateDefinition(definition) {
-  if (
-    !isExactObject(definition, [
-      "assignment",
-      "codex_configuration",
-      "criteria",
-      "description",
-      "name",
-    ])
-  ) {
-    fail(
-      "review_request_malformed",
-      "Review request contains unsupported or missing fields",
-    );
-  }
-  return {
-    assignment: validateAssignment(definition.assignment),
-    codexConfiguration: validateCodexConfiguration(
-      definition.codex_configuration,
-    ),
-    criteria: validateCriteria(definition.criteria),
-    description: validateNonblank(
-      definition.description,
-      "review_description_invalid",
-      "Review description must be nonblank",
-    ),
-    name: validateNonblank(
-      definition.name,
-      "review_name_invalid",
-      "Review name must be nonblank",
-    ),
-  };
-}
-
-/** @param {unknown} metadata */
-function validateMetadata(metadata) {
-  if (!isExactObject(metadata, ["description", "name"])) {
-    fail(
-      "review_metadata_request_malformed",
-      "Review metadata request contains unsupported or missing fields",
-    );
-  }
-  return {
-    name: validateNonblank(
-      metadata.name,
-      "review_name_invalid",
-      "Review name must be nonblank",
-    ),
-    description: validateNonblank(
-      metadata.description,
-      "review_description_invalid",
-      "Review description must be nonblank",
-    ),
-  };
-}
+export { ReviewError };
 
 /** @param {unknown} error */
 function conflict(error) {
@@ -181,7 +33,8 @@ function readReview(transaction, reviewId) {
        review_versions.number,
        review_versions.model,
        review_versions.reasoning_effort,
-       review_versions.service_tier
+       review_versions.service_tier,
+       review_versions.applicability_rule
      FROM reviews
      JOIN review_assignments ON review_assignments.review_id = reviews.id
      JOIN review_versions ON review_versions.id = reviews.active_version_id
@@ -191,18 +44,36 @@ function readReview(transaction, reviewId) {
   if (!review) {
     fail("review_not_found", "Review was not found");
   }
-  const criteria = transaction.all(
-    `SELECT
-       criteria.id,
-       criteria.impact,
-       criteria.instruction,
-       review_version_criteria.position
-     FROM review_version_criteria
-     JOIN criteria ON criteria.id = review_version_criteria.criterion_id
-     WHERE review_version_criteria.review_version_id = ?
-     ORDER BY review_version_criteria.position`,
-    review.version_id,
-  );
+  const criteria = transaction
+    .all(
+      `SELECT
+         criteria.id,
+         review_version_criteria.impact,
+         review_version_criteria.instruction,
+         review_version_criteria.position
+       FROM review_version_criteria
+       JOIN criteria ON criteria.id = review_version_criteria.criterion_id
+       WHERE review_version_criteria.review_version_id = ?
+       ORDER BY review_version_criteria.position`,
+      review.version_id,
+    )
+    .map((criterion) => {
+      if (
+        !criterion ||
+        typeof criterion.id !== "string" ||
+        typeof criterion.impact !== "string" ||
+        typeof criterion.instruction !== "string" ||
+        typeof criterion.position !== "number"
+      ) {
+        throw new Error("review_version_criteria_invalid");
+      }
+      return {
+        id: criterion.id,
+        impact: criterion.impact,
+        instruction: criterion.instruction,
+        position: criterion.position,
+      };
+    });
   return {
     active_version: {
       codex_configuration: {
@@ -210,6 +81,7 @@ function readReview(transaction, reviewId) {
         reasoning_effort: review.reasoning_effort,
         service_tier: review.service_tier,
       },
+      applicability_rule: review.applicability_rule,
       criteria,
       id: review.version_id,
       number: review.number,
@@ -296,13 +168,14 @@ export function createReviewService(
             createdAt,
           );
           transaction.run(
-            "INSERT INTO review_versions (id, review_id, number, model, reasoning_effort, service_tier, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO review_versions (id, review_id, number, model, reasoning_effort, service_tier, applicability_rule, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             versionId,
             reviewId,
             1,
             validated.codexConfiguration.model,
             validated.codexConfiguration.reasoning_effort,
             validated.codexConfiguration.service_tier,
+            null,
             createdAt,
           );
           transaction.run(
@@ -321,10 +194,12 @@ export function createReviewService(
               createdAt,
             );
             transaction.run(
-              "INSERT INTO review_version_criteria (review_version_id, criterion_id, position) VALUES (?, ?, ?)",
+              "INSERT INTO review_version_criteria (review_version_id, criterion_id, position, instruction, impact) VALUES (?, ?, ?, ?, ?)",
               versionId,
               criterion.id,
               criterion.position,
+              criterion.instruction,
+              criterion.impact,
             );
           }
           transaction.run(
@@ -342,6 +217,7 @@ export function createReviewService(
 
       return {
         active_version: {
+          applicability_rule: null,
           codex_configuration: validated.codexConfiguration,
           criteria,
           id: versionId,
@@ -352,6 +228,88 @@ export function createReviewService(
         id: reviewId,
         name: validated.name,
       };
+    },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} snapshot
+     */
+    saveVersion(reviewId, snapshot) {
+      const validated = validateExecutableSnapshot(snapshot);
+      return durableCore.transaction((transaction) => {
+        const current = readReview(transaction, reviewId);
+        const identities = new Set(
+          transaction
+            .all("SELECT id FROM criteria WHERE review_id = ?", reviewId)
+            .map((row) => row?.id),
+        );
+        for (const criterion of validated.criteria) {
+          if (!identities.has(criterion.id)) {
+            fail(
+              "review_criterion_not_found",
+              "Criterion does not belong to the Review",
+            );
+          }
+        }
+        const currentSnapshot = {
+          applicabilityRule: current.active_version.applicability_rule,
+          codexConfiguration: current.active_version.codex_configuration,
+          criteria: current.active_version.criteria,
+        };
+        if (JSON.stringify(currentSnapshot) === JSON.stringify(validated)) {
+          return { changed: false, review: current };
+        }
+
+        const createdAt = now();
+        if (!Number.isSafeInteger(createdAt)) {
+          throw new TypeError("now must return a safe integer timestamp");
+        }
+        const versionId = createId();
+        if (typeof versionId !== "string" || versionId.length === 0) {
+          throw new TypeError("createId must return nonempty strings");
+        }
+        const nextVersion = transaction.get(
+          "SELECT max(number) + 1 AS number FROM review_versions WHERE review_id = ?",
+          reviewId,
+        )?.number;
+        if (
+          typeof nextVersion !== "number" ||
+          !Number.isSafeInteger(nextVersion)
+        ) {
+          throw new Error("review_version_number_invalid");
+        }
+        transaction.run(
+          "INSERT INTO review_versions (id, review_id, number, model, reasoning_effort, service_tier, applicability_rule, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          versionId,
+          reviewId,
+          nextVersion,
+          validated.codexConfiguration.model,
+          validated.codexConfiguration.reasoning_effort,
+          validated.codexConfiguration.service_tier,
+          validated.applicabilityRule,
+          createdAt,
+        );
+        for (const criterion of validated.criteria) {
+          transaction.run(
+            "INSERT INTO review_version_criteria (review_version_id, criterion_id, position, instruction, impact) VALUES (?, ?, ?, ?, ?)",
+            versionId,
+            criterion.id,
+            criterion.position,
+            criterion.instruction,
+            criterion.impact,
+          );
+        }
+        transaction.run(
+          "UPDATE review_versions SET sealed_at = ? WHERE id = ?",
+          createdAt,
+          versionId,
+        );
+        transaction.run(
+          "UPDATE reviews SET active_version_id = ? WHERE id = ?",
+          versionId,
+          reviewId,
+        );
+        return { changed: true, review: readReview(transaction, reviewId) };
+      });
     },
     /**
      * @param {string} reviewId
@@ -389,6 +347,9 @@ export function createUnavailableReviewService(error) {
       throw error;
     },
     create() {
+      throw error;
+    },
+    saveVersion() {
       throw error;
     },
     updateMetadata() {

@@ -273,6 +273,42 @@ export function canonicalOpenApiDocument() {
           security: [{ browser_session: [] }],
         },
       },
+      "/api/v1/reviews/{review_id}/versions": {
+        post: {
+          operationId: "saveReviewVersion",
+          parameters: [
+            {
+              in: "path",
+              name: "review_id",
+              required: true,
+              schema: { minLength: 1, type: "string" },
+            },
+            ...mutationParameters,
+          ],
+          requestBody: jsonRequest("ReviewVersionSaveRequest"),
+          responses: {
+            200: {
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReviewVersionSaveResult",
+                  },
+                },
+              },
+              description:
+                "Review with the newly active or unchanged immutable version",
+            },
+            400: errorResponse,
+            401: errorResponse,
+            403: errorResponse,
+            404: errorResponse,
+            422: errorResponse,
+            500: errorResponse,
+            503: errorResponse,
+          },
+          security: [{ browser_session: [] }],
+        },
+      },
       "/api/v1/system": {
         get: {
           operationId: "getSystem",

@@ -93,6 +93,7 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
           readBrowserAsset("/assets/operator.js"),
           readBrowserAsset("/assets/review-create.js"),
           readBrowserAsset("/assets/review-metadata.js"),
+          readBrowserAsset("/assets/review-version.js"),
         ].join("\n"),
       ),
   );

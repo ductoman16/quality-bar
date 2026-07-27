@@ -22,7 +22,7 @@ const repositoryConstructors = new Map(
     "src/operator-login-throttle.js": ["OperatorLoginThrottleError"],
     "src/operator-password.js": ["OperatorPasswordError"],
     "src/request-security.js": ["RequestSecurityError"],
-    "src/review.js": ["ReviewError"],
+    "src/review-validation.js": ["ReviewError"],
   }).map(([path, names]) => [resolve(repositoryRoot, path), new Set(names)]),
 );
 

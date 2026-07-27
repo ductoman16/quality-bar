@@ -133,6 +133,14 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["impact", "instruction"],
       ),
+      CriterionVersionRequest: closedObject(
+        {
+          id: { minLength: 1, pattern: "\\S", type: "string" },
+          impact: { enum: ["advisory", "blocking"], type: "string" },
+          instruction: { minLength: 1, pattern: "\\S", type: "string" },
+        },
+        ["id", "impact", "instruction"],
+      ),
       ReviewAssignment: closedObject(
         { scope: { const: "installation_wide", type: "string" } },
         ["scope"],
@@ -166,6 +174,20 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["name", "description"],
       ),
+      ReviewVersionSaveRequest: closedObject(
+        {
+          applicability_rule: { type: ["string", "null"] },
+          codex_configuration: {
+            $ref: "#/components/schemas/CodexConfiguration",
+          },
+          criteria: {
+            items: { $ref: "#/components/schemas/CriterionVersionRequest" },
+            minItems: 1,
+            type: "array",
+          },
+        },
+        ["applicability_rule", "codex_configuration", "criteria"],
+      ),
       Criterion: closedObject(
         {
           id: { type: "string" },
@@ -177,6 +199,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       ReviewVersion: closedObject(
         {
+          applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
             $ref: "#/components/schemas/CodexConfiguration",
           },
@@ -188,7 +211,13 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           id: { type: "string" },
           number: { minimum: 1, type: "integer" },
         },
-        ["id", "number", "codex_configuration", "criteria"],
+        [
+          "id",
+          "number",
+          "applicability_rule",
+          "codex_configuration",
+          "criteria",
+        ],
       ),
       Review: closedObject(
         {
@@ -199,6 +228,13 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           name: { type: "string" },
         },
         ["id", "name", "description", "assignment", "active_version"],
+      ),
+      ReviewVersionSaveResult: closedObject(
+        {
+          changed: { type: "boolean" },
+          review: { $ref: "#/components/schemas/Review" },
+        },
+        ["changed", "review"],
       ),
       ReviewCollection: closedObject(
         {

@@ -260,7 +260,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
-    durable_core: { schema_version: 6, status: "ready" },
+    durable_core: { schema_version: 7, status: "ready" },
     implementer_token: { status: "active" },
   });
 

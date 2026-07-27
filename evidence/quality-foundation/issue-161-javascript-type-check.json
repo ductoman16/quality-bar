@@ -10,7 +10,8 @@
     "login.js",
     "operator.js",
     "review-metadata.js",
-    "review-create.js"
+    "review-create.js",
+    "review-version.js"
   ],
   "initial_production_diagnostics": [
     {
