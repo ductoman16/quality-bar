@@ -32,6 +32,10 @@ import {
   createRepositoryService,
   createUnavailableRepositoryService,
 } from "./repository.js";
+import {
+  createRepositoryGuidanceService,
+  createUnavailableRepositoryGuidanceService,
+} from "./repository-guidance.js";
 import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
@@ -176,6 +180,7 @@ export function createApplication({
   let requestSecurity = null;
   let reviews = null;
   let repositories = null;
+  let repositoryGuidance = null;
   let systemResource = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
@@ -209,6 +214,7 @@ export function createApplication({
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
+    repositoryGuidance = createRepositoryGuidanceService(durableCore);
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {
@@ -244,6 +250,8 @@ export function createApplication({
       createUnavailableImplementerTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
     repositories = createUnavailableRepositoryService(startupFailure);
+    repositoryGuidance =
+      createUnavailableRepositoryGuidanceService(startupFailure);
     structuredLog(
       writeLog,
       "error",
@@ -268,6 +276,7 @@ export function createApplication({
     browserOrigin,
     requestSecurity,
     repositories,
+    repositoryGuidance,
     reviews,
     readDurableCoreStatus,
     readSystemStatus: () => {

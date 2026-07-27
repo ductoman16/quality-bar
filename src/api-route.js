@@ -11,6 +11,7 @@ import {
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
+import { writeRepositoryGuidance } from "./repository-guidance-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
 import { writeReviewList } from "./review-list-route.js";
 import { writeError, writeJson } from "./http-response.js";
@@ -23,6 +24,7 @@ export function createApiRoute({
   readSystemStatus,
   recordAuthorityAttribution,
   repositories,
+  repositoryGuidance,
   reviews,
 }) {
   /**
@@ -39,6 +41,7 @@ export function createApiRoute({
     }
     const {
       repositoryCredentialRotationMatch,
+      repositoryGuidanceMatch,
       repositoryLifecycleMatch,
       reviewActiveVersionMatch,
       reviewArchivalMatch,
@@ -50,6 +53,7 @@ export function createApiRoute({
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
         (method === "GET" && path === "/api/v1/repositories") ||
+        (method === "GET" && repositoryGuidanceMatch) ||
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewAssignmentId) ||
@@ -122,6 +126,15 @@ export function createApiRoute({
           );
         }
       }
+      return true;
+    }
+    if (method === "GET" && repositoryGuidanceMatch) {
+      writeRepositoryGuidance(
+        response,
+        repositoryGuidance,
+        decodeURIComponent(repositoryGuidanceMatch[1]),
+        request.headers["if-none-match"],
+      );
       return true;
     }
     if (method === "PATCH" && reviewArchivalMatch) {

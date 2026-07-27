@@ -72,6 +72,8 @@ export function repositoryBrowserElements(overrides) {
     "repository-credential-rotate-token",
     "repository-credential-rotate-result",
     "repository-credential-rotate-submit",
+    "repository-guidance-repository",
+    "repository-guidance-document",
     "password-change-form",
     "session-revocation-form",
     "implementer-token-create-form",

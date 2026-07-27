@@ -16,6 +16,7 @@ import {
   verifyPublicRepositoryRead,
   verifyRepositoryRead,
 } from "../src/repository-git.js";
+import { createRepositoryGuidanceService } from "../src/repository-guidance.js";
 import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
 import { createReviewService } from "../src/review.js";
@@ -321,6 +322,17 @@ test("public Repository verification performs a non-mutating read over real HTTP
       review_id: review.id,
       review_version_id: review.active_version.id,
     })),
+  );
+  const guidance = createRepositoryGuidanceService(lifecycleCore).read(
+    "repository-lifecycle",
+  );
+  assert.equal(
+    guidance.repository.url,
+    `https://127.0.0.1:${address.port}/populated.git`,
+  );
+  assert.deepEqual(
+    guidance.reviews.map(({ id }) => id),
+    [installationWide.id, repositorySpecific.id],
   );
   await lifecycleRepositories.setLifecycle("repository-lifecycle", {
     lifecycle: "disabled",

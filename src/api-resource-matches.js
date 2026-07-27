@@ -6,6 +6,9 @@ export function apiResourceMatches(path) {
     repositoryCredentialRotationMatch: path.match(
       /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
     ),
+    repositoryGuidanceMatch: path.match(
+      /^\/api\/v1\/repositories\/([^/]+)\/guidance$/,
+    ),
     repositoryLifecycleMatch: path.match(
       /^\/api\/v1\/repositories\/([^/]+)\/lifecycle$/,
     ),

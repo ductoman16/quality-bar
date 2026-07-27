@@ -194,6 +194,23 @@ test("the Repository component rotates write-only credentials and surfaces the e
   );
   assert.equal(rotationRepository.disabled, false);
   assert.equal(rotationSubmit.disabled, false);
+  /** @type {any} */
+  let sharedRepositories;
+  Reflect.get(browserContext.window, "qualityBarRepositories").subscribe(
+    /** @param {unknown} repositories */ (repositories) => {
+      sharedRepositories = repositories;
+    },
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(sharedRepositories)), [
+    {
+      credential_type: "username_token",
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      url: "https://example.com/team/repository.git",
+    },
+  ]);
   assert.deepEqual(JSON.parse(JSON.stringify(requests[0])), {
     options: {
       body: JSON.stringify({

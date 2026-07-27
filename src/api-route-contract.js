@@ -6,6 +6,7 @@
  *   readSystemStatus: () => unknown,
  *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} ApiRouteDependencies
  */
