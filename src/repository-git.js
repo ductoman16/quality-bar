@@ -7,11 +7,17 @@ import { RepositoryError } from "./repository-validation.js";
 
 /**
  * @param {string} normalizedUrl
- * @param {{ allowInvalidCertificate?: boolean }} [options]
+ * @param {{
+ *   certificateAuthorityPath?: string,
+ *   removeDirectory?: (path: string) => void
+ * }} [options]
  */
 export function verifyPublicRepositoryRead(
   normalizedUrl,
-  { allowInvalidCertificate = false } = {},
+  {
+    certificateAuthorityPath,
+    removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
+  } = {},
 ) {
   /** @type {string} */
   let verificationDirectory;
@@ -30,8 +36,8 @@ export function verifyPublicRepositoryRead(
   }
   return new Promise((resolve, reject) => {
     const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
-    if (allowInvalidCertificate) {
-      arguments_.push("-c", "http.sslVerify=false");
+    if (certificateAuthorityPath) {
+      arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
     }
     arguments_.push("ls-remote", "--", normalizedUrl);
     const child = spawn("git", arguments_, {
@@ -50,7 +56,15 @@ export function verifyPublicRepositoryRead(
         return;
       }
       completed = true;
-      rmSync(verificationDirectory, { force: true, recursive: true });
+      try {
+        removeDirectory(verificationDirectory);
+      } catch (cause) {
+        error = new RepositoryError(
+          "repository_git_verification_unavailable",
+          "Repository Git read verification could not run",
+          { cause },
+        );
+      }
       if (error) {
         reject(error);
       } else {

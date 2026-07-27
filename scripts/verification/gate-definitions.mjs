@@ -281,7 +281,7 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "http-integration",
-      testGroup: "review-version-lifecycle-http-resource-boundary",
+      testGroup: "review-version-and-repository-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",

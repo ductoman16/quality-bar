@@ -63,6 +63,14 @@ export function normalizePublicRepositoryUrl(request) {
   if (url.search || url.hash) {
     fail("repository_url_invalid", "Repository HTTPS URL is invalid");
   }
+  url.pathname = url.pathname.replaceAll(/%[0-9A-Fa-f]{2}/g, (encodedByte) => {
+    const character = String.fromCodePoint(
+      Number.parseInt(encodedByte.slice(1), 16),
+    );
+    return /^[A-Za-z0-9._~-]$/.test(character)
+      ? character
+      : encodedByte.toUpperCase();
+  });
   if (url.pathname.length > 1) {
     url.pathname = url.pathname.replace(/\/+$/, "");
   }

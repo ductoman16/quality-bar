@@ -9,9 +9,9 @@ import {
 test("a public Generic Repository identity is its normalized HTTPS URL", () => {
   assert.equal(
     normalizePublicRepositoryUrl({
-      url: "https://EXAMPLE.com:443/team/repository.git/",
+      url: "https://EXAMPLE.com:443/%7eteam/%41pp%2frepository.git/",
     }),
-    "https://example.com/team/repository.git",
+    "https://example.com/~team/App%2Frepository.git",
   );
 });
 

@@ -114,17 +114,17 @@ test("public Repository verification performs a non-mutating read over real HTTP
   assert.ok(address && typeof address !== "string");
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/populated.git`,
-    { allowInvalidCertificate: true },
+    { certificateAuthorityPath: certificate },
   );
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/empty.git`,
-    { allowInvalidCertificate: true },
+    { certificateAuthorityPath: certificate },
   );
   await assert.rejects(
     () =>
       verifyPublicRepositoryRead(
         `https://127.0.0.1:${address.port}/missing.git`,
-        { allowInvalidCertificate: true },
+        { certificateAuthorityPath: certificate },
       ),
     (error) =>
       error instanceof RepositoryError &&
@@ -151,7 +151,7 @@ test("public Repository verification performs a non-mutating read over real HTTP
       () =>
         verifyPublicRepositoryRead(
           `https://127.0.0.1:${address.port}/missing.git`,
-          { allowInvalidCertificate: true },
+          { certificateAuthorityPath: certificate },
         ),
       (error) =>
         error instanceof RepositoryError &&
@@ -160,4 +160,20 @@ test("public Repository verification performs a non-mutating read over real HTTP
   } finally {
     process.chdir(originalDirectory);
   }
+
+  await assert.rejects(
+    () =>
+      verifyPublicRepositoryRead(
+        `https://127.0.0.1:${address.port}/populated.git`,
+        {
+          certificateAuthorityPath: certificate,
+          removeDirectory() {
+            throw new Error("simulated cleanup failure");
+          },
+        },
+      ),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "repository_git_verification_unavailable",
+  );
 });

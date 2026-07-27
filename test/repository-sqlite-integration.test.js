@@ -53,15 +53,15 @@ test("a verified normalized Repository identity is inserted once and failed veri
   );
 
   const created = await repositories.registerPublic({
-    url: "https://EXAMPLE.com:443/team/repository.git/",
+    url: "https://EXAMPLE.com:443/%7Eteam/repository.git/",
   });
   assert.deepEqual(created, {
     id: "repository-1",
-    url: "https://example.com/team/repository.git",
+    url: "https://example.com/~team/repository.git",
   });
   assert.deepEqual(verifiedUrls, [
     "https://example.com/unreachable.git",
-    "https://example.com/team/repository.git",
+    "https://example.com/~team/repository.git",
   ]);
   assert.deepEqual(
     core.all(
@@ -71,7 +71,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
       {
         created_at: 47,
         id: "repository-1",
-        normalized_url: "https://example.com/team/repository.git",
+        normalized_url: "https://example.com/~team/repository.git",
         verified_at: 47,
       },
     ],
@@ -80,7 +80,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   await assert.rejects(
     () =>
       repositories.registerPublic({
-        url: "https://example.com/team/repository.git",
+        url: "https://example.com/~team/repository.git",
       }),
     (error) =>
       error instanceof RepositoryError &&
