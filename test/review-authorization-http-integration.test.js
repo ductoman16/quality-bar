@@ -171,6 +171,11 @@ test("an authenticated operator rotates a Generic credential through the secret-
         createId: () => "repository/private",
         async verifyRead(url, credential) {
           verifications.push({ credential, url });
+          if (credential?.token === "unexpected-sensitive-token") {
+            throw new Error(
+              `unexpected verifier detail: ${credential.username} ${credential.token}`,
+            );
+          }
         },
       });
     },
@@ -230,4 +235,32 @@ test("an authenticated operator rotates a Generic credential through the secret-
       url: "https://example.com/private.git",
     },
   ]);
+
+  const unexpected = await request(
+    "/api/v1/repositories/repository%2Fprivate/credential/rotate",
+    {
+      body: JSON.stringify({
+        token: "unexpected-sensitive-token",
+        username: "unexpected-sensitive-operator",
+      }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(unexpected.status, 500);
+  const unexpectedBody = /** @type {{
+   *   error: {code: string, message: string, request_id: string}
+   * }} */ (await unexpected.json());
+  assert.equal(
+    unexpectedBody.error.code,
+    "repository_credential_rotation_failed",
+  );
+  assert.equal(
+    unexpectedBody.error.message,
+    "Repository credential rotation failed",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(unexpectedBody),
+    /unexpected-sensitive-token|unexpected-sensitive-operator/,
+  );
 });

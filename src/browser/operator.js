@@ -102,6 +102,41 @@ async function displayMutationFailure(response) {
   error.textContent = body.error.message;
   error.hidden = false;
 }
+
+/**
+ * @param {HTMLFormElement} form
+ * @param {HTMLElement} result
+ * @param {string} path
+ * @param {Record<string, string>} body
+ * @param {(repository: {id: string, url: string}) => string} successMessage
+ */
+async function submitRepositoryMutation(
+  form,
+  result,
+  path,
+  body,
+  successMessage,
+) {
+  error.hidden = true;
+  result.textContent = "";
+  const response = await fetch(path, {
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      "x-quality-bar-csrf": csrfToken(),
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    await displayMutationFailure(response);
+    return;
+  }
+  const repository = /** @type {{id: string, url: string}} */ (
+    await response.json()
+  );
+  result.textContent = successMessage(repository);
+  form.reset();
+}
 /**
  * @param {string} path
  * @param {{
@@ -247,8 +282,6 @@ const repositoryCreateForm = document.getElementById("repository-create-form");
 if (repositoryCreateForm) {
   repositoryCreateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    error.hidden = true;
-    requiredElement("repository-create-result").textContent = "";
     const usernameControl = /** @type {HTMLInputElement} */ (
       requiredElement("repository-username")
     );
@@ -263,24 +296,13 @@ if (repositoryCreateForm) {
     }
     usernameControl.value = "";
     tokenControl.value = "";
-    const response = await fetch("/api/v1/repositories", {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json",
-        "x-quality-bar-csrf": csrfToken(),
-      },
-      method: "POST",
-    });
-    if (!response.ok) {
-      await displayMutationFailure(response);
-      return;
-    }
-    const repository = /** @type {{id: string, url: string}} */ (
-      await response.json()
+    await submitRepositoryMutation(
+      /** @type {HTMLFormElement} */ (repositoryCreateForm),
+      requiredElement("repository-create-result"),
+      "/api/v1/repositories",
+      body,
+      (repository) => `${repository.url} registered as ${repository.id}.`,
     );
-    requiredElement("repository-create-result").textContent =
-      `${repository.url} registered as ${repository.id}.`;
-    /** @type {HTMLFormElement} */ (repositoryCreateForm).reset();
   });
 }
 const repositoryCredentialRotateForm = document.getElementById(
@@ -289,9 +311,7 @@ const repositoryCredentialRotateForm = document.getElementById(
 if (repositoryCredentialRotateForm) {
   repositoryCredentialRotateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    error.hidden = true;
     const result = requiredElement("repository-credential-rotate-result");
-    result.textContent = "";
     const repositoryId = controlValue(
       "repository-credential-rotate-repository",
     );
@@ -307,24 +327,13 @@ if (repositoryCredentialRotateForm) {
     };
     usernameControl.value = "";
     tokenControl.value = "";
-    const response = await fetch(
+    await submitRepositoryMutation(
+      /** @type {HTMLFormElement} */ (repositoryCredentialRotateForm),
+      result,
       `/api/v1/repositories/${encodeURIComponent(repositoryId)}/credential/rotate`,
-      {
-        body: JSON.stringify(body),
-        headers: {
-          "content-type": "application/json",
-          "x-quality-bar-csrf": csrfToken(),
-        },
-        method: "POST",
-      },
+      body,
+      (repository) => repository.url + " credential rotated.",
     );
-    if (!response.ok) {
-      await displayMutationFailure(response);
-      return;
-    }
-    const repository = /** @type {{url: string}} */ (await response.json());
-    result.textContent = repository.url + " credential rotated.";
-    /** @type {HTMLFormElement} */ (repositoryCredentialRotateForm).reset();
   });
 }
 const systemFacts = document.getElementById("system-facts");

@@ -20,14 +20,12 @@ test("credential rotation verifies before one atomic secret swap and preserves t
   const { core, directory } = temporaryDatabase();
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   let timestamp = 48;
-  /** @type {object[]} */
-  const verifications = [];
   const repositories = createRepositoryService(core, {
     createId: () => "repository-private",
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,
     async verifyRead(url, credential) {
-      verifications.push({ credential, url });
+      assert.equal(url, "https://example.com/private.git");
       if (credential?.token === "rejected-replacement") {
         return Promise.reject(
           new RepositoryError(
@@ -120,64 +118,6 @@ test("credential rotation verifies before one atomic secret swap and preserves t
     token: "replacement-private-token",
     username: "replacement-operator",
   });
-  assert.deepEqual(verifications, [
-    {
-      credential: {
-        token: "original-private-token",
-        username: "original-operator",
-      },
-      url: repository.url,
-    },
-    {
-      credential: {
-        token: "rejected-replacement",
-        username: "replacement-operator",
-      },
-      url: repository.url,
-    },
-    {
-      credential: {
-        token: "replacement-private-token",
-        username: "replacement-operator",
-      },
-      url: repository.url,
-    },
-  ]);
-});
-
-test("credential rotation rejects an absent or public Repository without creating a secret", async (context) => {
-  const { core, directory } = temporaryDatabase();
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const repositories = createRepositoryService(core, {
-    createId: () => "repository-public",
-    masterKey: Buffer.alloc(32, 7),
-    async verifyRead() {},
-  });
-  context.after(() => repositories.destroy());
-  context.after(() => core.close());
-  const replacement = {
-    token: "replacement-private-token",
-    username: "replacement-operator",
-  };
-
-  await assert.rejects(
-    () => repositories.rotateCredential("repository-absent", replacement),
-    (error) =>
-      error instanceof RepositoryError && error.code === "repository_not_found",
-  );
-  const repository = await repositories.register({
-    url: "https://example.com/public.git",
-  });
-  await assert.rejects(
-    () => repositories.rotateCredential(repository.id, replacement),
-    (error) =>
-      error instanceof RepositoryError &&
-      error.code === "repository_credential_not_found",
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM repository_credentials")?.count,
-    0,
-  );
 });
 
 test("overlapping verified rotations cannot overwrite a credential that changed while verification ran", async (context) => {

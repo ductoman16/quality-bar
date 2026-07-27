@@ -232,6 +232,7 @@ export function createGateDefinitions(metadata) {
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",
+        "test/repository-rotation.test.js",
         "test/repository-validation.test.js",
         "test/verification-harness.test.js",
       ],
