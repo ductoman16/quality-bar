@@ -208,3 +208,73 @@ test("retiring and replacing a Criterion preserves its identity and complete his
     rmSync(directory, { force: true, recursive: true });
   }
 });
+
+test("a replacement identity collision fails atomically instead of reusing history", () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-criterion-collision-"),
+  );
+  try {
+    const identifiers = [
+      "review",
+      "version-1",
+      "retired",
+      "retained",
+      "version-2",
+      "retired",
+    ];
+    const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+    const reviews = createReviewService(core, {
+      createId() {
+        const id = identifiers.shift();
+        if (!id) {
+          throw new Error("unexpected identity request");
+        }
+        return id;
+      },
+      now: () => 1_800_000_000_000,
+    });
+    const created = reviews.create({
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [
+        { impact: "blocking", instruction: "Retire this meaning." },
+        { impact: "advisory", instruction: "Keep this Criterion." },
+      ],
+      description: "Reject identity collisions.",
+      name: "Criterion collision",
+    });
+
+    assert.throws(
+      () =>
+        reviews.saveVersion(created.id, {
+          applicability_rule: null,
+          codex_configuration: created.active_version.codex_configuration,
+          criteria: [
+            {
+              id: "retained",
+              impact: "advisory",
+              instruction: "Keep this Criterion.",
+            },
+            {
+              impact: "blocking",
+              instruction: "Use the replacement meaning.",
+            },
+          ],
+        }),
+      /UNIQUE constraint failed: criteria\.id/,
+    );
+    assert.equal(
+      core.get("SELECT count(*) AS count FROM review_versions")?.count,
+      1,
+    );
+    assert.equal(core.get("SELECT count(*) AS count FROM criteria")?.count, 2);
+    assert.deepEqual(reviews.list(), [created]);
+    core.close();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});

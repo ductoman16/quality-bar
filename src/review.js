@@ -273,6 +273,7 @@ export function createReviewService(
               id: criterion.id,
               impact: criterion.impact,
               instruction: criterion.instruction,
+              isNew: false,
               position: criterion.position,
             };
           }
@@ -284,6 +285,7 @@ export function createReviewService(
             id,
             impact: criterion.impact,
             instruction: criterion.instruction,
+            isNew: true,
             position: criterion.position,
           };
         });
@@ -309,7 +311,7 @@ export function createReviewService(
           createdAt,
         );
         for (const criterion of criteria) {
-          if (!identities.has(criterion.id)) {
+          if (criterion.isNew) {
             transaction.run(
               "INSERT INTO criteria (id, review_id, instruction, impact, created_at) VALUES (?, ?, ?, ?, ?)",
               criterion.id,
