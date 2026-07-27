@@ -22,6 +22,13 @@ test("archiving excludes a Review from future selection and restoring preserves 
         return Date.parse(`2026-07-${25 + timestampReads}T20:00:00.000Z`);
       },
     });
+    core.run(
+      "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+      "repository-1",
+      "https://example.com/repository.git",
+      1,
+      1,
+    );
     const created = reviews.create({
       assignment: { scope: "installation_wide" },
       codex_configuration: {
@@ -57,7 +64,8 @@ test("archiving excludes a Review from future selection and restoring preserves 
       versionCriteria: core.all("SELECT * FROM review_version_criteria"),
       versions: core.all("SELECT * FROM review_versions"),
     };
-    const existingEvaluationSelection = reviews.selectForNewEvaluation();
+    const existingEvaluationSelection =
+      reviews.selectForNewEvaluation("repository-1");
 
     const archived = reviews.setArchived(created.id, { archived: true });
 
@@ -67,7 +75,7 @@ test("archiving excludes a Review from future selection and restoring preserves 
     assert.deepEqual(archived.review.versions, saved.versions);
     assert.deepEqual(reviews.list(), []);
     assert.deepEqual(reviews.list("archived"), [archived.review]);
-    assert.deepEqual(reviews.selectForNewEvaluation(), []);
+    assert.deepEqual(reviews.selectForNewEvaluation("repository-1"), []);
     assert.deepEqual(existingEvaluationSelection, [
       {
         review_id: created.id,
@@ -108,7 +116,7 @@ test("archiving excludes a Review from future selection and restoring preserves 
     assert.deepEqual(restored.review.versions, saved.versions);
     assert.deepEqual(reviews.list(), [restored.review]);
     assert.deepEqual(reviews.list("archived"), []);
-    assert.deepEqual(reviews.selectForNewEvaluation(), [
+    assert.deepEqual(reviews.selectForNewEvaluation("repository-1"), [
       {
         review_id: created.id,
         review_version_id: saved.active_version.id,

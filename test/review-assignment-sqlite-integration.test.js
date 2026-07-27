@@ -107,6 +107,12 @@ test("changing a Review Assignment is atomic and composes matching Reviews addit
         review_version_id: review.active_version.id,
       })),
     );
+    assert.throws(
+      () => reviews.selectForNewEvaluation("repository-missing"),
+      (error) =>
+        error instanceof ReviewError &&
+        error.code === "review_assignment_repository_not_found",
+    );
     assert.deepEqual(
       core.all(
         "SELECT review_id, scope FROM review_assignments ORDER BY review_id",

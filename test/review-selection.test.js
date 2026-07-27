@@ -10,13 +10,19 @@ test("new Evaluation selection pins only active Reviews while an earlier selecti
     assignment: { scope: "installation_wide" },
     id: "review-1",
   };
-  const firstSelection = selectReviewVersionsForNewEvaluation([active]);
+  const firstSelection = selectReviewVersionsForNewEvaluation(
+    [active],
+    "repository-1",
+  );
 
   assert.deepEqual(firstSelection, [
     { review_id: "review-1", review_version_id: "version-1" },
   ]);
   assert.deepEqual(
-    selectReviewVersionsForNewEvaluation([{ ...active, archived: true }]),
+    selectReviewVersionsForNewEvaluation(
+      [{ ...active, archived: true }],
+      "repository-1",
+    ),
     [],
   );
   assert.deepEqual(firstSelection, [
@@ -87,8 +93,21 @@ test("new Evaluation selection rejects partial Review state", () => {
           /** @type {Parameters<typeof selectReviewVersionsForNewEvaluation>[0]} */ (
             reviews
           ),
+          "repository-1",
         ),
       /reviews must contain complete Review selections/,
     );
   }
+});
+
+test("new Evaluation selection rejects a missing Repository identity instead of skipping scoped Reviews", () => {
+  assert.throws(
+    () =>
+      selectReviewVersionsForNewEvaluation([], /** @type {any} */ (undefined)),
+    /repositoryId must be a nonempty string/,
+  );
+  assert.throws(
+    () => selectReviewVersionsForNewEvaluation([], ""),
+    /repositoryId must be a nonempty string/,
+  );
 });

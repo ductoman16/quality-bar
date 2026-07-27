@@ -7,7 +7,7 @@ import {
 } from "./review-assignment.js";
 import { readReviewCollection } from "./review-read-collection.js";
 import { readReview } from "./review-read.js";
-import { selectReviewVersionsForNewEvaluation } from "./review-selection.js";
+import { selectReviewVersionsForRegisteredRepository } from "./review-selection.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import {
   fail,
@@ -59,10 +59,11 @@ export function createReviewService(
         ),
       );
     },
-    /** @param {string} [repositoryId] */
+    /** @param {string} repositoryId */
     selectForNewEvaluation(repositoryId) {
       return durableCore.transaction((transaction) =>
-        selectReviewVersionsForNewEvaluation(
+        selectReviewVersionsForRegisteredRepository(
+          transaction,
           readReviewCollection(
             transaction,
             "SELECT id FROM reviews ORDER BY created_at, id",

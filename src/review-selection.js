@@ -1,3 +1,37 @@
+import { fail } from "./review-validation.js";
+
+/**
+ * @param {{get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): unknown}} transaction
+ * @param {unknown} repositoryId
+ */
+export function requireEvaluationRepository(transaction, repositoryId) {
+  if (typeof repositoryId !== "string" || repositoryId.length === 0) {
+    throw new TypeError("repositoryId must be a nonempty string");
+  }
+  if (
+    !transaction.get("SELECT id FROM repositories WHERE id = ?", repositoryId)
+  ) {
+    fail(
+      "review_assignment_repository_not_found",
+      "Review Assignment Repository was not found",
+    );
+  }
+}
+
+/**
+ * @param {{get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): unknown}} transaction
+ * @param {Parameters<typeof selectReviewVersionsForNewEvaluation>[0]} reviews
+ * @param {string} repositoryId
+ */
+export function selectReviewVersionsForRegisteredRepository(
+  transaction,
+  reviews,
+  repositoryId,
+) {
+  requireEvaluationRepository(transaction, repositoryId);
+  return selectReviewVersionsForNewEvaluation(reviews, repositoryId);
+}
+
 /**
  * @param {Array<{
  *   id: string,
@@ -5,13 +39,10 @@
  *   assignment: {scope: string, repository_ids?: string[]},
  *   active_version: {id: string}
  * }>} reviews
- * @param {string} [repositoryId]
+ * @param {string} repositoryId
  */
 export function selectReviewVersionsForNewEvaluation(reviews, repositoryId) {
-  if (
-    repositoryId !== undefined &&
-    (typeof repositoryId !== "string" || repositoryId.length === 0)
-  ) {
+  if (typeof repositoryId !== "string" || repositoryId.length === 0) {
     throw new TypeError("repositoryId must be a nonempty string");
   }
   if (
@@ -45,8 +76,7 @@ export function selectReviewVersionsForNewEvaluation(reviews, repositoryId) {
       ({ archived, assignment }) =>
         !archived &&
         (assignment.scope === "installation_wide" ||
-          (repositoryId !== undefined &&
-            assignment.repository_ids?.includes(repositoryId) === true)),
+          assignment.repository_ids?.includes(repositoryId) === true),
     )
     .map((review) => ({
       review_id: review.id,
