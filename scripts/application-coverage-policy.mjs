@@ -76,6 +76,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/repository-credential-rotation-sqlite-integration.test.js",
   "test/repository-sqlite-integration.test.js",
   "test/github-connection-sqlite-integration.test.js",
+  "test/github-repository-migration-sqlite-integration.test.js",
   "test/github-repository-selection-sqlite-integration.test.js",
   "test/review-version-reactivation-browser-component.test.js",
   "test/review-version-reactivation-sqlite-integration.test.js",
