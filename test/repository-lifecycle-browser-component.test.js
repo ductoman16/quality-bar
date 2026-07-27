@@ -16,6 +16,7 @@ test("the Repository component displays lifecycle separately from health and sur
   const lifecycleRepository = browserElement();
   const lifecycleState = browserElement({ value: "enabled" });
   const lifecycleResult = browserElement();
+  const lifecycleSubmit = browserElement();
   const inventory = browserElement();
   const error = browserElement({ hidden: true });
   const elements = repositoryBrowserElements([
@@ -25,10 +26,11 @@ test("the Repository component displays lifecycle separately from health and sur
     ["repository-lifecycle-repository", lifecycleRepository],
     ["repository-lifecycle-state", lifecycleState],
     ["repository-lifecycle-result", lifecycleResult],
-    ["repository-lifecycle-submit", browserElement()],
+    ["repository-lifecycle-submit", lifecycleSubmit],
   ]);
   let lifecycleAttempt = 0;
   let listAttempt = 0;
+  const lifecycleRequest = Promise.withResolvers();
   /** @type {string[]} */
   const confirmations = [];
   const browserContext = {
@@ -112,22 +114,10 @@ test("the Repository component displays lifecycle separately from health and sur
             },
           };
         }
-        return {
-          ok: true,
-          async json() {
-            return {
-              credential_type: "username_token",
-              health: "error",
-              health_error: {
-                code: "repository_git_read_failed",
-                message: "Repository Git read verification failed",
-              },
-              id: "repository-error",
-              lifecycle: "disabled",
-              url: "https://example.com/error.git",
-            };
-          },
-        };
+        if (lifecycleAttempt === 3) {
+          throw new Error("response lost after lifecycle request");
+        }
+        return lifecycleRequest.promise;
       }
       throw new Error(`unexpected request: ${path}`);
     },
@@ -189,7 +179,30 @@ test("the Repository component displays lifecycle separately from health and sur
 
   lifecycleRepository.value = "repository-error";
   lifecycleState.value = "disabled";
-  await lifecycleForm.listener("submit")({ preventDefault() {} });
+  const pendingLifecycle = lifecycleForm.listener("submit")({
+    preventDefault() {},
+  });
+  await Promise.resolve();
+  assert.equal(lifecycleSubmit.disabled, true);
+  assert.equal(lifecycleResult.textContent, "Applying lifecycle.");
+  lifecycleRequest.resolve({
+    ok: true,
+    async json() {
+      return {
+        credential_type: "username_token",
+        health: "error",
+        health_error: {
+          code: "repository_git_read_failed",
+          message: "Repository Git read verification failed",
+        },
+        id: "repository-error",
+        lifecycle: "disabled",
+        url: "https://example.com/error.git",
+      };
+    },
+  });
+  await pendingLifecycle;
+  assert.equal(lifecycleSubmit.disabled, false);
   assert.equal(
     lifecycleResult.textContent,
     "https://example.com/error.git is disabled.",
@@ -208,4 +221,13 @@ test("the Repository component displays lifecycle separately from health and sur
       "error: Repository Git read verification failed",
     ],
   );
+
+  lifecycleRepository.value = "repository-disabled";
+  lifecycleState.value = "enabled";
+  await lifecycleForm.listener("submit")({ preventDefault() {} });
+  assert.equal(error.textContent, "Repository lifecycle change failed");
+  assert.equal(error.hidden, false);
+  assert.equal(lifecycleResult.textContent, "");
+  assert.equal(listAttempt, 3);
+  assert.equal(lifecycleSubmit.disabled, false);
 });

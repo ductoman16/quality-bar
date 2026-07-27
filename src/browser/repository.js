@@ -18,6 +18,7 @@ const {
  * @param {(repository: RepositoryResource) => Promise<string> | string} successMessage
  * @param {string} networkFailureMessage
  * @param {"PATCH" | "POST"} [method]
+ * @param {string} [pendingMessage]
  * @returns {Promise<"network_failure" | "response_failure" | "success">}
  */
 async function submitRepositoryMutation(
@@ -28,9 +29,10 @@ async function submitRepositoryMutation(
   successMessage,
   networkFailureMessage,
   method = "POST",
+  pendingMessage = "",
 ) {
   repositoryError.hidden = true;
-  result.textContent = "";
+  result.textContent = pendingMessage;
   let response;
   try {
     response = await fetch(path, {
@@ -42,11 +44,13 @@ async function submitRepositoryMutation(
       method,
     });
   } catch {
+    result.textContent = "";
     repositoryError.textContent = networkFailureMessage;
     repositoryError.hidden = false;
     return "network_failure";
   }
   if (!response.ok) {
+    result.textContent = "";
     await displayRepositoryMutationFailure(response);
     return "response_failure";
   }
@@ -266,20 +270,32 @@ repositoryLifecycleForm.addEventListener("submit", async (event) => {
   ) {
     return;
   }
-  const outcome = await submitRepositoryMutation(
-    repositoryLifecycleForm,
-    requiredRepositoryElement("repository-lifecycle-result"),
-    `/api/v1/repositories/${encodeURIComponent(repositoryId)}/lifecycle`,
-    { lifecycle },
-    (repository) => {
-      renderRepository(repository);
-      return `${repository.url} is ${repository.lifecycle}.`;
-    },
-    "Repository lifecycle change failed",
-    "PATCH",
+  const lifecycleSubmit = /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-lifecycle-submit")
   );
-  if (outcome === "response_failure") {
-    await loadRepositoryOptions();
+  lifecycleSubmit.disabled = true;
+  try {
+    const outcome = await submitRepositoryMutation(
+      repositoryLifecycleForm,
+      requiredRepositoryElement("repository-lifecycle-result"),
+      `/api/v1/repositories/${encodeURIComponent(repositoryId)}/lifecycle`,
+      { lifecycle },
+      (repository) => {
+        renderRepository(repository);
+        return `${repository.url} is ${repository.lifecycle}.`;
+      },
+      "Repository lifecycle change failed",
+      "PATCH",
+      "Applying lifecycle.",
+    );
+    if (outcome !== "success") {
+      await loadRepositoryOptions();
+    }
+  } finally {
+    lifecycleSubmit.disabled =
+      /** @type {HTMLSelectElement} */ (
+        requiredRepositoryElement("repository-lifecycle-repository")
+      ).options.length === 0;
   }
 });
 
