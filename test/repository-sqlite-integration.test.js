@@ -9,7 +9,17 @@ import { createRepositoryService, RepositoryError } from "../src/repository.js";
 
 test("a verified normalized Repository identity is inserted once and failed verification stores nothing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
-  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  prior.run("DROP TABLE repositories");
+  prior.run(
+    "UPDATE quality_bar_metadata SET value = '8' WHERE key = 'schema_version'",
+  );
+  prior.run("PRAGMA user_version = 8");
+  prior.close();
+
+  const core = openDurableCore(databasePath);
+  assert.equal(core.facts.schemaVersion, 9);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {

@@ -1,39 +1,64 @@
 import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { RepositoryError } from "./repository-validation.js";
 
 /**
  * @param {string} normalizedUrl
- * @param {{ environment?: Record<string, string> }} [options]
+ * @param {{ allowInvalidCertificate?: boolean }} [options]
  */
 export function verifyPublicRepositoryRead(
   normalizedUrl,
-  { environment = {} } = {},
+  { allowInvalidCertificate = false } = {},
 ) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      "git",
-      [
-        "-c",
-        "credential.helper=",
-        "-c",
-        "core.askPass=",
-        "ls-remote",
-        "--",
-        normalizedUrl,
-      ],
-      {
-        env: {
-          GIT_CONFIG_GLOBAL: "/dev/null",
-          GIT_CONFIG_NOSYSTEM: "1",
-          GIT_TERMINAL_PROMPT: "0",
-          ...environment,
-        },
-        stdio: "ignore",
-      },
+  /** @type {string} */
+  let verificationDirectory;
+  try {
+    verificationDirectory = mkdtempSync(
+      join(tmpdir(), "quality-bar-git-read-"),
     );
+  } catch (cause) {
+    return Promise.reject(
+      new RepositoryError(
+        "repository_git_verification_unavailable",
+        "Repository Git read verification could not run",
+        { cause },
+      ),
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
+    if (allowInvalidCertificate) {
+      arguments_.push("-c", "http.sslVerify=false");
+    }
+    arguments_.push("ls-remote", "--", normalizedUrl);
+    const child = spawn("git", arguments_, {
+      cwd: verificationDirectory,
+      env: {
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_TERMINAL_PROMPT: "0",
+      },
+      stdio: "ignore",
+    });
+    let completed = false;
+    /** @param {RepositoryError | null} error */
+    function complete(error) {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      rmSync(verificationDirectory, { force: true, recursive: true });
+      if (error) {
+        reject(error);
+      } else {
+        resolve(undefined);
+      }
+    }
     child.once("error", (cause) => {
-      reject(
+      complete(
         new RepositoryError(
           "repository_git_verification_unavailable",
           "Repository Git read verification could not run",
@@ -43,10 +68,10 @@ export function verifyPublicRepositoryRead(
     });
     child.once("exit", (code, signal) => {
       if (code === 0 && signal === null) {
-        resolve(undefined);
+        complete(null);
         return;
       }
-      reject(
+      complete(
         new RepositoryError(
           "repository_git_read_failed",
           "Repository Git read verification failed",

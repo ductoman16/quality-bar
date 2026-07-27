@@ -20,7 +20,6 @@
     "src/browser/review-version-contract.js",
     "src/browser/review-version.js",
     "src/browser/review-reactivation.js",
-    "src/browser/review-archival.js",
-    "src/browser/repository-create.js"
+    "src/browser/review-archival.js"
   ]
 }

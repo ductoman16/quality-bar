@@ -112,24 +112,52 @@ test("public Repository verification performs a non-mutating read over real HTTP
   );
   const address = server.address();
   assert.ok(address && typeof address !== "string");
-  const environment = { GIT_SSL_NO_VERIFY: "1" };
-
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/populated.git`,
-    { environment },
+    { allowInvalidCertificate: true },
   );
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/empty.git`,
-    { environment },
+    { allowInvalidCertificate: true },
   );
   await assert.rejects(
     () =>
       verifyPublicRepositoryRead(
         `https://127.0.0.1:${address.port}/missing.git`,
-        { environment },
+        { allowInvalidCertificate: true },
       ),
     (error) =>
       error instanceof RepositoryError &&
       error.code === "repository_git_read_failed",
   );
+
+  const configuredDirectory = join(directory, "configured-client");
+  execFileSync("git", ["init", configuredDirectory], { stdio: "ignore" });
+  execFileSync(
+    "git",
+    [
+      "-C",
+      configuredDirectory,
+      "config",
+      `url.file://${join(directory, "populated.git")}.insteadOf`,
+      `https://127.0.0.1:${address.port}/missing.git`,
+    ],
+    { stdio: "ignore" },
+  );
+  const originalDirectory = process.cwd();
+  process.chdir(configuredDirectory);
+  try {
+    await assert.rejects(
+      () =>
+        verifyPublicRepositoryRead(
+          `https://127.0.0.1:${address.port}/missing.git`,
+          { allowInvalidCertificate: true },
+        ),
+      (error) =>
+        error instanceof RepositoryError &&
+        error.code === "repository_git_read_failed",
+    );
+  } finally {
+    process.chdir(originalDirectory);
+  }
 });

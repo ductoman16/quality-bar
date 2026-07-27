@@ -209,7 +209,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-and-review-version-lifecycle-validation-unit",
+        "browser-authority-request-security-review-version-and-repository-validation-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -238,7 +238,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-and-review-version-lifecycle-browser-boundary",
+        "browser-authority-request-security-review-version-and-repository-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -265,7 +265,7 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "sqlite-integration",
-      testGroup: "review-version-lifecycle-sqlite-resource-boundary",
+      testGroup: "review-version-and-repository-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",

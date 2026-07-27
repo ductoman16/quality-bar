@@ -60,6 +60,15 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
     ["repository-create-form", form],
     ["repository-url", url],
     ["repository-create-result", result],
+    ["password-change-form", browserElement()],
+    ["session-revocation-form", browserElement()],
+    ["implementer-token-create-form", browserElement()],
+    ["implementer-token-rotate-form", browserElement()],
+    ["implementer-token-revoke-form", browserElement()],
+    ["implementer-token-reveal", browserElement()],
+    ["implementer-token-reveal-close", browserElement()],
+    ["implementer-token-value", browserElement()],
+    ["logout", browserElement()],
   ]);
   /** @type {{path: string, options: object}[]} */
   const requests = [];
@@ -67,11 +76,13 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
 
   executeServedBrowserAsset(
     repositoryRoot,
-    "src/browser/repository-create.js",
-    readBrowserAsset("/assets/repository-create.js"),
+    "src/browser/operator.js",
+    readBrowserAsset("/assets/operator.js"),
     {
+      Date,
       document: {
         cookie: "quality_bar_configured_csrf=csrf-token",
+        addEventListener() {},
         /** @param {string} id */
         getElementById(id) {
           return elements.get(id) ?? null;
@@ -79,6 +90,20 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
       },
       /** @param {string} path @param {object} options */
       async fetch(path, options) {
+        if (path === "/api/v1/system") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                bootstrap: { status: "ready" },
+                browser_sessions: { active_count: 1 },
+                codex: { catalog: { models: [] }, status: "available" },
+                durable_core: { status: "ready" },
+                implementer_token: { status: "revoked" },
+              };
+            },
+          };
+        }
         requests.push({ options, path });
         attempt += 1;
         if (attempt === 1) {
@@ -130,4 +155,5 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(error.textContent, "Repository Git read verification failed");
   assert.equal(error.hidden, false);
+  assert.equal(result.textContent, "");
 });

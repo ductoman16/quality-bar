@@ -35,6 +35,18 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
   };
+  const forbiddenRepository = await request("/api/v1/repositories", {
+    body: JSON.stringify({
+      url: "https://example.com/repository.git",
+    }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(forbiddenRepository.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenRepository),
+    "authorization_forbidden",
+  );
   const firstResponse = await request("/api/v1/reviews", {
     body: JSON.stringify(reviewRequest({ name: "First Review" })),
     headers,
