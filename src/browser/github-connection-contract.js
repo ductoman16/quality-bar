@@ -140,6 +140,8 @@ function validGitHubConnection(value) {
     Object.keys(value.capabilities).length === 0 ||
     !("health" in value) ||
     !["healthy", "error"].includes(/** @type {string} */ (value.health)) ||
+    !("lifecycle" in value) ||
+    !["enabled", "retired"].includes(/** @type {string} */ (value.lifecycle)) ||
     !("health_error" in value) ||
     !("repository_count" in value) ||
     !Number.isSafeInteger(value.repository_count) ||

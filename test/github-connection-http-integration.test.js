@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection.js";
+import {
+  GitHubConnectionError,
+  createUnavailableGitHubConnectionService,
+} from "../src/github-connection.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
@@ -41,6 +44,14 @@ function connectionService() {
           return {};
         },
         /** @param {any} input */
+        async reactivate(input) {
+          calls.push(["reactivate", input]);
+          throw new GitHubConnectionError(
+            "github_connection_reactivation_unsupported",
+            "GitHub Connection must be retired before reactivation",
+          );
+        },
+        /** @param {any} input */
         async selectRepositories(input) {
           calls.push(["selection", input]);
           return [
@@ -63,6 +74,17 @@ function connectionService() {
             },
           ];
         },
+        /** @param {unknown} input */
+        retire(input) {
+          calls.push(["retire", input]);
+          throw new GitHubConnectionError(
+            "github_connection_repositories_active",
+            "GitHub Connection cannot retire while dependent Repositories are enabled or disabled",
+          );
+        },
+        remove() {
+          calls.push(["remove"]);
+        },
         recordCallbackFailure() {
           return "error-receipt";
         },
@@ -74,6 +96,69 @@ function connectionService() {
     },
   };
 }
+
+test("GitHub Connection lifecycle routes preserve the owning mutation and failure status", async () => {
+  const service = connectionService();
+  const { request } = await startApplication({
+    createGitHubConnections: () => service.create(),
+  });
+  const headers = await authenticatedOperatorHeaders(request);
+  const retired = await request("/api/v1/github-connections/lifecycle", {
+    body: JSON.stringify({ lifecycle: "retired" }),
+    headers,
+    method: "PATCH",
+  });
+  assert.equal(retired.status, 409);
+  assert.equal(
+    await responseErrorCode(retired),
+    "github_connection_repositories_active",
+  );
+  const deleted = await request("/api/v1/github-connections/lifecycle", {
+    body: "{}",
+    headers,
+    method: "DELETE",
+  });
+  assert.equal(deleted.status, 200);
+  assert.equal(await deleted.json(), null);
+  assert.deepEqual(service.calls.slice(-2), [
+    ["retire", { lifecycle: "retired" }],
+    ["remove"],
+  ]);
+
+  const reactivated = await request("/api/v1/github-connections/reactivate", {
+    body: JSON.stringify({ pem: "replacement-private-key" }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(reactivated.status, 409);
+  assert.equal(
+    await responseErrorCode(reactivated),
+    "github_connection_reactivation_unsupported",
+  );
+  assert.deepEqual(service.calls.at(-1), [
+    "reactivate",
+    { pem: "replacement-private-key" },
+  ]);
+});
+
+test("GitHub Connection reactivation preserves an unavailable service error", async () => {
+  const unavailable = Object.assign(
+    new Error("GitHub Connection storage is unavailable"),
+    { code: "storage_unavailable" },
+  );
+  const { request } = await startApplication({
+    createGitHubConnections: () =>
+      createUnavailableGitHubConnectionService(unavailable),
+  });
+  const headers = await authenticatedOperatorHeaders(request);
+  const response = await request("/api/v1/github-connections/reactivate", {
+    body: JSON.stringify({ pem: "replacement-private-key" }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(response.status, 503);
+  assert.equal(await responseErrorCode(response), "storage_unavailable");
+});
 
 test("canonical HTTP flow starts under operator authority and completes both state-bound redirects without a cross-site cookie", async () => {
   const service = connectionService();

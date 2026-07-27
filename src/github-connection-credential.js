@@ -30,7 +30,7 @@ export function createGitHubConnectionCredentialCipher(
   return {
     /**
      * @param {{appId: number, id: string}} connection
-     * @param {{client_id: string, installation_id: number, pem: string}} credential
+     * @param {{client_id: string | null, installation_id: number, pem: string}} credential
      */
     encrypt(connection, credential) {
       try {
@@ -93,8 +93,10 @@ export function createGitHubConnectionCredentialCipher(
           typeof value !== "object" ||
           Object.keys(value).length !== 3 ||
           !("client_id" in value) ||
-          typeof value.client_id !== "string" ||
-          value.client_id.length === 0 ||
+          !(
+            value.client_id === null ||
+            (typeof value.client_id === "string" && value.client_id.length > 0)
+          ) ||
           !("installation_id" in value) ||
           !Number.isSafeInteger(value.installation_id) ||
           !("pem" in value) ||

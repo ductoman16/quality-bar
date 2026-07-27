@@ -48,7 +48,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 14);
+  assert.equal(core.facts.schemaVersion, 15);
   const service = createGitHubConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1"];
@@ -73,6 +73,9 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     installationId: "73",
     state: started.state,
   });
+  if (!completed) {
+    throw new Error("completed_connection_missing");
+  }
   assert.deepEqual(service.read(), completed);
 
   assert.equal(
@@ -144,6 +147,129 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
       error.code === "github_connection_credential_undecryptable",
   );
   wrongKeyCore.close();
+
+  const lifecycleCore = openDurableCore(databasePath);
+  const lifecycleService = createGitHubConnectionService(lifecycleCore, {
+    createId: (() => {
+      const ids = ["verification-2"];
+      return () => ids.shift();
+    })(),
+    externalOrigin: "https://quality-bar.example",
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 2_000,
+    randomBytes: () => Buffer.alloc(32, 9),
+    verifier: {
+      async exchangeManifest() {
+        throw new Error("reactivation must not exchange a GitHub App Manifest");
+      },
+      async verifyInstallation(credential) {
+        assert.deepEqual(credential, {
+          app_id: 47,
+          app_slug: "quality-bar-personal",
+          client_id: null,
+          owner: { id: 91, login: "operator", type: "User" },
+          pem: "replacement-private-key",
+        });
+        return verifiedInstallation;
+      },
+    },
+  });
+  const retired = lifecycleService.retire({ lifecycle: "retired" });
+  if (!retired) {
+    throw new Error("retired_connection_missing");
+  }
+  assert.equal(retired.lifecycle, "retired");
+  assert.equal(
+    lifecycleCore.get(
+      "SELECT count(*) AS count FROM github_connection_credentials",
+    )?.count,
+    0,
+  );
+  const restored = await lifecycleService.reactivate({
+    pem: "replacement-private-key",
+  });
+  if (!restored) {
+    throw new Error("reactivated_connection_missing");
+  }
+  assert.equal(restored.id, completed.id);
+  assert.equal(restored.lifecycle, "enabled");
+  assert.equal(restored.verification_history.length, 2);
+  assert.equal(restored.verification_history[0]?.trigger, "onboarding");
+  assert.equal(restored.verification_history.at(-1)?.trigger, "enablement");
+  const replacementCredential = /** @type {{encrypted_credential: string}} */ (
+    lifecycleCore.get(
+      "SELECT encrypted_credential FROM github_connection_credentials",
+    )
+  );
+  assert.doesNotMatch(
+    replacementCredential.encrypted_credential,
+    /replacement-private-key/,
+  );
+  const restartedLifecycleService = createGitHubConnectionService(
+    lifecycleCore,
+    {
+      externalOrigin: "https://quality-bar.example",
+      masterKey: Buffer.alloc(32, 7),
+    },
+  );
+  assert.equal(restartedLifecycleService.read()?.id, completed.id);
+  restartedLifecycleService.destroy();
+  lifecycleService.retire({ lifecycle: "retired" });
+  const failedReactivationService = createGitHubConnectionService(
+    lifecycleCore,
+    {
+      externalOrigin: "https://quality-bar.example",
+      masterKey: Buffer.alloc(32, 7),
+      verifier: {
+        async exchangeManifest() {
+          throw new Error(
+            "reactivation must not exchange a GitHub App Manifest",
+          );
+        },
+        async verifyInstallation() {
+          throw new GitHubConnectionError(
+            "github_permissions_mismatch",
+            "GitHub App permissions do not match the required profile",
+          );
+        },
+      },
+    },
+  );
+  await assert.rejects(
+    () =>
+      failedReactivationService.reactivate({ pem: "invalid-replacement-key" }),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_permissions_mismatch",
+  );
+  failedReactivationService.destroy();
+  assert.equal(lifecycleService.read()?.lifecycle, "retired");
+  assert.equal(
+    lifecycleCore.get(
+      "SELECT count(*) AS count FROM github_connection_credentials",
+    )?.count,
+    0,
+  );
+  assert.equal(
+    lifecycleCore.get(
+      "SELECT count(*) AS count FROM github_connection_verifications",
+    )?.count,
+    2,
+  );
+  lifecycleService.remove();
+  assert.equal(
+    lifecycleCore.get("SELECT count(*) AS count FROM github_connections")
+      ?.count,
+    0,
+  );
+  assert.equal(
+    lifecycleCore.get(
+      "SELECT count(*) AS count FROM github_connection_verifications",
+    )?.count,
+    0,
+  );
+  lifecycleService.destroy();
+  lifecycleCore.close();
 });
 
 test("SQLite stores no Connection, credential, or history after verification failure", async (context) => {

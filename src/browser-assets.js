@@ -17,6 +17,19 @@ const browserAssets = [
     url: new URL("./browser/github-connection-contract.js", import.meta.url),
   },
   {
+    route: "/assets/github-connection-lifecycle-confirmation.js",
+    sourcePath: "src/browser/github-connection-lifecycle-confirmation.js",
+    url: new URL(
+      "./browser/github-connection-lifecycle-confirmation.js",
+      import.meta.url,
+    ),
+  },
+  {
+    route: "/assets/github-connection-submission.js",
+    sourcePath: "src/browser/github-connection-submission.js",
+    url: new URL("./browser/github-connection-submission.js", import.meta.url),
+  },
+  {
     route: "/assets/github-connection.js",
     sourcePath: "src/browser/github-connection.js",
     url: new URL("./browser/github-connection.js", import.meta.url),

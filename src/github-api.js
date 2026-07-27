@@ -154,7 +154,7 @@ export function createGitHubVerifier({
      * @param {{
      *   app_id: number,
      *   app_slug: string,
-     *   client_id: string,
+     *   client_id: string | null,
      *   owner: {id: number, login: string, type: "User"},
      *   pem: string
      * }} credential
@@ -168,7 +168,8 @@ export function createGitHubVerifier({
         !app ||
         app.id !== credential.app_id ||
         app.slug !== credential.app_slug ||
-        app.client_id !== credential.client_id ||
+        (credential.client_id !== null &&
+          app.client_id !== credential.client_id) ||
         app.public !== false ||
         !Array.isArray(app.events) ||
         app.events.length !== 0

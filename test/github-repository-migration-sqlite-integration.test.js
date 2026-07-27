@@ -133,6 +133,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.run("ALTER TABLE github_connections DROP COLUMN health_error_message");
   prior.run("ALTER TABLE github_connections DROP COLUMN health_error_code");
   prior.run("ALTER TABLE github_connections DROP COLUMN health");
+  prior.run("ALTER TABLE github_connections DROP COLUMN lifecycle");
   prior.run(
     "UPDATE quality_bar_metadata SET value = '13' WHERE key = 'schema_version'",
   );
@@ -140,7 +141,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 14);
+  assert.equal(migrated.facts.schemaVersion, 15);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",
@@ -162,6 +163,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   );
   assert.equal(readGitHubConnection(migrated)?.health, "healthy");
   assert.equal(readGitHubConnection(migrated)?.health_error, null);
+  assert.equal(readGitHubConnection(migrated)?.lifecycle, "enabled");
   assert.equal(
     readGitHubConnection(migrated)?.verification_history[0].outcome,
     "success",

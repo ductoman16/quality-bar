@@ -155,6 +155,24 @@ const GITHUB_CONNECTION_VERIFICATION_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'github_connection_verification_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS github_connection_verification_immutable_delete
     BEFORE DELETE ON github_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'github_connection_delete' AND value = OLD.connection_id
+    )
+    BEGIN SELECT RAISE(ABORT, 'github_connection_verification_immutable'); END;
+`;
+
+export const GITHUB_CONNECTION_LIFECYCLE_MIGRATION = `
+  ALTER TABLE github_connections
+    ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired'));
+  DROP TRIGGER github_connection_verification_immutable_delete;
+  CREATE TRIGGER github_connection_verification_immutable_delete
+    BEFORE DELETE ON github_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'github_connection_delete' AND value = OLD.connection_id
+    )
     BEGIN SELECT RAISE(ABORT, 'github_connection_verification_immutable'); END;
 `;
 
@@ -218,6 +236,8 @@ export const GITHUB_CONNECTION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS github_connections (
     singleton_key INTEGER PRIMARY KEY DEFAULT 1 CHECK (singleton_key = 1),
     id TEXT NOT NULL UNIQUE,
+    lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired')),
     app_id INTEGER NOT NULL UNIQUE CHECK (app_id > 0),
     app_slug TEXT NOT NULL CHECK (length(app_slug) > 0),
     installation_id INTEGER NOT NULL UNIQUE CHECK (installation_id > 0),

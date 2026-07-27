@@ -11,7 +11,6 @@ import { tmpdir } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
-
 import {
   verifyPublicRepositoryRead,
   verifyRepositoryRead,
@@ -21,7 +20,6 @@ import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
 import { createReviewService } from "../src/review.js";
 import { openDurableCore } from "../src/durable-core.js";
-
 /** @param {string} directory @param {string} name @param {boolean} populated */
 function createBareRepository(directory, name, populated) {
   const repository = join(directory, `${name}.git`);
@@ -55,14 +53,12 @@ function createBareRepository(directory, name, populated) {
     stdio: "ignore",
   });
 }
-
-test("public Repository verification performs a non-mutating read over real HTTPS Git", async (context) => {
+test("public Repository verification accepts a reactivated installation credential over real HTTPS Git", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-git-https-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   createBareRepository(directory, "populated", true);
   createBareRepository(directory, "empty", false);
   createBareRepository(directory, "private", true);
-
   const key = join(directory, "server.key");
   const certificate = join(directory, "server.crt");
   execFileSync(
@@ -234,6 +230,12 @@ test("public Repository verification performs a non-mutating read over real HTTP
       assert.doesNotMatch(error.message, /sensitive-token|prefix|operator/);
       return true;
     },
+  );
+  acceptedPrivateCredential = "x-access-token:reactivated-installation-token";
+  await verifyRepositoryRead(
+    `https://127.0.0.1:${address.port}/private.git`,
+    { token: "reactivated-installation-token", username: "x-access-token" },
+    { certificateAuthorityPath: certificate },
   );
   assert.match(rejectedCredentialDirectory, /quality-bar-git-read-/);
   await assert.rejects(

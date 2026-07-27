@@ -24,6 +24,8 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/login.js",
       "src/browser/operator.js",
       "src/browser/github-connection-contract.js",
+      "src/browser/github-connection-lifecycle-confirmation.js",
+      "src/browser/github-connection-submission.js",
       "src/browser/github-connection.js",
       "src/browser/repository.js",
       "src/browser/repository-guidance.js",

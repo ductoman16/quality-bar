@@ -49,6 +49,7 @@ export function verifiedConnection() {
     capabilities: { private_git_read: "verified" },
     health: "healthy",
     health_error: null,
+    lifecycle: "enabled",
     permissions: { contents: "read" },
     principal: { login: "operator" },
     repository_count: 1,
@@ -83,10 +84,13 @@ export function verifiedConnection() {
 
 /** @param {ReturnType<typeof element>} form @param {ReturnType<typeof element>} submit @param {ReturnType<typeof element>} status @param {ReturnType<typeof element>} error */
 export function githubElements(form, submit, status, error) {
+  const pem = element({ hidden: true, value: "" });
+  const pemLabel = element({ hidden: true });
   const details = element({ hidden: true });
   const identity = element();
   const profile = element();
   const health = element();
+  const lifecycle = element();
   const permissions = element();
   const capabilities = element();
   const latest = element();
@@ -103,22 +107,55 @@ export function githubElements(form, submit, status, error) {
     },
   });
   const repositorySubmit = element();
+  const retire = element();
+  const remove = element();
+  const confirmation = element({
+    close() {
+      this.open = false;
+    },
+    open: false,
+    showModal() {
+      this.open = true;
+    },
+  });
+  const confirmationForm = element();
+  const confirmationMessage = element();
+  const confirmationLabel = element({ hidden: true });
+  const confirmationInput = element({
+    hidden: true,
+    required: false,
+    value: "",
+  });
+  const confirmationCancel = element();
+  const confirmationSubmit = element();
   return {
     capabilities,
     details,
     elements: new Map([
       ["github-connection-form", form],
       ["github-connection-submit", submit],
+      ["github-connection-pem", pem],
+      ["github-connection-pem-label", pemLabel],
       ["github-connection-status", status],
       ["github-connection-error", error],
       ["github-connection-details", details],
       ["github-connection-identity", identity],
       ["github-connection-profile", profile],
       ["github-connection-health", health],
+      ["github-connection-lifecycle", lifecycle],
       ["github-connection-permissions", permissions],
       ["github-connection-capabilities", capabilities],
       ["github-connection-latest", latest],
       ["github-connection-history", history],
+      ["github-connection-retire", retire],
+      ["github-connection-delete", remove],
+      ["github-connection-confirmation", confirmation],
+      ["github-connection-confirmation-form", confirmationForm],
+      ["github-connection-confirmation-message", confirmationMessage],
+      ["github-connection-confirmation-label", confirmationLabel],
+      ["github-connection-confirmation-input", confirmationInput],
+      ["github-connection-confirmation-cancel", confirmationCancel],
+      ["github-connection-confirmation-submit", confirmationSubmit],
       ["github-repository-selection-form", repositoryForm],
       ["github-repository-selection-options", repositoryOptions],
       ["github-repository-selection-submit", repositorySubmit],
@@ -214,6 +251,18 @@ export function executeGitHubBrowserAsset(context) {
     repositoryRoot,
     "src/browser/github-connection-contract.js",
     readBrowserAsset("/assets/github-connection-contract.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/github-connection-lifecycle-confirmation.js",
+    readBrowserAsset("/assets/github-connection-lifecycle-confirmation.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/github-connection-submission.js",
+    readBrowserAsset("/assets/github-connection-submission.js"),
     context,
   );
   executeServedBrowserAsset(
