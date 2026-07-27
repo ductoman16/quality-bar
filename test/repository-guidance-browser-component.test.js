@@ -12,7 +12,13 @@ import {
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
-test("the Repository Guidance component renders the complete canonical document and clears stale failure state", async () => {
+/**
+ * @param {{
+ *   fetch: (path: string) => Promise<unknown>,
+ *   repositories?: Array<{id: string, url: string}>,
+ * }} options
+ */
+function executeGuidanceComponent({ fetch, repositories = [] }) {
   const select = browserElement({ disabled: true });
   const documentElement = browserElement();
   const error = browserElement({ hidden: true });
@@ -21,6 +27,54 @@ test("the Repository Guidance component renders the complete canonical document 
     ["repository-guidance-repository", select],
     ["repository-guidance-document", documentElement],
   ]);
+  /** @type {(repositories: Array<{id: string, url: string}>) => Promise<unknown>} */
+  let publishRepositories = () => {
+    throw new Error("repository_subscriber_unavailable");
+  };
+  const browserContext = {
+    document: {
+      createElement() {
+        return browserElement();
+      },
+      /** @param {string} id */
+      getElementById(id) {
+        return elements.get(id) ?? null;
+      },
+    },
+    fetch,
+    window: {
+      qualityBarOperator: {
+        error,
+        /** @param {string} id */
+        requiredElement(id) {
+          const element = elements.get(id);
+          if (!element) {
+            throw new Error(`browser_element_missing: ${id}`);
+          }
+          return element;
+        },
+      },
+      qualityBarRepositories: {
+        /** @param {(repositories: Array<{id: string, url: string}>) => Promise<unknown>} subscriber */
+        subscribe(subscriber) {
+          publishRepositories = subscriber;
+          return subscriber(repositories);
+        },
+      },
+    },
+  };
+
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository-guidance.js",
+    readBrowserAsset("/assets/repository-guidance.js"),
+    browserContext,
+  );
+
+  return { documentElement, error, publishRepositories, select };
+}
+
+test("the Repository Guidance component renders the complete canonical document and clears stale failure state", async () => {
   let guidanceAttempt = 0;
   const canonicalGuidance = {
     guidance_revision:
@@ -52,16 +106,7 @@ test("the Repository Guidance component renders the complete canonical document 
     ],
     schema_version: 1,
   };
-  const browserContext = {
-    document: {
-      createElement() {
-        return browserElement();
-      },
-      /** @param {string} id */
-      getElementById(id) {
-        return elements.get(id) ?? null;
-      },
-    },
+  const { documentElement, error, select } = executeGuidanceComponent({
     async fetch() {
       guidanceAttempt += 1;
       if (guidanceAttempt === 1) {
@@ -84,38 +129,13 @@ test("the Repository Guidance component renders the complete canonical document 
         },
       };
     },
-    window: {
-      qualityBarOperator: {
-        error,
-        /** @param {string} id */
-        requiredElement(id) {
-          const element = elements.get(id);
-          if (!element) {
-            throw new Error(`browser_element_missing: ${id}`);
-          }
-          return element;
-        },
+    repositories: [
+      {
+        id: "repository/1",
+        url: "https://example.com/repository.git",
       },
-      qualityBarRepositories: {
-        /** @param {(repositories: Array<{id: string, url: string}>) => unknown} subscriber */
-        subscribe(subscriber) {
-          subscriber([
-            {
-              id: "repository/1",
-              url: "https://example.com/repository.git",
-            },
-          ]);
-        },
-      },
-    },
-  };
-
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/repository-guidance.js",
-    readBrowserAsset("/assets/repository-guidance.js"),
-    browserContext,
-  );
+    ],
+  });
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(select.disabled, false);
@@ -140,14 +160,6 @@ test("the Repository Guidance component renders the complete canonical document 
 });
 
 test("the Repository Guidance component fences an older Repository response", async () => {
-  const select = browserElement({ disabled: true });
-  const documentElement = browserElement();
-  const error = browserElement({ hidden: true });
-  const elements = repositoryBrowserElements([
-    ["error", error],
-    ["repository-guidance-repository", select],
-    ["repository-guidance-document", documentElement],
-  ]);
   /** @type {(response: object) => void} */
   let resolveFirst = () => {
     throw new Error("first_guidance_resolver_unavailable");
@@ -162,16 +174,7 @@ test("the Repository Guidance component fences an older Repository response", as
     reviews: [],
     schema_version: 1,
   });
-  const browserContext = {
-    document: {
-      createElement() {
-        return browserElement();
-      },
-      /** @param {string} id */
-      getElementById(id) {
-        return elements.get(id) ?? null;
-      },
-    },
+  const { documentElement, error, select } = executeGuidanceComponent({
     /** @param {string} path */
     async fetch(path) {
       if (path.includes("repository-a")) {
@@ -184,41 +187,17 @@ test("the Repository Guidance component fences an older Repository response", as
         },
       };
     },
-    window: {
-      qualityBarOperator: {
-        error,
-        /** @param {string} id */
-        requiredElement(id) {
-          const element = elements.get(id);
-          if (!element) {
-            throw new Error(`browser_element_missing: ${id}`);
-          }
-          return element;
-        },
+    repositories: [
+      {
+        id: "repository-a",
+        url: "https://example.com/repository-a.git",
       },
-      qualityBarRepositories: {
-        /** @param {(repositories: Array<{id: string, url: string}>) => unknown} subscriber */
-        subscribe(subscriber) {
-          subscriber([
-            {
-              id: "repository-a",
-              url: "https://example.com/repository-a.git",
-            },
-            {
-              id: "repository-b",
-              url: "https://example.com/repository-b.git",
-            },
-          ]);
-        },
+      {
+        id: "repository-b",
+        url: "https://example.com/repository-b.git",
       },
-    },
-  };
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/repository-guidance.js",
-    readBrowserAsset("/assets/repository-guidance.js"),
-    browserContext,
-  );
+    ],
+  });
   select.value = "repository-b";
   await select.listener("change")({});
   assert.equal(
@@ -242,24 +221,7 @@ test("the Repository Guidance component fences an older Repository response", as
 });
 
 test("the Repository Guidance component hard-fails an incomplete canonical document", async () => {
-  const elements = repositoryBrowserElements([
-    ["repository-guidance-repository", browserElement({ disabled: true })],
-    ["repository-guidance-document", browserElement()],
-  ]);
-  /** @type {(repositories: Array<{id: string, url: string}>) => Promise<unknown>} */
-  let publishRepositories = () => {
-    throw new Error("repository_subscriber_unavailable");
-  };
-  const browserContext = {
-    document: {
-      createElement() {
-        return browserElement();
-      },
-      /** @param {string} id */
-      getElementById(id) {
-        return elements.get(id) ?? null;
-      },
-    },
+  const { publishRepositories } = executeGuidanceComponent({
     async fetch() {
       return {
         ok: true,
@@ -268,35 +230,7 @@ test("the Repository Guidance component hard-fails an incomplete canonical docum
         },
       };
     },
-    window: {
-      qualityBarOperator: {
-        error: elements.get("error"),
-        /** @param {string} id */
-        requiredElement(id) {
-          const element = elements.get(id);
-          if (!element) {
-            throw new Error(`browser_element_missing: ${id}`);
-          }
-          return element;
-        },
-      },
-      qualityBarRepositories: {
-        /** @param {(repositories: Array<{id: string, url: string}>) => unknown} subscriber */
-        subscribe(subscriber) {
-          publishRepositories = /** @type {typeof publishRepositories} */ (
-            subscriber
-          );
-          subscriber([]);
-        },
-      },
-    },
-  };
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/repository-guidance.js",
-    readBrowserAsset("/assets/repository-guidance.js"),
-    browserContext,
-  );
+  });
 
   await assert.rejects(
     () =>
