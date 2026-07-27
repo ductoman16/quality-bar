@@ -302,53 +302,6 @@ test("saving an unchanged executable snapshot is an explicit no-op", () => {
   core.close();
 });
 
-test("changing only authored Criterion order creates the next version", () => {
-  const core = openDurableCore(temporaryDatabasePath());
-  const reviews = createReviewService(core);
-  const created = reviews.create(
-    reviewDefinition({
-      criteria: [
-        { impact: "blocking", instruction: "First Criterion." },
-        { impact: "advisory", instruction: "Second Criterion." },
-      ],
-    }),
-  );
-  const [first, second] = created.active_version.criteria;
-  assert.ok(first);
-  assert.ok(second);
-
-  const saved = reviews.saveVersion(created.id, {
-    applicability_rule: null,
-    codex_configuration: created.active_version.codex_configuration,
-    criteria: [
-      {
-        id: second.id,
-        impact: second.impact,
-        instruction: second.instruction,
-      },
-      {
-        id: first.id,
-        impact: first.impact,
-        instruction: first.instruction,
-      },
-    ],
-  });
-
-  assert.equal(saved.changed, true);
-  assert.equal(saved.review.active_version.number, 2);
-  assert.deepEqual(
-    saved.review.active_version.criteria.map(({ id, position }) => ({
-      id,
-      position,
-    })),
-    [
-      { id: second.id, position: 1 },
-      { id: first.id, position: 2 },
-    ],
-  );
-  core.close();
-});
-
 test("executable snapshot saves are last-write-wins against the active version", () => {
   const core = openDurableCore(temporaryDatabasePath());
   const reviews = createReviewService(core, {

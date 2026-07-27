@@ -25,6 +25,8 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/operator.js",
       "src/browser/review-metadata.js",
       "src/browser/review-create.js",
+      "src/browser/review-criteria.js",
+      "src/browser/review-version-contract.js",
       "src/browser/review-version.js",
     ],
   });

@@ -22,6 +22,16 @@ const browserAssets = [
     url: new URL("./browser/review-create.js", import.meta.url),
   },
   {
+    route: "/assets/review-criteria.js",
+    sourcePath: "src/browser/review-criteria.js",
+    url: new URL("./browser/review-criteria.js", import.meta.url),
+  },
+  {
+    route: "/assets/review-version-contract.js",
+    sourcePath: "src/browser/review-version-contract.js",
+    url: new URL("./browser/review-version-contract.js", import.meta.url),
+  },
+  {
     route: "/assets/review-version.js",
     sourcePath: "src/browser/review-version.js",
     url: new URL("./browser/review-version.js", import.meta.url),

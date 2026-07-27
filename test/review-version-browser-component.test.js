@@ -1,182 +1,31 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
-import { readBrowserAsset } from "../src/browser-assets.js";
 import {
-  browserElement,
-  failureResponse,
+  FakeCustomEvent,
   reviewResource,
+  reviewVersionBrowserHarness,
 } from "./review-browser-component-support.js";
 
-const repositoryRoot = resolve(import.meta.dirname, "..");
-
-class FakeCustomEvent {
-  /** @param {string} type @param {{detail?: unknown}} [options] */
-  constructor(type, options = {}) {
-    this.type = type;
-    this.detail = options.detail;
-  }
-}
-
 test("the Review Version component submits the selected complete executable snapshot", async () => {
-  const form = browserElement({
-    hidden: true,
-    querySelectorAll() {
-      return [];
-    },
-  });
-  const selector = browserElement();
-  const model = browserElement();
-  const reasoningEffort = browserElement();
-  const serviceTier = browserElement();
-  const applicabilityRule = browserElement();
-  const result = browserElement();
-  const submit = browserElement();
-  const error = browserElement({ hidden: true });
-  const elements = new Map([
-    [
-      "browser-configuration",
-      browserElement({
-        textContent: JSON.stringify({
-          csrfCookieName: "quality_bar_configured_csrf",
-        }),
-        type: "application/json",
-      }),
-    ],
-    ["error", error],
-    ["review-version-form", form],
-    ["review-version-review", selector],
-    ["review-version-id", browserElement()],
-    ["review-version-applicability-rule", applicabilityRule],
-    ["review-version-model", model],
-    ["review-version-reasoning-effort", reasoningEffort],
-    ["review-version-service-tier", serviceTier],
-    ["review-version-submit", submit],
-    ["review-version-result", result],
-  ]);
-  const documentListeners = new Map();
-  /** @type {{path: string, options?: object}[]} */
-  const requests = [];
-  /** @type {string[]} */
-  const destinations = [];
-  const created = reviewResource({
-    description: "Protect executable boundaries.",
-    id: "review/one",
-    name: "Executable boundaries",
-  });
-  const saved = {
-    ...created,
-    active_version: {
-      ...created.active_version,
-      applicability_rule: "true",
-      codex_configuration: {
-        model: "gpt-5.6-sol",
-        reasoning_effort: "xhigh",
-        service_tier: "fast",
-      },
-      id: "review/one-v2",
-      number: 2,
-    },
-  };
-  let responseNumber = 0;
-  const document = {
-    /** @param {string} name @param {(event: any) => unknown} listener */
-    addEventListener(name, listener) {
-      documentListeners.set(name, listener);
-    },
-    cookie: "quality_bar_configured_csrf=csrf-token",
-    /** @param {string} tagName */
-    createElement(tagName) {
-      return browserElement({ tagName });
-    },
-    /** @param {string} id */
-    getElementById(id) {
-      return elements.get(id) ?? null;
-    },
-  };
-
-  executeServedBrowserAsset(
-    repositoryRoot,
-    "src/browser/review-version.js",
-    readBrowserAsset("/assets/review-version.js"),
-    {
-      CustomEvent: FakeCustomEvent,
-      document,
-      location: {
-        /** @param {string} destination */
-        assign(destination) {
-          destinations.push(destination);
-        },
-        pathname: "/",
-        search: "?view=reviews",
-      },
-      /** @param {string} path @param {object} [options] */
-      async fetch(path, options) {
-        requests.push({ options, path });
-        responseNumber += 1;
-        if (responseNumber === 1) {
-          return {
-            ok: true,
-            status: 200,
-            async json() {
-              return { reviews: [created] };
-            },
-          };
-        }
-        if (responseNumber === 4) {
-          return failureResponse(
-            "review_version_request_malformed",
-            "Exact Review Version failure",
-            422,
-          );
-        }
-        if (responseNumber === 5) {
-          return {
-            ok: true,
-            status: 200,
-            async json() {
-              return {};
-            },
-          };
-        }
-        if (responseNumber === 6) {
-          return failureResponse(
-            "authentication_required",
-            "Authentication is required",
-            401,
-          );
-        }
-        if (responseNumber === 7) {
-          return failureResponse(
-            "storage_unavailable",
-            "Review storage is unavailable",
-            503,
-          );
-        }
-        if (responseNumber === 8) {
-          return {
-            ok: true,
-            status: 200,
-            async json() {
-              return { reviews: "invalid" };
-            },
-          };
-        }
-        return {
-          ok: true,
-          status: 200,
-          async json() {
-            return {
-              changed: responseNumber !== 3,
-              review: saved,
-            };
-          },
-        };
-      },
-    },
-  );
+  const {
+    applicabilityRule,
+    created,
+    criteriaList,
+    destinations,
+    document,
+    documentListeners,
+    error,
+    form,
+    model,
+    reasoningEffort,
+    requests,
+    resolveFirstSave,
+    result,
+    saved,
+    selector,
+    serviceTier,
+  } = reviewVersionBrowserHarness();
 
   const systemLoaded = documentListeners.get("quality-bar:system-loaded");
   assert.ok(systemLoaded);
@@ -217,11 +66,138 @@ test("the Review Version component submits the selected complete executable snap
   assert.equal(reasoningEffort.value, "high");
   assert.equal(serviceTier.value, "standard");
   assert.equal(applicabilityRule.value, "");
+  assert.equal(criteriaList.children.length, 2);
+
+  let [firstCriterion, secondCriterion] = criteriaList.children;
+  assert.ok(firstCriterion);
+  assert.ok(secondCriterion);
+  const [firstInstruction, firstInstructionError, firstImpact, firstHandle] =
+    /** @type {any} */ (firstCriterion).children;
+  assert.equal(firstInstruction.value, "Preserve the exact metadata boundary.");
+  assert.equal(firstInstruction["aria-describedby"], firstInstructionError.id);
+  assert.equal(firstInstruction["aria-required"], "true");
+  assert.equal(firstInstruction.required, undefined);
+  assert.equal(firstInstructionError.hidden, true);
+  assert.equal(firstImpact.value, "advisory");
+  assert.equal(firstHandle.draggable, true);
+
+  firstInstruction.value = "Preserve the exact Criterion identity.";
+  firstInstruction.listener("input")({});
+  firstImpact.value = "blocking";
+  firstImpact.listener("change")({});
+
+  assert.throws(
+    () =>
+      /** @type {any} */ (firstCriterion).listener("drop")({
+        preventDefault() {},
+      }),
+    /review_criterion_drag_invalid/,
+  );
+  const dragData = {
+    effectAllowed: "",
+    /** @type {Array<[string, string]>} */
+    values: [],
+    /** @param {string} type @param {string} value */
+    setData(type, value) {
+      this.values.push([type, value]);
+    },
+  };
+  firstHandle.listener("dragstart")({ dataTransfer: dragData });
+  assert.equal(dragData.effectAllowed, "move");
+  assert.deepEqual(dragData.values, [["text/plain", "criterion-stable-one"]]);
+  firstHandle.listener("dragend")({});
+  assert.throws(
+    () =>
+      /** @type {any} */ (secondCriterion).listener("drop")({
+        preventDefault() {},
+      }),
+    /review_criterion_drag_invalid/,
+  );
+  firstHandle.listener("dragstart")({ dataTransfer: dragData });
+  /** @type {any} */ (secondCriterion).listener("dragover")({
+    preventDefault() {},
+  });
+  /** @type {any} */ (secondCriterion).listener("drop")({
+    preventDefault() {},
+  });
+  [firstCriterion, secondCriterion] = criteriaList.children;
+  assert.equal(
+    /** @type {any} */ (firstCriterion).children[0].value,
+    "Keep durable writes atomic.",
+  );
+  assert.equal(/** @type {any} */ (secondCriterion).children[3].focused, true);
+
+  const moveFirstDown = /** @type {any} */ (firstCriterion).children[5];
+  moveFirstDown.listener("click")({});
+  [firstCriterion, secondCriterion] = criteriaList.children;
+  assert.equal(
+    /** @type {any} */ (firstCriterion).children[0].value,
+    "Preserve the exact Criterion identity.",
+  );
+  assert.equal(/** @type {any} */ (secondCriterion).children[4].focused, true);
+  assert.equal(
+    /** @type {any} */ (firstCriterion).children[4].textContent,
+    "Move Criterion 1 up",
+  );
+  assert.equal(
+    /** @type {any} */ (secondCriterion).children[5].textContent,
+    "Move Criterion 2 down",
+  );
+  /** @type {any} */ (secondCriterion).children[4].listener("click")({});
+  [firstCriterion, secondCriterion] = criteriaList.children;
+  assert.equal(
+    /** @type {any} */ (firstCriterion).children[0].value,
+    "Keep durable writes atomic.",
+  );
+  assert.equal(/** @type {any} */ (firstCriterion).children[5].focused, true);
+  /** @type {any} */ (firstCriterion).children[5].listener("click")({});
+
+  [firstCriterion] = criteriaList.children;
+  const invalidInstruction = /** @type {any} */ (firstCriterion).children[0];
+  const invalidInstructionError = /** @type {any} */ (firstCriterion)
+    .children[1];
+  invalidInstruction.value = " ";
+  invalidInstruction.listener("input")({});
+  await form.listener("submit")({ preventDefault() {} });
+  assert.equal(requests.length, 1);
+  assert.equal(
+    /** @type {any} */ (error.children[0]).href,
+    "#" + invalidInstruction.id,
+  );
+  assert.equal(invalidInstructionError.hidden, false);
+  assert.equal(invalidInstruction.focused, true);
+  invalidInstruction.value = "Preserve the exact Criterion identity.";
+  invalidInstruction.listener("input")({});
 
   model.value = "gpt-5.6-sol";
   model.listener("change")({});
   applicabilityRule.value = "true";
-  await form.listener("submit")({ preventDefault() {} });
+  const pendingSave = form.listener("submit")({ preventDefault() {} });
+  const reviewCreatedListener = documentListeners.get(
+    "quality-bar:review-created",
+  );
+  assert.ok(reviewCreatedListener);
+  reviewCreatedListener(
+    new FakeCustomEvent("quality-bar:review-created", {
+      detail: reviewResource({
+        description: "Another editable Review.",
+        id: "review-race",
+        name: "Race Review",
+      }),
+    }),
+  );
+  const raceInstruction = /** @type {any} */ (criteriaList.children[0])
+    .children[0];
+  raceInstruction.value = "Keep this local edit.";
+  raceInstruction.listener("input")({});
+  resolveFirstSave({
+    ok: true,
+    status: 200,
+    async json() {
+      return { changed: true, review: saved };
+    },
+  });
+  await pendingSave;
 
   assert.deepEqual(JSON.parse(JSON.stringify(requests[1])), {
     options: {
@@ -234,9 +210,14 @@ test("the Review Version component submits the selected complete executable snap
         },
         criteria: [
           {
-            id: "review/one-criterion",
-            impact: "advisory",
-            instruction: "Preserve the exact metadata boundary.",
+            id: "criterion-stable-one",
+            impact: "blocking",
+            instruction: "Preserve the exact Criterion identity.",
+          },
+          {
+            id: "criterion-stable-two",
+            impact: "blocking",
+            instruction: "Keep durable writes atomic.",
           },
         ],
       }),
@@ -248,9 +229,13 @@ test("the Review Version component submits the selected complete executable snap
     },
     path: "/api/v1/reviews/review%2Fone/versions",
   });
-  assert.equal(result.textContent, "Executable boundaries v2 active.");
+  assert.equal(selector.value, "review-race");
+  assert.equal(raceInstruction.value, "Keep this local edit.");
+  assert.equal(result.textContent, "");
   assert.equal(error.hidden, true);
 
+  selector.value = "review/one";
+  selector.listener("change")({});
   const staleReviewCreated = documentListeners.get(
     "quality-bar:review-created",
   );
@@ -266,9 +251,39 @@ test("the Review Version component submits the selected complete executable snap
   assert.equal(error.hidden, true);
 
   await form.listener("submit")({ preventDefault() {} });
-  assert.equal(error.textContent, "Exact Review Version failure");
+  assert.equal(
+    /** @type {any} */ (error.children[0]).textContent,
+    "Criterion 1 instruction must be nonblank",
+  );
+  assert.equal(
+    /** @type {any} */ (criteriaList.children[0]).children[1].textContent,
+    "Criterion 1 instruction must be nonblank",
+  );
   assert.equal(error.hidden, false);
   assert.equal(result.textContent, "");
+
+  const staleFailure = form.listener("submit")({ preventDefault() {} });
+  reviewCreatedListener(
+    new FakeCustomEvent("quality-bar:review-created", {
+      detail: reviewResource({
+        description: "Another editable Review.",
+        id: "review-race",
+        name: "Race Review",
+      }),
+    }),
+  );
+  const preservedInstruction = /** @type {any} */ (criteriaList.children[0])
+    .children[0];
+  preservedInstruction.value = "Keep this edit after failure.";
+  preservedInstruction.listener("input")({});
+  await staleFailure;
+  assert.equal(
+    error.textContent,
+    "Review review/one: Review storage is unavailable",
+  );
+  assert.equal(preservedInstruction.value, "Keep this edit after failure.");
+  selector.value = "review/one";
+  selector.listener("change")({});
 
   document.cookie = "";
   await form.listener("submit")({ preventDefault() {} });
@@ -293,6 +308,9 @@ test("the Review Version component submits the selected complete executable snap
     }),
   );
   assert.equal(selector.value, "review-two");
+  assert.equal(error.hidden, true);
+  assert.equal(error.textContent, "");
+  assert.equal(result.textContent, "");
   selector.value = "missing-review";
   assert.throws(
     () => selector.listener("change")({}),

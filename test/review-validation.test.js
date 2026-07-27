@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { CodexConfigurationError } from "../src/codex-capabilities.js";
 import { createReviewService, ReviewError } from "../src/review.js";
+import { validateExecutableSnapshot } from "../src/review-validation.js";
 
 function validDefinition(overrides = {}) {
   return {
@@ -167,4 +168,38 @@ test("invalid executable snapshots fail before a durable transaction can begin",
     );
   }
   assert.equal(transactionCount, 0);
+});
+
+test("executable snapshot validation preserves stable Criterion identity and authored order", () => {
+  const validated = validateExecutableSnapshot(
+    validSnapshot({
+      criteria: [
+        {
+          id: "stable-second",
+          impact: "blocking",
+          instruction: "Edited second Criterion.",
+        },
+        {
+          id: "stable-first",
+          impact: "advisory",
+          instruction: "Edited first Criterion.",
+        },
+      ],
+    }),
+  );
+
+  assert.deepEqual(validated.criteria, [
+    {
+      id: "stable-second",
+      impact: "blocking",
+      instruction: "Edited second Criterion.",
+      position: 1,
+    },
+    {
+      id: "stable-first",
+      impact: "advisory",
+      instruction: "Edited first Criterion.",
+      position: 2,
+    },
+  ]);
 });
