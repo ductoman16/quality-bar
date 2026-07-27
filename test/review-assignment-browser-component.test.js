@@ -64,6 +64,10 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       scope: "repository_set",
     },
   };
+  const reconciled = {
+    ...review,
+    assignment: { scope: "installation_wide" },
+  };
   const responses = [
     {
       ok: true,
@@ -96,6 +100,47 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       "Review Assignment Repository was not found",
       404,
     ),
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return { changed: true };
+      },
+    },
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return { reviews: [reconciled] };
+      },
+    },
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          repositories: [
+            { id: "repository-2", url: "https://example.com/aaa.git" },
+            { id: "repository-1", url: "https://example.com/zzz.git" },
+          ],
+        };
+      },
+    },
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return { changed: true };
+      },
+    },
+    new Error("reconciliation transport failed"),
+    {
+      ok: true,
+      status: 200,
+      async json() {
+        return { repositories: [] };
+      },
+    },
   ];
   /** @type {Array<{path: string, options?: object}>} */
   const requests = [];
@@ -123,6 +168,9 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       const response = responses.shift();
       if (!response) {
         throw new Error("unexpected Review Assignment request");
+      }
+      if (response instanceof Error) {
+        throw response;
       }
       return response;
     },
@@ -183,4 +231,21 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
   assert.equal(error.hidden, false);
   assert.equal(error.textContent, "Review Assignment Repository was not found");
   assert.equal(result.textContent, "");
+
+  scope.value = "installation_wide";
+  scope.listener("change")({});
+  await form.listener("submit")({ preventDefault() {} });
+  assert.equal(error.hidden, false);
+  assert.equal(error.textContent, "Review Assignment response was invalid");
+  assert.equal(result.textContent, "");
+  assert.equal(form.hidden, false);
+  assert.equal(scope.value, "installation_wide");
+  assert.equal(repositorySelector.disabled, true);
+
+  await form.listener("submit")({ preventDefault() {} });
+  assert.equal(error.hidden, false);
+  assert.equal(error.textContent, "Review Assignment refresh failed");
+  assert.equal(result.textContent, "");
+  assert.equal(form.hidden, true);
+  assert.equal(submit.disabled, true);
 });

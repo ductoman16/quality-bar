@@ -168,6 +168,9 @@
 
   async function load() {
     pending = true;
+    form.hidden = true;
+    reviews.clear();
+    reviewSelector.replaceChildren();
     updateDisabledState();
     clearFeedback();
     try {
@@ -186,10 +189,10 @@
               "/?return_to=" +
                 encodeURIComponent(location.pathname + location.search),
             );
-            return;
+            return false;
           }
           showFailure(failure.message);
-          return;
+          return false;
         }
       }
       const reviewBody = /** @type {{reviews?: unknown}} */ (
@@ -208,6 +211,10 @@
       renderRepositories(repositoryBody.repositories);
       form.hidden = false;
       showSelectedReview();
+      return true;
+    } catch {
+      showFailure("Review Assignment refresh failed");
+      return false;
     } finally {
       pending = false;
       updateDisabledState();
@@ -267,7 +274,12 @@
       if (typeof body.changed !== "boolean") {
         throw new Error("Review Assignment response was invalid");
       }
-      const updated = requireReview(body.review);
+      let updated;
+      try {
+        updated = requireReview(body.review);
+      } catch {
+        throw new Error("Review Assignment response was invalid");
+      }
       updated.assignment = requireAssignment(updated.assignment);
       if (
         updated.id !== review.id ||
@@ -278,6 +290,18 @@
       reviews.set(updated.id, updated);
       result.textContent = `${updated.name} Assignment ${body.changed ? "changed" : "unchanged"}.`;
       showSelectedReview();
+    } catch (cause) {
+      const message =
+        cause instanceof Error &&
+        [
+          "Review Assignment response was invalid",
+          "browser_csrf_unavailable",
+        ].includes(cause.message)
+          ? cause.message
+          : "Review Assignment change failed";
+      if (await load()) {
+        showFailure(message);
+      }
     } finally {
       pending = false;
       updateDisabledState();
