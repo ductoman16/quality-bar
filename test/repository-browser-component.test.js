@@ -39,11 +39,13 @@ function browserElement(properties = {}) {
   };
 }
 
-test("the Repository component registers one public HTTPS URL and surfaces the exact owning error", async () => {
+test("the Repository component submits write-only credentials and surfaces the exact owning error", async () => {
   const form = browserElement();
   const url = browserElement({
     value: "https://EXAMPLE.com:443/team/repository.git/",
   });
+  const username = browserElement({ value: "operator" });
+  const token = browserElement({ value: "private-token-value" });
   const result = browserElement();
   const error = browserElement({ hidden: true });
   const elements = new Map([
@@ -58,7 +60,9 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
     ],
     ["error", error],
     ["repository-create-form", form],
+    ["repository-token", token],
     ["repository-url", url],
+    ["repository-username", username],
     ["repository-create-result", result],
     ["password-change-form", browserElement()],
     ["session-revocation-form", browserElement()],
@@ -137,6 +141,8 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
     options: {
       body: JSON.stringify({
         url: "https://EXAMPLE.com:443/team/repository.git/",
+        token: "private-token-value",
+        username: "operator",
       }),
       headers: {
         "content-type": "application/json",
@@ -151,9 +157,19 @@ test("the Repository component registers one public HTTPS URL and surfaces the e
     "https://example.com/team/repository.git registered.",
   );
   assert.equal(form.resetCalled, true);
+  assert.equal(token.value, "");
+  assert.equal(username.value, "");
 
+  token.value = "replacement-private-token";
+  username.value = "replacement-operator";
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(error.textContent, "Repository Git read verification failed");
   assert.equal(error.hidden, false);
   assert.equal(result.textContent, "");
+  assert.equal(token.value, "");
+  assert.equal(username.value, "");
+  assert.doesNotMatch(
+    `${error.textContent} ${result.textContent}`,
+    /replacement-private-token|replacement-operator/,
+  );
 });

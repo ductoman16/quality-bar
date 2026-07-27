@@ -302,7 +302,7 @@ export function createApiRoute({
         browserOrigin,
         browserSessions,
         failureCode: "repository_registration_failed",
-        mutate: (body) => repositories.registerPublic(body),
+        mutate: (body) => repositories.register(body),
         requestUrl,
         statusFor: (code, error) =>
           code === "repository_identity_conflict"

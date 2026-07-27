@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   RepositoryError,
+  normalizeRepositoryRegistration,
   normalizePublicRepositoryUrl,
 } from "../src/repository-validation.js";
 
@@ -45,4 +46,82 @@ test("public Generic Repository registration rejects unsupported inputs exactly"
       (error) => error instanceof RepositoryError && error.code === code,
     );
   }
+});
+
+test("a credentialed Generic Repository accepts one complete write-only username and token", () => {
+  assert.deepEqual(
+    normalizeRepositoryRegistration({
+      token: "private-token-value",
+      url: "https://EXAMPLE.com:443/%7Eteam/private.git/",
+      username: "operator",
+    }),
+    {
+      credential: {
+        token: "private-token-value",
+        username: "operator",
+      },
+      url: "https://example.com/~team/private.git",
+    },
+  );
+});
+
+test("credentialed Repository registration rejects incomplete credentials without exposing submitted values", () => {
+  for (const [request, code] of [
+    [
+      {
+        token: "private-token-value",
+        url: "https://example.com/private.git",
+      },
+      "repository_username_required",
+    ],
+    [
+      {
+        url: "https://example.com/private.git",
+        username: "operator",
+      },
+      "repository_token_required",
+    ],
+    [
+      {
+        token: "",
+        url: "https://example.com/private.git",
+        username: "operator",
+      },
+      "repository_token_required",
+    ],
+  ]) {
+    assert.throws(
+      () => normalizeRepositoryRegistration(request),
+      (error) => {
+        assert.ok(error instanceof RepositoryError);
+        assert.equal(error.code, code);
+        assert.doesNotMatch(error.message, /private-token-value|operator/);
+        return true;
+      },
+    );
+  }
+});
+
+test("credentialed Repository registration rejects URL userinfo with its exact transport-neutral error", () => {
+  assert.throws(
+    () =>
+      normalizeRepositoryRegistration({
+        token: "private-token-value",
+        url: "https://embedded:credential@example.com/private.git",
+        username: "operator",
+      }),
+    (error) => {
+      assert.ok(error instanceof RepositoryError);
+      assert.equal(error.code, "repository_credentials_unsupported");
+      assert.equal(
+        error.message,
+        "Repository URL must not contain credentials",
+      );
+      assert.doesNotMatch(
+        error.message,
+        /embedded|private-token-value|operator/,
+      );
+      return true;
+    },
+  );
 });

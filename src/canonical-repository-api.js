@@ -3,13 +3,13 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
   return {
     "/api/v1/repositories": {
       post: {
-        operationId: "registerPublicGenericRepository",
+        operationId: "registerGenericRepository",
         parameters: mutationParameters,
         requestBody: {
           content: {
             "application/json": {
               schema: {
-                $ref: "#/components/schemas/PublicRepositoryRegistrationRequest",
+                $ref: "#/components/schemas/GenericRepositoryRegistrationRequest",
               },
             },
           },
@@ -22,7 +22,7 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
                 schema: { $ref: "#/components/schemas/Repository" },
               },
             },
-            description: "Verified public Generic HTTPS Repository",
+            description: "Verified Generic HTTPS Repository",
           },
           400: errorResponse,
           401: errorResponse,

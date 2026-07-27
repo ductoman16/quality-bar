@@ -246,7 +246,8 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {
-      async registerPublic() {
+      destroy() {},
+      async register() {
         throw new Error("unused Repository service operation");
       },
     },
