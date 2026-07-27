@@ -216,8 +216,8 @@ export function validatePackageFacts(facts, applicationVersion) {
       "database.journalMode must equal wal",
     ],
     [
-      packageFacts?.database?.schemaVersion === 12,
-      "database.schemaVersion must equal 12",
+      packageFacts?.database?.schemaVersion === 13,
+      "database.schemaVersion must equal 13",
     ],
     [
       packageFacts?.database?.synchronous === "full",

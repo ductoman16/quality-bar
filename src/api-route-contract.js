@@ -6,6 +6,7 @@
  *   readSystemStatus: () => unknown,
  *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} ApiRouteDependencies

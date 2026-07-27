@@ -23,6 +23,7 @@ test("application coverage has one positive maintained-code boundary", () => {
     servedBrowserAssets: [
       "src/browser/login.js",
       "src/browser/operator.js",
+      "src/browser/github-connection.js",
       "src/browser/repository.js",
       "src/browser/repository-guidance.js",
       "src/browser/review-metadata.js",

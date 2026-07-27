@@ -74,6 +74,7 @@ const TOKEN_METHODS = [
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
@@ -103,6 +104,7 @@ export function createApplicationServer({
   browserOrigin,
   requestSecurity,
   repositories,
+  githubConnections,
   repositoryGuidance,
   reviews,
   readDurableCoreStatus,
@@ -148,6 +150,16 @@ export function createApplicationServer({
   ) {
     throw new TypeError("repositories must provide the Repository resource");
   }
+  if (
+    typeof githubConnections?.read !== "function" ||
+    typeof githubConnections.start !== "function" ||
+    typeof githubConnections.completeManifest !== "function" ||
+    typeof githubConnections.completeInstallation !== "function"
+  ) {
+    throw new TypeError(
+      "githubConnections must provide the GitHub Connection resource",
+    );
+  }
   if (typeof repositoryGuidance?.read !== "function") {
     throw new TypeError(
       "repositoryGuidance must provide the Repository Guidance resource",
@@ -178,6 +190,7 @@ export function createApplicationServer({
     readSystemStatus,
     recordAuthorityAttribution,
     repositories,
+    githubConnections,
     repositoryGuidance,
     reviews,
   });
@@ -264,11 +277,19 @@ export function createApplicationServer({
       writeError(response, 404, "not_found", "Resource was not found");
       return;
     }
-    /** @type {"machine" | "operator" | undefined} */
+    /** @type {"callback" | "machine" | "operator" | undefined} */
     let authority;
     if (isProductSurface(path)) {
       try {
-        if (path === "/mcp/v1") {
+        if (
+          request.method === "GET" &&
+          [
+            "/api/v1/github-connections/manifest/callback",
+            "/api/v1/github-connections/setup",
+          ].includes(path)
+        ) {
+          authority = "callback";
+        } else if (path === "/mcp/v1") {
           requireImplementerTokenAuthority(implementerTokens, request);
           authority = "machine";
         } else {

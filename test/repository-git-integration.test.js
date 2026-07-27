@@ -98,6 +98,14 @@ test("public Repository verification performs a non-mutating read over real HTTP
       const pathname = decodeURIComponent(
         new URL(request.url ?? "/", "https://127.0.0.1").pathname,
       );
+      if (pathname.startsWith("/redirect.git/")) {
+        response
+          .writeHead(302, {
+            location: pathname.replace("/redirect.git/", "/private.git/"),
+          })
+          .end();
+        return;
+      }
       if (pathname.startsWith("/private.git/")) {
         const authorization = request.headers.authorization ?? "";
         privateAuthorizationHeaders.push(authorization);
@@ -167,6 +175,23 @@ test("public Repository verification performs a non-mutating read over real HTTP
       username: "operator",
     },
     { certificateAuthorityPath: certificate },
+  );
+  await assert.rejects(
+    () =>
+      verifyRepositoryRead(
+        `https://127.0.0.1:${address.port}/redirect.git`,
+        {
+          token: "replacement-private-token",
+          username: "replacement-operator",
+        },
+        {
+          certificateAuthorityPath: certificate,
+          followRedirects: false,
+        },
+      ),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "repository_git_read_failed",
   );
   acceptedPrivateCredential = "replacement-operator:replacement-private-token";
   await verifyRepositoryRead(

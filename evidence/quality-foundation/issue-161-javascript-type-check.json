@@ -6,6 +6,7 @@
   "served_browser_modules": [
     "login.js",
     "operator.js",
+    "github-connection.js",
     "repository.js",
     "repository-guidance.js",
     "review-metadata.js",

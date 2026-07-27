@@ -2,6 +2,7 @@ import { createCanonicalComponents } from "./canonical-api-components.js";
 import { canonicalReviewAssignmentPath } from "./canonical-review-assignment-api.js";
 import { canonicalReviewArchivalPath } from "./canonical-review-archival-api.js";
 import { canonicalRepositoryPath } from "./canonical-repository-api.js";
+import { canonicalGitHubConnectionPaths } from "./canonical-github-connection-api.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 
 const errorResponse = {
@@ -247,6 +248,7 @@ export function canonicalOpenApiDocument() {
         },
       },
       ...canonicalRepositoryPath(mutationParameters, errorResponse),
+      ...canonicalGitHubConnectionPaths(mutationParameters, errorResponse),
       ...canonicalReviewAssignmentPath(mutationParameters, errorResponse),
       ...canonicalReviewArchivalPath(mutationParameters, errorResponse),
       "/api/v1/reviews/{review_id}/metadata": {

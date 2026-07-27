@@ -19,6 +19,7 @@ function unavailable(cause) {
  * @param {{token: string, username: string} | undefined} credential
  * @param {{
  *   certificateAuthorityPath?: string,
+ *   followRedirects?: boolean,
  *   removeDirectory?: (path: string) => void
  * }} [options]
  */
@@ -27,6 +28,7 @@ export function verifyRepositoryRead(
   credential,
   {
     certificateAuthorityPath,
+    followRedirects = true,
     removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
   } = {},
 ) {
@@ -86,6 +88,9 @@ export function verifyRepositoryRead(
     const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
     if (certificateAuthorityPath) {
       arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
+    }
+    if (!followRedirects) {
+      arguments_.push("-c", "http.followRedirects=false");
     }
     arguments_.push("ls-remote", "--", normalizedUrl);
     /** @type {import("node:child_process").ChildProcess} */

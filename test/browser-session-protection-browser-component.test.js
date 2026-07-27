@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createUnavailableReviewService } from "../src/review.js";
+import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
 import { startApplication } from "./browser-session-component-support.js";
 
@@ -211,6 +212,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
   const failure = new Error("unexpected recorder implementation detail");
   const server = createApplicationServer({
     browserOrigin: "http://127.0.0.1:3000",
+    githubConnections: createUnavailableGitHubConnectionService(
+      new Error("unused GitHub Connection"),
+    ),
     browserSessions: {
       authenticate() {
         return true;

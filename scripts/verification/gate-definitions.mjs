@@ -238,6 +238,8 @@ export function createGateDefinitions(metadata) {
         "test/repository-lifecycle.test.js",
         "test/repository-rotation.test.js",
         "test/repository-validation.test.js",
+        "test/github-app-manifest.test.js",
+        "test/github-connection.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -264,7 +266,15 @@ export function createGateDefinitions(metadata) {
         "test/browser-session-authentication-browser-component.test.js",
         "test/browser-session-protection-browser-component.test.js",
         "test/browser-session-operator-browser-component.test.js",
+        "test/github-connection-browser-component.test.js",
       ],
+    },
+    {
+      name: "github-fixture-integration",
+      testGroup:
+        "github-rest-profile-personal-installation-permissions-routes-enumeration-and-private-git-boundary",
+      failureCode: "github_fixture_integration_tests_failed",
+      arguments: ["--test", "test/github-fixture-integration.test.js"],
     },
     {
       name: "git-integration",
@@ -291,6 +301,7 @@ export function createGateDefinitions(metadata) {
         "test/review.test.js",
         "test/repository-credential-rotation-sqlite-integration.test.js",
         "test/repository-sqlite-integration.test.js",
+        "test/github-connection-sqlite-integration.test.js",
       ],
     },
     {
@@ -310,6 +321,7 @@ export function createGateDefinitions(metadata) {
         "test/review-criterion-retirement-http-integration.test.js",
         "test/review-version-reactivation-http-integration.test.js",
         "test/review-http-integration.test.js",
+        "test/github-connection-http-integration.test.js",
       ],
     },
     {

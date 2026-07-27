@@ -111,7 +111,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       database: packageFacts?.database?.databaseVersion
         ? `sqlite:${packageFacts.database.databaseVersion}`
         : null,
-      fixtures: null,
+      fixtures: "github-rest:2026-03-10",
     },
     securityBoundary: {
       browserMutations: "exact-origin-and-session-bound-csrf",
