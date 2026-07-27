@@ -78,8 +78,8 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
       async json() {
         return {
           repositories: [
-            { id: "repository-1", url: "https://example.com/one.git" },
-            { id: "repository-2", url: "https://example.com/two.git" },
+            { id: "repository-2", url: "https://example.com/aaa.git" },
+            { id: "repository-1", url: "https://example.com/zzz.git" },
           ],
         };
       },

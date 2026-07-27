@@ -226,9 +226,9 @@
       scope.value === "installation_wide"
         ? { scope: "installation_wide" }
         : {
-            repository_ids: [...repositorySelector.selectedOptions].map(
-              ({ value }) => value,
-            ),
+            repository_ids: [...repositorySelector.selectedOptions]
+              .map(({ value }) => value)
+              .toSorted(),
             scope: "repository_set",
           };
     pending = true;
