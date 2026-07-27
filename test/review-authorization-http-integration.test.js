@@ -172,11 +172,12 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
 test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
   /** @type {object[]} */
   const verifications = [];
+  const repositoryIds = ["repository/public", "repository/private"];
   const { request } = await startApplication({
     createRepositories(core, options) {
       return createRepositoryService(core, {
         ...options,
-        createId: () => "repository/private",
+        createId: () => repositoryIds.shift() ?? "repository-unexpected",
         async verifyRead(url, credential) {
           verifications.push({ credential, url });
           if (credential?.token === "unexpected-sensitive-token") {
@@ -200,6 +201,14 @@ test("an authenticated operator rotates a Generic credential through the secret-
     origin: "http://127.0.0.1:3000",
     "x-quality-bar-csrf": csrf,
   };
+  const publicRepository = await request("/api/v1/repositories", {
+    body: JSON.stringify({
+      url: "https://example.com/public.git",
+    }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(publicRepository.status, 200);
   const registered = await request("/api/v1/repositories", {
     body: JSON.stringify({
       token: "original-private-token",
@@ -240,6 +249,10 @@ test("an authenticated operator rotates a Generic credential through the secret-
     url: "https://example.com/private.git",
   });
   assert.deepEqual(verifications, [
+    {
+      credential: undefined,
+      url: "https://example.com/public.git",
+    },
     {
       credential: {
         token: "original-private-token",

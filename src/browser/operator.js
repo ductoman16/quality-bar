@@ -139,8 +139,8 @@ async function submitRepositoryMutation(
 }
 /** @param {{id: string, url: string}} repository */
 function addRepositoryOption(repository) {
-  const select = document.getElementById(
-    "repository-credential-rotate-repository",
+  const select = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("repository-credential-rotate-repository")
   );
   if (!select) {
     return;
@@ -151,8 +151,8 @@ function addRepositoryOption(repository) {
   select.append(option);
 }
 async function loadRepositoryOptions() {
-  const select = document.getElementById(
-    "repository-credential-rotate-repository",
+  const select = /** @type {HTMLSelectElement | null} */ (
+    document.getElementById("repository-credential-rotate-repository")
   );
   if (!select) {
     return;
@@ -169,7 +169,9 @@ async function loadRepositoryOptions() {
   for (const repository of body.repositories) {
     addRepositoryOption(repository);
   }
+  select.disabled = false;
 }
+const repositoryOptionsLoaded = loadRepositoryOptions();
 /**
  * @param {string} path
  * @param {{
@@ -315,6 +317,7 @@ const repositoryCreateForm = document.getElementById("repository-create-form");
 if (repositoryCreateForm) {
   repositoryCreateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    await repositoryOptionsLoaded;
     const usernameControl = /** @type {HTMLInputElement} */ (
       requiredElement("repository-username")
     );
@@ -372,7 +375,6 @@ if (repositoryCredentialRotateForm) {
     );
   });
 }
-void loadRepositoryOptions();
 const systemFacts = document.getElementById("system-facts");
 fetch("/api/v1/system")
   .then(async (response) => {

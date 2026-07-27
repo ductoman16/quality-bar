@@ -95,6 +95,13 @@ test("the Repository component rotates write-only credentials and surfaces the e
   ]);
   /** @type {{path: string, options: object}[]} */
   const requests = [];
+  /** @type {(response: object) => void} */
+  let resolveRepositoryList = () => {
+    throw new Error("repository_list_resolver_unavailable");
+  };
+  const repositoryListResponse = new Promise((resolve) => {
+    resolveRepositoryList = resolve;
+  });
   let registrationAttempt = 0;
   let rotationAttempt = 0;
 
@@ -132,19 +139,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
           };
         }
         if (path === "/api/v1/repositories" && !options) {
-          return {
-            ok: true,
-            async json() {
-              return {
-                repositories: [
-                  {
-                    id: "repository/private",
-                    url: "https://example.com/team/repository.git",
-                  },
-                ],
-              };
-            },
-          };
+          return repositoryListResponse;
         }
         requests.push({ options, path });
         if (path === "/api/v1/repositories") {
@@ -188,7 +183,23 @@ test("the Repository component rotates write-only credentials and surfaces the e
       },
     },
   );
+  const registration = form.listener("submit")({ preventDefault() {} });
   await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(requests, []);
+  resolveRepositoryList({
+    ok: true,
+    async json() {
+      return {
+        repositories: [
+          {
+            id: "repository/private",
+            url: "https://example.com/team/existing.git",
+          },
+        ],
+      };
+    },
+  });
+  await registration;
   assert.deepEqual(
     rotationRepository.options.map(({ textContent, value }) => ({
       textContent,
@@ -196,13 +207,16 @@ test("the Repository component rotates write-only credentials and surfaces the e
     })),
     [
       {
-        textContent: "https://example.com/team/repository.git",
+        textContent: "https://example.com/team/existing.git",
         value: "repository/private",
+      },
+      {
+        textContent: "https://example.com/team/repository.git",
+        value: "repository-1",
       },
     ],
   );
-
-  await form.listener("submit")({ preventDefault() {} });
+  assert.equal(rotationRepository.disabled, false);
   assert.deepEqual(JSON.parse(JSON.stringify(requests[0])), {
     options: {
       body: JSON.stringify({

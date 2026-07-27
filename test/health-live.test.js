@@ -14,8 +14,8 @@ function callApplicationServer(options) {
   return Reflect.apply(createApplicationServer, undefined, [options]);
 }
 
-before(async () => {
-  const applicationServer = createApplicationServer({
+function applicationServerOptions() {
+  return {
     browserSessions: {
       authenticate() {
         return false;
@@ -81,7 +81,11 @@ before(async () => {
         throw new Error("unused request facts");
       },
     },
-  });
+  };
+}
+
+before(async () => {
+  const applicationServer = createApplicationServer(applicationServerOptions());
   server = applicationServer;
   await new Promise((resolve, reject) => {
     applicationServer.once("error", reject);
@@ -195,5 +199,25 @@ test("the application server rejects a missing request-security boundary", () =>
       );
       return true;
     },
+  );
+});
+
+test("the application server rejects an incomplete Repository resource boundary", () => {
+  const options = applicationServerOptions();
+  assert.throws(
+    () =>
+      callApplicationServer({
+        ...options,
+        repositories: {
+          destroy() {},
+          async register() {
+            throw new Error("unused Repository service operation");
+          },
+          async rotateCredential() {
+            throw new Error("unused Repository service operation");
+          },
+        },
+      }),
+    /repositories must provide the Repository resource/,
   );
 });

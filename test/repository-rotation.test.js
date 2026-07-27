@@ -80,6 +80,40 @@ test("credential rotation rejects missing and public Repositories before verific
   repositories.destroy();
 });
 
+test("credential rotation targets expose only secret-free credentialed Repository identity", () => {
+  /** @type {string[]} */
+  const reads = [];
+  const repositories = createRepositoryService(
+    {
+      all(sql) {
+        reads.push(sql);
+        return sql.includes("ORDER BY repositories.normalized_url")
+          ? [
+              {
+                id: "repository-private",
+                normalized_url: "https://example.com/private.git",
+              },
+            ]
+          : [];
+      },
+      transaction() {
+        throw new Error("unused Repository transaction");
+      },
+    },
+    { masterKey: Buffer.alloc(32, 7) },
+  );
+
+  assert.deepEqual(repositories.list(), [
+    {
+      id: "repository-private",
+      url: "https://example.com/private.git",
+    },
+  ]);
+  assert.match(reads.at(-1) ?? "", /JOIN repository_credentials/);
+  assert.doesNotMatch(JSON.stringify(repositories.list()), /credential|token/);
+  repositories.destroy();
+});
+
 test("credential rotation discards failed and stale replacements without an inferred success", async () => {
   const row = {
     encrypted_credential: "original-encrypted-credential",

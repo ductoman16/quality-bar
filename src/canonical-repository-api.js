@@ -21,7 +21,8 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
                 },
               },
             },
-            description: "Registered Generic HTTPS Repositories",
+            description:
+              "Registered Generic HTTPS Repositories with rotatable credentials",
           },
           400: errorResponse,
           401: errorResponse,

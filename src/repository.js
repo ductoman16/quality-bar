@@ -86,7 +86,11 @@ export function createRepositoryService(
     list() {
       return durableCore
         .all(
-          "SELECT id, normalized_url FROM repositories ORDER BY normalized_url, id",
+          `SELECT repositories.id, repositories.normalized_url
+           FROM repositories
+           JOIN repository_credentials
+             ON repository_credentials.repository_id = repositories.id
+           ORDER BY repositories.normalized_url, repositories.id`,
         )
         .map((row) => {
           if (
