@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { readReview } from "./review-read.js";
 import { selectReviewVersionsForNewEvaluation } from "./review-selection.js";
+import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import {
   fail,
   ReviewError,
@@ -15,14 +16,6 @@ import {
 } from "./review-validation.js";
 
 export { ReviewError };
-
-/** @param {unknown} error */
-function conflict(error) {
-  return (
-    error instanceof Error &&
-    /UNIQUE constraint failed: reviews\.name/.test(error.message)
-  );
-}
 
 /**
  * @param {ReviewTransaction} transaction
@@ -176,7 +169,7 @@ export function createReviewService(
           );
         });
       } catch (error) {
-        if (conflict(error)) {
+        if (isUniqueConstraintFailure(error, "reviews.name")) {
           fail("review_name_conflict", "Review name is already in use");
         }
         throw error;
@@ -381,7 +374,7 @@ export function createReviewService(
           return readReview(transaction, reviewId);
         });
       } catch (error) {
-        if (conflict(error)) {
+        if (isUniqueConstraintFailure(error, "reviews.name")) {
           fail("review_name_conflict", "Review name is already in use");
         }
         throw error;

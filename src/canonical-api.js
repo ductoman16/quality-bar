@@ -1,5 +1,6 @@
 import { createCanonicalComponents } from "./canonical-api-components.js";
 import { canonicalReviewArchivalPath } from "./canonical-review-archival-api.js";
+import { canonicalRepositoryPath } from "./canonical-repository-api.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 
 const errorResponse = {
@@ -251,6 +252,7 @@ export function canonicalOpenApiDocument() {
           security: authenticated,
         },
       },
+      ...canonicalRepositoryPath(mutationParameters, errorResponse),
       ...canonicalReviewArchivalPath(mutationParameters, errorResponse),
       "/api/v1/reviews/{review_id}/metadata": {
         patch: {

@@ -111,6 +111,23 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["confirmation", "password"],
       ),
+      PublicRepositoryRegistrationRequest: closedObject(
+        {
+          url: {
+            format: "uri",
+            pattern: "^[hH][tT][tT][pP][sS]://",
+            type: "string",
+          },
+        },
+        ["url"],
+      ),
+      Repository: closedObject(
+        {
+          id: { minLength: 1, type: "string" },
+          url: { format: "uri", pattern: "^https://", type: "string" },
+        },
+        ["id", "url"],
+      ),
       CodexConfiguration: {
         oneOf: codexCapabilityCatalog.models.map((model) =>
           closedObject(

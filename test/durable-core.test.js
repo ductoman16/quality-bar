@@ -37,7 +37,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 8,
+    schemaVersion: 9,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -58,12 +58,12 @@ test("migrates the existing operator-password schema atomically before serving s
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 8);
+  assert.equal(migrated.facts.schemaVersion, 9);
   assert.equal(
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "8",
+    "9",
   );
   migrated.run(
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
@@ -97,7 +97,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 8);
+  assert.equal(migrated.facts.schemaVersion, 9);
   assert.equal(
     migrated.get("SELECT session_hash FROM browser_sessions"),
     undefined,
@@ -105,7 +105,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   migrated.close();
 });
 
-test("migrates v4 to v8 without losing existing authority facts", () => {
+test("migrates v4 to v9 without losing existing authority facts", () => {
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
   core.transaction((transaction) => {
@@ -126,7 +126,7 @@ test("migrates v4 to v8 without losing existing authority facts", () => {
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 8);
+  assert.equal(migrated.facts.schemaVersion, 9);
   assert.deepEqual(migrated.get("SELECT session_hash FROM browser_sessions"), {
     session_hash: "retained-session-hash",
   });
@@ -134,7 +134,7 @@ test("migrates v4 to v8 without losing existing authority facts", () => {
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "8",
+    "9",
   );
   assert.deepEqual(
     migrated.get(
@@ -151,7 +151,7 @@ test("migrates v4 to v8 without losing existing authority facts", () => {
   migrated.close();
 });
 
-test("migrates v5 to v8 with the Review schema intact", () => {
+test("migrates v5 to v9 with the Review schema intact", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
   current.run(
@@ -161,7 +161,7 @@ test("migrates v5 to v8 with the Review schema intact", () => {
   current.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 8);
+  assert.equal(migrated.facts.schemaVersion, 9);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'reviews'",
@@ -266,7 +266,7 @@ test("rejects a corrupt database with the exact owning error", () => {
 test("rejects an incompatible schema with the exact owning error", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 9");
+  current.run("PRAGMA user_version = 10");
   current.close();
 
   assert.throws(
@@ -274,7 +274,10 @@ test("rejects an incompatible schema with the exact owning error", () => {
     (error) => {
       const failure = codedError(error);
       assert.equal(failure.code, "schema_invalid");
-      assert.equal(failure.message, "SQLite schema version 9 is not supported");
+      assert.equal(
+        failure.message,
+        "SQLite schema version 10 is not supported",
+      );
       return true;
     },
   );

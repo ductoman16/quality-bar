@@ -28,6 +28,10 @@ import {
   createReviewService,
   createUnavailableReviewService,
 } from "./review.js";
+import {
+  createRepositoryService,
+  createUnavailableRepositoryService,
+} from "./repository.js";
 import { createSystemResource } from "./system-resource.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
@@ -141,6 +145,7 @@ function createHardStorageBoundary(writeLog) {
  *   validateTools?: typeof validateBundledTools,
  *   validateCodexAuthentication?: typeof validateCodexLogin,
  *   createReviews?: typeof createReviewService,
+ *   createRepositories?: typeof createRepositoryService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -154,6 +159,7 @@ export function createApplication({
   validateTools = validateBundledTools,
   validateCodexAuthentication = validateCodexLogin,
   createReviews = createReviewService,
+  createRepositories = createRepositoryService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -169,6 +175,7 @@ export function createApplication({
   let browserOrigin = "";
   let requestSecurity = null;
   let reviews = null;
+  let repositories = null;
   let systemResource = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
@@ -195,6 +202,7 @@ export function createApplication({
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
+    repositories = createRepositories(durableCore, { now });
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {
@@ -228,6 +236,7 @@ export function createApplication({
     implementerTokens =
       createUnavailableImplementerTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
+    repositories = createUnavailableRepositoryService(startupFailure);
     structuredLog(
       writeLog,
       "error",
@@ -251,6 +260,7 @@ export function createApplication({
     implementerTokens,
     browserOrigin,
     requestSecurity,
+    repositories,
     reviews,
     readDurableCoreStatus,
     readSystemStatus: () => {

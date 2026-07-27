@@ -1,6 +1,15 @@
 import { DurableCoreError, fail } from "./durable-error.js";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
+
+const REPOSITORY_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS repositories (
+    id TEXT PRIMARY KEY,
+    normalized_url TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    verified_at INTEGER NOT NULL
+  ) STRICT;
+`;
 
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -125,6 +134,7 @@ export function initializeOrValidateSchema(database) {
       CREATE INDEX authority_attributions_keyset
         ON authority_attributions (occurred_at DESC, id DESC);
       ${REVIEW_SCHEMA}
+      ${REPOSITORY_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -151,6 +161,7 @@ export function initializeOrValidateSchema(database) {
         CREATE INDEX authority_attributions_keyset
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
+        ${REPOSITORY_SCHEMA}
       `,
     );
   } else if (version === 2 || version === 3) {
@@ -175,6 +186,7 @@ export function initializeOrValidateSchema(database) {
         CREATE INDEX authority_attributions_keyset
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
+        ${REPOSITORY_SCHEMA}
       `,
     );
   } else if (version === 4) {
@@ -192,10 +204,11 @@ export function initializeOrValidateSchema(database) {
         CREATE INDEX authority_attributions_keyset
           ON authority_attributions (occurred_at DESC, id DESC);
         ${REVIEW_SCHEMA}
+        ${REPOSITORY_SCHEMA}
       `,
     );
   } else if (version === 5) {
-    migration(database, REVIEW_SCHEMA);
+    migration(database, `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}`);
   } else if (version === 6) {
     migration(
       database,
@@ -246,10 +259,17 @@ export function initializeOrValidateSchema(database) {
           ) IS NOT NULL
           BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
         ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
+        ${REPOSITORY_SCHEMA}
       `,
     );
   } else if (version === 7) {
-    migration(database, "ALTER TABLE reviews ADD COLUMN archived_at INTEGER;");
+    migration(
+      database,
+      `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
+       ${REPOSITORY_SCHEMA}`,
+    );
+  } else if (version === 8) {
+    migration(database, REPOSITORY_SCHEMA);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

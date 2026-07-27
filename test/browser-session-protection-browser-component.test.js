@@ -143,6 +143,7 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
       "/api/v1/sessions/revoke",
       { confirmation: "REVOKE ALL SESSIONS", password },
     ],
+    ["/api/v1/repositories", { url: "https://example.com/repository.git" }],
   ]) {
     const response = await fetch(`${origin}${path}`, {
       ...(body ? { body: JSON.stringify(body) } : {}),
@@ -171,6 +172,24 @@ test("every cookie-authenticated mutation rejects an absent origin or CSRF token
   });
   assert.equal(absentCsrf.status, 403);
   assert.equal(await responseErrorCode(absentCsrf), "csrf_invalid");
+  const absentRepositoryCsrf = await fetch(`${origin}/api/v1/repositories`, {
+    body: JSON.stringify({
+      url: "https://example.com/repository.git",
+    }),
+    headers: {
+      "content-type": "application/json",
+      cookie,
+      origin: "http://127.0.0.1:3000",
+    },
+    method: "POST",
+  });
+  assert.equal(absentRepositoryCsrf.status, 403);
+  assert.equal(await responseErrorCode(absentRepositoryCsrf), "csrf_invalid");
+  assert.equal(
+    application.durableCore.get("SELECT COUNT(*) AS count FROM repositories")
+      ?.count,
+    0,
+  );
   const sessionCount = application.durableCore.get(
     "SELECT COUNT(*) AS count FROM browser_sessions",
   );
@@ -226,6 +245,11 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     },
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
+    repositories: {
+      async registerPublic() {
+        throw new Error("unused Repository service operation");
+      },
+    },
     reviews: {
       ...createUnavailableReviewService(
         new Error("unused Review service operation"),

@@ -243,6 +243,30 @@ requiredElement("logout").addEventListener("click", async () => {
   }
   await displayMutationFailure(response);
 });
+const repositoryCreateForm = document.getElementById("repository-create-form");
+if (repositoryCreateForm) {
+  repositoryCreateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    requiredElement("repository-create-result").textContent = "";
+    const response = await fetch("/api/v1/repositories", {
+      body: JSON.stringify({ url: controlValue("repository-url") }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": csrfToken(),
+      },
+      method: "POST",
+    });
+    if (!response.ok) {
+      await displayMutationFailure(response);
+      return;
+    }
+    const repository = /** @type {{url: string}} */ (await response.json());
+    requiredElement("repository-create-result").textContent =
+      repository.url + " registered.";
+    /** @type {HTMLFormElement} */ (repositoryCreateForm).reset();
+  });
+}
 const systemFacts = document.getElementById("system-facts");
 fetch("/api/v1/system")
   .then(async (response) => {
