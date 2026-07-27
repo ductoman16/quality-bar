@@ -2,6 +2,35 @@
 export function canonicalRepositoryPath(mutationParameters, errorResponse) {
   return {
     "/api/v1/repositories": {
+      get: {
+        operationId: "listGenericRepositories",
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: {
+                  additionalProperties: false,
+                  properties: {
+                    repositories: {
+                      items: { $ref: "#/components/schemas/Repository" },
+                      type: "array",
+                    },
+                  },
+                  required: ["repositories"],
+                  type: "object",
+                },
+              },
+            },
+            description: "Registered Generic HTTPS Repositories",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
       post: {
         operationId: "registerGenericRepository",
         parameters: mutationParameters,

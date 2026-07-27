@@ -58,6 +58,9 @@ before(async () => {
     readSystemStatus: () => ({}),
     repositories: {
       destroy() {},
+      list() {
+        throw new Error("unused Repository service operation");
+      },
       async register() {
         throw new Error("unused Repository service operation");
       },

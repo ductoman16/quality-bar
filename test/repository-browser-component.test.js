@@ -15,6 +15,7 @@ function browserElement(properties = {}) {
   return {
     disabled: false,
     hidden: false,
+    options: /** @type {{textContent: string, value: string}[]} */ ([]),
     resetCalled: false,
     textContent: "",
     value: "",
@@ -22,6 +23,10 @@ function browserElement(properties = {}) {
     /** @param {string} name @param {(event: any) => unknown} listener */
     addEventListener(name, listener) {
       listeners.set(name, listener);
+    },
+    /** @param {{textContent: string, value: string}} option */
+    append(option) {
+      this.options.push(option);
     },
     /** @param {string} name */
     listener(name) {
@@ -33,6 +38,9 @@ function browserElement(properties = {}) {
     },
     querySelectorAll() {
       return [];
+    },
+    replaceChildren() {
+      this.options = [];
     },
     reset() {
       this.resetCalled = true;
@@ -99,6 +107,9 @@ test("the Repository component rotates write-only credentials and surfaces the e
       document: {
         cookie: "quality_bar_configured_csrf=csrf-token",
         addEventListener() {},
+        createElement() {
+          return browserElement();
+        },
         /** @param {string} id */
         getElementById(id) {
           return elements.get(id) ?? null;
@@ -116,6 +127,21 @@ test("the Repository component rotates write-only credentials and surfaces the e
                 codex: { catalog: { models: [] }, status: "available" },
                 durable_core: { status: "ready" },
                 implementer_token: { status: "revoked" },
+              };
+            },
+          };
+        }
+        if (path === "/api/v1/repositories" && !options) {
+          return {
+            ok: true,
+            async json() {
+              return {
+                repositories: [
+                  {
+                    id: "repository/private",
+                    url: "https://example.com/team/repository.git",
+                  },
+                ],
               };
             },
           };
@@ -161,6 +187,19 @@ test("the Repository component rotates write-only credentials and surfaces the e
         };
       },
     },
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    rotationRepository.options.map(({ textContent, value }) => ({
+      textContent,
+      value,
+    })),
+    [
+      {
+        textContent: "https://example.com/team/repository.git",
+        value: "repository/private",
+      },
+    ],
   );
 
   await form.listener("submit")({ preventDefault() {} });

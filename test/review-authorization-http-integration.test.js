@@ -49,6 +49,14 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     await responseErrorCode(forbiddenRepository),
     "authorization_forbidden",
   );
+  const forbiddenRepositoryList = await request("/api/v1/repositories", {
+    headers,
+  });
+  assert.equal(forbiddenRepositoryList.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenRepositoryList),
+    "authorization_forbidden",
+  );
   const forbiddenCredentialRotation = await request(
     "/api/v1/repositories/repository-1/credential/rotate",
     {
@@ -202,6 +210,18 @@ test("an authenticated operator rotates a Generic credential through the secret-
     method: "POST",
   });
   assert.equal(registered.status, 200);
+  const listed = await request("/api/v1/repositories", {
+    headers: { cookie: headers.cookie },
+  });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(await listed.json(), {
+    repositories: [
+      {
+        id: "repository/private",
+        url: "https://example.com/private.git",
+      },
+    ],
+  });
 
   const rotated = await request(
     "/api/v1/repositories/repository%2Fprivate/credential/rotate",

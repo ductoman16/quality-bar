@@ -62,6 +62,7 @@ export function createApiRoute({
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
+        (method === "GET" && path === "/api/v1/repositories") ||
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
@@ -132,6 +133,24 @@ export function createApiRoute({
               : "review_list_failed",
           failure.message,
         );
+      }
+      return true;
+    }
+    if (method === "GET" && path === "/api/v1/repositories") {
+      try {
+        writeJson(response, 200, { repositories: repositories.list() });
+      } catch (error) {
+        if (isUnavailableError(error)) {
+          const failure = requireCodedError(error);
+          writeError(response, 503, failure.code, failure.message);
+        } else {
+          writeError(
+            response,
+            500,
+            "repository_list_failed",
+            "Repository listing failed",
+          );
+        }
       }
       return true;
     }

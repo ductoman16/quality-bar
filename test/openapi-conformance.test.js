@@ -30,8 +30,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 19,
-    responseStatuses: 125,
+    operations: 20,
+    responseStatuses: 131,
     version: "3.1.0",
   });
   assert.equal(JSON.stringify(contract), before);

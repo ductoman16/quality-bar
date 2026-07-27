@@ -83,6 +83,22 @@ export function createRepositoryService(
   }
 
   return {
+    list() {
+      return durableCore
+        .all(
+          "SELECT id, normalized_url FROM repositories ORDER BY normalized_url, id",
+        )
+        .map((row) => {
+          if (
+            !row ||
+            typeof row.id !== "string" ||
+            typeof row.normalized_url !== "string"
+          ) {
+            throw new TypeError("Repository row is invalid");
+          }
+          return { id: row.id, url: row.normalized_url };
+        });
+    },
     /** @param {unknown} request */
     async register(request) {
       const { credential, url } = normalizeRepositoryRegistration(request);
@@ -198,6 +214,9 @@ export function createRepositoryService(
 /** @param {unknown} error */
 export function createUnavailableRepositoryService(error) {
   return {
+    list() {
+      throw error;
+    },
     async register() {
       throw error;
     },

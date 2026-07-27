@@ -137,6 +137,39 @@ async function submitRepositoryMutation(
   result.textContent = successMessage(repository);
   form.reset();
 }
+/** @param {{id: string, url: string}} repository */
+function addRepositoryOption(repository) {
+  const select = document.getElementById(
+    "repository-credential-rotate-repository",
+  );
+  if (!select) {
+    return;
+  }
+  const option = document.createElement("option");
+  option.textContent = repository.url;
+  option.value = repository.id;
+  select.append(option);
+}
+async function loadRepositoryOptions() {
+  const select = document.getElementById(
+    "repository-credential-rotate-repository",
+  );
+  if (!select) {
+    return;
+  }
+  const response = await fetch("/api/v1/repositories");
+  if (!response.ok) {
+    await displayMutationFailure(response);
+    return;
+  }
+  const body = /** @type {{repositories: {id: string, url: string}[]}} */ (
+    await response.json()
+  );
+  select.replaceChildren();
+  for (const repository of body.repositories) {
+    addRepositoryOption(repository);
+  }
+}
 /**
  * @param {string} path
  * @param {{
@@ -301,7 +334,10 @@ if (repositoryCreateForm) {
       requiredElement("repository-create-result"),
       "/api/v1/repositories",
       body,
-      (repository) => `${repository.url} registered as ${repository.id}.`,
+      (repository) => {
+        addRepositoryOption(repository);
+        return `${repository.url} registered as ${repository.id}.`;
+      },
     );
   });
 }
@@ -336,6 +372,7 @@ if (repositoryCredentialRotateForm) {
     );
   });
 }
+void loadRepositoryOptions();
 const systemFacts = document.getElementById("system-facts");
 fetch("/api/v1/system")
   .then(async (response) => {
