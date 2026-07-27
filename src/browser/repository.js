@@ -75,6 +75,30 @@ async function submitRepositoryMutation(
 const repositoryRows = new Map();
 /** @type {Map<string, RepositoryResource>} */
 const repositoryResources = new Map();
+/** @type {Set<(repositories: RepositoryResource[]) => unknown>} */
+const repositorySubscribers = new Set();
+
+function publishRepositoryResources() {
+  const repositories = [...repositoryResources.values()];
+  for (const subscriber of repositorySubscribers) {
+    subscriber(repositories);
+  }
+}
+
+Reflect.set(
+  window,
+  "qualityBarRepositories",
+  Object.freeze({
+    /** @param {(repositories: RepositoryResource[]) => unknown} subscriber */
+    subscribe(subscriber) {
+      if (typeof subscriber !== "function") {
+        throw new TypeError("Repository subscriber must be a function");
+      }
+      repositorySubscribers.add(subscriber);
+      subscriber([...repositoryResources.values()]);
+    },
+  }),
+);
 
 /** @param {RepositoryResource} repository */
 function renderRepository(repository) {
@@ -158,6 +182,7 @@ function clearRepositoryOptions() {
   requiredRepositoryElement("repository-inventory").replaceChildren();
   repositoryRows.clear();
   repositoryResources.clear();
+  publishRepositoryResources();
   const lifecycleSelect = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-repository")
   );
@@ -198,6 +223,7 @@ async function loadRepositoryOptions() {
     addLifecycleOption(repository);
     addRepositoryOption(repository);
   }
+  publishRepositoryResources();
   return true;
 }
 
@@ -235,6 +261,7 @@ repositoryCreateForm.addEventListener("submit", async (event) => {
         renderRepository(repository);
         addLifecycleOption(repository);
         addRepositoryOption(repository);
+        publishRepositoryResources();
       }
       return `${repository.url} registered as ${repository.id}.`;
     },

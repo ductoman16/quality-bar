@@ -1,9 +1,7 @@
 const {
-  displayMutationFailure: displayRepositoryGuidanceFailure,
   error: repositoryGuidanceError,
   requiredElement: requiredRepositoryGuidanceElement,
 } = /** @type {{
- *   displayMutationFailure: (response: Response) => Promise<void>,
  *   error: HTMLElement,
  *   requiredElement: (id: string) => HTMLElement
  * }} */ (Reflect.get(window, "qualityBarOperator"));
@@ -14,6 +12,18 @@ const repositoryGuidanceSelect = /** @type {HTMLSelectElement} */ (
 const repositoryGuidanceDocument = requiredRepositoryGuidanceElement(
   "repository-guidance-document",
 );
+const repositoryCollection = /** @type {{
+ *   subscribe: (
+ *     subscriber: (repositories: Array<{id: string, url: string}>) => unknown
+ *   ) => void
+ * }} */ (Reflect.get(window, "qualityBarRepositories"));
+if (typeof repositoryCollection?.subscribe !== "function") {
+  throw new TypeError(
+    "qualityBarRepositories must provide the Repository collection",
+  );
+}
+
+let guidanceRequestIdentity = 0;
 
 /** @param {unknown} value */
 function requireRepositoryGuidance(value) {
@@ -34,6 +44,7 @@ function requireRepositoryGuidance(value) {
 }
 
 async function loadRepositoryGuidance() {
+  const requestIdentity = ++guidanceRequestIdentity;
   repositoryGuidanceDocument.textContent = "";
   repositoryGuidanceError.hidden = true;
   let response;
@@ -42,49 +53,56 @@ async function loadRepositoryGuidance() {
       `/api/v1/repositories/${encodeURIComponent(repositoryGuidanceSelect.value)}/guidance`,
     );
   } catch {
+    if (requestIdentity !== guidanceRequestIdentity) {
+      return;
+    }
     repositoryGuidanceError.textContent = "Repository Guidance failed";
     repositoryGuidanceError.hidden = false;
+    return;
+  }
+  if (requestIdentity !== guidanceRequestIdentity) {
     return;
   }
   if (!response.ok) {
-    await displayRepositoryGuidanceFailure(response);
+    const failure = /** @type {{error?: {message?: unknown}}} */ (
+      await response.json()
+    );
+    if (requestIdentity !== guidanceRequestIdentity) {
+      return;
+    }
+    if (typeof failure.error?.message !== "string") {
+      throw new Error("repository_guidance_error_invalid");
+    }
+    repositoryGuidanceError.textContent = failure.error.message;
+    repositoryGuidanceError.hidden = false;
     return;
   }
+  let decoded;
   try {
-    repositoryGuidanceDocument.textContent = JSON.stringify(
-      requireRepositoryGuidance(await response.json()),
-      null,
-      2,
-    );
-  } catch {
-    repositoryGuidanceDocument.textContent = "";
-    repositoryGuidanceError.textContent = "Repository Guidance failed";
-    repositoryGuidanceError.hidden = false;
+    decoded = await response.json();
+  } catch (cause) {
+    throw new Error("repository_guidance_document_invalid", { cause });
   }
+  if (requestIdentity !== guidanceRequestIdentity) {
+    return;
+  }
+  repositoryGuidanceDocument.textContent = JSON.stringify(
+    requireRepositoryGuidance(decoded),
+    null,
+    2,
+  );
 }
 
 repositoryGuidanceSelect.addEventListener("change", loadRepositoryGuidance);
 
-async function loadRepositoryGuidanceOptions() {
+/** @param {Array<{id: string, url: string}>} repositories */
+function useRepositoryCollection(repositories) {
+  const selectedRepositoryId = repositoryGuidanceSelect.value;
+  ++guidanceRequestIdentity;
+  repositoryGuidanceDocument.textContent = "";
   repositoryGuidanceSelect.replaceChildren();
   repositoryGuidanceSelect.disabled = true;
-  let response;
-  try {
-    response = await fetch("/api/v1/repositories");
-  } catch {
-    repositoryGuidanceError.textContent = "Repository listing failed";
-    repositoryGuidanceError.hidden = false;
-    return;
-  }
-  if (!response.ok) {
-    await displayRepositoryGuidanceFailure(response);
-    return;
-  }
-  const body = /** @type {{repositories?: unknown}} */ (await response.json());
-  if (!Array.isArray(body.repositories)) {
-    throw new Error("repository_list_invalid");
-  }
-  for (const repository of body.repositories) {
+  for (const repository of repositories) {
     if (
       !repository ||
       typeof repository.id !== "string" ||
@@ -98,9 +116,12 @@ async function loadRepositoryGuidanceOptions() {
     repositoryGuidanceSelect.append(option);
   }
   if (repositoryGuidanceSelect.options.length > 0) {
+    if (repositories.some(({ id }) => id === selectedRepositoryId)) {
+      repositoryGuidanceSelect.value = selectedRepositoryId;
+    }
     repositoryGuidanceSelect.disabled = false;
-    await loadRepositoryGuidance();
+    return loadRepositoryGuidance();
   }
 }
 
-loadRepositoryGuidanceOptions();
+repositoryCollection.subscribe(useRepositoryCollection);
