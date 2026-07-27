@@ -178,7 +178,7 @@ export function canonicalRepositorySchemas() {
           type: "array",
         },
       },
-      ["items", "next_cursor", "repositories"],
+      ["repositories"],
     ),
   };
 }
