@@ -169,9 +169,15 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           ),
         ],
       },
+      ReviewCreationAssignment: closedObject(
+        { scope: { const: "installation_wide", type: "string" } },
+        ["scope"],
+      ),
       ReviewCreateRequest: closedObject(
         {
-          assignment: { $ref: "#/components/schemas/ReviewAssignment" },
+          assignment: {
+            $ref: "#/components/schemas/ReviewCreationAssignment",
+          },
           codex_configuration: {
             $ref: "#/components/schemas/CodexConfiguration",
           },

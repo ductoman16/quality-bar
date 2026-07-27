@@ -67,7 +67,11 @@ test("invalid Review definitions fail before a durable transaction can begin", (
       validDefinition({
         assignment: { repository_ids: [], scope: "repository_set" },
       }),
-      "review_assignment_repository_set_empty",
+      "review_assignment_malformed",
+    ],
+    [
+      validDefinition({ assignment: { scope: "repository_set" } }),
+      "review_assignment_unsupported",
     ],
     [
       validDefinition({

@@ -117,6 +117,29 @@ export function validateAssignmentRequest(assignment) {
   };
 }
 
+/**
+ * @param {unknown} assignment
+ * @returns {{scope: "installation_wide"}}
+ */
+function validateCreationAssignment(assignment) {
+  if (
+    !isExactObject(assignment, ["scope"]) ||
+    typeof assignment.scope !== "string"
+  ) {
+    fail(
+      "review_assignment_malformed",
+      "Review Assignment must contain only an exact scope",
+    );
+  }
+  if (assignment.scope !== "installation_wide") {
+    fail(
+      "review_assignment_unsupported",
+      "Only an installation-wide Review Assignment is supported at creation",
+    );
+  }
+  return { scope: "installation_wide" };
+}
+
 /** @param {unknown} criteria */
 function validateCriteria(criteria) {
   if (!Array.isArray(criteria) || criteria.length === 0) {
@@ -216,7 +239,7 @@ export function validateDefinition(definition) {
     );
   }
   return {
-    assignment: validateAssignmentRequest(definition.assignment),
+    assignment: validateCreationAssignment(definition.assignment),
     codexConfiguration: validateCodexConfiguration(
       definition.codex_configuration,
     ),

@@ -34,6 +34,18 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     responseStatuses: 149,
     version: "3.1.0",
   });
+  assert.equal(
+    contract.components.schemas.ReviewCreateRequest.properties.assignment.$ref,
+    "#/components/schemas/ReviewCreationAssignment",
+  );
+  assert.deepEqual(contract.components.schemas.ReviewCreationAssignment, {
+    additionalProperties: false,
+    properties: {
+      scope: { const: "installation_wide", type: "string" },
+    },
+    required: ["scope"],
+    type: "object",
+  });
   assert.equal(JSON.stringify(contract), before);
 });
 

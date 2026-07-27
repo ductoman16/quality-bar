@@ -2,9 +2,86 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createReviewService } from "../src/review.js";
+
+test("migrates a genuine pre-Review v5 database to Repository-scoped Assignments", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-v5-"));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  try {
+    const legacy = new DatabaseSync(databasePath);
+    legacy.exec(`
+      CREATE TABLE quality_bar_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE browser_sessions (
+        session_hash TEXT PRIMARY KEY,
+        csrf_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_authenticated_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE TABLE authority_attributions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
+        error_code TEXT,
+        occurred_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE INDEX authority_attributions_keyset
+        ON authority_attributions (occurred_at DESC, id DESC);
+      INSERT INTO quality_bar_metadata (key, value)
+      VALUES ('schema_version', '5');
+      PRAGMA user_version = 5;
+    `);
+    legacy.close();
+
+    const migrated = openDurableCore(databasePath);
+    assert.equal(migrated.facts.schemaVersion, 12);
+    migrated.run(
+      "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+      "repository-1",
+      "https://example.com/repository.git",
+      1,
+      1,
+    );
+    const reviews = createReviewService(migrated, {
+      createId: (() => {
+        let next = 0;
+        return () => `v5-review-fact-${++next}`;
+      })(),
+      now: () => 1,
+    });
+    const created = reviews.create({
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [{ impact: "blocking", instruction: "Preserve v5 facts." }],
+      description: "Prove the genuine v5 migration.",
+      name: "Genuine v5",
+    });
+    assert.deepEqual(
+      reviews.setAssignment(created.id, {
+        repository_ids: ["repository-1"],
+        scope: "repository_set",
+      }).review.assignment,
+      {
+        repository_ids: ["repository-1"],
+        scope: "repository_set",
+      },
+    );
+    migrated.close();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 test("migrates v6 Review facts into immutable executable snapshots with active lifecycle state", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-schema-"));

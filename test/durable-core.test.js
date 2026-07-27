@@ -151,26 +151,6 @@ test("migrates v4 to v12 without losing existing authority facts", () => {
   migrated.close();
 });
 
-test("migrates v5 to v12 with the Review schema intact", () => {
-  const databasePath = temporaryDatabasePath();
-  const current = openDurableCore(databasePath);
-  current.run(
-    "UPDATE quality_bar_metadata SET value = '5' WHERE key = 'schema_version'",
-  );
-  current.run("PRAGMA user_version = 5");
-  current.close();
-
-  const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 12);
-  assert.deepEqual(
-    migrated.get(
-      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'reviews'",
-    ),
-    { name: "reviews" },
-  );
-  migrated.close();
-});
-
 test("System facts exclude browser sessions past their idle or absolute lifetime", () => {
   const core = openDurableCore(temporaryDatabasePath());
   const now = Date.parse("2026-07-25T12:00:00.000Z");
