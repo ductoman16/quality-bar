@@ -1,4 +1,5 @@
 export {
+  authenticatedOperatorHeaders,
   responseErrorCode,
   sessionCookies,
   startApplication,

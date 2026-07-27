@@ -119,6 +119,7 @@ export function createApplicationServer({
     typeof reviews?.list !== "function" ||
     typeof reviews.create !== "function" ||
     typeof reviews.setArchived !== "function" ||
+    typeof reviews.setAssignment !== "function" ||
     typeof reviews.selectForNewEvaluation !== "function" ||
     typeof reviews.updateMetadata !== "function"
   ) {

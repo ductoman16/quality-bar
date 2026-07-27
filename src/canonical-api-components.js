@@ -149,13 +149,35 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           { $ref: "#/components/schemas/CriterionCreateRequest" },
         ],
       },
-      ReviewAssignment: closedObject(
+      ReviewAssignment: {
+        oneOf: [
+          closedObject(
+            { scope: { const: "installation_wide", type: "string" } },
+            ["scope"],
+          ),
+          closedObject(
+            {
+              repository_ids: {
+                items: { minLength: 1, pattern: "\\S", type: "string" },
+                minItems: 1,
+                type: "array",
+                uniqueItems: true,
+              },
+              scope: { const: "repository_set", type: "string" },
+            },
+            ["scope", "repository_ids"],
+          ),
+        ],
+      },
+      ReviewCreationAssignment: closedObject(
         { scope: { const: "installation_wide", type: "string" } },
         ["scope"],
       ),
       ReviewCreateRequest: closedObject(
         {
-          assignment: { $ref: "#/components/schemas/ReviewAssignment" },
+          assignment: {
+            $ref: "#/components/schemas/ReviewCreationAssignment",
+          },
           codex_configuration: {
             $ref: "#/components/schemas/CodexConfiguration",
           },
@@ -279,6 +301,13 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ["changed", "review"],
       ),
       ReviewArchivalResult: closedObject(
+        {
+          changed: { type: "boolean" },
+          review: { $ref: "#/components/schemas/Review" },
+        },
+        ["changed", "review"],
+      ),
+      ReviewAssignmentChangeResult: closedObject(
         {
           changed: { type: "boolean" },
           review: { $ref: "#/components/schemas/Review" },

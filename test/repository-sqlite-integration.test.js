@@ -7,10 +7,23 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService, RepositoryError } from "../src/repository.js";
 
+/** @param {ReturnType<typeof openDurableCore>} core */
+function dropReviewAssignmentSchema(core) {
+  for (const trigger of [
+    "review_assignment_repository_scope_insert",
+    "review_assignment_repository_scope_update",
+    "review_assignment_scope_update",
+  ]) {
+    core.run(`DROP TRIGGER ${trigger}`);
+  }
+  core.run("DROP TABLE review_assignment_repositories");
+}
+
 test("a verified normalized Repository identity is inserted once and failed verification stores nothing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  dropReviewAssignmentSchema(prior);
   prior.run("DROP TABLE repositories");
   prior.run(
     "UPDATE quality_bar_metadata SET value = '8' WHERE key = 'schema_version'",
@@ -19,7 +32,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 11);
+  assert.equal(core.facts.schemaVersion, 12);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {
@@ -103,6 +116,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  dropReviewAssignmentSchema(prior);
   prior.run("DROP TABLE repository_credentials");
   prior.run("DROP TABLE repositories");
   prior.run(
@@ -120,7 +134,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 11);
+  assert.equal(core.facts.schemaVersion, 12);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -233,6 +247,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  dropReviewAssignmentSchema(prior);
   prior.run("DROP TABLE repository_credentials");
   prior.run("DROP TABLE repositories");
   prior.run(
@@ -257,7 +272,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 11);
+  assert.equal(core.facts.schemaVersion, 12);
   let verificationFails = false;
   const repositories = createRepositoryService(core, {
     createId: () => "repository-lifecycle",

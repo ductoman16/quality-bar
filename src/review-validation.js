@@ -53,8 +53,75 @@ function validateNonblank(value, code, message) {
   return value;
 }
 
-/** @param {unknown} assignment */
-function validateAssignment(assignment) {
+/**
+ * @typedef {{
+ *   scope: "installation_wide"
+ * } | {
+ *   repository_ids: string[],
+ *   scope: "repository_set"
+ * }} ValidatedReviewAssignment
+ */
+
+/**
+ * @param {unknown} assignment
+ * @returns {ValidatedReviewAssignment}
+ */
+export function validateAssignmentRequest(assignment) {
+  if (!assignment || typeof assignment !== "object") {
+    fail(
+      "review_assignment_malformed",
+      "Review Assignment must contain exactly one supported scope",
+    );
+  }
+  if (isExactObject(assignment, ["scope"])) {
+    if (assignment.scope !== "installation_wide") {
+      fail(
+        "review_assignment_malformed",
+        "Review Assignment must contain exactly one supported scope",
+      );
+    }
+    return { scope: "installation_wide" };
+  }
+  if (
+    !isExactObject(assignment, ["repository_ids", "scope"]) ||
+    assignment.scope !== "repository_set" ||
+    !Array.isArray(assignment.repository_ids)
+  ) {
+    fail(
+      "review_assignment_malformed",
+      "Review Assignment must contain exactly one supported scope",
+    );
+  }
+  if (assignment.repository_ids.length === 0) {
+    fail(
+      "review_assignment_repository_set_empty",
+      "Repository-specific Review Assignment must select at least one Repository",
+    );
+  }
+  const repositoryIds = assignment.repository_ids.map((repositoryId) =>
+    validateNonblank(
+      repositoryId,
+      "review_assignment_repository_invalid",
+      "Review Assignment Repository identity must be nonblank",
+    ),
+  );
+  if (new Set(repositoryIds).size !== repositoryIds.length) {
+    fail(
+      "review_assignment_repository_duplicate",
+      "Review Assignment cannot select the same Repository more than once",
+    );
+  }
+  return {
+    repository_ids: repositoryIds.toSorted(),
+    scope: "repository_set",
+  };
+}
+
+/**
+ * @param {unknown} assignment
+ * @returns {{scope: "installation_wide"}}
+ */
+function validateCreationAssignment(assignment) {
   if (
     !isExactObject(assignment, ["scope"]) ||
     typeof assignment.scope !== "string"
@@ -67,10 +134,10 @@ function validateAssignment(assignment) {
   if (assignment.scope !== "installation_wide") {
     fail(
       "review_assignment_unsupported",
-      "Only an installation-wide Review Assignment is supported",
+      "Only an installation-wide Review Assignment is supported at creation",
     );
   }
-  return { scope: assignment.scope };
+  return { scope: "installation_wide" };
 }
 
 /** @param {unknown} criteria */
@@ -172,7 +239,7 @@ export function validateDefinition(definition) {
     );
   }
   return {
-    assignment: validateAssignment(definition.assignment),
+    assignment: validateCreationAssignment(definition.assignment),
     codexConfiguration: validateCodexConfiguration(
       definition.codex_configuration,
     ),

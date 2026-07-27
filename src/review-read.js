@@ -116,10 +116,36 @@ export function readReview(transaction, reviewId) {
   if (!activeVersion) {
     throw new Error("review_active_version_invalid");
   }
+  let assignment;
+  if (review.scope === "installation_wide") {
+    assignment = { scope: "installation_wide" };
+  } else if (review.scope === "repository_set") {
+    const repositoryIds = transaction
+      .all(
+        `SELECT repository_id
+         FROM review_assignment_repositories
+         WHERE review_id = ?
+         ORDER BY repository_id`,
+        reviewId,
+      )
+      .map((row) => row?.repository_id);
+    if (
+      repositoryIds.length === 0 ||
+      repositoryIds.some((repositoryId) => typeof repositoryId !== "string")
+    ) {
+      throw new Error("review_assignment_invalid");
+    }
+    assignment = {
+      repository_ids: /** @type {string[]} */ (repositoryIds),
+      scope: "repository_set",
+    };
+  } else {
+    throw new Error("review_assignment_invalid");
+  }
   return {
     active_version: activeVersion,
     archived: review.archived_at !== null,
-    assignment: { scope: review.scope },
+    assignment,
     description: review.description,
     id: review.id,
     name: review.name,

@@ -1,5 +1,6 @@
 import { forbidMachineSystemAccess } from "./api-authorization.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
+import { apiResourceMatches } from "./api-resource-matches.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   assertAllowedQueryParameters,
@@ -10,19 +11,11 @@ import {
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
+import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
+import { writeReviewList } from "./review-list-route.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/**
- * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
- *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
- *   readSystemStatus: () => unknown,
- *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
- *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
- *   reviews: ReturnType<typeof import("./review.js").createReviewService>
- * }} dependencies
- */
+/** @param {import("./api-route-contract.js").ApiRouteDependencies} dependencies */
 export function createApiRoute({
   browserOrigin,
   browserSessions,
@@ -44,30 +37,22 @@ export function createApiRoute({
     if (path !== "/api/v1" && !path.startsWith("/api/v1/")) {
       return false;
     }
-    const reviewMetadataMatch = path.match(
-      /^\/api\/v1\/reviews\/([^/]+)\/metadata$/,
-    );
-    const reviewArchivalMatch = path.match(
-      /^\/api\/v1\/reviews\/([^/]+)\/archival$/,
-    );
-    const reviewActiveVersionMatch = path.match(
-      /^\/api\/v1\/reviews\/([^/]+)\/active-version$/,
-    );
-    const reviewVersionsMatch = path.match(
-      /^\/api\/v1\/reviews\/([^/]+)\/versions$/,
-    );
-    const repositoryCredentialRotationMatch = path.match(
-      /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
-    );
-    const repositoryLifecycleMatch = path.match(
-      /^\/api\/v1\/repositories\/([^/]+)\/lifecycle$/,
-    );
+    const {
+      repositoryCredentialRotationMatch,
+      repositoryLifecycleMatch,
+      reviewActiveVersionMatch,
+      reviewArchivalMatch,
+      reviewAssignmentId,
+      reviewMetadataMatch,
+      reviewVersionsMatch,
+    } = apiResourceMatches(path);
     if (
       authority === "machine" &&
       ((method === "GET" && path === "/api/v1/reviews") ||
         (method === "GET" && path === "/api/v1/repositories") ||
         (method === "PATCH" && reviewMetadataMatch) ||
         (method === "PATCH" && reviewArchivalMatch) ||
+        (method === "PATCH" && reviewAssignmentId) ||
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch) ||
         (method === "POST" && path === "/api/v1/repositories") ||
@@ -114,30 +99,11 @@ export function createApiRoute({
       return true;
     }
     if (method === "GET" && path === "/api/v1/reviews") {
-      try {
-        writeJson(response, 200, {
-          reviews: reviews.list(
-            requestUrl.searchParams.get("state") ?? undefined,
-          ),
-        });
-      } catch (error) {
-        if (error instanceof Error && !("code" in error)) {
-          writeError(response, 500, "review_list_failed", error.message);
-          return true;
-        }
-        const failure = requireCodedError(error);
-        const invalidState = failure.code === "review_list_state_invalid";
-        writeError(
-          response,
-          invalidState ? 400 : isUnavailableError(error) ? 503 : 500,
-          invalidState
-            ? failure.code
-            : isUnavailableError(error)
-              ? failure.code
-              : "review_list_failed",
-          failure.message,
-        );
-      }
+      writeReviewList(
+        response,
+        reviews,
+        requestUrl.searchParams.get("state") ?? undefined,
+      );
       return true;
     }
     if (method === "GET" && path === "/api/v1/repositories") {
@@ -172,6 +138,16 @@ export function createApiRoute({
             : isUnavailableError(error)
               ? 503
               : 422,
+      });
+      return true;
+    }
+    if (method === "PATCH" && reviewAssignmentId) {
+      await writeReviewAssignmentMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        requestUrl,
+        reviewId: reviewAssignmentId,
+        reviews,
       });
       return true;
     }

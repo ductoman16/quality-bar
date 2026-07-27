@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
+import {
+  changeReviewAssignment,
+  createReviewAssignment,
+} from "./review-assignment.js";
+import { readReviewCollection } from "./review-read-collection.js";
 import { readReview } from "./review-read.js";
-import { selectReviewVersionsForNewEvaluation } from "./review-selection.js";
+import { selectReviewVersionsForRegisteredRepository } from "./review-selection.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import {
   fail,
@@ -10,6 +15,7 @@ import {
   validateArchivalRequest,
   validateDefinition,
   validateExecutableSnapshot,
+  validateAssignmentRequest,
   validateMetadata,
   validateReactivationRequest,
   validateReviewListState,
@@ -18,30 +24,8 @@ import {
 export { ReviewError };
 
 /**
- * @param {ReviewTransaction} transaction
- * @param {string} query
- * @param {string} invalidCode
- */
-function readReviewCollection(transaction, query, invalidCode) {
-  return transaction.all(query).map((row) => {
-    if (!row || typeof row.id !== "string") {
-      throw new Error(invalidCode);
-    }
-    return readReview(transaction, row.id);
-  });
-}
-
-/**
  * @typedef {{
- *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
- *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>,
- *   run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
- * }} ReviewTransaction
- */
-
-/**
- * @typedef {{
- *   transaction<Result>(callback: (transaction: ReviewTransaction) => Result): Result
+ *   transaction<Result>(callback: (transaction: import("./review-read-collection.js").ReviewTransaction) => Result): Result
  * }} ReviewDurableCore
  */
 
@@ -75,9 +59,11 @@ export function createReviewService(
         ),
       );
     },
-    selectForNewEvaluation() {
+    /** @param {string} repositoryId */
+    selectForNewEvaluation(repositoryId) {
       return durableCore.transaction((transaction) =>
-        selectReviewVersionsForNewEvaluation(
+        selectReviewVersionsForRegisteredRepository(
+          transaction,
           readReviewCollection(
             transaction,
             "SELECT id FROM reviews ORDER BY created_at, id",
@@ -89,9 +75,11 @@ export function createReviewService(
             return {
               active_version: { id: review.active_version.id },
               archived: review.archived,
+              assignment: review.assignment,
               id: review.id,
             };
           }),
+          repositoryId,
         ),
       );
     },
@@ -138,10 +126,10 @@ export function createReviewService(
             null,
             createdAt,
           );
-          transaction.run(
-            "INSERT INTO review_assignments (review_id, scope, created_at) VALUES (?, ?, ?)",
+          createReviewAssignment(
+            transaction,
             reviewId,
-            validated.assignment.scope,
+            validated.assignment,
             createdAt,
           );
           for (const criterion of criteria) {
@@ -198,6 +186,16 @@ export function createReviewService(
           },
         ],
       };
+    },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} assignment
+     */
+    setAssignment(reviewId, assignment) {
+      const validated = validateAssignmentRequest(assignment);
+      return durableCore.transaction((transaction) =>
+        changeReviewAssignment(transaction, reviewId, validated, now),
+      );
     },
     /**
      * @param {string} reviewId
@@ -428,6 +426,9 @@ export function createUnavailableReviewService(error) {
       throw error;
     },
     setArchived() {
+      throw error;
+    },
+    setAssignment() {
       throw error;
     },
     selectForNewEvaluation() {
