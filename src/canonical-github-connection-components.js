@@ -15,6 +15,13 @@ export function canonicalGitHubConnectionSchemas() {
       },
       ["code", "message"],
     ),
+    GitHubConnectionHealthError: closedObject(
+      {
+        code: { minLength: 1, type: "string" },
+        message: { minLength: 1, type: "string" },
+      },
+      ["code", "message"],
+    ),
     GitHubCapabilityEvidence: closedObject(
       Object.fromEntries(
         [
@@ -113,6 +120,13 @@ export function canonicalGitHubConnectionSchemas() {
         capabilities: {
           $ref: "#/components/schemas/GitHubCapabilityEvidence",
         },
+        health: { enum: ["healthy", "error"], type: "string" },
+        health_error: {
+          oneOf: [
+            { $ref: "#/components/schemas/GitHubConnectionHealthError" },
+            { type: "null" },
+          ],
+        },
         id: { minLength: 1, type: "string" },
         permissions: { $ref: "#/components/schemas/GitHubPermissions" },
         principal: { $ref: "#/components/schemas/GitHubPrincipal" },
@@ -131,6 +145,8 @@ export function canonicalGitHubConnectionSchemas() {
         "app_id",
         "app_slug",
         "capabilities",
+        "health",
+        "health_error",
         "id",
         "permissions",
         "principal",

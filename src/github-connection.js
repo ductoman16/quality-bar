@@ -339,6 +339,8 @@ export function createGitHubConnectionService(
         app_id: flow.credential.app_id,
         app_slug: flow.credential.app_slug,
         capabilities: verification.capabilities,
+        health: "healthy",
+        health_error: null,
         id,
         permissions: GITHUB_REQUIRED_PERMISSIONS,
         principal: verification.principal,

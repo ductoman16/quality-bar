@@ -20,6 +20,7 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   /** @type {any[]} */
   const requests = [];
   let duplicateEnumeration = false;
+  let repositoryAccessFailure = false;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -141,6 +142,11 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
         "/repos/operator/public/pulls",
       ].includes(url.pathname)
     ) {
+      if (repositoryAccessFailure) {
+        response.statusCode = 404;
+        send({ message: "not found" });
+        return;
+      }
       send([]);
       return;
     }
@@ -230,6 +236,15 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
     },
   ]);
   gitReads.length = 0;
+  repositoryAccessFailure = true;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_api_access_failed",
+  );
+  assert.deepEqual(gitReads, []);
+  repositoryAccessFailure = false;
   duplicateEnumeration = true;
   await assert.rejects(
     () => verifier.verifyRepositories(credential, 73, [101, 202]),

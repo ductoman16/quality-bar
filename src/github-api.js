@@ -4,10 +4,10 @@ import {
   GITHUB_REQUIRED_PERMISSIONS,
   GITHUB_VERIFIED_CAPABILITIES,
 } from "./github-app-manifest.js";
+import { createGitHubApiRequest } from "./github-api-request.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
-const API_VERSION = "2026-03-10";
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
 function fail(code, message, cause) {
   throw new GitHubConnectionError(
@@ -108,44 +108,7 @@ export function createGitHubVerifier({
     throw new TypeError("GitHub verifier dependencies are invalid");
   }
 
-  /** @param {string} path @param {{authorization?: string, method?: "GET" | "POST"}} [options] */
-  async function request(path, { authorization, method = "GET" } = {}) {
-    let response;
-    try {
-      response = await fetchRequest(new URL(path, apiBaseUrl), {
-        headers: {
-          accept: "application/vnd.github+json",
-          ...(authorization
-            ? { authorization: `Bearer ${authorization}` }
-            : {}),
-          "x-github-api-version": API_VERSION,
-        },
-        method,
-        redirect: "error",
-      });
-    } catch (cause) {
-      fail(
-        "github_api_unavailable",
-        "GitHub API request could not complete",
-        cause,
-      );
-    }
-    if (!response.ok) {
-      fail(
-        "github_api_request_failed",
-        `GitHub API request failed with HTTP ${response.status}`,
-      );
-    }
-    try {
-      return /** @type {unknown} */ (await response.json());
-    } catch (cause) {
-      fail(
-        "github_api_response_invalid",
-        "GitHub API response is invalid",
-        cause,
-      );
-    }
-  }
+  const request = createGitHubApiRequest(apiBaseUrl, fetchRequest);
 
   const verifier = {
     /** @param {string} code */
@@ -400,12 +363,15 @@ export function createGitHubVerifier({
         const repositoryPath = `/repos/${repository.full_name}`;
         await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
           authorization: token,
+          repositoryAccess: true,
         });
         await request(`${repositoryPath}/branches?per_page=1`, {
           authorization: token,
+          repositoryAccess: true,
         });
         await request(`${repositoryPath}/issues?per_page=1&state=all`, {
           authorization: token,
+          repositoryAccess: true,
         });
         try {
           await verifyGit(

@@ -47,6 +47,7 @@ import { createSystemResource } from "./system-resource.js";
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
   "github_private_git_read_failed",
+  "github_repository_api_access_failed",
   "github_repository_selection_unavailable",
 ]);
 

@@ -10,7 +10,8 @@ export function readGitHubConnection(durableCore) {
   const [row] = durableCore.all(
     `SELECT
        id, app_id, app_slug, principal_id, principal_login,
-       api_profile, permissions, capabilities, repository_count, verified_at
+       api_profile, permissions, capabilities, repository_count,
+       health, health_error_code, health_error_message, verified_at
      FROM github_connections
      LIMIT 1`,
   );
@@ -27,9 +28,24 @@ export function readGitHubConnection(durableCore) {
     typeof row.permissions !== "string" ||
     typeof row.capabilities !== "string" ||
     !Number.isSafeInteger(row.repository_count) ||
+    !["healthy", "error"].includes(/** @type {string} */ (row.health)) ||
     !Number.isSafeInteger(row.verified_at)
   ) {
     throw new TypeError("GitHub Connection row is invalid");
+  }
+  const healthError =
+    row.health === "error"
+      ? {
+          code: /** @type {string} */ (row.health_error_code),
+          message: /** @type {string} */ (row.health_error_message),
+        }
+      : null;
+  if (
+    row.health === "error" &&
+    (typeof healthError?.code !== "string" ||
+      typeof healthError.message !== "string")
+  ) {
+    throw new TypeError("GitHub Connection health error is invalid");
   }
   const history = durableCore
     .all(
@@ -76,6 +92,8 @@ export function readGitHubConnection(durableCore) {
     app_id: row.app_id,
     app_slug: row.app_slug,
     capabilities: JSON.parse(row.capabilities),
+    health: /** @type {"healthy" | "error"} */ (row.health),
+    health_error: healthError,
     id: row.id,
     permissions: JSON.parse(row.permissions),
     principal: {

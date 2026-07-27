@@ -127,6 +127,8 @@ test("manifest and installation callbacks atomically create one verified secret-
       private_git_read: "verified",
       pull_request_access: "verified",
     },
+    health: "healthy",
+    health_error: null,
     id: "connection-1",
     permissions: {
       contents: "read",

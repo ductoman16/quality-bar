@@ -46,6 +46,8 @@ export function verifiedConnection() {
   return {
     api_profile: "github-rest:2026-03-10",
     capabilities: { private_git_read: "verified" },
+    health: "healthy",
+    health_error: null,
     permissions: { contents: "read" },
     principal: { login: "operator" },
     repository_count: 1,

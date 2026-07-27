@@ -132,3 +132,32 @@ test("GitHub Repository selection rejects a duplicate success response without i
   assert.equal(browser.status.textContent, "");
   assert.equal(browser.context.location.assigned, "");
 });
+
+test("GitHub Connection health exposes the exact owning verification error", async () => {
+  const connection = {
+    ...verifiedConnection(),
+    health: "error",
+    health_error: {
+      code: "github_permissions_mismatch",
+      message: "GitHub App permissions do not match the required profile",
+    },
+  };
+  const browser = browserContext(async () => ({
+    ok: true,
+    async json() {
+      return connection;
+    },
+  }));
+
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(
+    browser.github.health.textContent,
+    "GitHub App permissions do not match the required profile (github_permissions_mismatch)",
+  );
+  assert.equal(
+    browser.status.textContent,
+    "GitHub Connection verification failed.",
+  );
+});

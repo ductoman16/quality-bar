@@ -49,6 +49,8 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let failSelection = true;
+  /** @type {GitHubConnectionError | undefined} */
+  let connectionFailure;
   /** @type {any[] | undefined} */
   let verificationResult;
   let timestamp = 1_000;
@@ -93,6 +95,9 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
           installationId,
           repositoryIds,
         });
+        if (connectionFailure) {
+          throw connectionFailure;
+        }
         if (failSelection) {
           throw new GitHubConnectionError(
             "github_private_git_read_failed",
@@ -133,8 +138,27 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     core.get("SELECT count(*) AS count FROM github_repositories")?.count,
     0,
   );
+  assert.equal(service.read()?.health, "healthy");
 
   failSelection = false;
+  connectionFailure = new GitHubConnectionError(
+    "github_permissions_mismatch",
+    "GitHub App permissions do not match the required profile",
+  );
+  timestamp = 1_500;
+  await assert.rejects(
+    () => service.selectRepositories({ repository_ids: [101] }),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_permissions_mismatch",
+  );
+  assert.equal(service.read()?.health, "error");
+  assert.deepEqual(service.read()?.health_error, {
+    code: "github_permissions_mismatch",
+    message: "GitHub App permissions do not match the required profile",
+  });
+  assert.equal(service.read()?.verified_at, 1_500);
+  connectionFailure = undefined;
   timestamp = 2_000;
   for (const invalidResult of [
     [availableRepositories[0], availableRepositories[0]],
@@ -235,7 +259,10 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     core.get("SELECT count(*) AS count FROM github_repositories")?.count,
     2,
   );
-  assert.equal(verificationCalls.length, 5);
+  assert.equal(service.read()?.health, "healthy");
+  assert.equal(service.read()?.health_error, null);
+  assert.equal(service.read()?.verified_at, 2_000);
+  assert.equal(verificationCalls.length, 6);
   assert.doesNotMatch(
     JSON.stringify(
       core.all(
@@ -294,6 +321,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
           error instanceof GitHubConnectionError &&
           [
             "github_private_git_read_failed",
+            "github_repository_api_access_failed",
             "github_repository_selection_unavailable",
           ].includes(error.code)
         ) {

@@ -2,43 +2,32 @@ const githubOperator = /** @type {{
  * csrfToken: () => string,
  * requiredElement: (id: string) => HTMLElement
  * }} */ (Reflect.get(window, "qualityBarOperator"));
+const { csrfToken, requiredElement } = githubOperator;
 
 const githubForm = /** @type {HTMLFormElement} */ (
-  githubOperator.requiredElement("github-connection-form")
+  requiredElement("github-connection-form")
 );
 const githubSubmit = /** @type {HTMLButtonElement} */ (
-  githubOperator.requiredElement("github-connection-submit")
+  requiredElement("github-connection-submit")
 );
-const githubStatus = githubOperator.requiredElement("github-connection-status");
-const githubError = githubOperator.requiredElement("github-connection-error");
-const githubDetails = githubOperator.requiredElement(
-  "github-connection-details",
-);
-const githubIdentity = githubOperator.requiredElement(
-  "github-connection-identity",
-);
-const githubProfile = githubOperator.requiredElement(
-  "github-connection-profile",
-);
-const githubHealth = githubOperator.requiredElement("github-connection-health");
-const githubPermissions = githubOperator.requiredElement(
-  "github-connection-permissions",
-);
-const githubCapabilities = githubOperator.requiredElement(
-  "github-connection-capabilities",
-);
-const githubLatest = githubOperator.requiredElement("github-connection-latest");
-const githubHistory = githubOperator.requiredElement(
-  "github-connection-history",
-);
+const githubStatus = requiredElement("github-connection-status");
+const githubError = requiredElement("github-connection-error");
+const githubDetails = requiredElement("github-connection-details");
+const githubIdentity = requiredElement("github-connection-identity");
+const githubProfile = requiredElement("github-connection-profile");
+const githubHealth = requiredElement("github-connection-health");
+const githubPermissions = requiredElement("github-connection-permissions");
+const githubCapabilities = requiredElement("github-connection-capabilities");
+const githubLatest = requiredElement("github-connection-latest");
+const githubHistory = requiredElement("github-connection-history");
 const githubRepositoryForm = /** @type {HTMLFormElement} */ (
-  githubOperator.requiredElement("github-repository-selection-form")
+  requiredElement("github-repository-selection-form")
 );
-const githubRepositoryOptions = githubOperator.requiredElement(
+const githubRepositoryOptions = requiredElement(
   "github-repository-selection-options",
 );
 const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
-  githubOperator.requiredElement("github-repository-selection-submit")
+  requiredElement("github-repository-selection-submit")
 );
 
 /** @param {string} message */
@@ -152,6 +141,9 @@ function renderGitHubConnection(value) {
     !value.capabilities ||
     Array.isArray(value.capabilities) ||
     typeof value.capabilities !== "object" ||
+    !("health" in value) ||
+    !["healthy", "error"].includes(/** @type {string} */ (value.health)) ||
+    !("health_error" in value) ||
     !("repository_count" in value) ||
     !Number.isSafeInteger(value.repository_count) ||
     !("verified_at" in value) ||
@@ -192,6 +184,22 @@ function renderGitHubConnection(value) {
   ) {
     throw new Error("github_connection_response_invalid");
   }
+  const healthError =
+    value.health === "error" &&
+    value.health_error &&
+    typeof value.health_error === "object" &&
+    "code" in value.health_error &&
+    typeof value.health_error.code === "string" &&
+    "message" in value.health_error &&
+    typeof value.health_error.message === "string"
+      ? value.health_error
+      : null;
+  if (
+    (value.health === "healthy" && value.health_error !== null) ||
+    (value.health === "error" && healthError === null)
+  ) {
+    throw new Error("github_connection_response_invalid");
+  }
   const permissions = Object.entries(value.permissions);
   const capabilities = Object.entries(value.capabilities);
   if (
@@ -204,7 +212,10 @@ function renderGitHubConnection(value) {
   }
   githubIdentity.textContent = value.principal.login;
   githubProfile.textContent = `${value.api_profile}; compatible`;
-  githubHealth.textContent = "Verified";
+  githubHealth.textContent =
+    value.health === "healthy"
+      ? "Verified"
+      : `${healthError?.message} (${healthError?.code})`;
   githubPermissions.textContent = permissions
     .map(([name, permission]) => `${name}: ${permission}`)
     .join("; ");
@@ -239,7 +250,10 @@ function renderGitHubConnection(value) {
   githubRepositoryForm.hidden = false;
   githubDetails.hidden = false;
   githubForm.hidden = true;
-  githubStatus.textContent = "GitHub Connection verified.";
+  githubStatus.textContent =
+    value.health === "healthy"
+      ? "GitHub Connection verified."
+      : "GitHub Connection verification failed.";
 }
 
 githubRepositoryForm.addEventListener("submit", async (event) => {
@@ -266,7 +280,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({ repository_ids: selected }),
       headers: {
         "content-type": "application/json",
-        "x-quality-bar-csrf": githubOperator.csrfToken(),
+        "x-quality-bar-csrf": csrfToken(),
       },
       method: "POST",
     });
@@ -347,7 +361,7 @@ githubForm.addEventListener("submit", async (event) => {
       body: "{}",
       headers: {
         "content-type": "application/json",
-        "x-quality-bar-csrf": githubOperator.csrfToken(),
+        "x-quality-bar-csrf": csrfToken(),
       },
       method: "POST",
     });

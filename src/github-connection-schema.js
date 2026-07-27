@@ -10,6 +10,14 @@ export const GITHUB_REPOSITORY_SCHEMA = `
   ) STRICT;
 `;
 
+export const GITHUB_CONNECTION_HEALTH_MIGRATION = `
+  ALTER TABLE github_connections
+    ADD COLUMN health TEXT NOT NULL DEFAULT 'healthy'
+      CHECK (health IN ('healthy', 'error'));
+  ALTER TABLE github_connections ADD COLUMN health_error_code TEXT;
+  ALTER TABLE github_connections ADD COLUMN health_error_message TEXT;
+`;
+
 export const GITHUB_CONNECTION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS github_connections (
     singleton_key INTEGER PRIMARY KEY DEFAULT 1 CHECK (singleton_key = 1),
@@ -23,6 +31,10 @@ export const GITHUB_CONNECTION_SCHEMA = `
     permissions TEXT NOT NULL CHECK (json_valid(permissions)),
     capabilities TEXT NOT NULL CHECK (json_valid(capabilities)),
     repository_count INTEGER NOT NULL CHECK (repository_count > 0),
+    health TEXT NOT NULL DEFAULT 'healthy'
+      CHECK (health IN ('healthy', 'error')),
+    health_error_code TEXT,
+    health_error_message TEXT,
     created_at INTEGER NOT NULL,
     verified_at INTEGER NOT NULL
   ) STRICT;

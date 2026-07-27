@@ -79,6 +79,9 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
     1_000,
   );
   prior.run("DROP TABLE github_repositories");
+  prior.run("ALTER TABLE github_connections DROP COLUMN health_error_message");
+  prior.run("ALTER TABLE github_connections DROP COLUMN health_error_code");
+  prior.run("ALTER TABLE github_connections DROP COLUMN health");
   prior.run(
     "UPDATE quality_bar_metadata SET value = '13' WHERE key = 'schema_version'",
   );
@@ -104,5 +107,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
       },
     ],
   );
+  assert.equal(readGitHubConnection(migrated)?.health, "healthy");
+  assert.equal(readGitHubConnection(migrated)?.health_error, null);
   migrated.close();
 });
