@@ -3,6 +3,19 @@ const githubOperator = /** @type {{
  * requiredElement: (id: string) => HTMLElement
  * }} */ (Reflect.get(window, "qualityBarOperator"));
 const { csrfToken, requiredElement } = githubOperator;
+const {
+  consumeCallbackFailure: consumeGitHubCallback,
+  historyText: githubHistoryText,
+  responseErrorMessage,
+  validOutcome: validGitHubOutcome,
+  verificationTime,
+} = /** @type {{
+ * consumeCallbackFailure: (query: URLSearchParams, showError: (message: string) => void) => Promise<boolean>,
+ * historyText: (verification: any) => string,
+ * responseErrorMessage: (response: Response) => Promise<string>,
+ * validOutcome: (verification: unknown) => boolean,
+ * verificationTime: (timestamp: number) => string
+ * }} */ (Reflect.get(window, "qualityBarGitHubConnectionContract"));
 
 const githubForm = /** @type {HTMLFormElement} */ (
   requiredElement("github-connection-form")
@@ -40,77 +53,7 @@ function showGitHubError(message) {
 
 /** @param {Response} response */
 async function showGitHubResponseError(response) {
-  try {
-    const body = /** @type {{error?: {message?: unknown}}} */ (
-      await response.json()
-    );
-    if (typeof body.error?.message !== "string") {
-      throw new Error("github_error_response_invalid");
-    }
-    showGitHubError(body.error.message);
-  } catch {
-    showGitHubError("GitHub Connection response is invalid");
-  }
-}
-
-/** @param {number} timestamp */
-function verificationTime(timestamp) {
-  const value = new Date(timestamp);
-  if (Number.isNaN(value.getTime())) {
-    throw new Error("github_connection_response_invalid");
-  }
-  return value.toISOString();
-}
-
-/** @param {URLSearchParams} query */
-async function consumeCallbackFailure(query) {
-  const receipt = query.get("github_connection_error");
-  if (receipt === null) {
-    return false;
-  }
-  query.delete("github_connection_error");
-  history.replaceState(
-    null,
-    "",
-    query.size > 0 ? `/?${query.toString()}` : "/",
-  );
-  let response;
-  try {
-    response = await fetch(
-      `/api/v1/github-connections/callback-error?receipt=${encodeURIComponent(
-        receipt,
-      )}`,
-    );
-  } catch {
-    showGitHubError("GitHub callback error loading failed");
-    return true;
-  }
-  if (!response.ok) {
-    await showGitHubResponseError(response);
-    return true;
-  }
-  try {
-    const failure = /** @type {unknown} */ (await response.json());
-    if (failure === null) {
-      return false;
-    }
-    if (
-      !failure ||
-      Array.isArray(failure) ||
-      typeof failure !== "object" ||
-      !("code" in failure) ||
-      typeof failure.code !== "string" ||
-      !("message" in failure) ||
-      typeof failure.message !== "string"
-    ) {
-      throw new Error("github_callback_error_response_invalid");
-    }
-    showGitHubError(`${failure.message} (${failure.code})`);
-    return true;
-  } catch {
-    showGitHubError("GitHub callback error response is invalid");
-    return true;
-  }
+  showGitHubError(await responseErrorMessage(response));
 }
 
 /** @param {unknown} value */
@@ -157,6 +100,7 @@ function renderGitHubConnection(value) {
         typeof verification !== "object" ||
         !("trigger" in verification) ||
         typeof verification.trigger !== "string" ||
+        !validGitHubOutcome(verification) ||
         !("api_profile" in verification) ||
         typeof verification.api_profile !== "string" ||
         !("principal" in verification) ||
@@ -228,7 +172,7 @@ function renderGitHubConnection(value) {
   githubHistory.textContent = "";
   for (const verification of value.verification_history) {
     const item = document.createElement("li");
-    item.textContent = `${verification.trigger}; ${verification.api_profile}; ${verification.principal.login}; ${verification.repositories.length} Repositories; ${verificationTime(verification.verified_at)}`;
+    item.textContent = githubHistoryText(verification);
     githubHistory.append(item);
   }
   githubRepositoryOptions.replaceChildren();
@@ -291,6 +235,10 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
   }
   if (!response.ok) {
     await showGitHubResponseError(response);
+    await loadGitHubConnection();
+    await /** @type {{refresh: () => Promise<boolean>}} */ (
+      Reflect.get(window, "qualityBarRepositories")
+    ).refresh();
     githubRepositorySubmit.disabled = false;
     return;
   }
@@ -339,7 +287,7 @@ async function loadGitHubConnection() {
   try {
     renderGitHubConnection(await response.json());
     const query = new URLSearchParams(location.search);
-    if (await consumeCallbackFailure(query)) {
+    if (await consumeGitHubCallback(query, showGitHubError)) {
       return;
     }
     if (query.get("github_connection") === "connected") {

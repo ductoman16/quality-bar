@@ -102,6 +102,7 @@ Reflect.set(
   window,
   "qualityBarRepositories",
   Object.freeze({
+    refresh: loadRepositoryOptions,
     /** @param {(repositories: RepositoryResource[]) => unknown} subscriber */
     subscribe(subscriber) {
       if (typeof subscriber !== "function") {

@@ -54,6 +54,8 @@ export function verifiedConnection() {
     verification_history: [
       {
         api_profile: "github-rest:2026-03-10",
+        error: null,
+        outcome: "success",
         principal: { login: "operator" },
         repositories: [
           {
@@ -136,6 +138,7 @@ export function browserContext(fetch) {
   const github = githubElements(form, submit, status, error);
   /** @type {string[]} */
   const replacedUrls = [];
+  let repositoryRefreshes = 0;
   return {
     context: {
       URLSearchParams,
@@ -163,12 +166,19 @@ export function browserContext(fetch) {
           /** @param {string} id */
           requiredElement: (id) => github.elements.get(id),
         },
+        qualityBarRepositories: {
+          async refresh() {
+            repositoryRefreshes += 1;
+            return true;
+          },
+        },
       },
     },
     error,
     form,
     github,
     replacedUrls,
+    repositoryRefreshes: () => repositoryRefreshes,
     status,
     submit,
   };
@@ -176,6 +186,12 @@ export function browserContext(fetch) {
 
 /** @param {Record<string, any>} context */
 export function executeGitHubBrowserAsset(context) {
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/github-connection-contract.js",
+    readBrowserAsset("/assets/github-connection-contract.js"),
+    context,
+  );
   executeServedBrowserAsset(
     repositoryRoot,
     "src/browser/github-connection.js",

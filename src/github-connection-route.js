@@ -177,6 +177,8 @@ export function createGitHubConnectionRoute({
               ? 409
               : isUnavailableError(error) ||
                   code === "github_api_unavailable" ||
+                  code === "github_api_transient_failure" ||
+                  code === "github_git_verification_failed" ||
                   code === "github_private_git_read_failed"
                 ? 503
                 : 422,

@@ -307,10 +307,12 @@ export function createGitHubConnectionService(
           );
           transaction.run(
             `INSERT INTO github_connection_verifications (
-               id, connection_id, trigger, api_profile, principal_id,
-               principal_login, permissions, capabilities, repositories,
-               verified_at
-             ) VALUES (?, ?, 'onboarding', ?, ?, ?, ?, ?, ?, ?)`,
+               id, connection_id, trigger, outcome, error_code,
+               error_message, api_profile, principal_id, principal_login,
+               permissions, capabilities, repositories, verified_at
+             ) VALUES (
+               ?, ?, 'onboarding', 'success', NULL, NULL, ?, ?, ?, ?, ?, ?, ?
+             )`,
             verificationId,
             id,
             GITHUB_API_PROFILE,
@@ -349,7 +351,9 @@ export function createGitHubConnectionService(
           {
             api_profile: GITHUB_API_PROFILE,
             capabilities: verification.capabilities,
+            error: null,
             id: verificationId,
+            outcome: "success",
             permissions: GITHUB_REQUIRED_PERMISSIONS,
             principal: verification.principal,
             repositories: verification.repositories,

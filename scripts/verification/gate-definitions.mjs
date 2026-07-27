@@ -309,6 +309,7 @@ export function createGateDefinitions(metadata) {
         "test/repository-credential-rotation-sqlite-integration.test.js",
         "test/repository-sqlite-integration.test.js",
         "test/github-connection-sqlite-integration.test.js",
+        "test/github-connection-verification-sqlite-integration.test.js",
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
       ],

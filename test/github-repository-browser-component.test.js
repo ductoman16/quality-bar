@@ -161,3 +161,63 @@ test("GitHub Connection health exposes the exact owning verification error", asy
     "GitHub Connection verification failed.",
   );
 });
+
+test("failed selection reloads server-owned GitHub Connection health without hiding the exact error", async () => {
+  let request = 0;
+  const browser = browserContext(async () => {
+    request += 1;
+    if (request === 1) {
+      return {
+        ok: true,
+        async json() {
+          return verifiedConnection();
+        },
+      };
+    }
+    if (request === 2) {
+      return {
+        ok: false,
+        async json() {
+          return {
+            error: {
+              message:
+                "GitHub App permissions do not match the required profile",
+            },
+          };
+        },
+      };
+    }
+    return {
+      ok: true,
+      async json() {
+        return {
+          ...verifiedConnection(),
+          health: "error",
+          health_error: {
+            code: "github_permissions_mismatch",
+            message: "GitHub App permissions do not match the required profile",
+          },
+        };
+      },
+    };
+  });
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  browser.github.repositoryOptions.children[0].children[0].checked = true;
+
+  await browser.github.repositoryForm.listener("submit")({
+    preventDefault() {},
+  });
+
+  assert.equal(request, 3);
+  assert.equal(browser.repositoryRefreshes(), 1);
+  assert.equal(
+    browser.error.textContent,
+    "GitHub App permissions do not match the required profile",
+  );
+  assert.equal(browser.error.focused, true);
+  assert.equal(
+    browser.github.health.textContent,
+    "GitHub App permissions do not match the required profile (github_permissions_mismatch)",
+  );
+});

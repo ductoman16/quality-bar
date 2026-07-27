@@ -102,6 +102,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
           throw new GitHubConnectionError(
             "github_private_git_read_failed",
             "GitHub private Repository read verification failed",
+            { repositoryId: repositoryIds[0] },
           );
         }
         if (verificationResult) {
@@ -121,6 +122,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     state: started.state,
   });
 
+  timestamp = 1_100;
   await assert.rejects(
     () =>
       service.selectRepositories({
@@ -139,6 +141,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     0,
   );
   assert.equal(service.read()?.health, "healthy");
+  assert.equal(service.read()?.verified_at, 1_100);
 
   failSelection = false;
   connectionFailure = new GitHubConnectionError(
@@ -202,6 +205,9 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       error instanceof GitHubConnectionError &&
       error.code === "github_repository_identity_conflict",
   );
+  assert.equal(service.read()?.health, "healthy");
+  assert.equal(service.read()?.health_error, null);
+  assert.equal(service.read()?.verified_at, 2_000);
   assert.equal(
     core.get("SELECT count(*) AS count FROM repositories")?.count,
     1,
@@ -274,7 +280,6 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     ),
     /private-key-value|Iv1\.client/,
   );
-
   core.run(
     "UPDATE repositories SET lifecycle = 'disabled' WHERE id = ?",
     "repository-alpha",
@@ -313,9 +318,12 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     now: () => timestamp,
     async verifyForgeRepository(forgeRepositoryId) {
       try {
-        await service.selectRepositories({
-          repository_ids: [forgeRepositoryId],
-        });
+        await service.selectRepositories(
+          {
+            repository_ids: [forgeRepositoryId],
+          },
+          "enablement",
+        );
       } catch (error) {
         if (
           error instanceof GitHubConnectionError &&
@@ -384,7 +392,6 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     code: "github_private_git_read_failed",
     message: "GitHub private Repository read verification failed",
   });
-
   repositoryInventory.destroy();
   service.destroy();
   core.close();

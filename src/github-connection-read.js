@@ -41,17 +41,22 @@ export function readGitHubConnection(durableCore) {
         }
       : null;
   if (
-    row.health === "error" &&
-    (typeof healthError?.code !== "string" ||
-      typeof healthError.message !== "string")
+    (row.health === "healthy" &&
+      (row.health_error_code !== null || row.health_error_message !== null)) ||
+    (row.health === "error" &&
+      (typeof healthError?.code !== "string" ||
+        healthError.code.length === 0 ||
+        typeof healthError.message !== "string" ||
+        healthError.message.length === 0))
   ) {
     throw new TypeError("GitHub Connection health error is invalid");
   }
   const history = durableCore
     .all(
       `SELECT
-         id, trigger, api_profile, principal_id, principal_login,
-         permissions, capabilities, repositories, verified_at
+         id, trigger, outcome, error_code, error_message, api_profile,
+         principal_id, principal_login, permissions, capabilities,
+         repositories, verified_at
        FROM github_connection_verifications
        WHERE connection_id = ?
        ORDER BY verified_at, id`,
@@ -62,6 +67,9 @@ export function readGitHubConnection(durableCore) {
         !verification ||
         typeof verification.id !== "string" ||
         typeof verification.trigger !== "string" ||
+        !["success", "error"].includes(
+          /** @type {string} */ (verification.outcome),
+        ) ||
         typeof verification.api_profile !== "string" ||
         !Number.isSafeInteger(verification.principal_id) ||
         typeof verification.principal_login !== "string" ||
@@ -72,10 +80,33 @@ export function readGitHubConnection(durableCore) {
       ) {
         throw new TypeError("GitHub Connection Verification row is invalid");
       }
+      const error =
+        verification.outcome === "error"
+          ? {
+              code: verification.error_code,
+              message: verification.error_message,
+            }
+          : null;
+      if (
+        (verification.outcome === "success" &&
+          (verification.error_code !== null ||
+            verification.error_message !== null)) ||
+        (verification.outcome === "error" &&
+          (typeof error?.code !== "string" ||
+            error.code.length === 0 ||
+            typeof error.message !== "string" ||
+            error.message.length === 0))
+      ) {
+        throw new TypeError(
+          "GitHub Connection Verification outcome is invalid",
+        );
+      }
       return {
         api_profile: verification.api_profile,
         capabilities: JSON.parse(verification.capabilities),
+        error,
         id: verification.id,
+        outcome: verification.outcome,
         permissions: JSON.parse(verification.permissions),
         principal: {
           id: verification.principal_id,

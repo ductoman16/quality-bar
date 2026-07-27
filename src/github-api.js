@@ -261,6 +261,7 @@ export function createGitHubVerifier({
        *   private: boolean
        * }[]} */
       const repositories = [];
+      const repositoryIdsSeen = new Set();
       for (let page = 1; ; page += 1) {
         const collection = object(
           await request(
@@ -297,6 +298,7 @@ export function createGitHubVerifier({
           if (
             !repository ||
             !Number.isSafeInteger(repository.id) ||
+            repositoryIdsSeen.has(repository.id) ||
             fullName !==
               `${installationPrincipal.login}/${fullName.split("/")[1] ?? ""}` ||
             owner.id !== installationPrincipal.id ||
@@ -311,6 +313,7 @@ export function createGitHubVerifier({
               "GitHub Repository identity is invalid or outside the personal account",
             );
           }
+          repositoryIdsSeen.add(/** @type {number} */ (repository.id));
           repositories.push({
             api_url: apiUrl,
             clone_url: cloneUrl,
@@ -363,15 +366,15 @@ export function createGitHubVerifier({
         const repositoryPath = `/repos/${repository.full_name}`;
         await request(`${repositoryPath}/pulls?per_page=1&state=all`, {
           authorization: token,
-          repositoryAccess: true,
+          repositoryId: repository.id,
         });
         await request(`${repositoryPath}/branches?per_page=1`, {
           authorization: token,
-          repositoryAccess: true,
+          repositoryId: repository.id,
         });
         await request(`${repositoryPath}/issues?per_page=1&state=all`, {
           authorization: token,
-          repositoryAccess: true,
+          repositoryId: repository.id,
         });
         try {
           await verifyGit(
@@ -380,10 +383,10 @@ export function createGitHubVerifier({
             { followRedirects: false },
           );
         } catch (cause) {
-          fail(
-            "github_private_git_read_failed",
-            "GitHub private Repository read verification failed",
-            cause,
+          throw new GitHubConnectionError(
+            "github_git_verification_failed",
+            "GitHub Repository Git verification could not complete",
+            { cause, repositoryId: repository.id },
           );
         }
       }
@@ -408,9 +411,25 @@ export function createGitHubVerifier({
       const verification = await verifier.verifyInstallation(
         credential,
         installationId,
-        repositoryIds,
       );
-      return verification.repositories;
+      const repositories = verification.repositories.filter(({ id }) =>
+        repositoryIds.includes(id),
+      );
+      const repositoryIdsFound = new Set(repositories.map(({ id }) => id));
+      if (
+        repositories.length !== repositoryIds.length ||
+        repositoryIds.some((id) => !repositoryIdsFound.has(id))
+      ) {
+        const repositoryId = repositoryIds.find(
+          (id) => !repositoryIdsFound.has(id),
+        );
+        throw new GitHubConnectionError(
+          "github_repository_selection_unavailable",
+          "Selected GitHub Repository is not accessible to the Connection",
+          { repositoryId },
+        );
+      }
+      return repositories;
     },
   };
   return verifier;

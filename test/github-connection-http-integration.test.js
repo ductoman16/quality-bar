@@ -221,3 +221,51 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
   assert.equal(replay.status, 200);
   assert.equal(await replay.json(), null);
 });
+
+test("transient GitHub Repository verification failures retain their exact owning error and unavailable status", async () => {
+  for (const failure of [
+    new GitHubConnectionError(
+      "github_api_transient_failure",
+      "GitHub API request temporarily failed with HTTP 503",
+    ),
+    new GitHubConnectionError(
+      "github_git_verification_failed",
+      "GitHub Repository Git verification could not complete",
+    ),
+  ]) {
+    const { request } = await startApplication({
+      createGitHubConnections: () => ({
+        read() {
+          return null;
+        },
+        start() {
+          return {};
+        },
+        async completeManifest() {
+          throw new Error("not used");
+        },
+        async completeInstallation() {
+          throw new Error("not used");
+        },
+        async selectRepositories() {
+          throw failure;
+        },
+        recordCallbackFailure() {
+          return "not-used";
+        },
+        consumeCallbackFailure() {
+          return null;
+        },
+        destroy() {},
+      }),
+    });
+    const headers = await authenticatedOperatorHeaders(request);
+    const response = await request("/api/v1/github-connections/repositories", {
+      body: JSON.stringify({ repository_ids: [101] }),
+      headers,
+      method: "POST",
+    });
+    assert.equal(response.status, 503);
+    assert.equal(await responseErrorCode(response), failure.code);
+  }
+});

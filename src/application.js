@@ -231,9 +231,12 @@ export function createApplication({
         now,
         async verifyForgeRepository(forgeRepositoryId) {
           try {
-            await githubConnections.selectRepositories({
-              repository_ids: [forgeRepositoryId],
-            });
+            await githubConnections.selectRepositories(
+              {
+                repository_ids: [forgeRepositoryId],
+              },
+              "enablement",
+            );
           } catch (error) {
             if (
               error instanceof GitHubConnectionError &&

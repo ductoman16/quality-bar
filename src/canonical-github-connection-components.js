@@ -84,77 +84,129 @@ export function canonicalGitHubConnectionSchemas() {
       },
       ["repository_ids"],
     ),
-    GitHubConnectionVerification: closedObject(
-      {
-        api_profile: { const: "github-rest:2026-03-10", type: "string" },
-        capabilities: {
-          $ref: "#/components/schemas/GitHubCapabilityEvidence",
-        },
-        id: { minLength: 1, type: "string" },
-        permissions: { $ref: "#/components/schemas/GitHubPermissions" },
-        principal: { $ref: "#/components/schemas/GitHubPrincipal" },
-        repositories: {
-          items: { $ref: "#/components/schemas/GitHubRepositoryEvidence" },
-          minItems: 1,
-          type: "array",
-        },
-        trigger: { const: "onboarding", type: "string" },
-        verified_at: { minimum: 0, type: "integer" },
-      },
-      [
-        "api_profile",
-        "capabilities",
-        "id",
-        "permissions",
-        "principal",
-        "repositories",
-        "trigger",
-        "verified_at",
-      ],
-    ),
-    GitHubConnection: closedObject(
-      {
-        api_profile: { const: "github-rest:2026-03-10", type: "string" },
-        app_id: { minimum: 1, type: "integer" },
-        app_slug: { minLength: 1, type: "string" },
-        capabilities: {
-          $ref: "#/components/schemas/GitHubCapabilityEvidence",
-        },
-        health: { enum: ["healthy", "error"], type: "string" },
-        health_error: {
-          oneOf: [
-            { $ref: "#/components/schemas/GitHubConnectionHealthError" },
-            { type: "null" },
-          ],
-        },
-        id: { minLength: 1, type: "string" },
-        permissions: { $ref: "#/components/schemas/GitHubPermissions" },
-        principal: { $ref: "#/components/schemas/GitHubPrincipal" },
-        repository_count: { minimum: 1, type: "integer" },
-        verification_history: {
-          items: {
-            $ref: "#/components/schemas/GitHubConnectionVerification",
+    GitHubConnectionVerification: {
+      ...closedObject(
+        {
+          api_profile: { const: "github-rest:2026-03-10", type: "string" },
+          capabilities: {
+            $ref: "#/components/schemas/GitHubCapabilityEvidence",
           },
-          minItems: 1,
-          type: "array",
+          error: {
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubConnectionHealthError" },
+              { type: "null" },
+            ],
+          },
+          id: { minLength: 1, type: "string" },
+          outcome: { enum: ["success", "error"], type: "string" },
+          permissions: { $ref: "#/components/schemas/GitHubPermissions" },
+          principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+          repositories: {
+            items: { $ref: "#/components/schemas/GitHubRepositoryEvidence" },
+            minItems: 1,
+            type: "array",
+          },
+          trigger: {
+            enum: ["onboarding", "repository_selection", "enablement"],
+            type: "string",
+          },
+          verified_at: { minimum: 0, type: "integer" },
         },
-        verified_at: { minimum: 0, type: "integer" },
-      },
-      [
-        "api_profile",
-        "app_id",
-        "app_slug",
-        "capabilities",
-        "health",
-        "health_error",
-        "id",
-        "permissions",
-        "principal",
-        "repository_count",
-        "verification_history",
-        "verified_at",
+        [
+          "api_profile",
+          "capabilities",
+          "error",
+          "id",
+          "outcome",
+          "permissions",
+          "principal",
+          "repositories",
+          "trigger",
+          "verified_at",
+        ],
+      ),
+      oneOf: [
+        {
+          properties: {
+            error: { type: "null" },
+            outcome: { const: "success" },
+          },
+          required: ["error", "outcome"],
+        },
+        {
+          properties: {
+            error: {
+              $ref: "#/components/schemas/GitHubConnectionHealthError",
+            },
+            outcome: { const: "error" },
+          },
+          required: ["error", "outcome"],
+        },
       ],
-    ),
+    },
+    GitHubConnection: {
+      ...closedObject(
+        {
+          api_profile: { const: "github-rest:2026-03-10", type: "string" },
+          app_id: { minimum: 1, type: "integer" },
+          app_slug: { minLength: 1, type: "string" },
+          capabilities: {
+            $ref: "#/components/schemas/GitHubCapabilityEvidence",
+          },
+          health: { enum: ["healthy", "error"], type: "string" },
+          health_error: {
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubConnectionHealthError" },
+              { type: "null" },
+            ],
+          },
+          id: { minLength: 1, type: "string" },
+          permissions: { $ref: "#/components/schemas/GitHubPermissions" },
+          principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+          repository_count: { minimum: 1, type: "integer" },
+          verification_history: {
+            items: {
+              $ref: "#/components/schemas/GitHubConnectionVerification",
+            },
+            minItems: 1,
+            type: "array",
+          },
+          verified_at: { minimum: 0, type: "integer" },
+        },
+        [
+          "api_profile",
+          "app_id",
+          "app_slug",
+          "capabilities",
+          "health",
+          "health_error",
+          "id",
+          "permissions",
+          "principal",
+          "repository_count",
+          "verification_history",
+          "verified_at",
+        ],
+      ),
+      oneOf: [
+        {
+          properties: {
+            health: { const: "healthy" },
+            health_error: { type: "null" },
+          },
+          required: ["health", "health_error"],
+        },
+        {
+          properties: {
+            health: { const: "error" },
+            health_error: {
+              $ref: "#/components/schemas/GitHubConnectionHealthError",
+            },
+          },
+          required: ["health", "health_error"],
+        },
+      ],
+    },
     GitHubManifestStart: closedObject(
       {
         action: {

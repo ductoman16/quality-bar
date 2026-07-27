@@ -20,7 +20,7 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
   /** @type {any[]} */
   const requests = [];
   let duplicateEnumeration = false;
-  let repositoryAccessFailure = false;
+  let repositoryAccessStatus = 0;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -142,8 +142,8 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
         "/repos/operator/public/pulls",
       ].includes(url.pathname)
     ) {
-      if (repositoryAccessFailure) {
-        response.statusCode = 404;
+      if (repositoryAccessStatus) {
+        response.statusCode = repositoryAccessStatus;
         send({ message: "not found" });
         return;
       }
@@ -234,9 +234,17 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       options: { followRedirects: false },
       url: "https://github.com/operator/private.git",
     },
+    {
+      credential: {
+        token: "installation-token-value",
+        username: "x-access-token",
+      },
+      options: { followRedirects: false },
+      url: "https://github.com/operator/public.git",
+    },
   ]);
   gitReads.length = 0;
-  repositoryAccessFailure = true;
+  repositoryAccessStatus = 404;
   await assert.rejects(
     () => verifier.verifyRepositories(credential, 73, [101]),
     (error) =>
@@ -244,13 +252,21 @@ test("GitHub fixture verifies the pinned profile, personal installation, exact p
       error.code === "github_repository_api_access_failed",
   );
   assert.deepEqual(gitReads, []);
-  repositoryAccessFailure = false;
+  repositoryAccessStatus = 503;
+  await assert.rejects(
+    () => verifier.verifyRepositories(credential, 73, [101]),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_api_transient_failure",
+  );
+  assert.deepEqual(gitReads, []);
+  repositoryAccessStatus = 0;
   duplicateEnumeration = true;
   await assert.rejects(
     () => verifier.verifyRepositories(credential, 73, [101, 202]),
     (error) =>
       error instanceof GitHubConnectionError &&
-      error.code === "github_repository_selection_unavailable",
+      error.code === "github_repository_identity_invalid",
   );
   assert.deepEqual(gitReads, []);
   assert.equal(
