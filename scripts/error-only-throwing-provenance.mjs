@@ -24,6 +24,7 @@ const repositoryConstructors = new Map(
     "src/operator-password.js": ["OperatorPasswordError"],
     "src/request-security.js": ["RequestSecurityError"],
     "src/review-validation.js": ["ReviewError"],
+    "src/storage-reserve.js": ["StorageReserveError"],
   }).map(([path, names]) => [resolve(repositoryRoot, path), new Set(names)]),
 );
 

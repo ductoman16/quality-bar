@@ -17,6 +17,7 @@ import {
   REQUIRED_FREE_SPACE_BYTES,
   STATE_PATH,
   validateInstallationEnvironment,
+  validateInstallationFilesystem,
 } from "../src/installation-environment.js";
 
 const ownedPaths = [STATE_PATH, CODEX_HOME_PATH, CHECKOUTS_PATH, BACKUPS_PATH];
@@ -181,6 +182,26 @@ test("holds a real SQLite exclusive installation lock until it is released", () 
   const second = acquireInstallationLock(createLock);
   second();
   rmSync(directory, { force: true, recursive: true });
+});
+
+test("startup enforces the configured reserve on state and checkout filesystems", () => {
+  const filesystem = createFilesystem({ bavail: 6 * 1024 ** 2 });
+
+  assert.throws(
+    () =>
+      validateInstallationFilesystem({
+        createLock: filesystem.createLock,
+        filesystem,
+        reserveBytes: 7 * 1024 ** 3,
+      }),
+    (error) =>
+      error instanceof InstallationEnvironmentError &&
+      error.code === "storage_reserve_unavailable" &&
+      /** @type {any} */ (error).filesystem === "state" &&
+      /** @type {any} */ (error).path === "/var/lib/quality-bar" &&
+      /** @type {any} */ (error).available_bytes === 6 * 1024 ** 3 &&
+      /** @type {any} */ (error).reserve_bytes === 7 * 1024 ** 3,
+  );
 });
 
 for (const [name, input, code] of /** @type {[

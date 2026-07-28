@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -280,6 +281,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",

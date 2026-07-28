@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import {
   CONFIGURATION_PATH,
+  DEFAULT_FREE_SPACE_RESERVE_BYTES,
   MASTER_KEY_PATH,
 } from "./installation-configuration.js";
 
@@ -23,7 +24,7 @@ export const CODEX_HOME_PATH = `${STATE_PATH}/codex-home`;
 export const CHECKOUTS_PATH = "/var/cache/quality-bar/checkouts";
 export const BACKUPS_PATH = "/var/backups/quality-bar";
 export const INSTALLATION_LOCK_PATH = `${STATE_PATH}/installation.lock`;
-export const REQUIRED_FREE_SPACE_BYTES = 5 * 1024 ** 3;
+export const REQUIRED_FREE_SPACE_BYTES = DEFAULT_FREE_SPACE_RESERVE_BYTES;
 export const BUNDLED_GIT_VERSION = "2.54.0";
 export const BUNDLED_CODEX_VERSION = "0.145.0";
 
@@ -135,9 +136,9 @@ function validateOwnedReadOnlyFile(filesystem, path) {
 /**
  * @param {InstallationFilesystem} filesystem
  * @param {string} path
- * @param {boolean} requireReserve
+ * @param {number | null} reserveBytes
  */
-function validateFilesystem(filesystem, path, requireReserve) {
+function validateFilesystem(filesystem, path, reserveBytes) {
   let facts;
   try {
     facts = filesystem.statfs(path);
@@ -163,14 +164,30 @@ function validateFilesystem(filesystem, path, requireReserve) {
   if (!LOCAL_FILESYSTEM_TYPES.has(facts.type)) {
     fail("filesystem_unsupported", "A required filesystem is not local");
   }
-  if (
-    requireReserve &&
-    BigInt(facts.bsize) * BigInt(facts.bavail) <
-      BigInt(REQUIRED_FREE_SPACE_BYTES)
-  ) {
-    fail(
-      "storage_reserve_unavailable",
-      "A required filesystem is below the free-space reserve",
+  if (reserveBytes !== null) {
+    const available = BigInt(facts.bsize) * BigInt(facts.bavail);
+    if (available > BigInt(Number.MAX_SAFE_INTEGER)) {
+      fail(
+        "filesystem_unsupported",
+        "A required filesystem has unsupported free-space facts",
+      );
+    }
+    const availableBytes = Number(available);
+    if (availableBytes >= reserveBytes) {
+      return;
+    }
+    const filesystem = path === STATE_PATH ? "state" : "checkouts";
+    throw Object.assign(
+      new InstallationEnvironmentError(
+        "storage_reserve_unavailable",
+        `The ${filesystem} filesystem at ${path} has ${availableBytes} bytes available with ${reserveBytes} bytes reserved`,
+      ),
+      {
+        available_bytes: availableBytes,
+        filesystem,
+        path,
+        reserve_bytes: reserveBytes,
+      },
     );
   }
 }
@@ -328,13 +345,18 @@ export function validateInstallationSources({
 /**
  * @param {{
  *   createLock?: (path: string) => InstallationLock,
- *   filesystem?: InstallationFilesystem
+ *   filesystem?: InstallationFilesystem,
+ *   reserveBytes?: number
  * }} [options]
  */
 export function validateInstallationFilesystem({
   createLock = createInstallationLock,
   filesystem = createFilesystem(),
+  reserveBytes = REQUIRED_FREE_SPACE_BYTES,
 } = {}) {
+  if (!Number.isSafeInteger(reserveBytes) || reserveBytes <= 0) {
+    throw new TypeError("free-space reserve is invalid");
+  }
   for (const path of [
     STATE_PATH,
     CODEX_HOME_PATH,
@@ -348,13 +370,13 @@ export function validateInstallationFilesystem({
   try {
     for (const [
       path,
-      requireReserve,
-    ] of /** @type {Array<[string, boolean]>} */ ([
-      [STATE_PATH, true],
-      [CHECKOUTS_PATH, true],
-      [BACKUPS_PATH, false],
+      filesystemReserve,
+    ] of /** @type {Array<[string, number | null]>} */ ([
+      [STATE_PATH, reserveBytes],
+      [CHECKOUTS_PATH, reserveBytes],
+      [BACKUPS_PATH, null],
     ])) {
-      validateFilesystem(filesystem, path, requireReserve);
+      validateFilesystem(filesystem, path, filesystemReserve);
       validateDurableWriteSemantics(filesystem, path);
     }
   } catch (error) {
@@ -394,17 +416,20 @@ export function validateBundledToolsAndCodexLogin({
  * @param {{
  *   createLock?: (path: string) => InstallationLock,
  *   filesystem?: InstallationFilesystem,
+ *   reserveBytes?: number,
  *   runTool?: ToolRunner
  * }} [options]
  */
 export function validateInstallationEnvironment({
   createLock = createInstallationLock,
   filesystem = createFilesystem(),
+  reserveBytes = REQUIRED_FREE_SPACE_BYTES,
   runTool = runBundledTool,
 } = {}) {
   const installation = validateInstallationFilesystem({
     createLock,
     filesystem,
+    reserveBytes,
   });
   try {
     validateBundledToolsAndCodexLogin({ runTool });

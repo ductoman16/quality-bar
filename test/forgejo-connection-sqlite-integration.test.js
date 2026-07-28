@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,6 +26,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   assert.equal(core.facts.schemaVersion, 21);
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
       return () => ids.shift();
@@ -146,6 +148,7 @@ test("SQLite keeps the active Forgejo PAT when replacement verification fails", 
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let timestamp = 1_000;
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -281,6 +284,7 @@ test("SQLite atomically activates a replacement PAT only after every enabled For
   ];
   const masterKey = Buffer.alloc(32, 4);
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",

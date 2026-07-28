@@ -163,10 +163,11 @@ export function createSystemResource(
      * @param {{
      *   browserSessions: { isBootstrapped: () => boolean },
      *   codex: { error?: string, status: string },
-     *   implementerToken: { status: string }
+     *   implementerToken: { status: string },
+     *   storage: unknown
      * }} facts
      */
-    readFacts({ browserSessions, codex, implementerToken }) {
+    readFacts({ browserSessions, codex, implementerToken, storage }) {
       const timestamp = now();
       if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
         throw new TypeError(
@@ -198,6 +199,7 @@ export function createSystemResource(
           status: "ready",
         },
         implementer_token: implementerToken,
+        storage,
       };
     },
     /** @param {{ cursor?: string, limit?: string }} query */

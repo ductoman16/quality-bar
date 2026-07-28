@@ -64,8 +64,17 @@ test("loads the one complete configuration source and external installation key"
   const installation = load();
 
   assert.equal(installation.externalOrigin, "http://127.0.0.1:3000");
+  assert.equal(installation.freeSpaceReserveBytes, 5 * 1024 ** 3);
   assert.deepEqual(installation.trustedProxyAddresses, []);
   assert.equal(installation.masterKey.equals(Buffer.alloc(32, 7)), true);
+});
+
+test("loads an exact configured free-space reserve without clamping", () => {
+  const installation = load({
+    configuration: `${validConfiguration}\nQUALITY_BAR_FREE_SPACE_RESERVE_BYTES=7516192768`,
+  });
+
+  assert.equal(installation.freeSpaceReserveBytes, 7 * 1024 ** 3);
 });
 
 for (const [name, input, code] of [
@@ -83,6 +92,11 @@ for (const [name, input, code] of [
     "an unknown configuration value",
     `${validConfiguration}\nQUALITY_BAR_UNUSED=value`,
     "configuration_unknown",
+  ],
+  [
+    "a malformed free-space reserve",
+    `${validConfiguration}\nQUALITY_BAR_FREE_SPACE_RESERVE_BYTES=5GiB`,
+    "configuration_malformed",
   ],
   [
     "a malformed external origin",

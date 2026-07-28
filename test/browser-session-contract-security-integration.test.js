@@ -7,6 +7,7 @@ import {
   startApplication,
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /**
  * @typedef {{
@@ -315,6 +316,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
     durable_core: { schema_version: 21, status: "ready" },
     implementer_token: { status: "active" },
+    storage: availableStorageReserve.readFacts(),
   });
 
   const attributions = await fetch(

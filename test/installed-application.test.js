@@ -6,6 +6,7 @@ import { createInstalledApplication } from "../src/installed-application.js";
 function installation() {
   return {
     externalOrigin: "http://127.0.0.1:3000",
+    freeSpaceReserveBytes: 5 * 1024 ** 3,
     masterKey: Buffer.alloc(32, 7),
     trustedProxyAddresses: [],
   };
@@ -70,8 +71,9 @@ test("pre-migration finalization precedes the initial daily backup and next chec
         },
       });
     },
-    validateInstallation() {
+    validateInstallation(options) {
       events.push("validate-installation");
+      assert.deepEqual(options, { reserveBytes: 5 * 1024 ** 3 });
       return { releaseInstallationLock() {} };
     },
     validateSources() {

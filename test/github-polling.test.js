@@ -10,8 +10,8 @@ import {
   createGitHubPollingService,
 } from "../src/github-polling.js";
 import { openDurableCore } from "../src/durable-core.js";
-import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
 import { readGitHubPollingFailure } from "../src/github-polling-read.js";
+import { createAvailableGitHubPollingRunner as createGitHubPollingRunner } from "./storage-reserve-support.js";
 
 /** @param {number} number */
 function pullRequest(number) {

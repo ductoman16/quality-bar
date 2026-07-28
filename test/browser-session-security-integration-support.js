@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
 /**
@@ -42,9 +43,11 @@ export async function startApplication(
   } = {},
 ) {
   const application = createApplication({
+    createStorageReserve: () => availableStorageReserve,
     databasePath,
     loadInstallation: () => ({
       externalOrigin,
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses,
     }),

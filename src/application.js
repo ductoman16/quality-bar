@@ -12,6 +12,7 @@ import {
 import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
+  removeExpiredBrowserSessions,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import { requireCodedError } from "./coded-error.js";
@@ -51,114 +52,20 @@ import {
   createUnavailableWaiverAdjudicatorConfigurationService,
   createWaiverAdjudicatorConfigurationService,
 } from "./waiver-adjudicator-configuration.js";
+import { createStorageReserveGate } from "./storage-reserve.js";
+import {
+  createHardStorageBoundary,
+  structuredLog,
+} from "./application-runtime.js";
 
-const CODEX_TERMINATION_GRACE_MS = 5_000;
+/** @typedef {ReturnType<typeof requireCodedError>} CodedError */
+
 const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
   "github_private_git_read_failed",
   "github_repository_api_access_failed",
   "github_repository_git_read_failed",
   "github_repository_selection_unavailable",
 ]);
-
-/**
- * @typedef {ReturnType<typeof requireCodedError>} CodedError
- */
-/**
- * @param {(line: string) => unknown} writeLog
- * @param {string} severity
- * @param {string} event
- * @param {string} component
- * @param {string} outcome
- * @param {CodedError} [error]
- */
-function structuredLog(writeLog, severity, event, component, outcome, error) {
-  const record = /** @type {{
-   *   component: string,
-   *   detail?: string,
-   *   error?: string,
-   *   event: string,
-   *   outcome: string,
-   *   severity: string,
-   *   timestamp: string
-   * }} */ ({
-    timestamp: new Date().toISOString(),
-    severity,
-    event,
-    component,
-    outcome,
-  });
-  if (error) {
-    record.error = error.code;
-    record.detail = error.message;
-  }
-  writeLog(`${JSON.stringify(record)}\n`);
-}
-
-/** @param {(line: string) => unknown} writeLog */
-function createHardStorageBoundary(writeLog) {
-  const workers = new AbortController();
-  const codexProcesses = new Set(
-    /** @type {import("node:child_process").ChildProcess[]} */ ([]),
-  );
-  /** @type {CodedError | null} */
-  let failure = null;
-
-  /** @param {import("node:child_process").ChildProcess} childProcess */
-  function terminateCodexProcess(childProcess) {
-    if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
-      return;
-    }
-    childProcess.kill("SIGTERM");
-    const forceKill = setTimeout(() => {
-      if (childProcess.exitCode === null && childProcess.signalCode === null) {
-        childProcess.kill("SIGKILL");
-      }
-    }, CODEX_TERMINATION_GRACE_MS);
-    forceKill.unref();
-    childProcess.once("exit", () => clearTimeout(forceKill));
-  }
-
-  return {
-    signal: workers.signal,
-    get failure() {
-      return failure;
-    },
-    /** @param {CodedError} error */
-    enter(error) {
-      if (failure) {
-        return;
-      }
-      failure = error;
-      workers.abort(error);
-      for (const childProcess of codexProcesses) {
-        terminateCodexProcess(childProcess);
-      }
-      structuredLog(
-        writeLog,
-        "error",
-        "storage_unavailable",
-        "storage",
-        "failure",
-        error,
-      );
-    },
-    /** @param {import("node:child_process").ChildProcess} childProcess */
-    registerCodexProcess(childProcess) {
-      if (
-        typeof childProcess?.kill !== "function" ||
-        typeof childProcess?.once !== "function"
-      ) {
-        throw new TypeError("a running child process is required");
-      }
-      if (failure) {
-        terminateCodexProcess(childProcess);
-        return;
-      }
-      codexProcesses.add(childProcess);
-      childProcess.once("exit", () => codexProcesses.delete(childProcess));
-    },
-  };
-}
 
 /**
  * @param {{
@@ -174,6 +81,7 @@ function createHardStorageBoundary(writeLog) {
  *   createForgejoConnections?: (...arguments_: any[]) => any,
  *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
  *   createWaiverAdjudicatorConfiguration?: typeof createWaiverAdjudicatorConfigurationService,
+ *   createStorageReserve?: typeof createStorageReserveGate,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -192,6 +100,7 @@ export function createApplication({
   createForgejoConnections = createForgejoConnectionService,
   createRepositoryGuidance = createRepositoryGuidanceService,
   createWaiverAdjudicatorConfiguration = createWaiverAdjudicatorConfigurationService,
+  createStorageReserve = createStorageReserveGate,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -201,6 +110,7 @@ export function createApplication({
   }
 
   const storageBoundary = createHardStorageBoundary(writeLog);
+  /** @type {ReturnType<typeof openDurableCore> | null} */
   let durableCore = null;
   let browserSessions = null;
   let implementerTokens = null;
@@ -215,6 +125,7 @@ export function createApplication({
   let repositoryGuidance = null;
   let waiverAdjudicatorConfiguration = null;
   let systemResource = null;
+  let storageReserve = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
   let codexCapabilityFailure = null;
@@ -229,7 +140,18 @@ export function createApplication({
     browserOrigin = installation.externalOrigin;
     requestSecurity = createRequestSecurityBoundary(installation);
     secureBrowserCookie = installation.externalOrigin.startsWith("https:");
-    ({ releaseInstallationLock } = validateInstallation());
+    ({ releaseInstallationLock } = validateInstallation({
+      reserveBytes: installation.freeSpaceReserveBytes,
+    }));
+    storageReserve = createStorageReserve({
+      cleanupEligibleData() {
+        if (!durableCore) {
+          throw new TypeError("durable core is required for storage cleanup");
+        }
+        removeExpiredBrowserSessions(durableCore, { now });
+      },
+      reserveBytes: installation.freeSpaceReserveBytes,
+    });
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(requireCodedError(error));
@@ -241,10 +163,12 @@ export function createApplication({
         externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
+        storageReserve,
       });
       forgejoConnections = createForgejoConnections(durableCore, {
         masterKey: installation.masterKey,
         now,
+        storageReserve,
       });
       forgejoConnections.requireFreshBaseline();
       repositories = createRepositories(durableCore, {
@@ -367,7 +291,7 @@ export function createApplication({
     waiverAdjudicatorConfiguration,
     readDurableCoreStatus,
     readSystemStatus: () => {
-      if (!systemResource) {
+      if (!systemResource || !storageReserve) {
         throw startupFailure;
       }
       return {
@@ -379,6 +303,7 @@ export function createApplication({
           implementerToken: implementerTokens?.hasActiveToken()
             ? { status: "active" }
             : { status: "revoked" },
+          storage: storageReserve.readFacts(),
         }),
       };
     },
@@ -432,9 +357,29 @@ export function createApplication({
         : { status: "available" };
     },
     workerSignal: storageBoundary.signal,
-    /** @param {import("node:child_process").ChildProcess} childProcess */
-    registerCodexProcess(childProcess) {
+    /** @param {() => unknown} admit */
+    admitWork(admit) {
+      if (typeof admit !== "function") {
+        throw new TypeError("work admission transition is required");
+      }
+      if (!storageReserve) {
+        throw startupFailure;
+      }
+      storageReserve.assertWorkAdmissionAvailable();
+      return admit();
+    },
+    /** @param {() => import("node:child_process").ChildProcess} start */
+    startCodexProcess(start) {
+      if (typeof start !== "function") {
+        throw new TypeError("Codex start transition is required");
+      }
+      if (!storageReserve) {
+        throw startupFailure;
+      }
+      storageReserve.assertCodexStartAvailable();
+      const childProcess = start();
       storageBoundary.registerCodexProcess(childProcess);
+      return childProcess;
     },
     freezeWaiverAdjudicatorConfiguration() {
       return waiverAdjudicatorConfiguration.freezeForAdjudication();

@@ -129,6 +129,28 @@ function hasExpired(session, timestamp) {
 
 /**
  * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {{now?: () => number}} [options]
+ */
+export function removeExpiredBrowserSessions(
+  durableCore,
+  { now = () => Date.now() } = {},
+) {
+  if (!durableCore) {
+    throw new TypeError("durableCore is required");
+  }
+  const timestamp = currentTimestamp(now);
+  return durableCore.transaction((transaction) =>
+    transaction.run(
+      `DELETE FROM browser_sessions
+        WHERE created_at <= ? OR last_authenticated_at <= ?`,
+      timestamp - BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
+      timestamp - BROWSER_SESSION_IDLE_LIFETIME_MS,
+    ),
+  );
+}
+
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
  * @param {{
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,

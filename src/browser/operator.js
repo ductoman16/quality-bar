@@ -302,18 +302,19 @@ fetch("/api/v1/system")
      *     status: string
      *   },
      *   durable_core: { status: string },
-     *   implementer_token: { status: string }
+     *   implementer_token: { status: string },
+     *   storage: unknown
      * }} */ (await response.json());
-    if (
-      document.getElementById("review-create-form") ||
-      document.getElementById("waiver-adjudicator-configuration-form")
-    ) {
-      document.dispatchEvent(
-        new CustomEvent("quality-bar:system-loaded", {
-          detail: { catalog: system.codex.catalog, csrfCookieName },
-        }),
-      );
-    }
+    document.dispatchEvent(
+      new CustomEvent("quality-bar:system-loaded", {
+        detail: {
+          catalog: system.codex.catalog,
+          codex: system.codex,
+          csrfCookieName,
+          storage: system.storage,
+        },
+      }),
+    );
     if (systemFacts) {
       const codexModels = system.codex.catalog.models
         .map(
@@ -341,11 +342,6 @@ fetch("/api/v1/system")
         ". Implementer token: " +
         system.implementer_token.status +
         ".";
-    }
-    const attention = document.getElementById("attention");
-    if (system.codex.status === "unavailable" && attention) {
-      attention.hidden = false;
-      attention.textContent = "Codex unavailable";
     }
   })
   .catch((failure) => {

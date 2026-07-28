@@ -4,10 +4,14 @@ import { isIP } from "node:net";
 
 export const CONFIGURATION_PATH = "/etc/quality-bar/config.env";
 export const MASTER_KEY_PATH = "/run/secrets/quality-bar-master-key";
+export const DEFAULT_FREE_SPACE_RESERVE_BYTES = 5 * 1024 ** 3;
 
 const REQUIRED_CONFIGURATION_KEYS = new Set([
   "QUALITY_BAR_EXTERNAL_ORIGIN",
   "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES",
+]);
+const OPTIONAL_CONFIGURATION_KEYS = new Set([
+  "QUALITY_BAR_FREE_SPACE_RESERVE_BYTES",
 ]);
 const INSTALLATION_KEY_VERIFIER = "quality-bar-installation-key-v1";
 const INSTALLATION_KEY_VERIFIER_METADATA_KEY = "installation_key_verifier";
@@ -75,7 +79,10 @@ function parseConfiguration(source) {
     if (entries.has(key)) {
       fail("configuration_duplicate", "Configuration has a duplicate key");
     }
-    if (!REQUIRED_CONFIGURATION_KEYS.has(key)) {
+    if (
+      !REQUIRED_CONFIGURATION_KEYS.has(key) &&
+      !OPTIONAL_CONFIGURATION_KEYS.has(key)
+    ) {
       fail("configuration_unknown", "Configuration has an unknown key");
     }
     entries.set(key, value);
@@ -90,6 +97,24 @@ function parseConfiguration(source) {
     }
   }
   return entries;
+}
+
+/** @param {string | undefined} value */
+function parseFreeSpaceReserve(value) {
+  if (value === undefined) {
+    return DEFAULT_FREE_SPACE_RESERVE_BYTES;
+  }
+  if (
+    !/^[1-9]\d*$/.test(value) ||
+    !Number.isSafeInteger(Number(value)) ||
+    Number(value) <= 0
+  ) {
+    fail(
+      "configuration_malformed",
+      "Configuration has a malformed free-space reserve",
+    );
+  }
+  return Number(value);
 }
 
 /** @param {unknown} value */
@@ -214,6 +239,9 @@ export function loadInstallationConfiguration({
   const trustedProxyAddresses = parseTrustedProxyAddresses(
     entries.get("QUALITY_BAR_TRUSTED_PROXY_ADDRESSES"),
   );
+  const freeSpaceReserveBytes = parseFreeSpaceReserve(
+    entries.get("QUALITY_BAR_FREE_SPACE_RESERVE_BYTES"),
+  );
   validateNetworkConfiguration(origin, trustedProxyAddresses);
   const masterKey = parseMasterKey(
     readRequiredFile(
@@ -227,6 +255,7 @@ export function loadInstallationConfiguration({
 
   return {
     externalOrigin: origin.origin,
+    freeSpaceReserveBytes,
     masterKey,
     trustedProxyAddresses,
   };
