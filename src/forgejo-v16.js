@@ -1,21 +1,26 @@
 import { verifyRepositoryRead } from "./repository-git.js";
+import {
+  beginForgejoCapabilityEvidence,
+  createForgejoVerificationEvidence,
+  throwWithForgejoEvidence,
+  VERIFIED_FORGEJO_AUTHORITIES,
+} from "./forgejo-v16-evidence.js";
+import {
+  forgejoRepository as repository,
+  forgejoRepositoryOwner as repositoryOwner,
+  requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
+} from "./forgejo-v16-repository.js";
 
 const PROFILE = "forgejo-v16";
-const REQUIRED_SCOPES = new Set([
-  "read:repository",
-  "write:issue",
-  "write:repository",
-]);
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
-  ["/user", "get", "200"],
-  ["/user/repos", "get", "200"],
+  ["/repos/search", "get", "200"],
   ["/repos/{owner}/{repo}", "get", "200"],
   ["/repos/{owner}/{repo}/branches", "get", "200"],
   ["/repos/{owner}/{repo}/pulls", "get", "200"],
   ["/repos/{owner}/{repo}/issues/comments", "get", "200"],
   ["/repos/{owner}/{repo}/statuses/{sha}", "post", "201"],
   ["/repos/{owner}/{repo}/issues/{index}/comments", "post", "201"],
-  ["/repos/{owner}/{repo}/pulls/{index}/comments", "post", "201"],
+  ["/repos/{owner}/{repo}/pulls/{index}/reviews", "post", "200"],
 ]);
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
@@ -41,114 +46,19 @@ function string(value, message) {
   return value;
 }
 
-/** @param {string | null} value */
-function scopes(value) {
-  const parsed = new Set(
-    (value ?? "")
-      .split(",")
-      .map((scope) => scope.trim())
-      .filter(Boolean),
-  );
-  if (
-    parsed.size !== REQUIRED_SCOPES.size ||
-    [...REQUIRED_SCOPES].some((scope) => !parsed.has(scope))
-  ) {
-    fail(
-      "forgejo_scopes_mismatch",
-      "Forgejo PAT scopes do not match the required v16 profile",
-    );
-  }
-  return [...parsed].sort();
-}
-
 /** @param {unknown} value */
 function version(value) {
   const reported = string(
     object(value)?.version,
     "Forgejo version response is invalid",
   );
-  if (!/^16\.\d+\.\d+$/.test(reported)) {
+  if (!/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(reported)) {
     fail(
       "forgejo_version_unsupported",
       "Forgejo Connection requires stable v16.x",
     );
   }
   return reported;
-}
-
-/** @param {unknown} value */
-function principal(value) {
-  const candidate = object(value);
-  const id = candidate?.id;
-  const login = candidate?.login;
-  if (
-    !candidate ||
-    typeof id !== "number" ||
-    !Number.isSafeInteger(id) ||
-    id <= 0 ||
-    typeof login !== "string" ||
-    login.length === 0
-  ) {
-    fail("forgejo_principal_invalid", "Forgejo principal response is invalid");
-  }
-  return { id, login };
-}
-
-/** @param {unknown} value */
-function repository(value) {
-  const candidate = object(value);
-  const permissions = object(candidate?.permissions);
-  const evidence = {
-    api_url: candidate?.url,
-    clone_url: candidate?.clone_url,
-    full_name: candidate?.full_name,
-    html_url: candidate?.html_url,
-    id: candidate?.id,
-    private: candidate?.private,
-  };
-  if (
-    !candidate ||
-    typeof evidence.id !== "number" ||
-    !Number.isSafeInteger(evidence.id) ||
-    evidence.id <= 0 ||
-    !Object.values(evidence).every(
-      (field) =>
-        field !== undefined &&
-        (typeof field === "string" ? field.length > 0 : true),
-    ) ||
-    typeof evidence.private !== "boolean" ||
-    !permissions ||
-    permissions.pull !== true ||
-    permissions.push !== true ||
-    permissions.admin !== true
-  ) {
-    fail(
-      "forgejo_repository_capability_missing",
-      "Forgejo Repository does not have the required v16 authority",
-    );
-  }
-  return /** @type {{api_url: string, clone_url: string, full_name: string, html_url: string, id: number, private: boolean}} */ (
-    evidence
-  );
-}
-
-/** @param {unknown} value @param {number} expectedId */
-function requiredRepositoryAuthority(value, expectedId) {
-  const candidate = object(value);
-  const permissions = object(candidate?.permissions);
-  if (
-    !candidate ||
-    candidate.id !== expectedId ||
-    !permissions ||
-    permissions.pull !== true ||
-    permissions.push !== true ||
-    permissions.admin !== true
-  ) {
-    fail(
-      "forgejo_repository_capability_missing",
-      "Forgejo Repository does not have the required v16 authority",
-    );
-  }
 }
 
 /** @param {unknown} value */
@@ -191,7 +101,7 @@ function routeArray(value, route, field) {
 }
 
 /** @param {string} baseUrl */
-function endpoint(baseUrl) {
+export function normalizedForgejoBaseUrl(baseUrl) {
   let url;
   try {
     url = new URL(baseUrl);
@@ -256,9 +166,11 @@ export function createForgejoV16Verifier({
           "Forgejo verification request is invalid",
         );
       }
-      const origin = endpoint(baseUrl);
+      const origin = normalizedForgejoBaseUrl(baseUrl);
+      const verificationEvidence =
+        createForgejoVerificationEvidence(repositoryIds);
       /** @param {string} path */
-      const get = async (path, enforceScopes = true) => {
+      const get = async (path) => {
         let response;
         try {
           response = await fetchRequest(`${origin}${path}`, {
@@ -275,106 +187,199 @@ export function createForgejoV16Verifier({
             cause,
           );
         }
-        return {
-          body: await responseJson(path, response),
-          scopes: enforceScopes
-            ? scopes(response.headers.get("x-oauth-scopes"))
-            : null,
-        };
+        return { body: await responseJson(path, response) };
       };
-      const versionResponse = await get("/api/v1/version");
-      const reportedVersion = version(versionResponse.body);
-      openApi((await get("/swagger.v1.json", false)).body);
-      const userResponse = await get("/api/v1/user");
-      const verifiedPrincipal = principal(userResponse.body);
+      try {
+        verificationEvidence.reported_version = version(
+          (await get("/api/v1/version")).body,
+        );
+        openApi((await get("/swagger.v1.json")).body);
+        beginForgejoCapabilityEvidence(verificationEvidence);
+      } catch (error) {
+        throwWithForgejoEvidence(error, verificationEvidence);
+      }
+      const capabilityEvidence = verificationEvidence.capabilities;
+      if (!capabilityEvidence) {
+        throw new TypeError("Forgejo capability evidence is invalid");
+      }
       /** @type {ReturnType<typeof repository>[]} */
       const enumerated = [];
       const enumeratedIds = new Set();
-      let scopesFromEnumeration = versionResponse.scopes;
+      /** @type {{id: number, login: string} | undefined} */
+      let verifiedPrincipal;
       for (let page = 1; ; page += 1) {
-        const repositoriesResponse = await get(
-          `/api/v1/user/repos?page=${page}&limit=50`,
-        );
-        if (!Array.isArray(repositoriesResponse.body)) {
-          fail(
-            "forgejo_repository_enumeration_incomplete",
-            "Forgejo Repository enumeration is invalid",
+        try {
+          const repositoriesResponse = await get(
+            `/api/v1/repos/search?page=${page}&limit=50&private=true`,
           );
-        }
-        if (page === 1 && repositoriesResponse.body.length === 0) {
-          fail(
-            "forgejo_repository_enumeration_incomplete",
-            "Forgejo Repository enumeration is empty",
-          );
-        }
-        const pageRepositories = repositoriesResponse.body.map(repository);
-        if (pageRepositories.some(({ id }) => enumeratedIds.has(id))) {
-          fail(
-            "forgejo_repository_enumeration_incomplete",
-            "Forgejo Repository enumeration contains duplicate identities",
-          );
-        }
-        pageRepositories.forEach(({ id }) => enumeratedIds.add(id));
-        enumerated.push(...pageRepositories);
-        scopesFromEnumeration = repositoriesResponse.scopes;
-        if (pageRepositories.length < 50) {
-          break;
+          const search = object(repositoriesResponse.body);
+          if (search?.ok !== true || !Array.isArray(search.data)) {
+            fail(
+              "forgejo_repository_enumeration_incomplete",
+              "Forgejo Repository enumeration is invalid",
+            );
+          }
+          if (page === 1 && search.data.length === 0) {
+            fail(
+              "forgejo_repository_enumeration_incomplete",
+              "Forgejo Repository enumeration is empty",
+            );
+          }
+          const pagePrincipals = search.data.map(repositoryOwner);
+          const pageRepositories = search.data.map(repository);
+          for (const candidate of pagePrincipals) {
+            if (
+              verifiedPrincipal &&
+              (candidate.id !== verifiedPrincipal.id ||
+                candidate.login !== verifiedPrincipal.login)
+            ) {
+              fail(
+                "forgejo_principal_invalid",
+                "Forgejo Repository enumeration spans multiple principals",
+              );
+            }
+            verifiedPrincipal = candidate;
+            verificationEvidence.principal = candidate;
+          }
+          if (pageRepositories.some(({ id }) => enumeratedIds.has(id))) {
+            fail(
+              "forgejo_repository_enumeration_incomplete",
+              "Forgejo Repository enumeration contains duplicate identities",
+            );
+          }
+          pageRepositories.forEach(({ id }) => enumeratedIds.add(id));
+          enumerated.push(...pageRepositories);
+          if (pageRepositories.length < 50) {
+            capabilityEvidence.enumeration = "verified";
+            break;
+          }
+        } catch (error) {
+          capabilityEvidence.enumeration = "error";
+          throwWithForgejoEvidence(error, verificationEvidence);
         }
       }
       if (repositoryIds === undefined) {
         return { repositories: enumerated };
       }
+      if (!verifiedPrincipal) {
+        fail(
+          "forgejo_principal_invalid",
+          "Forgejo principal response is invalid",
+        );
+      }
       const selected = repositoryIds.map((id) =>
         enumerated.find((candidate) => candidate.id === id),
       );
       if (selected.some((candidate) => !candidate)) {
-        fail(
-          "forgejo_repository_selection_unavailable",
-          "Selected Forgejo Repository is not accessible to the Connection",
-        );
+        try {
+          fail(
+            "forgejo_repository_selection_unavailable",
+            "Selected Forgejo Repository is not accessible to the Connection",
+          );
+        } catch (error) {
+          throwWithForgejoEvidence(error, verificationEvidence);
+        }
       }
-      for (const selectedCandidate of selected) {
+      /** @type {any[]} */
+      const repositoryChecks = selected.map((candidate) => ({
+        forge_repository_id: candidate?.id,
+        outcome: "not_completed",
+        permissions: candidate?.permissions,
+      }));
+      verificationEvidence.repositories = repositoryChecks;
+      for (const [index, selectedCandidate] of selected.entries()) {
         const selectedRepository =
           /** @type {NonNullable<typeof selectedCandidate>} */ (
             selectedCandidate
           );
-        const name = selectedRepository.full_name;
-        const encoded = name.split("/").map(encodeURIComponent).join("/");
-        requiredRepositoryAuthority(
-          (await get(`/api/v1/repos/${encoded}`)).body,
-          selectedRepository.id,
-        );
-        const [branches, pulls, comments] = await Promise.all([
-          get(`/api/v1/repos/${encoded}/branches`),
-          get(`/api/v1/repos/${encoded}/pulls?state=open`),
-          get(`/api/v1/repos/${encoded}/issues/comments`),
-        ]);
-        routeArray(branches.body, "branches", "name");
-        routeArray(pulls.body, "pull requests", "number");
-        routeArray(comments.body, "issue comments", "id");
-        await verifyGit(
-          selectedRepository.clone_url,
-          { token, username: "oauth2" },
-          { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
-        );
+        /** @type {string[]} */
+        let activeCapabilities = [];
+        try {
+          const name = selectedRepository.full_name;
+          const encoded = name.split("/").map(encodeURIComponent).join("/");
+          activeCapabilities = [
+            "aggregate_feedback",
+            "commit_status",
+            "inline_feedback",
+          ];
+          requiredRepositoryAuthority(
+            (await get(`/api/v1/repos/${encoded}`)).body,
+            selectedRepository.id,
+          );
+          if (index === selected.length - 1) {
+            capabilityEvidence.commit_status = "verified";
+            capabilityEvidence.inline_feedback = "verified";
+          }
+          activeCapabilities = ["branch_access"];
+          routeArray(
+            (await get(`/api/v1/repos/${encoded}/branches`)).body,
+            "branches",
+            "name",
+          );
+          if (index === selected.length - 1) {
+            capabilityEvidence.branch_access = "verified";
+          }
+          activeCapabilities = ["pull_request_access"];
+          routeArray(
+            (await get(`/api/v1/repos/${encoded}/pulls?state=open`)).body,
+            "pull requests",
+            "number",
+          );
+          if (index === selected.length - 1) {
+            capabilityEvidence.pull_request_access = "verified";
+          }
+          activeCapabilities = ["aggregate_feedback"];
+          routeArray(
+            (await get(`/api/v1/repos/${encoded}/issues/comments`)).body,
+            "issue comments",
+            "id",
+          );
+          if (index === selected.length - 1) {
+            capabilityEvidence.aggregate_feedback = "verified";
+          }
+          activeCapabilities = ["private_git_read"];
+          await verifyGit(
+            selectedRepository.clone_url,
+            { token, username: "oauth2" },
+            { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
+          );
+          if (index === selected.length - 1) {
+            capabilityEvidence.private_git_read = "verified";
+          }
+          repositoryChecks[index] = {
+            ...selectedRepository,
+            outcome: "success",
+          };
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            !("code" in error) ||
+            typeof error.code !== "string"
+          ) {
+            throw error;
+          }
+          for (const capability of activeCapabilities) {
+            capabilityEvidence[capability] = "error";
+          }
+          repositoryChecks[index] = {
+            error: { code: error.code, message: error.message },
+            forge_repository_id: selectedRepository.id,
+            outcome: "error",
+            permissions: selectedRepository.permissions,
+          };
+          throwWithForgejoEvidence(error, verificationEvidence);
+        }
       }
-      const repositoryCapabilities =
-        selected.length === 0 ? "not_completed" : "verified";
+      if (selected.length === 0) {
+        verificationEvidence.repositories = [];
+      }
       return {
-        capabilities: {
-          aggregate_feedback: repositoryCapabilities,
-          branch_access: repositoryCapabilities,
-          commit_status: repositoryCapabilities,
-          enumeration: "verified",
-          inline_feedback: repositoryCapabilities,
-          private_git_read: repositoryCapabilities,
-          pull_request_access: repositoryCapabilities,
-        },
+        capabilities: capabilityEvidence,
         principal: verifiedPrincipal,
         profile: PROFILE,
-        reported_version: reportedVersion,
-        repositories: selected,
-        scopes: scopesFromEnumeration,
+        reported_version: verificationEvidence.reported_version,
+        repositories: repositoryChecks,
+        scopes: [...VERIFIED_FORGEJO_AUTHORITIES],
       };
     },
   };

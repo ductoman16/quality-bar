@@ -19,5 +19,5 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";

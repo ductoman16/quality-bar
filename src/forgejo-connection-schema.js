@@ -1,3 +1,8 @@
+const NORMALIZE_FORGEJO_CONNECTION_IDENTITY = `
+  UPDATE forgejo_connections
+  SET base_url = quality_bar_normalize_forgejo_url(base_url);
+`;
+
 export const FORGEJO_CONNECTION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS forgejo_connections (
     id TEXT PRIMARY KEY,
@@ -10,6 +15,8 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     scopes TEXT NOT NULL CHECK (json_valid(scopes)),
     capabilities TEXT NOT NULL CHECK (json_valid(capabilities)),
     health TEXT NOT NULL CHECK (health IN ('healthy', 'error')),
+    lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired')),
     created_at INTEGER NOT NULL,
     verified_at INTEGER NOT NULL
   ) STRICT;
@@ -63,12 +70,52 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS forgejo_connection_verifications_immutable_delete
     BEFORE DELETE ON forgejo_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'forgejo_connection_delete' AND value = OLD.connection_id
+    )
+    BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
+`;
+
+export const FORGEJO_CONNECTION_LIFECYCLE_MIGRATION = `
+  ALTER TABLE forgejo_connections
+    ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired'));
+  ${NORMALIZE_FORGEJO_CONNECTION_IDENTITY}
+  DROP TRIGGER forgejo_connection_verifications_immutable_update;
+  -- Every pre-v19 success passed the same required admin/pull/push verifier.
+  UPDATE forgejo_connection_verifications
+  SET repositories = (
+    SELECT json_group_array(
+      CASE
+        WHEN json_extract(value, '$.outcome') = 'success'
+          THEN json_set(
+            value,
+            '$.permissions',
+            json('{"admin":true,"pull":true,"push":true}')
+          )
+        ELSE value
+      END
+    )
+    FROM json_each(forgejo_connection_verifications.repositories)
+  );
+  DROP TRIGGER forgejo_connection_verifications_immutable_delete;
+  CREATE TRIGGER forgejo_connection_verifications_immutable_delete
+    BEFORE DELETE ON forgejo_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'forgejo_connection_delete' AND value = OLD.connection_id
+    )
     BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
 `;
 
 export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_update;
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_delete;
+  ${NORMALIZE_FORGEJO_CONNECTION_IDENTITY}
+  ALTER TABLE forgejo_connections
+    ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired'));
   ALTER TABLE forgejo_repositories RENAME TO forgejo_repositories_v17;
   ALTER TABLE forgejo_connection_verifications
     RENAME TO forgejo_connection_verifications_v17;
@@ -96,7 +143,27 @@ export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
     principal,
     scopes,
     capabilities,
-    repositories,
+    COALESCE(
+      (
+        SELECT json_group_array(
+          CASE
+            WHEN json_extract(value, '$.outcome') IS NULL
+              THEN json_set(
+                value,
+                '$.outcome',
+                'success',
+                '$.permissions',
+                json('{"admin":true,"pull":true,"push":true}')
+              )
+            ELSE value
+          END
+        )
+        FROM json_each(
+          forgejo_connection_verifications_v17.repositories
+        )
+      ),
+      '[]'
+    ),
     NULL,
     NULL,
     verified_at

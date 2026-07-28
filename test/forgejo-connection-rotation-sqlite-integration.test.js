@@ -13,6 +13,8 @@ const repository = {
   full_name: "operator/private",
   html_url: "https://forgejo.example/operator/private",
   id: 11,
+  outcome: "success",
+  permissions: { admin: true, pull: true, push: true },
   private: true,
 };
 

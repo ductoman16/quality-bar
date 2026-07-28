@@ -20,9 +20,11 @@ import {
   REPOSITORY_SCHEMA,
 } from "./repository-schema.js";
 import {
+  FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
   FORGEJO_CONNECTION_SCHEMA,
   FORGEJO_VERIFICATION_HISTORY_MIGRATION,
 } from "./forgejo-connection-schema.js";
+import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -92,6 +94,18 @@ export function initializeOrValidateSchema(
   const version = /** @type {{ user_version: number }} */ (
     database.prepare("PRAGMA user_version").get()
   ).user_version;
+  if ([16, 17, 18].includes(version)) {
+    database.function(
+      "quality_bar_normalize_forgejo_url",
+      { deterministic: true, directOnly: true },
+      (baseUrl) => {
+        if (typeof baseUrl !== "string") {
+          fail("schema_invalid", "Stored Forgejo Connection URL is not text");
+        }
+        return normalizedForgejoBaseUrl(baseUrl);
+      },
+    );
+  }
   if (version === 0) {
     const existingTables = database
       .prepare(
@@ -321,15 +335,16 @@ export function initializeOrValidateSchema(
   } else if (version === 15) {
     schemaMigration.migrateSchema(database, GITHUB_POLLING_MIGRATION);
   } else if (version === 16) {
-    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA, 17);
-    schemaMigration.migrateSchema(
-      database,
-      FORGEJO_VERIFICATION_HISTORY_MIGRATION,
-    );
+    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA);
   } else if (version === 17) {
     schemaMigration.migrateSchema(
       database,
       FORGEJO_VERIFICATION_HISTORY_MIGRATION,
+    );
+  } else if (version === 18) {
+    schemaMigration.migrateSchema(
+      database,
+      FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
     );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);

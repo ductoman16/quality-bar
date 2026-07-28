@@ -183,6 +183,7 @@ test("Forgejo Connection read rejects contradictory durable health errors", () =
     health_error_code: null,
     health_error_message: null,
     id: "connection-1",
+    lifecycle: "enabled",
     principal_id: 7,
     principal_login: "operator",
     reported_version: "16.0.4",

@@ -146,7 +146,10 @@ export function createApplicationServer({
     typeof forgejoConnections?.read !== "function" ||
     typeof forgejoConnections.connect !== "function" ||
     typeof forgejoConnections.discover !== "function" ||
-    typeof forgejoConnections.rotate !== "function"
+    typeof forgejoConnections.rotate !== "function" ||
+    typeof forgejoConnections.reactivate !== "function" ||
+    typeof forgejoConnections.retire !== "function" ||
+    typeof forgejoConnections.remove !== "function"
   ) {
     throw new TypeError(
       "forgejoConnections must provide the Forgejo Connection resource",

@@ -8,6 +8,81 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 
+test("SQLite creates the final Forgejo schema directly from v16", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v16-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  prior.run("DROP TABLE forgejo_repositories");
+  prior.run("DROP TABLE forgejo_connection_verifications");
+  prior.run("DROP TABLE forgejo_connection_credentials");
+  prior.run("DROP TABLE forgejo_connections");
+  prior.run(
+    "UPDATE quality_bar_metadata SET value = '16' WHERE key = 'schema_version'",
+  );
+  prior.run("PRAGMA user_version = 16");
+  prior.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 19);
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+       FROM pragma_table_info('forgejo_connections')
+       WHERE name = 'lifecycle'`,
+    ),
+    { name: "lifecycle" },
+  );
+  migrated.close();
+});
+
+test("SQLite preserves non-default Forgejo ports during v18 migration", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v18-port-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+
+  for (const [index, baseUrl, expected] of [
+    [0, "http://FORGEJO.EXAMPLE:443/", "http://forgejo.example:443"],
+    [1, "https://FORGEJO.EXAMPLE:80/", "https://forgejo.example:80"],
+    [2, "http://FORGEJO.EXAMPLE:080/", "http://forgejo.example"],
+    [3, "https://FORGEJO.EXAMPLE:0443/", "https://forgejo.example"],
+    [4, "https://127.1:443/", "https://127.0.0.1"],
+    [5, "https://[0:0::1]:443/", "https://[::1]"],
+    [6, "https://%66orgejo.example:443/", "https://forgejo.example"],
+    [7, "https://forgejo.example:/", "https://forgejo.example"],
+    [8, "  https://forgejo.example:443/  ", "https://forgejo.example"],
+    [9, "https://forgejo.example/./", "https://forgejo.example"],
+  ]) {
+    const databasePath = join(directory, `quality-bar-${index}.sqlite3`);
+    const prior = openDurableCore(databasePath);
+    prior.run("ALTER TABLE forgejo_connections DROP COLUMN lifecycle");
+    prior.run(
+      `INSERT INTO forgejo_connections (
+         id, base_url, api_profile, reported_version, principal_id,
+         principal_login, scopes, capabilities, health, created_at, verified_at
+       ) VALUES (?, ?, 'forgejo-v16', '16.0.4', 7, 'operator', '[]', '{}',
+         'healthy', 1000, 1000)`,
+      `connection-${index}`,
+      baseUrl,
+    );
+    prior.run(
+      "UPDATE quality_bar_metadata SET value = '18' WHERE key = 'schema_version'",
+    );
+    prior.run("PRAGMA user_version = 18");
+    prior.close();
+
+    const migrated = openDurableCore(databasePath);
+    assert.equal(
+      migrated.get("SELECT base_url FROM forgejo_connections")?.base_url,
+      expected,
+    );
+    migrated.close();
+  }
+});
+
 test("SQLite migrates v17 Forgejo verifications into immutable triggered history", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-v17-migration-"),
@@ -36,6 +111,8 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
               full_name: "operator/private",
               html_url: "https://forgejo.example/operator/private",
               id: 11,
+              outcome: "success",
+              permissions: { admin: true, pull: true, push: true },
               private: true,
             },
           ],
@@ -74,6 +151,16 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
       (id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at)
     SELECT id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at
     FROM forgejo_connection_verifications_v18;
+    UPDATE forgejo_connections
+    SET base_url = 'https://FORGEJO.EXAMPLE:443/';
+    ALTER TABLE forgejo_connections DROP COLUMN lifecycle;
+    UPDATE forgejo_connection_verifications
+    SET repositories = (
+      SELECT json_group_array(
+        json_remove(value, '$.outcome', '$.permissions')
+      )
+      FROM json_each(forgejo_connection_verifications.repositories)
+    );
     DROP TABLE forgejo_connection_verifications_v18;
     CREATE TABLE forgejo_repositories (
       repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
@@ -92,7 +179,19 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 18);
+  assert.equal(migrated.facts.schemaVersion, 19);
+  assert.equal(
+    migrated.get(
+      "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",
+    )?.lifecycle,
+    "enabled",
+  );
+  assert.equal(
+    migrated.get(
+      "SELECT base_url FROM forgejo_connections WHERE id = 'connection-1'",
+    )?.base_url,
+    "https://forgejo.example",
+  );
   assert.deepEqual(
     migrated.get(
       `SELECT trigger, error_code, error_message
@@ -100,6 +199,24 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
        WHERE id = 'verification-1'`,
     ),
     { error_code: null, error_message: null, trigger: "onboarding" },
+  );
+  assert.deepEqual(
+    JSON.parse(
+      /** @type {{repositories: string}} */ (
+        migrated.get(
+          "SELECT repositories FROM forgejo_connection_verifications WHERE id = 'verification-1'",
+        )
+      ).repositories,
+    ).map((/** @type {any} */ repository) => ({
+      outcome: repository.outcome,
+      permissions: repository.permissions,
+    })),
+    [
+      {
+        outcome: "success",
+        permissions: { admin: true, pull: true, push: true },
+      },
+    ],
   );
   assert.throws(
     () =>
