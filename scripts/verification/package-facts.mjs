@@ -33,7 +33,7 @@
  *     encryptedVerifier?: boolean,
  *   },
  *   authority?: {
- *     operatorPasswordBootstrap?: boolean,
+ *     bootstrapVerifierProtected?: boolean,
  *     operatorAuthorityRecovery?: {
  *       browserSessionsRevoked?: boolean,
  *       failedLoginDelayCleared?: boolean,
@@ -74,10 +74,14 @@
  *     schemaVersion?: number,
  *   },
  *   restore?: {
+ *     browserSessionsRevoked?: boolean,
+ *     implementerTokenRevoked?: boolean,
+ *     machineAccessDisabled?: boolean,
+ *     newPasswordAuthenticated?: boolean,
  *     status?: string,
  *     snapshotEraFactsPreserved?: boolean,
  *     postBackupFactsAbsent?: boolean,
- *     snapshotPasswordAuthenticated?: boolean,
+ *     snapshotPasswordRejected?: boolean,
  *   },
  * }} PackageFacts
  */
@@ -210,8 +214,8 @@ export function validatePackageFacts(facts, applicationVersion) {
       "configuration.encryptedVerifier must equal true",
     ],
     [
-      packageFacts?.authority?.operatorPasswordBootstrap === true,
-      "authority.operatorPasswordBootstrap must equal true",
+      packageFacts?.authority?.bootstrapVerifierProtected === true,
+      "authority.bootstrapVerifierProtected must equal true",
     ],
     [
       packageFacts?.authority?.operatorAuthorityRecovery
@@ -306,8 +310,12 @@ export function validatePackageFacts(facts, applicationVersion) {
       "restore.postBackupFactsAbsent must equal true",
     ],
     [
-      packageFacts?.restore?.snapshotPasswordAuthenticated === true,
-      "restore.snapshotPasswordAuthenticated must equal true",
+      packageFacts?.restore?.browserSessionsRevoked === true &&
+        packageFacts?.restore?.implementerTokenRevoked === true &&
+        packageFacts?.restore?.machineAccessDisabled === true &&
+        packageFacts?.restore?.newPasswordAuthenticated === true &&
+        packageFacts?.restore?.snapshotPasswordRejected === true,
+      "restore must prove fresh password authority and restored credential invalidation",
     ],
   ];
 

@@ -12,10 +12,15 @@ import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
+import { createBrowserSessionService } from "../src/browser-session.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { createImplementerTokenService } from "../src/implementer-token.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
 import { restoreOfflineBackup } from "../src/offline-restore.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import {
+  bootstrapOperatorPassword,
+  recoverOperatorAuthority,
+} from "../src/operator-password.js";
 import {
   createValidatedBackup,
   installationKeyIdentity,
@@ -38,7 +43,10 @@ async function restoreFixture() {
   const masterKey = Buffer.alloc(32, 7);
   const core = openDurableCore(databasePath);
   verifyInstallationKey(core, masterKey);
-  bootstrapOperatorPassword(core, "the snapshot operator password");
+  const snapshotPassword = "the snapshot operator password";
+  bootstrapOperatorPassword(core, snapshotPassword);
+  createBrowserSessionService(core).login(snapshotPassword);
+  createImplementerTokenService(core).create(snapshotPassword);
   core.close();
   const database = new DatabaseSync(databasePath);
   const backup = await createValidatedBackup({
@@ -57,6 +65,45 @@ async function restoreFixture() {
   const original = readFileSync(databasePath);
   return { backup, databasePath, directory, masterKey, original };
 }
+
+test("authority invalidation failure leaves the pre-restore database authoritative", async () => {
+  const { backup, databasePath, masterKey, original } = await restoreFixture();
+
+  await assert.rejects(
+    restoreOfflineBackup({
+      applicationVersion: "0.1.0",
+      databasePath,
+      manifestPath: backup.manifestPath,
+      masterKey,
+      operatorPassword: "the restored operator password",
+      recoverAuthority(core, password) {
+        core.run(`
+          CREATE TRIGGER reject_restore_session_revocation
+          BEFORE DELETE ON browser_sessions
+          BEGIN
+            SELECT RAISE(ABORT, 'restore_session_revocation_failed');
+          END
+        `);
+        recoverOperatorAuthority(core, password);
+      },
+    }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ERR_SQLITE_ERROR" &&
+      error.message === "restore_session_revocation_failed",
+  );
+
+  assert.deepEqual(readFileSync(databasePath), original);
+  const unchanged = openDurableCore(databasePath);
+  assert.equal(
+    unchanged.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = 'post_backup_fact'",
+    )?.value,
+    "preserved-on-failure",
+  );
+  unchanged.close();
+});
 
 test("a failed fsync leaves the original database authoritative", async () => {
   const { backup, databasePath, directory, masterKey, original } =
@@ -88,6 +135,7 @@ test("a failed fsync leaves the original database authoritative", async () => {
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => error === commitFailure,
   );
@@ -128,6 +176,7 @@ test("a checkpoint storage failure is returned without replacing the target", as
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => error === checkpointFailure,
   );
@@ -159,6 +208,7 @@ test("partial old-state cleanup keeps the durable restored database authoritativ
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => {
       if (
@@ -226,6 +276,7 @@ test("rollback failure retains both databases for operator recovery", async () =
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => {
       if (
@@ -292,6 +343,7 @@ test("rollback directory fsync failure retains the restored candidate", async ()
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => {
       if (

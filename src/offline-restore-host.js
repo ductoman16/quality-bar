@@ -5,6 +5,7 @@ import {
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "./installation-environment.js";
+import { readOperatorPassword } from "./operator-password-bootstrap.js";
 
 const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
 
@@ -17,6 +18,7 @@ const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
  *     masterKey: Buffer,
  *   },
  *   manifestPath: string,
+ *   readPassword?: () => string | Promise<string>,
  *   validateInstallation?: (options: {
  *     reserveBytes: number,
  *   }) => {releaseInstallationLock?: () => void},
@@ -28,6 +30,7 @@ export async function restoreOfflineBackupFromHost({
   databasePath = DATABASE_PATH,
   loadInstallation = loadInstallationConfiguration,
   manifestPath,
+  readPassword = readOperatorPassword,
   validateInstallation = validateInstallationFilesystem,
   validateSources = validateInstallationSources,
 }) {
@@ -41,11 +44,13 @@ export async function restoreOfflineBackupFromHost({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
+    const operatorPassword = await readPassword();
     result = await restoreOfflineBackup({
       applicationVersion: /** @type {string} */ (applicationVersion),
       databasePath,
       manifestPath,
       masterKey: installation.masterKey,
+      operatorPassword,
     });
   } catch (error) {
     primaryFailure = error;

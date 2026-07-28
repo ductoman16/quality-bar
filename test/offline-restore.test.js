@@ -53,6 +53,7 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
   const databasePath = join(directory, "quality-bar.sqlite3");
   const masterKey = Buffer.alloc(32, 7);
   const oldPassword = "the old operator password";
+  const restoredPassword = "the restored operator password";
   const core = openDurableCore(databasePath);
   verifyInstallationKey(core, masterKey);
   bootstrapOperatorPassword(core, oldPassword);
@@ -137,6 +138,7 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
     databasePath,
     manifestPath: backup.manifestPath,
     masterKey,
+    operatorPassword: restoredPassword,
   });
 
   assert.deepEqual(restored, {
@@ -150,13 +152,13 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
   ]);
   assert.equal(
     restoredCore.get("SELECT count(*) AS count FROM browser_sessions")?.count,
-    1,
+    0,
   );
   assert.equal(
-    typeof restoredCore.get(
+    restoredCore.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'implementer_token_verifier'",
-    )?.value,
-    "string",
+    ),
+    undefined,
   );
   assert.deepEqual(
     restoredCore.all(
@@ -186,6 +188,48 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
       },
     ],
   );
-  verifyOperatorPassword(restoredCore, oldPassword);
+  verifyOperatorPassword(restoredCore, restoredPassword);
+  assert.throws(
+    () => verifyOperatorPassword(restoredCore, oldPassword),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "authentication_invalid",
+  );
   restoredCore.close();
+});
+
+test("restores a pre-bootstrap snapshot with the newly supplied password", async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-restore-pre-bootstrap-"),
+  );
+  temporaryDirectories.push(directory);
+  const backupsPath = join(directory, "backups");
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const masterKey = Buffer.alloc(32, 7);
+  const restoredPassword = "the restored operator password";
+  const core = openDurableCore(databasePath);
+  verifyInstallationKey(core, masterKey);
+  core.close();
+  const backupSource = new DatabaseSync(databasePath);
+  const backup = await createValidatedBackup({
+    applicationVersion: "0.1.0",
+    backupsPath,
+    database: backupSource,
+    keyIdentity: installationKeyIdentity(masterKey),
+    kind: "daily",
+  });
+  backupSource.close();
+
+  await restoreOfflineBackup({
+    applicationVersion: "0.1.0",
+    databasePath,
+    manifestPath: backup.manifestPath,
+    masterKey,
+    operatorPassword: restoredPassword,
+  });
+
+  const restored = openDurableCore(databasePath);
+  verifyOperatorPassword(restored, restoredPassword);
+  restored.close();
 });

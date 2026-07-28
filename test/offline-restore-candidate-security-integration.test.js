@@ -169,6 +169,7 @@ test("the copied candidate is revalidated before migration-capable access", asyn
       databasePath: input.databasePath,
       manifestPath: input.backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -191,6 +192,7 @@ test("a current-version snapshot missing required schema cannot replace the targ
       databasePath: input.databasePath,
       manifestPath: input.backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -216,6 +218,7 @@ test(
         databasePath: input.databasePath,
         manifestPath: input.backup.manifestPath,
         masterKey: input.masterKey,
+        operatorPassword: "a replacement operator password",
       }),
       (error) =>
         error instanceof Error &&
@@ -258,6 +261,7 @@ test("a current-version snapshot with changed deferred foreign-key semantics can
       databasePath: input.databasePath,
       manifestPath: input.backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -296,6 +300,7 @@ test("a snapshot with a foreign-key violation cannot replace the target", async 
       databasePath: input.databasePath,
       manifestPath: input.backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -340,6 +345,7 @@ test("a copied candidate with a foreign-key violation cannot replace the target"
       databasePath: input.databasePath,
       manifestPath: input.backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -359,6 +365,7 @@ test("a validated snapshot replaces an unreadable stopped target", async () => {
     databasePath: input.databasePath,
     manifestPath: input.backup.manifestPath,
     masterKey: input.masterKey,
+    operatorPassword: "a replacement operator password",
   });
 
   const restored = openDurableCore(input.databasePath);
@@ -376,6 +383,7 @@ test("a validated snapshot replaces a missing stopped target", async () => {
     databasePath: input.databasePath,
     manifestPath: input.backup.manifestPath,
     masterKey: input.masterKey,
+    operatorPassword: "a replacement operator password",
   });
 
   assert.equal(existsSync(input.databasePath), true);
@@ -403,6 +411,7 @@ test("a compatible current schema produced by migration remains restorable", asy
     databasePath: input.databasePath,
     manifestPath: input.backup.manifestPath,
     masterKey: input.masterKey,
+    operatorPassword: "a replacement operator password",
   });
 
   const restored = openDurableCore(input.databasePath);

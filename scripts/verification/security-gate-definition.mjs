@@ -7,6 +7,7 @@ export const SECURITY_INTEGRATION_GATE = {
     "--test",
     "test/backup-security-integration.test.js",
     "test/offline-restore-candidate-security-integration.test.js",
+    "test/offline-restore-authority-security-integration.test.js",
     "test/offline-restore-connection-security-integration.test.js",
     "test/offline-restore-migrated-schema-security-integration.test.js",
     "test/offline-restore-security-integration.test.js",

@@ -65,6 +65,7 @@ test("wrong installation key leaves the stopped database unchanged", async () =>
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: Buffer.alloc(32, 8),
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -94,6 +95,7 @@ test("a forged manifest key identity cannot replace snapshot key authentication"
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: replacementKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -129,6 +131,7 @@ test("an undecryptable preserved credential leaves the stopped database unchange
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -155,6 +158,7 @@ test("a corrupt snapshot fails before target mutation", async () => {
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -197,6 +201,7 @@ test("incompatible application or schema version leaves the target unavailable a
         databasePath: input.databasePath,
         manifestPath: backup.manifestPath,
         masterKey: input.masterKey,
+        operatorPassword: "a replacement operator password",
       }),
       (error) =>
         error instanceof Error &&
@@ -221,6 +226,7 @@ test("malformed restore identity and manifest fail before candidate creation", a
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     TypeError,
   );
@@ -240,6 +246,7 @@ test("malformed restore identity and manifest fail before candidate creation", a
         databasePath: input.databasePath,
         manifestPath: backup.manifestPath,
         masterKey: input.masterKey,
+        operatorPassword: "a replacement operator password",
       }),
       (error) =>
         error instanceof Error &&
@@ -254,6 +261,7 @@ test("malformed restore identity and manifest fail before candidate creation", a
       databasePath: input.databasePath,
       manifestPath: backup.manifestPath,
       masterKey: input.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -276,6 +284,7 @@ test("missing or manifest-disagreeing snapshot fails with its exact diagnostic",
       databasePath: missingInput.databasePath,
       manifestPath: missingBackup.manifestPath,
       masterKey: missingInput.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error && "code" in error && error.code === "ENOENT",
@@ -296,6 +305,7 @@ test("missing or manifest-disagreeing snapshot fails with its exact diagnostic",
       databasePath: mismatchInput.databasePath,
       manifestPath: mismatchBackup.manifestPath,
       masterKey: mismatchInput.masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) =>
       error instanceof Error &&
@@ -321,12 +331,17 @@ test("the host forwards the configured reserve and clears the loaded key", async
     code: "installation_locked",
   });
   let receivedReserveBytes;
+  let passwordWasRead = false;
 
   await assert.rejects(
     restoreOfflineBackupFromHost({
       applicationVersion: "0.1.0",
       loadInstallation: () => ({ freeSpaceReserveBytes, masterKey }),
       manifestPath: "/var/backups/quality-bar/snapshot.json",
+      readPassword() {
+        passwordWasRead = true;
+        return "a replacement operator password";
+      },
       validateInstallation({ reserveBytes }) {
         receivedReserveBytes = reserveBytes;
         throw lockFailure;
@@ -337,6 +352,7 @@ test("the host forwards the configured reserve and clears the loaded key", async
   );
 
   assert.equal(receivedReserveBytes, freeSpaceReserveBytes);
+  assert.equal(passwordWasRead, false);
   assert.deepEqual(masterKey, Buffer.alloc(32));
 });
 
@@ -352,6 +368,7 @@ test("lock release failure cannot replace the owning restore diagnostic", async 
         masterKey,
       }),
       manifestPath: "/missing/restore-manifest.json",
+      readPassword: () => "a replacement operator password",
       validateInstallation: () => ({
         releaseInstallationLock() {
           throw releaseFailure;

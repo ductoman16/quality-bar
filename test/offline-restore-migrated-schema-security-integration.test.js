@@ -122,6 +122,7 @@ test("restores a compatible current snapshot produced by the genuine v6 migratio
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     });
 
     const restored = openDurableCore(databasePath);
