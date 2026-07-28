@@ -25,7 +25,7 @@ function retryAfterAt(value, attemptedAt) {
     : null;
 }
 
-/** @param {string} code @param {string} message @param {{cause?: unknown, nextAttemptAt?: number, repositoryId: number}} details @returns {never} */
+/** @param {string} code @param {string} message @param {{cause?: unknown, nextAttemptAt?: number, rateGateUntil?: number, repositoryId: number}} details @returns {never} */
 function fail(code, message, details) {
   const error = Object.assign(
     new Error(
@@ -36,6 +36,9 @@ function fail(code, message, details) {
   );
   if (details.nextAttemptAt !== undefined) {
     Object.assign(error, { nextAttemptAt: details.nextAttemptAt });
+  }
+  if (details.rateGateUntil !== undefined) {
+    Object.assign(error, { rateGateUntil: details.rateGateUntil });
   }
   throw error;
 }
@@ -116,6 +119,7 @@ export function createForgejoV16PullRequestReader({
             "Forgejo pull-request polling was rate limited",
             {
               nextAttemptAt: providerNextAttemptAt ?? attemptedAt + 60_000,
+              rateGateUntil: providerNextAttemptAt ?? attemptedAt + 60_000,
               repositoryId: selectedRepository.id,
             },
           );
@@ -153,6 +157,9 @@ export function createForgejoV16PullRequestReader({
               ? {}
               : {
                   nextAttemptAt: providerNextAttemptAt ?? attemptedAt + 60_000,
+                  ...(providerNextAttemptAt === null
+                    ? {}
+                    : { rateGateUntil: providerNextAttemptAt }),
                 }),
             repositoryId: selectedRepository.id,
           },

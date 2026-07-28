@@ -71,6 +71,8 @@ export function readForgejoPollingGate(durableCore, connectionId) {
     typeof value.message !== "string" ||
     (value.nextAttemptAt !== null &&
       !Number.isSafeInteger(value.nextAttemptAt)) ||
+    (value.rateGateUntil !== null &&
+      !Number.isSafeInteger(value.rateGateUntil)) ||
     (value.repositoryId !== null && !Number.isSafeInteger(value.repositoryId))
   ) {
     throw new TypeError("Forgejo polling failure is invalid");
@@ -79,7 +81,7 @@ export function readForgejoPollingGate(durableCore, connectionId) {
     error: { code: value.code, message: value.message },
     forge_repository_id: value.repositoryId,
     next_attempt_at: value.nextAttemptAt,
-    rate_gate_until: value.nextAttemptAt,
+    rate_gate_until: value.rateGateUntil,
   };
 }
 

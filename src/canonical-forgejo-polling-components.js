@@ -63,15 +63,9 @@ export const forgejoPollingState = {
       properties: {
         baseline_status: { const: "pending" },
         error: { type: "null" },
-        last_success_at: { type: "null" },
         next_attempt_at: { minimum: 0, type: "integer" },
       },
-      required: [
-        "baseline_status",
-        "error",
-        "last_success_at",
-        "next_attempt_at",
-      ],
+      required: ["baseline_status", "error", "next_attempt_at"],
     },
     {
       properties: {

@@ -40,7 +40,7 @@ function codedFailure(error) {
     typeof error.code === "string" &&
     error.code.length > 0
   ) {
-    return /** @type {Error & {code: string, nextAttemptAt?: number, repositoryId?: number}} */ (
+    return /** @type {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} */ (
       error
     );
   }
@@ -99,6 +99,8 @@ export function createForgejoPollingService(
       typeof value.message !== "string" ||
       (value.nextAttemptAt !== null &&
         !Number.isSafeInteger(value.nextAttemptAt)) ||
+      (value.rateGateUntil !== null &&
+        !Number.isSafeInteger(value.rateGateUntil)) ||
       (value.repositoryId !== null && !Number.isSafeInteger(value.repositoryId))
     ) {
       throw new TypeError("Forgejo polling gate is invalid");
@@ -180,7 +182,7 @@ export function createForgejoPollingService(
   /**
    * @param {string} connectionId
    * @param {number[]} forgeRepositoryIds
-   * @param {Error & {code: string, nextAttemptAt?: number, repositoryId?: number}} failure
+   * @param {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} failure
    * @param {number} attemptedAt
    * @param {boolean} baseline
    */
@@ -220,7 +222,7 @@ export function createForgejoPollingService(
           baseline ? 1 : 0,
           failure.code,
           failure.message,
-          failure.nextAttemptAt ?? null,
+          failure.rateGateUntil ?? null,
           nextAttemptAt,
           connectionId,
           forgeRepositoryId,
@@ -234,6 +236,7 @@ export function createForgejoPollingService(
           code: failure.code,
           message: failure.message,
           nextAttemptAt,
+          rateGateUntil: failure.rateGateUntil ?? null,
           repositoryId: failure.repositoryId ?? null,
         }),
       );

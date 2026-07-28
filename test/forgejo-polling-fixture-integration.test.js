@@ -120,6 +120,8 @@ test("Forgejo polling fixture preserves Retry-After without a hidden fallback", 
       error.code === "forgejo_api_rate_limited" &&
       "nextAttemptAt" in error &&
       error.nextAttemptAt === 121_000 &&
+      "rateGateUntil" in error &&
+      error.rateGateUntil === 121_000 &&
       "repositoryId" in error &&
       error.repositoryId === 101,
   );
@@ -152,7 +154,9 @@ test("Forgejo polling fixture preserves transient seconds and date gates", async
         "code" in error &&
         error.code === "forgejo_api_transient_failure" &&
         "nextAttemptAt" in error &&
-        error.nextAttemptAt === expected,
+        error.nextAttemptAt === expected &&
+        "rateGateUntil" in error &&
+        error.rateGateUntil === expected,
     );
   }
 });
@@ -213,7 +217,8 @@ test("Forgejo polling fixture rejects invalid requests and transport", async () 
       "code" in error &&
       error.code === "forgejo_api_unavailable" &&
       "nextAttemptAt" in error &&
-      error.nextAttemptAt === 61_000,
+      error.nextAttemptAt === 61_000 &&
+      !("rateGateUntil" in error),
   );
 });
 

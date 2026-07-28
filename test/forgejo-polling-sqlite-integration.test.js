@@ -140,6 +140,7 @@ test("SQLite polling preserves the last Forgejo success through an exact rate ga
   failure = Object.assign(new Error("Forgejo polling rate limited"), {
     code: "forgejo_api_rate_limited",
     nextAttemptAt: 125_000,
+    rateGateUntil: 125_000,
     repositoryId: 11,
   });
   await service.runPolling();
