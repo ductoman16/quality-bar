@@ -102,9 +102,12 @@ export function readForgejoConnection(durableCore) {
   ) {
     throw new TypeError("Forgejo Connection row is invalid");
   }
+  const pollingGate = readForgejoPollingGate(durableCore, row.id);
   const healthError =
     row.health === "error"
-      ? { code: row.health_error_code, message: row.health_error_message }
+      ? row.health_error_code === null
+        ? pollingGate?.error
+        : { code: row.health_error_code, message: row.health_error_message }
       : null;
   if (
     (row.health === "healthy" &&
@@ -144,6 +147,8 @@ export function readForgejoConnection(durableCore) {
     health_error: healthError,
     id: row.id,
     lifecycle: row.lifecycle,
+    polling: readForgejoPollingStates(durableCore, row.id),
+    polling_failure: readForgejoPollingFailure(durableCore, row.id),
     principal: { id: row.principal_id, login: row.principal_login },
     reported_version: row.reported_version,
     scopes: jsonValue(row.scopes, "scopes"),
@@ -152,3 +157,8 @@ export function readForgejoConnection(durableCore) {
   };
 }
 import { verifiedForgejoRepositoryEvidence } from "./forgejo-repository-check.js";
+import {
+  readForgejoPollingFailure,
+  readForgejoPollingGate,
+  readForgejoPollingStates,
+} from "./forgejo-polling-read.js";

@@ -15,6 +15,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  prior.run("DROP TABLE forgejo_repository_polls");
   prior.run("DROP TABLE forgejo_repositories");
   prior.run("DROP TABLE forgejo_connection_verifications");
   prior.run("DROP TABLE forgejo_connection_credentials");
@@ -26,7 +27,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 20);
+  assert.equal(migrated.facts.schemaVersion, 21);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -34,6 +35,113 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
        WHERE name = 'lifecycle'`,
     ),
     { name: "lifecycle" },
+  );
+  migrated.close();
+});
+
+test("SQLite restore migration requires a fresh Forgejo baseline before polling", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v19-polling-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const current = openDurableCore(databasePath);
+  const service = createForgejoConnectionService(current, {
+    createId: (() => {
+      const ids = ["connection-1", "verification-1", "repository-1"];
+      return () => ids.shift();
+    })(),
+    masterKey: Buffer.alloc(32, 19),
+    now: () => 1_000,
+    verifier: {
+      async listPullRequests() {
+        return [];
+      },
+      async verify() {
+        return {
+          capabilities: { private_git_read: "verified" },
+          principal: { id: 7, login: "operator" },
+          profile: "forgejo-v16",
+          reported_version: "16.0.4",
+          repositories: [
+            {
+              api_url: "https://forgejo.example/api/v1/repos/operator/private",
+              clone_url: "https://forgejo.example/operator/private.git",
+              full_name: "operator/private",
+              html_url: "https://forgejo.example/operator/private",
+              id: 11,
+              outcome: "success",
+              permissions: { admin: true, pull: true, push: true },
+              private: true,
+            },
+          ],
+          scopes: ["read:repository", "write:issue", "write:repository"],
+        };
+      },
+    },
+  });
+  await service.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11],
+    token: "pat",
+  });
+  service.destroy();
+  current.run("DROP TABLE forgejo_repository_polls");
+  current.run(
+    "UPDATE quality_bar_metadata SET value = '19' WHERE key = 'schema_version'",
+  );
+  current.run("PRAGMA user_version = 19");
+  current.close();
+
+  const restored = openDurableCore(databasePath);
+  assert.deepEqual(
+    restored.get(
+      `SELECT baseline_status, last_success_at, error_code,
+              next_attempt_at, snapshot
+         FROM forgejo_repository_polls`,
+    ),
+    {
+      baseline_status: "pending",
+      error_code: null,
+      last_success_at: null,
+      next_attempt_at: 0,
+      snapshot: null,
+    },
+  );
+  restored.close();
+});
+
+test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v20-polling-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const canonicalV20 = openDurableCore(databasePath);
+  canonicalV20.run("DROP TABLE forgejo_repository_polls");
+  canonicalV20.run(
+    "UPDATE quality_bar_metadata SET value = '20' WHERE key = 'schema_version'",
+  );
+  canonicalV20.run("PRAGMA user_version = 20");
+  canonicalV20.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 21);
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+         FROM sqlite_schema
+        WHERE type = 'table' AND name = 'forgejo_repository_polls'`,
+    ),
+    { name: "forgejo_repository_polls" },
+  );
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+         FROM sqlite_schema
+        WHERE type = 'table' AND name = 'waiver_adjudicator_configuration'`,
+    ),
+    { name: "waiver_adjudicator_configuration" },
   );
   migrated.close();
 });
@@ -98,6 +206,9 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
     masterKey: Buffer.alloc(32, 5),
     now: () => 1_000,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify() {
         return {
           capabilities: { private_git_read: "verified" },
@@ -179,7 +290,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 20);
+  assert.equal(migrated.facts.schemaVersion, 21);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",

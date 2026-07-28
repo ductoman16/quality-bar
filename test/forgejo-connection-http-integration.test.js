@@ -42,6 +42,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   const { request } = await startApplication({
     createForgejoConnections() {
       return {
+        requireFreshBaseline() {},
         async discover(/** @type {unknown} */ input) {
           calls.push(input);
           return [
@@ -83,6 +84,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
               },
               id: "forgejo-connection",
               lifecycle: "enabled",
+              polling: [],
+              polling_failure: null,
               principal: { id: 7, login: "operator" },
               reported_version: "16.0.4",
               scopes: ["read:repository", "write:issue", "write:repository"],
@@ -104,6 +107,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "enabled",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -129,6 +134,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "enabled",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -154,6 +161,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "retired",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -172,6 +181,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             );
           }
         },
+        startPolling() {},
         destroy() {},
         read() {
           return current;
@@ -218,6 +228,39 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   const read = await request("/api/v1/forgejo-connections", { headers });
   assert.equal(read.status, 200);
   assert.equal(await read.json(), null);
+  current = {
+    api_profile: "forgejo-v16",
+    base_url: "https://forgejo.example",
+    capabilities: {},
+    health: "healthy",
+    health_error: null,
+    id: "forgejo-connection",
+    lifecycle: "enabled",
+    polling: [
+      {
+        baseline_status: "pending",
+        error: null,
+        forge_repository_id: 11,
+        last_success_at: 1_000,
+        next_attempt_at: 0,
+        rate_gate_until: null,
+      },
+    ],
+    polling_failure: null,
+    principal: { id: 7, login: "operator" },
+    reported_version: "16.0.4",
+    scopes: ["read:repository", "write:issue", "write:repository"],
+    verification_history: verificationHistory,
+    verified_at: 1_000,
+  };
+  const pendingRead = await request("/api/v1/forgejo-connections", {
+    headers,
+  });
+  assert.equal(pendingRead.status, 200);
+  assert.equal(
+    /** @type {any} */ (await pendingRead.json()).polling[0].last_success_at,
+    1_000,
+  );
   const query = await request("/api/v1/forgejo-connections?unexpected=true", {
     headers,
   });

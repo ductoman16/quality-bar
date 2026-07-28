@@ -15,6 +15,8 @@ import {
   createForgejoV16Verifier,
   normalizedForgejoBaseUrl,
 } from "./forgejo-v16.js";
+import { createForgejoPollingRunner } from "./forgejo-polling-runner.js";
+import { prepareForgejoRepositoryEnablement } from "./forgejo-repository-enablement.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -75,7 +77,7 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, verifier?: {verify: (input: any) => Promise<any>}}} options
+ * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
@@ -91,7 +93,8 @@ export function createForgejoConnectionService(
     typeof durableCore.transaction !== "function" ||
     typeof createId !== "function" ||
     typeof now !== "function" ||
-    typeof verifier?.verify !== "function"
+    typeof verifier?.verify !== "function" ||
+    typeof verifier.listPullRequests !== "function"
   ) {
     throw new TypeError("Forgejo Connection dependencies are invalid");
   }
@@ -109,6 +112,11 @@ export function createForgejoConnectionService(
     }
     cipher.decrypt(row.connection_id, row.encrypted_credential);
   }
+  const polling = createForgejoPollingRunner(durableCore, {
+    cipher,
+    timestamp: now,
+    verifier,
+  });
   return {
     read() {
       return readForgejoConnection(durableCore);
@@ -136,6 +144,15 @@ export function createForgejoConnectionService(
       ) {
         throw new TypeError("Forgejo Connection identity is invalid");
       }
+      const preparedBaseline = await polling.prepareBaseline(
+        { base_url: selected.baseUrl, id },
+        selected.token,
+        verification.repositories.map((/** @type {any} */ repository) => ({
+          full_name: repository.full_name,
+          id: repository.id,
+        })),
+        { recordFailure: false },
+      );
       const encrypted = cipher.encrypt(id, selected.token);
       try {
         durableCore.transaction((transaction) => {
@@ -196,6 +213,7 @@ export function createForgejoConnectionService(
               repository.html_url,
             );
           }
+          polling.commitBaseline(transaction, id, preparedBaseline);
         });
       } catch (error) {
         if (
@@ -230,10 +248,21 @@ export function createForgejoConnectionService(
           createId,
           durableCore,
           now,
+          polling,
           read: () => this.read(),
           verifier,
         },
         input,
+      );
+    },
+    /** @param {number} forgeRepositoryId */
+    async prepareRepositoryEnablement(forgeRepositoryId) {
+      return prepareForgejoRepositoryEnablement(
+        durableCore,
+        cipher,
+        verifier,
+        polling,
+        forgeRepositoryId,
       );
     },
     /** @param {unknown} input */
@@ -244,6 +273,7 @@ export function createForgejoConnectionService(
           createId,
           durableCore,
           now,
+          polling,
           readConnection: () => this.read(),
           verifier,
         },
@@ -257,7 +287,11 @@ export function createForgejoConnectionService(
     remove() {
       removeNeverUsedForgejoConnection(durableCore);
     },
+    runPolling: polling.runDue,
+    requireFreshBaseline: polling.requireFreshBaseline,
+    startPolling: polling.start,
     destroy() {
+      polling.destroy();
       cipher.destroy();
     },
   };
@@ -278,6 +312,9 @@ export function unavailableForgejoConnectionService(error) {
     async rotate() {
       throw error;
     },
+    async prepareRepositoryEnablement() {
+      throw error;
+    },
     async reactivate() {
       throw error;
     },
@@ -287,6 +324,13 @@ export function unavailableForgejoConnectionService(error) {
     remove() {
       throw error;
     },
+    async runPolling() {
+      throw error;
+    },
+    requireFreshBaseline() {
+      throw error;
+    },
+    startPolling() {},
     destroy() {},
   };
 }

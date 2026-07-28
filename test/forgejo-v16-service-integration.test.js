@@ -210,6 +210,37 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       connected.verification_history[0].repositories[0].outcome,
       "success",
     );
+    await api(
+      baseUrl,
+      "/api/v1/repos/operator/private/branches",
+      `token ${setupToken}`,
+      {
+        new_branch_name: "quality-bar-polling",
+        old_branch_name: repository.default_branch,
+      },
+    );
+    await api(
+      baseUrl,
+      "/api/v1/repos/operator/private/contents/polling-proof.txt",
+      `token ${setupToken}`,
+      {
+        branch: "quality-bar-polling",
+        content: Buffer.from("polling proof\n").toString("base64"),
+        message: "Add polling proof",
+      },
+    );
+    const pullRequest = /** @type {any} */ (
+      await api(
+        baseUrl,
+        "/api/v1/repos/operator/private/pulls",
+        `token ${setupToken}`,
+        {
+          base: repository.default_branch,
+          head: "quality-bar-polling",
+          title: "Forgejo polling baseline proof",
+        },
+      )
+    );
     core.run("UPDATE repositories SET lifecycle = 'retired'");
     const retired = service.retire({ lifecycle: "retired" });
     assert.equal(retired.lifecycle, "retired");
@@ -218,6 +249,18 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     });
     assert.equal(reactivated.lifecycle, "enabled");
     assert.equal(reactivated.health, "healthy");
+    const polling = core.get(
+      `SELECT baseline_status, error_code, snapshot
+         FROM forgejo_repository_polls`,
+    );
+    assert.equal(polling?.baseline_status, "complete");
+    assert.equal(polling?.error_code, null);
+    assert.deepEqual(
+      JSON.parse(/** @type {string} */ (polling?.snapshot)).map(
+        (/** @type {any} */ pull) => pull.number,
+      ),
+      [pullRequest.number],
+    );
     assert.deepEqual(
       reactivated.verification_history.map(
         (/** @type {any} */ verification) => verification.trigger,

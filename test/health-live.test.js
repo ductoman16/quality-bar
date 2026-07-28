@@ -20,6 +20,9 @@ function applicationServerOptions() {
   return {
     forgejoConnections: {
       destroy() {},
+      async runPolling() {},
+      requireFreshBaseline() {},
+      startPolling() {},
       async discover() {
         throw new Error("unused Forgejo Connection");
       },
@@ -27,6 +30,9 @@ function applicationServerOptions() {
         throw new Error("unused Forgejo Connection");
       },
       async rotate() {
+        throw new Error("unused Forgejo Connection");
+      },
+      async prepareRepositoryEnablement() {
         throw new Error("unused Forgejo Connection");
       },
       async reactivate() {

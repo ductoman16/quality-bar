@@ -2,6 +2,10 @@ import {
   forgejoFailedVerification,
   forgejoSuccessfulVerification,
 } from "./canonical-forgejo-connection-components.js";
+import {
+  forgejoPollingFailure,
+  forgejoPollingState,
+} from "./canonical-forgejo-polling-components.js";
 
 /** @param {object[]} mutationParameters @param {object} errorResponse */
 export function canonicalForgejoConnectionPaths(
@@ -36,6 +40,10 @@ export function canonicalForgejoConnectionPaths(
           "Repository-owner identity observed through the Repository-restricted PAT",
         type: "object",
       },
+      polling: { items: forgejoPollingState, type: "array" },
+      polling_failure: {
+        oneOf: [forgejoPollingFailure, { type: "null" }],
+      },
       reported_version: { pattern: "^16\\.", type: "string" },
       scopes: {
         description:
@@ -61,6 +69,8 @@ export function canonicalForgejoConnectionPaths(
       "id",
       "lifecycle",
       "principal",
+      "polling",
+      "polling_failure",
       "reported_version",
       "scopes",
       "verification_history",

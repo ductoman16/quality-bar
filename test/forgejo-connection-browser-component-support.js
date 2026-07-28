@@ -33,6 +33,10 @@ export function assertRegisteredForgejoState(controls) {
   assert.match(history.children[0].textContent, /onboarding/);
   assert.match(history.children[0].textContent, /operator \(7\)/);
   assert.match(history.children[0].textContent, /operator\/private: success/);
+  const polling = controls.get("forgejo-connection-polling");
+  assert.equal(polling.children.length, 1);
+  assert.match(polling.children[0].textContent, /baseline complete/);
+  assert.match(polling.children[0].textContent, /next attempt/);
 }
 
 /** @param {{controls: Map<string, any>, currentFailure: {value: Error | undefined}, ready: () => void}} input */
@@ -131,6 +135,17 @@ export const validForgejoConnection = {
   health_error: null,
   id: "forgejo-connection",
   lifecycle: "enabled",
+  polling: [
+    {
+      baseline_status: "complete",
+      error: null,
+      forge_repository_id: 11,
+      last_success_at: 1_000,
+      next_attempt_at: 61_000,
+      rate_gate_until: null,
+    },
+  ],
+  polling_failure: null,
   principal: { id: 7, login: "operator" },
   reported_version: "16.0.4",
   scopes: ["read:repository", "write:issue", "write:repository"],
@@ -315,6 +330,20 @@ export async function assertForgejoContract(contract) {
   assert.throws(
     () => contract.forgejoErrorMessage("unexpected thrown value"),
     (error) => error === "unexpected thrown value",
+  );
+  assert.equal(
+    contract.forgejoPollingText({
+      baseline_status: "complete",
+      error: {
+        code: "forgejo_api_rate_limited",
+        message: "Forgejo polling rate limited",
+      },
+      forge_repository_id: 11,
+      last_success_at: 1_000,
+      next_attempt_at: 125_000,
+      rate_gate_until: 125_000,
+    }),
+    "Forge Repository 11; baseline complete; 1970-01-01T00:00:01.000Z; Forgejo polling rate limited (forgejo_api_rate_limited); rate gate until 1970-01-01T00:02:05.000Z; next attempt 1970-01-01T00:02:05.000Z",
   );
   assert.match(
     contract.forgejoVerificationText({

@@ -178,11 +178,11 @@ export function removeNeverUsedForgejoConnection(durableCore) {
 }
 
 /**
- * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, readConnection: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
+ * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: (transaction: any, connectionId: string, prepared: any) => void, prepareBaseline: (connection: any, token: string, repositories: any[], options?: {ignoreGate?: boolean}) => Promise<any>}, readConnection: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
  * @param {unknown} input
  */
 export async function reactivateForgejoConnection(
-  { cipher, createId, durableCore, now, readConnection, verifier },
+  { cipher, createId, durableCore, now, polling, readConnection, verifier },
   input,
 ) {
   const { token } = reactivationRequest(input);
@@ -255,6 +255,15 @@ export async function reactivateForgejoConnection(
         "Replacement Forgejo PAT does not match the retired Connection",
       );
     }
+    const preparedBaseline = await polling.prepareBaseline(
+      { base_url: connection.base_url, id: connection.id },
+      token,
+      verification.repositories.map((/** @type {any} */ repository) => ({
+        full_name: repository.full_name,
+        id: repository.id,
+      })),
+      { ignoreGate: true },
+    );
     const encrypted = cipher.encrypt(connection.id, token);
     durableCore.transaction((/** @type {any} */ transaction) => {
       transaction.run(
@@ -309,6 +318,7 @@ export async function reactivateForgejoConnection(
           "Forgejo Connection changed during reactivation",
         );
       }
+      polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {
     if (
