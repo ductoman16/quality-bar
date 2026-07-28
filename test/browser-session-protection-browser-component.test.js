@@ -5,6 +5,7 @@ import { createUnavailableReviewService } from "../src/review.js";
 import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
+import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
 import { startApplication } from "./browser-session-component-support.js";
 
 /** @param {Response} response */
@@ -261,6 +262,10 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     recordMcpOperation() {},
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
+    waiverAdjudicatorConfiguration:
+      createUnavailableWaiverAdjudicatorConfigurationService(
+        new Error("unused Waiver Adjudicator Configuration"),
+      ),
     repositories: {
       destroy() {},
       list() {

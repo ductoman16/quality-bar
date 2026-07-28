@@ -4,6 +4,8 @@ import { validateApplicationCoverageFacts } from "../application-coverage-report
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
+import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
+import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -199,8 +201,7 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "unit",
-      testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-github-and-forgejo-polling-mcp-contract-lifecycle-and-forgejo-pat-rotation-unit",
+      testGroup: "core-unit-contracts-including-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -237,6 +238,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-lifecycle.test.js",
         "test/forgejo-connection.test.js",
         "test/forgejo-polling.test.js",
+        "test/waiver-adjudicator-configuration.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -267,8 +269,10 @@ export function createGateDefinitions(metadata) {
         "test/github-repository-reconciliation-browser-component.test.js",
         "test/github-repository-browser-component.test.js",
         "test/forgejo-connection-browser-component.test.js",
+        "test/waiver-adjudicator-configuration-browser-component.test.js",
       ],
     },
+    FAKE_CODEX_GATE_DEFINITION,
     {
       name: "github-fixture-integration",
       testGroup:
@@ -296,8 +300,7 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "sqlite-integration",
-      testGroup:
-        "review-assignment-version-guidance-credential-github-and-forgejo-polling-repository-selection-lifecycle-and-forgejo-connection-lifecycle-sqlite-resource-boundary",
+      testGroup: "durable-resources-including-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -323,6 +326,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-concurrency-sqlite-integration.test.js",
         "test/forgejo-connection-sqlite-integration.test.js",
         "test/forgejo-polling-sqlite-integration.test.js",
+        "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
       ],
     },
     {
@@ -344,6 +348,7 @@ export function createGateDefinitions(metadata) {
         "test/review-http-integration.test.js",
         "test/github-connection-http-integration.test.js",
         "test/forgejo-connection-http-integration.test.js",
+        "test/waiver-adjudicator-configuration-http-integration.test.js",
       ],
     },
     {
@@ -410,12 +415,7 @@ export function createGateDefinitions(metadata) {
       failureCode: "correctness_lint_proof_failed",
       arguments: ["--test", "test/core-js-lint-gate.test.js"],
     },
-    {
-      name: "node-ownership-lint-proof",
-      testGroup: "maintained-javascript-node-and-ownership-boundaries",
-      failureCode: "node_ownership_lint_proof_failed",
-      arguments: ["--test", "test/node-boundary-lint-gate.test.js"],
-    },
+    NODE_OWNERSHIP_LINT_PROOF_GATE,
     {
       name: "production-type-check-proof",
       testGroup: "production-node-and-served-browser-javascript",

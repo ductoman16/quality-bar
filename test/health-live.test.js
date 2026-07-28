@@ -4,6 +4,7 @@ import { after, before, test } from "node:test";
 import { createUnavailableReviewService } from "../src/review.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
+import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
 
 /** @type {import("node:http").Server | undefined} */
 let server;
@@ -130,6 +131,10 @@ function applicationServerOptions() {
         throw new Error("unused request facts");
       },
     },
+    waiverAdjudicatorConfiguration:
+      createUnavailableWaiverAdjudicatorConfigurationService(
+        new Error("unused Waiver Adjudicator Configuration"),
+      ),
   };
 }
 

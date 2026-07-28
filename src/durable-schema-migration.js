@@ -13,7 +13,7 @@ export function migrateSchema(
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}`
+        ? `${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -26,3 +26,4 @@ export function migrateSchema(
 export const CURRENT_SCHEMA_VERSION = 20;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
+import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
