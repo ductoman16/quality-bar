@@ -304,6 +304,15 @@ export function createForgejoPollingService(
         forgeRepositoryId,
       );
     }
+    if (!baseline) {
+      transaction.run(
+        `UPDATE forgejo_repository_polls
+            SET next_attempt_at = ?
+          WHERE connection_id = ?`,
+        nextAttemptAt,
+        connectionId,
+      );
+    }
     transaction.run(
       `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
        ON CONFLICT (key) DO UPDATE SET value = excluded.value`,

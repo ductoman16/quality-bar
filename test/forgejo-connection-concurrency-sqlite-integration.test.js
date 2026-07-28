@@ -12,16 +12,7 @@ import {
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
 
-const privateRepository = {
-  api_url: "https://forgejo.example/api/v1/repos/operator/private",
-  clone_url: "https://forgejo.example/operator/private.git",
-  full_name: "operator/private",
-  html_url: "https://forgejo.example/operator/private",
-  id: 11,
-  outcome: "success",
-  permissions: { admin: true, pull: true, push: true },
-  private: true,
-};
+const privateRepository = repositoryEvidence(11, "private");
 
 test("SQLite admits exactly one Forgejo Connection when simultaneous verification succeeds", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-race-"));
@@ -278,6 +269,70 @@ test("a definitive Connection failure stops remaining Forgejo Repository polls",
     code: "forgejo_connection_credential_invalid",
     message: "Forgejo PAT is no longer valid",
   });
+  forgejo.destroy();
+  core.close();
+});
+
+test("a Forgejo rate gate advances every sibling Repository schedule", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-rate-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  let currentTime = 1_000;
+  /** @type {number[]} */
+  const attempted = [];
+  const forgejo = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "repository-2",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey: Buffer.alloc(32, 27),
+    now: () => currentTime,
+    verifier: {
+      async listPullRequests(connection, candidate) {
+        assert.equal(connection.token, "pat");
+        if (currentTime > 1_000) {
+          attempted.push(candidate.id);
+          throw Object.assign(new Error("Forgejo polling rate limited"), {
+            code: "forgejo_api_rate_limited",
+            nextAttemptAt: 125_000,
+            rateGateUntil: 125_000,
+            repositoryId: candidate.id,
+          });
+        }
+        return [pullRequest(candidate.id)];
+      },
+      async verify() {
+        return forgejoVerification([
+          repositoryEvidence(11, "one"),
+          repositoryEvidence(22, "two"),
+        ]);
+      },
+    },
+  });
+  await forgejo.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11, 22],
+    token: "pat",
+  });
+
+  currentTime = 61_000;
+  await forgejo.runPolling();
+  await forgejo.runPolling();
+  assert.deepEqual(attempted, [11]);
+  assert.deepEqual(
+    core
+      .all(
+        `SELECT next_attempt_at FROM forgejo_repository_polls
+          ORDER BY forge_repository_id`,
+      )
+      .map((row) => row?.next_attempt_at),
+    [125_000, 125_000],
+  );
   forgejo.destroy();
   core.close();
 });
