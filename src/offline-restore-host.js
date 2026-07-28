@@ -12,9 +12,14 @@ const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
  * @param {{
  *   applicationVersion?: string,
  *   databasePath?: string,
- *   loadInstallation?: () => {masterKey: Buffer},
+ *   loadInstallation?: () => {
+ *     freeSpaceReserveBytes: number,
+ *     masterKey: Buffer,
+ *   },
  *   manifestPath: string,
- *   validateInstallation?: () => {releaseInstallationLock?: () => void},
+ *   validateInstallation?: (options: {
+ *     reserveBytes: number,
+ *   }) => {releaseInstallationLock?: () => void},
  *   validateSources?: () => void,
  * }} input
  */
@@ -33,7 +38,9 @@ export async function restoreOfflineBackupFromHost({
   let primaryFailure;
   let result;
   try {
-    ({ releaseInstallationLock } = validateInstallation());
+    ({ releaseInstallationLock } = validateInstallation({
+      reserveBytes: installation.freeSpaceReserveBytes,
+    }));
     result = await restoreOfflineBackup({
       applicationVersion: /** @type {string} */ (applicationVersion),
       databasePath,

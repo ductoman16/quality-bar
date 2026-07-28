@@ -314,18 +314,21 @@ test("the host command accepts only one manifest argument", () => {
   assert.match(command, /process\.argv\.length !== 3/);
 });
 
-test("a held installation lock clears the loaded key", async () => {
+test("the host forwards the configured reserve and clears the loaded key", async () => {
   const masterKey = Buffer.alloc(32, 7);
+  const freeSpaceReserveBytes = 7 * 1024 ** 3;
   const lockFailure = Object.assign(new Error("installation is running"), {
     code: "installation_locked",
   });
+  let receivedReserveBytes;
 
   await assert.rejects(
     restoreOfflineBackupFromHost({
       applicationVersion: "0.1.0",
-      loadInstallation: () => ({ masterKey }),
+      loadInstallation: () => ({ freeSpaceReserveBytes, masterKey }),
       manifestPath: "/var/backups/quality-bar/snapshot.json",
-      validateInstallation() {
+      validateInstallation({ reserveBytes }) {
+        receivedReserveBytes = reserveBytes;
         throw lockFailure;
       },
       validateSources() {},
@@ -333,6 +336,7 @@ test("a held installation lock clears the loaded key", async () => {
     (error) => error === lockFailure,
   );
 
+  assert.equal(receivedReserveBytes, freeSpaceReserveBytes);
   assert.deepEqual(masterKey, Buffer.alloc(32));
 });
 
@@ -343,7 +347,10 @@ test("lock release failure cannot replace the owning restore diagnostic", async 
   await assert.rejects(
     restoreOfflineBackupFromHost({
       applicationVersion: "0.1.0",
-      loadInstallation: () => ({ masterKey }),
+      loadInstallation: () => ({
+        freeSpaceReserveBytes: 5 * 1024 ** 3,
+        masterKey,
+      }),
       manifestPath: "/missing/restore-manifest.json",
       validateInstallation: () => ({
         releaseInstallationLock() {
