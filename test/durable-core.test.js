@@ -37,7 +37,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 23,
+    schemaVersion: 24,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -58,12 +58,12 @@ test("migrates the existing operator-password schema atomically before serving s
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 23);
+  assert.equal(migrated.facts.schemaVersion, 24);
   assert.equal(
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "23",
+    "24",
   );
   migrated.run(
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
@@ -97,7 +97,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 23);
+  assert.equal(migrated.facts.schemaVersion, 24);
   assert.equal(
     migrated.get("SELECT session_hash FROM browser_sessions"),
     undefined,
@@ -105,7 +105,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   migrated.close();
 });
 
-test("migrates v4 to v23 without losing existing authority facts", () => {
+test("migrates v4 to v24 without losing existing authority facts", () => {
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
   core.transaction((transaction) => {
@@ -126,7 +126,7 @@ test("migrates v4 to v23 without losing existing authority facts", () => {
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 23);
+  assert.equal(migrated.facts.schemaVersion, 24);
   assert.deepEqual(migrated.get("SELECT session_hash FROM browser_sessions"), {
     session_hash: "retained-session-hash",
   });
@@ -134,7 +134,7 @@ test("migrates v4 to v23 without losing existing authority facts", () => {
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "23",
+    "24",
   );
   assert.deepEqual(
     migrated.get(
@@ -153,6 +153,33 @@ test("migrates v4 to v23 without losing existing authority facts", () => {
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repository_polls'",
     ),
     { name: "github_repository_polls" },
+  );
+  migrated.close();
+});
+
+test("migrates the v23 Evaluation schema to durable Review Run admission", () => {
+  const databasePath = temporaryDatabasePath();
+  const current = openDurableCore(databasePath);
+  current.transaction((transaction) => {
+    transaction.run("DROP TABLE codex_execution_queue");
+    transaction.run("DROP TABLE review_runs");
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = '23' WHERE key = 'schema_version'",
+    );
+    transaction.run("PRAGMA user_version = 23");
+  });
+  current.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 24);
+  assert.deepEqual(
+    migrated.all(
+      `SELECT name FROM sqlite_schema
+       WHERE type = 'table'
+         AND name IN ('review_runs', 'codex_execution_queue')
+       ORDER BY name`,
+    ),
+    [{ name: "codex_execution_queue" }, { name: "review_runs" }],
   );
   migrated.close();
 });
@@ -253,7 +280,7 @@ test("rejects a corrupt database with the exact owning error", () => {
 test("rejects an incompatible schema with the exact owning error", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 24");
+  current.run("PRAGMA user_version = 25");
   current.close();
 
   assert.throws(
@@ -263,7 +290,7 @@ test("rejects an incompatible schema with the exact owning error", () => {
       assert.equal(failure.code, "schema_invalid");
       assert.equal(
         failure.message,
-        "SQLite schema version 24 is not supported",
+        "SQLite schema version 25 is not supported",
       );
       return true;
     },

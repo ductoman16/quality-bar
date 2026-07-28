@@ -43,6 +43,28 @@ export const EVALUATION_SCHEMA = `
     created_at INTEGER NOT NULL,
     PRIMARY KEY (channel, route, idempotency_key)
   ) STRICT;
+  CREATE TABLE IF NOT EXISTS review_runs (
+    id TEXT PRIMARY KEY,
+    evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+    review_id TEXT NOT NULL REFERENCES reviews(id),
+    review_version_id TEXT NOT NULL REFERENCES review_versions(id),
+    execution_status TEXT NOT NULL CHECK (
+      execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')
+    ),
+    created_at INTEGER NOT NULL,
+    UNIQUE (evaluation_id, review_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS codex_execution_queue (
+    work_id TEXT PRIMARY KEY REFERENCES review_runs(id),
+    work_kind TEXT NOT NULL
+      CHECK (work_kind = 'review_run'),
+    ready_at INTEGER NOT NULL,
+    accepted_at INTEGER NOT NULL,
+    started_at INTEGER,
+    CHECK (started_at IS NULL OR started_at >= accepted_at)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS codex_execution_queue_ready
+    ON codex_execution_queue (started_at, ready_at, work_id);
   CREATE TRIGGER IF NOT EXISTS evaluation_frozen_identity_update
     BEFORE UPDATE OF
       repository_id,
@@ -68,4 +90,22 @@ export const EVALUATION_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS evaluation_idempotency_immutable_delete
     BEFORE DELETE ON evaluation_idempotency
     BEGIN SELECT RAISE(ABORT, 'evaluation_idempotency_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_run_version_matches_review
+    BEFORE INSERT ON review_runs
+    WHEN (
+      SELECT review_id FROM review_versions WHERE id = NEW.review_version_id
+    ) <> NEW.review_id
+    BEGIN SELECT RAISE(ABORT, 'review_run_version_mismatch'); END;
+  CREATE TRIGGER IF NOT EXISTS review_run_frozen_identity_update
+    BEFORE UPDATE OF
+      evaluation_id,
+      review_id,
+      review_version_id,
+      created_at
+    ON review_runs
+    BEGIN SELECT RAISE(ABORT, 'review_run_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
+    BEFORE UPDATE OF work_id, work_kind, accepted_at
+    ON codex_execution_queue
+    BEGIN SELECT RAISE(ABORT, 'codex_execution_queue_identity_immutable'); END;
 `;

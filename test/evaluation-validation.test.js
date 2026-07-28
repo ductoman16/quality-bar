@@ -153,11 +153,13 @@ test("Evaluation construction and creation identities fail before durable work",
       head_commit: "2".repeat(40),
     }),
     masterKey: Buffer.alloc(32, 7),
+    readCodexCapabilityFailure: () => null,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   };
   for (const [durableCore, candidateOptions] of [
     [null, options],
     [core, { ...options, acquireChangeset: undefined }],
+    [core, { ...options, readCodexCapabilityFailure: undefined }],
     [core, { ...options, createId: 1 }],
     [core, { ...options, now: 1 }],
     [core, { ...options, storageReserve: {} }],
@@ -285,6 +287,7 @@ test("Evaluation reads distinguish missing work from a not-ready Result", () => 
       head_commit: "2".repeat(40),
     }),
     masterKey: Buffer.alloc(32, 7),
+    readCodexCapabilityFailure: () => null,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   };
   const core = {

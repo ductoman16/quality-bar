@@ -224,13 +224,12 @@ export function createApplication({
           }
         },
       });
-      const evaluationRepositories =
-        /** @type {ReturnType<typeof createRepositoryService>} */ (
-          repositories
-        );
       evaluations = createEvaluations(durableCore, {
         acquireChangeset: (repositoryId, request) =>
-          evaluationRepositories.resolvePushedSelectors(repositoryId, request),
+          /** @type {ReturnType<typeof createRepositoryService>} */ (
+            repositories
+          ).resolvePushedSelectors(repositoryId, request),
+        readCodexCapabilityFailure: () => codexCapabilityFailure,
         masterKey: installation.masterKey,
         now,
         storageReserve,
