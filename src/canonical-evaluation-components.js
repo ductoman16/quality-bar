@@ -1,0 +1,99 @@
+import { closedObject } from "./canonical-schema.js";
+
+export function canonicalEvaluationSchemas() {
+  const emptyCollection = { maxItems: 0, type: "array" };
+  return {
+    EvaluationSelector: closedObject(
+      {
+        type: { enum: ["branch", "commit"], type: "string" },
+        value: { minLength: 1, type: "string" },
+      },
+      ["type", "value"],
+    ),
+    ExplicitEvaluationRequest: closedObject(
+      {
+        base: { $ref: "#/components/schemas/EvaluationSelector" },
+        head: { $ref: "#/components/schemas/EvaluationSelector" },
+      },
+      ["base", "head"],
+    ),
+    Evaluation: closedObject(
+      {
+        base_commit: {
+          pattern: "^[0-9a-f]{40}$",
+          type: "string",
+        },
+        base_selector: { $ref: "#/components/schemas/EvaluationSelector" },
+        completed_at: {
+          oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+        },
+        created_at: { format: "date-time", type: "string" },
+        effective_outcome: {
+          enum: ["pending", "clear", "advisory", "blocking", "error"],
+          type: "string",
+        },
+        execution_status: {
+          enum: ["queued", "running", "completed", "failed", "cancelled"],
+          type: "string",
+        },
+        head_commit: {
+          pattern: "^[0-9a-f]{40}$",
+          type: "string",
+        },
+        head_selector: { $ref: "#/components/schemas/EvaluationSelector" },
+        id: { minLength: 1, type: "string" },
+        provenance: { const: "explicit", type: "string" },
+        repository: closedObject(
+          {
+            id: { minLength: 1, type: "string" },
+            url: { format: "uri", pattern: "^https://", type: "string" },
+          },
+          ["id", "url"],
+        ),
+      },
+      [
+        "id",
+        "repository",
+        "provenance",
+        "base_selector",
+        "head_selector",
+        "base_commit",
+        "head_commit",
+        "execution_status",
+        "effective_outcome",
+        "created_at",
+        "completed_at",
+      ],
+    ),
+    EvaluationCollection: closedObject(
+      {
+        items: {
+          items: { $ref: "#/components/schemas/Evaluation" },
+          type: "array",
+        },
+        next_cursor: { type: ["string", "null"] },
+      },
+      ["items", "next_cursor"],
+    ),
+    EvaluationResult: closedObject(
+      {
+        applicability_results: emptyCollection,
+        completed_at: { format: "date-time", type: "string" },
+        criterion_results: emptyCollection,
+        evaluation_id: { minLength: 1, type: "string" },
+        findings: emptyCollection,
+        outcome: { const: "clear", type: "string" },
+        review_runs: emptyCollection,
+      },
+      [
+        "evaluation_id",
+        "outcome",
+        "completed_at",
+        "applicability_results",
+        "review_runs",
+        "criterion_results",
+        "findings",
+      ],
+    ),
+  };
+}

@@ -35,6 +35,8 @@ function temporaryDatabasePath() {
  *   createRepositoryGuidance?: Parameters<typeof createApplication>[0]["createRepositoryGuidance"],
  *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"],
  *   createStorageReserve?: Parameters<typeof createApplication>[0]["createStorageReserve"],
+ *   createEvaluations?: Parameters<typeof createApplication>[0]["createEvaluations"],
+ *   validateCodexAuthentication?: Parameters<typeof createApplication>[0]["validateCodexAuthentication"],
  *   writeLog?: Parameters<typeof createApplication>[0]["writeLog"]
  * }} [options]
  */
@@ -50,7 +52,8 @@ export async function startApplication(options = {}) {
     validateInstallation: () => ({ releaseInstallationLock() {} }),
     validateSources() {},
     validateTools() {},
-    validateCodexAuthentication() {},
+    validateCodexAuthentication:
+      options.validateCodexAuthentication ?? (() => {}),
     createRepositories: options.createRepositories,
     createGitHubConnections: options.createGitHubConnections,
     createForgejoConnections: options.createForgejoConnections,
@@ -58,6 +61,7 @@ export async function startApplication(options = {}) {
     createReviews: options.createReviews,
     createStorageReserve:
       options.createStorageReserve ?? (() => availableStorageReserve),
+    createEvaluations: options.createEvaluations,
     writeLog: options.writeLog ?? (() => {}),
   });
   if (!application.durableCore || !application.implementerTokens) {

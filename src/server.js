@@ -17,6 +17,11 @@ import {
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
+import {
+  createUnavailableEvaluationService,
+  EvaluationError,
+} from "./evaluation.js";
+import { createEvaluationRoute } from "./evaluation-route.js";
 
 /**
  * @param {unknown} value
@@ -74,10 +79,11 @@ const TOKEN_METHODS = [
  *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
- *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors">,
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
+ *   evaluations?: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   waiverAdjudicatorConfiguration: ReturnType<typeof import("./waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
@@ -110,6 +116,12 @@ export function createApplicationServer({
   githubConnections,
   forgejoConnections,
   repositoryGuidance,
+  evaluations = createUnavailableEvaluationService(
+    new EvaluationError(
+      "evaluation_capability_unavailable",
+      "Evaluation capability is unavailable",
+    ),
+  ),
   reviews,
   waiverAdjudicatorConfiguration,
   readDurableCoreStatus,
@@ -195,6 +207,14 @@ export function createApplicationServer({
       "repositoryGuidance must provide the Repository Guidance resource",
     );
   }
+  if (
+    typeof evaluations?.createExplicit !== "function" ||
+    typeof evaluations.list !== "function" ||
+    typeof evaluations.read !== "function" ||
+    typeof evaluations.readResult !== "function"
+  ) {
+    throw new TypeError("evaluations must provide the Evaluation resource");
+  }
   requireFunction(recordMcpOperation, "recordMcpOperation must be a function");
 
   const handleBrowserAsset = createBrowserAssetRoute({
@@ -220,6 +240,12 @@ export function createApplicationServer({
       recordAuthorityAttribution,
       waiverAdjudicatorConfiguration,
     });
+  const handleEvaluation = createEvaluationRoute({
+    browserOrigin,
+    browserSessions,
+    evaluations,
+    recordAuthorityAttribution,
+  });
   const handleApi = createApiRoute({
     browserOrigin,
     browserSessions,
@@ -369,6 +395,9 @@ export function createApplicationServer({
         authority,
       )
     ) {
+      return;
+    }
+    if (await handleEvaluation(request, response, requestUrl, authority)) {
       return;
     }
     if (await handleApi(request, response, requestUrl, authority)) {
