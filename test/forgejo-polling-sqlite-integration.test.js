@@ -8,6 +8,7 @@ import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import {
+  createOneShotForgejoBaselineFailure,
   enabledRepositoryPoll,
   forgejoVerification,
   repositoryEvidence,
@@ -226,15 +227,14 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
   initial.close();
 
   currentTime = 61_000;
-  let failSecond = true;
+  const baselineFailure = createOneShotForgejoBaselineFailure([11, 22], 22);
   const restoredCore = openDurableCore(databasePath);
   const restored = createForgejoConnectionService(restoredCore, {
     masterKey,
     now: () => currentTime,
     verifier: {
       async listPullRequests(connection, repository) {
-        assert.equal(connection.baseUrl, "https://forgejo.example");
-        if (failSecond && repository.id === 22) {
+        if (baselineFailure.fails(repository.id, connection.baseUrl)) {
           throw Object.assign(new Error("Forgejo Repository is forbidden"), {
             code: "forgejo_repository_permission_denied",
             repositoryId: 22,
@@ -295,7 +295,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
   );
 
   currentTime = 125_000;
-  failSecond = false;
+  baselineFailure.correct();
   const lifecycle = createRepositoryService(restoredCore, {
     masterKey,
     now: () => currentTime,

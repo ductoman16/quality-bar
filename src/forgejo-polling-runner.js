@@ -294,12 +294,15 @@ export function createForgejoPollingRunner(
             if (committed) {
               currentGenerations.set(row.connection_id, generation + 1);
               if (
-                isDefinitiveForgejoPollingFailure(
+                baseline ||
+                (isDefinitiveForgejoPollingFailure(
                   /** @type {{code: string}} */ (error),
                 ) &&
-                !isRepositoryOwnedDefinitiveForgejoPollingFailure(
-                  /** @type {{code: string, repositoryId?: number}} */ (error),
-                )
+                  !isRepositoryOwnedDefinitiveForgejoPollingFailure(
+                    /** @type {{code: string, repositoryId?: number}} */ (
+                      error
+                    ),
+                  ))
               ) {
                 gatedConnections.add(row.connection_id);
               }

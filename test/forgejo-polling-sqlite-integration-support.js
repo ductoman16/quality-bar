@@ -38,3 +38,30 @@ export function enabledRepositoryPoll(core, fields) {
               forgejo_repositories.forge_repository_id`,
   );
 }
+
+/** @param {number[]} repositoryIds @param {number} failedRepositoryId */
+export function createOneShotForgejoBaselineFailure(
+  repositoryIds,
+  failedRepositoryId,
+) {
+  let corrected = false;
+  let position = 0;
+  return {
+    correct() {
+      corrected = true;
+    },
+    /** @param {number} repositoryId @param {string} baseUrl */
+    fails(repositoryId, baseUrl) {
+      if (baseUrl !== "https://forgejo.example") {
+        throw new Error("Forgejo baseline used the wrong Connection");
+      }
+      if (!corrected) {
+        if (repositoryIds[position] !== repositoryId) {
+          throw new Error("Forgejo baseline repeated a Repository");
+        }
+        position += 1;
+      }
+      return !corrected && repositoryId === failedRepositoryId;
+    },
+  };
+}
