@@ -23,7 +23,13 @@ function completeVerification() {
     principal: { id: 7, login: "operator" },
     profile: "forgejo-v16",
     reported_version: "16.0.4",
-    repositories: [{ id: 11, outcome: "success" }],
+    repositories: [
+      {
+        id: 11,
+        outcome: "success",
+        permissions: { admin: true, pull: true, push: true },
+      },
+    ],
     scopes: ["read:repository", "write:issue", "write:repository"],
   };
 }

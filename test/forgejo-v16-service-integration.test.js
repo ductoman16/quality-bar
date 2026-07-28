@@ -93,17 +93,27 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       FORGEJO_IMAGE,
     ]);
     const deadline = Date.now() + 30_000;
+    /** @type {Error | undefined} */
+    let readinessFailure;
     while (true) {
       try {
         const response = await fetch(`${baseUrl}/api/v1/version`);
         if (response.ok) {
           break;
         }
-      } catch {
-        // The single service is still starting.
+        readinessFailure = new Error(
+          `Pinned Forgejo v16 readiness returned HTTP ${response.status}: ${await response.text()}`,
+        );
+      } catch (error) {
+        if (!(error instanceof Error)) {
+          throw error;
+        }
+        readinessFailure = error;
       }
       if (Date.now() >= deadline) {
-        throw new Error("Pinned Forgejo v16 service did not become ready");
+        throw new Error("Pinned Forgejo v16 service did not become ready", {
+          cause: readinessFailure,
+        });
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

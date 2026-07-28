@@ -1,16 +1,12 @@
 import { verifiedForgejoRepositories } from "./forgejo-connection-rotation.js";
-import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
+import { verifiedForgejoRepositoryEvidence } from "./forgejo-repository-check.js";
+import {
+  FORGEJO_CAPABILITY_NAMES,
+  VERIFIED_FORGEJO_AUTHORITIES,
+} from "./forgejo-v16-evidence.js";
 
-const REQUIRED_CAPABILITIES = [
-  "aggregate_feedback",
-  "branch_access",
-  "commit_status",
-  "enumeration",
-  "inline_feedback",
-  "private_git_read",
-  "pull_request_access",
-];
-const REQUIRED_SCOPES = ["read:repository", "write:issue", "write:repository"];
+const REQUIRED_CAPABILITIES = FORGEJO_CAPABILITY_NAMES;
+const REQUIRED_SCOPES = VERIFIED_FORGEJO_AUTHORITIES;
 
 /** @returns {never} */
 function invalid() {
@@ -45,6 +41,13 @@ export function completeForgejoReactivationVerification(
     capabilityEntries.length !== REQUIRED_CAPABILITIES.length ||
     !REQUIRED_CAPABILITIES.every(
       (capability) => result.capabilities[capability] === "verified",
+    ) ||
+    result.repositories.some(
+      /** @param {any} repository */
+      (repository) =>
+        repository.permissions?.admin !== true ||
+        repository.permissions?.pull !== true ||
+        repository.permissions?.push !== true,
     )
   ) {
     invalid();
@@ -73,29 +76,45 @@ export function failedForgejoReactivationVerification(error, repositoryIds) {
     !result ||
     Object.keys(result).sort().join(",") !==
       "capabilities,principal,profile,reported_version,repositories,scopes" ||
-    result.profile !== "forgejo-v16" ||
-    typeof result.reported_version !== "string" ||
-    !/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(result.reported_version) ||
-    !result.principal ||
-    !Number.isSafeInteger(result.principal.id) ||
-    typeof result.principal.login !== "string" ||
-    result.principal.login.length === 0 ||
-    !Array.isArray(result.scopes) ||
-    result.scopes.length !== REQUIRED_SCOPES.length ||
-    !REQUIRED_SCOPES.every((scope) => result.scopes.includes(scope)) ||
-    capabilityEntries.length !== REQUIRED_CAPABILITIES.length ||
-    !REQUIRED_CAPABILITIES.every((capability) =>
-      ["not_completed", "verified"].includes(result.capabilities[capability]),
-    ) ||
-    result.capabilities.enumeration !== "verified"
+    ![null, "forgejo-v16"].includes(result.profile) ||
+    (result.reported_version !== null &&
+      (typeof result.reported_version !== "string" ||
+        !/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(
+          result.reported_version,
+        ))) ||
+    (result.principal !== null &&
+      (!Number.isSafeInteger(result.principal?.id) ||
+        typeof result.principal?.login !== "string" ||
+        result.principal.login.length === 0)) ||
+    (result.scopes !== null &&
+      (!Array.isArray(result.scopes) ||
+        result.scopes.length !== REQUIRED_SCOPES.length ||
+        !REQUIRED_SCOPES.every((scope) => result.scopes.includes(scope)))) ||
+    (result.capabilities !== null &&
+      (capabilityEntries.length !== REQUIRED_CAPABILITIES.length ||
+        !REQUIRED_CAPABILITIES.every((capability) =>
+          ["error", "not_completed", "verified"].includes(
+            result.capabilities[capability],
+          ),
+        )))
+  ) {
+    invalid();
+  }
+  const repositories = verifiedForgejoRepositoryEvidence(
+    result.repositories,
+    false,
+  );
+  const evidenceIds = repositories.map(
+    (repository) => repository.id ?? repository.forge_repository_id,
+  );
+  if (
+    evidenceIds.length !== repositoryIds.length ||
+    repositoryIds.some((repositoryId) => !evidenceIds.includes(repositoryId))
   ) {
     invalid();
   }
   return {
     ...result,
-    repositories: failedForgejoRepositoryChecks(
-      Object.assign(error, { repositoryChecks: result.repositories }),
-      repositoryIds,
-    ),
+    repositories,
   };
 }

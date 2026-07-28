@@ -21,10 +21,20 @@ export function failedForgejoRepositoryChecks(error, repositoryIds) {
     const check = /** @type {Record<string, unknown>} */ (candidate);
     const repositoryId = check.forge_repository_id;
     const outcome = check.outcome;
+    const hasPermissions = "permissions" in check;
     const exactKeys =
       outcome === "error"
-        ? ["error", "forge_repository_id", "outcome"]
-        : ["forge_repository_id", "outcome"];
+        ? [
+            "error",
+            "forge_repository_id",
+            "outcome",
+            ...(hasPermissions ? ["permissions"] : []),
+          ]
+        : [
+            "forge_repository_id",
+            "outcome",
+            ...(hasPermissions ? ["permissions"] : []),
+          ];
     const codedError =
       check.error &&
       !Array.isArray(check.error) &&
@@ -39,6 +49,7 @@ export function failedForgejoRepositoryChecks(error, repositoryIds) {
         /** @type {string} */ (outcome),
       ) ||
       Object.keys(check).sort().join(",") !== exactKeys.join(",") ||
+      (hasPermissions && !verifiedPermissions(check.permissions)) ||
       (outcome === "error" &&
         (!codedError ||
           Object.keys(codedError).sort().join(",") !== "code,message" ||
@@ -58,6 +69,18 @@ export function failedForgejoRepositoryChecks(error, repositoryIds) {
     throw new TypeError("Forgejo Repository verification checks are invalid");
   }
   return error.repositoryChecks;
+}
+
+/** @param {unknown} value */
+function verifiedPermissions(value) {
+  const permissions = object(value);
+  return (
+    permissions &&
+    Object.keys(permissions).sort().join(",") === "admin,pull,push" &&
+    permissions.admin === true &&
+    permissions.pull === true &&
+    permissions.push === true
+  );
 }
 
 /** @param {unknown} value @param {boolean} succeeded */
@@ -98,11 +121,15 @@ export function verifiedForgejoRepositoryEvidence(value, succeeded) {
     const repository = object(candidate);
     if (
       !repository ||
-      Object.keys(repository).sort().join(",") !==
-        "api_url,clone_url,full_name,html_url,id,outcome,private" ||
+      ![
+        "api_url,clone_url,full_name,html_url,id,outcome,private",
+        "api_url,clone_url,full_name,html_url,id,outcome,permissions,private",
+      ].includes(Object.keys(repository).sort().join(",")) ||
       !Number.isSafeInteger(repository.id) ||
       Number(repository.id) <= 0 ||
       repository.outcome !== "success" ||
+      ("permissions" in repository &&
+        !verifiedPermissions(repository.permissions)) ||
       typeof repository.private !== "boolean" ||
       ["api_url", "clone_url", "full_name", "html_url"].some(
         (field) =>

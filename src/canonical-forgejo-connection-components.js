@@ -1,3 +1,14 @@
+const forgejoRepositoryPermissions = {
+  additionalProperties: false,
+  properties: {
+    admin: { const: true, type: "boolean" },
+    pull: { const: true, type: "boolean" },
+    push: { const: true, type: "boolean" },
+  },
+  required: ["admin", "pull", "push"],
+  type: "object",
+};
+
 export const forgejoRepositoryCheck = {
   oneOf: [
     {
@@ -9,6 +20,7 @@ export const forgejoRepositoryCheck = {
         html_url: { format: "uri", type: "string" },
         id: { minimum: 1, type: "integer" },
         outcome: { const: "success", type: "string" },
+        permissions: forgejoRepositoryPermissions,
         private: { type: "boolean" },
       },
       required: [
@@ -27,6 +39,7 @@ export const forgejoRepositoryCheck = {
       properties: {
         forge_repository_id: { minimum: 1, type: "integer" },
         outcome: { const: "not_completed", type: "string" },
+        permissions: forgejoRepositoryPermissions,
       },
       required: ["forge_repository_id", "outcome"],
       type: "object",
@@ -45,6 +58,7 @@ export const forgejoRepositoryCheck = {
         },
         forge_repository_id: { minimum: 1, type: "integer" },
         outcome: { const: "error", type: "string" },
+        permissions: forgejoRepositoryPermissions,
       },
       required: ["error", "forge_repository_id", "outcome"],
       type: "object",

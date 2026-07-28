@@ -180,6 +180,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         html_url: "https://forgejo.example/operator/private",
         id: 11,
         outcome: "success",
+        permissions: { admin: true, pull: true, push: true },
         private: true,
       },
     ],
@@ -235,6 +236,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         full_name: "operator/private",
         html_url: "https://forgejo.example/operator/private",
         id: 11,
+        permissions: { admin: true, pull: true, push: true },
         private: true,
       },
       {
@@ -243,6 +245,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         full_name: "operator/private-2",
         html_url: "https://forgejo.example/operator/private-2",
         id: 12,
+        permissions: { admin: true, pull: true, push: true },
         private: true,
       },
     ],

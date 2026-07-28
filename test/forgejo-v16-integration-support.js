@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 
 export const incompleteForgejoCapabilities = {
   aggregate_feedback: "not_completed",
-  branch_access: "not_completed",
-  commit_status: "not_completed",
+  branch_access: "error",
+  commit_status: "verified",
   enumeration: "verified",
-  inline_feedback: "not_completed",
+  inline_feedback: "verified",
   private_git_read: "not_completed",
   pull_request_access: "not_completed",
 };
@@ -19,7 +19,16 @@ const routeError = {
 /** @param {any} failure */
 export function assertForgejoPartialFailure(failure) {
   assert.deepEqual(failure?.repositoryChecks, [
-    { forge_repository_id: 11, outcome: "success" },
+    {
+      api_url: "https://forgejo.example/api/v1/repos/operator/private",
+      clone_url: "https://forgejo.example/operator/private.git",
+      full_name: "operator/private",
+      html_url: "https://forgejo.example/operator/private",
+      id: 11,
+      outcome: "success",
+      permissions: { admin: true, pull: true, push: true },
+      private: true,
+    },
     {
       error: {
         code: "forgejo_required_route_unavailable",
@@ -28,6 +37,7 @@ export function assertForgejoPartialFailure(failure) {
       },
       forge_repository_id: 12,
       outcome: "error",
+      permissions: { admin: true, pull: true, push: true },
     },
   ]);
   assert.deepEqual(failure?.verificationEvidence, {
@@ -74,6 +84,7 @@ export function assertForgejoFailedReactivationHistory(verification) {
         error: routeError,
         forge_repository_id: 11,
         outcome: "error",
+        permissions: { admin: true, pull: true, push: true },
       },
     ],
     scopes: ["read:repository", "write:issue", "write:repository"],
