@@ -2,12 +2,15 @@ export class EvaluationError extends Error {
   /**
    * @param {string} code
    * @param {string} message
-   * @param {ErrorOptions} [options]
+   * @param {ErrorOptions & {unavailable?: boolean}} [options]
    */
   constructor(code, message, options) {
     super(message, options);
     this.name = "EvaluationError";
     this.code = code;
+    if (options?.unavailable === true) {
+      this.unavailable = true;
+    }
   }
 }
 
@@ -23,6 +26,15 @@ export function failEvaluation(code, message, cause) {
     message,
     cause === undefined ? undefined : { cause },
   );
+}
+
+/**
+ * @param {string} code
+ * @param {string} message
+ * @returns {never}
+ */
+export function failEvaluationUnavailable(code, message) {
+  throw new EvaluationError(code, message, { unavailable: true });
 }
 
 /** @param {unknown} value @param {string} name */

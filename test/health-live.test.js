@@ -24,6 +24,9 @@ function applicationServerOptions() {
     ),
     forgejoConnections: {
       destroy() {},
+      acquireRepositoryGitCredential() {
+        throw new Error("unused Forgejo Connection");
+      },
       async runPolling() {},
       requireFreshBaseline() {},
       startPolling() {},

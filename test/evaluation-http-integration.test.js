@@ -181,9 +181,42 @@ test("Evaluation admission preserves Repository lifecycle and health status", as
      ) VALUES
        ('repository-disabled', 'https://example.invalid/disabled.git',
         'disabled', 'healthy', NULL, NULL, 1, 1),
-       ('repository-unhealthy', 'https://example.invalid/unhealthy.git',
-        'enabled', 'error', 'repository_git_read_failed',
-        'Repository Git read verification failed', 1, 1)`,
+       ('repository-unhealthy', 'https://github.com/operator/private.git',
+        'enabled', 'error', 'github_repository_api_access_failed',
+        'GitHub Repository API access verification failed', 1, 1)`,
+  );
+  application.durableCore.run(
+    `INSERT INTO github_connections (
+       id, app_id, app_slug, installation_id, principal_id, principal_login,
+       api_profile, permissions, capabilities, repository_count,
+       created_at, verified_at
+     ) VALUES (
+       'github-connection', 47, 'quality-bar-personal', 73, 91, 'operator',
+       'github-rest:2026-03-10', '{}', '{}', 1, 1, 1
+     )`,
+  );
+  application.durableCore.run(
+    `INSERT INTO github_connection_verifications (
+       id, connection_id, trigger, outcome, error_code, error_message,
+       error_repository_id, affected_repository_ids, repository_checks,
+       repositories, verified_at
+     ) VALUES (
+       'github-verification', 'github-connection', 'enablement', 'error',
+       'github_repository_api_access_failed',
+       'GitHub Repository API access verification failed', 101,
+       '[101]', '[{"repository_id":101,"outcome":"error"}]', '[]', 1
+     )`,
+  );
+  application.durableCore.run(
+    `INSERT INTO github_repositories (
+       repository_id, connection_id, verification_id, forge_repository_id,
+       name, api_url, web_url
+     ) VALUES (
+       'repository-unhealthy', 'github-connection', 'github-verification',
+       101, 'operator/private',
+       'https://api.github.com/repos/operator/private',
+       'https://github.com/operator/private'
+     )`,
   );
   const headers = {
     ...(await authenticatedOperatorHeaders(request)),
@@ -191,7 +224,7 @@ test("Evaluation admission preserves Repository lifecycle and health status", as
   };
   for (const [repositoryId, status, code] of [
     ["repository-disabled", 409, "repository_not_enabled"],
-    ["repository-unhealthy", 503, "repository_git_read_failed"],
+    ["repository-unhealthy", 503, "github_repository_api_access_failed"],
   ]) {
     const response = await request(
       `/api/v1/repositories/${repositoryId}/evaluations`,

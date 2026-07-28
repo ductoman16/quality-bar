@@ -5,6 +5,7 @@ import {
   canonicalExplicitEvaluationRequest,
   EvaluationError,
   failEvaluation,
+  failEvaluationUnavailable,
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
@@ -260,7 +261,7 @@ export function createEvaluationService(
             );
           }
           if (repository.health !== "healthy") {
-            failEvaluation(
+            failEvaluationUnavailable(
               /** @type {string} */ (repository.health_error_code),
               /** @type {string} */ (repository.health_error_message),
             );
@@ -335,6 +336,9 @@ export function createEvaluationService(
           return { resource, status: 201 };
         });
       } catch (error) {
+        if (error instanceof EvaluationError) {
+          throw error;
+        }
         if (
           isUniqueConstraintFailure(
             error,

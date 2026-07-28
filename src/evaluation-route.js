@@ -8,7 +8,7 @@ import {
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {Error & {code: string}} failure */
+/** @param {Error & {code: string, unavailable?: boolean}} failure */
 function failureStatus(failure) {
   const { code } = failure;
   if (
@@ -47,6 +47,7 @@ function failureStatus(failure) {
       "storage_reserve_check_failed",
       "storage_reserve_unavailable",
     ].includes(code) ||
+    failure.unavailable === true ||
     isUnavailableError(failure)
   ) {
     return 503;

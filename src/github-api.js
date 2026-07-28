@@ -441,6 +441,7 @@ export function createGitHubVerifier({
         repositoryIds,
       );
     },
+    createInstallationToken: installationToken,
     listPullRequests: createGitHubPullRequestReader({
       installationToken,
       request,

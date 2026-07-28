@@ -14,6 +14,7 @@ import {
 import {
   assertRepositoryAcceptsNewWork,
   fail,
+  failUnavailable,
   normalizeRepositoryCredentialRotation,
   normalizeRepositoryLifecycleChange,
   normalizePublicRepositoryUrl,
@@ -46,6 +47,7 @@ export { RepositoryError };
  *     credential?: {token: string, username: string}
  *   ) => Promise<void>
  *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
+ *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
  *   resolveSelectors?: typeof resolvePushedCommitSelectors
  * }} options
  */
@@ -58,6 +60,7 @@ export function createRepositoryService(
     objectDatabaseRoot = CHECKOUTS_PATH,
     verifyRead = verifyRepositoryRead,
     verifyForgeRepository,
+    resolveForgeCredential,
     resolveSelectors = resolvePushedCommitSelectors,
   },
 ) {
@@ -133,7 +136,7 @@ export function createRepositoryService(
       ) {
         throw new TypeError("Forge Connection health error is invalid");
       }
-      fail(
+      failUnavailable(
         row.forge_connection_health_error_code,
         row.forge_connection_health_error_message,
       );
@@ -175,6 +178,7 @@ export function createRepositoryService(
     find,
     objectDatabaseRoot,
     requireAcceptsNewWork,
+    resolveForgeCredential,
     resolveSelectors,
   });
 

@@ -22,9 +22,10 @@ import {
   retireGitHubConnection,
 } from "./github-connection-lifecycle.js";
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
+import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/** @typedef {{exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -91,9 +92,14 @@ export function createGitHubConnectionService(
     timestamp,
     verifier: polling.repositoryVerifier,
   });
+  const acquireRepositoryGitCredential = createGitHubRepositoryGitCredential(
+    durableCore,
+    { cipher, verifier },
+  );
   const take = takeGitHubConnectionFlow.bind(null, { pending, timestamp });
   return {
     read: () => readGitHubConnection(durableCore),
+    acquireRepositoryGitCredential,
     startPolling: polling.start,
     start: () =>
       startGitHubConnection({

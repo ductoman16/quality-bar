@@ -222,6 +222,7 @@ export function createGateDefinitions(metadata) {
         "test/applicability-rule.test.js",
         "test/evaluation-validation.test.js",
         "test/repository-collection.test.js",
+        "test/repository-selector.test.js",
         "test/review-archival.test.js",
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",

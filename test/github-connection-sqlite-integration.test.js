@@ -61,6 +61,11 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     now: () => 1_000,
     randomBytes: () => Buffer.alloc(32, 5),
     verifier: {
+      async createInstallationToken(credential, installationId) {
+        assert.equal(credential.pem, "private-key-value");
+        assert.equal(installationId, 73);
+        return "short-lived-installation-token";
+      },
       listPullRequests: async () => [],
       async exchangeManifest() {
         return convertedApp;
@@ -79,10 +84,12 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     installationId: "73",
     state: started.state,
   });
-  if (!completed) {
-    throw new Error("completed_connection_missing");
-  }
+  assert.ok(completed);
   assert.deepEqual(service.read(), completed);
+  const gitCredential =
+    await service.acquireRepositoryGitCredential("connection-1");
+  assert.equal(gitCredential.token, "short-lived-installation-token");
+  assert.equal(gitCredential.username, "x-access-token");
 
   assert.equal(
     core.get("SELECT count(*) AS count FROM github_connections")?.count,

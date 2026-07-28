@@ -182,6 +182,14 @@ export function createApplication({
       repositories = createRepositories(durableCore, {
         masterKey: installation.masterKey,
         now,
+        resolveForgeCredential(
+          /** @type {string} */ connectionId,
+          /** @type {"github" | "forgejo"} */ provider,
+        ) {
+          const service =
+            provider === "github" ? githubConnections : forgejoConnections;
+          return service.acquireRepositoryGitCredential(connectionId);
+        },
         async verifyForgeRepository(
           /** @type {number} */ forgeRepositoryId,
           /** @type {"github" | "forgejo"} */ provider,
