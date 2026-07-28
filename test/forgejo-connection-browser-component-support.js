@@ -145,7 +145,10 @@ export const validForgejoConnection = {
       reported_version: "16.0.4",
       repositories: [
         {
+          api_url: "https://forgejo.example/api/v1/repos/operator/private",
+          clone_url: "https://forgejo.example/operator/private.git",
           full_name: "operator/private",
+          html_url: "https://forgejo.example/operator/private",
           id: 11,
           outcome: "success",
           private: true,
@@ -158,6 +161,67 @@ export const validForgejoConnection = {
   ],
   verified_at: 1_000,
 };
+
+/** @param {any} valid */
+export function malformedForgejoConnectionResponses(valid) {
+  const verification = valid.verification_history[0];
+  const repository = verification.repositories[0];
+  return [
+    null,
+    [],
+    { ...valid, api_profile: "forgejo-v17" },
+    { ...valid, base_url: "" },
+    { ...valid, capabilities: null },
+    { ...valid, capabilities: [] },
+    { ...valid, health: "error" },
+    { ...valid, health_error: { code: "stale" } },
+    { ...valid, id: "" },
+    { ...valid, lifecycle: "unknown" },
+    { ...valid, principal: null },
+    { ...valid, principal: { id: "7", login: "operator" } },
+    { ...valid, principal: { id: 7, login: "" } },
+    { ...valid, reported_version: "17.0.0" },
+    { ...valid, scopes: {} },
+    { ...valid, scopes: [1] },
+    { ...valid, verification_history: [] },
+    { ...valid, verification_history: [{ unexpected: true }] },
+    {
+      ...valid,
+      verification_history: [
+        { ...verification, repositories: [{ id: 11, outcome: "success" }] },
+      ],
+    },
+    {
+      ...valid,
+      verification_history: [
+        {
+          ...verification,
+          repositories: [{ forge_repository_id: 11, outcome: "not_completed" }],
+        },
+      ],
+    },
+    {
+      ...valid,
+      verification_history: [
+        {
+          ...verification,
+          repositories: [{ ...repository, unexpected: true }],
+        },
+      ],
+    },
+    {
+      ...valid,
+      verification_history: [
+        {
+          ...verification,
+          repositories: [{ ...repository, api_url: "not a URI" }],
+        },
+      ],
+    },
+    { ...valid, verified_at: "now" },
+    { ...valid, unexpected: true },
+  ];
+}
 
 export function failedForgejoReactivation() {
   return {

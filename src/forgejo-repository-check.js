@@ -45,9 +45,7 @@ export function failedForgejoRepositoryChecks(error, repositoryIds) {
       !Number.isSafeInteger(repositoryId) ||
       !repositoryIds.includes(/** @type {number} */ (repositoryId)) ||
       checkedIds.has(repositoryId) ||
-      !["error", "not_completed", "success"].includes(
-        /** @type {string} */ (outcome),
-      ) ||
+      !["error", "not_completed"].includes(/** @type {string} */ (outcome)) ||
       Object.keys(check).sort().join(",") !== exactKeys.join(",") ||
       (hasPermissions && !verifiedPermissions(check.permissions)) ||
       (outcome === "error" &&

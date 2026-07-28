@@ -185,6 +185,7 @@ test("failed Forgejo Repository checks require one exact discriminated record pe
     { forge_repository_id: 11, outcome: "not_completed" },
   ]);
   for (const repositoryChecks of [
+    [{ forge_repository_id: 11, outcome: "success" }],
     [
       { forge_repository_id: 11, outcome: "success" },
       { forge_repository_id: 11, outcome: "not_completed" },

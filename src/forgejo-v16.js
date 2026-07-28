@@ -101,7 +101,7 @@ function routeArray(value, route, field) {
 }
 
 /** @param {string} baseUrl */
-function endpoint(baseUrl) {
+export function normalizedForgejoBaseUrl(baseUrl) {
   let url;
   try {
     url = new URL(baseUrl);
@@ -166,7 +166,7 @@ export function createForgejoV16Verifier({
           "Forgejo verification request is invalid",
         );
       }
-      const origin = endpoint(baseUrl);
+      const origin = normalizedForgejoBaseUrl(baseUrl);
       const verificationEvidence =
         createForgejoVerificationEvidence(repositoryIds);
       /** @param {string} path */

@@ -11,7 +11,10 @@ import {
   rotateForgejoConnection,
   verifiedForgejoRepositories,
 } from "./forgejo-connection-rotation.js";
-import { createForgejoV16Verifier } from "./forgejo-v16.js";
+import {
+  createForgejoV16Verifier,
+  normalizedForgejoBaseUrl,
+} from "./forgejo-v16.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -39,7 +42,7 @@ function request(input) {
     );
   }
   return {
-    baseUrl: value.base_url,
+    baseUrl: normalizedForgejoBaseUrl(value.base_url),
     repositoryIds: value.repository_ids,
     token: value.token,
   };
@@ -64,7 +67,10 @@ function discoveryRequest(input) {
       "Forgejo Connection request is invalid",
     );
   }
-  return { baseUrl: value.base_url, token: value.token };
+  return {
+    baseUrl: normalizedForgejoBaseUrl(value.base_url),
+    token: value.token,
+  };
 }
 
 /**

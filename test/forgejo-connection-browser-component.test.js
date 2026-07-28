@@ -15,6 +15,7 @@ import {
   assertRegisteredForgejoState,
   assertUncertainForgejoRetirementState,
   failedForgejoReactivation,
+  malformedForgejoConnectionResponses,
   validForgejoConnection,
 } from "./forgejo-connection-browser-component-support.js";
 import { element } from "./github-connection-browser-component-support.js";
@@ -136,6 +137,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   let ready = () => {};
   const context = {
     Error,
+    URL,
     document: { createElement: () => element() },
     fetch: async (/** @type {string} */ path, /** @type {any} */ options) => {
       requests.push({ options, path });
@@ -286,31 +288,9 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   await rotationForm.listener("submit")({ preventDefault() {} });
   assert.equal(rotationToken.value, "unhealthy-replacement");
   assert.equal(error.textContent, "Forgejo PAT rotation response is invalid");
-  const malformedResponses = [
-    null,
-    [],
-    { ...validRotationResponse, api_profile: "forgejo-v17" },
-    { ...validRotationResponse, base_url: "" },
-    { ...validRotationResponse, capabilities: null },
-    { ...validRotationResponse, capabilities: [] },
-    { ...validRotationResponse, health: "error" },
-    { ...validRotationResponse, health_error: { code: "stale" } },
-    { ...validRotationResponse, id: "" },
-    { ...validRotationResponse, lifecycle: "unknown" },
-    { ...validRotationResponse, principal: null },
-    { ...validRotationResponse, principal: { id: "7", login: "operator" } },
-    { ...validRotationResponse, principal: { id: 7, login: "" } },
-    { ...validRotationResponse, reported_version: "17.0.0" },
-    { ...validRotationResponse, scopes: {} },
-    { ...validRotationResponse, scopes: [1] },
-    { ...validRotationResponse, verification_history: [] },
-    {
-      ...validRotationResponse,
-      verification_history: [{ unexpected: true }],
-    },
-    { ...validRotationResponse, verified_at: "now" },
-    { ...validRotationResponse, unexpected: true },
-  ];
+  const malformedResponses = malformedForgejoConnectionResponses(
+    validRotationResponse,
+  );
   for (const [index, malformed] of malformedResponses.entries()) {
     rotationToken.value = `malformed-replacement-${index}`;
     rotationResponse.value = malformed;

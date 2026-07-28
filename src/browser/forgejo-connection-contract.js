@@ -27,11 +27,47 @@ function forgejoErrorMessage(error) {
 }
 
 /** @param {unknown} value */
-function validRepositoryCheck(value) {
+function validPermissions(value) {
   if (!value || Array.isArray(value) || typeof value !== "object") {
     return false;
   }
-  const check = /** @type {Record<string, unknown>} */ (value);
+  const permissions = /** @type {Record<string, unknown>} */ (value);
+  return (
+    Object.keys(permissions).sort().join(",") === "admin,pull,push" &&
+    permissions.admin === true &&
+    permissions.pull === true &&
+    permissions.push === true
+  );
+}
+
+/** @param {unknown} value */
+function validUri(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return false;
+  }
+  try {
+    return new URL(value).toString().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** @param {Record<string, unknown>} check */
+function validFailedRepositoryCheck(check) {
+  const hasPermissions = "permissions" in check;
+  const keys =
+    check.outcome === "error"
+      ? [
+          "error",
+          "forge_repository_id",
+          "outcome",
+          ...(hasPermissions ? ["permissions"] : []),
+        ]
+      : [
+          "forge_repository_id",
+          "outcome",
+          ...(hasPermissions ? ["permissions"] : []),
+        ];
   const error =
     check.error &&
     !Array.isArray(check.error) &&
@@ -39,16 +75,47 @@ function validRepositoryCheck(value) {
       ? /** @type {Record<string, unknown>} */ (check.error)
       : null;
   return (
-    ["success", "error", "not_completed"].includes(
+    ["error", "not_completed"].includes(
       /** @type {string} */ (check.outcome),
     ) &&
-    (Number.isSafeInteger(check.id) ||
-      Number.isSafeInteger(check.forge_repository_id)) &&
-    (check.outcome !== "error" ||
-      (typeof error?.code === "string" &&
+    Object.keys(check).sort().join(",") === keys.join(",") &&
+    Number.isSafeInteger(check.forge_repository_id) &&
+    Number(check.forge_repository_id) > 0 &&
+    (!hasPermissions || validPermissions(check.permissions)) &&
+    (check.outcome === "not_completed" ||
+      (error !== null &&
+        Object.keys(error).sort().join(",") === "code,message" &&
+        typeof error.code === "string" &&
         error.code.length > 0 &&
-        typeof error.message === "string" &&
+        typeof error?.message === "string" &&
         error.message.length > 0))
+  );
+}
+
+/** @param {unknown} value */
+function validRepositoryCheck(value) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
+  const check = /** @type {Record<string, unknown>} */ (value);
+  if (check.outcome !== "success") {
+    return validFailedRepositoryCheck(check);
+  }
+  const hasPermissions = "permissions" in check;
+  return (
+    [
+      "api_url,clone_url,full_name,html_url,id,outcome,private",
+      "api_url,clone_url,full_name,html_url,id,outcome,permissions,private",
+    ].includes(Object.keys(check).sort().join(",")) &&
+    Number.isSafeInteger(check.id) &&
+    Number(check.id) > 0 &&
+    ["api_url", "clone_url", "html_url"].every((field) =>
+      validUri(check[field]),
+    ) &&
+    typeof check.full_name === "string" &&
+    check.full_name.length > 0 &&
+    typeof check.private === "boolean" &&
+    (!hasPermissions || validPermissions(check.permissions))
   );
 }
 
@@ -76,6 +143,9 @@ function validForgejoVerification(value) {
     verification.repositories.every(validRepositoryCheck) &&
     (verification.outcome === "success"
       ? verification.error === null &&
+        verification.repositories.every(
+          (repository) => repository.outcome === "success",
+        ) &&
         verification.api_profile === "forgejo-v16" &&
         typeof verification.reported_version === "string" &&
         /^16\./.test(verification.reported_version) &&

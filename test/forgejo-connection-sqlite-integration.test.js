@@ -21,7 +21,8 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     masterKey: Buffer.alloc(32, 1),
     now: () => 1_000,
     verifier: {
-      async verify() {
+      async verify(input) {
+        assert.equal(input.baseUrl, "https://forgejo.example");
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
@@ -44,7 +45,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     },
   });
   const connection = await service.connect({
-    base_url: "https://forgejo.example",
+    base_url: "https://FORGEJO.EXAMPLE:443/",
     repository_ids: [11],
     token: "operator-created-pat",
   });
