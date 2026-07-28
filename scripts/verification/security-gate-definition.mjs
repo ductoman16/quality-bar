@@ -1,11 +1,15 @@
 export const SECURITY_INTEGRATION_GATE = {
   name: "security-integration",
   testGroup:
-    "validated-backup-browser-authority-and-request-security-integration",
+    "backup-restore-browser-authority-and-request-security-integration",
   failureCode: "security_integration_tests_failed",
   arguments: [
     "--test",
     "test/backup-security-integration.test.js",
+    "test/offline-restore-candidate-security-integration.test.js",
+    "test/offline-restore-connection-security-integration.test.js",
+    "test/offline-restore-migrated-schema-security-integration.test.js",
+    "test/offline-restore-security-integration.test.js",
     "test/operator-password-bootstrap.test.js",
     "test/browser-session-durability-security-integration.test.js",
     "test/browser-session-failure-security-integration.test.js",

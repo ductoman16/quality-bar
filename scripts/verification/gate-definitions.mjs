@@ -2,6 +2,7 @@ import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
+import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
 import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
@@ -214,6 +215,7 @@ export function createGateDefinitions(metadata) {
         "test/storage-reserve.test.js",
         "test/installed-application.test.js",
         "test/installed-backup.test.js",
+        "test/offline-restore.test.js",
         "test/operator-password.test.js",
         "test/quality-foundation.test.js",
         "test/browser-session.test.js",
@@ -339,6 +341,7 @@ export function createGateDefinitions(metadata) {
       ],
     },
     SQLITE_BACKUP_FAILURE_GATE,
+    SQLITE_RESTORE_FAILURE_GATE,
     {
       name: "http-integration",
       testGroup:

@@ -136,6 +136,7 @@ export default [
       "src/healthcheck.js",
       "src/main.js",
       "src/operator-password-bootstrap.js",
+      "src/restore-backup.js",
       "test/operator-browser-smoke.test.js",
       "test/verification-harness.test.js",
     ],
