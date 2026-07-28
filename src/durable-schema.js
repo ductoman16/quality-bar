@@ -324,6 +324,20 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version === 21 || version === 22 || version === 23) {
     schemaMigration.migrateSchema(database, "");
+  } else if (version === 24) {
+    schemaMigration.migrateSchema(
+      database,
+      `
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN worker_id TEXT
+          CHECK (worker_id IS NULL OR length(worker_id) > 0);
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN fencing_token INTEGER NOT NULL DEFAULT 0
+          CHECK (fencing_token >= 0);
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN lease_expires_at INTEGER;
+      `,
+    );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
