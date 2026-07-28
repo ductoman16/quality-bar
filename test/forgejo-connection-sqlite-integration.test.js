@@ -57,7 +57,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
   });
   assert.deepEqual(service.acquireRepositoryGitCredential("connection-1"), {
     token: "operator-created-pat",
-    username: "operator",
+    username: "oauth2",
   });
   const { verification_history: verificationHistory, ...projection } =
     /** @type {any} */ (connection);

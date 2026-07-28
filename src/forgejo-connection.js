@@ -131,7 +131,6 @@ export function createForgejoConnectionService(
       const [connection] = durableCore.all(
         `SELECT
            forgejo_connections.id,
-           forgejo_connections.principal_login,
            forgejo_connection_credentials.encrypted_credential
          FROM forgejo_connections
          JOIN forgejo_connection_credentials
@@ -143,15 +142,13 @@ export function createForgejoConnectionService(
       if (
         !connection ||
         typeof connection.id !== "string" ||
-        typeof connection.principal_login !== "string" ||
-        connection.principal_login.length === 0 ||
         typeof connection.encrypted_credential !== "string"
       ) {
         throw new TypeError("Forgejo Connection credential row is invalid");
       }
       return {
         token: cipher.decrypt(connection.id, connection.encrypted_credential),
-        username: connection.principal_login,
+        username: "oauth2",
       };
     },
     /** @param {unknown} input */
