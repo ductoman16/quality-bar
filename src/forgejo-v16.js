@@ -333,30 +333,55 @@ export function createForgejoV16Verifier({
           "Selected Forgejo Repository is not accessible to the Connection",
         );
       }
-      for (const selectedCandidate of selected) {
+      /** @type {any[]} */
+      const repositoryChecks = selected.map((candidate) => ({
+        forge_repository_id: candidate?.id,
+        outcome: "not_completed",
+      }));
+      for (const [index, selectedCandidate] of selected.entries()) {
         const selectedRepository =
           /** @type {NonNullable<typeof selectedCandidate>} */ (
             selectedCandidate
           );
-        const name = selectedRepository.full_name;
-        const encoded = name.split("/").map(encodeURIComponent).join("/");
-        requiredRepositoryAuthority(
-          (await get(`/api/v1/repos/${encoded}`)).body,
-          selectedRepository.id,
-        );
-        const [branches, pulls, comments] = await Promise.all([
-          get(`/api/v1/repos/${encoded}/branches`),
-          get(`/api/v1/repos/${encoded}/pulls?state=open`),
-          get(`/api/v1/repos/${encoded}/issues/comments`),
-        ]);
-        routeArray(branches.body, "branches", "name");
-        routeArray(pulls.body, "pull requests", "number");
-        routeArray(comments.body, "issue comments", "id");
-        await verifyGit(
-          selectedRepository.clone_url,
-          { token, username: "oauth2" },
-          { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
-        );
+        try {
+          const name = selectedRepository.full_name;
+          const encoded = name.split("/").map(encodeURIComponent).join("/");
+          requiredRepositoryAuthority(
+            (await get(`/api/v1/repos/${encoded}`)).body,
+            selectedRepository.id,
+          );
+          const [branches, pulls, comments] = await Promise.all([
+            get(`/api/v1/repos/${encoded}/branches`),
+            get(`/api/v1/repos/${encoded}/pulls?state=open`),
+            get(`/api/v1/repos/${encoded}/issues/comments`),
+          ]);
+          routeArray(branches.body, "branches", "name");
+          routeArray(pulls.body, "pull requests", "number");
+          routeArray(comments.body, "issue comments", "id");
+          await verifyGit(
+            selectedRepository.clone_url,
+            { token, username: "oauth2" },
+            { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
+          );
+          repositoryChecks[index] = {
+            forge_repository_id: selectedRepository.id,
+            outcome: "success",
+          };
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            !("code" in error) ||
+            typeof error.code !== "string"
+          ) {
+            throw error;
+          }
+          repositoryChecks[index] = {
+            error: { code: error.code, message: error.message },
+            forge_repository_id: selectedRepository.id,
+            outcome: "error",
+          };
+          throw Object.assign(error, { repositoryChecks });
+        }
       }
       const repositoryCapabilities =
         selected.length === 0 ? "not_completed" : "verified";

@@ -6,8 +6,10 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import {
+  assertFailedForgejoReactivationState,
   assertForgejoContract,
   failedForgejoReactivation,
+  neverUsedForgejoConnection,
   validForgejoConnection,
 } from "./forgejo-connection-browser-component-support.js";
 import { element } from "./github-connection-browser-component-support.js";
@@ -119,6 +121,8 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const requests = [];
   /** @type {{value: Error | undefined}} */
   const rotationFailure = { value: undefined };
+  /** @type {{value: Error | undefined}} */
+  const currentFailure = { value: undefined };
   const rotationJsonFailure = { value: false };
   const rotationOk = { value: true };
   const reactivationOk = { value: true };
@@ -135,6 +139,9 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
       requests.push({ options, path });
       if (path.endsWith("/credential/rotate") && rotationFailure.value) {
         throw rotationFailure.value;
+      }
+      if (!options && currentFailure.value) {
+        throw currentFailure.value;
       }
       if (path.endsWith("/reactivate")) {
         assert.equal(
@@ -247,6 +254,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(requests[2].path, "/api/v1/forgejo-connections");
   assert.equal(status.focused, true);
   assert.equal(token.value, "");
+  assert.equal(remove.hidden, true);
   assert.match(profile.textContent, /forgejo-v16; compatible; 16\.0\.4/);
   assert.match(scopes.textContent, /read:repository/);
   assert.match(capabilities.textContent, /private git read: verified/);
@@ -335,7 +343,10 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(error.focused, true);
   assert.equal(rotationSubmit.disabled, false);
   rotationFailure.value = undefined;
-  await confirmationForm.listener("submit")({ preventDefault() {} });
+  await assert.rejects(
+    () => confirmationForm.listener("submit")({ preventDefault() {} }),
+    /Forgejo lifecycle confirmation state is invalid/,
+  );
   await retire.listener("click")({});
   await confirmationCancel.listener("click")({});
   assert.equal(confirmation.open, false);
@@ -368,12 +379,18 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   reactivationOk.value = false;
   currentResponse.value = failedForgejoReactivation();
   await reactivationForm.listener("submit")({ preventDefault() {} });
-  assert.equal(lifecycle.textContent, "Retired");
-  assert.match(health.textContent, /Replacement PAT verification failed/);
-  assert.equal(history.children.length, 2);
-  assert.equal(error.textContent, "Replacement PAT verification failed");
-  assert.equal(reactivationToken.value, "failed-reactivation-pat");
-  assert.equal(reactivationSubmit.disabled, false);
+  assertFailedForgejoReactivationState(controls);
+  currentFailure.value = new Error("Forgejo Connection refresh unavailable");
+  await reactivationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(details.hidden, true);
+  assert.match(error.textContent, /Replacement PAT verification failed/);
+  assert.match(error.textContent, /refresh unavailable/);
+  currentFailure.value = undefined;
+  reactivationOk.value = true;
+  rotationResponse.value = neverUsedForgejoConnection();
+  rotationToken.value = "never-used-connection-pat";
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(remove.hidden, false);
   await remove.listener("click")({});
   assert.equal(confirmationInput.focused, true);
   confirmationInput.value = "delete";

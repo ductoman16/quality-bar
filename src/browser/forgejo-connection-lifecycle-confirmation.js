@@ -71,7 +71,7 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
     event.preventDefault();
     const selected = active;
     if (!selected) {
-      return;
+      throw new Error("Forgejo lifecycle confirmation state is invalid");
     }
     if (selected.method === "DELETE" && input.value !== "DELETE") {
       options.showError(

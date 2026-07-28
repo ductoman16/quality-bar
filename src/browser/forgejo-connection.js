@@ -107,13 +107,20 @@ window.addEventListener("DOMContentLoaded", () => {
       connection.health === "healthy"
         ? "Verified"
         : `${connection.health_error.message} (${connection.health_error.code})`;
-    forgejoProfile.textContent = `${connection.api_profile}; compatible; ${connection.reported_version}`;
-    forgejoScopes.textContent = connection.scopes.join(", ");
-    forgejoCapabilities.textContent = Object.entries(connection.capabilities)
+    const lastSuccessful =
+      connection.health === "error" ? "Last successful " : "";
+    forgejoProfile.textContent =
+      connection.health === "healthy"
+        ? `${connection.api_profile}; compatible; ${connection.reported_version}`
+        : `${lastSuccessful}profile: ${connection.api_profile}; ${connection.reported_version}`;
+    forgejoScopes.textContent = `${lastSuccessful}scopes: ${connection.scopes.join(", ")}`;
+    forgejoCapabilities.textContent = `${lastSuccessful}capabilities: ${Object.entries(
+      connection.capabilities,
+    )
       .map(
         ([name, outcome]) => `${name.replaceAll("_", " ")}: ${String(outcome)}`,
       )
-      .join("; ");
+      .join("; ")}`;
     forgejoLatest.textContent = new Date(connection.verified_at).toISOString();
     forgejoHistory.replaceChildren();
     for (const verification of connection.verification_history) {
@@ -127,7 +134,10 @@ window.addEventListener("DOMContentLoaded", () => {
     forgejoReactivationForm.hidden = connection.lifecycle !== "retired";
     forgejoLifecycleForm.hidden = false;
     forgejoRetire.hidden = connection.lifecycle === "retired";
-    forgejoDelete.hidden = false;
+    forgejoDelete.hidden = connection.verification_history.some(
+      /** @param {any} verification */
+      (verification) => verification.repositories.length > 0,
+    );
   }
 
   async function refreshForgejoConnection() {
@@ -334,7 +344,19 @@ window.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) {
         const message =
           await forgejoContract.forgejoResponseErrorMessage(response);
-        await refreshForgejoConnection();
+        try {
+          await refreshForgejoConnection();
+        } catch (refreshError) {
+          forgejoDetails.hidden = true;
+          forgejoForm.hidden = true;
+          forgejoRotationForm.hidden = true;
+          forgejoReactivationForm.hidden = true;
+          forgejoLifecycleForm.hidden = true;
+          showForgejoError(
+            `${message}; Forgejo Connection refresh failed: ${forgejoContract.forgejoErrorMessage(refreshError)}`,
+          );
+          return;
+        }
         showForgejoError(message);
         return;
       }

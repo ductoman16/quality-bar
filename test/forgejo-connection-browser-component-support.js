@@ -61,6 +61,15 @@ export function failedForgejoReactivation() {
   };
 }
 
+export function neverUsedForgejoConnection() {
+  return {
+    ...validForgejoConnection,
+    verification_history: validForgejoConnection.verification_history.map(
+      (verification) => ({ ...verification, repositories: [] }),
+    ),
+  };
+}
+
 /** @param {any} contract */
 export async function assertForgejoContract(contract) {
   assert.equal(
@@ -98,4 +107,23 @@ export async function assertForgejoContract(contract) {
     }),
     /Forgejo failed \(forgejo_failed\)/,
   );
+}
+
+/** @param {Map<string, any>} controls */
+export function assertFailedForgejoReactivationState(controls) {
+  const lifecycle = controls.get("forgejo-connection-lifecycle");
+  const health = controls.get("forgejo-connection-health");
+  const history = controls.get("forgejo-connection-history");
+  const error = controls.get("forgejo-connection-error");
+  const profile = controls.get("forgejo-connection-profile");
+  const token = controls.get("forgejo-connection-reactivation-token");
+  const submit = controls.get("forgejo-connection-reactivation-submit");
+  assert.equal(lifecycle.textContent, "Retired");
+  assert.match(health.textContent, /Replacement PAT verification failed/);
+  assert.equal(history.children.length, 2);
+  assert.equal(error.textContent, "Replacement PAT verification failed");
+  assert.match(profile.textContent, /Last successful profile/);
+  assert.doesNotMatch(profile.textContent, /compatible/);
+  assert.equal(token.value, "failed-reactivation-pat");
+  assert.equal(submit.disabled, false);
 }
