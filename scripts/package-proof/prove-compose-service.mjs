@@ -47,6 +47,17 @@ const serviceFixtureImage =
  *   openapiVersion: string,
  * }} AuthenticatedHttpSmoke
  */
+/**
+ * @typedef {{
+ *   applicationVersion: string,
+ *   count: number,
+ *   integrity: string,
+ *   keyIdentity: string,
+ *   kind: string,
+ *   masterKeyCopied: boolean,
+ *   schemaVersion: number,
+ * }} BackupFacts
+ */
 
 /**
  * @param {PackageFixture} fixture
@@ -80,6 +91,7 @@ function assertFilesystemFacts(filesystemFacts) {
 /**
  * @param {{
  *   authenticatedHttpSmoke: AuthenticatedHttpSmoke,
+ *   backupFacts: BackupFacts,
  *   configuration: ComposeConfiguration,
  *   fixture: PackageFixture,
  *   filesystemFacts: FilesystemFacts,
@@ -93,6 +105,7 @@ function assertFilesystemFacts(filesystemFacts) {
  */
 function packageFacts({
   authenticatedHttpSmoke,
+  backupFacts,
   configuration,
   fixture,
   filesystemFacts,
@@ -163,6 +176,7 @@ function packageFacts({
       ),
     },
     authenticatedHttpSmoke,
+    backup: backupFacts,
     database: {
       ...recreatedDatabaseFacts,
       installationKeyVerifier: undefined,
@@ -301,6 +315,9 @@ export function proveComposeService({ configuration, fixture }) {
   const recreatedDatabaseFacts = /** @type {DatabaseFacts} */ (
     jsonProbe(fixture, "database-facts.mjs")
   );
+  const backupFacts = /** @type {BackupFacts} */ (
+    jsonProbe(fixture, "backup-facts.mjs", [fixture.masterKey])
+  );
   assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
   if (recreatedDatabaseFacts.operatorPasswordVerifier === null) {
     throw new Error("package_operator_password_verifier_missing");
@@ -335,6 +352,7 @@ export function proveComposeService({ configuration, fixture }) {
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
+    backupFacts,
     configuration,
     fixture,
     filesystemFacts,

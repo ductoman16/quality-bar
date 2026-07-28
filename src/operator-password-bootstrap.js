@@ -1,15 +1,22 @@
 import { readFileSync } from "node:fs";
 
 import { openDurableCore } from "./durable-core.js";
+import { SCHEMA_VERSION } from "./durable-schema.js";
+import {
+  finalizePreMigrationBackup,
+  preparePreMigrationBackup,
+} from "./installed-backup.js";
 import {
   loadInstallationConfiguration,
   verifyInstallationKey,
 } from "./installation-configuration.js";
 import {
+  BACKUPS_PATH,
   STATE_PATH,
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "./installation-environment.js";
+import { installationKeyIdentity } from "./sqlite-backup.js";
 import {
   OperatorPasswordError,
   bootstrapOperatorPassword,
@@ -147,6 +154,8 @@ export function readOperatorPassword({
 
 /**
  * @param {{
+ *   applicationVersion?: string,
+ *   backupsPath?: string,
  *   databasePath?: string,
  *   loadInstallation?: () => {masterKey: Buffer},
  *   readPassword?: () => string | Promise<string>,
@@ -155,6 +164,8 @@ export function readOperatorPassword({
  * }} [options]
  */
 export async function bootstrapOperatorPasswordFromHost({
+  applicationVersion = process.env.QUALITY_BAR_VERSION,
+  backupsPath = BACKUPS_PATH,
   databasePath = DATABASE_PATH,
   loadInstallation = loadInstallationConfiguration,
   readPassword = readOperatorPassword,
@@ -167,8 +178,18 @@ export async function bootstrapOperatorPasswordFromHost({
   let durableCore;
 
   try {
+    const preMigrationBackup = await preparePreMigrationBackup({
+      applicationVersion: /** @type {string} */ (applicationVersion),
+      backupsPath,
+      databasePath,
+      keyIdentity: installationKeyIdentity(installation.masterKey),
+      targetSchemaVersion: SCHEMA_VERSION,
+    });
     durableCore = openDurableCore(databasePath);
     verifyInstallationKey(durableCore, installation.masterKey);
+    if (preMigrationBackup) {
+      finalizePreMigrationBackup(backupsPath);
+    }
     bootstrapOperatorPassword(durableCore, await readPassword());
   } finally {
     durableCore?.close();
