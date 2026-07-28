@@ -2,6 +2,7 @@ import {
   FORGEJO_POLL_INTERVAL_MS,
   createForgejoPollingService,
   isDefinitiveForgejoPollingFailure,
+  isRepositoryOwnedDefinitiveForgejoPollingFailure,
 } from "./forgejo-polling.js";
 
 /** @param {any} durableCore @param {{cipher: any, timestamp: () => number, verifier: any}} dependencies */
@@ -295,6 +296,9 @@ export function createForgejoPollingRunner(
               if (
                 isDefinitiveForgejoPollingFailure(
                   /** @type {{code: string}} */ (error),
+                ) &&
+                !isRepositoryOwnedDefinitiveForgejoPollingFailure(
+                  /** @type {{code: string, repositoryId?: number}} */ (error),
                 )
               ) {
                 gatedConnections.add(row.connection_id);

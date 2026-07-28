@@ -9,11 +9,25 @@ const DEFINITIVE_FAILURES = new Set([
   "forgejo_repository_permission_denied",
   "forgejo_version_unsupported",
 ]);
+const REPOSITORY_OWNED_DEFINITIVE_FAILURES = new Set([
+  "forgejo_poll_response_invalid",
+  "forgejo_repository_api_access_failed",
+  "forgejo_repository_permission_denied",
+]);
 
 /** @param {{code?: string}} failure */
 export function isDefinitiveForgejoPollingFailure(failure) {
   return (
     typeof failure.code === "string" && DEFINITIVE_FAILURES.has(failure.code)
+  );
+}
+
+/** @param {{code?: string, repositoryId?: number}} failure */
+export function isRepositoryOwnedDefinitiveForgejoPollingFailure(failure) {
+  return (
+    Number.isSafeInteger(failure.repositoryId) &&
+    typeof failure.code === "string" &&
+    REPOSITORY_OWNED_DEFINITIVE_FAILURES.has(failure.code)
   );
 }
 
@@ -304,7 +318,9 @@ export function createForgejoPollingService(
         forgeRepositoryId,
       );
     }
-    if (!baseline) {
+    const repositoryOwnedFailure =
+      isRepositoryOwnedDefinitiveForgejoPollingFailure(failure);
+    if (!baseline && !repositoryOwnedFailure) {
       transaction.run(
         `UPDATE forgejo_repository_polls
             SET next_attempt_at = ?
@@ -313,18 +329,20 @@ export function createForgejoPollingService(
         connectionId,
       );
     }
-    transaction.run(
-      `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
-       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
-      `forgejo_poll_gate:${connectionId}`,
-      JSON.stringify({
-        code: failure.code,
-        message: failure.message,
-        nextAttemptAt,
-        rateGateUntil: failure.rateGateUntil ?? null,
-        repositoryId: failure.repositoryId ?? null,
-      }),
-    );
+    if (!repositoryOwnedFailure) {
+      transaction.run(
+        `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+        `forgejo_poll_gate:${connectionId}`,
+        JSON.stringify({
+          code: failure.code,
+          message: failure.message,
+          nextAttemptAt,
+          rateGateUntil: failure.rateGateUntil ?? null,
+          repositoryId: failure.repositoryId ?? null,
+        }),
+      );
+    }
     recordOwningFailure(
       transaction,
       connectionId,

@@ -6,6 +6,11 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { createRepositoryService } from "../src/repository.js";
+import {
+  forgejoVerification,
+  repositoryEvidence,
+} from "./forgejo-polling-sqlite-integration-support.js";
 
 const repository = {
   api_url: "https://forgejo.example/api/v1/repos/operator/private",
@@ -94,6 +99,101 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
     },
   );
   service.destroy();
+  core.close();
+});
+
+test("a corrected Repository failure never strands its healthy Forgejo sibling", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-sibling-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const masterKey = Buffer.alloc(32, 28);
+  const evidence = [
+    repositoryEvidence(11, "one"),
+    repositoryEvidence(22, "two"),
+  ];
+  let currentTime = 1_000;
+  let permissionDenied = false;
+  /** @type {number[]} */
+  let attempted = [];
+  const forgejo = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "repository-2",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey,
+    now: () => currentTime,
+    verifier: {
+      async listPullRequests(connection, candidate) {
+        assert.equal(connection.token, "pat");
+        if (currentTime > 1_000) {
+          attempted.push(candidate.id);
+        }
+        if (permissionDenied && candidate.id === 11) {
+          throw Object.assign(new Error("Forgejo Repository is forbidden"), {
+            code: "forgejo_repository_permission_denied",
+            repositoryId: 11,
+          });
+        }
+        return [];
+      },
+      async verify({ repositoryIds }) {
+        return forgejoVerification(
+          evidence.filter(({ id }) => repositoryIds.includes(id)),
+        );
+      },
+    },
+  });
+  await forgejo.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11, 22],
+    token: "pat",
+  });
+
+  currentTime = 61_000;
+  permissionDenied = true;
+  await forgejo.runPolling();
+  assert.deepEqual(attempted, [11, 22]);
+  const repositories = createRepositoryService(core, {
+    masterKey,
+    now: () => currentTime,
+    verifyForgeRepository: (forgeRepositoryId) =>
+      forgejo.prepareRepositoryEnablement(forgeRepositoryId),
+  });
+  await repositories.setLifecycle("repository-1", { lifecycle: "disabled" });
+  permissionDenied = false;
+  await repositories.setLifecycle("repository-1", { lifecycle: "enabled" });
+
+  currentTime = 121_000;
+  attempted = [];
+  await forgejo.runPolling();
+  assert.deepEqual(attempted, [11, 22]);
+  assert.deepEqual(
+    core
+      .all(
+        `SELECT baseline_status, error_code, next_attempt_at
+           FROM forgejo_repository_polls ORDER BY forge_repository_id`,
+      )
+      .map((row) => row && { ...row }),
+    [
+      {
+        baseline_status: "complete",
+        error_code: null,
+        next_attempt_at: 181_000,
+      },
+      {
+        baseline_status: "complete",
+        error_code: null,
+        next_attempt_at: 181_000,
+      },
+    ],
+  );
+  repositories.destroy();
+  forgejo.destroy();
   core.close();
 });
 
