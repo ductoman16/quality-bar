@@ -32,9 +32,7 @@ export function readForgejoPollingStates(durableCore, connectionId) {
       }
       if (
         row.baseline_status === "pending" &&
-        (row.last_success_at !== null ||
-          row.error_code !== null ||
-          !Number.isSafeInteger(row.next_attempt_at))
+        (row.error_code !== null || !Number.isSafeInteger(row.next_attempt_at))
       ) {
         throw new TypeError("Forgejo polling pending state is invalid");
       }

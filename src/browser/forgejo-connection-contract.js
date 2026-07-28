@@ -245,7 +245,6 @@ function validForgejoPollingState(value) {
         validForgejoPollingError(state.error)) ||
       (state.baseline_status === "pending" &&
         state.error === null &&
-        state.last_success_at === null &&
         Number.isSafeInteger(state.next_attempt_at)))
   );
 }

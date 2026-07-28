@@ -39,7 +39,7 @@ export { RepositoryError };
  *     normalizedUrl: string,
  *     credential?: {token: string, username: string}
  *   ) => Promise<void>
- *   verifyForgeRepository?: (forgeRepositoryId: number) => Promise<void>
+ *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
  * }} options
  */
 export function createRepositoryService(
@@ -333,6 +333,8 @@ export function createRepositoryService(
               row.encrypted_credential,
             )
           : undefined;
+      /** @type {{commit?: (transaction: any) => void} | void} */
+      let preparedEnablement;
       try {
         if ("forge_repository_id" in repository) {
           if (typeof verifyForgeRepository !== "function") {
@@ -340,7 +342,10 @@ export function createRepositoryService(
               "Forge Repository verification dependency is unavailable",
             );
           }
-          await verifyForgeRepository(repository.forge_repository_id);
+          preparedEnablement = await verifyForgeRepository(
+            repository.forge_repository_id,
+            repository.provider,
+          );
         } else {
           await verifyRead(repository.url, credential);
         }
@@ -366,6 +371,7 @@ export function createRepositoryService(
         throw new TypeError("now must return a safe integer timestamp");
       }
       durableCore.transaction((transaction) => {
+        preparedEnablement?.commit?.(transaction);
         transaction.run(
           `UPDATE repositories
            SET lifecycle = 'enabled',

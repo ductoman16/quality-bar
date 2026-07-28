@@ -5,6 +5,26 @@ function object(value) {
     : null;
 }
 
+/** @param {string | null} value @param {number} attemptedAt */
+function retryAfterAt(value, attemptedAt) {
+  if (value === null) {
+    return null;
+  }
+  if (/^[0-9]+$/.test(value)) {
+    const seconds = Number(value);
+    const maximumSeconds = Math.floor(
+      (Number.MAX_SAFE_INTEGER - attemptedAt) / 1000,
+    );
+    return Number.isSafeInteger(seconds) && seconds <= maximumSeconds
+      ? attemptedAt + seconds * 1000
+      : null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isSafeInteger(timestamp) && timestamp >= attemptedAt
+    ? timestamp
+    : null;
+}
+
 /** @param {string} code @param {string} message @param {{cause?: unknown, nextAttemptAt?: number, repositoryId: number}} details @returns {never} */
 function fail(code, message, details) {
   const error = Object.assign(
@@ -86,25 +106,16 @@ export function createForgejoV16PullRequestReader({
         );
       }
       if (!response.ok) {
-        const retryAfter = response.headers.get("retry-after");
-        const retrySeconds =
-          retryAfter === null || !/^[1-9][0-9]*$/.test(retryAfter)
-            ? null
-            : Number(retryAfter);
+        const providerNextAttemptAt = retryAfterAt(
+          response.headers.get("retry-after"),
+          attemptedAt,
+        );
         if (response.status === 429) {
-          const maximumRetrySeconds = Math.floor(
-            (Number.MAX_SAFE_INTEGER - attemptedAt) / 1000,
-          );
           fail(
             "forgejo_api_rate_limited",
             "Forgejo pull-request polling was rate limited",
             {
-              nextAttemptAt:
-                retrySeconds !== null &&
-                Number.isSafeInteger(retrySeconds) &&
-                retrySeconds <= maximumRetrySeconds
-                  ? attemptedAt + retrySeconds * 1000
-                  : attemptedAt + 60_000,
+              nextAttemptAt: providerNextAttemptAt ?? attemptedAt + 60_000,
               repositoryId: selectedRepository.id,
             },
           );
@@ -138,7 +149,11 @@ export function createForgejoV16PullRequestReader({
           definitive?.[1] ??
             `Forgejo pull-request polling failed with HTTP ${response.status}`,
           {
-            ...(definitive ? {} : { nextAttemptAt: attemptedAt + 60_000 }),
+            ...(definitive
+              ? {}
+              : {
+                  nextAttemptAt: providerNextAttemptAt ?? attemptedAt + 60_000,
+                }),
             repositoryId: selectedRepository.id,
           },
         );
@@ -187,7 +202,7 @@ export function createForgejoV16PullRequestReader({
         observedNumbers.add(pull.number);
         snapshot.push(candidate);
       }
-      if (body.length < 50) {
+      if (body.length === 0) {
         return snapshot;
       }
     }

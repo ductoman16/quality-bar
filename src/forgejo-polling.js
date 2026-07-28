@@ -25,8 +25,10 @@ export function nextForgejoAttemptAt(attemptedAt, failure) {
   if (isDefinitiveForgejoPollingFailure(failure)) {
     return null;
   }
-  return failure.nextAttemptAt && failure.nextAttemptAt > attemptedAt
-    ? failure.nextAttemptAt
+  const providerAttemptAt = failure.nextAttemptAt;
+  return Number.isSafeInteger(providerAttemptAt) &&
+    Number(providerAttemptAt) >= attemptedAt
+    ? Number(providerAttemptAt)
     : attemptedAt + FORGEJO_POLL_INTERVAL_MS;
 }
 
@@ -114,11 +116,11 @@ export function createForgejoPollingService(
 
   /**
    * @param {{connection: any, credential: any, repositories: any[]}} input
-   * @param {{baseline?: boolean, recordFailure?: boolean}} [options]
+   * @param {{baseline?: boolean, ignoreGate?: boolean, recordFailure?: boolean}} [options]
    */
   async function prepare(
     input,
-    { baseline = false, recordFailure = true } = {},
+    { baseline = false, ignoreGate = false, recordFailure = true } = {},
   ) {
     if (
       typeof input?.connection?.id !== "string" ||
@@ -134,7 +136,9 @@ export function createForgejoPollingService(
       throw new TypeError("Forgejo polling input is invalid");
     }
     const attemptedAt = timestamp();
-    requirePermittedAttempt(input.connection.id, attemptedAt);
+    if (!ignoreGate) {
+      requirePermittedAttempt(input.connection.id, attemptedAt);
+    }
     const snapshots = [];
     try {
       for (const repository of input.repositories) {
@@ -194,6 +198,16 @@ export function createForgejoPollingService(
           failure.repositoryId !== undefined &&
           failure.repositoryId !== forgeRepositoryId
         ) {
+          if (baseline) {
+            transaction.run(
+              `UPDATE forgejo_repository_polls
+                  SET next_attempt_at = ?
+                WHERE connection_id = ? AND forge_repository_id = ?`,
+              nextAttemptAt ?? Number.MAX_SAFE_INTEGER,
+              connectionId,
+              forgeRepositoryId,
+            );
+          }
           continue;
         }
         transaction.run(

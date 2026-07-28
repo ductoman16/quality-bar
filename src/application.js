@@ -239,10 +239,16 @@ export function createApplication({
         masterKey: installation.masterKey,
         now,
       });
+      forgejoConnections.requireFreshBaseline();
       repositories = createRepositories(durableCore, {
         masterKey: installation.masterKey,
         now,
-        async verifyForgeRepository(forgeRepositoryId) {
+        async verifyForgeRepository(forgeRepositoryId, provider) {
+          if (provider === "forgejo") {
+            return forgejoConnections.prepareRepositoryEnablement(
+              forgeRepositoryId,
+            );
+          }
           try {
             await githubConnections.selectRepositories(
               {

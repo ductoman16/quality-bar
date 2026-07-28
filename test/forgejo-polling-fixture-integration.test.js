@@ -27,7 +27,9 @@ test("Forgejo polling fixture completes every pull-request page", async () => {
       return Response.json(
         page === 1
           ? [...Array(50).keys()].map((index) => pullRequest(index + 1))
-          : [pullRequest(51)],
+          : page === 2
+            ? [pullRequest(51)]
+            : [],
       );
     },
   });
@@ -41,7 +43,33 @@ test("Forgejo polling fixture completes every pull-request page", async () => {
   assert.deepEqual(paths, [
     "/api/v1/repos/operator/private/pulls?state=all&page=1&limit=50",
     "/api/v1/repos/operator/private/pulls?state=all&page=2&limit=50",
+    "/api/v1/repos/operator/private/pulls?state=all&page=3&limit=50",
   ]);
+});
+
+test("Forgejo polling fixture does not mistake a server page cap for completion", async () => {
+  const verifier = createForgejoV16Verifier({
+    async fetch(url) {
+      const page = Number(new URL(url).searchParams.get("page"));
+      return Response.json(
+        page === 1
+          ? [pullRequest(1), pullRequest(2)]
+          : page === 2
+            ? [pullRequest(3)]
+            : [],
+      );
+    },
+  });
+
+  const snapshot = await verifier.listPullRequests(
+    { baseUrl: "https://forgejo.example", token: "pat" },
+    { full_name: "operator/private", id: 101 },
+  );
+
+  assert.deepEqual(
+    snapshot.map(({ number }) => number),
+    [1, 2, 3],
+  );
 });
 
 test("Forgejo polling fixture rejects an incomplete later page", async () => {
@@ -95,6 +123,38 @@ test("Forgejo polling fixture preserves Retry-After without a hidden fallback", 
       "repositoryId" in error &&
       error.repositoryId === 101,
   );
+});
+
+test("Forgejo polling fixture preserves transient seconds and date gates", async () => {
+  /** @type {Array<[string, number]>} */
+  const cases = [
+    ["0", 1_000],
+    [new Date(121_000).toUTCString(), 121_000],
+  ];
+  for (const [retryAfter, expected] of cases) {
+    const verifier = createForgejoV16Verifier({
+      async fetch() {
+        return Response.json(
+          { message: "unavailable" },
+          { headers: { "retry-after": retryAfter }, status: 503 },
+        );
+      },
+      now: () => 1_000,
+    });
+    await assert.rejects(
+      () =>
+        verifier.listPullRequests(
+          { baseUrl: "https://forgejo.example", token: "pat" },
+          { full_name: "operator/private", id: 101 },
+        ),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "forgejo_api_transient_failure" &&
+        "nextAttemptAt" in error &&
+        error.nextAttemptAt === expected,
+    );
+  }
 });
 
 test("Forgejo polling fixture preserves definitive and transient HTTP ownership", async () => {

@@ -20,10 +20,12 @@ export const FORGEJO_POLLING_SCHEMA = `
         AND last_success_at IS NOT NULL
         AND snapshot IS NOT NULL)
       OR (baseline_status = 'pending'
-        AND last_success_at IS NULL
         AND error_code IS NULL
         AND next_attempt_at IS NOT NULL
-        AND snapshot IS NULL)
+        AND (
+          (last_success_at IS NULL AND snapshot IS NULL)
+          OR (last_success_at IS NOT NULL AND snapshot IS NOT NULL)
+        ))
       OR (baseline_status = 'error' AND error_code IS NOT NULL)
     )
   ) STRICT;

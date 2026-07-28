@@ -16,6 +16,7 @@ import {
   normalizedForgejoBaseUrl,
 } from "./forgejo-v16.js";
 import { createForgejoPollingRunner } from "./forgejo-polling-runner.js";
+import { prepareForgejoRepositoryEnablement } from "./forgejo-repository-enablement.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -253,6 +254,16 @@ export function createForgejoConnectionService(
         input,
       );
     },
+    /** @param {number} forgeRepositoryId */
+    async prepareRepositoryEnablement(forgeRepositoryId) {
+      return prepareForgejoRepositoryEnablement(
+        durableCore,
+        cipher,
+        verifier,
+        polling,
+        forgeRepositoryId,
+      );
+    },
     /** @param {unknown} input */
     async reactivate(input) {
       return reactivateForgejoConnection(
@@ -276,6 +287,7 @@ export function createForgejoConnectionService(
       removeNeverUsedForgejoConnection(durableCore);
     },
     runPolling: polling.runDue,
+    requireFreshBaseline: polling.requireFreshBaseline,
     startPolling: polling.start,
     destroy() {
       polling.destroy();
@@ -299,6 +311,9 @@ export function unavailableForgejoConnectionService(error) {
     async rotate() {
       throw error;
     },
+    async prepareRepositoryEnablement() {
+      throw error;
+    },
     async reactivate() {
       throw error;
     },
@@ -309,6 +324,9 @@ export function unavailableForgejoConnectionService(error) {
       throw error;
     },
     async runPolling() {
+      throw error;
+    },
+    requireFreshBaseline() {
       throw error;
     },
     startPolling() {},

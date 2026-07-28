@@ -178,7 +178,7 @@ export function removeNeverUsedForgejoConnection(durableCore) {
 }
 
 /**
- * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: (transaction: any, connectionId: string, prepared: any) => void, prepareBaseline: (connection: any, token: string, repositories: any[]) => Promise<any>}, readConnection: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
+ * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: (transaction: any, connectionId: string, prepared: any) => void, prepareBaseline: (connection: any, token: string, repositories: any[], options?: {ignoreGate?: boolean}) => Promise<any>}, readConnection: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
  * @param {unknown} input
  */
 export async function reactivateForgejoConnection(
@@ -262,6 +262,7 @@ export async function reactivateForgejoConnection(
         full_name: repository.full_name,
         id: repository.id,
       })),
+      { ignoreGate: true },
     );
     const encrypted = cipher.encrypt(connection.id, token);
     durableCore.transaction((/** @type {any} */ transaction) => {

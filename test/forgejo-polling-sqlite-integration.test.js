@@ -6,6 +6,11 @@ import { test } from "node:test";
 
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { createRepositoryService } from "../src/repository.js";
+import {
+  enabledRepositoryPoll,
+  repositoryEvidence,
+} from "./forgejo-polling-sqlite-integration-support.js";
 
 /** @param {number} number */
 function pullRequest(number) {
@@ -174,5 +179,233 @@ test("SQLite polling preserves the last Forgejo success through an exact rate ga
     },
   );
   service.destroy();
+  core.close();
+});
+
+test("a current-schema restart atomically rebaselines every Forgejo Repository", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-restore-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const masterKey = Buffer.alloc(32, 21);
+  const repositories = [
+    repositoryEvidence(11, "one"),
+    repositoryEvidence(22, "two"),
+  ];
+  let currentTime = 1_000;
+  const initial = openDurableCore(databasePath);
+  const onboarding = createForgejoConnectionService(initial, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "repository-2",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey,
+    now: () => currentTime,
+    verifier: {
+      async listPullRequests(connection, repository) {
+        assert.equal(connection.baseUrl, "https://forgejo.example");
+        return [pullRequest(repository.id)];
+      },
+      async verify() {
+        return {
+          capabilities: { private_git_read: "verified" },
+          principal: { id: 7, login: "operator" },
+          profile: "forgejo-v16",
+          reported_version: "16.0.4",
+          repositories,
+          scopes: ["read:repository", "write:issue", "write:repository"],
+        };
+      },
+    },
+  });
+  await onboarding.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11, 22],
+    token: "pat",
+  });
+  onboarding.destroy();
+  initial.close();
+
+  currentTime = 61_000;
+  let failSecond = true;
+  const restoredCore = openDurableCore(databasePath);
+  const restored = createForgejoConnectionService(restoredCore, {
+    masterKey,
+    now: () => currentTime,
+    verifier: {
+      async listPullRequests(connection, repository) {
+        assert.equal(connection.baseUrl, "https://forgejo.example");
+        if (failSecond && repository.id === 22) {
+          throw Object.assign(new Error("Forgejo restore was rate limited"), {
+            code: "forgejo_api_rate_limited",
+            nextAttemptAt: 125_000,
+            repositoryId: 22,
+          });
+        }
+        return [pullRequest(repository.id + 100)];
+      },
+      async verify() {
+        throw new Error("verification is not part of restart baseline");
+      },
+    },
+  });
+  restored.requireFreshBaseline();
+  assert.deepEqual(
+    restoredCore.all(
+      `SELECT baseline_status, last_success_at, next_attempt_at
+         FROM forgejo_repository_polls ORDER BY forge_repository_id`,
+    ),
+    [
+      {
+        baseline_status: "pending",
+        last_success_at: 1_000,
+        next_attempt_at: 0,
+      },
+      {
+        baseline_status: "pending",
+        last_success_at: 1_000,
+        next_attempt_at: 0,
+      },
+    ],
+  );
+
+  await restored.runPolling();
+  assert.deepEqual(
+    restoredCore.all(
+      `SELECT baseline_status, last_success_at, error_code, next_attempt_at,
+              snapshot
+         FROM forgejo_repository_polls ORDER BY forge_repository_id`,
+    ),
+    [
+      {
+        baseline_status: "pending",
+        error_code: null,
+        last_success_at: 1_000,
+        next_attempt_at: 125_000,
+        snapshot: JSON.stringify([pullRequest(11)]),
+      },
+      {
+        baseline_status: "error",
+        error_code: "forgejo_api_rate_limited",
+        last_success_at: 1_000,
+        next_attempt_at: 125_000,
+        snapshot: JSON.stringify([pullRequest(22)]),
+      },
+    ],
+  );
+
+  currentTime = 125_000;
+  failSecond = false;
+  await restored.runPolling();
+  assert.deepEqual(
+    restoredCore.all(
+      `SELECT baseline_status, last_success_at, error_code, next_attempt_at
+         FROM forgejo_repository_polls ORDER BY forge_repository_id`,
+    ),
+    [
+      {
+        baseline_status: "complete",
+        error_code: null,
+        last_success_at: 125_000,
+        next_attempt_at: 185_000,
+      },
+      {
+        baseline_status: "complete",
+        error_code: null,
+        last_success_at: 125_000,
+        next_attempt_at: 185_000,
+      },
+    ],
+  );
+  restored.destroy();
+  restoredCore.close();
+});
+
+test("Forgejo Repository re-enablement commits its fresh baseline with lifecycle", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-enable-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const masterKey = Buffer.alloc(32, 22);
+  const evidence = repositoryEvidence(11, "private");
+  let observed = pullRequest(1);
+  let failure = false;
+  const forgejo = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = ["connection-1", "verification-1", "repository-1"];
+      return () => ids.shift();
+    })(),
+    masterKey,
+    now: () => 1_000,
+    verifier: {
+      async listPullRequests() {
+        if (failure) {
+          throw Object.assign(new Error("Forgejo Repository is forbidden"), {
+            code: "forgejo_repository_permission_denied",
+            repositoryId: 11,
+          });
+        }
+        return [observed];
+      },
+      async verify({ repositoryIds }) {
+        return {
+          capabilities: { private_git_read: "verified" },
+          principal: { id: 7, login: "operator" },
+          profile: "forgejo-v16",
+          reported_version: "16.0.4",
+          repositories: repositoryIds ? [evidence] : [evidence],
+          scopes: ["read:repository", "write:issue", "write:repository"],
+        };
+      },
+    },
+  });
+  await forgejo.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11],
+    token: "pat",
+  });
+  const repositories = createRepositoryService(core, {
+    masterKey,
+    now: () => 2_000,
+    verifyForgeRepository: (forgeRepositoryId) =>
+      forgejo.prepareRepositoryEnablement(forgeRepositoryId),
+  });
+  await repositories.setLifecycle("repository-1", { lifecycle: "disabled" });
+  observed = pullRequest(2);
+  failure = true;
+  await assert.rejects(
+    () => repositories.setLifecycle("repository-1", { lifecycle: "enabled" }),
+    /Forgejo Repository is forbidden/,
+  );
+  assert.deepEqual(
+    enabledRepositoryPoll(
+      core,
+      "repositories.lifecycle, forgejo_repository_polls.snapshot",
+    ),
+    {
+      lifecycle: "disabled",
+      snapshot: JSON.stringify([pullRequest(1)]),
+    },
+  );
+
+  failure = false;
+  await repositories.setLifecycle("repository-1", { lifecycle: "enabled" });
+  assert.deepEqual(
+    enabledRepositoryPoll(
+      core,
+      `repositories.lifecycle, forgejo_repository_polls.last_success_at,
+       forgejo_repository_polls.snapshot`,
+    ),
+    {
+      last_success_at: 1_000,
+      lifecycle: "enabled",
+      snapshot: JSON.stringify([pullRequest(2)]),
+    },
+  );
+  repositories.destroy();
+  forgejo.destroy();
   core.close();
 });

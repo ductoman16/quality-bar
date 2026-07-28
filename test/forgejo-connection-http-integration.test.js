@@ -42,6 +42,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   const { request } = await startApplication({
     createForgejoConnections() {
       return {
+        requireFreshBaseline() {},
         async discover(/** @type {unknown} */ input) {
           calls.push(input);
           return [
