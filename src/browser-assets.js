@@ -35,6 +35,11 @@ const browserAssets = [
     url: new URL("./browser/github-connection.js", import.meta.url),
   },
   {
+    route: "/assets/forgejo-connection.js",
+    sourcePath: "src/browser/forgejo-connection.js",
+    url: new URL("./browser/forgejo-connection.js", import.meta.url),
+  },
+  {
     route: "/assets/repository.js",
     sourcePath: "src/browser/repository.js",
     url: new URL("./browser/repository.js", import.meta.url),

@@ -6,15 +6,16 @@ export const REPOSITORY_SELECTION = `SELECT
   repositories.health_error_code,
   repositories.health_error_message,
   repositories.verified_at,
-  github_repositories.connection_id AS forge_connection_id,
-  github_repositories.verification_id,
-  github_repositories.forge_repository_id,
-  github_repositories.name AS github_name,
-  github_repositories.api_url AS github_api_url,
-  github_repositories.web_url AS github_web_url,
-  github_connections.health AS forge_connection_health,
-  github_connections.health_error_code AS forge_connection_health_error_code,
-  github_connections.health_error_message AS forge_connection_health_error_message,
+  COALESCE(github_repositories.connection_id, forgejo_repositories.connection_id) AS forge_connection_id,
+  COALESCE(github_repositories.verification_id, forgejo_repositories.verification_id) AS verification_id,
+  COALESCE(github_repositories.forge_repository_id, forgejo_repositories.forge_repository_id) AS forge_repository_id,
+  COALESCE(github_repositories.name, forgejo_repositories.name) AS forge_name,
+  COALESCE(github_repositories.api_url, forgejo_repositories.api_url) AS forge_api_url,
+  COALESCE(github_repositories.web_url, forgejo_repositories.web_url) AS forge_web_url,
+  CASE WHEN github_repositories.repository_id IS NOT NULL THEN 'github' WHEN forgejo_repositories.repository_id IS NOT NULL THEN 'forgejo' ELSE NULL END AS forge_provider,
+  COALESCE(github_connections.health, forgejo_connections.health) AS forge_connection_health,
+  COALESCE(github_connections.health_error_code, NULL) AS forge_connection_health_error_code,
+  COALESCE(github_connections.health_error_message, NULL) AS forge_connection_health_error_message,
   (
     SELECT count(*)
     FROM review_assignment_repositories
@@ -26,6 +27,10 @@ LEFT JOIN github_repositories
   ON github_repositories.repository_id = repositories.id
 LEFT JOIN github_connections
   ON github_connections.id = github_repositories.connection_id
+LEFT JOIN forgejo_repositories
+  ON forgejo_repositories.repository_id = repositories.id
+LEFT JOIN forgejo_connections
+  ON forgejo_connections.id = forgejo_repositories.connection_id
 LEFT JOIN repository_credentials
   ON repository_credentials.repository_id = repositories.id`;
 
@@ -76,9 +81,12 @@ export function readRepositoryResource(row) {
   }
   if (
     !Number.isSafeInteger(row.forge_repository_id) ||
-    typeof row.github_name !== "string" ||
-    typeof row.github_api_url !== "string" ||
-    typeof row.github_web_url !== "string" ||
+    typeof row.forge_name !== "string" ||
+    typeof row.forge_api_url !== "string" ||
+    typeof row.forge_web_url !== "string" ||
+    !["github", "forgejo"].includes(
+      /** @type {string} */ (row.forge_provider),
+    ) ||
     typeof row.verification_id !== "string" ||
     !Number.isSafeInteger(row.verified_at) ||
     !Number.isSafeInteger(row.assignment_count)
@@ -87,14 +95,14 @@ export function readRepositoryResource(row) {
   }
   return {
     ...repository,
-    api_url: row.github_api_url,
+    api_url: row.forge_api_url,
     assignment_count: row.assignment_count,
     forge_connection_id: row.forge_connection_id,
     forge_repository_id: /** @type {number} */ (row.forge_repository_id),
-    name: row.github_name,
-    provider: "github",
+    name: row.forge_name,
+    provider: /** @type {"github" | "forgejo"} */ (row.forge_provider),
     verification_id: row.verification_id,
     verified_at: row.verified_at,
-    web_url: row.github_web_url,
+    web_url: row.forge_web_url,
   };
 }

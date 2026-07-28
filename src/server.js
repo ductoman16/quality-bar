@@ -75,6 +75,7 @@ const TOKEN_METHODS = [
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
  *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
+ *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
@@ -105,6 +106,7 @@ export function createApplicationServer({
   requestSecurity,
   repositories,
   githubConnections,
+  forgejoConnections,
   repositoryGuidance,
   reviews,
   readDurableCoreStatus,
@@ -139,6 +141,15 @@ export function createApplicationServer({
     typeof reviews.updateMetadata !== "function"
   ) {
     throw new TypeError("reviews must provide the Review resource");
+  }
+  if (
+    typeof forgejoConnections?.read !== "function" ||
+    typeof forgejoConnections.connect !== "function" ||
+    typeof forgejoConnections.discover !== "function"
+  ) {
+    throw new TypeError(
+      "forgejoConnections must provide the Forgejo Connection resource",
+    );
   }
   if (
     typeof repositories?.list !== "function" ||
@@ -194,6 +205,7 @@ export function createApplicationServer({
     recordAuthorityAttribution,
     repositories,
     githubConnections,
+    forgejoConnections: /** @type {any} */ (forgejoConnections),
     repositoryGuidance,
     reviews,
   });

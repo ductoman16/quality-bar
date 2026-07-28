@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createUnavailableReviewService } from "../src/review.js";
+import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
 import { startApplication } from "./browser-session-component-support.js";
@@ -214,6 +215,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     browserOrigin: "http://127.0.0.1:3000",
     githubConnections: createUnavailableGitHubConnectionService(
       new Error("unused GitHub Connection"),
+    ),
+    forgejoConnections: unavailableForgejoConnectionService(
+      new Error("unused Forgejo Connection"),
     ),
     browserSessions: {
       authenticate() {

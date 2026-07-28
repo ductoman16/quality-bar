@@ -24,6 +24,10 @@ import {
   createUnavailableGitHubConnectionService,
 } from "./github-connection.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
+import {
+  createForgejoConnectionService,
+  unavailableForgejoConnectionService,
+} from "./forgejo-connection.js";
 import { createApplicationServer } from "./server.js";
 import {
   createRequestSecurityBoundary,
@@ -163,6 +167,7 @@ function createHardStorageBoundary(writeLog) {
  *   createReviews?: typeof createReviewService,
  *   createRepositories?: typeof createRepositoryService,
  *   createGitHubConnections?: (...arguments_: any[]) => any,
+ *   createForgejoConnections?: (...arguments_: any[]) => any,
  *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
@@ -179,6 +184,7 @@ export function createApplication({
   createReviews = createReviewService,
   createRepositories = createRepositoryService,
   createGitHubConnections = createGitHubConnectionService,
+  createForgejoConnections = createForgejoConnectionService,
   createRepositoryGuidance = createRepositoryGuidanceService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
@@ -198,6 +204,8 @@ export function createApplication({
   let repositories = null;
   /** @type {any} */
   let githubConnections = null;
+  /** @type {any} */
+  let forgejoConnections = null;
   let repositoryGuidance = null;
   let systemResource = null;
   let secureBrowserCookie = false;
@@ -224,6 +232,10 @@ export function createApplication({
       verifyInstallationKey(durableCore, installation.masterKey);
       githubConnections = createGitHubConnections(durableCore, {
         externalOrigin: installation.externalOrigin,
+        masterKey: installation.masterKey,
+        now,
+      });
+      forgejoConnections = createForgejoConnections(durableCore, {
         masterKey: installation.masterKey,
         now,
       });
@@ -288,6 +300,7 @@ export function createApplication({
   } catch (error) {
     repositories?.destroy?.();
     githubConnections?.destroy?.();
+    forgejoConnections?.destroy?.();
     durableCore?.close();
     durableCore = null;
     releaseInstallationLock?.();
@@ -301,6 +314,7 @@ export function createApplication({
     repositories = createUnavailableRepositoryService(startupFailure);
     githubConnections =
       createUnavailableGitHubConnectionService(startupFailure);
+    forgejoConnections = unavailableForgejoConnectionService(startupFailure);
     repositoryGuidance =
       createUnavailableRepositoryGuidanceService(startupFailure);
     structuredLog(
@@ -328,6 +342,7 @@ export function createApplication({
     requestSecurity,
     repositories,
     githubConnections,
+    forgejoConnections,
     repositoryGuidance,
     reviews,
     readDurableCoreStatus,
@@ -410,6 +425,7 @@ export function createApplication({
       }
       repositories?.destroy?.();
       githubConnections?.destroy?.();
+      forgejoConnections?.destroy?.();
       durableCore?.close();
       releaseInstallationLock?.();
       releaseInstallationLock = null;

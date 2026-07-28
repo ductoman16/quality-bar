@@ -141,7 +141,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 16);
+  assert.equal(migrated.facts.schemaVersion, 17);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",
@@ -221,6 +221,12 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   migrated.close();
 
   const pollingMigrated = openDurableCore(databasePath);
+  assert.deepEqual(
+    pollingMigrated.get(
+      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'forgejo_connections'",
+    ),
+    { name: "forgejo_connections" },
+  );
   assert.deepEqual(
     pollingMigrated.get(
       `SELECT baseline_status, error_code, last_success_at, next_attempt_at

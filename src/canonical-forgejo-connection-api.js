@@ -1,0 +1,140 @@
+/** @param {object[]} mutationParameters @param {object} errorResponse */
+export function canonicalForgejoConnectionPaths(
+  mutationParameters,
+  errorResponse,
+) {
+  const connection = {
+    additionalProperties: false,
+    properties: {
+      api_profile: { const: "forgejo-v16", type: "string" },
+      base_url: { format: "uri", type: "string" },
+      capabilities: { type: "object" },
+      health: { const: "healthy", type: "string" },
+      id: { type: "string" },
+      principal: { type: "object" },
+      reported_version: { pattern: "^16\\.", type: "string" },
+      scopes: { items: { type: "string" }, type: "array" },
+      verified_at: { type: "integer" },
+    },
+    required: [
+      "api_profile",
+      "base_url",
+      "capabilities",
+      "health",
+      "id",
+      "principal",
+      "reported_version",
+      "scopes",
+      "verified_at",
+    ],
+    type: "object",
+  };
+  return {
+    "/api/v1/forgejo-connections": {
+      get: {
+        operationId: "getForgejoConnection",
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { anyOf: [connection, { type: "null" }] },
+              },
+            },
+            description: "The single verified Forgejo v16 Connection",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+      post: {
+        operationId: "verifyForgejoV16Connection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {
+                  base_url: { format: "uri", type: "string" },
+                  repository_ids: {
+                    items: { minimum: 1, type: "integer" },
+                    minItems: 1,
+                    type: "array",
+                    uniqueItems: true,
+                  },
+                  token: { minLength: 1, type: "string", writeOnly: true },
+                },
+                required: ["base_url", "repository_ids", "token"],
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          201: {
+            content: { "application/json": { schema: connection } },
+            description:
+              "Atomically verified Forgejo Connection and selected Repositories",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+    "/api/v1/forgejo-connections/discover": {
+      post: {
+        operationId: "discoverForgejoV16Repositories",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {
+                  base_url: { format: "uri", type: "string" },
+                  token: { minLength: 1, type: "string", writeOnly: true },
+                },
+                required: ["base_url", "token"],
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: {
+                  items: { type: "object" },
+                  minItems: 1,
+                  type: "array",
+                },
+              },
+            },
+            description:
+              "Verified accessible Forgejo Repositories for explicit selection",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+  };
+}
