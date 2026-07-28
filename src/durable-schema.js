@@ -19,7 +19,10 @@ import {
   REPOSITORY_LIFECYCLE_MIGRATION,
   REPOSITORY_SCHEMA,
 } from "./repository-schema.js";
-import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
+import {
+  FORGEJO_CONNECTION_SCHEMA,
+  FORGEJO_VERIFICATION_HISTORY_MIGRATION,
+} from "./forgejo-connection-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -318,7 +321,16 @@ export function initializeOrValidateSchema(
   } else if (version === 15) {
     schemaMigration.migrateSchema(database, GITHUB_POLLING_MIGRATION);
   } else if (version === 16) {
-    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA);
+    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA, 17);
+    schemaMigration.migrateSchema(
+      database,
+      FORGEJO_VERIFICATION_HISTORY_MIGRATION,
+    );
+  } else if (version === 17) {
+    schemaMigration.migrateSchema(
+      database,
+      FORGEJO_VERIFICATION_HISTORY_MIGRATION,
+    );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

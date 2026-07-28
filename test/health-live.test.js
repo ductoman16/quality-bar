@@ -25,6 +25,9 @@ function applicationServerOptions() {
       async connect() {
         throw new Error("unused Forgejo Connection");
       },
+      async rotate() {
+        throw new Error("unused Forgejo Connection");
+      },
       read() {
         throw new Error("unused Forgejo Connection");
       },
@@ -250,5 +253,20 @@ test("the application server rejects an incomplete Repository resource boundary"
         },
       }),
     /repositories must provide the Repository resource/,
+  );
+});
+
+test("the application server rejects an incomplete Forgejo Connection boundary", () => {
+  const options = applicationServerOptions();
+  assert.throws(
+    () =>
+      callApplicationServer({
+        ...options,
+        forgejoConnections: {
+          ...options.forgejoConnections,
+          rotate: undefined,
+        },
+      }),
+    /forgejoConnections must provide the Forgejo Connection resource/,
   );
 });

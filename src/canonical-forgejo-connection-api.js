@@ -9,7 +9,21 @@ export function canonicalForgejoConnectionPaths(
       api_profile: { const: "forgejo-v16", type: "string" },
       base_url: { format: "uri", type: "string" },
       capabilities: { type: "object" },
-      health: { const: "healthy", type: "string" },
+      health: { enum: ["healthy", "error"], type: "string" },
+      health_error: {
+        oneOf: [
+          {
+            additionalProperties: false,
+            properties: {
+              code: { minLength: 1, type: "string" },
+              message: { minLength: 1, type: "string" },
+            },
+            required: ["code", "message"],
+            type: "object",
+          },
+          { type: "null" },
+        ],
+      },
       id: { type: "string" },
       principal: { type: "object" },
       reported_version: { pattern: "^16\\.", type: "string" },
@@ -21,6 +35,7 @@ export function canonicalForgejoConnectionPaths(
       "base_url",
       "capabilities",
       "health",
+      "health_error",
       "id",
       "principal",
       "reported_version",
@@ -28,6 +43,30 @@ export function canonicalForgejoConnectionPaths(
       "verified_at",
     ],
     type: "object",
+    oneOf: [
+      {
+        properties: {
+          health: { const: "healthy" },
+          health_error: { type: "null" },
+        },
+        required: ["health", "health_error"],
+      },
+      {
+        properties: {
+          health: { const: "error" },
+          health_error: {
+            additionalProperties: false,
+            properties: {
+              code: { minLength: 1, type: "string" },
+              message: { minLength: 1, type: "string" },
+            },
+            required: ["code", "message"],
+            type: "object",
+          },
+        },
+        required: ["health", "health_error"],
+      },
+    ],
   };
   return {
     "/api/v1/forgejo-connections": {
@@ -129,6 +168,43 @@ export function canonicalForgejoConnectionPaths(
           400: errorResponse,
           401: errorResponse,
           403: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+    "/api/v1/forgejo-connections/credential/rotate": {
+      post: {
+        operationId: "rotateForgejoConnectionPat",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {
+                  token: { minLength: 1, type: "string", writeOnly: true },
+                },
+                required: ["token"],
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: { "application/json": { schema: connection } },
+            description:
+              "Replacement Forgejo PAT verified and atomically activated",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
           422: errorResponse,
           500: errorResponse,
           503: errorResponse,

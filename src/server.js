@@ -145,7 +145,8 @@ export function createApplicationServer({
   if (
     typeof forgejoConnections?.read !== "function" ||
     typeof forgejoConnections.connect !== "function" ||
-    typeof forgejoConnections.discover !== "function"
+    typeof forgejoConnections.discover !== "function" ||
+    typeof forgejoConnections.rotate !== "function"
   ) {
     throw new TypeError(
       "forgejoConnections must provide the Forgejo Connection resource",

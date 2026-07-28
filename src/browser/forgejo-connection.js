@@ -6,11 +6,17 @@ window.addEventListener("DOMContentLoaded", () => {
   const forgejoForm = /** @type {HTMLFormElement} */ (
     forgejoOperator.requiredElement("forgejo-connection-form")
   );
+  const forgejoRotationForm = /** @type {HTMLFormElement} */ (
+    forgejoOperator.requiredElement("forgejo-connection-rotation-form")
+  );
   const forgejoBaseUrl = /** @type {HTMLInputElement} */ (
     forgejoOperator.requiredElement("forgejo-connection-base-url")
   );
   const forgejoToken = /** @type {HTMLInputElement} */ (
     forgejoOperator.requiredElement("forgejo-connection-token")
+  );
+  const forgejoRotationToken = /** @type {HTMLInputElement} */ (
+    forgejoOperator.requiredElement("forgejo-connection-rotation-token")
   );
   const forgejoRepositories = forgejoOperator.requiredElement(
     "forgejo-connection-repositories",
@@ -31,6 +37,50 @@ window.addEventListener("DOMContentLoaded", () => {
     forgejoError.textContent = message;
     forgejoError.hidden = false;
     forgejoError.focus();
+  }
+
+  /** @param {Response} response */
+  async function forgejoRotationResponse(response) {
+    try {
+      return /** @type {unknown} */ (await response.json());
+    } catch {
+      throw new Error("Forgejo PAT rotation response is invalid");
+    }
+  }
+
+  /** @param {unknown} value */
+  function validRotatedForgejoConnection(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return false;
+    }
+    const connection = /** @type {Record<string, unknown>} */ (value);
+    const principal =
+      connection.principal &&
+      typeof connection.principal === "object" &&
+      !Array.isArray(connection.principal)
+        ? /** @type {Record<string, unknown>} */ (connection.principal)
+        : null;
+    return (
+      connection.api_profile === "forgejo-v16" &&
+      typeof connection.base_url === "string" &&
+      connection.base_url.length > 0 &&
+      connection.capabilities !== null &&
+      typeof connection.capabilities === "object" &&
+      !Array.isArray(connection.capabilities) &&
+      connection.health === "healthy" &&
+      connection.health_error === null &&
+      typeof connection.id === "string" &&
+      connection.id.length > 0 &&
+      Number.isSafeInteger(principal?.id) &&
+      typeof principal?.login === "string" &&
+      principal.login.length > 0 &&
+      typeof connection.reported_version === "string" &&
+      /^16\./.test(connection.reported_version) &&
+      Array.isArray(connection.scopes) &&
+      connection.scopes.every((scope) => typeof scope === "string") &&
+      Number.isSafeInteger(connection.verified_at) &&
+      Object.keys(connection).length === 10
+    );
   }
 
   forgejoForm.addEventListener("submit", async (event) => {
@@ -130,6 +180,68 @@ window.addEventListener("DOMContentLoaded", () => {
       forgejoStatus.focus();
     } catch {
       showForgejoError("Forgejo Connection verification failed");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  forgejoRotationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    forgejoError.hidden = true;
+    if (!forgejoRotationToken.value) {
+      showForgejoError("Replacement Forgejo PAT is required");
+      forgejoRotationToken.focus();
+      return;
+    }
+    if (
+      !window.confirm(
+        "Rotate Forgejo PAT? Quality Bar will replace its old copy after verification. Revoke the predecessor in Forgejo.",
+      )
+    ) {
+      forgejoRotationToken.focus();
+      return;
+    }
+    forgejoStatus.textContent = "Verifying replacement Forgejo PAT.";
+    const submit = /** @type {HTMLButtonElement} */ (
+      forgejoOperator.requiredElement("forgejo-connection-rotation-submit")
+    );
+    submit.disabled = true;
+    try {
+      const response = await fetch(
+        "/api/v1/forgejo-connections/credential/rotate",
+        {
+          body: JSON.stringify({ token: forgejoRotationToken.value }),
+          headers: {
+            "content-type": "application/json",
+            "x-quality-bar-csrf": forgejoOperator.csrfToken(),
+          },
+          method: "POST",
+        },
+      );
+      if (!response.ok) {
+        const body = /** @type {{error?: {message?: unknown}}} */ (
+          await forgejoRotationResponse(response)
+        );
+        showForgejoError(
+          typeof body.error?.message === "string"
+            ? body.error.message
+            : "Forgejo PAT rotation response is invalid",
+        );
+        return;
+      }
+      const connection = await forgejoRotationResponse(response);
+      if (!validRotatedForgejoConnection(connection)) {
+        showForgejoError("Forgejo PAT rotation response is invalid");
+        return;
+      }
+      forgejoRotationToken.value = "";
+      forgejoStatus.textContent =
+        "Forgejo PAT rotated. Revoke its predecessor in Forgejo.";
+      forgejoStatus.focus();
+    } catch (error) {
+      if (!(error instanceof Error)) {
+        throw error;
+      }
+      showForgejoError(error.message);
     } finally {
       submit.disabled = false;
     }
