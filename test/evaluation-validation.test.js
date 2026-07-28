@@ -10,6 +10,7 @@ import {
   createEvaluationService,
   createUnavailableEvaluationService,
 } from "../src/evaluation.js";
+import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 
 test("explicit Evaluation accepts exactly typed pushed branch and commit selectors", () => {
   assert.deepEqual(
@@ -28,6 +29,25 @@ test("explicit Evaluation accepts exactly typed pushed branch and commit selecto
       },
     },
   );
+  assert.deepEqual(
+    canonicalExplicitEvaluationRequest({
+      base: { type: "branch", value: "main" },
+      head: { type: "commit", value: "A".repeat(64) },
+    }).head,
+    { type: "commit", value: "a".repeat(64) },
+  );
+});
+
+test("Evaluation HTTP operations advertise only their implemented browser authority", () => {
+  const paths = canonicalOpenApiDocument().paths;
+  for (const operation of [
+    paths["/api/v1/evaluations"].get,
+    paths["/api/v1/evaluations/{evaluation_id}"].get,
+    paths["/api/v1/evaluations/{evaluation_id}/result"].get,
+    paths["/api/v1/repositories/{repository_id}/evaluations"].post,
+  ]) {
+    assert.deepEqual(operation.security, [{ browser_session: [] }]);
+  }
 });
 
 test("explicit Evaluation rejects every malformed request and selector shape", () => {
@@ -61,6 +81,8 @@ test("explicit Evaluation rejects every malformed request and selector shape", (
       "release@{main",
       "release main",
       "release~main",
+      "release/.hidden",
+      "release/topic.lock/more",
     ].map((value) => ({ type: "branch", value })),
   ]) {
     const request = {

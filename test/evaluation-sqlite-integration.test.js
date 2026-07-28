@@ -235,3 +235,43 @@ test("work-admission capacity rejection consumes no Evaluation identity or idemp
   );
   core.close();
 });
+
+test("newest-first Evaluation listing never silently truncates accepted work", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  let nextId = 0;
+  const service = createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: "a".repeat(64),
+      head_commit: "b".repeat(64),
+    }),
+    createId: () => `evaluation-${String(++nextId).padStart(2, "0")}`,
+    now: () => nextId,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  for (let index = 1; index <= 51; index += 1) {
+    await service.createExplicit({
+      channel: "browser_session",
+      idempotencyKey: `request-${index}`,
+      repositoryId: "repository-1",
+      request: {
+        base: { type: "branch", value: "main" },
+        head: { type: "branch", value: "topic" },
+      },
+    });
+  }
+  const collection = service.list();
+  assert.equal(collection.items.length, 51);
+  assert.equal(collection.items[0].id, "evaluation-51");
+  assert.equal(collection.items.at(-1)?.id, "evaluation-01");
+  assert.equal(collection.next_cursor, null);
+  core.close();
+});

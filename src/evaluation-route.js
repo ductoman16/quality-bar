@@ -1,14 +1,17 @@
 import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { requireCodedError } from "./coded-error.js";
 import {
+  assertAllowedQueryParameters,
+  isUnavailableError,
   readJsonRequest,
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {string} code */
-function failureStatus(code) {
-  if (code === "idempotency_key_required") {
+/** @param {Error & {code: string}} failure */
+function failureStatus(failure) {
+  const { code } = failure;
+  if (["idempotency_key_required", "request_malformed"].includes(code)) {
     return 400;
   }
   if (["evaluation_not_found", "repository_not_found"].includes(code)) {
@@ -25,8 +28,10 @@ function failureStatus(code) {
       "repository_git_credentials_unavailable",
       "repository_permission_denied",
       "review_run_admission_unavailable",
+      "storage_reserve_check_failed",
       "storage_reserve_unavailable",
-    ].includes(code)
+    ].includes(code) ||
+    isUnavailableError(failure)
   ) {
     return 503;
   }
@@ -81,6 +86,7 @@ export function createEvaluationRoute({
       return true;
     }
     try {
+      assertAllowedQueryParameters(requestUrl, new Set());
       if (method === "GET" && path === "/api/v1/evaluations") {
         writeJson(response, 200, evaluations.list());
         return true;
@@ -135,7 +141,7 @@ export function createEvaluationRoute({
       const failure = requireCodedError(error);
       writeError(
         response,
-        failureStatus(failure.code),
+        failureStatus(failure),
         failure.code,
         failure.message,
       );

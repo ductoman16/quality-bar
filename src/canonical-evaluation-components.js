@@ -20,7 +20,7 @@ export function canonicalEvaluationSchemas() {
     Evaluation: closedObject(
       {
         base_commit: {
-          pattern: "^[0-9a-f]{40}$",
+          pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
           type: "string",
         },
         base_selector: { $ref: "#/components/schemas/EvaluationSelector" },
@@ -37,7 +37,7 @@ export function canonicalEvaluationSchemas() {
           type: "string",
         },
         head_commit: {
-          pattern: "^[0-9a-f]{40}$",
+          pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
           type: "string",
         },
         head_selector: { $ref: "#/components/schemas/EvaluationSelector" },

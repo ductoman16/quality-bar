@@ -10,6 +10,54 @@ import {
 } from "./evaluation-validation.js";
 import { RepositoryError } from "./repository-validation.js";
 
+const GIT_CREDENTIAL_HELPER =
+  'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f';
+
+function isolatedGitEnvironment() {
+  return {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    LC_ALL: "C",
+  };
+}
+
+/** @param {{token: string, username: string} | undefined} credential */
+function gitCredentialIsValid(credential) {
+  return (
+    !credential ||
+    Boolean(
+      credential.username &&
+      credential.token &&
+      !/[\0\r\n]/.test(credential.username) &&
+      !/[\0\r\n]/.test(credential.token),
+    )
+  );
+}
+
+/**
+ * @param {{token: string, username: string} | undefined} credential
+ * @param {string | undefined} certificateAuthorityPath
+ * @param {boolean} followRedirects
+ */
+function secureGitConfiguration(
+  credential,
+  certificateAuthorityPath,
+  followRedirects,
+) {
+  const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
+  if (credential) {
+    arguments_.push("-c", GIT_CREDENTIAL_HELPER);
+  }
+  if (certificateAuthorityPath) {
+    arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
+  }
+  if (!followRedirects) {
+    arguments_.push("-c", "http.followRedirects=false");
+  }
+  return arguments_;
+}
+
 /** @param {unknown} cause */
 function unavailable(cause) {
   return new RepositoryError(
@@ -63,37 +111,18 @@ export function verifyRepositoryRead(
     }
     return unavailable(failure);
   }
-  /** @type {Record<string, string>} */
-  const environment = {
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_TERMINAL_PROMPT: "0",
-  };
-  if (
-    credential &&
-    (!credential.username ||
-      !credential.token ||
-      /[\0\r\n]/.test(credential.username) ||
-      /[\0\r\n]/.test(credential.token))
-  ) {
+  const environment = isolatedGitEnvironment();
+  if (!gitCredentialIsValid(credential)) {
     return Promise.reject(
       cleanupUnavailable(new TypeError("Git credential is invalid"), true),
     );
   }
   return new Promise((resolve, reject) => {
-    const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
-    if (credential) {
-      arguments_.push(
-        "-c",
-        'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f',
-      );
-    }
-    if (certificateAuthorityPath) {
-      arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
-    }
-    if (!followRedirects) {
-      arguments_.push("-c", "http.followRedirects=false");
-    }
+    const arguments_ = secureGitConfiguration(
+      credential,
+      certificateAuthorityPath,
+      followRedirects,
+    );
     arguments_.push("ls-remote", "--", normalizedUrl);
     /** @type {import("node:child_process").ChildProcess} */
     let child;
@@ -225,12 +254,7 @@ export async function resolvePushedCommitSelectors(
       cause,
     );
   }
-  const environment = {
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_TERMINAL_PROMPT: "0",
-    LC_ALL: "C",
-  };
+  const environment = isolatedGitEnvironment();
 
   /**
    * @param {string[]} arguments_
@@ -285,59 +309,62 @@ export async function resolvePushedCommitSelectors(
   let acquired;
   let acquisitionFailure;
   try {
-    if (
-      credential &&
-      (!credential.username ||
-        !credential.token ||
-        /[\0\r\n]/.test(credential.username) ||
-        /[\0\r\n]/.test(credential.token))
-    ) {
+    if (!gitCredentialIsValid(credential)) {
       failEvaluation(
         "evaluation_git_acquisition_unavailable",
         "Evaluation Git acquisition could not run",
       );
     }
-    await runGit(["init", "--bare", "--quiet", "."], false);
-    const gitArguments = ["-c", "credential.helper=", "-c", "core.askPass="];
-    if (credential) {
-      gitArguments.push(
-        "-c",
-        'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f',
-      );
-    }
-    if (certificateAuthorityPath) {
-      gitArguments.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
-    }
-    /**
-     * @param {{type: string, value: string}} selector
-     * @param {string} destination
-     */
-    const refspec = (selector, destination) =>
-      `${selector.type === "branch" ? `refs/heads/${selector.value}` : selector.value}:refs/quality-bar/${destination}`;
-    gitArguments.push(
-      "fetch",
-      "--no-tags",
-      "--force",
-      "--",
-      normalizedUrl,
-      refspec(selectors.base, "base"),
-      refspec(selectors.head, "head"),
+    await runGit(
+      [
+        ...secureGitConfiguration(credential, certificateAuthorityPath, false),
+        "clone",
+        "--mirror",
+        "--quiet",
+        "--",
+        normalizedUrl,
+        ".",
+      ],
+      true,
     );
-    await runGit(gitArguments, true);
+    const objectFormat = /** @type {{stdout: string}} */ (
+      await runGit(["rev-parse", "--show-object-format"], false)
+    ).stdout.trim();
+    const objectIdPattern =
+      objectFormat === "sha1"
+        ? /^[0-9a-f]{40}$/i
+        : objectFormat === "sha256"
+          ? /^[0-9a-f]{64}$/i
+          : undefined;
+    if (!objectIdPattern) {
+      throw new TypeError("Repository object format is unsupported");
+    }
     const resolved = [];
-    for (const name of ["base", "head"]) {
-      resolved.push(
-        /** @type {{stdout: string}} */ (
-          await runGit(
-            ["rev-parse", "--verify", `refs/quality-bar/${name}^{commit}`],
-            false,
-          )
-        ).stdout.trim(),
-      );
+    for (const selector of [selectors.base, selectors.head]) {
+      const revision =
+        selector.type === "branch"
+          ? `refs/heads/${selector.value}^{commit}`
+          : `${selector.value}^{commit}`;
+      try {
+        resolved.push(
+          /** @type {{stdout: string}} */ (
+            await runGit(
+              ["rev-parse", "--verify", "--end-of-options", revision],
+              false,
+            )
+          ).stdout.trim(),
+        );
+      } catch (cause) {
+        failEvaluation(
+          "evaluation_selector_not_found",
+          "An Evaluation selector does not identify a fetchable pushed commit",
+          cause,
+        );
+      }
     }
     if (
       resolved.length !== 2 ||
-      resolved.some((objectId) => !/^[0-9a-f]{40}$/i.test(objectId))
+      resolved.some((objectId) => !objectIdPattern.test(objectId))
     ) {
       throw new TypeError("Resolved Evaluation commits are invalid");
     }

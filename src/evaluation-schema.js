@@ -7,8 +7,14 @@ export const EVALUATION_SCHEMA = `
     base_selector_value TEXT NOT NULL,
     head_selector_type TEXT NOT NULL CHECK (head_selector_type IN ('branch', 'commit')),
     head_selector_value TEXT NOT NULL,
-    base_commit TEXT NOT NULL CHECK (length(base_commit) = 40),
-    head_commit TEXT NOT NULL CHECK (length(head_commit) = 40),
+    base_commit TEXT NOT NULL CHECK (
+      length(base_commit) IN (40, 64)
+      AND base_commit NOT GLOB '*[^0-9a-f]*'
+    ),
+    head_commit TEXT NOT NULL CHECK (
+      length(head_commit) IN (40, 64)
+      AND head_commit NOT GLOB '*[^0-9a-f]*'
+    ),
     execution_status TEXT NOT NULL
       CHECK (execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
     created_at INTEGER NOT NULL,

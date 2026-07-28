@@ -91,6 +91,13 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
                   effective_outcome: "pending",
                   execution_status: "queued",
                   id: "evaluation-delayed",
+                  next_attempt_at: "2026-07-28T12:05:00.000Z",
+                }),
+                evaluation({
+                  completed_at: null,
+                  effective_outcome: "pending",
+                  execution_status: "queued",
+                  id: "evaluation-not-ready",
                 }),
                 evaluation({
                   effective_outcome: "error",
@@ -174,10 +181,18 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   );
   assert.match(
     controls.get("evaluation-active").options[0].textContent,
-    /delayed — pending/,
+    /delayed until 2026-07-28T12:05:00.000Z — pending/,
   );
   assert.equal(
     controls.get("evaluation-active").options[1].textContent,
+    "Result not ready",
+  );
+  assert.match(
+    controls.get("evaluation-active").options[2].textContent,
+    /queued — pending/,
+  );
+  assert.equal(
+    controls.get("evaluation-active").options[3].textContent,
     "Result not ready",
   );
   assert.match(

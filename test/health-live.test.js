@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import { createUnavailableReviewService } from "../src/review.js";
+import { createUnavailableEvaluationService } from "../src/evaluation.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { createApplicationServer } from "../src/server.js";
 import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
@@ -18,6 +19,9 @@ function callApplicationServer(options) {
 
 function applicationServerOptions() {
   return {
+    evaluations: createUnavailableEvaluationService(
+      new Error("unused Evaluation"),
+    ),
     forgejoConnections: {
       destroy() {},
       async runPolling() {},
@@ -253,6 +257,17 @@ test("the application server rejects a missing request-security boundary", () =>
       );
       return true;
     },
+  );
+});
+
+test("the application server requires the Evaluation resource boundary", () => {
+  assert.throws(
+    () =>
+      callApplicationServer({
+        ...applicationServerOptions(),
+        evaluations: undefined,
+      }),
+    /evaluations must provide the Evaluation resource/,
   );
 });
 

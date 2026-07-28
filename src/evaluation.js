@@ -123,8 +123,7 @@ export function createEvaluationService(
         items: durableCore
           .all(
             `${EVALUATION_SELECTION}
-             ORDER BY evaluations.created_at DESC, evaluations.id DESC
-             LIMIT 50`,
+             ORDER BY evaluations.created_at DESC, evaluations.id DESC`,
           )
           .map(readEvaluation),
         next_cursor: null,
@@ -203,8 +202,8 @@ export function createEvaluationService(
       storageReserve.assertWorkAdmissionAvailable();
       const commits = await acquireChangeset(repositoryId, canonicalRequest);
       if (
-        !/^[0-9a-f]{40}$/.test(commits?.base_commit) ||
-        !/^[0-9a-f]{40}$/.test(commits?.head_commit)
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.base_commit) ||
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.head_commit)
       ) {
         throw new TypeError("Acquired Evaluation commits are invalid");
       }

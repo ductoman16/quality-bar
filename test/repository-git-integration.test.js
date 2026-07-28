@@ -21,7 +21,10 @@ import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
 import { createReviewService } from "../src/review.js";
 import { openDurableCore } from "../src/durable-core.js";
-import { createBareRepository } from "./repository-git-integration-support.js";
+import {
+  assertCredentialedAcquisitionRejectsRedirect,
+  createBareRepository,
+} from "./repository-git-integration-support.js";
 test("public Repository verification accepts a reactivated installation credential over real HTTPS Git", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-git-https-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -149,6 +152,11 @@ test("public Repository verification accepts a reactivated installation credenti
     (error) =>
       error instanceof RepositoryError &&
       error.code === "repository_git_read_failed",
+  );
+  await assertCredentialedAcquisitionRejectsRedirect(
+    `https://127.0.0.1:${address.port}/redirect.git`,
+    certificate,
+    privateAuthorizationHeaders,
   );
   await verifyRepositoryRead(
     `https://127.0.0.1:${address.port}/private.git`,

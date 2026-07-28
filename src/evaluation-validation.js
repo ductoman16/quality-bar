@@ -46,7 +46,7 @@ function canonicalSelector(value, name) {
   }
   const selectorValue = /** @type {string} */ (selector.value);
   if (selector.type === "commit") {
-    if (!/^[0-9a-f]{40}$/i.test(selectorValue)) {
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(selectorValue)) {
       failEvaluation(
         "evaluation_selector_invalid",
         `${name} commit selector must be a full object ID`,
@@ -62,11 +62,15 @@ function canonicalSelector(value, name) {
     branch.startsWith("/") ||
     branch.endsWith(".") ||
     branch.endsWith("/") ||
-    branch.endsWith(".lock") ||
     branch.includes("..") ||
     branch.includes("//") ||
     branch.includes("@{") ||
-    /[\0-\x20\x7f~^:?*[\\]/.test(branch)
+    /[\0-\x20\x7f~^:?*[\\]/.test(branch) ||
+    branch
+      .split("/")
+      .some(
+        (component) => component.startsWith(".") || component.endsWith(".lock"),
+      )
   ) {
     failEvaluation(
       "evaluation_selector_invalid",

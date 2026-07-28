@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createEvaluationService } from "../src/evaluation.js";
+import {
+  createEvaluationService,
+  createUnavailableEvaluationService,
+} from "../src/evaluation.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
@@ -127,6 +130,32 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     )?.count,
     1,
   );
+
+  for (const query of ["?unexpected=1", "?unexpected=1&unexpected=2"]) {
+    const malformed = await request(`/api/v1/evaluations${query}`, {
+      headers: { cookie: operatorHeaders.cookie },
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal(await responseErrorCode(malformed), "request_malformed");
+  }
+});
+
+test("Evaluation capability and storage-reserve failures are hard dependency gates", async () => {
+  for (const code of [
+    "evaluation_capability_unavailable",
+    "storage_reserve_check_failed",
+  ]) {
+    const failure = Object.assign(new Error(`${code} exact failure`), { code });
+    const { request } = await startApplication({
+      createEvaluations() {
+        return createUnavailableEvaluationService(failure);
+      },
+    });
+    const headers = await authenticatedOperatorHeaders(request);
+    const response = await request("/api/v1/evaluations", { headers });
+    assert.equal(response.status, 503);
+    assert.equal(await responseErrorCode(response), code);
+  }
 });
 
 test("selector rejection consumes no HTTP idempotency key", async () => {

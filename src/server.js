@@ -17,10 +17,6 @@ import {
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
-import {
-  createUnavailableEvaluationService,
-  EvaluationError,
-} from "./evaluation.js";
 import { createEvaluationRoute } from "./evaluation-route.js";
 
 /**
@@ -83,7 +79,7 @@ const TOKEN_METHODS = [
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
- *   evaluations?: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
+ *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   waiverAdjudicatorConfiguration: ReturnType<typeof import("./waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
@@ -116,12 +112,7 @@ export function createApplicationServer({
   githubConnections,
   forgejoConnections,
   repositoryGuidance,
-  evaluations = createUnavailableEvaluationService(
-    new EvaluationError(
-      "evaluation_capability_unavailable",
-      "Evaluation capability is unavailable",
-    ),
-  ),
+  evaluations,
   reviews,
   waiverAdjudicatorConfiguration,
   readDurableCoreStatus,

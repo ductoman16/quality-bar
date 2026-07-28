@@ -1,6 +1,6 @@
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
-  const authenticated = [{ browser_session: [] }, { implementer_token: [] }];
+  const authenticated = [{ browser_session: [] }];
   const evaluationResponse = {
     content: {
       "application/json": {

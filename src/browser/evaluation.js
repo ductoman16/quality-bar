@@ -47,7 +47,12 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.base_commit !== "string" ||
     typeof evaluation.head_commit !== "string" ||
     typeof evaluation.execution_status !== "string" ||
-    typeof evaluation.effective_outcome !== "string"
+    typeof evaluation.effective_outcome !== "string" ||
+    !(
+      evaluation.next_attempt_at === undefined ||
+      evaluation.next_attempt_at === null ||
+      typeof evaluation.next_attempt_at === "string"
+    )
   ) {
     throw new Error("evaluation_collection_invalid");
   }
@@ -66,8 +71,8 @@ async function renderEvaluation(evaluation) {
     " (" +
     evaluation.head_commit +
     ") — " +
-    (evaluation.execution_status === "queued"
-      ? "delayed"
+    (evaluation.execution_status === "queued" && evaluation.next_attempt_at
+      ? "delayed until " + evaluation.next_attempt_at
       : evaluation.execution_status) +
     " — " +
     evaluation.effective_outcome;
