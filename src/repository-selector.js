@@ -4,6 +4,7 @@ import { fail } from "./repository-validation.js";
  * @param {{
  *   credentialCipher: ReturnType<typeof import("./repository-credential.js").createRepositoryCredentialCipher>,
  *   find: (id: string) => Record<string, import("node:sqlite").SQLInputValue>,
+ *   objectDatabaseRoot: string,
  *   requireAcceptsNewWork: (id: string) => ReturnType<typeof import("./repository-resource.js").readRepositoryResource>,
  *   resolveSelectors: typeof import("./repository-git.js").resolvePushedCommitSelectors
  * }} dependencies
@@ -11,6 +12,7 @@ import { fail } from "./repository-validation.js";
 export function createRepositorySelectorResolver({
   credentialCipher,
   find,
+  objectDatabaseRoot,
   requireAcceptsNewWork,
   resolveSelectors,
 }) {
@@ -31,6 +33,8 @@ export function createRepositorySelectorResolver({
             row.encrypted_credential,
           )
         : undefined;
-    return resolveSelectors(repository.url, credential, request);
+    return resolveSelectors(repository.url, credential, request, {
+      objectDatabaseRoot,
+    });
   };
 }

@@ -140,6 +140,7 @@ test("Evaluation construction and creation identities fail before durable work",
       base_commit: "1".repeat(40),
       head_commit: "2".repeat(40),
     }),
+    masterKey: Buffer.alloc(32, 7),
     storageReserve: { assertWorkAdmissionAvailable() {} },
   };
   for (const [durableCore, candidateOptions] of [
@@ -208,6 +209,13 @@ test("Evaluation construction and creation identities fail before durable work",
         head_commit: "abbreviated",
       }),
     },
+    {
+      ...options,
+      acquireChangeset: async () => ({
+        base_commit: "1".repeat(40),
+        head_commit: "2".repeat(64),
+      }),
+    },
   ]) {
     await assert.rejects(
       () =>
@@ -264,6 +272,7 @@ test("Evaluation reads distinguish missing work from a not-ready Result", () => 
       base_commit: "1".repeat(40),
       head_commit: "2".repeat(40),
     }),
+    masterKey: Buffer.alloc(32, 7),
     storageReserve: { assertWorkAdmissionAvailable() {} },
   };
   const core = {

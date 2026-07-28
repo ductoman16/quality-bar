@@ -158,6 +158,59 @@ test("Evaluation capability and storage-reserve failures are hard dependency gat
   }
 });
 
+test("Evaluation admission preserves Repository lifecycle and health status", async () => {
+  const { application, request } = await startApplication({
+    createEvaluations(core, options) {
+      return createEvaluationService(core, {
+        ...options,
+        acquireChangeset: async () => ({
+          base_commit: baseCommit,
+          head_commit: headCommit,
+        }),
+      });
+    },
+  });
+  application.durableCore.run(
+    `INSERT INTO repositories (
+       id, normalized_url, lifecycle, health,
+       health_error_code, health_error_message, created_at, verified_at
+     ) VALUES
+       ('repository-disabled', 'https://example.invalid/disabled.git',
+        'disabled', 'healthy', NULL, NULL, 1, 1),
+       ('repository-unhealthy', 'https://example.invalid/unhealthy.git',
+        'enabled', 'error', 'repository_git_read_failed',
+        'Repository Git read verification failed', 1, 1)`,
+  );
+  const headers = {
+    ...(await authenticatedOperatorHeaders(request)),
+    "content-type": "application/json",
+  };
+  for (const [repositoryId, status, code] of [
+    ["repository-disabled", 409, "repository_not_enabled"],
+    ["repository-unhealthy", 503, "repository_git_read_failed"],
+  ]) {
+    const response = await request(
+      `/api/v1/repositories/${repositoryId}/evaluations`,
+      {
+        body: JSON.stringify(requestBody),
+        headers: {
+          ...headers,
+          "idempotency-key": `${repositoryId}-key`,
+        },
+        method: "POST",
+      },
+    );
+    assert.equal(response.status, status);
+    assert.equal(await responseErrorCode(response), code);
+  }
+  assert.equal(
+    application.durableCore.get(
+      "SELECT count(*) AS count FROM evaluation_idempotency",
+    )?.count,
+    0,
+  );
+});
+
 test("selector rejection consumes no HTTP idempotency key", async () => {
   const { application, request } = await startApplication({
     createEvaluations(core, options) {

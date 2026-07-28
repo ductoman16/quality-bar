@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { createEvaluationCollection } from "./evaluation-collection.js";
 import {
   canonicalExplicitEvaluationRequest,
   EvaluationError,
@@ -9,11 +10,10 @@ import {
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 
 export { EvaluationError };
-
 const ROUTE_PREFIX = "/api/v1/repositories/";
 
-/** @param {number} value */
-const timestamp = (value) => new Date(value).toISOString();
+const timestamp = (/** @type {number} */ value) =>
+  new Date(value).toISOString();
 
 /** @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row */
 function readEvaluation(row) {
@@ -29,6 +29,9 @@ function readEvaluation(row) {
     typeof row.base_commit !== "string" ||
     typeof row.head_commit !== "string" ||
     typeof row.execution_status !== "string" ||
+    !(
+      row.next_attempt_at === null || Number.isSafeInteger(row.next_attempt_at)
+    ) ||
     !Number.isSafeInteger(row.created_at)
   ) {
     throw new TypeError("Evaluation row is invalid");
@@ -55,19 +58,19 @@ function readEvaluation(row) {
       value: row.head_selector_value,
     },
     id: row.id,
+    next_attempt_at:
+      row.next_attempt_at === null
+        ? null
+        : timestamp(/** @type {number} */ (row.next_attempt_at)),
     provenance: "explicit",
     repository: { id: row.repository_id, url: row.normalized_url },
   };
 }
 
-const EVALUATION_SELECTION = `SELECT
-  evaluations.*,
-  repositories.normalized_url,
-  evaluation_results.outcome AS result_outcome
-FROM evaluations
-JOIN repositories ON repositories.id = evaluations.repository_id
-LEFT JOIN evaluation_results
-  ON evaluation_results.evaluation_id = evaluations.id`;
+const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
+  evaluation_results.outcome AS result_outcome FROM evaluations
+  JOIN repositories ON repositories.id = evaluations.repository_id
+  LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
 
 /**
  * @param {{
@@ -82,6 +85,7 @@ LEFT JOIN evaluation_results
  * @param {{
  *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string}>,
  *   createId?: () => string,
+ *   masterKey: Buffer,
  *   now?: () => number,
  *   storageReserve: {assertWorkAdmissionAvailable: () => unknown}
  * }} options
@@ -91,6 +95,7 @@ export function createEvaluationService(
   {
     acquireChangeset,
     createId = randomUUID,
+    masterKey,
     now = () => Date.now(),
     storageReserve,
   },
@@ -99,11 +104,32 @@ export function createEvaluationService(
     typeof durableCore?.transaction !== "function" ||
     typeof acquireChangeset !== "function" ||
     typeof createId !== "function" ||
+    !Buffer.isBuffer(masterKey) ||
+    masterKey.length !== 32 ||
     typeof now !== "function" ||
     typeof storageReserve?.assertWorkAdmissionAvailable !== "function"
   ) {
     throw new TypeError("Evaluation dependencies are invalid");
   }
+  const collection = createEvaluationCollection(masterKey, ({ after, limit }) =>
+    durableCore.all(
+      `${EVALUATION_SELECTION}
+         ${
+           after
+             ? `WHERE evaluations.created_at < ?
+                  OR (
+                    evaluations.created_at = ?
+                    AND evaluations.id < ?
+                  )`
+             : ""
+         }
+         ORDER BY evaluations.created_at DESC, evaluations.id DESC
+         LIMIT ?`,
+      ...(after
+        ? [after.created_at, after.created_at, after.id, limit]
+        : [limit]),
+    ),
+  );
 
   /** @param {string} id */
   function read(id) {
@@ -118,15 +144,12 @@ export function createEvaluationService(
   }
 
   return {
-    list() {
+    /** @param {{cursor?: string, limit?: string}} [query] */
+    list({ cursor, limit } = {}) {
+      const page = collection.read({ cursor, limit });
       return {
-        items: durableCore
-          .all(
-            `${EVALUATION_SELECTION}
-             ORDER BY evaluations.created_at DESC, evaluations.id DESC`,
-          )
-          .map(readEvaluation),
-        next_cursor: null,
+        items: page.items.map(readEvaluation),
+        next_cursor: page.next_cursor,
       };
     },
     read,
@@ -203,7 +226,8 @@ export function createEvaluationService(
       const commits = await acquireChangeset(repositoryId, canonicalRequest);
       if (
         !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.base_commit) ||
-        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.head_commit)
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.head_commit) ||
+        commits.base_commit.length !== commits.head_commit.length
       ) {
         throw new TypeError("Acquired Evaluation commits are invalid");
       }
@@ -265,9 +289,9 @@ export function createEvaluationService(
                id, repository_id, provenance,
                base_selector_type, base_selector_value,
                head_selector_type, head_selector_value,
-               base_commit, head_commit, execution_status,
+               base_commit, head_commit, execution_status, next_attempt_at,
                created_at, completed_at
-             ) VALUES (?, ?, 'explicit', ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`,
+             ) VALUES (?, ?, 'explicit', ?, ?, ?, ?, ?, ?, 'completed', NULL, ?, ?)`,
             evaluationId,
             repositoryId,
             canonicalRequest.base.type,

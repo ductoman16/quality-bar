@@ -16,7 +16,10 @@ const state = operator.requiredElement("evaluation-state");
 const active = operator.requiredElement("evaluation-active");
 const recent = operator.requiredElement("evaluation-recent");
 const attention = operator.requiredElement("evaluation-attention");
+const more = operator.requiredElement("evaluation-more");
 const creationStatus = operator.requiredElement("evaluation-create-status");
+/** @type {string | null} */
+let nextCursor = null;
 
 /** @param {string} id */
 function controlValue(id) {
@@ -107,16 +110,25 @@ async function renderEvaluation(evaluation) {
   appendText(target, "Result " + JSON.stringify(result));
 }
 
-async function loadEvaluations() {
-  loading.hidden = false;
-  empty.hidden = true;
-  state.hidden = true;
-  active.replaceChildren();
-  recent.replaceChildren();
-  attention.replaceChildren();
+/** @param {string | undefined} cursor */
+async function loadEvaluations(cursor = undefined) {
+  const initial = cursor === undefined;
+  if (initial) {
+    loading.hidden = false;
+    empty.hidden = true;
+    state.hidden = true;
+    more.hidden = true;
+    active.replaceChildren();
+    recent.replaceChildren();
+    attention.replaceChildren();
+  }
+  more.disabled = true;
   let response;
   try {
-    response = await fetch("/api/v1/evaluations");
+    response = await fetch(
+      "/api/v1/evaluations" +
+        (cursor === undefined ? "" : "?cursor=" + encodeURIComponent(cursor)),
+    );
   } catch {
     loading.hidden = true;
     state.hidden = false;
@@ -134,14 +146,29 @@ async function loadEvaluations() {
     return;
   }
   const collection = await response.json();
-  if (!Array.isArray(collection.items) || collection.next_cursor !== null) {
+  if (
+    !Array.isArray(collection.items) ||
+    !(
+      collection.next_cursor === null ||
+      (typeof collection.next_cursor === "string" &&
+        collection.next_cursor.length > 0)
+    )
+  ) {
     throw new Error("evaluation_collection_invalid");
   }
-  empty.hidden = collection.items.length !== 0;
-  for (const evaluation of collection.items) {
-    await renderEvaluation(evaluation);
-  }
+  empty.hidden = !initial || collection.items.length !== 0;
+  await Promise.all(collection.items.map(renderEvaluation));
+  nextCursor = collection.next_cursor;
+  more.hidden = nextCursor === null;
+  more.disabled = false;
 }
+
+more.addEventListener("click", async () => {
+  if (nextCursor === null) {
+    throw new Error("evaluation_cursor_unavailable");
+  }
+  await loadEvaluations(nextCursor);
+});
 
 async function loadRepositories() {
   const collection = await operator.readRepositoryCollection();

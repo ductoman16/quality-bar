@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { resolvePushedCommitSelectors } from "../src/repository-git.js";
 
@@ -77,7 +77,10 @@ export async function assertCredentialedAcquisitionRejectsRedirect(
           base: { type: "branch", value: "main" },
           head: { type: "branch", value: "main" },
         },
-        { certificateAuthorityPath },
+        {
+          certificateAuthorityPath,
+          objectDatabaseRoot: dirname(certificateAuthorityPath),
+        },
       ),
     (error) =>
       error instanceof Error &&

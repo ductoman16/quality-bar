@@ -3,13 +3,32 @@ import { closedObject } from "./canonical-schema.js";
 export function canonicalEvaluationSchemas() {
   const emptyCollection = { maxItems: 0, type: "array" };
   return {
-    EvaluationSelector: closedObject(
-      {
-        type: { enum: ["branch", "commit"], type: "string" },
-        value: { minLength: 1, type: "string" },
-      },
-      ["type", "value"],
-    ),
+    EvaluationSelector: {
+      oneOf: [
+        closedObject(
+          {
+            type: { const: "branch", type: "string" },
+            value: {
+              minLength: 1,
+              pattern:
+                "^(?!@(?:$|/))(?![./])(?!.*(?:\\.\\.|//|@\\{|[\\u0000-\\u0020\\u007f~^:?*\\[\\\\]))(?!.*(?:^|/)\\.)(?!.*\\.lock(?:/|$))(?!.*[./]$).+$",
+              type: "string",
+            },
+          },
+          ["type", "value"],
+        ),
+        closedObject(
+          {
+            type: { const: "commit", type: "string" },
+            value: {
+              pattern: "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$",
+              type: "string",
+            },
+          },
+          ["type", "value"],
+        ),
+      ],
+    },
     ExplicitEvaluationRequest: closedObject(
       {
         base: { $ref: "#/components/schemas/EvaluationSelector" },
@@ -42,6 +61,9 @@ export function canonicalEvaluationSchemas() {
         },
         head_selector: { $ref: "#/components/schemas/EvaluationSelector" },
         id: { minLength: 1, type: "string" },
+        next_attempt_at: {
+          oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+        },
         provenance: { const: "explicit", type: "string" },
         repository: closedObject(
           {
@@ -53,6 +75,7 @@ export function canonicalEvaluationSchemas() {
       },
       [
         "id",
+        "next_attempt_at",
         "repository",
         "provenance",
         "base_selector",

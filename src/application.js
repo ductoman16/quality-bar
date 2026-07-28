@@ -227,6 +227,7 @@ export function createApplication({
     evaluations = createEvaluations(durableCore, {
       acquireChangeset: (repositoryId, request) =>
         evaluationRepositories.resolvePushedSelectors(repositoryId, request),
+      masterKey: installation.masterKey,
       now,
       storageReserve,
     });

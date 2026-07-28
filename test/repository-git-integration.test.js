@@ -135,7 +135,7 @@ test("public Repository verification accepts a reactivated installation credenti
         base: { type: "branch", value: "main" },
         head: { type: "commit", value: expectedCommit },
       },
-      { certificateAuthorityPath: certificate },
+      { certificateAuthorityPath: certificate, objectDatabaseRoot: directory },
     ),
     { base_commit: expectedCommit, head_commit: expectedCommit },
   );

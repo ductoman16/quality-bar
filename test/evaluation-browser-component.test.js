@@ -20,6 +20,7 @@ const evaluation = (overrides = {}) => ({
   head_commit: oid("2"),
   head_selector: { type: "branch", value: "topic" },
   id: "evaluation-complete",
+  next_attempt_at: null,
   provenance: "explicit",
   repository: {
     id: "repository-1",
@@ -44,6 +45,7 @@ function elements() {
         "evaluation-active",
         "evaluation-recent",
         "evaluation-attention",
+        "evaluation-more",
         "evaluation-create-status",
       ].map((id) => [id, browserElement({ hidden: true })]),
     )
@@ -57,6 +59,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.match(page, /id="evaluation-active"/);
   assert.match(page, /id="evaluation-recent"/);
   assert.match(page, /id="evaluation-attention"/);
+  assert.match(page, /id="evaluation-more"/);
   assert.match(page, /<script src="\/assets\/evaluation\.js"><\/script>/);
   assert.equal(
     operatorPage({ view: "evaluations" }),
@@ -103,6 +106,23 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
                   effective_outcome: "error",
                   execution_status: "failed",
                   id: "evaluation-failed",
+                }),
+              ],
+              next_cursor: "cursor-2",
+            };
+          },
+        };
+      }
+      if (path === "/api/v1/evaluations?cursor=cursor-2") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              items: [
+                evaluation({
+                  effective_outcome: "error",
+                  execution_status: "cancelled",
+                  id: "evaluation-older",
                 }),
               ],
               next_cursor: null,
@@ -198,6 +218,16 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.match(
     controls.get("evaluation-attention").options[0].textContent,
     /failed — error/,
+  );
+  assert.equal(controls.get("evaluation-more").hidden, false);
+  await controls.get("evaluation-more").listener("click")();
+  assert.equal(controls.get("evaluation-more").hidden, true);
+  assert.match(
+    controls.get("evaluation-attention").options[1].textContent,
+    /cancelled — error/,
+  );
+  assert.ok(
+    requests.some(({ path }) => path === "/api/v1/evaluations?cursor=cursor-2"),
   );
 
   controls.get("evaluation-repository").value = "repository-1";

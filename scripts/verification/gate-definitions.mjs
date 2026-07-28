@@ -298,6 +298,7 @@ export function createGateDefinitions(metadata) {
       failureCode: "git_integration_tests_failed",
       arguments: [
         "--test",
+        "test/evaluation-git-object-format-integration.test.js",
         "test/repository-git-integration.test.js",
         "test/github-git-integration.test.js",
         "test/repository-git-credential-integration.test.js",

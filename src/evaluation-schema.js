@@ -17,8 +17,11 @@ export const EVALUATION_SCHEMA = `
     ),
     execution_status TEXT NOT NULL
       CHECK (execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+    next_attempt_at INTEGER,
     created_at INTEGER NOT NULL,
-    completed_at INTEGER
+    completed_at INTEGER,
+    CHECK (length(base_commit) = length(head_commit)),
+    CHECK (next_attempt_at IS NULL OR execution_status = 'queued')
   ) STRICT;
   CREATE INDEX IF NOT EXISTS evaluations_newest
     ON evaluations (created_at DESC, id DESC);

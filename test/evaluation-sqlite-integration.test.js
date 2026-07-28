@@ -30,6 +30,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
       return { base_commit: oid("1"), head_commit: oid("2") };
     },
     createId: () => `evaluation-${++nextId}`,
+    masterKey: Buffer.alloc(32, 7),
     now: () => 10,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
@@ -54,6 +55,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
     head_commit: oid("2"),
     head_selector: { type: "branch", value: "topic" },
     id: "evaluation-1",
+    next_attempt_at: null,
     provenance: "explicit",
     repository: {
       id: "repository-1",
@@ -93,6 +95,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
     acquireChangeset: async () => {
       throw new Error("replay must not reacquire Git");
     },
+    masterKey: Buffer.alloc(32, 7),
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
   assert.deepEqual(
@@ -132,6 +135,7 @@ test("rejected explicit Evaluation stores neither partial work nor an idempotenc
       return { base_commit: oid("3"), head_commit: oid("4") };
     },
     createId: () => "evaluation-after-rejection",
+    masterKey: Buffer.alloc(32, 7),
     now: () => 20,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
@@ -196,6 +200,7 @@ test("work-admission capacity rejection consumes no Evaluation identity or idemp
       head_commit: oid("6"),
     }),
     createId: () => "evaluation-after-capacity",
+    masterKey: Buffer.alloc(32, 7),
     storageReserve: {
       assertWorkAdmissionAvailable() {
         if (!available) {
@@ -254,6 +259,7 @@ test("newest-first Evaluation listing never silently truncates accepted work", a
       head_commit: "b".repeat(64),
     }),
     createId: () => `evaluation-${String(++nextId).padStart(2, "0")}`,
+    masterKey: Buffer.alloc(32, 7),
     now: () => nextId,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
@@ -268,10 +274,63 @@ test("newest-first Evaluation listing never silently truncates accepted work", a
       },
     });
   }
-  const collection = service.list();
-  assert.equal(collection.items.length, 51);
-  assert.equal(collection.items[0].id, "evaluation-51");
-  assert.equal(collection.items.at(-1)?.id, "evaluation-01");
-  assert.equal(collection.next_cursor, null);
+  const first = service.list();
+  assert.equal(first.items.length, 50);
+  assert.equal(first.items[0].id, "evaluation-51");
+  assert.equal(typeof first.next_cursor, "string");
+  const second = service.list({
+    cursor: /** @type {string} */ (first.next_cursor),
+  });
+  assert.equal(second.items.length, 1);
+  assert.equal(second.items.at(-1)?.id, "evaluation-01");
+  assert.equal(second.next_cursor, null);
+  assert.throws(
+    () => service.list({ cursor: `${first.next_cursor}tampered` }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "cursor_invalid",
+  );
+  core.close();
+});
+
+test("Evaluation reads expose only a persisted exact delay time", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  core.run(
+    `INSERT INTO evaluations (
+       id, repository_id, provenance,
+       base_selector_type, base_selector_value,
+       head_selector_type, head_selector_value,
+       base_commit, head_commit, execution_status, next_attempt_at,
+       created_at, completed_at
+     ) VALUES (?, ?, 'explicit', 'branch', 'main', 'branch', 'topic',
+       ?, ?, 'queued', ?, ?, NULL)`,
+    "evaluation-delayed",
+    "repository-1",
+    oid("1"),
+    oid("2"),
+    2_000,
+    1_000,
+  );
+  const service = createEvaluationService(core, {
+    acquireChangeset: async () => {
+      throw new Error("unused acquisition");
+    },
+    masterKey: Buffer.alloc(32, 7),
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  assert.equal(
+    service.read("evaluation-delayed").next_attempt_at,
+    "1970-01-01T00:00:02.000Z",
+  );
   core.close();
 });

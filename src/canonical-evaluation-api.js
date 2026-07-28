@@ -19,6 +19,22 @@ export function canonicalEvaluationPaths(errorResponse) {
     "/api/v1/evaluations": {
       get: {
         operationId: "listEvaluations",
+        parameters: [
+          {
+            in: "query",
+            name: "cursor",
+            schema: { minLength: 1, type: "string" },
+          },
+          {
+            in: "query",
+            name: "limit",
+            schema: {
+              maximum: 100,
+              minimum: 1,
+              type: "integer",
+            },
+          },
+        ],
         responses: {
           200: {
             content: {
@@ -85,7 +101,12 @@ export function canonicalEvaluationPaths(errorResponse) {
             in: "header",
             name: "Idempotency-Key",
             required: true,
-            schema: { maxLength: 255, minLength: 1, type: "string" },
+            schema: {
+              maxLength: 255,
+              minLength: 1,
+              pattern: "^[!-~]+$",
+              type: "string",
+            },
           },
         ],
         requestBody: {

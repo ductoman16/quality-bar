@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { CHECKOUTS_PATH } from "./installation-environment.js";
 import { createRepositoryCollection } from "./repository-collection.js";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import {
@@ -39,6 +40,7 @@ export { RepositoryError };
  *   createId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
+ *   objectDatabaseRoot?: string,
  *   verifyRead?: (
  *     normalizedUrl: string,
  *     credential?: {token: string, username: string}
@@ -53,6 +55,7 @@ export function createRepositoryService(
     createId = randomUUID,
     masterKey,
     now = () => Date.now(),
+    objectDatabaseRoot = CHECKOUTS_PATH,
     verifyRead = verifyRepositoryRead,
     verifyForgeRepository,
     resolveSelectors = resolvePushedCommitSelectors,
@@ -67,6 +70,8 @@ export function createRepositoryService(
   if (
     typeof createId !== "function" ||
     typeof now !== "function" ||
+    typeof objectDatabaseRoot !== "string" ||
+    objectDatabaseRoot.length === 0 ||
     typeof verifyRead !== "function" ||
     typeof resolveSelectors !== "function"
   ) {
@@ -168,6 +173,7 @@ export function createRepositoryService(
   const resolvePushedSelectors = createRepositorySelectorResolver({
     credentialCipher,
     find,
+    objectDatabaseRoot,
     requireAcceptsNewWork,
     resolveSelectors,
   });

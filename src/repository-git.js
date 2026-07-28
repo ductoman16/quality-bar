@@ -9,54 +9,11 @@ import {
   failEvaluation,
 } from "./evaluation-validation.js";
 import { RepositoryError } from "./repository-validation.js";
-
-const GIT_CREDENTIAL_HELPER =
-  'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f';
-
-function isolatedGitEnvironment() {
-  return {
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_TERMINAL_PROMPT: "0",
-    LC_ALL: "C",
-  };
-}
-
-/** @param {{token: string, username: string} | undefined} credential */
-function gitCredentialIsValid(credential) {
-  return (
-    !credential ||
-    Boolean(
-      credential.username &&
-      credential.token &&
-      !/[\0\r\n]/.test(credential.username) &&
-      !/[\0\r\n]/.test(credential.token),
-    )
-  );
-}
-
-/**
- * @param {{token: string, username: string} | undefined} credential
- * @param {string | undefined} certificateAuthorityPath
- * @param {boolean} followRedirects
- */
-function secureGitConfiguration(
-  credential,
-  certificateAuthorityPath,
-  followRedirects,
-) {
-  const arguments_ = ["-c", "credential.helper=", "-c", "core.askPass="];
-  if (credential) {
-    arguments_.push("-c", GIT_CREDENTIAL_HELPER);
-  }
-  if (certificateAuthorityPath) {
-    arguments_.push("-c", `http.sslCAInfo=${certificateAuthorityPath}`);
-  }
-  if (!followRedirects) {
-    arguments_.push("-c", "http.followRedirects=false");
-  }
-  return arguments_;
-}
+import {
+  gitCredentialIsValid,
+  runGitCommand,
+  secureGitConfiguration,
+} from "./secure-git-command.js";
 
 /** @param {unknown} cause */
 function unavailable(cause) {
@@ -111,104 +68,70 @@ export function verifyRepositoryRead(
     }
     return unavailable(failure);
   }
-  const environment = isolatedGitEnvironment();
   if (!gitCredentialIsValid(credential)) {
     return Promise.reject(
       cleanupUnavailable(new TypeError("Git credential is invalid"), true),
     );
   }
-  return new Promise((resolve, reject) => {
+  return (async () => {
     const arguments_ = secureGitConfiguration(
       credential,
       certificateAuthorityPath,
       followRedirects,
     );
     arguments_.push("ls-remote", "--", normalizedUrl);
-    /** @type {import("node:child_process").ChildProcess} */
-    let child;
-    let completed = false;
-    try {
-      child = spawnProcess("git", arguments_, {
-        cwd: verificationDirectory,
-        env: environment,
-        stdio: credential
-          ? ["ignore", "ignore", "pipe", "pipe"]
-          : ["ignore", "ignore", "pipe"],
-      });
-    } catch (cause) {
-      reject(cleanupUnavailable(cause, false));
-      return;
-    }
-    /** @param {RepositoryError | null} error */
-    function complete(error) {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      try {
-        removeDirectory(verificationDirectory);
-      } catch (cause) {
-        error = unavailable(cause);
-      }
-      if (error) {
-        reject(error);
-      } else {
-        resolve(undefined);
-      }
-    }
     let definitiveFailure = definitiveHttpStatuses === undefined;
     let stderrTail = "";
-    const stderr = child.stderr;
-    if (!stderr) {
-      child.kill();
-      complete(unavailable(new Error("Git stderr pipe is unavailable")));
-      return;
+    let result;
+    try {
+      result =
+        /** @type {{code: number | null, signal: NodeJS.Signals | null}} */ (
+          await runGitCommand({
+            arguments_,
+            captureStdout: false,
+            credential,
+            cwd: verificationDirectory,
+            onStderr(chunk) {
+              const message = `${stderrTail}${chunk}`;
+              stderrTail = message.slice(-256);
+              const status = /returned error: (\d{3})\b/.exec(message)?.[1];
+              if (
+                (status &&
+                  definitiveHttpStatuses?.includes(
+                    Number.parseInt(status, 10),
+                  )) ||
+                (definitiveHttpStatuses?.includes(401) &&
+                  /Authentication failed/i.test(message)) ||
+                (definitiveHttpStatuses?.includes(404) &&
+                  /Repository not found/i.test(message))
+              ) {
+                definitiveFailure = true;
+              }
+            },
+            spawnProcess,
+          })
+        );
+    } catch (cause) {
+      throw cleanupUnavailable(cause, false);
     }
-    stderr.on("data", (chunk) => {
-      const message = `${stderrTail}${String(chunk)}`;
-      stderrTail = message.slice(-256);
-      const status = /returned error: (\d{3})\b/.exec(message)?.[1];
-      if (
-        (status &&
-          definitiveHttpStatuses?.includes(Number.parseInt(status, 10))) ||
-        (definitiveHttpStatuses?.includes(401) &&
-          /Authentication failed/i.test(message)) ||
-        (definitiveHttpStatuses?.includes(404) &&
-          /Repository not found/i.test(message))
-      ) {
-        definitiveFailure = true;
-      }
-    });
-    if (credential) {
-      const credentialPipe = child.stdio[3];
-      if (!credentialPipe || !("end" in credentialPipe)) {
-        child.kill();
-        complete(unavailable(new Error("Git credential pipe is unavailable")));
-        return;
-      }
-      // Git's exit status owns the verification result. A rejected pipe write
-      // only means Git exited before requesting credentials.
-      credentialPipe.on("error", () => {});
-      credentialPipe.end(`${credential.username}\n${credential.token}\n`);
-    }
-    child.once("error", (cause) => {
-      complete(unavailable(cause));
-    });
-    child.once("close", (code, signal) => {
-      if (code === 0 && signal === null) {
-        complete(null);
-        return;
-      }
-      complete(
-        definitiveFailure
+    let error =
+      result.code === 0 && result.signal === null
+        ? null
+        : definitiveFailure
           ? new RepositoryError(
               "repository_git_read_failed",
               "Repository Git read verification failed",
             )
-          : unavailable(undefined),
-      );
-    });
-  });
+          : unavailable(undefined);
+    try {
+      removeDirectory(verificationDirectory);
+    } catch (cause) {
+      error = unavailable(cause);
+    }
+    if (error) {
+      throw error;
+    }
+  })();
 }
 
 /**
@@ -228,9 +151,10 @@ export function verifyPublicRepositoryRead(normalizedUrl, options) {
  * @param {unknown} request
  * @param {{
  *   certificateAuthorityPath?: string,
+ *   objectDatabaseRoot: string,
  *   removeDirectory?: (path: string) => void,
  *   spawnProcess?: typeof spawn
- * }} [options]
+ * }} options
  */
 export async function resolvePushedCommitSelectors(
   normalizedUrl,
@@ -238,15 +162,27 @@ export async function resolvePushedCommitSelectors(
   request,
   {
     certificateAuthorityPath,
+    objectDatabaseRoot,
     removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
     spawnProcess = spawn,
-  } = {},
+  },
 ) {
   const selectors = canonicalExplicitEvaluationRequest(request);
+  if (
+    typeof objectDatabaseRoot !== "string" ||
+    objectDatabaseRoot.length === 0
+  ) {
+    failEvaluation(
+      "evaluation_git_acquisition_unavailable",
+      "Evaluation Git acquisition root is unavailable",
+    );
+  }
   /** @type {string} */
   let objectDatabase;
   try {
-    objectDatabase = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-git-"));
+    objectDatabase = mkdtempSync(
+      join(objectDatabaseRoot, "quality-bar-evaluation-git-"),
+    );
   } catch (cause) {
     failEvaluation(
       "evaluation_git_acquisition_unavailable",
@@ -254,54 +190,29 @@ export async function resolvePushedCommitSelectors(
       cause,
     );
   }
-  const environment = isolatedGitEnvironment();
-
   /**
    * @param {string[]} arguments_
    * @param {boolean} withCredential
    */
   function runGit(arguments_, withCredential) {
-    return new Promise((resolve, reject) => {
-      /** @type {import("node:child_process").ChildProcess} */
-      let child;
-      try {
-        child = spawnProcess("git", arguments_, {
-          cwd: objectDatabase,
-          env: environment,
-          stdio:
-            withCredential && credential
-              ? ["ignore", "pipe", "pipe", "pipe"]
-              : ["ignore", "pipe", "pipe"],
-        });
-      } catch (cause) {
-        reject(cause);
-        return;
+    return runGitCommand({
+      arguments_,
+      captureStdout: true,
+      credential: withCredential ? credential : undefined,
+      cwd: objectDatabase,
+      spawnProcess,
+    }).then((result) => {
+      const command = /** @type {{
+       *   code: number | null,
+       *   signal: NodeJS.Signals | null,
+       *   stderr: string,
+       *   stdout: string
+       * }} */ (result);
+      if (command.code === 0 && command.signal === null) {
+        return command;
       }
-      let stdout = "";
-      let stderr = "";
-      child.stdout?.on("data", (chunk) => {
-        stdout += String(chunk);
-      });
-      child.stderr?.on("data", (chunk) => {
-        stderr = `${stderr}${String(chunk)}`.slice(-1024);
-      });
-      if (withCredential && credential) {
-        const credentialPipe = child.stdio[3];
-        if (!credentialPipe || !("end" in credentialPipe)) {
-          child.kill();
-          reject(new Error("Git credential pipe is unavailable"));
-          return;
-        }
-        credentialPipe.on("error", () => {});
-        credentialPipe.end(`${credential.username}\n${credential.token}\n`);
-      }
-      child.once("error", reject);
-      child.once("close", (code, signal) => {
-        if (code === 0 && signal === null) {
-          resolve({ stderr, stdout });
-          return;
-        }
-        reject(Object.assign(new Error("Git command failed"), { stderr }));
+      throw Object.assign(new Error("Git command failed"), {
+        stderr: command.stderr,
       });
     });
   }
@@ -341,6 +252,12 @@ export async function resolvePushedCommitSelectors(
     }
     const resolved = [];
     for (const selector of [selectors.base, selectors.head]) {
+      if (selector.type === "commit" && !objectIdPattern.test(selector.value)) {
+        failEvaluation(
+          "evaluation_selector_invalid",
+          "Commit selector does not match the Repository object format",
+        );
+      }
       const revision =
         selector.type === "branch"
           ? `refs/heads/${selector.value}^{commit}`

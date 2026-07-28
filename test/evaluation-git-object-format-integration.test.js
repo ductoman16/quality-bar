@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
 import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { EvaluationError } from "../src/evaluation-validation.js";
 import { createBareRepository } from "./repository-git-integration-support.js";
 
 test("Evaluation acquisition freezes native SHA-256 commit object IDs", async (context) => {
@@ -19,6 +20,7 @@ test("Evaluation acquisition freezes native SHA-256 commit object IDs", async (c
     ["--git-dir", repository, "rev-parse", "main"],
     { encoding: "utf8" },
   ).trim();
+  let acquisitionDirectory = "";
   assert.equal(expectedCommit.length, 64);
   assert.deepEqual(
     await resolvePushedCommitSelectors(
@@ -28,7 +30,30 @@ test("Evaluation acquisition freezes native SHA-256 commit object IDs", async (c
         base: { type: "branch", value: "main" },
         head: { type: "commit", value: expectedCommit },
       },
+      {
+        objectDatabaseRoot: directory,
+        removeDirectory(path) {
+          acquisitionDirectory = path;
+          rmSync(path, { force: true, recursive: true });
+        },
+      },
     ),
     { base_commit: expectedCommit, head_commit: expectedCommit },
+  );
+  assert.ok(acquisitionDirectory.startsWith(`${directory}/`));
+  await assert.rejects(
+    () =>
+      resolvePushedCommitSelectors(
+        pathToFileURL(repository).href,
+        undefined,
+        {
+          base: { type: "commit", value: expectedCommit.slice(0, 40) },
+          head: { type: "commit", value: expectedCommit },
+        },
+        { objectDatabaseRoot: directory },
+      ),
+    (error) =>
+      error instanceof EvaluationError &&
+      error.code === "evaluation_selector_invalid",
   );
 });

@@ -11,13 +11,28 @@ import { writeError, writeJson } from "./http-response.js";
 /** @param {Error & {code: string}} failure */
 function failureStatus(failure) {
   const { code } = failure;
-  if (["idempotency_key_required", "request_malformed"].includes(code)) {
+  if (
+    [
+      "cursor_invalid",
+      "idempotency_key_required",
+      "page_size_invalid",
+      "request_malformed",
+    ].includes(code)
+  ) {
     return 400;
   }
   if (["evaluation_not_found", "repository_not_found"].includes(code)) {
     return 404;
   }
-  if (["evaluation_result_not_ready", "idempotency_conflict"].includes(code)) {
+  if (
+    [
+      "evaluation_result_not_ready",
+      "idempotency_conflict",
+      "repository_disabled",
+      "repository_not_enabled",
+      "repository_retired",
+    ].includes(code)
+  ) {
     return 409;
   }
   if (
@@ -26,6 +41,7 @@ function failureStatus(failure) {
       "evaluation_git_acquisition_unavailable",
       "repository_authentication_failed",
       "repository_git_credentials_unavailable",
+      "repository_git_read_failed",
       "repository_permission_denied",
       "review_run_admission_unavailable",
       "storage_reserve_check_failed",
@@ -86,9 +102,21 @@ export function createEvaluationRoute({
       return true;
     }
     try {
-      assertAllowedQueryParameters(requestUrl, new Set());
+      assertAllowedQueryParameters(
+        requestUrl,
+        method === "GET" && path === "/api/v1/evaluations"
+          ? new Set(["cursor", "limit"])
+          : new Set(),
+      );
       if (method === "GET" && path === "/api/v1/evaluations") {
-        writeJson(response, 200, evaluations.list());
+        writeJson(
+          response,
+          200,
+          evaluations.list({
+            cursor: requestUrl.searchParams.get("cursor") ?? undefined,
+            limit: requestUrl.searchParams.get("limit") ?? undefined,
+          }),
+        );
         return true;
       }
       if (method === "GET" && resultMatch) {
