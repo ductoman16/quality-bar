@@ -47,6 +47,10 @@ import {
   createUnavailableRepositoryGuidanceService,
 } from "./repository-guidance.js";
 import { createSystemResource } from "./system-resource.js";
+import {
+  createUnavailableWaiverAdjudicatorConfigurationService,
+  createWaiverAdjudicatorConfigurationService,
+} from "./waiver-adjudicator-configuration.js";
 
 const CODEX_TERMINATION_GRACE_MS = 5_000;
 const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
@@ -169,6 +173,7 @@ function createHardStorageBoundary(writeLog) {
  *   createGitHubConnections?: (...arguments_: any[]) => any,
  *   createForgejoConnections?: (...arguments_: any[]) => any,
  *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
+ *   createWaiverAdjudicatorConfiguration?: typeof createWaiverAdjudicatorConfigurationService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -186,6 +191,7 @@ export function createApplication({
   createGitHubConnections = createGitHubConnectionService,
   createForgejoConnections = createForgejoConnectionService,
   createRepositoryGuidance = createRepositoryGuidanceService,
+  createWaiverAdjudicatorConfiguration = createWaiverAdjudicatorConfigurationService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -207,6 +213,7 @@ export function createApplication({
   /** @type {any} */
   let forgejoConnections = null;
   let repositoryGuidance = null;
+  let waiverAdjudicatorConfiguration = null;
   let systemResource = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
@@ -275,6 +282,10 @@ export function createApplication({
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
     repositoryGuidance = createRepositoryGuidance(durableCore);
+    waiverAdjudicatorConfiguration = createWaiverAdjudicatorConfiguration(
+      durableCore,
+      { now },
+    );
     systemResource = createSystemResource(durableCore, { now });
     validateTools();
     try {
@@ -317,6 +328,8 @@ export function createApplication({
     forgejoConnections = unavailableForgejoConnectionService(startupFailure);
     repositoryGuidance =
       createUnavailableRepositoryGuidanceService(startupFailure);
+    waiverAdjudicatorConfiguration =
+      createUnavailableWaiverAdjudicatorConfigurationService(startupFailure);
     structuredLog(
       writeLog,
       "error",
@@ -345,6 +358,7 @@ export function createApplication({
     forgejoConnections,
     repositoryGuidance,
     reviews,
+    waiverAdjudicatorConfiguration,
     readDurableCoreStatus,
     readSystemStatus: () => {
       if (!systemResource) {
@@ -414,6 +428,9 @@ export function createApplication({
     /** @param {import("node:child_process").ChildProcess} childProcess */
     registerCodexProcess(childProcess) {
       storageBoundary.registerCodexProcess(childProcess);
+    },
+    freezeWaiverAdjudicatorConfiguration() {
+      return waiverAdjudicatorConfiguration.freezeForAdjudication();
     },
     async close() {
       if (server.listening) {

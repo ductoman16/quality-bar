@@ -1,6 +1,7 @@
 import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
 import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
 import { closedObject, openObject } from "./canonical-schema.js";
+import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
 
 /**
  * @typedef {{
@@ -105,6 +106,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           ),
         ),
       },
+      ...canonicalWaiverAdjudicatorConfigurationSchemas(),
       CriterionCreateRequest: closedObject(
         {
           impact: { enum: ["advisory", "blocking"], type: "string" },

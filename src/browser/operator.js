@@ -304,7 +304,10 @@ fetch("/api/v1/system")
      *   durable_core: { status: string },
      *   implementer_token: { status: string }
      * }} */ (await response.json());
-    if (document.getElementById("review-create-form")) {
+    if (
+      document.getElementById("review-create-form") ||
+      document.getElementById("waiver-adjudicator-configuration-form")
+    ) {
       document.dispatchEvent(
         new CustomEvent("quality-bar:system-loaded", {
           detail: { catalog: system.codex.catalog, csrfCookieName },

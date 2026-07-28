@@ -14,6 +14,7 @@
   "files": [
     "src/browser/login.js",
     "src/browser/operator.js",
+    "src/browser/waiver-adjudicator-configuration.js",
     "src/browser/github-connection-contract.js",
     "src/browser/github-connection-lifecycle-confirmation.js",
     "src/browser/github-connection-submission.js",
