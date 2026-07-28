@@ -150,6 +150,7 @@ test("failed GitHub lifecycle verification returns its exact error and records R
         1_000,
       );
       return {
+        startPolling() {},
         async selectRepositories() {
           throw verificationError;
         },

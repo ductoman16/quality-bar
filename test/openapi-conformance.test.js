@@ -61,6 +61,10 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     ),
   );
   assert.equal(contract.components.schemas.GitHubConnection.oneOf.length, 2);
+  assert.ok(
+    contract.components.schemas.GitHubConnection.required.includes("polling"),
+  );
+  assert.equal(contract.components.schemas.GitHubPollingState.oneOf.length, 3);
   assert.equal(
     contract.components.schemas.GitHubConnectionVerification.oneOf.length,
     2,

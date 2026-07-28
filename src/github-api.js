@@ -8,6 +8,8 @@ import { createGitHubApiRequest } from "./github-api-request.js";
 import { GitHubConnectionError } from "./github-connection-error.js";
 import * as gitVerification from "./github-git-verification.js";
 import { verifyGitHubRepositories } from "./github-repository-verification.js";
+import { createGitHubPullRequestReader } from "./github-pull-request-api.js";
+import { createGitHubInstallationToken } from "./github-installation-token.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
@@ -110,7 +112,17 @@ export function createGitHubVerifier({
     throw new TypeError("GitHub verifier dependencies are invalid");
   }
 
-  const request = createGitHubApiRequest(apiBaseUrl, fetchRequest);
+  const request = createGitHubApiRequest(apiBaseUrl, fetchRequest, now);
+
+  const installationToken = createGitHubInstallationToken({
+    appJwt,
+    exactPermissions,
+    fail,
+    nonemptyString,
+    now,
+    object,
+    request,
+  });
 
   const verifier = {
     /** @param {string} code */
@@ -237,23 +249,7 @@ export function createGitHubVerifier({
       }
       exactPermissions(installation.permissions);
 
-      const tokenResponse = object(
-        await request(`/app/installations/${installationId}/access_tokens`, {
-          authorization: jwt,
-          method: "POST",
-        }),
-      );
-      if (!tokenResponse) {
-        fail(
-          "github_api_response_invalid",
-          "GitHub installation token response is invalid",
-        );
-      }
-      exactPermissions(tokenResponse.permissions);
-      const token = nonemptyString(
-        tokenResponse.token,
-        "GitHub installation token response is invalid",
-      );
+      const token = await installationToken(credential, installationId);
 
       /** @type {{
        *   api_url: string,
@@ -445,6 +441,10 @@ export function createGitHubVerifier({
         repositoryIds,
       );
     },
+    listPullRequests: createGitHubPullRequestReader({
+      installationToken,
+      request,
+    }),
   };
   return verifier;
 }

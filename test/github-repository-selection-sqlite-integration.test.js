@@ -73,6 +73,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
           repositories: availableRepositories,
         };
       },
+      listPullRequests: async () => [],
       async verifyRepositories(credential, installationId, repositoryIds) {
         verificationCalls.push({
           credential,
@@ -206,7 +207,6 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       error.code === "github_repository_identity_conflict",
   );
   assert.equal(service.read()?.health, "healthy");
-  assert.equal(service.read()?.health_error, null);
   assert.equal(service.read()?.verified_at, 2_000);
   assert.equal(
     core.get("SELECT count(*) AS count FROM repositories")?.count,

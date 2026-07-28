@@ -85,6 +85,7 @@ test("SQLite records immutable scoped Connection verification without treating t
           repositories: [repository, publicRepository],
         };
       },
+      listPullRequests: async () => [],
       async verifyRepositories(_credential, _installationId, repositoryIds) {
         void _credential;
         void _installationId;

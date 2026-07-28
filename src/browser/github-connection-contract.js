@@ -143,6 +143,14 @@ function validGitHubConnection(value) {
     !("lifecycle" in value) ||
     !["enabled", "retired"].includes(/** @type {string} */ (value.lifecycle)) ||
     !("health_error" in value) ||
+    !("polling" in value) ||
+    !Array.isArray(value.polling) ||
+    !value.polling.every(validGitHubPollingState) ||
+    !("polling_failure" in value) ||
+    !(
+      value.polling_failure === null ||
+      validGitHubPollingFailure(value.polling_failure)
+    ) ||
     !("repository_count" in value) ||
     !Number.isSafeInteger(value.repository_count) ||
     !("verified_at" in value) ||
@@ -165,6 +173,88 @@ function validGitHubConnection(value) {
       (value.health === "error" && healthError)) &&
     value.verification_history.every(validGitHubVerification)
   );
+}
+
+/** @param {any} state */
+function validGitHubPollingState(state) {
+  const validError =
+    state?.error &&
+    typeof state.error.code === "string" &&
+    typeof state.error.message === "string";
+  return Boolean(
+    state &&
+    ["complete", "error", "pending"].includes(state.baseline_status) &&
+    Number.isSafeInteger(state.forge_repository_id) &&
+    (state.last_success_at === null ||
+      Number.isSafeInteger(state.last_success_at)) &&
+    (state.next_attempt_at === null ||
+      Number.isSafeInteger(state.next_attempt_at)) &&
+    (state.rate_gate_until === null ||
+      Number.isSafeInteger(state.rate_gate_until)) &&
+    ((state.baseline_status === "complete" &&
+      Number.isSafeInteger(state.last_success_at) &&
+      (state.error === null || validError)) ||
+      (state.baseline_status === "error" && validError) ||
+      (state.baseline_status === "pending" &&
+        state.error === null &&
+        state.last_success_at === null)),
+  );
+}
+
+/** @param {any} state */
+function githubPollingText(state) {
+  const success =
+    state.last_success_at === null
+      ? "no successful baseline"
+      : `last success ${githubVerificationTime(state.last_success_at)}`;
+  const error =
+    state.error === null
+      ? ""
+      : `; ${state.error.message} (${state.error.code})`;
+  const rate =
+    state.rate_gate_until === null
+      ? ""
+      : `; rate gate until ${githubVerificationTime(state.rate_gate_until)}`;
+  const next =
+    state.next_attempt_at === null
+      ? "after correction"
+      : githubVerificationTime(state.next_attempt_at);
+  return `Forge Repository ${state.forge_repository_id}; baseline ${state.baseline_status}; ${success}${error}${rate}; next attempt ${next}`;
+}
+
+/** @param {any} failure */
+function validGitHubPollingFailure(failure) {
+  return Boolean(
+    failure &&
+    typeof failure === "object" &&
+    failure.error &&
+    typeof failure.error === "object" &&
+    typeof failure.error.code === "string" &&
+    typeof failure.error.message === "string" &&
+    (failure.forge_repository_id === null ||
+      Number.isSafeInteger(failure.forge_repository_id)) &&
+    (failure.next_attempt_at === null ||
+      Number.isSafeInteger(failure.next_attempt_at)) &&
+    (failure.rate_gate_until === null ||
+      Number.isSafeInteger(failure.rate_gate_until)),
+  );
+}
+
+/** @param {any} failure */
+function githubPollingFailureText(failure) {
+  const owner =
+    failure.forge_repository_id === null
+      ? "Connection"
+      : `Forge Repository ${failure.forge_repository_id}`;
+  const rate =
+    failure.rate_gate_until === null
+      ? ""
+      : `; rate gate until ${githubVerificationTime(failure.rate_gate_until)}`;
+  const next =
+    failure.next_attempt_at === null
+      ? "after correction"
+      : githubVerificationTime(failure.next_attempt_at);
+  return `${owner} baseline error; ${failure.error.message} (${failure.error.code})${rate}; next attempt ${next}`;
 }
 
 /** @param {unknown} verification */
@@ -266,6 +356,8 @@ Reflect.set(
   Object.freeze({
     consumeCallbackFailure: consumeGitHubCallbackFailure,
     historyText: githubVerificationHistoryText,
+    pollingFailureText: githubPollingFailureText,
+    pollingText: githubPollingText,
     responseErrorMessage: githubResponseErrorMessage,
     validConnection: validGitHubConnection,
     validOutcome: validGitHubVerificationOutcome,

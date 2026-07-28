@@ -1,6 +1,7 @@
 import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
+import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 
 /** @param {string | null} version @param {string} tool */
 function requireExactToolVersion(version, tool) {
@@ -209,7 +210,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-mcp-contract-and-lifecycle-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-polling-mcp-contract-and-lifecycle-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -242,6 +243,7 @@ export function createGateDefinitions(metadata) {
         "test/github-callback-failure.test.js",
         "test/github-connection.test.js",
         "test/github-repository-selection.test.js",
+        "test/github-polling-state.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -276,18 +278,19 @@ export function createGateDefinitions(metadata) {
     {
       name: "github-fixture-integration",
       testGroup:
-        "github-rest-profile-personal-installation-permissions-routes-atomic-selection-enumeration-and-private-git-boundary",
+        "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-atomic-selection-enumeration-and-private-git-boundary",
       failureCode: "github_fixture_integration_tests_failed",
       arguments: [
         "--test",
         "test/github-fixture-integration.test.js",
+        "test/github-polling-fixture-integration.test.js",
         "test/github-private-proof-failure-fixture-integration.test.js",
       ],
     },
     {
       name: "git-integration",
       testGroup:
-        "generic-and-github-app-https-repository-read-guidance-assignment-and-lifecycle-verification-boundary",
+        "generic-and-github-app-https-repository-read-guidance-assignment-lifecycle-and-polling-object-identity-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: [
         "--test",
@@ -299,7 +302,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "review-assignment-version-guidance-credential-github-repository-selection-and-repository-lifecycle-sqlite-resource-boundary",
+        "review-assignment-version-guidance-credential-github-repository-selection-polling-and-repository-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -318,6 +321,7 @@ export function createGateDefinitions(metadata) {
         "test/github-connection-verification-sqlite-integration.test.js",
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
+        "test/github-polling.test.js",
       ],
     },
     {
@@ -422,16 +426,6 @@ export function createGateDefinitions(metadata) {
       failureCode: "proof_code_type_check_proof_failed",
       arguments: ["--test", "test/test-verification-type-check-gate.test.js"],
     },
-    {
-      name: "application-coverage-proof",
-      testGroup: "application-coverage-ledger-and-boundary",
-      failureCode: "application_coverage_proof_failed",
-      arguments: [
-        "--test",
-        "test/application-coverage-policy.test.js",
-        "test/application-coverage-ledger.test.js",
-        "test/application-coverage-history.test.js",
-      ],
-    },
+    APPLICATION_COVERAGE_PROOF_GATE,
   ];
 }

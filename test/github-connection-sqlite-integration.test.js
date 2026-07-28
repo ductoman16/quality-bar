@@ -48,7 +48,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 15);
+  assert.equal(core.facts.schemaVersion, 16);
   const service = createGitHubConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1"];
@@ -59,11 +59,15 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     now: () => 1_000,
     randomBytes: () => Buffer.alloc(32, 5),
     verifier: {
+      listPullRequests: async () => [],
       async exchangeManifest() {
         return convertedApp;
       },
       async verifyInstallation() {
         return verifiedInstallation;
+      },
+      async verifyRepositories() {
+        throw new Error("repository selection is not exercised");
       },
     },
   });
@@ -149,6 +153,40 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   wrongKeyCore.close();
 
   const lifecycleCore = openDurableCore(databasePath);
+  lifecycleCore.run(
+    `INSERT INTO repositories (
+       id, normalized_url, lifecycle, created_at, verified_at
+     ) VALUES (?, ?, 'retired', ?, ?)`,
+    "repository-1",
+    "https://github.com/operator/private.git",
+    1_000,
+    1_000,
+  );
+  lifecycleCore.run(
+    `INSERT INTO github_repositories (
+       repository_id, connection_id, forge_repository_id, name,
+       api_url, web_url, verification_id
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    "repository-1",
+    "connection-1",
+    101,
+    "operator/private",
+    "https://api.github.com/repos/operator/private",
+    "https://github.com/operator/private",
+    "verification-1",
+  );
+  lifecycleCore.run(
+    `INSERT INTO github_repository_polls (
+       connection_id, forge_repository_id, baseline_status,
+       last_success_at, next_attempt_at, snapshot
+     ) VALUES (?, ?, 'complete', ?, ?, ?)`,
+    "connection-1",
+    101,
+    1_000,
+    61_000,
+    "[]",
+  );
+  let baselineRequests = 0;
   const lifecycleService = createGitHubConnectionService(lifecycleCore, {
     createId: (() => {
       const ids = ["verification-2"];
@@ -159,6 +197,10 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     now: () => 2_000,
     randomBytes: () => Buffer.alloc(32, 9),
     verifier: {
+      async listPullRequests() {
+        baselineRequests += 1;
+        return [];
+      },
       async exchangeManifest() {
         throw new Error("reactivation must not exchange a GitHub App Manifest");
       },
@@ -171,6 +213,9 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
           pem: "replacement-private-key",
         });
         return verifiedInstallation;
+      },
+      async verifyRepositories() {
+        throw new Error("repository selection is not exercised");
       },
     },
   });
@@ -196,6 +241,18 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   assert.equal(restored.verification_history.length, 2);
   assert.equal(restored.verification_history[0]?.trigger, "onboarding");
   assert.equal(restored.verification_history.at(-1)?.trigger, "enablement");
+  assert.equal(baselineRequests, 0);
+  assert.deepEqual(
+    lifecycleCore.get(
+      `SELECT baseline_status, last_success_at, snapshot
+         FROM github_repository_polls WHERE forge_repository_id = 101`,
+    ),
+    {
+      baseline_status: "complete",
+      last_success_at: 1_000,
+      snapshot: "[]",
+    },
+  );
   const replacementCredential = /** @type {{encrypted_credential: string}} */ (
     lifecycleCore.get(
       "SELECT encrypted_credential FROM github_connection_credentials",
@@ -221,6 +278,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
       externalOrigin: "https://quality-bar.example",
       masterKey: Buffer.alloc(32, 7),
       verifier: {
+        listPullRequests: async () => [],
         async exchangeManifest() {
           throw new Error(
             "reactivation must not exchange a GitHub App Manifest",
@@ -231,6 +289,9 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
             "github_permissions_mismatch",
             "GitHub App permissions do not match the required profile",
           );
+        },
+        async verifyRepositories() {
+          throw new Error("repository selection is not exercised");
         },
       },
     },
@@ -256,10 +317,24 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
     )?.count,
     2,
   );
+  lifecycleCore.run("DELETE FROM github_repository_polls");
+  lifecycleCore.run("DELETE FROM github_repositories");
+  lifecycleCore.run("DELETE FROM repositories");
+  lifecycleCore.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "github_poll_gate:connection-1",
+    '{"code":"github_api_transient_failure"}',
+  );
   lifecycleService.remove();
   assert.equal(
     lifecycleCore.get("SELECT count(*) AS count FROM github_connections")
       ?.count,
+    0,
+  );
+  assert.equal(
+    lifecycleCore.get(
+      "SELECT count(*) AS count FROM quality_bar_metadata WHERE key LIKE 'github_poll_gate:%'",
+    )?.count,
     0,
   );
   assert.equal(
@@ -281,6 +356,7 @@ test("SQLite stores no Connection, credential, or history after verification fai
     masterKey: Buffer.alloc(32, 7),
     randomBytes: () => Buffer.alloc(32, 6),
     verifier: {
+      listPullRequests: async () => [],
       async exchangeManifest() {
         return convertedApp;
       },
@@ -289,6 +365,9 @@ test("SQLite stores no Connection, credential, or history after verification fai
           "github_permissions_mismatch",
           "GitHub App permissions do not match the required profile",
         );
+      },
+      async verifyRepositories() {
+        throw new Error("repository selection is not exercised");
       },
     },
   });

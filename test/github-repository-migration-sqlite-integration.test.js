@@ -141,7 +141,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 15);
+  assert.equal(migrated.facts.schemaVersion, 16);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",
@@ -191,5 +191,47 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
       ),
     /github_connection_health_invalid/,
   );
+  migrated.run(
+    `INSERT INTO repositories (id, normalized_url, created_at, verified_at)
+     VALUES (?, ?, ?, ?)`,
+    "legacy-repository",
+    "https://github.com/operator/legacy.git",
+    1_000,
+    1_000,
+  );
+  migrated.run(
+    `INSERT INTO github_repositories (
+       repository_id, connection_id, verification_id, forge_repository_id,
+       name, api_url, web_url
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    "legacy-repository",
+    "legacy-connection",
+    "legacy-verification",
+    101,
+    "operator/legacy",
+    "https://api.github.com/repos/operator/legacy",
+    "https://github.com/operator/legacy",
+  );
+  migrated.run("DROP INDEX github_repository_polls_due");
+  migrated.run("DROP TABLE github_repository_polls");
+  migrated.run(
+    "UPDATE quality_bar_metadata SET value = '15' WHERE key = 'schema_version'",
+  );
+  migrated.run("PRAGMA user_version = 15");
   migrated.close();
+
+  const pollingMigrated = openDurableCore(databasePath);
+  assert.deepEqual(
+    pollingMigrated.get(
+      `SELECT baseline_status, error_code, last_success_at, next_attempt_at
+         FROM github_repository_polls WHERE forge_repository_id = 101`,
+    ),
+    {
+      baseline_status: "pending",
+      error_code: null,
+      last_success_at: null,
+      next_attempt_at: 0,
+    },
+  );
+  pollingMigrated.close();
 });
