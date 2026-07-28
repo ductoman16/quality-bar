@@ -13,7 +13,7 @@ export function migrateSchema(
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -23,10 +23,11 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 22;
+export const CURRENT_SCHEMA_VERSION = 23;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
+import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
 
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (

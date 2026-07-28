@@ -12,6 +12,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import {
+  resolvePushedCommitSelectors,
   verifyPublicRepositoryRead,
   verifyRepositoryRead,
 } from "../src/repository-git.js";
@@ -20,39 +21,10 @@ import { createRepositoryService } from "../src/repository.js";
 import { RepositoryError } from "../src/repository-validation.js";
 import { createReviewService } from "../src/review.js";
 import { openDurableCore } from "../src/durable-core.js";
-/** @param {string} directory @param {string} name @param {boolean} populated */
-function createBareRepository(directory, name, populated) {
-  const repository = join(directory, `${name}.git`);
-  if (populated) {
-    const source = join(directory, `${name}-source`);
-    execFileSync("git", ["init", "--initial-branch=main", source], {
-      stdio: "ignore",
-    });
-    execFileSync("git", ["-C", source, "config", "user.name", "Quality Bar"], {
-      stdio: "ignore",
-    });
-    execFileSync(
-      "git",
-      ["-C", source, "config", "user.email", "quality-bar@example.invalid"],
-      { stdio: "ignore" },
-    );
-    execFileSync(
-      "git",
-      ["-C", source, "commit", "--allow-empty", "-m", "fact"],
-      {
-        stdio: "ignore",
-      },
-    );
-    execFileSync("git", ["clone", "--bare", source, repository], {
-      stdio: "ignore",
-    });
-  } else {
-    execFileSync("git", ["init", "--bare", repository], { stdio: "ignore" });
-  }
-  execFileSync("git", ["--git-dir", repository, "update-server-info"], {
-    stdio: "ignore",
-  });
-}
+import {
+  assertCredentialedAcquisitionRejectsRedirect,
+  createBareRepository,
+} from "./repository-git-integration-support.js";
 test("public Repository verification accepts a reactivated installation credential over real HTTPS Git", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-git-https-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -150,6 +122,23 @@ test("public Repository verification accepts a reactivated installation credenti
     `https://127.0.0.1:${address.port}/populated.git`,
     { certificateAuthorityPath: certificate },
   );
+  const expectedCommit = execFileSync(
+    "git",
+    ["--git-dir", join(directory, "populated.git"), "rev-parse", "main"],
+    { encoding: "utf8" },
+  ).trim();
+  assert.deepEqual(
+    await resolvePushedCommitSelectors(
+      `https://127.0.0.1:${address.port}/populated.git`,
+      undefined,
+      {
+        base: { type: "branch", value: "main" },
+        head: { type: "commit", value: expectedCommit },
+      },
+      { certificateAuthorityPath: certificate, objectDatabaseRoot: directory },
+    ),
+    { base_commit: expectedCommit, head_commit: expectedCommit },
+  );
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/empty.git`,
     { certificateAuthorityPath: certificate },
@@ -163,6 +152,11 @@ test("public Repository verification accepts a reactivated installation credenti
     (error) =>
       error instanceof RepositoryError &&
       error.code === "repository_git_read_failed",
+  );
+  await assertCredentialedAcquisitionRejectsRedirect(
+    `https://127.0.0.1:${address.port}/redirect.git`,
+    certificate,
+    privateAuthorizationHeaders,
   );
   await verifyRepositoryRead(
     `https://127.0.0.1:${address.port}/private.git`,

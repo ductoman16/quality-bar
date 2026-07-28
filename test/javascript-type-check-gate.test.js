@@ -180,6 +180,7 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
     BROWSER_ASSET_SOURCE_PATHS.filter(
       (path) =>
         ![
+          "src/browser/evaluation.js",
           "src/browser/storage-reserve.js",
           "src/browser/system-attention.js",
         ].includes(path),

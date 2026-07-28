@@ -6,6 +6,7 @@ import { canonicalGitHubConnectionPaths } from "./canonical-github-connection-ap
 import { canonicalForgejoConnectionPaths } from "./canonical-forgejo-connection-api.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { canonicalWaiverAdjudicatorConfigurationPath } from "./canonical-waiver-adjudicator-configuration-api.js";
+import { canonicalEvaluationPaths } from "./canonical-evaluation-api.js";
 
 const errorResponse = {
   content: {
@@ -384,6 +385,7 @@ export function canonicalOpenApiDocument() {
         },
       },
       ...canonicalWaiverAdjudicatorConfigurationPath(),
+      ...canonicalEvaluationPaths(errorResponse),
       "/api/v1/system/authority-attributions": {
         get: {
           operationId: "listAuthorityAttributions",

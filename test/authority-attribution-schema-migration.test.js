@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 
-test("migrates v21 authority attribution provenance without losing existing facts", () => {
+test("migrates v22 authority attribution provenance without losing existing facts", () => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-authority-attribution-migration-"),
   );
@@ -41,14 +41,14 @@ test("migrates v21 authority attribution provenance without losing existing fact
         "CREATE INDEX authority_attributions_keyset ON authority_attributions (occurred_at DESC, id DESC)",
       );
       transaction.run(
-        "UPDATE quality_bar_metadata SET value = '21' WHERE key = 'schema_version'",
+        "UPDATE quality_bar_metadata SET value = '22' WHERE key = 'schema_version'",
       );
-      transaction.run("PRAGMA user_version = 21");
+      transaction.run("PRAGMA user_version = 22");
     });
     core.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 22);
+    assert.equal(migrated.facts.schemaVersion, 23);
     assert.deepEqual(
       migrated.get(
         "SELECT id, channel, action, outcome, error_code, occurred_at FROM authority_attributions WHERE id = 'attribution-1'",

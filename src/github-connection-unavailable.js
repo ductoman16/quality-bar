@@ -4,6 +4,9 @@ export function createUnavailableGitHubConnectionService(error) {
     read() {
       throw error;
     },
+    async acquireRepositoryGitCredential() {
+      throw error;
+    },
     start() {
       throw error;
     },

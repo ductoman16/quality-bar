@@ -4,7 +4,7 @@ import { writeError, writeJson } from "./http-response.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
- * @param {ReturnType<typeof import("./repository.js").createRepositoryService>} repositories
+ * @param {Pick<ReturnType<typeof import("./repository.js").createRepositoryService>, "list" | "listPage">} repositories
  * @param {{cursor?: string, limit?: string}} query
  */
 export function writeRepositoryList(response, repositories, query) {

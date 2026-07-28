@@ -3,6 +3,7 @@ import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-
 import { closedObject, openObject } from "./canonical-schema.js";
 import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
+import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
 
 /**
  * @typedef {{
@@ -325,6 +326,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ],
       ),
       ...canonicalStorageReserveSchemas(),
+      ...canonicalEvaluationSchemas(),
       BootstrapFact: openObject(
         { status: { enum: ["complete", "required"], type: "string" } },
         ["status"],

@@ -5,7 +5,7 @@
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
  *   readSystemStatus: () => unknown,
  *   recordAuthorityAttribution: (event: import("./api-authorization.js").AttributionEvent) => void,
- *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors">,
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   forgejoConnections: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,

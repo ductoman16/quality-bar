@@ -126,6 +126,31 @@ export function createForgejoConnectionService(
     read() {
       return readForgejoConnection(durableCore);
     },
+    /** @param {string} connectionId */
+    acquireRepositoryGitCredential(connectionId) {
+      const [connection] = durableCore.all(
+        `SELECT
+           forgejo_connections.id,
+           forgejo_connection_credentials.encrypted_credential
+         FROM forgejo_connections
+         JOIN forgejo_connection_credentials
+           ON forgejo_connection_credentials.connection_id =
+              forgejo_connections.id
+         WHERE forgejo_connections.id = ?`,
+        connectionId,
+      );
+      if (
+        !connection ||
+        typeof connection.id !== "string" ||
+        typeof connection.encrypted_credential !== "string"
+      ) {
+        throw new TypeError("Forgejo Connection credential row is invalid");
+      }
+      return {
+        token: cipher.decrypt(connection.id, connection.encrypted_credential),
+        username: "oauth2",
+      };
+    },
     /** @param {unknown} input */
     async discover(input) {
       const selected = discoveryRequest(input);
@@ -306,6 +331,9 @@ export function createForgejoConnectionService(
 export function unavailableForgejoConnectionService(error) {
   return {
     read() {
+      throw error;
+    },
+    acquireRepositoryGitCredential() {
       throw error;
     },
     async discover() {

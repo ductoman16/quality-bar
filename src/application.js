@@ -57,6 +57,10 @@ import {
   createHardStorageBoundary,
   structuredLog,
 } from "./application-runtime.js";
+import {
+  createEvaluationService,
+  createUnavailableEvaluationService,
+} from "./evaluation.js";
 
 /** @typedef {ReturnType<typeof requireCodedError>} CodedError */
 
@@ -76,12 +80,13 @@ const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
  *   validateTools?: typeof validateBundledTools,
  *   validateCodexAuthentication?: typeof validateCodexLogin,
  *   createReviews?: typeof createReviewService,
- *   createRepositories?: typeof createRepositoryService,
+ *   createRepositories?: (...arguments_: any[]) => any,
  *   createGitHubConnections?: (...arguments_: any[]) => any,
  *   createForgejoConnections?: (...arguments_: any[]) => any,
  *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
  *   createWaiverAdjudicatorConfiguration?: typeof createWaiverAdjudicatorConfigurationService,
  *   createStorageReserve?: typeof createStorageReserveGate,
+ *   createEvaluations?: typeof createEvaluationService,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -101,6 +106,7 @@ export function createApplication({
   createRepositoryGuidance = createRepositoryGuidanceService,
   createWaiverAdjudicatorConfiguration = createWaiverAdjudicatorConfigurationService,
   createStorageReserve = createStorageReserveGate,
+  createEvaluations = createEvaluationService,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -117,6 +123,7 @@ export function createApplication({
   let browserOrigin = "";
   let requestSecurity = null;
   let reviews = null;
+  /** @type {ReturnType<typeof createRepositoryService> | null} */
   let repositories = null;
   /** @type {any} */
   let githubConnections = null;
@@ -126,6 +133,7 @@ export function createApplication({
   let waiverAdjudicatorConfiguration = null;
   let systemResource = null;
   let storageReserve = null;
+  let evaluations = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
   let codexCapabilityFailure = null;
@@ -174,7 +182,18 @@ export function createApplication({
       repositories = createRepositories(durableCore, {
         masterKey: installation.masterKey,
         now,
-        async verifyForgeRepository(forgeRepositoryId, provider) {
+        resolveForgeCredential(
+          /** @type {string} */ connectionId,
+          /** @type {"github" | "forgejo"} */ provider,
+        ) {
+          const service =
+            provider === "github" ? githubConnections : forgejoConnections;
+          return service.acquireRepositoryGitCredential(connectionId);
+        },
+        async verifyForgeRepository(
+          /** @type {number} */ forgeRepositoryId,
+          /** @type {"github" | "forgejo"} */ provider,
+        ) {
           if (provider === "forgejo") {
             return forgejoConnections.prepareRepositoryEnablement(
               forgeRepositoryId,
@@ -204,6 +223,17 @@ export function createApplication({
             });
           }
         },
+      });
+      const evaluationRepositories =
+        /** @type {ReturnType<typeof createRepositoryService>} */ (
+          repositories
+        );
+      evaluations = createEvaluations(durableCore, {
+        acquireChangeset: (repositoryId, request) =>
+          evaluationRepositories.resolvePushedSelectors(repositoryId, request),
+        masterKey: installation.masterKey,
+        now,
+        storageReserve,
       });
     } finally {
       installation.masterKey.fill(0);
@@ -239,6 +269,7 @@ export function createApplication({
       "success",
     );
   } catch (error) {
+    evaluations?.destroy?.();
     repositories?.destroy?.();
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
@@ -253,6 +284,7 @@ export function createApplication({
       createUnavailableImplementerTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
     repositories = createUnavailableRepositoryService(startupFailure);
+    evaluations = createUnavailableEvaluationService(startupFailure);
     githubConnections =
       createUnavailableGitHubConnectionService(startupFailure);
     forgejoConnections = unavailableForgejoConnectionService(startupFailure);
@@ -283,10 +315,13 @@ export function createApplication({
     implementerTokens,
     browserOrigin,
     requestSecurity,
-    repositories,
+    repositories: /** @type {ReturnType<typeof createRepositoryService>} */ (
+      repositories
+    ),
     githubConnections,
     forgejoConnections,
     repositoryGuidance,
+    evaluations,
     reviews,
     waiverAdjudicatorConfiguration,
     readDurableCoreStatus,
@@ -392,6 +427,7 @@ export function createApplication({
           })
         );
       }
+      evaluations?.destroy?.();
       repositories?.destroy?.();
       githubConnections?.destroy?.();
       forgejoConnections?.destroy?.();
