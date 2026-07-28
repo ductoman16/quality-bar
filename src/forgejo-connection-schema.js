@@ -1,9 +1,9 @@
 const NORMALIZE_FORGEJO_CONNECTION_IDENTITY = `
   UPDATE forgejo_connections
   SET base_url = CASE
-    WHEN substr(lower(rtrim(base_url, '/')), -4) = ':443'
+    WHEN lower(rtrim(base_url, '/')) LIKE 'https://%:443'
       THEN substr(lower(rtrim(base_url, '/')), 1, length(lower(rtrim(base_url, '/'))) - 4)
-    WHEN substr(lower(rtrim(base_url, '/')), -3) = ':80'
+    WHEN lower(rtrim(base_url, '/')) LIKE 'http://%:80'
       THEN substr(lower(rtrim(base_url, '/')), 1, length(lower(rtrim(base_url, '/'))) - 3)
     ELSE lower(rtrim(base_url, '/'))
   END;

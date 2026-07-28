@@ -8,6 +8,43 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 
+test("SQLite preserves non-default Forgejo ports during v18 migration", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v18-port-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+
+  for (const [index, baseUrl, expected] of [
+    [0, "http://FORGEJO.EXAMPLE:443/", "http://forgejo.example:443"],
+    [1, "https://FORGEJO.EXAMPLE:80/", "https://forgejo.example:80"],
+  ]) {
+    const databasePath = join(directory, `quality-bar-${index}.sqlite3`);
+    const prior = openDurableCore(databasePath);
+    prior.run("ALTER TABLE forgejo_connections DROP COLUMN lifecycle");
+    prior.run(
+      `INSERT INTO forgejo_connections (
+         id, base_url, api_profile, reported_version, principal_id,
+         principal_login, scopes, capabilities, health, created_at, verified_at
+       ) VALUES (?, ?, 'forgejo-v16', '16.0.4', 7, 'operator', '[]', '{}',
+         'healthy', 1000, 1000)`,
+      `connection-${index}`,
+      baseUrl,
+    );
+    prior.run(
+      "UPDATE quality_bar_metadata SET value = '18' WHERE key = 'schema_version'",
+    );
+    prior.run("PRAGMA user_version = 18");
+    prior.close();
+
+    const migrated = openDurableCore(databasePath);
+    assert.equal(
+      migrated.get("SELECT base_url FROM forgejo_connections")?.base_url,
+      expected,
+    );
+    migrated.close();
+  }
+});
+
 test("SQLite migrates v17 Forgejo verifications into immutable triggered history", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-v17-migration-"),
