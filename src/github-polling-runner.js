@@ -5,54 +5,55 @@ import {
   isDefinitiveGitHubPollingFailure,
 } from "./github-polling.js";
 import { requireStorageReservePause } from "./storage-reserve.js";
-import { createStorageReservePollingCore } from "./storage-reserve-polling-core.js";
+import {
+  createStorageReservePollingCore,
+  hasStorageReservePollingDependencies,
+} from "./storage-reserve-polling-core.js";
 
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
   durableCore,
   { cipher, storageReserve, timestamp, verifier },
 ) {
   if (
-    typeof durableCore?.all !== "function" ||
-    typeof durableCore.transaction !== "function" ||
+    !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
-    typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
-      "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function" ||
     typeof verifier.verifyRepositories !== "function"
   ) {
     throw new TypeError("GitHub polling runner dependencies are invalid");
   }
-  const polling = createGitHubPollingService(
-    createStorageReservePollingCore(durableCore, storageReserve),
-    {
-      fetchPullRequests: ({ connection, credential, repository }) => {
-        if (typeof verifier.listPullRequests !== "function") {
-          throw new TypeError(
-            "GitHub verifier must provide pull request polling",
-          );
-        }
-        return verifier.listPullRequests(
-          {
-            app_id: connection.app_id,
-            app_slug: connection.app_slug,
-            client_id: credential.client_id,
-            owner: {
-              id: connection.principal_id,
-              login: connection.principal_login,
-              type: "User",
-            },
-            pem: credential.pem,
-          },
-          connection.installation_id,
-          repository,
-        );
-      },
-      now: timestamp,
-      recordOwningFailure,
-    },
+  const pollingCore = createStorageReservePollingCore(
+    durableCore,
+    storageReserve,
   );
+  const polling = createGitHubPollingService(pollingCore, {
+    fetchPullRequests: ({ connection, credential, repository }) => {
+      if (typeof verifier.listPullRequests !== "function") {
+        throw new TypeError(
+          "GitHub verifier must provide pull request polling",
+        );
+      }
+      return verifier.listPullRequests(
+        {
+          app_id: connection.app_id,
+          app_slug: connection.app_slug,
+          client_id: credential.client_id,
+          owner: {
+            id: connection.principal_id,
+            login: connection.principal_login,
+            type: "User",
+          },
+          pem: credential.pem,
+        },
+        connection.installation_id,
+        repository,
+      );
+    },
+    now: timestamp,
+    recordOwningFailure,
+  });
   const preparedBaselines = new WeakMap();
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
@@ -108,7 +109,7 @@ export function createGitHubPollingRunner(
     if (running) {
       return;
     }
-    storageReserve.assertPollingObservationAdvanceAvailable();
+    storageReserve.preparePollingObservationAdvance();
     running = true;
     try {
       const due = durableCore.all(
@@ -178,8 +179,7 @@ export function createGitHubPollingRunner(
           const prepared = await polling.prepare(input, {
             baseline: row.baseline_status !== "complete",
           });
-          durableCore.transaction((/** @type {any} */ transaction) => {
-            storageReserve.assertPollingObservationAdvanceAvailable();
+          pollingCore.transaction((transaction) => {
             polling.commitSuccess(transaction, row.connection_id, prepared);
           });
         } catch (error) {
@@ -230,7 +230,7 @@ export function createGitHubPollingRunner(
 
   /** @param {any} credential @param {number} installationId @param {any} verification */
   async function prepareBaseline(credential, installationId, verification) {
-    storageReserve.assertPollingObservationAdvanceAvailable();
+    storageReserve.preparePollingObservationAdvance();
     const [connection] = durableCore.all(
       `SELECT id, app_id, app_slug, installation_id, principal_id, principal_login
          FROM github_connections WHERE installation_id = ?`,
@@ -247,7 +247,7 @@ export function createGitHubPollingRunner(
 
   /** @param {any} credential @param {number} installationId */
   async function prepareConnectionBaseline(credential, installationId) {
-    storageReserve.assertPollingObservationAdvanceAvailable();
+    storageReserve.preparePollingObservationAdvance();
     const [connection] = durableCore.all(
       `SELECT id, app_id, app_slug, installation_id, principal_id, principal_login
          FROM github_connections WHERE installation_id = ?`,

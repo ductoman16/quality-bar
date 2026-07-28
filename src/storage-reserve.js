@@ -154,9 +154,24 @@ export function createStorageReserveGate({
     return exactFacts;
   }
 
+  /** @param {string} action */
+  function measureAvailable(action) {
+    const exactFacts = measure(action);
+    if (exactFacts.status === "unavailable") {
+      throw new StorageReserveError(
+        "storage_reserve_unavailable",
+        "A required runtime filesystem is below the free-space reserve",
+        { action, facts: exactFacts },
+      );
+    }
+    return exactFacts;
+  }
+
   return {
     assertCodexStartAvailable: () => readFor(ACTIONS.codexStart),
     assertPollingObservationAdvanceAvailable: () =>
+      measureAvailable(ACTIONS.pollingObservationAdvancement),
+    preparePollingObservationAdvance: () =>
       readFor(ACTIONS.pollingObservationAdvancement),
     assertWorkAdmissionAvailable: () => readFor(ACTIONS.workAdmission),
     readFacts() {

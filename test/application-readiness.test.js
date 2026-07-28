@@ -48,6 +48,7 @@ function availableStorageReserve() {
   return /** @type {any} */ ({
     assertCodexStartAvailable: () => facts,
     assertPollingObservationAdvanceAvailable: () => facts,
+    preparePollingObservationAdvance: () => facts,
     assertWorkAdmissionAvailable: () => facts,
     readFacts: () => facts,
   });

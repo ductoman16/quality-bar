@@ -9,36 +9,37 @@ import {
   StorageReserveError,
   requireStorageReservePause,
 } from "./storage-reserve.js";
-import { createStorageReservePollingCore } from "./storage-reserve-polling-core.js";
+import {
+  createStorageReservePollingCore,
+  hasStorageReservePollingDependencies,
+} from "./storage-reserve-polling-core.js";
 
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
   { cipher, storageReserve, timestamp, verifier },
 ) {
   if (
-    typeof durableCore?.all !== "function" ||
-    typeof durableCore.transaction !== "function" ||
+    !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
-    typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
-      "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function"
   ) {
     throw new TypeError("Forgejo polling runner dependencies are invalid");
   }
-  const polling = createForgejoPollingService(
-    createStorageReservePollingCore(durableCore, storageReserve),
-    {
-      fetchPullRequests: ({ connection, credential, repository }) =>
-        verifier.listPullRequests(
-          { baseUrl: connection.base_url, token: credential },
-          repository,
-        ),
-      now: timestamp,
-      recordOwningFailure,
-    },
+  const pollingCore = createStorageReservePollingCore(
+    durableCore,
+    storageReserve,
   );
+  const polling = createForgejoPollingService(pollingCore, {
+    fetchPullRequests: ({ connection, credential, repository }) =>
+      verifier.listPullRequests(
+        { baseUrl: connection.base_url, token: credential },
+        repository,
+      ),
+    now: timestamp,
+    recordOwningFailure,
+  });
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timer = null;
   let started = false;
@@ -130,7 +131,7 @@ export function createForgejoPollingRunner(
     if (running) {
       return;
     }
-    storageReserve.assertPollingObservationAdvanceAvailable();
+    storageReserve.preparePollingObservationAdvance();
     running = true;
     try {
       const due = durableCore.all(
@@ -248,9 +249,8 @@ export function createForgejoPollingRunner(
               { recordFailure: false },
             );
           }
-          const committed = durableCore.transaction(
+          const committed = pollingCore.transaction(
             (/** @type {any} */ transaction) => {
-              storageReserve.assertPollingObservationAdvanceAvailable();
               return polling.commitSuccess(
                 transaction,
                 row.connection_id,
@@ -280,9 +280,8 @@ export function createForgejoPollingRunner(
             "attemptedAt" in error &&
             Number.isSafeInteger(error.attemptedAt)
           ) {
-            const committed = durableCore.transaction(
+            const committed = pollingCore.transaction(
               (/** @type {any} */ transaction) => {
-                storageReserve.assertPollingObservationAdvanceAvailable();
                 return polling.commitFailure(
                   transaction,
                   row.connection_id,
@@ -333,7 +332,7 @@ export function createForgejoPollingRunner(
    * @param {{ignoreGate?: boolean, recordFailure?: boolean}} [options]
    */
   function prepareBaseline(connection, token, repositories, options) {
-    storageReserve.assertPollingObservationAdvanceAvailable();
+    storageReserve.preparePollingObservationAdvance();
     return polling.prepare(
       {
         connection,

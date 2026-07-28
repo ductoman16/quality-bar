@@ -26,6 +26,7 @@ export const availableStorageReserve =
     Object.freeze({
       assertCodexStartAvailable: () => facts,
       assertPollingObservationAdvanceAvailable: () => facts,
+      preparePollingObservationAdvance: () => facts,
       assertWorkAdmissionAvailable: () => facts,
       readFacts: () => facts,
     })

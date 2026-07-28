@@ -25,7 +25,7 @@ import { createGitHubRepositorySelector } from "./github-repository-registration
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
 /** @typedef {{exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
-/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, verifier?: GitHubVerifier}} options */
+/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
   {
@@ -50,6 +50,7 @@ export function createGitHubConnectionService(
     typeof randomBytes !== "function" ||
     typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
       "function" ||
+    typeof storageReserve.preparePollingObservationAdvance !== "function" ||
     typeof verifier?.exchangeManifest !== "function" ||
     typeof verifier.verifyInstallation !== "function" ||
     typeof verifier.verifyRepositories !== "function" ||

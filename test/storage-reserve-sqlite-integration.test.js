@@ -5,10 +5,18 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import {
+  BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
+  removeExpiredBrowserSessions,
+} from "../src/browser-session.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
-import { StorageReserveError } from "../src/storage-reserve.js";
+import { createStorageReservePollingCore } from "../src/storage-reserve-polling-core.js";
+import {
+  createStorageReserveGate,
+  StorageReserveError,
+} from "../src/storage-reserve.js";
 import {
   forgejoVerification,
   repositoryEvidence,
@@ -28,6 +36,42 @@ function pullRequest(number) {
   };
 }
 
+test("eligible cleanup commits before a low-reserve polling transaction is rejected", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-reserve-cleanup-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const now = BROWSER_SESSION_ABSOLUTE_LIFETIME_MS + 1;
+  core.run(
+    "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+    "expired",
+    "expired-csrf",
+    0,
+    0,
+  );
+  const gate = createStorageReserveGate({
+    checkoutsPath: "/checkouts",
+    cleanupEligibleData: () =>
+      removeExpiredBrowserSessions(core, { now: () => now }),
+    reserveBytes: 2,
+    statePath: "/state",
+    statfs: () => ({ bavail: 1, bsize: 1 }),
+  });
+  let transactionStarted = false;
+
+  assert.throws(
+    () =>
+      createStorageReservePollingCore(core, gate).transaction(() => {
+        transactionStarted = true;
+      }),
+    (error) =>
+      error instanceof StorageReserveError &&
+      error.code === "storage_reserve_unavailable",
+  );
+  assert.equal(transactionStarted, false);
+  assert.deepEqual(core.all("SELECT session_hash FROM browser_sessions"), []);
+  core.close();
+});
+
 test("SQLite polling advances no observation while the runtime reserve is unavailable", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-reserve-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -39,6 +83,36 @@ test("SQLite polling advances no observation while the runtime reserve is unavai
   let providerFailure = false;
   let providerRequests = 0;
   let currentTime = 1_000;
+  function assertReserveAvailable() {
+    if (reserveChecksBeforeLoss !== null) {
+      if (reserveChecksBeforeLoss === 0) {
+        reserveAvailable = false;
+      } else {
+        reserveChecksBeforeLoss -= 1;
+      }
+    }
+    if (!reserveAvailable) {
+      throw new StorageReserveError(
+        "storage_reserve_unavailable",
+        "A required runtime filesystem is below the free-space reserve",
+        {
+          action: "polling_observation_advancement",
+          facts: {
+            filesystems: [
+              {
+                available_bytes: 4 * 1024 ** 3,
+                filesystem: "state",
+                path: "/var/lib/quality-bar",
+                status: "unavailable",
+              },
+            ],
+            reserve_bytes: 5 * 1024 ** 3,
+            status: "unavailable",
+          },
+        },
+      );
+    }
+  }
   const service = createForgejoConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
@@ -47,36 +121,8 @@ test("SQLite polling advances no observation while the runtime reserve is unavai
     masterKey: Buffer.alloc(32, 23),
     now: () => currentTime,
     storageReserve: {
-      assertPollingObservationAdvanceAvailable() {
-        if (reserveChecksBeforeLoss !== null) {
-          if (reserveChecksBeforeLoss === 0) {
-            reserveAvailable = false;
-          } else {
-            reserveChecksBeforeLoss -= 1;
-          }
-        }
-        if (!reserveAvailable) {
-          throw new StorageReserveError(
-            "storage_reserve_unavailable",
-            "A required runtime filesystem is below the free-space reserve",
-            {
-              action: "polling_observation_advancement",
-              facts: {
-                filesystems: [
-                  {
-                    available_bytes: 4 * 1024 ** 3,
-                    filesystem: "state",
-                    path: "/var/lib/quality-bar",
-                    status: "unavailable",
-                  },
-                ],
-                reserve_bytes: 5 * 1024 ** 3,
-                status: "unavailable",
-              },
-            },
-          );
-        }
-      },
+      assertPollingObservationAdvanceAvailable: assertReserveAvailable,
+      preparePollingObservationAdvance: assertReserveAvailable,
     },
     verifier: {
       async listPullRequests() {
@@ -207,6 +253,15 @@ test("GitHub provider and credential failures advance nothing after reserve loss
   let checksBeforeLoss = 1;
   let credentialFailure = false;
   let providerFailure = true;
+  function assertReserveAvailable() {
+    if (checksBeforeLoss-- <= 0) {
+      throw new StorageReserveError(
+        "storage_reserve_unavailable",
+        "A required runtime filesystem is below the free-space reserve",
+        { action: "polling_observation_advancement" },
+      );
+    }
+  }
   const runner = createGitHubPollingRunner(core, {
     cipher: {
       decrypt() {
@@ -219,15 +274,8 @@ test("GitHub provider and credential failures advance nothing after reserve loss
       },
     },
     storageReserve: {
-      assertPollingObservationAdvanceAvailable() {
-        if (checksBeforeLoss-- <= 0) {
-          throw new StorageReserveError(
-            "storage_reserve_unavailable",
-            "A required runtime filesystem is below the free-space reserve",
-            { action: "polling_observation_advancement" },
-          );
-        }
-      },
+      assertPollingObservationAdvanceAvailable: assertReserveAvailable,
+      preparePollingObservationAdvance: assertReserveAvailable,
     },
     timestamp: () => 65_000,
     verifier: {
