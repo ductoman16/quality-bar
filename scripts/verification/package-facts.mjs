@@ -33,7 +33,7 @@
  *     encryptedVerifier?: boolean,
  *   },
  *   authority?: {
- *     operatorPasswordBootstrap?: boolean,
+ *     bootstrapVerifierProtected?: boolean,
  *     operatorAuthorityRecovery?: {
  *       browserSessionsRevoked?: boolean,
  *       failedLoginDelayCleared?: boolean,
@@ -214,8 +214,8 @@ export function validatePackageFacts(facts, applicationVersion) {
       "configuration.encryptedVerifier must equal true",
     ],
     [
-      packageFacts?.authority?.operatorPasswordBootstrap === true,
-      "authority.operatorPasswordBootstrap must equal true",
+      packageFacts?.authority?.bootstrapVerifierProtected === true,
+      "authority.bootstrapVerifierProtected must equal true",
     ],
     [
       packageFacts?.authority?.operatorAuthorityRecovery

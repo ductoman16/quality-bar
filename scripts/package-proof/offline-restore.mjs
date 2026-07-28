@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { runPackageProbe } from "./package-probes.mjs";
+import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
 /**
  * @typedef {{
@@ -37,16 +37,6 @@ import { runPackageProbe } from "./package-probes.mjs";
  */
 
 /**
- * @param {import("./package-fixture.mjs").PackageFixture} fixture
- * @param {string} name
- * @param {string[]} [arguments_]
- * @param {string} [input]
- */
-function jsonProbe(fixture, name, arguments_, input) {
-  return JSON.parse(runPackageProbe(fixture, name, arguments_, input));
-}
-
-/**
  * @param {{
  *   fixture: import("./package-fixture.mjs").PackageFixture,
  *   recoveryPassword: string,
@@ -60,7 +50,7 @@ export function provePackageOfflineRestore({
 }) {
   const { environment, serviceName } = fixture;
   assert.deepEqual(
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "prepare-authority-recovery.mjs",
       [environment.QUALITY_BAR_HTTP_PORT],
@@ -73,7 +63,7 @@ export function provePackageOfflineRestore({
     },
   );
   const restoreSnapshot = /** @type {{manifestPath: string}} */ (
-    jsonProbe(fixture, "create-restore-snapshot.mjs", [
+    jsonPackageProbe(fixture, "create-restore-snapshot.mjs", [
       fixture.applicationVersion,
       fixture.masterKey,
     ])
@@ -103,13 +93,13 @@ export function provePackageOfflineRestore({
   );
   fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
   const restoredDatabaseFacts = /** @type {DatabaseFacts} */ (
-    jsonProbe(fixture, "database-facts.mjs")
+    jsonPackageProbe(fixture, "database-facts.mjs")
   );
   assert.equal(restoredDatabaseFacts.persistedMarker, "survived");
   assert.equal(restoredDatabaseFacts.activeBrowserSessions, 0);
   assert.equal(restoredDatabaseFacts.activeImplementerToken, false);
   const snapshotPasswordStatus = /** @type {{authenticated: boolean}} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "operator-password-status.mjs",
       undefined,
@@ -117,7 +107,7 @@ export function provePackageOfflineRestore({
     )
   );
   const restorePasswordStatus = /** @type {{authenticated: boolean}} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "operator-password-status.mjs",
       undefined,
@@ -127,7 +117,7 @@ export function provePackageOfflineRestore({
   assert.deepEqual(snapshotPasswordStatus, { authenticated: false });
   assert.deepEqual(restorePasswordStatus, { authenticated: true });
   const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "authenticated-http-smoke.mjs",
       [environment.QUALITY_BAR_HTTP_PORT],

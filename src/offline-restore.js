@@ -20,7 +20,7 @@ import {
 } from "./offline-restore-snapshot.js";
 import { failRestore, failRetainedRestore } from "./offline-restore-error.js";
 import { validateRestoredCredentials } from "./offline-restore-state.js";
-import { recoverOperatorAuthority } from "./operator-password.js";
+import { replaceRestoredOperatorAuthority } from "./operator-password.js";
 
 /** @param {string} path */
 function synchronize(path) {
@@ -230,7 +230,7 @@ function commitRestoreCandidate(
  *   manifestPath: string,
  *   masterKey: Buffer,
  *   operatorPassword: unknown,
- *   recoverAuthority?: typeof recoverOperatorAuthority,
+ *   recoverAuthority?: typeof replaceRestoredOperatorAuthority,
  *   copyOperations?: Parameters<typeof copyRestoreCandidate>[2],
  *   commitOperations?: Parameters<typeof commitRestoreCandidate>[2],
  * }} input
@@ -241,7 +241,7 @@ export async function restoreOfflineBackup({
   manifestPath,
   masterKey,
   operatorPassword,
-  recoverAuthority = recoverOperatorAuthority,
+  recoverAuthority = replaceRestoredOperatorAuthority,
   copyOperations,
   commitOperations,
 }) {

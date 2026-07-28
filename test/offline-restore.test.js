@@ -198,3 +198,38 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
   );
   restoredCore.close();
 });
+
+test("restores a pre-bootstrap snapshot with the newly supplied password", async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-restore-pre-bootstrap-"),
+  );
+  temporaryDirectories.push(directory);
+  const backupsPath = join(directory, "backups");
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const masterKey = Buffer.alloc(32, 7);
+  const restoredPassword = "the restored operator password";
+  const core = openDurableCore(databasePath);
+  verifyInstallationKey(core, masterKey);
+  core.close();
+  const backupSource = new DatabaseSync(databasePath);
+  const backup = await createValidatedBackup({
+    applicationVersion: "0.1.0",
+    backupsPath,
+    database: backupSource,
+    keyIdentity: installationKeyIdentity(masterKey),
+    kind: "daily",
+  });
+  backupSource.close();
+
+  await restoreOfflineBackup({
+    applicationVersion: "0.1.0",
+    databasePath,
+    manifestPath: backup.manifestPath,
+    masterKey,
+    operatorPassword: restoredPassword,
+  });
+
+  const restored = openDurableCore(databasePath);
+  verifyOperatorPassword(restored, restoredPassword);
+  restored.close();
+});

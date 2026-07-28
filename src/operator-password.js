@@ -254,19 +254,21 @@ export function bootstrapOperatorPassword(
  * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
  * @param {unknown} password
  * @param {{
+ *   requireExisting: boolean,
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,
  *   recordAttribution?: typeof insertAuthorityAttribution,
- * }} [options]
+ * }} options
  */
-export function recoverOperatorAuthority(
+function replaceOperatorAuthority(
   durableCore,
   password,
   {
+    requireExisting,
     now = () => Date.now(),
     randomBytes = createRandomBytes,
     recordAttribution = insertAuthorityAttribution,
-  } = {},
+  },
 ) {
   const validatedPassword = validatedNewOperatorPassword(password);
   const occurredAt = now();
@@ -276,16 +278,17 @@ export function recoverOperatorAuthority(
       "SELECT value FROM quality_bar_metadata WHERE key = ?",
       OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
     );
-    if (!existingVerifier) {
+    if (requireExisting && !existingVerifier) {
       fail(
         "operator_password_uninitialized",
         "Operator password has not been bootstrapped",
       );
     }
     transaction.run(
-      "UPDATE quality_bar_metadata SET value = ? WHERE key = ?",
-      createPasswordVerifier(validatedPassword, randomBytes),
+      `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
+      createPasswordVerifier(validatedPassword, randomBytes),
     );
     transaction.run("DELETE FROM browser_sessions");
     transaction.run(
@@ -299,5 +302,41 @@ export function recoverOperatorAuthority(
       occurredAt,
       outcome: "success",
     });
+  });
+}
+
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {unknown} password
+ * @param {{
+ *   now?: () => number,
+ *   randomBytes?: (size: number) => Buffer,
+ *   recordAttribution?: typeof insertAuthorityAttribution,
+ * }} [options]
+ */
+export function recoverOperatorAuthority(durableCore, password, options = {}) {
+  replaceOperatorAuthority(durableCore, password, {
+    ...options,
+    requireExisting: true,
+  });
+}
+
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {unknown} password
+ * @param {{
+ *   now?: () => number,
+ *   randomBytes?: (size: number) => Buffer,
+ *   recordAttribution?: typeof insertAuthorityAttribution,
+ * }} [options]
+ */
+export function replaceRestoredOperatorAuthority(
+  durableCore,
+  password,
+  options = {},
+) {
+  replaceOperatorAuthority(durableCore, password, {
+    ...options,
+    requireExisting: false,
   });
 }
