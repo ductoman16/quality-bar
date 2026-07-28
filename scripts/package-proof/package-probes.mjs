@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-const containerProbeDirectory = "/tmp/quality-bar-package-probes";
+const containerProbeDirectory = "/app/fixtures/package";
 const fixtureProbeDirectory = "fixtures/package";
 
 /**
@@ -13,9 +13,15 @@ export function runPackageProbe(fixture, name, arguments_ = [], input) {
   fixture.runCompose([
     "exec",
     "-T",
+    "--user",
+    "0",
     fixture.serviceName,
-    "mkdir",
-    "-p",
+    "install",
+    "-d",
+    "-o",
+    "10001",
+    "-g",
+    "10001",
     containerProbeDirectory,
   ]);
   fixture.runCompose([

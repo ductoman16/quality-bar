@@ -59,6 +59,12 @@
  *     masterKeyCopied?: boolean,
  *     schemaVersion?: number,
  *   },
+ *   restore?: {
+ *     status?: string,
+ *     snapshotEraFactsPreserved?: boolean,
+ *     postBackupFactsAbsent?: boolean,
+ *     snapshotPasswordAuthenticated?: boolean,
+ *   },
  * }} PackageFacts
  */
 
@@ -254,6 +260,22 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.backup?.schemaVersion === SCHEMA_VERSION,
       `backup.schemaVersion must equal ${SCHEMA_VERSION}`,
+    ],
+    [
+      packageFacts?.restore?.status === "restored",
+      "restore.status must equal restored",
+    ],
+    [
+      packageFacts?.restore?.snapshotEraFactsPreserved === true,
+      "restore.snapshotEraFactsPreserved must equal true",
+    ],
+    [
+      packageFacts?.restore?.postBackupFactsAbsent === true,
+      "restore.postBackupFactsAbsent must equal true",
+    ],
+    [
+      packageFacts?.restore?.snapshotPasswordAuthenticated === true,
+      "restore.snapshotPasswordAuthenticated must equal true",
     ],
   ];
 

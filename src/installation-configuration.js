@@ -316,3 +316,27 @@ export function verifyInstallationKey(durableCore, masterKey) {
     );
   }
 }
+
+/**
+ * Restore must authenticate an existing verifier rather than initializing one.
+ *
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {Buffer} masterKey
+ */
+export function verifyRestoredInstallationKey(durableCore, masterKey) {
+  const row = /** @type {{ value: string } | undefined} */ (
+    durableCore.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      INSTALLATION_KEY_VERIFIER_METADATA_KEY,
+    )
+  );
+  if (
+    typeof row?.value !== "string" ||
+    !decryptVerifier(row.value, masterKey)
+  ) {
+    fail(
+      "master_key_undecryptable",
+      "Installation master key cannot decrypt restored encrypted state",
+    );
+  }
+}

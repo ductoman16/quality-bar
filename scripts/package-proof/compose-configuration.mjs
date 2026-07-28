@@ -40,7 +40,7 @@ export function assertComposeConfiguration(fixture) {
   assert.equal(configuration.services[serviceName].platform, "linux/amd64");
   assert.equal(
     configuration.services[serviceName].image,
-    `quality-bar:${fixture.applicationVersion}`,
+    `${fixture.imageRepository}:${fixture.applicationVersion}`,
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
