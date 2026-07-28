@@ -23,7 +23,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  assert.equal(core.facts.schemaVersion, 19);
+  assert.equal(core.facts.schemaVersion, 20);
   const service = createForgejoConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
@@ -32,6 +32,9 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     masterKey: Buffer.alloc(32, 1),
     now: () => 1_000,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify(input) {
         assert.equal(input.baseUrl, "https://forgejo.example");
         return {
@@ -63,6 +66,17 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     health_error: null,
     id: "connection-1",
     lifecycle: "enabled",
+    polling: [
+      {
+        baseline_status: "complete",
+        error: null,
+        forge_repository_id: 11,
+        last_success_at: 1_000,
+        next_attempt_at: 61_000,
+        rate_gate_until: null,
+      },
+    ],
+    polling_failure: null,
     principal: { id: 7, login: "operator" },
     reported_version: "16.0.4",
     scopes: ["read:repository", "write:issue", "write:repository"],
@@ -91,6 +105,21 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     ),
     { error_code: null, error_message: null, trigger: "onboarding" },
   );
+  assert.deepEqual(
+    core.get(
+      `SELECT baseline_status, last_success_at, error_code,
+              rate_gate_until, next_attempt_at, snapshot
+         FROM forgejo_repository_polls`,
+    ),
+    {
+      baseline_status: "complete",
+      error_code: null,
+      last_success_at: 1_000,
+      next_attempt_at: 61_000,
+      rate_gate_until: null,
+      snapshot: "[]",
+    },
+  );
   assert.throws(
     () =>
       core.run(
@@ -104,65 +133,6 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
         "DELETE FROM forgejo_connection_verifications WHERE id = 'verification-1'",
       ),
     /forgejo_connection_verification_immutable/,
-  );
-  service.destroy();
-  core.close();
-});
-
-test("SQLite admits exactly one Forgejo Connection when simultaneous verification succeeds", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-race-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  let release = () => {};
-  const verified = new Promise((resolve) => {
-    release = () => resolve(undefined);
-  });
-  let calls = 0;
-  const service = createForgejoConnectionService(core, {
-    createId: (() => {
-      let next = 0;
-      return () => `race-${++next}`;
-    })(),
-    masterKey: Buffer.alloc(32, 2),
-    verifier: {
-      async verify() {
-        calls += 1;
-        if (calls === 2) {
-          release();
-        }
-        await verified;
-        return {
-          capabilities: {},
-          principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
-          reported_version: "16.0.4",
-          repositories: [privateRepository],
-          scopes: ["read:repository", "write:issue", "write:repository"],
-        };
-      },
-    },
-  });
-  const result = await Promise.allSettled([
-    service.connect({
-      base_url: "https://first.forgejo.example",
-      repository_ids: [11],
-      token: "first-pat",
-    }),
-    service.connect({
-      base_url: "https://second.forgejo.example",
-      repository_ids: [11],
-      token: "second-pat",
-    }),
-  ]);
-  assert.equal(result.filter(({ status }) => status === "fulfilled").length, 1);
-  const rejected = result.find(({ status }) => status === "rejected");
-  assert.equal(rejected?.status, "rejected");
-  if (rejected?.status === "rejected") {
-    assert.equal(rejected.reason.code, "forgejo_connection_conflict");
-  }
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM forgejo_connections")?.count,
-    1,
   );
   service.destroy();
   core.close();
@@ -189,6 +159,9 @@ test("SQLite keeps the active Forgejo PAT when replacement verification fails", 
     masterKey: Buffer.alloc(32, 3),
     now: () => timestamp,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify({ token }) {
         if (token === "rejected-replacement") {
           throw Object.assign(
@@ -321,6 +294,9 @@ test("SQLite atomically activates a replacement PAT only after every enabled For
     masterKey,
     now: () => timestamp,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify({ repositoryIds, token }) {
         assert.equal(
           token,

@@ -48,7 +48,10 @@ test("Forgejo lifecycle rejects malformed input before durable access", async ()
     },
     {
       masterKey: Buffer.alloc(32),
-      verifier: { verify: async () => completeVerification() },
+      verifier: {
+        listPullRequests: async () => [],
+        verify: async () => completeVerification(),
+      },
     },
   );
   const constructionReads = reads;
@@ -141,6 +144,10 @@ test("Forgejo reactivation requires complete proof and records failure", async (
         durableCore: core(successWrites),
         now: () => 1_000,
         readConnection: () => "enabled",
+        polling: {
+          commitBaseline() {},
+          prepareBaseline: async () => ({}),
+        },
         verifier: { verify: async () => completeVerification() },
       },
       { token: "replacement-pat" },
@@ -166,6 +173,10 @@ test("Forgejo reactivation requires complete proof and records failure", async (
           durableCore: core(failureWrites),
           now: () => 2_000,
           readConnection: () => "unused",
+          polling: {
+            commitBaseline() {},
+            prepareBaseline: async () => ({}),
+          },
           verifier: { verify: async () => malformed },
         },
         { token: "incomplete-pat" },

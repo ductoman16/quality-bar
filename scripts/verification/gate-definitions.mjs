@@ -200,7 +200,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-polling-mcp-contract-lifecycle-and-forgejo-pat-rotation-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-github-and-forgejo-polling-mcp-contract-lifecycle-and-forgejo-pat-rotation-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -236,6 +236,7 @@ export function createGateDefinitions(metadata) {
         "test/github-polling-state.test.js",
         "test/forgejo-connection-lifecycle.test.js",
         "test/forgejo-connection.test.js",
+        "test/forgejo-polling.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -296,7 +297,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "review-assignment-version-guidance-credential-github-repository-selection-polling-repository-lifecycle-and-forgejo-connection-lifecycle-sqlite-resource-boundary",
+        "review-assignment-version-guidance-credential-github-and-forgejo-polling-repository-selection-lifecycle-and-forgejo-connection-lifecycle-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -319,7 +320,9 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-rotation-sqlite-integration.test.js",
         "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
         "test/forgejo-connection-schema-migration.test.js",
+        "test/forgejo-connection-concurrency-sqlite-integration.test.js",
         "test/forgejo-connection-sqlite-integration.test.js",
+        "test/forgejo-polling-sqlite-integration.test.js",
       ],
     },
     {

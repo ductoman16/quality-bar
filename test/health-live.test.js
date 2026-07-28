@@ -19,6 +19,8 @@ function applicationServerOptions() {
   return {
     forgejoConnections: {
       destroy() {},
+      async runPolling() {},
+      startPolling() {},
       async discover() {
         throw new Error("unused Forgejo Connection");
       },

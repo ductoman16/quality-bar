@@ -10,6 +10,7 @@ import {
   forgejoRepositoryOwner as repositoryOwner,
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
 } from "./forgejo-v16-repository.js";
+import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
 
 const PROFILE = "forgejo-v16";
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
@@ -140,15 +141,26 @@ async function responseJson(path, response) {
   }
 }
 
-/** @param {{fetch?: typeof fetch, verifyGit?: typeof verifyRepositoryRead}} [options] */
+/** @param {{fetch?: typeof fetch, now?: () => number, verifyGit?: typeof verifyRepositoryRead}} [options] */
 export function createForgejoV16Verifier({
   fetch: fetchRequest = fetch,
+  now = () => Date.now(),
   verifyGit = verifyRepositoryRead,
 } = {}) {
-  if (typeof fetchRequest !== "function" || typeof verifyGit !== "function") {
+  if (
+    typeof fetchRequest !== "function" ||
+    typeof now !== "function" ||
+    typeof verifyGit !== "function"
+  ) {
     throw new TypeError("Forgejo verifier dependencies are invalid");
   }
+  const listPullRequests = createForgejoV16PullRequestReader({
+    fetchRequest,
+    normalizeBaseUrl: normalizedForgejoBaseUrl,
+    now,
+  });
   return {
+    listPullRequests,
     /** @param {{baseUrl: string, repositoryIds?: number[], token: string}} input */
     async verify({ baseUrl, repositoryIds, token }) {
       if (

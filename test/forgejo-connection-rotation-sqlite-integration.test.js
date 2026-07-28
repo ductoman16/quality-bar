@@ -38,6 +38,9 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify({ token }) {
         return {
           capabilities: { private_git_read: "verified" },
@@ -123,6 +126,9 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
     masterKey: Buffer.alloc(32, 8),
     now: () => timestamp,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify({ token }) {
         if (token === "stale-failing-pat") {
           markFailureStarted();
@@ -195,6 +201,9 @@ test("SQLite rotates after verifying an empty set of active Forgejo Repositories
     masterKey: Buffer.alloc(32, 9),
     now: () => 1_000,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify(input) {
         verificationInputs.push(input);
         return {

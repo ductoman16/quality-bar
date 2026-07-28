@@ -53,6 +53,9 @@ test("SQLite retirement blocks enabled and disabled dependents, then destroys on
     masterKey: Buffer.alloc(32, 11),
     now: () => 1_000,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify() {
         return verified();
       },
@@ -130,6 +133,9 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     masterKey,
     now: () => timestamp,
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify(input) {
         inputs.push(input);
         if (input.token === "unavailable-pat") {
@@ -237,6 +243,20 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     pull_request_access: "verified",
   });
   assert.equal(/** @type {any} */ (reactivated).verification_history.length, 4);
+  assert.deepEqual(
+    core.get(
+      `SELECT baseline_status, last_success_at, error_code,
+              next_attempt_at, snapshot
+         FROM forgejo_repository_polls`,
+    ),
+    {
+      baseline_status: "complete",
+      error_code: null,
+      last_success_at: 4_000,
+      next_attempt_at: 64_000,
+      snapshot: "[]",
+    },
+  );
   const cipher = createForgejoConnectionCredentialCipher(masterKey);
   assert.equal(
     cipher.decrypt(
@@ -278,6 +298,9 @@ test("SQLite hard-deletes only a never-used Forgejo Connection", (context) => {
   const service = createForgejoConnectionService(core, {
     masterKey: Buffer.alloc(32, 13),
     verifier: {
+      async listPullRequests() {
+        return [];
+      },
       async verify() {
         throw new Error("unused");
       },

@@ -4,7 +4,7 @@ window.addEventListener("DOMContentLoaded", () => {
       Reflect.get(window, "qualityBarOperator")
     );
   const forgejoContract =
-    /** @type {{forgejoErrorMessage: (error: unknown) => string, forgejoResponseErrorMessage: (response: Response) => Promise<string>, forgejoVerificationText: (verification: any) => string, validForgejoConnection: (value: unknown) => boolean}} */ (
+    /** @type {{forgejoErrorMessage: (error: unknown) => string, forgejoPollingFailureText: (failure: any) => string, forgejoPollingText: (state: any) => string, forgejoResponseErrorMessage: (response: Response) => Promise<string>, forgejoVerificationText: (verification: any) => string, validForgejoConnection: (value: unknown) => boolean}} */ (
       Reflect.get(window, "qualityBarForgejoConnectionContract")
     );
   /** @param {string} id */
@@ -49,6 +49,9 @@ window.addEventListener("DOMContentLoaded", () => {
   );
   const forgejoHistory = forgejoOperator.requiredElement(
     "forgejo-connection-history",
+  );
+  const forgejoPolling = forgejoOperator.requiredElement(
+    "forgejo-connection-polling",
   );
   const forgejoRetire = /** @type {HTMLButtonElement} */ (
     forgejoOperator.requiredElement("forgejo-connection-retire")
@@ -127,6 +130,19 @@ window.addEventListener("DOMContentLoaded", () => {
       const item = document.createElement("li");
       item.textContent = forgejoContract.forgejoVerificationText(verification);
       forgejoHistory.append(item);
+    }
+    forgejoPolling.replaceChildren();
+    if (connection.polling_failure !== null) {
+      const item = document.createElement("li");
+      item.textContent = forgejoContract.forgejoPollingFailureText(
+        connection.polling_failure,
+      );
+      forgejoPolling.append(item);
+    }
+    for (const state of connection.polling) {
+      const item = document.createElement("li");
+      item.textContent = forgejoContract.forgejoPollingText(state);
+      forgejoPolling.append(item);
     }
     forgejoDetails.hidden = false;
     forgejoForm.hidden = true;

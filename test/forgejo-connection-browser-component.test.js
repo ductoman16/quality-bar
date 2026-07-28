@@ -60,6 +60,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const capabilities = element();
   const latest = element();
   const history = element();
+  const polling = element();
   const retire = element();
   const remove = element();
   const confirmation = /** @type {any} */ (
@@ -101,6 +102,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     ["forgejo-connection-capabilities", capabilities],
     ["forgejo-connection-latest", latest],
     ["forgejo-connection-history", history],
+    ["forgejo-connection-polling", polling],
     ["forgejo-connection-retire", retire],
     ["forgejo-connection-delete", remove],
     ["forgejo-connection-confirmation", confirmation],

@@ -83,6 +83,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
               },
               id: "forgejo-connection",
               lifecycle: "enabled",
+              polling: [],
+              polling_failure: null,
               principal: { id: 7, login: "operator" },
               reported_version: "16.0.4",
               scopes: ["read:repository", "write:issue", "write:repository"],
@@ -104,6 +106,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "enabled",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -129,6 +133,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "enabled",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -154,6 +160,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health_error: null,
             id: "forgejo-connection",
             lifecycle: "retired",
+            polling: [],
+            polling_failure: null,
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
@@ -172,6 +180,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             );
           }
         },
+        startPolling() {},
         destroy() {},
         read() {
           return current;

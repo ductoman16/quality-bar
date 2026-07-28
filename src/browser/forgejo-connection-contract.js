@@ -201,6 +201,122 @@ function validForgejoVerification(value) {
 }
 
 /** @param {unknown} value */
+function validForgejoPollingError(value) {
+  const error =
+    value && !Array.isArray(value) && typeof value === "object"
+      ? /** @type {Record<string, unknown>} */ (value)
+      : null;
+  return Boolean(
+    error &&
+    Object.keys(error).sort().join(",") === "code,message" &&
+    typeof error.code === "string" &&
+    error.code.length > 0 &&
+    typeof error.message === "string" &&
+    error.message.length > 0,
+  );
+}
+
+/** @param {unknown} value */
+function validForgejoPollingState(value) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
+  const state = /** @type {Record<string, unknown>} */ (value);
+  const validError =
+    state.error === null || validForgejoPollingError(state.error);
+  return (
+    Object.keys(state).sort().join(",") ===
+      "baseline_status,error,forge_repository_id,last_success_at,next_attempt_at,rate_gate_until" &&
+    ["complete", "error", "pending"].includes(
+      /** @type {string} */ (state.baseline_status),
+    ) &&
+    Number.isSafeInteger(state.forge_repository_id) &&
+    Number(state.forge_repository_id) > 0 &&
+    (state.last_success_at === null ||
+      Number.isSafeInteger(state.last_success_at)) &&
+    (state.next_attempt_at === null ||
+      Number.isSafeInteger(state.next_attempt_at)) &&
+    (state.rate_gate_until === null ||
+      Number.isSafeInteger(state.rate_gate_until)) &&
+    validError &&
+    ((state.baseline_status === "complete" &&
+      Number.isSafeInteger(state.last_success_at)) ||
+      (state.baseline_status === "error" &&
+        validForgejoPollingError(state.error)) ||
+      (state.baseline_status === "pending" &&
+        state.error === null &&
+        state.last_success_at === null &&
+        Number.isSafeInteger(state.next_attempt_at)))
+  );
+}
+
+/** @param {unknown} value */
+function validForgejoPollingFailure(value) {
+  if (value === null) {
+    return true;
+  }
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
+  const failure = /** @type {Record<string, unknown>} */ (value);
+  return (
+    Object.keys(failure).sort().join(",") ===
+      "error,forge_repository_id,next_attempt_at,rate_gate_until" &&
+    validForgejoPollingError(failure.error) &&
+    (failure.forge_repository_id === null ||
+      (Number.isSafeInteger(failure.forge_repository_id) &&
+        Number(failure.forge_repository_id) > 0)) &&
+    (failure.next_attempt_at === null ||
+      Number.isSafeInteger(failure.next_attempt_at)) &&
+    (failure.rate_gate_until === null ||
+      Number.isSafeInteger(failure.rate_gate_until))
+  );
+}
+
+/** @param {number | null} timestamp @param {string} absent */
+function forgejoPollingTime(timestamp, absent) {
+  return timestamp === null ? absent : new Date(timestamp).toISOString();
+}
+
+/** @param {any} state */
+function forgejoPollingText(state) {
+  const success = forgejoPollingTime(
+    state.last_success_at,
+    "no successful baseline",
+  );
+  const error =
+    state.error === null
+      ? ""
+      : `; ${state.error.message} (${state.error.code})`;
+  const rate =
+    state.rate_gate_until === null
+      ? ""
+      : `; rate gate until ${forgejoPollingTime(state.rate_gate_until, "")}`;
+  const next = forgejoPollingTime(
+    state.next_attempt_at,
+    "after operator correction",
+  );
+  return `Forge Repository ${state.forge_repository_id}; baseline ${state.baseline_status}; ${success}${error}${rate}; next attempt ${next}`;
+}
+
+/** @param {any} failure */
+function forgejoPollingFailureText(failure) {
+  const owner =
+    failure.forge_repository_id === null
+      ? "Connection"
+      : `Forge Repository ${failure.forge_repository_id}`;
+  const rate =
+    failure.rate_gate_until === null
+      ? ""
+      : `; rate gate until ${forgejoPollingTime(failure.rate_gate_until, "")}`;
+  const next = forgejoPollingTime(
+    failure.next_attempt_at,
+    "after operator correction",
+  );
+  return `${owner} baseline error; ${failure.error.message} (${failure.error.code})${rate}; next attempt ${next}`;
+}
+
+/** @param {unknown} value */
 function validForgejoConnection(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -243,11 +359,14 @@ function validForgejoConnection(value) {
     /^16\./.test(connection.reported_version) &&
     Array.isArray(connection.scopes) &&
     connection.scopes.every((scope) => typeof scope === "string") &&
+    Array.isArray(connection.polling) &&
+    connection.polling.every(validForgejoPollingState) &&
+    validForgejoPollingFailure(connection.polling_failure) &&
     Array.isArray(connection.verification_history) &&
     connection.verification_history.length > 0 &&
     connection.verification_history.every(validForgejoVerification) &&
     Number.isSafeInteger(connection.verified_at) &&
-    Object.keys(connection).length === 12
+    Object.keys(connection).length === 14
   );
 }
 
@@ -286,6 +405,8 @@ function forgejoVerificationText(verification) {
 
 Reflect.set(window, "qualityBarForgejoConnectionContract", {
   forgejoErrorMessage,
+  forgejoPollingFailureText,
+  forgejoPollingText,
   forgejoResponseErrorMessage,
   forgejoVerificationText,
   validForgejoConnection,

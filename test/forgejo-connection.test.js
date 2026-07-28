@@ -160,6 +160,9 @@ test("Forgejo PAT rotation rejects an empty replacement before reading or verify
     {
       masterKey: Buffer.alloc(32),
       verifier: {
+        async listPullRequests() {
+          return [];
+        },
         async verify() {
           verifications += 1;
         },
@@ -211,13 +214,25 @@ test("Forgejo Connection read rejects contradictory durable health errors", () =
     const service = createForgejoConnectionService(
       {
         all(sql) {
-          return sql.includes("forgejo_connection_credentials") ? [] : [row];
+          return sql.includes("forgejo_connection_credentials") ||
+            sql.includes("quality_bar_metadata") ||
+            sql.includes("forgejo_repository_polls")
+            ? []
+            : [row];
         },
         transaction() {
           throw new Error("unused transaction");
         },
       },
-      { masterKey: Buffer.alloc(32), verifier: { async verify() {} } },
+      {
+        masterKey: Buffer.alloc(32),
+        verifier: {
+          async listPullRequests() {
+            return [];
+          },
+          async verify() {},
+        },
+      },
     );
     assert.throws(() => service.read(), /Forgejo Connection/);
     service.destroy();

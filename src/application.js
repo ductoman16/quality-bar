@@ -400,6 +400,7 @@ export function createApplication({
     secureBrowserCookie,
   });
   githubConnections.startPolling();
+  forgejoConnections.startPolling();
 
   return {
     server,

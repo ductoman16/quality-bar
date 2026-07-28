@@ -24,6 +24,10 @@ import {
   FORGEJO_CONNECTION_SCHEMA,
   FORGEJO_VERIFICATION_HISTORY_MIGRATION,
 } from "./forgejo-connection-schema.js";
+import {
+  FORGEJO_POLLING_MIGRATION,
+  FORGEJO_POLLING_SCHEMA,
+} from "./forgejo-polling-schema.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
@@ -146,6 +150,7 @@ export function initializeOrValidateSchema(
       ${GITHUB_CONNECTION_SCHEMA}
       ${GITHUB_POLLING_SCHEMA}
       ${FORGEJO_CONNECTION_SCHEMA}
+      ${FORGEJO_POLLING_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -346,6 +351,8 @@ export function initializeOrValidateSchema(
       database,
       FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
     );
+  } else if (version === 19) {
+    schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
