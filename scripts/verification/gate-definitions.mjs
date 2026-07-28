@@ -2,10 +2,12 @@ import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
+import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
 import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
 import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
+import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -213,6 +215,8 @@ export function createGateDefinitions(metadata) {
         "test/health-live.test.js",
         "test/http-port.test.js",
         "test/installation-environment.test.js",
+        "test/installed-application.test.js",
+        "test/installed-backup.test.js",
         "test/operator-password.test.js",
         "test/quality-foundation.test.js",
         "test/browser-session.test.js",
@@ -239,6 +243,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection.test.js",
         "test/forgejo-polling.test.js",
         "test/waiver-adjudicator-configuration.test.js",
+        "test/sqlite-backup.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -329,6 +334,7 @@ export function createGateDefinitions(metadata) {
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
       ],
     },
+    SQLITE_BACKUP_FAILURE_GATE,
     {
       name: "http-integration",
       testGroup:
@@ -362,20 +368,7 @@ export function createGateDefinitions(metadata) {
         "test/mcp-security-integration.test.js",
       ],
     },
-    {
-      name: "security-integration",
-      testGroup: "browser-authority-and-request-security-integration",
-      failureCode: "security_integration_tests_failed",
-      arguments: [
-        "--test",
-        "test/operator-password-bootstrap.test.js",
-        "test/browser-session-durability-security-integration.test.js",
-        "test/browser-session-failure-security-integration.test.js",
-        "test/browser-session-proxy-security-integration.test.js",
-        "test/browser-session-bearer-security-integration.test.js",
-        "test/browser-session-contract-security-integration.test.js",
-      ],
-    },
+    SECURITY_INTEGRATION_GATE,
     {
       name: "application-coverage",
       testGroup: "maintained-server-and-served-browser-application",

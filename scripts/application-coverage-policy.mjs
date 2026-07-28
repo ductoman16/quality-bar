@@ -121,6 +121,11 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/browser-session-proxy-security-integration.test.js",
   "test/browser-session-bearer-security-integration.test.js",
   "test/browser-session-contract-security-integration.test.js",
+  "test/installed-application.test.js",
+  "test/installed-backup.test.js",
+  "test/sqlite-backup.test.js",
+  "test/sqlite-backup-failure-integration.test.js",
+  "test/backup-security-integration.test.js",
 ]);
 
 /**
