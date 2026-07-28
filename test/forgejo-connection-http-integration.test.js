@@ -22,7 +22,17 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
       outcome: "success",
       principal: { id: 7, login: "operator" },
       reported_version: "16.0.4",
-      repositories: [{ id: 11 }],
+      repositories: [
+        {
+          api_url: "https://forgejo.example/api/v1/repos/operator/private",
+          clone_url: "https://forgejo.example/operator/private.git",
+          full_name: "operator/private",
+          html_url: "https://forgejo.example/operator/private",
+          id: 11,
+          outcome: "success",
+          private: true,
+        },
+      ],
       scopes: ["read:repository", "write:issue", "write:repository"],
       trigger: "onboarding",
       verified_at: 1_000,

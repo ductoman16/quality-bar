@@ -42,7 +42,8 @@ export function verifiedForgejoRepositories(verification, repositoryIds) {
       /** @param {any} repository */ (repository) =>
         !repository ||
         !Number.isSafeInteger(repository.id) ||
-        !repositoryIds.includes(repository.id),
+        !repositoryIds.includes(repository.id) ||
+        repository.outcome !== "success",
     ) ||
     verifiedIds.size !== repositoryIds.length
   ) {

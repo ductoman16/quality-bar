@@ -36,6 +36,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
               full_name: "operator/private",
               html_url: "https://forgejo.example/operator/private",
               id: 11,
+              outcome: "success",
               private: true,
             },
           ],
@@ -74,6 +75,11 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
       (id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at)
     SELECT id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at
     FROM forgejo_connection_verifications_v18;
+    UPDATE forgejo_connection_verifications
+    SET repositories = (
+      SELECT json_group_array(json_remove(value, '$.outcome'))
+      FROM json_each(forgejo_connection_verifications.repositories)
+    );
     DROP TABLE forgejo_connection_verifications_v18;
     CREATE TABLE forgejo_repositories (
       repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
@@ -100,6 +106,16 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
        WHERE id = 'verification-1'`,
     ),
     { error_code: null, error_message: null, trigger: "onboarding" },
+  );
+  assert.deepEqual(
+    JSON.parse(
+      /** @type {{repositories: string}} */ (
+        migrated.get(
+          "SELECT repositories FROM forgejo_connection_verifications WHERE id = 'verification-1'",
+        )
+      ).repositories,
+    ).map((/** @type {any} */ repository) => repository.outcome),
+    ["success"],
   );
   assert.throws(
     () =>

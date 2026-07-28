@@ -116,7 +116,21 @@ export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
     principal,
     scopes,
     capabilities,
-    repositories,
+    COALESCE(
+      (
+        SELECT json_group_array(
+          CASE
+            WHEN json_extract(value, '$.outcome') IS NULL
+              THEN json_set(value, '$.outcome', 'success')
+            ELSE value
+          END
+        )
+        FROM json_each(
+          forgejo_connection_verifications_v17.repositories
+        )
+      ),
+      '[]'
+    ),
     NULL,
     NULL,
     verified_at

@@ -1,5 +1,39 @@
 import assert from "node:assert/strict";
 
+/** @param {string} page */
+export function assertForgejoPage(page) {
+  assert.match(
+    page,
+    /<fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories<\/legend><div id="forgejo-connection-repositories"><\/div><\/fieldset>.*aria-live="polite" id="forgejo-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
+  );
+  assert.match(page, /@media\(max-width:40rem\)/);
+  assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
+}
+
+/** @param {Map<string, any>} controls */
+export function assertRegisteredForgejoState(controls) {
+  assert.equal(controls.get("forgejo-connection-status").focused, true);
+  assert.equal(controls.get("forgejo-connection-token").value, "");
+  assert.equal(controls.get("forgejo-connection-delete").hidden, true);
+  assert.match(
+    controls.get("forgejo-connection-profile").textContent,
+    /forgejo-v16; compatible; 16\.0\.4/,
+  );
+  assert.match(
+    controls.get("forgejo-connection-scopes").textContent,
+    /read:repository/,
+  );
+  assert.match(
+    controls.get("forgejo-connection-capabilities").textContent,
+    /private git read: verified/,
+  );
+  const history = controls.get("forgejo-connection-history");
+  assert.equal(history.children.length, 1);
+  assert.match(history.children[0].textContent, /onboarding/);
+  assert.match(history.children[0].textContent, /operator \(7\)/);
+  assert.match(history.children[0].textContent, /operator\/private: success/);
+}
+
 export const validForgejoConnection = {
   api_profile: "forgejo-v16",
   base_url: "https://forgejo.example",
@@ -20,7 +54,14 @@ export const validForgejoConnection = {
       outcome: "success",
       principal: { id: 7, login: "operator" },
       reported_version: "16.0.4",
-      repositories: [{ full_name: "operator/private", id: 11, private: true }],
+      repositories: [
+        {
+          full_name: "operator/private",
+          id: 11,
+          outcome: "success",
+          private: true,
+        },
+      ],
       scopes: ["read:repository", "write:issue", "write:repository"],
       trigger: "onboarding",
       verified_at: 1_000,
@@ -122,7 +163,7 @@ export function assertFailedForgejoReactivationState(controls) {
   assert.match(health.textContent, /Replacement PAT verification failed/);
   assert.equal(history.children.length, 2);
   assert.equal(error.textContent, "Replacement PAT verification failed");
-  assert.match(profile.textContent, /Last successful profile/);
+  assert.match(profile.textContent, /Last successful: forgejo-v16/);
   assert.doesNotMatch(profile.textContent, /compatible/);
   assert.equal(token.value, "failed-reactivation-pat");
   assert.equal(submit.disabled, false);

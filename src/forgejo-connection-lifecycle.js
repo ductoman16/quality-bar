@@ -1,4 +1,5 @@
 import { completeForgejoReactivationVerification } from "./forgejo-connection-reactivation-verification.js";
+import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -38,38 +39,6 @@ function reactivationRequest(input) {
     );
   }
   return /** @type {{token: string}} */ (input);
-}
-
-/** @param {Error & {repositoryChecks?: unknown}} error @param {number[]} repositoryIds */
-function failedRepositoryChecks(error, repositoryIds) {
-  if (error.repositoryChecks === undefined) {
-    return repositoryIds.map(
-      /** @param {number} repositoryId */ (repositoryId) => ({
-        forge_repository_id: repositoryId,
-        outcome: "not_completed",
-      }),
-    );
-  }
-  if (
-    !Array.isArray(error.repositoryChecks) ||
-    error.repositoryChecks.length !== repositoryIds.length ||
-    error.repositoryChecks.some(
-      (check) =>
-        !check ||
-        typeof check !== "object" ||
-        !("forge_repository_id" in check) ||
-        !repositoryIds.includes(
-          /** @type {number} */ (check.forge_repository_id),
-        ) ||
-        !("outcome" in check) ||
-        !["error", "not_completed", "success"].includes(
-          /** @type {string} */ (check.outcome),
-        ),
-    )
-  ) {
-    throw new TypeError("Forgejo Repository verification checks are invalid");
-  }
-  return error.repositoryChecks;
 }
 
 /**
@@ -382,7 +351,7 @@ export async function reactivateForgejoConnection(
           : null,
         JSON.stringify(
           completedVerification?.repositories ??
-            failedRepositoryChecks(error, repositoryIds),
+            failedForgejoRepositoryChecks(error, repositoryIds),
         ),
         error.code,
         error.message,

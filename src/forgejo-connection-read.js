@@ -34,6 +34,10 @@ function verification(row) {
   ) {
     throw new TypeError("Forgejo Connection Verification error is invalid");
   }
+  const repositories = verifiedForgejoRepositoryEvidence(
+    jsonValue(row.repositories, "Verification Repository checks"),
+    error === null,
+  );
   return {
     api_profile: row.profile,
     capabilities:
@@ -48,7 +52,7 @@ function verification(row) {
         ? null
         : jsonValue(row.principal, "Verification principal"),
     reported_version: row.reported_version,
-    repositories: jsonValue(row.repositories, "Verification Repository checks"),
+    repositories,
     scopes:
       row.scopes === null ? null : jsonValue(row.scopes, "Verification scopes"),
     trigger: row.trigger,
@@ -147,3 +151,4 @@ export function readForgejoConnection(durableCore) {
     verified_at: row.verified_at,
   };
 }
+import { verifiedForgejoRepositoryEvidence } from "./forgejo-repository-check.js";

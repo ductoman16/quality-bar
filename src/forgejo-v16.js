@@ -1,21 +1,20 @@
 import { verifyRepositoryRead } from "./repository-git.js";
 
 const PROFILE = "forgejo-v16";
-const REQUIRED_SCOPES = new Set([
+const VERIFIED_AUTHORITIES = Object.freeze([
   "read:repository",
   "write:issue",
   "write:repository",
 ]);
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
-  ["/user", "get", "200"],
-  ["/user/repos", "get", "200"],
+  ["/repos/search", "get", "200"],
   ["/repos/{owner}/{repo}", "get", "200"],
   ["/repos/{owner}/{repo}/branches", "get", "200"],
   ["/repos/{owner}/{repo}/pulls", "get", "200"],
   ["/repos/{owner}/{repo}/issues/comments", "get", "200"],
   ["/repos/{owner}/{repo}/statuses/{sha}", "post", "201"],
   ["/repos/{owner}/{repo}/issues/{index}/comments", "post", "201"],
-  ["/repos/{owner}/{repo}/pulls/{index}/comments", "post", "201"],
+  ["/repos/{owner}/{repo}/pulls/{index}/reviews", "post", "200"],
 ]);
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
@@ -41,33 +40,13 @@ function string(value, message) {
   return value;
 }
 
-/** @param {string | null} value */
-function scopes(value) {
-  const parsed = new Set(
-    (value ?? "")
-      .split(",")
-      .map((scope) => scope.trim())
-      .filter(Boolean),
-  );
-  if (
-    parsed.size !== REQUIRED_SCOPES.size ||
-    [...REQUIRED_SCOPES].some((scope) => !parsed.has(scope))
-  ) {
-    fail(
-      "forgejo_scopes_mismatch",
-      "Forgejo PAT scopes do not match the required v16 profile",
-    );
-  }
-  return [...parsed].sort();
-}
-
 /** @param {unknown} value */
 function version(value) {
   const reported = string(
     object(value)?.version,
     "Forgejo version response is invalid",
   );
-  if (!/^16\.\d+\.\d+$/.test(reported)) {
+  if (!/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(reported)) {
     fail(
       "forgejo_version_unsupported",
       "Forgejo Connection requires stable v16.x",
@@ -92,6 +71,11 @@ function principal(value) {
     fail("forgejo_principal_invalid", "Forgejo principal response is invalid");
   }
   return { id, login };
+}
+
+/** @param {unknown} value */
+function repositoryOwner(value) {
+  return principal(object(value)?.owner);
 }
 
 /** @param {unknown} value */
@@ -258,7 +242,7 @@ export function createForgejoV16Verifier({
       }
       const origin = endpoint(baseUrl);
       /** @param {string} path */
-      const get = async (path, enforceScopes = true) => {
+      const get = async (path) => {
         let response;
         try {
           response = await fetchRequest(`${origin}${path}`, {
@@ -275,39 +259,48 @@ export function createForgejoV16Verifier({
             cause,
           );
         }
-        return {
-          body: await responseJson(path, response),
-          scopes: enforceScopes
-            ? scopes(response.headers.get("x-oauth-scopes"))
-            : null,
-        };
+        return { body: await responseJson(path, response) };
       };
       const versionResponse = await get("/api/v1/version");
       const reportedVersion = version(versionResponse.body);
-      openApi((await get("/swagger.v1.json", false)).body);
-      const userResponse = await get("/api/v1/user");
-      const verifiedPrincipal = principal(userResponse.body);
+      openApi((await get("/swagger.v1.json")).body);
       /** @type {ReturnType<typeof repository>[]} */
       const enumerated = [];
       const enumeratedIds = new Set();
-      let scopesFromEnumeration = versionResponse.scopes;
+      /** @type {{id: number, login: string} | undefined} */
+      let verifiedPrincipal;
       for (let page = 1; ; page += 1) {
         const repositoriesResponse = await get(
-          `/api/v1/user/repos?page=${page}&limit=50`,
+          `/api/v1/repos/search?page=${page}&limit=50&private=true`,
         );
-        if (!Array.isArray(repositoriesResponse.body)) {
+        const search = object(repositoriesResponse.body);
+        if (search?.ok !== true || !Array.isArray(search.data)) {
           fail(
             "forgejo_repository_enumeration_incomplete",
             "Forgejo Repository enumeration is invalid",
           );
         }
-        if (page === 1 && repositoriesResponse.body.length === 0) {
+        if (page === 1 && search.data.length === 0) {
           fail(
             "forgejo_repository_enumeration_incomplete",
             "Forgejo Repository enumeration is empty",
           );
         }
-        const pageRepositories = repositoriesResponse.body.map(repository);
+        const pagePrincipals = search.data.map(repositoryOwner);
+        const pageRepositories = search.data.map(repository);
+        for (const candidate of pagePrincipals) {
+          if (
+            verifiedPrincipal &&
+            (candidate.id !== verifiedPrincipal.id ||
+              candidate.login !== verifiedPrincipal.login)
+          ) {
+            fail(
+              "forgejo_principal_invalid",
+              "Forgejo Repository enumeration spans multiple principals",
+            );
+          }
+          verifiedPrincipal = candidate;
+        }
         if (pageRepositories.some(({ id }) => enumeratedIds.has(id))) {
           fail(
             "forgejo_repository_enumeration_incomplete",
@@ -316,13 +309,18 @@ export function createForgejoV16Verifier({
         }
         pageRepositories.forEach(({ id }) => enumeratedIds.add(id));
         enumerated.push(...pageRepositories);
-        scopesFromEnumeration = repositoriesResponse.scopes;
         if (pageRepositories.length < 50) {
           break;
         }
       }
       if (repositoryIds === undefined) {
         return { repositories: enumerated };
+      }
+      if (!verifiedPrincipal) {
+        fail(
+          "forgejo_principal_invalid",
+          "Forgejo principal response is invalid",
+        );
       }
       const selected = repositoryIds.map((id) =>
         enumerated.find((candidate) => candidate.id === id),
@@ -398,8 +396,11 @@ export function createForgejoV16Verifier({
         principal: verifiedPrincipal,
         profile: PROFILE,
         reported_version: reportedVersion,
-        repositories: selected,
-        scopes: scopesFromEnumeration,
+        repositories: selected.map((selectedRepository) => ({
+          ...selectedRepository,
+          outcome: "success",
+        })),
+        scopes: [...VERIFIED_AUTHORITIES],
       };
     },
   };

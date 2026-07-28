@@ -7,6 +7,7 @@ import {
   removeNeverUsedForgejoConnection,
   retireForgejoConnection,
 } from "../src/forgejo-connection-lifecycle.js";
+import { failedForgejoRepositoryChecks } from "../src/forgejo-repository-check.js";
 
 function completeVerification() {
   return {
@@ -22,7 +23,7 @@ function completeVerification() {
     principal: { id: 7, login: "operator" },
     profile: "forgejo-v16",
     reported_version: "16.0.4",
-    repositories: [{ id: 11 }],
+    repositories: [{ id: 11, outcome: "success" }],
     scopes: ["read:repository", "write:issue", "write:repository"],
   };
 }
@@ -167,6 +168,38 @@ test("Forgejo reactivation requires complete proof and records failure", async (
     );
     assert.equal(failureWrites.length, 2);
     assert.match(failureWrites[1], /forgejo_connection_verifications/);
+  }
+});
+
+test("failed Forgejo Repository checks require one exact discriminated record per dependent", () => {
+  const coded = Object.assign(new Error("verification failed"), {
+    code: "forgejo_verification_failed",
+  });
+  assert.deepEqual(failedForgejoRepositoryChecks(coded, [11]), [
+    { forge_repository_id: 11, outcome: "not_completed" },
+  ]);
+  for (const repositoryChecks of [
+    [
+      { forge_repository_id: 11, outcome: "success" },
+      { forge_repository_id: 11, outcome: "not_completed" },
+    ],
+    [{ forge_repository_id: 11, outcome: "error" }],
+    [
+      {
+        error: { code: "", message: "failed" },
+        forge_repository_id: 11,
+        outcome: "error",
+      },
+    ],
+  ]) {
+    assert.throws(
+      () =>
+        failedForgejoRepositoryChecks(
+          Object.assign(coded, { repositoryChecks }),
+          repositoryChecks.length === 2 ? [11, 12] : [11],
+        ),
+      /Forgejo Repository verification checks are invalid/,
+    );
   }
 });
 

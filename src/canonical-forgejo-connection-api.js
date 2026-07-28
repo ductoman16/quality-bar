@@ -1,3 +1,5 @@
+import { forgejoRepositoryCheck } from "./canonical-forgejo-connection-components.js";
+
 /** @param {object[]} mutationParameters @param {object} errorResponse */
 export function canonicalForgejoConnectionPaths(
   mutationParameters,
@@ -28,7 +30,12 @@ export function canonicalForgejoConnectionPaths(
       lifecycle: { enum: ["enabled", "retired"], type: "string" },
       principal: { type: "object" },
       reported_version: { pattern: "^16\\.", type: "string" },
-      scopes: { items: { type: "string" }, type: "array" },
+      scopes: {
+        description:
+          "Required v16 PAT authorities proven through route and capability behavior",
+        items: { type: "string" },
+        type: "array",
+      },
       verification_history: {
         items: {
           additionalProperties: false,
@@ -64,7 +71,7 @@ export function canonicalForgejoConnectionPaths(
             reported_version: {
               oneOf: [{ pattern: "^16\\.", type: "string" }, { type: "null" }],
             },
-            repositories: { items: { type: "object" }, type: "array" },
+            repositories: { items: forgejoRepositoryCheck, type: "array" },
             scopes: {
               oneOf: [
                 { items: { type: "string" }, type: "array" },

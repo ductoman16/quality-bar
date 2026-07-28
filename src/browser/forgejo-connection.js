@@ -108,13 +108,13 @@ window.addEventListener("DOMContentLoaded", () => {
         ? "Verified"
         : `${connection.health_error.message} (${connection.health_error.code})`;
     const lastSuccessful =
-      connection.health === "error" ? "Last successful " : "";
+      connection.health === "error" ? "Last successful: " : "";
     forgejoProfile.textContent =
       connection.health === "healthy"
         ? `${connection.api_profile}; compatible; ${connection.reported_version}`
-        : `${lastSuccessful}profile: ${connection.api_profile}; ${connection.reported_version}`;
-    forgejoScopes.textContent = `${lastSuccessful}scopes: ${connection.scopes.join(", ")}`;
-    forgejoCapabilities.textContent = `${lastSuccessful}capabilities: ${Object.entries(
+        : `${lastSuccessful}${connection.api_profile}; ${connection.reported_version}`;
+    forgejoScopes.textContent = `${lastSuccessful}${connection.scopes.join(", ")}`;
+    forgejoCapabilities.textContent = `${lastSuccessful}${Object.entries(
       connection.capabilities,
     )
       .map(
@@ -148,6 +148,14 @@ window.addEventListener("DOMContentLoaded", () => {
       );
     }
     renderForgejoConnection(await response.json());
+  }
+
+  function hideForgejoConnectionState() {
+    forgejoDetails.hidden = true;
+    forgejoForm.hidden = true;
+    forgejoRotationForm.hidden = true;
+    forgejoReactivationForm.hidden = true;
+    forgejoLifecycleForm.hidden = true;
   }
 
   async function loadForgejoConnection() {
@@ -342,30 +350,26 @@ window.addEventListener("DOMContentLoaded", () => {
         method: "POST",
       });
       if (!response.ok) {
-        const message =
-          await forgejoContract.forgejoResponseErrorMessage(response);
-        try {
-          await refreshForgejoConnection();
-        } catch (refreshError) {
-          forgejoDetails.hidden = true;
-          forgejoForm.hidden = true;
-          forgejoRotationForm.hidden = true;
-          forgejoReactivationForm.hidden = true;
-          forgejoLifecycleForm.hidden = true;
-          showForgejoError(
-            `${message}; Forgejo Connection refresh failed: ${forgejoContract.forgejoErrorMessage(refreshError)}`,
-          );
-          return;
-        }
-        showForgejoError(message);
-        return;
+        throw new Error(
+          await forgejoContract.forgejoResponseErrorMessage(response),
+        );
       }
       renderForgejoConnection(await response.json());
       forgejoReactivationToken.value = "";
       forgejoStatus.textContent = "Forgejo Connection reactivated.";
       forgejoStatus.focus();
     } catch (error) {
-      showForgejoError(forgejoContract.forgejoErrorMessage(error));
+      const message = forgejoContract.forgejoErrorMessage(error);
+      try {
+        await refreshForgejoConnection();
+      } catch (refreshError) {
+        hideForgejoConnectionState();
+        showForgejoError(
+          `${message}; Forgejo Connection refresh failed: ${forgejoContract.forgejoErrorMessage(refreshError)}`,
+        );
+        return;
+      }
+      showForgejoError(message);
     } finally {
       submit.disabled = false;
     }

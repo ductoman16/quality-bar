@@ -33,7 +33,7 @@ export function completeForgejoReactivationVerification(
   if (
     result?.profile !== "forgejo-v16" ||
     typeof result.reported_version !== "string" ||
-    !/^16\.\d+\.\d+$/.test(result.reported_version) ||
+    !/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(result.reported_version) ||
     !result.principal ||
     !Number.isSafeInteger(result.principal.id) ||
     typeof result.principal.login !== "string" ||

@@ -27,6 +27,32 @@ function forgejoErrorMessage(error) {
 }
 
 /** @param {unknown} value */
+function validRepositoryCheck(value) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
+  const check = /** @type {Record<string, unknown>} */ (value);
+  const error =
+    check.error &&
+    !Array.isArray(check.error) &&
+    typeof check.error === "object"
+      ? /** @type {Record<string, unknown>} */ (check.error)
+      : null;
+  return (
+    ["success", "error", "not_completed"].includes(
+      /** @type {string} */ (check.outcome),
+    ) &&
+    (Number.isSafeInteger(check.id) ||
+      Number.isSafeInteger(check.forge_repository_id)) &&
+    (check.outcome !== "error" ||
+      (typeof error?.code === "string" &&
+        error.code.length > 0 &&
+        typeof error.message === "string" &&
+        error.message.length > 0))
+  );
+}
+
+/** @param {unknown} value */
 function validForgejoVerification(value) {
   if (!value || Array.isArray(value) || typeof value !== "object") {
     return false;
@@ -47,6 +73,7 @@ function validForgejoVerification(value) {
     ) &&
     Number.isSafeInteger(verification.verified_at) &&
     Array.isArray(verification.repositories) &&
+    verification.repositories.every(validRepositoryCheck) &&
     (verification.outcome === "success"
       ? verification.error === null &&
         verification.api_profile === "forgejo-v16" &&
@@ -123,8 +150,8 @@ function forgejoVerificationText(verification) {
     ? `principal: ${verification.principal.login} (${verification.principal.id})`
     : "principal: not completed";
   const scopes = verification.scopes
-    ? `scopes: ${verification.scopes.join(", ")}`
-    : "scopes: not completed";
+    ? `required authorities: ${verification.scopes.join(", ")}`
+    : "required authorities: not completed";
   const capabilities = verification.capabilities
     ? Object.entries(verification.capabilities)
         .map(([name, outcome]) => `${name.replaceAll("_", " ")}: ${outcome}`)
@@ -136,10 +163,9 @@ function forgejoVerificationText(verification) {
         repository.full_name ??
         `Forge Repository ${repository.id ?? repository.forge_repository_id}`;
       const outcome =
-        repository.outcome ??
-        (repository.error
+        repository.outcome === "error"
           ? `error: ${repository.error.message} (${repository.error.code})`
-          : "verified");
+          : repository.outcome;
       return `${identity}: ${outcome}`;
     })
     .join(", ");

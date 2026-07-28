@@ -7,7 +7,9 @@ import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import {
   assertFailedForgejoReactivationState,
+  assertForgejoPage,
   assertForgejoContract,
+  assertRegisteredForgejoState,
   failedForgejoReactivation,
   neverUsedForgejoConnection,
   validForgejoConnection,
@@ -16,12 +18,7 @@ import { element } from "./github-connection-browser-component-support.js";
 
 test("Forgejo Connection discovers semantic Repository choices then atomically registers checked choices", async () => {
   const page = operatorPage({ view: "repositories" });
-  assert.match(
-    page,
-    /<fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories<\/legend><div id="forgejo-connection-repositories"><\/div><\/fieldset>.*aria-live="polite" id="forgejo-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
-  );
-  assert.match(page, /@media\(max-width:40rem\)/);
-  assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
+  assertForgejoPage(page);
   const form = element();
   const rotationForm = element();
   const reactivationForm = element();
@@ -124,6 +121,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   /** @type {{value: Error | undefined}} */
   const currentFailure = { value: undefined };
   const rotationJsonFailure = { value: false };
+  const reactivationJsonFailure = { value: false };
   const rotationOk = { value: true };
   const reactivationOk = { value: true };
   const validRotationResponse = validForgejoConnection;
@@ -184,6 +182,9 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
               : { ...validRotationResponse, lifecycle: "retired" };
           }
           if (path.endsWith("/reactivate")) {
+            if (reactivationJsonFailure.value) {
+              throw new SyntaxError("Unexpected token < in JSON");
+            }
             return reactivationOk.value
               ? validRotationResponse
               : {
@@ -252,16 +253,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     token: "operator-created-pat",
   });
   assert.equal(requests[2].path, "/api/v1/forgejo-connections");
-  assert.equal(status.focused, true);
-  assert.equal(token.value, "");
-  assert.equal(remove.hidden, true);
-  assert.match(profile.textContent, /forgejo-v16; compatible; 16\.0\.4/);
-  assert.match(scopes.textContent, /read:repository/);
-  assert.match(capabilities.textContent, /private git read: verified/);
-  assert.equal(history.children.length, 1);
-  assert.match(history.children[0].textContent, /onboarding/);
-  assert.match(history.children[0].textContent, /operator \(7\)/);
-  assert.match(history.children[0].textContent, /operator\/private: verified/);
+  assertRegisteredForgejoState(controls);
   await rotationForm.listener("submit")({ preventDefault() {} });
   assert.deepEqual(JSON.parse(requests[3].options.body), {
     token: "replacement-pat",
@@ -387,6 +379,12 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.match(error.textContent, /refresh unavailable/);
   currentFailure.value = undefined;
   reactivationOk.value = true;
+  reactivationJsonFailure.value = true;
+  currentResponse.value = validRotationResponse;
+  await reactivationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(lifecycle.textContent, "Enabled");
+  assert.equal(error.textContent, "Unexpected token < in JSON");
+  reactivationJsonFailure.value = false;
   rotationResponse.value = neverUsedForgejoConnection();
   rotationToken.value = "never-used-connection-pat";
   await rotationForm.listener("submit")({ preventDefault() {} });
