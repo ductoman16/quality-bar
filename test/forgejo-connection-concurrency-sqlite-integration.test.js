@@ -223,3 +223,140 @@ test("Repository admission preserves a connection-owned Forgejo polling error", 
   forgejo.destroy();
   core.close();
 });
+
+test("a definitive Connection failure stops remaining Forgejo Repository polls", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-gate-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  let currentTime = 1_000;
+  let failPolling = false;
+  /** @type {number[]} */
+  const attempted = [];
+  const forgejo = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "repository-2",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey: Buffer.alloc(32, 25),
+    now: () => currentTime,
+    verifier: {
+      async listPullRequests(connection, repository) {
+        assert.equal(connection.token, "pat");
+        if (failPolling) {
+          attempted.push(repository.id);
+          throw Object.assign(new Error("Forgejo PAT is no longer valid"), {
+            code: "forgejo_connection_credential_invalid",
+          });
+        }
+        return [pullRequest(repository.id)];
+      },
+      async verify() {
+        return forgejoVerification([
+          repositoryEvidence(11, "one"),
+          repositoryEvidence(22, "two"),
+        ]);
+      },
+    },
+  });
+  await forgejo.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11, 22],
+    token: "pat",
+  });
+
+  currentTime = 61_000;
+  failPolling = true;
+  await forgejo.runPolling();
+  assert.deepEqual(attempted, [11]);
+  assert.equal(forgejo.read()?.health, "error");
+  assert.deepEqual(forgejo.read()?.health_error, {
+    code: "forgejo_connection_credential_invalid",
+    message: "Forgejo PAT is no longer valid",
+  });
+  forgejo.destroy();
+  core.close();
+});
+
+test("PAT rotation fences an older Repository re-enablement", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-enable-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const masterKey = Buffer.alloc(32, 26);
+  const evidence = repositoryEvidence(11, "private");
+  let blockOldVerification = false;
+  let releaseOldVerification = () => {};
+  let announceOldVerification = () => {};
+  const oldVerificationStarted = new Promise((resolve) => {
+    announceOldVerification = () => resolve(undefined);
+  });
+  const oldVerificationReleased = new Promise((resolve) => {
+    releaseOldVerification = () => resolve(undefined);
+  });
+  const forgejo = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "rotation-verification-1",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey,
+    now: () => 1_000,
+    verifier: {
+      async listPullRequests(connection) {
+        return [pullRequest(connection.token === "replacement-pat" ? 2 : 1)];
+      },
+      async verify({ repositoryIds, token }) {
+        if (blockOldVerification && token === "old-pat") {
+          announceOldVerification();
+          await oldVerificationReleased;
+        }
+        return forgejoVerification(
+          repositoryIds.includes(11) ? [evidence] : [],
+        );
+      },
+    },
+  });
+  await forgejo.connect({
+    base_url: "https://forgejo.example",
+    repository_ids: [11],
+    token: "old-pat",
+  });
+  const repositories = createRepositoryService(core, {
+    masterKey,
+    now: () => 2_000,
+    verifyForgeRepository: (forgeRepositoryId) =>
+      forgejo.prepareRepositoryEnablement(forgeRepositoryId),
+  });
+  await repositories.setLifecycle("repository-1", { lifecycle: "disabled" });
+
+  blockOldVerification = true;
+  const staleEnablement = repositories.setLifecycle("repository-1", {
+    lifecycle: "enabled",
+  });
+  await oldVerificationStarted;
+  await forgejo.rotate({ token: "replacement-pat" });
+  releaseOldVerification();
+  await assert.rejects(
+    () => staleEnablement,
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "forgejo_repository_enablement_conflict",
+  );
+  assert.equal(repositories.list()[0]?.lifecycle, "disabled");
+  assert.equal(
+    core.get("SELECT snapshot FROM forgejo_repository_polls")?.snapshot,
+    JSON.stringify([pullRequest(1)]),
+  );
+  repositories.destroy();
+  forgejo.destroy();
+  core.close();
+});

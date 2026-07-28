@@ -292,6 +292,13 @@ export function createForgejoPollingRunner(
             );
             if (committed) {
               currentGenerations.set(row.connection_id, generation + 1);
+              if (
+                isDefinitiveForgejoPollingFailure(
+                  /** @type {{code: string}} */ (error),
+                )
+              ) {
+                gatedConnections.add(row.connection_id);
+              }
             }
           }
           if (

@@ -24,7 +24,12 @@ export async function prepareForgejoRepositoryEnablement(
   }
   const [connection] = durableCore.all(
     `SELECT forgejo_connections.id, forgejo_connections.base_url,
-            forgejo_connection_credentials.encrypted_credential
+            forgejo_connection_credentials.encrypted_credential,
+            (
+              SELECT value FROM quality_bar_metadata
+               WHERE key = 'forgejo_poll_generation:' ||
+                           forgejo_connections.id
+            ) AS poll_generation
        FROM forgejo_connections
        JOIN forgejo_connection_credentials
          ON forgejo_connection_credentials.connection_id =
@@ -43,6 +48,18 @@ export async function prepareForgejoRepositoryEnablement(
   ) {
     fail("forgejo_repository_not_found", "Forgejo Repository was not found");
   }
+  if (
+    connection.poll_generation !== null &&
+    (typeof connection.poll_generation !== "string" ||
+      !/^(0|[1-9]\d*)$/u.test(connection.poll_generation) ||
+      !Number.isSafeInteger(Number(connection.poll_generation)))
+  ) {
+    throw new TypeError("Forgejo polling generation is invalid");
+  }
+  const expectedGeneration =
+    connection.poll_generation === null
+      ? 0
+      : Number(connection.poll_generation);
   const repositories = durableCore.all(
     `SELECT forgejo_repositories.forge_repository_id AS id,
             forgejo_repositories.name AS full_name
@@ -97,7 +114,31 @@ export async function prepareForgejoRepositoryEnablement(
   return {
     /** @param {any} transaction */
     commit(transaction) {
-      polling.commitBaseline(transaction, connection.id, prepared);
+      const current = transaction.get(
+        `SELECT encrypted_credential
+           FROM forgejo_connection_credentials
+           JOIN forgejo_connections
+             ON forgejo_connections.id =
+                forgejo_connection_credentials.connection_id
+          WHERE forgejo_connections.id = ?
+            AND forgejo_connections.lifecycle = 'enabled'`,
+        connection.id,
+      );
+      if (
+        !current ||
+        current.encrypted_credential !== connection.encrypted_credential ||
+        !polling.commitBaseline(
+          transaction,
+          connection.id,
+          prepared,
+          expectedGeneration,
+        )
+      ) {
+        fail(
+          "forgejo_repository_enablement_conflict",
+          "Forgejo Connection changed during Repository enablement",
+        );
+      }
     },
   };
 }
