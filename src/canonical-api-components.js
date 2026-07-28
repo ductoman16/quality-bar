@@ -2,6 +2,7 @@ import { canonicalRepositorySchemas } from "./canonical-repository-components.js
 import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
 import { closedObject, openObject } from "./canonical-schema.js";
 import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
+import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 
 /**
  * @typedef {{
@@ -312,6 +313,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           implementer_token: {
             $ref: "#/components/schemas/ImplementerTokenFact",
           },
+          storage: { $ref: "#/components/schemas/StorageReserveFact" },
         },
         [
           "bootstrap",
@@ -319,8 +321,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "codex",
           "durable_core",
           "implementer_token",
+          "storage",
         ],
       ),
+      ...canonicalStorageReserveSchemas(),
       BootstrapFact: openObject(
         { status: { enum: ["complete", "required"], type: "string" } },
         ["status"],

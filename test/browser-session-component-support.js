@@ -5,6 +5,7 @@ import { afterEach } from "node:test";
 
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
 /**
@@ -27,6 +28,7 @@ function temporaryDatabasePath() {
 function validInstallation(origin = "http://127.0.0.1:3000") {
   return {
     externalOrigin: origin,
+    freeSpaceReserveBytes: 5 * 1024 ** 3,
     masterKey: Buffer.alloc(32, 7),
     trustedProxyAddresses: origin.startsWith("https:") ? ["127.0.0.1"] : [],
   };
@@ -41,6 +43,7 @@ function validInstallation(origin = "http://127.0.0.1:3000") {
  */
 export async function startApplication(options = {}) {
   const application = createApplication({
+    createStorageReserve: () => availableStorageReserve,
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => validInstallation(options.externalOrigin),
     validateInstallation: () => ({ releaseInstallationLock() {} }),

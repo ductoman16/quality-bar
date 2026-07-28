@@ -7,6 +7,7 @@ import { createConformingFetch } from "../scripts/openapi-conformance.mjs";
 import { createApplication } from "../src/application.js";
 import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
 /**
@@ -33,6 +34,7 @@ function temporaryDatabasePath() {
  *   createForgejoConnections?: Parameters<typeof createApplication>[0]["createForgejoConnections"],
  *   createRepositoryGuidance?: Parameters<typeof createApplication>[0]["createRepositoryGuidance"],
  *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"],
+ *   createStorageReserve?: Parameters<typeof createApplication>[0]["createStorageReserve"],
  *   writeLog?: Parameters<typeof createApplication>[0]["writeLog"]
  * }} [options]
  */
@@ -41,6 +43,7 @@ export async function startApplication(options = {}) {
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => ({
       externalOrigin: "http://127.0.0.1:3000",
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),
@@ -53,6 +56,8 @@ export async function startApplication(options = {}) {
     createForgejoConnections: options.createForgejoConnections,
     createRepositoryGuidance: options.createRepositoryGuidance,
     createReviews: options.createReviews,
+    createStorageReserve:
+      options.createStorageReserve ?? (() => availableStorageReserve),
     writeLog: options.writeLog ?? (() => {}),
   });
   if (!application.durableCore || !application.implementerTokens) {

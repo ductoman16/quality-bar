@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { Script } from "node:vm";
 
 import { createApplication } from "../src/application.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
@@ -97,9 +98,11 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
 /** @param {{readBrowserAsset?: (path: string) => string}} [options] */
 async function startApplication(options = {}) {
   const application = createApplication({
+    createStorageReserve: () => availableStorageReserve,
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => ({
       externalOrigin: "http://127.0.0.1:3000",
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),

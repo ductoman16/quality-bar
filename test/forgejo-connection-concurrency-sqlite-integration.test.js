@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { createAvailableForgejoConnectionService as createForgejoConnectionService } from "./storage-reserve-support.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import {

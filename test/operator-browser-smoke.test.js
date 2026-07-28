@@ -14,6 +14,7 @@ import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];
@@ -118,9 +119,11 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const directory = temporaryDirectory("quality-bar-operator-browser-");
   const databasePath = join(directory, "quality-bar.sqlite3");
   const application = createApplication({
+    createStorageReserve: () => availableStorageReserve,
     databasePath,
     loadInstallation: () => ({
       externalOrigin: "http://127.0.0.1:3000",
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: [],
     }),

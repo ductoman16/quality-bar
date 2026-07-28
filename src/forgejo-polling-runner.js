@@ -4,22 +4,34 @@ import {
   isDefinitiveForgejoPollingFailure,
   isRepositoryOwnedDefinitiveForgejoPollingFailure,
 } from "./forgejo-polling.js";
+import { readForgejoPollingGeneration } from "./forgejo-polling-generation.js";
+import {
+  StorageReserveError,
+  requireStorageReservePause,
+} from "./storage-reserve.js";
+import {
+  createStorageReservePollingCore,
+  hasStorageReservePollingDependencies,
+} from "./storage-reserve-polling-core.js";
 
-/** @param {any} durableCore @param {{cipher: any, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
-  { cipher, timestamp, verifier },
+  { cipher, storageReserve, timestamp, verifier },
 ) {
   if (
-    typeof durableCore?.all !== "function" ||
-    typeof durableCore.transaction !== "function" ||
+    !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function"
   ) {
     throw new TypeError("Forgejo polling runner dependencies are invalid");
   }
-  const polling = createForgejoPollingService(durableCore, {
+  const pollingCore = createStorageReservePollingCore(
+    durableCore,
+    storageReserve,
+  );
+  const polling = createForgejoPollingService(pollingCore, {
     fetchPullRequests: ({ connection, credential, repository }) =>
       verifier.listPullRequests(
         { baseUrl: connection.base_url, token: credential },
@@ -115,25 +127,11 @@ export function createForgejoPollingRunner(
     );
   }
 
-  /** @param {any} row */
-  function expectedGeneration(row) {
-    if (row.poll_generation === null) {
-      return 0;
-    }
-    if (
-      typeof row.poll_generation !== "string" ||
-      !/^(0|[1-9]\d*)$/u.test(row.poll_generation) ||
-      !Number.isSafeInteger(Number(row.poll_generation))
-    ) {
-      throw new TypeError("Forgejo polling generation is invalid");
-    }
-    return Number(row.poll_generation);
-  }
-
   async function runDue() {
     if (running) {
       return;
     }
+    storageReserve.preparePollingObservationAdvance();
     running = true;
     try {
       const due = durableCore.all(
@@ -189,7 +187,8 @@ export function createForgejoPollingRunner(
           continue;
         }
         const generation =
-          currentGenerations.get(row.connection_id) ?? expectedGeneration(row);
+          currentGenerations.get(row.connection_id) ??
+          readForgejoPollingGeneration(row.poll_generation);
         let token;
         try {
           token = cipher.decrypt(row.connection_id, row.encrypted_credential);
@@ -250,14 +249,15 @@ export function createForgejoPollingRunner(
               { recordFailure: false },
             );
           }
-          const committed = durableCore.transaction(
-            (/** @type {any} */ transaction) =>
-              polling.commitSuccess(
+          const committed = pollingCore.transaction(
+            (/** @type {any} */ transaction) => {
+              return polling.commitSuccess(
                 transaction,
                 row.connection_id,
                 prepared,
                 generation,
-              ),
+              );
+            },
           );
           if (committed) {
             currentGenerations.set(row.connection_id, generation + 1);
@@ -266,6 +266,9 @@ export function createForgejoPollingRunner(
             completedBaselines.add(row.connection_id);
           }
         } catch (error) {
+          if (error instanceof StorageReserveError) {
+            throw error;
+          }
           if (
             !(error instanceof Error) ||
             !("code" in error) ||
@@ -277,9 +280,9 @@ export function createForgejoPollingRunner(
             "attemptedAt" in error &&
             Number.isSafeInteger(error.attemptedAt)
           ) {
-            const committed = durableCore.transaction(
-              (/** @type {any} */ transaction) =>
-                polling.commitFailure(
+            const committed = pollingCore.transaction(
+              (/** @type {any} */ transaction) => {
+                return polling.commitFailure(
                   transaction,
                   row.connection_id,
                   forgeRepositoryIds,
@@ -289,7 +292,8 @@ export function createForgejoPollingRunner(
                   Number(error.attemptedAt),
                   baseline,
                   generation,
-                ),
+                );
+              },
             );
             if (committed) {
               currentGenerations.set(row.connection_id, generation + 1);
@@ -328,6 +332,7 @@ export function createForgejoPollingRunner(
    * @param {{ignoreGate?: boolean, recordFailure?: boolean}} [options]
    */
   function prepareBaseline(connection, token, repositories, options) {
+    storageReserve.preparePollingObservationAdvance();
     return polling.prepare(
       {
         connection,
@@ -365,16 +370,31 @@ export function createForgejoPollingRunner(
   }
 
   async function runScheduled() {
-    await runDue();
+    let delay = FORGEJO_POLL_INTERVAL_MS;
+    try {
+      await runDue();
+      delay = nextDelay();
+    } catch (error) {
+      requireStorageReservePause(error);
+    }
     if (!started) {
       return;
     }
-    timer = setTimeout(() => void runScheduled(), nextDelay());
+    timer = setTimeout(() => void runScheduled(), delay);
     timer.unref();
   }
 
   return {
-    commitBaseline: polling.commitSuccess,
+    /** @param {any} transaction @param {string} connectionId @param {any} prepared @param {number} [generation] */
+    commitBaseline(transaction, connectionId, prepared, generation) {
+      storageReserve.assertPollingObservationAdvanceAvailable();
+      return polling.commitSuccess(
+        transaction,
+        connectionId,
+        prepared,
+        generation,
+      );
+    },
     destroy() {
       if (timer !== null) {
         clearTimeout(timer);

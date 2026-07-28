@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import { OPERATOR_PASSWORD_VERIFIER_METADATA_KEY } from "../src/operator-password.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
@@ -22,6 +23,7 @@ function temporaryDatabasePath() {
 function validInstallation() {
   return {
     externalOrigin: "http://127.0.0.1:3000",
+    freeSpaceReserveBytes: 5 * 1024 ** 3,
     masterKey: Buffer.alloc(32, 7),
     trustedProxyAddresses: [],
   };
@@ -38,6 +40,7 @@ afterEach(async () => {
 
 test("browser product traffic cannot bootstrap an operator password", async () => {
   const application = createApplication({
+    createStorageReserve: () => availableStorageReserve,
     databasePath: temporaryDatabasePath(),
     loadInstallation: validInstallation,
     validateInstallation: () => ({ releaseInstallationLock() {} }),

@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -50,6 +51,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   const core = openDurableCore(databasePath);
   assert.equal(core.facts.schemaVersion, 21);
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1"];
       return () => ids.shift();
@@ -131,6 +133,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
 
   const reopened = openDurableCore(databasePath);
   const reopenedService = createGitHubConnectionService(reopened, {
+    storageReserve: availableStorageReserve,
     externalOrigin: "https://quality-bar.example",
     masterKey: Buffer.alloc(32, 7),
   });
@@ -142,6 +145,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   assert.throws(
     () =>
       createGitHubConnectionService(wrongKeyCore, {
+        storageReserve: availableStorageReserve,
         externalOrigin: "https://quality-bar.example",
         masterKey: Buffer.alloc(32, 8),
       }),
@@ -188,6 +192,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   );
   let baselineRequests = 0;
   const lifecycleService = createGitHubConnectionService(lifecycleCore, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["verification-2"];
       return () => ids.shift();
@@ -265,6 +270,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   const restartedLifecycleService = createGitHubConnectionService(
     lifecycleCore,
     {
+      storageReserve: availableStorageReserve,
       externalOrigin: "https://quality-bar.example",
       masterKey: Buffer.alloc(32, 7),
     },
@@ -275,6 +281,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   const failedReactivationService = createGitHubConnectionService(
     lifecycleCore,
     {
+      storageReserve: availableStorageReserve,
       externalOrigin: "https://quality-bar.example",
       masterKey: Buffer.alloc(32, 7),
       verifier: {
@@ -352,6 +359,7 @@ test("SQLite stores no Connection, credential, or history after verification fai
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     externalOrigin: "https://quality-bar.example",
     masterKey: Buffer.alloc(32, 7),
     randomBytes: () => Buffer.alloc(32, 6),

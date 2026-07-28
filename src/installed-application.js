@@ -129,7 +129,9 @@ export async function createInstalledApplication({
     validateSources();
     installation = loadInstallation();
     keyIdentity = installationKeyIdentity(installation.masterKey);
-    ({ releaseInstallationLock } = validateInstallation());
+    ({ releaseInstallationLock } = validateInstallation({
+      reserveBytes: installation.freeSpaceReserveBytes,
+    }));
     preMigrationBackup = await prepareBackup({
       applicationVersion,
       backupsPath,

@@ -26,7 +26,7 @@ const openapi = await fetch(`${endpoint}/api/v1/openapi.json`, {
   headers: { ...headers, cookie },
 });
 const systemFacts =
-  /** @type {{codex: {catalog: {codex_cli_version: string, models: unknown[]}}}} */ (
+  /** @type {{codex: {catalog: {codex_cli_version: string, models: unknown[]}}, storage: unknown}} */ (
     await system.json()
   );
 const codexCapabilityCatalog = systemFacts.codex.catalog;
@@ -45,5 +45,6 @@ console.log(
     openapiStatus: openapi.status,
     openapiVersion: /** @type {{openapi: string}} */ (await openapi.json())
       .openapi,
+    storage: systemFacts.storage,
   }),
 );

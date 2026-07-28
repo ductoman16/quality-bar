@@ -11,21 +11,10 @@ import {
   createOneShotForgejoBaselineFailure,
   enabledRepositoryPoll,
   forgejoVerification,
+  pullRequest,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
-
-/** @param {number} number */
-function pullRequest(number) {
-  return {
-    base: { sha: number.toString(16).padStart(40, "a") },
-    draft: false,
-    head: { sha: number.toString(16).padStart(40, "b") },
-    merged: false,
-    merged_at: null,
-    number,
-    state: "open",
-  };
-}
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("SQLite onboarding advances nothing when the complete Forgejo baseline fails", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-polling-"));
@@ -39,6 +28,7 @@ test("SQLite onboarding advances nothing when the complete Forgejo baseline fail
     createId: () => "connection-1",
     masterKey: Buffer.alloc(32, 15),
     now: () => 1_000,
+    storageReserve: availableStorageReserve,
     verifier: {
       async listPullRequests() {
         throw baselineFailure;
@@ -101,6 +91,7 @@ test("SQLite polling preserves the last Forgejo success through an exact rate ga
     })(),
     masterKey: Buffer.alloc(32, 20),
     now: () => currentTime,
+    storageReserve: availableStorageReserve,
     verifier: {
       async listPullRequests() {
         if (failure) {
@@ -208,6 +199,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
     })(),
     masterKey,
     now: () => currentTime,
+    storageReserve: availableStorageReserve,
     verifier: {
       async listPullRequests(connection, repository) {
         assert.equal(connection.baseUrl, "https://forgejo.example");
@@ -232,6 +224,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
   const restored = createForgejoConnectionService(restoredCore, {
     masterKey,
     now: () => currentTime,
+    storageReserve: availableStorageReserve,
     verifier: {
       async listPullRequests(connection, repository) {
         if (baselineFailure.fails(repository.id, connection.baseUrl)) {
@@ -344,6 +337,7 @@ test("Forgejo Repository re-enablement commits its fresh baseline with lifecycle
     })(),
     masterKey,
     now: () => 1_000,
+    storageReserve: availableStorageReserve,
     verifier: {
       async listPullRequests() {
         if (failure) {

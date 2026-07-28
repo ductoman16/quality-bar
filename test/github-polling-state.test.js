@@ -9,6 +9,7 @@ import {
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
 import { readGitHubPollingFailure } from "../src/github-polling-read.js";
+import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("GitHub polling lower layers reject incomplete dependencies at construction", () => {
   const core = { all() {}, transaction() {} };
@@ -24,6 +25,7 @@ test("GitHub polling lower layers reject incomplete dependencies at construction
     () =>
       createGitHubPollingRunner(core, {
         cipher: { decrypt: () => ({}) },
+        storageReserve: availableStorageReserve,
         timestamp: () => 0,
         verifier: { listPullRequests: async () => [] },
       }),

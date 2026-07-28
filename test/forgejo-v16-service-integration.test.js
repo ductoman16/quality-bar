@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -192,6 +193,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     assert.equal(excluded.status, 404);
     core = openDurableCore(join(directory, "quality-bar.sqlite3"));
     service = createForgejoConnectionService(core, {
+      storageReserve: availableStorageReserve,
       masterKey: Buffer.alloc(32, 7),
       verifier: createForgejoV16Verifier(),
     });
