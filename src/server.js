@@ -16,6 +16,7 @@ import {
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
+import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
 
 /**
  * @param {unknown} value
@@ -78,6 +79,7 @@ const TOKEN_METHODS = [
  *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
+ *   waiverAdjudicatorConfiguration: ReturnType<typeof import("./waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
  *   readSystemStatus: () => unknown,
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
@@ -109,6 +111,7 @@ export function createApplicationServer({
   forgejoConnections,
   repositoryGuidance,
   reviews,
+  waiverAdjudicatorConfiguration,
   readDurableCoreStatus,
   readSystemStatus,
   listAuthorityAttributions,
@@ -141,6 +144,15 @@ export function createApplicationServer({
     typeof reviews.updateMetadata !== "function"
   ) {
     throw new TypeError("reviews must provide the Review resource");
+  }
+  if (
+    typeof waiverAdjudicatorConfiguration?.read !== "function" ||
+    typeof waiverAdjudicatorConfiguration.update !== "function" ||
+    typeof waiverAdjudicatorConfiguration.freezeForAdjudication !== "function"
+  ) {
+    throw new TypeError(
+      "waiverAdjudicatorConfiguration must provide the Waiver Adjudicator Configuration resource",
+    );
   }
   if (
     typeof forgejoConnections?.read !== "function" ||
@@ -201,6 +213,13 @@ export function createApplicationServer({
     implementerTokens,
     recordAuthorityAttribution,
   });
+  const handleWaiverAdjudicatorConfiguration =
+    createWaiverAdjudicatorConfigurationRoute({
+      browserOrigin,
+      browserSessions,
+      recordAuthorityAttribution,
+      waiverAdjudicatorConfiguration,
+    });
   const handleApi = createApiRoute({
     browserOrigin,
     browserSessions,
@@ -340,6 +359,16 @@ export function createApplicationServer({
       }
     }
     if (await handleMcp(request, response, requestUrl)) {
+      return;
+    }
+    if (
+      await handleWaiverAdjudicatorConfiguration(
+        request,
+        response,
+        requestUrl,
+        authority,
+      )
+    ) {
       return;
     }
     if (await handleApi(request, response, requestUrl, authority)) {

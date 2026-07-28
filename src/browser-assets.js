@@ -12,6 +12,14 @@ const browserAssets = [
     url: new URL("./browser/operator.js", import.meta.url),
   },
   {
+    route: "/assets/waiver-adjudicator-configuration.js",
+    sourcePath: "src/browser/waiver-adjudicator-configuration.js",
+    url: new URL(
+      "./browser/waiver-adjudicator-configuration.js",
+      import.meta.url,
+    ),
+  },
+  {
     route: "/assets/github-connection-contract.js",
     sourcePath: "src/browser/github-connection-contract.js",
     url: new URL("./browser/github-connection-contract.js", import.meta.url),
