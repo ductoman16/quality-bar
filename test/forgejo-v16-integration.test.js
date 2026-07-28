@@ -36,6 +36,7 @@ function forgejoOpenApi() {
 test("Forgejo v16 verification proves the fixed profile without provider writes", async (context) => {
   /** @type {{method: string | undefined, path: string}[]} */
   const requests = [];
+  let forbiddenBranches = false;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -84,6 +85,10 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         "/api/v1/repos/operator/private/issues/comments",
       ].includes(url.pathname)
     ) {
+      if (forbiddenBranches && url.pathname.endsWith("/branches")) {
+        response.statusCode = 403;
+        return send({ message: "forbidden" });
+      }
       return send([]);
     }
     response.statusCode = 404;
@@ -167,6 +172,15 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     ],
   });
   assert.equal(gitReads.length, 1);
+  forbiddenBranches = true;
+  await assert.rejects(
+    verifier.verify({
+      baseUrl: `http://127.0.0.1:${address.port}`,
+      repositoryIds: [11],
+      token: "operator-created-pat",
+    }),
+    { code: "forgejo_required_route_unavailable" },
+  );
   assert.ok(requests.every(({ method }) => method === "GET"));
 });
 
@@ -287,5 +301,25 @@ test("Forgejo v16 fixture rejects missing pinned OpenAPI route evidence", async 
       token: "operator-created-pat",
     }),
     { code: "forgejo_openapi_invalid" },
+  );
+});
+
+test("Forgejo v16 fixture rejects a reduced PAT scope before profile inference", async () => {
+  const verifier = createForgejoV16Verifier({
+    fetch: async () =>
+      new Response(JSON.stringify({ version: "16.0.4" }), {
+        headers: {
+          "content-type": "application/json",
+          "x-oauth-scopes": "read:repository,write:repository",
+        },
+      }),
+  });
+  await assert.rejects(
+    verifier.verify({
+      baseUrl: "https://forgejo.example",
+      repositoryIds: [1],
+      token: "operator-created-pat",
+    }),
+    { code: "forgejo_scopes_mismatch" },
   );
 });
