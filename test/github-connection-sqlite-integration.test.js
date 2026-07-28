@@ -48,7 +48,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 18);
+  assert.equal(core.facts.schemaVersion, 19);
   const service = createGitHubConnectionService(core, {
     createId: (() => {
       const ids = ["connection-1", "verification-1"];

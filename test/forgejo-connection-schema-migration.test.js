@@ -92,7 +92,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 18);
+  assert.equal(migrated.facts.schemaVersion, 19);
   assert.deepEqual(
     migrated.get(
       `SELECT trigger, error_code, error_message

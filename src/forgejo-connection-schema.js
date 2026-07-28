@@ -10,6 +10,8 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     scopes TEXT NOT NULL CHECK (json_valid(scopes)),
     capabilities TEXT NOT NULL CHECK (json_valid(capabilities)),
     health TEXT NOT NULL CHECK (health IN ('healthy', 'error')),
+    lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired')),
     created_at INTEGER NOT NULL,
     verified_at INTEGER NOT NULL
   ) STRICT;
@@ -63,6 +65,24 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS forgejo_connection_verifications_immutable_delete
     BEFORE DELETE ON forgejo_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'forgejo_connection_delete' AND value = OLD.connection_id
+    )
+    BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
+`;
+
+export const FORGEJO_CONNECTION_LIFECYCLE_MIGRATION = `
+  ALTER TABLE forgejo_connections
+    ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired'));
+  DROP TRIGGER forgejo_connection_verifications_immutable_delete;
+  CREATE TRIGGER forgejo_connection_verifications_immutable_delete
+    BEFORE DELETE ON forgejo_connection_verifications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM quality_bar_metadata
+      WHERE key = 'forgejo_connection_delete' AND value = OLD.connection_id
+    )
     BEGIN SELECT RAISE(ABORT, 'forgejo_connection_verification_immutable'); END;
 `;
 

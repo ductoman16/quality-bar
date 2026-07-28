@@ -17,12 +17,17 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
   const form = element();
   const rotationForm = element();
+  const reactivationForm = element();
+  const lifecycleForm = element();
   const baseUrl = /** @type {any} */ (
     element({ value: "https://forgejo.example" })
   );
   const token = /** @type {any} */ (element({ value: "operator-created-pat" }));
   const rotationToken = /** @type {any} */ (
     element({ value: "replacement-pat" })
+  );
+  const reactivationToken = /** @type {any} */ (
+    element({ value: "reactivation-pat" })
   );
   const repositories = element({
     querySelector() {
@@ -37,18 +42,63 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const fieldset = element({ disabled: true });
   const submit = element();
   const rotationSubmit = element();
+  const reactivationSubmit = element();
+  const details = element({ hidden: true });
+  const identity = element();
+  const lifecycle = element();
+  const health = element();
+  const latest = element();
+  const retire = element();
+  const remove = element();
+  const confirmation = /** @type {any} */ (
+    element({
+      close() {
+        this.open = false;
+      },
+      open: false,
+      showModal() {
+        this.open = true;
+      },
+    })
+  );
+  const confirmationForm = element();
+  const confirmationMessage = element();
+  const confirmationLabel = element({ hidden: true });
+  const confirmationInput = /** @type {any} */ (
+    element({ hidden: true, value: "" })
+  );
+  const confirmationCancel = element();
+  const confirmationSubmit = element();
   const status = element();
   const error = element({ hidden: true });
   const controls = new Map([
     ["forgejo-connection-form", form],
     ["forgejo-connection-rotation-form", rotationForm],
+    ["forgejo-connection-reactivation-form", reactivationForm],
+    ["forgejo-connection-lifecycle-form", lifecycleForm],
     ["forgejo-connection-base-url", baseUrl],
     ["forgejo-connection-token", token],
     ["forgejo-connection-rotation-token", rotationToken],
+    ["forgejo-connection-reactivation-token", reactivationToken],
+    ["forgejo-connection-details", details],
+    ["forgejo-connection-identity", identity],
+    ["forgejo-connection-lifecycle", lifecycle],
+    ["forgejo-connection-health", health],
+    ["forgejo-connection-latest", latest],
+    ["forgejo-connection-retire", retire],
+    ["forgejo-connection-delete", remove],
+    ["forgejo-connection-confirmation", confirmation],
+    ["forgejo-connection-confirmation-form", confirmationForm],
+    ["forgejo-connection-confirmation-message", confirmationMessage],
+    ["forgejo-connection-confirmation-label", confirmationLabel],
+    ["forgejo-connection-confirmation-input", confirmationInput],
+    ["forgejo-connection-confirmation-cancel", confirmationCancel],
+    ["forgejo-connection-confirmation-submit", confirmationSubmit],
     ["forgejo-connection-repositories", repositories],
     ["forgejo-connection-repository-fieldset", fieldset],
     ["forgejo-connection-submit", submit],
     ["forgejo-connection-rotation-submit", rotationSubmit],
+    ["forgejo-connection-reactivation-submit", reactivationSubmit],
     ["forgejo-connection-status", status],
     ["forgejo-connection-error", error],
   ]);
@@ -65,6 +115,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     health: "healthy",
     health_error: null,
     id: "forgejo-connection",
+    lifecycle: "enabled",
     principal: { id: 7, login: "operator" },
     reported_version: "16.0.4",
     scopes: ["read:repository", "write:issue", "write:repository"],
@@ -93,9 +144,18 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
           if (path.endsWith("/discover")) {
             return [{ full_name: "operator/private", id: 11 }];
           }
-          return path.endsWith("/credential/rotate")
-            ? rotationResponse.value
-            : { id: "forgejo-connection" };
+          if (path.endsWith("/credential/rotate")) {
+            return rotationResponse.value;
+          }
+          if (path.endsWith("/lifecycle")) {
+            return options.method === "DELETE"
+              ? null
+              : { ...validRotationResponse, lifecycle: "retired" };
+          }
+          if (path.endsWith("/reactivate")) {
+            return validRotationResponse;
+          }
+          return options ? validRotationResponse : null;
         },
       };
     },
@@ -119,11 +179,18 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   };
   executeServedBrowserAsset(
     resolve(import.meta.dirname, ".."),
+    "src/browser/forgejo-connection-lifecycle-confirmation.js",
+    readBrowserAsset("/assets/forgejo-connection-lifecycle-confirmation.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    resolve(import.meta.dirname, ".."),
     "src/browser/forgejo-connection.js",
     readBrowserAsset("/assets/forgejo-connection.js"),
     context,
   );
   ready();
+  await new Promise((resolve) => setImmediate(resolve));
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(fieldset.disabled, false);
   assert.equal(repositories.children[0].children[0].focused, true);
@@ -133,20 +200,20 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(repositories.children[0].children[0].focused, true);
   repositories.children[0].children[0].checked = true;
   await form.listener("submit")({ preventDefault() {} });
-  assert.deepEqual(JSON.parse(requests[1].options.body), {
+  assert.deepEqual(JSON.parse(requests[2].options.body), {
     base_url: "https://forgejo.example",
     repository_ids: [11],
     token: "operator-created-pat",
   });
-  assert.equal(requests[1].path, "/api/v1/forgejo-connections");
+  assert.equal(requests[2].path, "/api/v1/forgejo-connections");
   assert.equal(status.focused, true);
   assert.equal(token.value, "");
   await rotationForm.listener("submit")({ preventDefault() {} });
-  assert.deepEqual(JSON.parse(requests[2].options.body), {
+  assert.deepEqual(JSON.parse(requests[3].options.body), {
     token: "replacement-pat",
   });
   assert.equal(
-    requests[2].path,
+    requests[3].path,
     "/api/v1/forgejo-connections/credential/rotate",
   );
   assert.equal(rotationToken.value, "");
@@ -154,6 +221,18 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     status.textContent,
     "Forgejo PAT rotated. Revoke its predecessor in Forgejo.",
   );
+  rotationToken.value = "unhealthy-replacement";
+  rotationResponse.value = {
+    ...validRotationResponse,
+    health: "error",
+    health_error: {
+      code: "forgejo_verification_failed",
+      message: "Forgejo verification failed",
+    },
+  };
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(rotationToken.value, "unhealthy-replacement");
+  assert.equal(error.textContent, "Forgejo PAT rotation response is invalid");
   const malformedResponses = [
     null,
     [],
@@ -164,6 +243,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     { ...validRotationResponse, health: "error" },
     { ...validRotationResponse, health_error: { code: "stale" } },
     { ...validRotationResponse, id: "" },
+    { ...validRotationResponse, lifecycle: "unknown" },
     { ...validRotationResponse, principal: null },
     { ...validRotationResponse, principal: { id: "7", login: "operator" } },
     { ...validRotationResponse, principal: { id: 7, login: "" } },
@@ -203,4 +283,46 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(error.hidden, false);
   assert.equal(error.focused, true);
   assert.equal(rotationSubmit.disabled, false);
+  rotationFailure.value = undefined;
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  await retire.listener("click")({});
+  await confirmationCancel.listener("click")({});
+  assert.equal(confirmation.open, false);
+  assert.equal(retire.focused, true);
+  await retire.listener("click")({});
+  let cancellationPrevented = false;
+  await confirmation.listener("cancel")({
+    preventDefault() {
+      cancellationPrevented = true;
+    },
+  });
+  assert.equal(cancellationPrevented, true);
+  assert.equal(retire.focused, true);
+  await retire.listener("click")({});
+  assert.equal(confirmation.open, true);
+  assert.match(confirmationMessage.textContent, /PAT will be destroyed/);
+  assert.equal(confirmationSubmit.focused, true);
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(lifecycle.textContent, "Retired");
+  assert.equal(reactivationForm.hidden, false);
+  assert.equal(status.textContent, "Forgejo Connection retired.");
+  await reactivationForm.listener("submit")({ preventDefault() {} });
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), {
+    token: "reactivation-pat",
+  });
+  assert.equal(requests.at(-1).path, "/api/v1/forgejo-connections/reactivate");
+  assert.equal(lifecycle.textContent, "Enabled");
+  assert.equal(reactivationToken.value, "");
+  await remove.listener("click")({});
+  assert.equal(confirmationInput.focused, true);
+  confirmationInput.value = "delete";
+  const requestCount = requests.length;
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(requests.length, requestCount);
+  assert.equal(confirmationInput.focused, true);
+  confirmationInput.value = "DELETE";
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(details.hidden, true);
+  assert.equal(form.hidden, false);
+  assert.equal(status.textContent, "Forgejo Connection deleted.");
 });

@@ -25,6 +25,7 @@ export function canonicalForgejoConnectionPaths(
         ],
       },
       id: { type: "string" },
+      lifecycle: { enum: ["enabled", "retired"], type: "string" },
       principal: { type: "object" },
       reported_version: { pattern: "^16\\.", type: "string" },
       scopes: { items: { type: "string" }, type: "array" },
@@ -37,6 +38,7 @@ export function canonicalForgejoConnectionPaths(
       "health",
       "health_error",
       "id",
+      "lifecycle",
       "principal",
       "reported_version",
       "scopes",
@@ -199,6 +201,111 @@ export function canonicalForgejoConnectionPaths(
             content: { "application/json": { schema: connection } },
             description:
               "Replacement Forgejo PAT verified and atomically activated",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+    "/api/v1/forgejo-connections/lifecycle": {
+      delete: {
+        operationId: "deleteNeverUsedForgejoConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                maxProperties: 0,
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: { "application/json": { schema: { type: "null" } } },
+            description: "Never-used Forgejo Connection permanently deleted",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+      patch: {
+        operationId: "retireForgejoConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {
+                  lifecycle: { const: "retired", type: "string" },
+                },
+                required: ["lifecycle"],
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: { "application/json": { schema: connection } },
+            description:
+              "Forgejo Connection retired after every dependent Repository retired",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
+    "/api/v1/forgejo-connections/reactivate": {
+      post: {
+        operationId: "reactivateForgejoConnection",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {
+                  token: { minLength: 1, type: "string", writeOnly: true },
+                },
+                required: ["token"],
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: { "application/json": { schema: connection } },
+            description:
+              "Retired Forgejo Connection completely reverified and reactivated",
           },
           400: errorResponse,
           401: errorResponse,

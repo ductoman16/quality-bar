@@ -20,6 +20,7 @@ import {
   REPOSITORY_SCHEMA,
 } from "./repository-schema.js";
 import {
+  FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
   FORGEJO_CONNECTION_SCHEMA,
   FORGEJO_VERIFICATION_HISTORY_MIGRATION,
 } from "./forgejo-connection-schema.js";
@@ -330,6 +331,11 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(
       database,
       FORGEJO_VERIFICATION_HISTORY_MIGRATION,
+    );
+  } else if (version === 18) {
+    schemaMigration.migrateSchema(
+      database,
+      FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
     );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);

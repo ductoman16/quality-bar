@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { createForgejoConnectionCredentialCipher } from "./forgejo-connection-credential.js";
 import {
+  reactivateForgejoConnection,
+  removeNeverUsedForgejoConnection,
+  retireForgejoConnection,
+} from "./forgejo-connection-lifecycle.js";
+import {
   rotateForgejoConnection,
   verifiedForgejoRepositories,
 } from "./forgejo-connection-rotation.js";
@@ -76,6 +81,7 @@ function read(row) {
     typeof row.scopes !== "string" ||
     typeof row.capabilities !== "string" ||
     !["healthy", "error"].includes(/** @type {string} */ (row.health)) ||
+    !["enabled", "retired"].includes(/** @type {string} */ (row.lifecycle)) ||
     !Number.isSafeInteger(row.verified_at)
   ) {
     throw new TypeError("Forgejo Connection row is invalid");
@@ -105,6 +111,7 @@ function read(row) {
     health: row.health,
     health_error: healthError,
     id: row.id,
+    lifecycle: row.lifecycle,
     principal: { id: row.principal_id, login: row.principal_login },
     reported_version: row.reported_version,
     scopes: JSON.parse(row.scopes),
@@ -291,6 +298,27 @@ export function createForgejoConnectionService(
         input,
       );
     },
+    /** @param {unknown} input */
+    async reactivate(input) {
+      return reactivateForgejoConnection(
+        {
+          cipher,
+          createId,
+          durableCore,
+          now,
+          read: () => this.read(),
+          verifier,
+        },
+        input,
+      );
+    },
+    /** @param {unknown} input */
+    retire(input) {
+      return retireForgejoConnection(durableCore, input, () => this.read());
+    },
+    remove() {
+      removeNeverUsedForgejoConnection(durableCore);
+    },
     destroy() {
       cipher.destroy();
     },
@@ -310,6 +338,15 @@ export function unavailableForgejoConnectionService(error) {
       throw error;
     },
     async rotate() {
+      throw error;
+    },
+    async reactivate() {
+      throw error;
+    },
+    retire() {
+      throw error;
+    },
+    remove() {
       throw error;
     },
     destroy() {},

@@ -228,6 +228,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         "verification-1",
         "repository-1",
         "verification-2",
+        "verification-3",
       ];
       return () => ids.shift();
     })(),
@@ -244,6 +245,11 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     token: "original-pat",
   });
   await service.rotate({ token: "replacement-pat" });
+  core.run(
+    "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
+  );
+  service.retire({ lifecycle: "retired" });
+  await service.reactivate({ token: "reactivation-pat" });
   assert.deepEqual(
     gitReads.slice(-2).map(({ token }) => token),
     ["original-pat", "replacement-pat"],
@@ -255,6 +261,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     [
       { error_code: null, id: "verification-1", trigger: "onboarding" },
       { error_code: null, id: "verification-2", trigger: "rotation" },
+      { error_code: null, id: "verification-3", trigger: "enablement" },
     ],
   );
   service.destroy();

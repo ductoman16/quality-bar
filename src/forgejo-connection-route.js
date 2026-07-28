@@ -6,7 +6,7 @@ import {
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {{browserOrigin: string, browserSessions: any, forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown, rotate: (body: unknown) => Promise<unknown>}}} dependencies */
+/** @param {{browserOrigin: string, browserSessions: any, forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown, reactivate: (body: unknown) => Promise<unknown>, remove: () => void, retire: (body: unknown) => unknown, rotate: (body: unknown) => Promise<unknown>}}} dependencies */
 export function createForgejoConnectionRoute({
   browserOrigin,
   browserSessions,
@@ -53,6 +53,94 @@ export function createForgejoConnectionRoute({
           isUnavailableError(parameters[1]) ? 503 : 422,
         successStatus: 200,
         unexpectedMessage: "Forgejo Repository discovery failed",
+      });
+      return true;
+    }
+    if (
+      method === "PATCH" &&
+      path === "/api/v1/forgejo-connections/lifecycle" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "forgejo_connection_lifecycle_failed",
+        mutate: (body) => forgejoConnections.retire(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "forgejo_connection_not_found"
+            ? 404
+            : code === "forgejo_connection_repositories_active" ||
+                code === "forgejo_connection_lifecycle_conflict"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        successStatus: 200,
+        unexpectedMessage: "Forgejo Connection retirement failed",
+      });
+      return true;
+    }
+    if (
+      method === "DELETE" &&
+      path === "/api/v1/forgejo-connections/lifecycle" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "forgejo_connection_delete_failed",
+        mutate: (body) => {
+          if (
+            !body ||
+            Array.isArray(body) ||
+            typeof body !== "object" ||
+            Object.keys(body).length
+          ) {
+            throw Object.assign(new Error("request_malformed"), {
+              code: "request_malformed",
+            });
+          }
+          forgejoConnections.remove();
+          return null;
+        },
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "forgejo_connection_not_found"
+            ? 404
+            : code === "forgejo_connection_delete_unsupported" ||
+                code === "forgejo_connection_lifecycle_conflict"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        successStatus: 200,
+        unexpectedMessage: "Forgejo Connection deletion failed",
+      });
+      return true;
+    }
+    if (
+      method === "POST" &&
+      path === "/api/v1/forgejo-connections/reactivate" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "forgejo_connection_reactivation_failed",
+        mutate: (body) => forgejoConnections.reactivate(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "forgejo_connection_not_found"
+            ? 404
+            : code === "forgejo_connection_reactivation_unsupported" ||
+                code === "forgejo_connection_reactivation_conflict"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        successStatus: 200,
+        unexpectedMessage: "Forgejo Connection reactivation failed",
       });
       return true;
     }

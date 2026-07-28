@@ -27,6 +27,7 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/github-connection-lifecycle-confirmation.js",
       "src/browser/github-connection-submission.js",
       "src/browser/github-connection.js",
+      "src/browser/forgejo-connection-lifecycle-confirmation.js",
       "src/browser/forgejo-connection.js",
       "src/browser/repository.js",
       "src/browser/repository-guidance.js",

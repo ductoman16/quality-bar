@@ -56,6 +56,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
                 message: "Forgejo PAT changed during rotation",
               },
               id: "forgejo-connection",
+              lifecycle: "enabled",
               principal: { id: 7, login: "operator" },
               reported_version: "16.0.4",
               scopes: ["read:repository", "write:issue", "write:repository"],
@@ -75,11 +76,71 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             health: "healthy",
             health_error: null,
             id: "forgejo-connection",
+            lifecycle: "enabled",
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
             verified_at: 1_000,
           };
+        },
+        async reactivate(/** @type {unknown} */ input) {
+          calls.push(["reactivate", input]);
+          if (conflict === "reactivation") {
+            throw Object.assign(
+              new Error(
+                "Forgejo Connection must be retired before reactivation",
+              ),
+              { code: "forgejo_connection_reactivation_unsupported" },
+            );
+          }
+          return {
+            api_profile: "forgejo-v16",
+            base_url: "https://forgejo.example",
+            capabilities: {},
+            health: "healthy",
+            health_error: null,
+            id: "forgejo-connection",
+            lifecycle: "enabled",
+            principal: { id: 7, login: "operator" },
+            reported_version: "16.0.4",
+            scopes: ["read:repository", "write:issue", "write:repository"],
+            verified_at: 3_000,
+          };
+        },
+        retire(/** @type {unknown} */ input) {
+          calls.push(["retire", input]);
+          if (conflict === "dependents") {
+            throw Object.assign(
+              new Error(
+                "Forgejo Connection cannot retire while dependent Repositories are enabled or disabled",
+              ),
+              { code: "forgejo_connection_repositories_active" },
+            );
+          }
+          return {
+            api_profile: "forgejo-v16",
+            base_url: "https://forgejo.example",
+            capabilities: {},
+            health: "healthy",
+            health_error: null,
+            id: "forgejo-connection",
+            lifecycle: "retired",
+            principal: { id: 7, login: "operator" },
+            reported_version: "16.0.4",
+            scopes: ["read:repository", "write:issue", "write:repository"],
+            verified_at: 2_000,
+          };
+        },
+        remove() {
+          calls.push(["remove"]);
+          if (conflict === "used") {
+            throw Object.assign(
+              new Error(
+                "Forgejo Connection with dependent Repositories must be retired",
+              ),
+              { code: "forgejo_connection_delete_unsupported" },
+            );
+          }
         },
         destroy() {},
         read() {
@@ -196,4 +257,51 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
     code: "forgejo_connection_rotation_conflict",
     message: "Forgejo PAT changed during rotation",
   });
+  conflict = "dependents";
+  const blockedRetirement = await request(
+    "/api/v1/forgejo-connections/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "retired" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  assert.equal(blockedRetirement.status, 409);
+  assert.equal(
+    await responseErrorCode(blockedRetirement),
+    "forgejo_connection_repositories_active",
+  );
+  conflict = "used";
+  const blockedDeletion = await request(
+    "/api/v1/forgejo-connections/lifecycle",
+    {
+      body: "{}",
+      headers,
+      method: "DELETE",
+    },
+  );
+  assert.equal(blockedDeletion.status, 409);
+  assert.equal(
+    await responseErrorCode(blockedDeletion),
+    "forgejo_connection_delete_unsupported",
+  );
+  conflict = "reactivation";
+  const blockedReactivation = await request(
+    "/api/v1/forgejo-connections/reactivate",
+    {
+      body: JSON.stringify({ token: "replacement-pat" }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(blockedReactivation.status, 409);
+  assert.equal(
+    await responseErrorCode(blockedReactivation),
+    "forgejo_connection_reactivation_unsupported",
+  );
+  assert.deepEqual(calls.slice(-3), [
+    ["retire", { lifecycle: "retired" }],
+    ["remove"],
+    ["reactivate", { token: "replacement-pat" }],
+  ]);
 });

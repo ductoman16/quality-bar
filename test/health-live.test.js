@@ -28,6 +28,15 @@ function applicationServerOptions() {
       async rotate() {
         throw new Error("unused Forgejo Connection");
       },
+      async reactivate() {
+        throw new Error("unused Forgejo Connection");
+      },
+      retire() {
+        throw new Error("unused Forgejo Connection");
+      },
+      remove() {
+        throw new Error("unused Forgejo Connection");
+      },
       read() {
         throw new Error("unused Forgejo Connection");
       },

@@ -3,20 +3,42 @@ window.addEventListener("DOMContentLoaded", () => {
     /** @type {{ csrfToken: () => string, requiredElement: (id: string) => HTMLElement }} */ (
       Reflect.get(window, "qualityBarOperator")
     );
-  const forgejoForm = /** @type {HTMLFormElement} */ (
-    forgejoOperator.requiredElement("forgejo-connection-form")
+  /** @param {string} id */
+  const form = (id) =>
+    /** @type {HTMLFormElement} */ (forgejoOperator.requiredElement(id));
+  /** @param {string} id */
+  const input = (id) =>
+    /** @type {HTMLInputElement} */ (forgejoOperator.requiredElement(id));
+  const forgejoForm = form("forgejo-connection-form");
+  const forgejoRotationForm = form("forgejo-connection-rotation-form");
+  const forgejoReactivationForm = form("forgejo-connection-reactivation-form");
+  const forgejoLifecycleForm = form("forgejo-connection-lifecycle-form");
+  const forgejoBaseUrl = input("forgejo-connection-base-url");
+  const forgejoToken = input("forgejo-connection-token");
+  const forgejoRotationToken = input("forgejo-connection-rotation-token");
+  const forgejoReactivationToken = input(
+    "forgejo-connection-reactivation-token",
   );
-  const forgejoRotationForm = /** @type {HTMLFormElement} */ (
-    forgejoOperator.requiredElement("forgejo-connection-rotation-form")
+  const forgejoDetails = forgejoOperator.requiredElement(
+    "forgejo-connection-details",
   );
-  const forgejoBaseUrl = /** @type {HTMLInputElement} */ (
-    forgejoOperator.requiredElement("forgejo-connection-base-url")
+  const forgejoIdentity = forgejoOperator.requiredElement(
+    "forgejo-connection-identity",
   );
-  const forgejoToken = /** @type {HTMLInputElement} */ (
-    forgejoOperator.requiredElement("forgejo-connection-token")
+  const forgejoLifecycle = forgejoOperator.requiredElement(
+    "forgejo-connection-lifecycle",
   );
-  const forgejoRotationToken = /** @type {HTMLInputElement} */ (
-    forgejoOperator.requiredElement("forgejo-connection-rotation-token")
+  const forgejoHealth = forgejoOperator.requiredElement(
+    "forgejo-connection-health",
+  );
+  const forgejoLatest = forgejoOperator.requiredElement(
+    "forgejo-connection-latest",
+  );
+  const forgejoRetire = /** @type {HTMLButtonElement} */ (
+    forgejoOperator.requiredElement("forgejo-connection-retire")
+  );
+  const forgejoDelete = /** @type {HTMLButtonElement} */ (
+    forgejoOperator.requiredElement("forgejo-connection-delete")
   );
   const forgejoRepositories = forgejoOperator.requiredElement(
     "forgejo-connection-repositories",
@@ -49,7 +71,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   /** @param {unknown} value */
-  function validRotatedForgejoConnection(value) {
+  function validForgejoConnection(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return false;
     }
@@ -60,6 +82,12 @@ window.addEventListener("DOMContentLoaded", () => {
       !Array.isArray(connection.principal)
         ? /** @type {Record<string, unknown>} */ (connection.principal)
         : null;
+    const healthError =
+      connection.health_error &&
+      typeof connection.health_error === "object" &&
+      !Array.isArray(connection.health_error)
+        ? /** @type {Record<string, unknown>} */ (connection.health_error)
+        : null;
     return (
       connection.api_profile === "forgejo-v16" &&
       typeof connection.base_url === "string" &&
@@ -67,10 +95,17 @@ window.addEventListener("DOMContentLoaded", () => {
       connection.capabilities !== null &&
       typeof connection.capabilities === "object" &&
       !Array.isArray(connection.capabilities) &&
-      connection.health === "healthy" &&
-      connection.health_error === null &&
+      ((connection.health === "healthy" && connection.health_error === null) ||
+        (connection.health === "error" &&
+          typeof healthError?.code === "string" &&
+          healthError.code.length > 0 &&
+          typeof healthError.message === "string" &&
+          healthError.message.length > 0)) &&
       typeof connection.id === "string" &&
       connection.id.length > 0 &&
+      ["enabled", "retired"].includes(
+        /** @type {string} */ (connection.lifecycle),
+      ) &&
       Number.isSafeInteger(principal?.id) &&
       typeof principal?.login === "string" &&
       principal.login.length > 0 &&
@@ -79,8 +114,72 @@ window.addEventListener("DOMContentLoaded", () => {
       Array.isArray(connection.scopes) &&
       connection.scopes.every((scope) => typeof scope === "string") &&
       Number.isSafeInteger(connection.verified_at) &&
-      Object.keys(connection).length === 10
+      Object.keys(connection).length === 11
     );
+  }
+
+  /** @param {unknown} value */
+  function renderForgejoConnection(value) {
+    if (value === null) {
+      forgejoDetails.hidden = true;
+      forgejoForm.hidden = false;
+      forgejoRotationForm.hidden = true;
+      forgejoReactivationForm.hidden = true;
+      forgejoLifecycleForm.hidden = true;
+      return;
+    }
+    if (!validForgejoConnection(value)) {
+      throw new Error("Forgejo Connection response is invalid");
+    }
+    const connection = /** @type {any} */ (value);
+    forgejoIdentity.textContent = connection.principal.login;
+    forgejoLifecycle.textContent =
+      connection.lifecycle === "retired" ? "Retired" : "Enabled";
+    forgejoHealth.textContent =
+      connection.health === "healthy"
+        ? "Verified"
+        : `${connection.health_error.message} (${connection.health_error.code})`;
+    forgejoLatest.textContent = new Date(connection.verified_at).toISOString();
+    forgejoDetails.hidden = false;
+    forgejoForm.hidden = true;
+    forgejoRotationForm.hidden = connection.lifecycle === "retired";
+    forgejoReactivationForm.hidden = connection.lifecycle !== "retired";
+    forgejoLifecycleForm.hidden = false;
+    forgejoRetire.hidden = connection.lifecycle === "retired";
+    forgejoDelete.hidden = false;
+  }
+
+  /** @param {Response} response @param {string} fallback */
+  async function responseMessage(response, fallback) {
+    try {
+      const body = /** @type {{error?: {message?: unknown}}} */ (
+        await response.json()
+      );
+      return typeof body.error?.message === "string"
+        ? body.error.message
+        : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async function loadForgejoConnection() {
+    try {
+      const response = await fetch("/api/v1/forgejo-connections");
+      if (!response.ok) {
+        showForgejoError(
+          await responseMessage(response, "Forgejo Connection loading failed"),
+        );
+        return;
+      }
+      renderForgejoConnection(await response.json());
+    } catch (error) {
+      showForgejoError(
+        error instanceof Error
+          ? error.message
+          : "Forgejo Connection loading failed",
+      );
+    }
   }
 
   forgejoForm.addEventListener("submit", async (event) => {
@@ -175,6 +274,8 @@ window.addEventListener("DOMContentLoaded", () => {
         )?.focus();
         return;
       }
+      const connection = /** @type {unknown} */ (await response.json());
+      renderForgejoConnection(connection);
       forgejoToken.value = "";
       forgejoStatus.textContent = "Forgejo Connection verified.";
       forgejoStatus.focus();
@@ -229,10 +330,14 @@ window.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const connection = await forgejoRotationResponse(response);
-      if (!validRotatedForgejoConnection(connection)) {
+      if (
+        !validForgejoConnection(connection) ||
+        /** @type {any} */ (connection).health !== "healthy"
+      ) {
         showForgejoError("Forgejo PAT rotation response is invalid");
         return;
       }
+      renderForgejoConnection(connection);
       forgejoRotationToken.value = "";
       forgejoStatus.textContent =
         "Forgejo PAT rotated. Revoke its predecessor in Forgejo.";
@@ -246,4 +351,63 @@ window.addEventListener("DOMContentLoaded", () => {
       submit.disabled = false;
     }
   });
+  forgejoReactivationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    forgejoError.hidden = true;
+    if (!forgejoReactivationToken.value) {
+      showForgejoError("Reactivation PAT is required");
+      forgejoReactivationToken.focus();
+      return;
+    }
+    const submit = /** @type {HTMLButtonElement} */ (
+      forgejoOperator.requiredElement("forgejo-connection-reactivation-submit")
+    );
+    submit.disabled = true;
+    try {
+      const response = await fetch("/api/v1/forgejo-connections/reactivate", {
+        body: JSON.stringify({ token: forgejoReactivationToken.value }),
+        headers: {
+          "content-type": "application/json",
+          "x-quality-bar-csrf": forgejoOperator.csrfToken(),
+        },
+        method: "POST",
+      });
+      if (!response.ok) {
+        showForgejoError(
+          await responseMessage(
+            response,
+            "Forgejo Connection reactivation failed",
+          ),
+        );
+        return;
+      }
+      renderForgejoConnection(await response.json());
+      forgejoReactivationToken.value = "";
+      forgejoStatus.textContent = "Forgejo Connection reactivated.";
+      forgejoStatus.focus();
+    } catch (error) {
+      showForgejoError(
+        error instanceof Error
+          ? error.message
+          : "Forgejo Connection reactivation failed",
+      );
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  const bindLifecycleConfirmation = /** @type {(options: any) => void} */ (
+    Reflect.get(window, "qualityBarForgejoConnectionLifecycleConfirmation")
+  );
+  bindLifecycleConfirmation({
+    csrfToken: forgejoOperator.csrfToken,
+    identity: forgejoIdentity,
+    remove: forgejoDelete,
+    render: renderForgejoConnection,
+    responseMessage,
+    retire: forgejoRetire,
+    showError: showForgejoError,
+    status: forgejoStatus,
+  });
+  void loadForgejoConnection();
 });

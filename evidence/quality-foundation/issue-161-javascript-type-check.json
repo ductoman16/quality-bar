@@ -10,6 +10,7 @@
     "github-connection-lifecycle-confirmation.js",
     "github-connection-submission.js",
     "github-connection.js",
+    "forgejo-connection-lifecycle-confirmation.js",
     "forgejo-connection.js",
     "repository.js",
     "repository-guidance.js",
