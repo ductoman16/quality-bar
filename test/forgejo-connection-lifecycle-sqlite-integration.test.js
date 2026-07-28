@@ -114,6 +114,7 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
         "repository-1",
         "verification-2",
         "verification-3",
+        "verification-4",
       ];
       return () => ids.shift();
     })(),
@@ -122,6 +123,11 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     verifier: {
       async verify(input) {
         inputs.push(input);
+        if (input.token === "unavailable-pat") {
+          throw Object.assign(new Error("Forgejo verification unavailable"), {
+            code: "forgejo_verification_unavailable",
+          });
+        }
         const result = verified(
           input.repositoryIds.length === 0 ? [] : [repository],
         );
@@ -141,6 +147,35 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
   );
   service.retire({ lifecycle: "retired" });
   timestamp = 2_000;
+  await assert.rejects(() => service.reactivate({ token: "unavailable-pat" }), {
+    code: "forgejo_verification_unavailable",
+  });
+  assert.deepEqual(service.read()?.verification_history.at(-1), {
+    api_profile: null,
+    capabilities: null,
+    error: {
+      code: "forgejo_verification_unavailable",
+      message: "Forgejo verification unavailable",
+    },
+    id: "verification-2",
+    outcome: "error",
+    principal: null,
+    reported_version: null,
+    repositories: [
+      {
+        error: {
+          code: "forgejo_verification_unavailable",
+          message: "Forgejo verification unavailable",
+        },
+        forge_repository_id: 11,
+        outcome: "error",
+      },
+    ],
+    scopes: null,
+    trigger: "enablement",
+    verified_at: 2_000,
+  });
+  timestamp = 3_000;
   await assert.rejects(
     () => service.reactivate({ token: "wrong-principal-pat" }),
     { code: "forgejo_reactivation_identity_mismatch" },
@@ -157,9 +192,13 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
   assert.equal(
     core.get("SELECT count(*) AS count FROM forgejo_connection_verifications")
       ?.count,
-    1,
+    3,
   );
-  timestamp = 3_000;
+  assert.deepEqual(service.read()?.health_error, {
+    code: "forgejo_reactivation_identity_mismatch",
+    message: "Replacement Forgejo PAT does not match the retired Connection",
+  });
+  timestamp = 4_000;
 
   const reactivated = await service.reactivate({ token: "replacement-pat" });
 
@@ -167,17 +206,27 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     /** @type {{lifecycle: string}} */ (reactivated).lifecycle,
     "enabled",
   );
-  assert.deepEqual(inputs[2], {
+  assert.deepEqual(inputs[3], {
     baseUrl: "https://forgejo.example",
-    repositoryIds: [],
+    repositoryIds: [11],
     token: "replacement-pat",
   });
   assert.deepEqual(
     core.all(
       "SELECT trigger FROM forgejo_connection_verifications ORDER BY rowid",
     ),
-    [{ trigger: "onboarding" }, { trigger: "enablement" }],
+    [
+      { trigger: "onboarding" },
+      { trigger: "enablement" },
+      { trigger: "enablement" },
+      { trigger: "enablement" },
+    ],
   );
+  assert.deepEqual(/** @type {any} */ (reactivated).capabilities, {
+    enumeration: "verified",
+    private_git_read: "verified",
+  });
+  assert.equal(/** @type {any} */ (reactivated).verification_history.length, 4);
   const cipher = createForgejoConnectionCredentialCipher(masterKey);
   assert.equal(
     cipher.decrypt(
@@ -225,6 +274,9 @@ test("SQLite hard-deletes only a never-used Forgejo Connection", (context) => {
     },
   });
 
+  assert.throws(() => service.retire({ lifecycle: "retired" }), {
+    code: "forgejo_connection_retirement_unsupported",
+  });
   service.remove();
 
   assert.equal(service.read(), null);

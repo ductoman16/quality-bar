@@ -47,7 +47,12 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     repository_ids: [11],
     token: "operator-created-pat",
   });
-  assert.deepEqual(connection, {
+  const { verification_history: verificationHistory, ...projection } =
+    /** @type {any} */ (connection);
+  assert.equal(verificationHistory.length, 1);
+  assert.equal(verificationHistory[0].trigger, "onboarding");
+  assert.equal(verificationHistory[0].outcome, "success");
+  assert.deepEqual(projection, {
     api_profile: "forgejo-v16",
     base_url: "https://forgejo.example",
     capabilities: { private_git_read: "verified" },

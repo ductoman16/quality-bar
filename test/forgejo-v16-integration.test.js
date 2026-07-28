@@ -251,8 +251,8 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   service.retire({ lifecycle: "retired" });
   await service.reactivate({ token: "reactivation-pat" });
   assert.deepEqual(
-    gitReads.slice(-2).map(({ token }) => token),
-    ["original-pat", "replacement-pat"],
+    gitReads.slice(-3).map(({ token }) => token),
+    ["original-pat", "replacement-pat", "reactivation-pat"],
   );
   assert.deepEqual(
     core.all(

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createForgejoConnectionCredentialCipher } from "./forgejo-connection-credential.js";
+import { readForgejoConnection } from "./forgejo-connection-read.js";
 import {
   reactivateForgejoConnection,
   removeNeverUsedForgejoConnection,
@@ -66,59 +67,6 @@ function discoveryRequest(input) {
   return { baseUrl: value.base_url, token: value.token };
 }
 
-/** @param {Record<string, unknown> | undefined} row */
-function read(row) {
-  if (!row) {
-    return null;
-  }
-  if (
-    typeof row.id !== "string" ||
-    typeof row.base_url !== "string" ||
-    row.api_profile !== "forgejo-v16" ||
-    typeof row.reported_version !== "string" ||
-    !Number.isSafeInteger(row.principal_id) ||
-    typeof row.principal_login !== "string" ||
-    typeof row.scopes !== "string" ||
-    typeof row.capabilities !== "string" ||
-    !["healthy", "error"].includes(/** @type {string} */ (row.health)) ||
-    !["enabled", "retired"].includes(/** @type {string} */ (row.lifecycle)) ||
-    !Number.isSafeInteger(row.verified_at)
-  ) {
-    throw new TypeError("Forgejo Connection row is invalid");
-  }
-  const healthError =
-    row.health === "error"
-      ? {
-          code: row.health_error_code,
-          message: row.health_error_message,
-        }
-      : null;
-  if (
-    (row.health === "healthy" &&
-      (row.health_error_code !== null || row.health_error_message !== null)) ||
-    (row.health === "error" &&
-      (typeof healthError?.code !== "string" ||
-        healthError.code.length === 0 ||
-        typeof healthError.message !== "string" ||
-        healthError.message.length === 0))
-  ) {
-    throw new TypeError("Forgejo Connection health error is invalid");
-  }
-  return {
-    api_profile: row.api_profile,
-    base_url: row.base_url,
-    capabilities: JSON.parse(row.capabilities),
-    health: row.health,
-    health_error: healthError,
-    id: row.id,
-    lifecycle: row.lifecycle,
-    principal: { id: row.principal_id, login: row.principal_login },
-    reported_version: row.reported_version,
-    scopes: JSON.parse(row.scopes),
-    verified_at: row.verified_at,
-  };
-}
-
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
  * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, verifier?: {verify: (input: any) => Promise<any>}}} options
@@ -157,23 +105,7 @@ export function createForgejoConnectionService(
   }
   return {
     read() {
-      return read(
-        durableCore.all(
-          `SELECT forgejo_connections.*,
-             latest_verification.error_code AS health_error_code,
-             latest_verification.error_message AS health_error_message
-           FROM forgejo_connections
-           LEFT JOIN forgejo_connection_verifications AS latest_verification
-             ON latest_verification.rowid = (
-               SELECT rowid
-               FROM forgejo_connection_verifications
-               WHERE connection_id = forgejo_connections.id
-               ORDER BY rowid DESC
-               LIMIT 1
-             )
-           LIMIT 1`,
-        )[0],
-      );
+      return readForgejoConnection(durableCore);
     },
     /** @param {unknown} input */
     async discover(input) {
@@ -306,7 +238,7 @@ export function createForgejoConnectionService(
           createId,
           durableCore,
           now,
-          read: () => this.read(),
+          readConnection: () => this.read(),
           verifier,
         },
         input,

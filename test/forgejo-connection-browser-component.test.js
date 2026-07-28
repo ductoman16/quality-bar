@@ -47,7 +47,11 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const identity = element();
   const lifecycle = element();
   const health = element();
+  const profile = element();
+  const scopes = element();
+  const capabilities = element();
   const latest = element();
+  const history = element();
   const retire = element();
   const remove = element();
   const confirmation = /** @type {any} */ (
@@ -84,7 +88,11 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     ["forgejo-connection-identity", identity],
     ["forgejo-connection-lifecycle", lifecycle],
     ["forgejo-connection-health", health],
+    ["forgejo-connection-profile", profile],
+    ["forgejo-connection-scopes", scopes],
+    ["forgejo-connection-capabilities", capabilities],
     ["forgejo-connection-latest", latest],
+    ["forgejo-connection-history", history],
     ["forgejo-connection-retire", retire],
     ["forgejo-connection-delete", remove],
     ["forgejo-connection-confirmation", confirmation],
@@ -119,6 +127,21 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     principal: { id: 7, login: "operator" },
     reported_version: "16.0.4",
     scopes: ["read:repository", "write:issue", "write:repository"],
+    verification_history: [
+      {
+        api_profile: "forgejo-v16",
+        capabilities: { private_git_read: "verified" },
+        error: null,
+        id: "verification-1",
+        outcome: "success",
+        principal: { id: 7, login: "operator" },
+        reported_version: "16.0.4",
+        repositories: [{ id: 11 }],
+        scopes: ["read:repository", "write:issue", "write:repository"],
+        trigger: "onboarding",
+        verified_at: 1_000,
+      },
+    ],
     verified_at: 1_000,
   };
   /** @type {{value: unknown}} */
@@ -179,6 +202,40 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   };
   executeServedBrowserAsset(
     resolve(import.meta.dirname, ".."),
+    "src/browser/forgejo-connection-contract.js",
+    readBrowserAsset("/assets/forgejo-connection-contract.js"),
+    context,
+  );
+  const contract = /** @type {any} */ (context.window)
+    .qualityBarForgejoConnectionContract;
+  assert.equal(
+    await contract.forgejoResponseErrorMessage({
+      async json() {
+        return { error: { message: "Exact lifecycle conflict" } };
+      },
+    }),
+    "Exact lifecycle conflict",
+  );
+  await assert.rejects(
+    () =>
+      contract.forgejoResponseErrorMessage({
+        async json() {
+          return { error: {} };
+        },
+      }),
+    /Forgejo error response is invalid/,
+  );
+  assert.match(
+    contract.forgejoVerificationText({
+      error: { code: "forgejo_failed", message: "Forgejo failed" },
+      outcome: "error",
+      trigger: "enablement",
+      verified_at: 2_000,
+    }),
+    /Forgejo failed \(forgejo_failed\)/,
+  );
+  executeServedBrowserAsset(
+    resolve(import.meta.dirname, ".."),
     "src/browser/forgejo-connection-lifecycle-confirmation.js",
     readBrowserAsset("/assets/forgejo-connection-lifecycle-confirmation.js"),
     context,
@@ -208,6 +265,11 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(requests[2].path, "/api/v1/forgejo-connections");
   assert.equal(status.focused, true);
   assert.equal(token.value, "");
+  assert.match(profile.textContent, /forgejo-v16; compatible; 16\.0\.4/);
+  assert.match(scopes.textContent, /read:repository/);
+  assert.match(capabilities.textContent, /private git read: verified/);
+  assert.equal(history.children.length, 1);
+  assert.match(history.children[0].textContent, /onboarding/);
   await rotationForm.listener("submit")({ preventDefault() {} });
   assert.deepEqual(JSON.parse(requests[3].options.body), {
     token: "replacement-pat",
@@ -250,6 +312,11 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
     { ...validRotationResponse, reported_version: "17.0.0" },
     { ...validRotationResponse, scopes: {} },
     { ...validRotationResponse, scopes: [1] },
+    { ...validRotationResponse, verification_history: [] },
+    {
+      ...validRotationResponse,
+      verification_history: [{ unexpected: true }],
+    },
     { ...validRotationResponse, verified_at: "now" },
     { ...validRotationResponse, unexpected: true },
   ];

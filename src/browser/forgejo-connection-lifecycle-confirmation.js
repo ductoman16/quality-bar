@@ -4,7 +4,7 @@
  *   identity: HTMLElement,
  *   remove: HTMLButtonElement,
  *   render: (value: unknown) => void,
- *   responseMessage: (response: Response, fallback: string) => Promise<string>,
+ *   responseMessage: (response: Response) => Promise<string>,
  *   retire: HTMLButtonElement,
  *   showError: (message: string) => void,
  *   status: HTMLElement
@@ -95,12 +95,7 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
         method: selected.method,
       });
       if (!response.ok) {
-        options.showError(
-          await options.responseMessage(
-            response,
-            "Forgejo Connection lifecycle failed",
-          ),
-        );
+        options.showError(await options.responseMessage(response));
         selected.source.focus();
         return;
       }

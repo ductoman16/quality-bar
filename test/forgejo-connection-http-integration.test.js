@@ -13,6 +13,21 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   let conflict = "none";
   /** @type {null | Record<string, unknown>} */
   let current = null;
+  const verificationHistory = [
+    {
+      api_profile: "forgejo-v16",
+      capabilities: {},
+      error: null,
+      id: "verification-1",
+      outcome: "success",
+      principal: { id: 7, login: "operator" },
+      reported_version: "16.0.4",
+      repositories: [{ id: 11 }],
+      scopes: ["read:repository", "write:issue", "write:repository"],
+      trigger: "onboarding",
+      verified_at: 1_000,
+    },
+  ];
   const { request } = await startApplication({
     createForgejoConnections() {
       return {
@@ -60,6 +75,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
               principal: { id: 7, login: "operator" },
               reported_version: "16.0.4",
               scopes: ["read:repository", "write:issue", "write:repository"],
+              verification_history: verificationHistory,
               verified_at: 2_000,
             };
             throw Object.assign(
@@ -80,6 +96,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
+            verification_history: verificationHistory,
             verified_at: 1_000,
           };
         },
@@ -104,6 +121,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
+            verification_history: verificationHistory,
             verified_at: 3_000,
           };
         },
@@ -128,6 +146,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             principal: { id: 7, login: "operator" },
             reported_version: "16.0.4",
             scopes: ["read:repository", "write:issue", "write:repository"],
+            verification_history: verificationHistory,
             verified_at: 2_000,
           };
         },

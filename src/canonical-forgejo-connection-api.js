@@ -29,6 +29,69 @@ export function canonicalForgejoConnectionPaths(
       principal: { type: "object" },
       reported_version: { pattern: "^16\\.", type: "string" },
       scopes: { items: { type: "string" }, type: "array" },
+      verification_history: {
+        items: {
+          additionalProperties: false,
+          properties: {
+            api_profile: {
+              oneOf: [
+                { const: "forgejo-v16", type: "string" },
+                { type: "null" },
+              ],
+            },
+            capabilities: {
+              oneOf: [{ type: "object" }, { type: "null" }],
+            },
+            error: {
+              oneOf: [
+                {
+                  additionalProperties: false,
+                  properties: {
+                    code: { minLength: 1, type: "string" },
+                    message: { minLength: 1, type: "string" },
+                  },
+                  required: ["code", "message"],
+                  type: "object",
+                },
+                { type: "null" },
+              ],
+            },
+            id: { minLength: 1, type: "string" },
+            outcome: { enum: ["success", "error"], type: "string" },
+            principal: {
+              oneOf: [{ type: "object" }, { type: "null" }],
+            },
+            reported_version: {
+              oneOf: [{ pattern: "^16\\.", type: "string" }, { type: "null" }],
+            },
+            repositories: { items: { type: "object" }, type: "array" },
+            scopes: {
+              oneOf: [
+                { items: { type: "string" }, type: "array" },
+                { type: "null" },
+              ],
+            },
+            trigger: { minLength: 1, type: "string" },
+            verified_at: { type: "integer" },
+          },
+          required: [
+            "api_profile",
+            "capabilities",
+            "error",
+            "id",
+            "outcome",
+            "principal",
+            "reported_version",
+            "repositories",
+            "scopes",
+            "trigger",
+            "verified_at",
+          ],
+          type: "object",
+        },
+        minItems: 1,
+        type: "array",
+      },
       verified_at: { type: "integer" },
     },
     required: [
@@ -42,6 +105,7 @@ export function canonicalForgejoConnectionPaths(
       "principal",
       "reported_version",
       "scopes",
+      "verification_history",
       "verified_at",
     ],
     type: "object",
