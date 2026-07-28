@@ -77,7 +77,7 @@ async function submitRepositoryMutation(
  *   id: string,
  *   lifecycle: "enabled" | "disabled" | "retired",
  *   name?: string,
- *   provider?: "github",
+ *   provider?: "forgejo" | "github",
  *   url: string,
  *   verification_id?: string,
  *   verified_at?: number,
@@ -154,7 +154,7 @@ function renderRepository(repository) {
   let identity = repository.url;
   let assignments = "Unavailable";
   let latestVerification = "Unavailable";
-  if (repository.provider === "github") {
+  if (repository.provider === "github" || repository.provider === "forgejo") {
     if (
       repository.credential_type !== "forge_connection" ||
       typeof repository.forge_connection_id !== "string" ||
@@ -167,9 +167,9 @@ function renderRepository(repository) {
       typeof repository.verification_id !== "string" ||
       !Number.isSafeInteger(repository.verified_at)
     ) {
-      throw new Error("github_repository_response_invalid");
+      throw new Error("forge_repository_response_invalid");
     }
-    provider = `GitHub; ${repository.forge_connection_id}`;
+    provider = `${repository.provider === "github" ? "GitHub" : "Forgejo"}; ${repository.forge_connection_id}`;
     identity = `${repository.name}; Forge Repository ${repository.forge_repository_id}; ${repository.url}; ${repository.web_url}; ${repository.api_url}`;
     assignments = String(/** @type {number} */ (repository.assignment_count));
     latestVerification = new Date(

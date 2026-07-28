@@ -17,6 +17,18 @@ function callApplicationServer(options) {
 
 function applicationServerOptions() {
   return {
+    forgejoConnections: {
+      destroy() {},
+      async discover() {
+        throw new Error("unused Forgejo Connection");
+      },
+      async connect() {
+        throw new Error("unused Forgejo Connection");
+      },
+      read() {
+        throw new Error("unused Forgejo Connection");
+      },
+    },
     githubConnections: createUnavailableGitHubConnectionService(
       new Error("unused GitHub Connection"),
     ),

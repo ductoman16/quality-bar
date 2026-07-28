@@ -2,17 +2,8 @@ import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
-
-/** @param {string | null} version @param {string} tool */
-function requireExactToolVersion(version, tool) {
-  if (typeof version !== "string" || version.length === 0) {
-    throw new Error(
-      `verification metadata must include an exact ${tool} version`,
-    );
-  }
-  return version;
-}
-
+import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
+import { requireExactToolVersion } from "./tool-version.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -77,7 +68,6 @@ export function createGateDefinitions(metadata) {
     metadata.typeCheckerVersion,
     "typescript",
   );
-
   return [
     {
       name: "formatting",
@@ -244,6 +234,7 @@ export function createGateDefinitions(metadata) {
         "test/github-connection.test.js",
         "test/github-repository-selection.test.js",
         "test/github-polling-state.test.js",
+        "test/forgejo-connection.test.js",
         "test/verification-harness.test.js",
       ],
     },
@@ -273,6 +264,7 @@ export function createGateDefinitions(metadata) {
         "test/github-connection-browser-component.test.js",
         "test/github-repository-reconciliation-browser-component.test.js",
         "test/github-repository-browser-component.test.js",
+        "test/forgejo-connection-browser-component.test.js",
       ],
     },
     {
@@ -287,6 +279,7 @@ export function createGateDefinitions(metadata) {
         "test/github-private-proof-failure-fixture-integration.test.js",
       ],
     },
+    ...forgejoGateDefinitions,
     {
       name: "git-integration",
       testGroup:
@@ -322,6 +315,7 @@ export function createGateDefinitions(metadata) {
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
         "test/github-polling.test.js",
+        "test/forgejo-connection-sqlite-integration.test.js",
       ],
     },
     {
@@ -342,6 +336,7 @@ export function createGateDefinitions(metadata) {
         "test/review-version-reactivation-http-integration.test.js",
         "test/review-http-integration.test.js",
         "test/github-connection-http-integration.test.js",
+        "test/forgejo-connection-http-integration.test.js",
       ],
     },
     {

@@ -11,6 +11,7 @@ export function migrateSchema(
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
+    ${schemaVersion === CURRENT_SCHEMA_VERSION ? FORGEJO_CONNECTION_SCHEMA : ""}
     UPDATE quality_bar_metadata
     SET value = '${schemaVersion}'
     WHERE key = 'schema_version';
@@ -18,4 +19,5 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
+import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";

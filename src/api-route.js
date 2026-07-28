@@ -12,6 +12,7 @@ import {
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
 import { createGitHubConnectionRoute } from "./github-connection-route.js";
+import { createForgejoConnectionRoute } from "./forgejo-connection-route.js";
 import { writeRepositoryGuidance } from "./repository-guidance-route.js";
 import { writeRepositoryList } from "./repository-list-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
@@ -27,6 +28,7 @@ export function createApiRoute({
   recordAuthorityAttribution,
   repositories,
   githubConnections,
+  forgejoConnections,
   repositoryGuidance,
   reviews,
 }) {
@@ -34,6 +36,11 @@ export function createApiRoute({
     browserOrigin,
     browserSessions,
     githubConnections,
+  });
+  const handleForgejoConnection = createForgejoConnectionRoute({
+    browserOrigin,
+    browserSessions,
+    forgejoConnections,
   });
   /**
    * @param {import("node:http").IncomingMessage} request
@@ -69,7 +76,8 @@ export function createApiRoute({
         (method === "POST" && path === "/api/v1/repositories") ||
         (method === "POST" && repositoryCredentialRotationMatch) ||
         (method === "PATCH" && repositoryLifecycleMatch) ||
-        path.startsWith("/api/v1/github-connections"))
+        path.startsWith("/api/v1/github-connections") ||
+        path.startsWith("/api/v1/forgejo-connections"))
     ) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
@@ -83,6 +91,11 @@ export function createApiRoute({
     }
     if (
       await handleGitHubConnection(request, response, requestUrl, authority)
+    ) {
+      return true;
+    }
+    if (
+      await handleForgejoConnection(request, response, requestUrl, authority)
     ) {
       return true;
     }
