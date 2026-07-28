@@ -10,6 +10,7 @@ export const SECURITY_INTEGRATION_GATE = {
     "test/offline-restore-connection-security-integration.test.js",
     "test/offline-restore-migrated-schema-security-integration.test.js",
     "test/offline-restore-security-integration.test.js",
+    "test/operator-authority-recovery-security-integration.test.js",
     "test/operator-password-bootstrap.test.js",
     "test/browser-session-durability-security-integration.test.js",
     "test/browser-session-failure-security-integration.test.js",

@@ -23,6 +23,16 @@ Before starting Quality Bar for the first time, set the single operator password
 docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.js
 ```
 
-Enter the password at the terminal, or pipe it on standard input. It must contain at least 15 characters. The command takes no password argument and reads no password environment variable; it stores only a salted memory-hard verifier. It succeeds only when no operator password exists. Host control is the recovery authority; recovery and browser-session or implementer-token invalidation are introduced by their owning later slices.
+Enter the password at the terminal, or pipe it on standard input. It must contain at least 15 characters. The command takes no password argument and reads no password environment variable; it stores only a salted memory-hard verifier. It succeeds only when no operator password exists.
+
+## Operator authority recovery
+
+If the operator password is lost, stop Quality Bar and replace it from the host:
+
+```sh
+docker compose run --rm --no-deps quality-bar node src/recover-operator-authority.js
+```
+
+Enter the replacement password at the terminal, or pipe it on standard input. The command takes no password argument and reads no password environment variable. It atomically replaces the password verifier, revokes every browser session and the active implementer token, and clears the failed-login delay. Machine access remains disabled until the operator creates a new implementer token through the authenticated product surface.
 
 The host firewall must allow valid-TLS egress only to OpenAI/Codex, configured Forge APIs, and registered HTTPS Git endpoints. A private Forge may use the single operator-mounted CA bundle; Quality Bar does not add an outbound proxy or trust another certificate source.

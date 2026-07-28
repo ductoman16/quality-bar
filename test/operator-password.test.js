@@ -9,6 +9,8 @@ import {
   OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
   OperatorPasswordError,
   bootstrapOperatorPassword,
+  recoverOperatorAuthority,
+  verifyOperatorPassword,
 } from "../src/operator-password.js";
 
 /** @type {string[]} */
@@ -169,5 +171,81 @@ test("does not store state when verifier creation fails", () => {
     undefined,
   );
 
+  core.close();
+});
+
+test("recovers operator authority in one transaction", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const originalPassword = "the original operator password";
+  const replacementPassword = "the replacement operator password";
+  bootstrapOperatorPassword(core, originalPassword);
+  core.run(
+    "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+    "session",
+    "csrf",
+    1,
+    1,
+  );
+  core.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "implementer_token_verifier",
+    "sha256-v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  );
+  core.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "failed_operator_login_attempts",
+    "7",
+  );
+  core.run(
+    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
+    "failed_operator_login_until",
+    "60000",
+  );
+
+  recoverOperatorAuthority(core, replacementPassword, {
+    randomBytes: () => Buffer.alloc(16, 4),
+  });
+
+  assert.throws(
+    () => verifyOperatorPassword(core, originalPassword),
+    (error) =>
+      error instanceof OperatorPasswordError &&
+      error.code === "authentication_invalid",
+  );
+  verifyOperatorPassword(core, replacementPassword);
+  assert.equal(
+    core.get("SELECT session_hash FROM browser_sessions"),
+    undefined,
+  );
+  for (const key of [
+    "implementer_token_verifier",
+    "failed_operator_login_attempts",
+    "failed_operator_login_until",
+  ]) {
+    assert.equal(
+      core.get("SELECT value FROM quality_bar_metadata WHERE key = ?", key),
+      undefined,
+    );
+  }
+  core.close();
+});
+
+test("recovery refuses to substitute for operator bootstrap", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+
+  assert.throws(
+    () => recoverOperatorAuthority(core, "a replacement operator password"),
+    (error) =>
+      error instanceof OperatorPasswordError &&
+      error.code === "operator_password_uninitialized" &&
+      error.message === "Operator password has not been bootstrapped",
+  );
+  assert.equal(
+    core.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
+    ),
+    undefined,
+  );
   core.close();
 });

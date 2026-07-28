@@ -23,6 +23,13 @@ if (typeof synchronous !== "number") {
 console.log(
   JSON.stringify({
     databaseVersion: scalar("SELECT sqlite_version() AS version", "version"),
+    activeBrowserSessions: scalar(
+      "SELECT COUNT(*) AS count FROM browser_sessions",
+      "count",
+    ),
+    activeImplementerToken: metadata("implementer_token_verifier") !== null,
+    failedLoginAttempts: metadata("failed_operator_login_attempts"),
+    failedLoginUntil: metadata("failed_operator_login_until"),
     foreignKeys:
       (database.exec("PRAGMA foreign_keys = ON"),
       scalar("PRAGMA foreign_keys", "foreign_keys") === 1),

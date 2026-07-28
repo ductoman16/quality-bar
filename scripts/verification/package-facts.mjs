@@ -32,7 +32,16 @@
  *     masterKeyPath?: string,
  *     encryptedVerifier?: boolean,
  *   },
- *   authority?: {operatorPasswordBootstrap?: boolean},
+ *   authority?: {
+ *     operatorPasswordBootstrap?: boolean,
+ *     operatorAuthorityRecovery?: {
+ *       browserSessionsRevoked?: boolean,
+ *       failedLoginDelayCleared?: boolean,
+ *       implementerTokenRevoked?: boolean,
+ *       machineAccessDisabled?: boolean,
+ *       passwordReplaced?: boolean,
+ *     },
+ *   },
  *   authenticatedHttpSmoke?: {
  *     browserStatus?: number,
  *     codexCapabilityCatalogVersion?: string,
@@ -203,6 +212,19 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.authority?.operatorPasswordBootstrap === true,
       "authority.operatorPasswordBootstrap must equal true",
+    ],
+    [
+      packageFacts?.authority?.operatorAuthorityRecovery
+        ?.browserSessionsRevoked === true &&
+        packageFacts?.authority?.operatorAuthorityRecovery
+          ?.failedLoginDelayCleared === true &&
+        packageFacts?.authority?.operatorAuthorityRecovery
+          ?.implementerTokenRevoked === true &&
+        packageFacts?.authority?.operatorAuthorityRecovery
+          ?.machineAccessDisabled === true &&
+        packageFacts?.authority?.operatorAuthorityRecovery?.passwordReplaced ===
+          true,
+      "authority.operatorAuthorityRecovery must prove atomic host recovery",
     ],
     [
       packageFacts?.authenticatedHttpSmoke?.browserStatus === 200 &&

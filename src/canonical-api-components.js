@@ -24,7 +24,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           action: { type: "string" },
           channel: {
-            enum: ["browser_session", "implementer_token"],
+            enum: ["browser_session", "host", "implementer_token"],
             type: "string",
           },
           error_code: { type: "string" },

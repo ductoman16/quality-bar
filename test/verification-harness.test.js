@@ -71,6 +71,10 @@ test("the verifier emits successful evidence and stops at a hard gate failure", 
       successful.manifest.componentVersions.fixtures,
       "github-rest:2026-03-10",
     );
+    assert.equal(
+      successful.manifest.securityBoundary.authorityRecovery,
+      "host-stdin-atomic-revocation",
+    );
     assert.deepEqual(successful.manifest.failures, []);
     assert.equal(
       successful.manifest.invokedGates[0].name,

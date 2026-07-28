@@ -1,22 +1,13 @@
 import { readFileSync } from "node:fs";
 
-import { openDurableCore } from "./durable-core.js";
-import { SCHEMA_VERSION } from "./durable-schema.js";
-import {
-  finalizePreMigrationBackup,
-  preparePreMigrationBackup,
-} from "./installed-backup.js";
-import {
-  loadInstallationConfiguration,
-  verifyInstallationKey,
-} from "./installation-configuration.js";
+import { loadInstallationConfiguration } from "./installation-configuration.js";
 import {
   BACKUPS_PATH,
   STATE_PATH,
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "./installation-environment.js";
-import { installationKeyIdentity } from "./sqlite-backup.js";
+import { runOperatorPasswordHostMutation } from "./operator-password-host.js";
 import {
   OperatorPasswordError,
   bootstrapOperatorPassword,
@@ -157,9 +148,14 @@ export function readOperatorPassword({
  *   applicationVersion?: string,
  *   backupsPath?: string,
  *   databasePath?: string,
- *   loadInstallation?: () => {masterKey: Buffer},
+ *   loadInstallation?: () => {
+ *     freeSpaceReserveBytes: number,
+ *     masterKey: Buffer,
+ *   },
  *   readPassword?: () => string | Promise<string>,
- *   validateInstallation?: () => {releaseInstallationLock?: () => void},
+ *   validateInstallation?: (options: {
+ *     reserveBytes: number,
+ *   }) => {releaseInstallationLock?: () => void},
  *   validateSources?: () => void,
  * }} [options]
  */
@@ -172,27 +168,14 @@ export async function bootstrapOperatorPasswordFromHost({
   validateInstallation = validateInstallationFilesystem,
   validateSources = validateInstallationSources,
 } = {}) {
-  validateSources();
-  const installation = loadInstallation();
-  const { releaseInstallationLock } = validateInstallation();
-  let durableCore;
-
-  try {
-    const preMigrationBackup = await preparePreMigrationBackup({
-      applicationVersion: /** @type {string} */ (applicationVersion),
-      backupsPath,
-      databasePath,
-      keyIdentity: installationKeyIdentity(installation.masterKey),
-      targetSchemaVersion: SCHEMA_VERSION,
-    });
-    durableCore = openDurableCore(databasePath);
-    verifyInstallationKey(durableCore, installation.masterKey);
-    if (preMigrationBackup) {
-      finalizePreMigrationBackup(backupsPath);
-    }
-    bootstrapOperatorPassword(durableCore, await readPassword());
-  } finally {
-    durableCore?.close();
-    releaseInstallationLock?.();
-  }
+  return runOperatorPasswordHostMutation({
+    applicationVersion,
+    backupsPath,
+    databasePath,
+    loadInstallation,
+    mutate: bootstrapOperatorPassword,
+    readPassword,
+    validateInstallation,
+    validateSources,
+  });
 }
