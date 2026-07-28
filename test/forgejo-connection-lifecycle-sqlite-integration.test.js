@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -46,6 +47,7 @@ test("SQLite retirement blocks enabled and disabled dependents, then destroys on
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
       return () => ids.shift();
@@ -119,6 +121,7 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
   let timestamp = 1_000;
   const masterKey = Buffer.alloc(32, 12);
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -296,6 +299,7 @@ test("SQLite hard-deletes only a never-used Forgejo Connection", (context) => {
   );
   cipher.destroy();
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     masterKey: Buffer.alloc(32, 13),
     verifier: {
       async listPullRequests() {

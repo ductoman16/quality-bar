@@ -177,7 +177,9 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
   assert.equal(evidence.final_outcome, "pass");
   assert.deepEqual(
     evidence.served_browser_modules,
-    BROWSER_ASSET_SOURCE_PATHS.map((path) => basename(path)),
+    BROWSER_ASSET_SOURCE_PATHS.filter(
+      (path) => path !== "src/browser/storage-reserve.js",
+    ).map((path) => basename(path)),
   );
   assert.equal(
     evidence.initial_capture_base,

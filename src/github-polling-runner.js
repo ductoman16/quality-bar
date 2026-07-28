@@ -4,16 +4,19 @@ import {
   createGitHubPollingService,
   isDefinitiveGitHubPollingFailure,
 } from "./github-polling.js";
+import { StorageReserveError } from "./storage-reserve.js";
 
-/** @param {any} durableCore @param {{cipher: any, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
   durableCore,
-  { cipher, timestamp, verifier },
+  { cipher, storageReserve, timestamp, verifier },
 ) {
   if (
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
+    typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
+      "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function" ||
     typeof verifier.verifyRepositories !== "function"
@@ -101,6 +104,7 @@ export function createGitHubPollingRunner(
     if (running) {
       return;
     }
+    storageReserve.assertPollingObservationAdvanceAvailable();
     running = true;
     try {
       const due = durableCore.all(
@@ -160,16 +164,19 @@ export function createGitHubPollingRunner(
           continue;
         }
         try {
-          const reconcile =
-            row.baseline_status === "complete"
-              ? polling.reconcile
-              : polling.baseline;
-          await reconcile({
+          const input = {
             connection: { ...row, id: row.connection_id },
             credential,
             repositories: [
               { id: row.forge_repository_id, full_name: row.name },
             ],
+          };
+          const prepared = await polling.prepare(input, {
+            baseline: row.baseline_status !== "complete",
+          });
+          storageReserve.assertPollingObservationAdvanceAvailable();
+          durableCore.transaction((/** @type {any} */ transaction) => {
+            polling.commitSuccess(transaction, row.connection_id, prepared);
           });
         } catch (error) {
           if (!(error instanceof GitHubConnectionError)) {
@@ -193,6 +200,7 @@ export function createGitHubPollingRunner(
       if (!prepared) {
         throw new TypeError("GitHub polling baseline is unavailable");
       }
+      storageReserve.assertPollingObservationAdvanceAvailable();
       polling.commitSuccess(transaction, connectionId, prepared);
       preparedBaselines.delete(verification);
     },
@@ -218,6 +226,7 @@ export function createGitHubPollingRunner(
 
   /** @param {any} credential @param {number} installationId @param {any} verification */
   async function prepareBaseline(credential, installationId, verification) {
+    storageReserve.assertPollingObservationAdvanceAvailable();
     const [connection] = durableCore.all(
       `SELECT id, app_id, app_slug, installation_id, principal_id, principal_login
          FROM github_connections WHERE installation_id = ?`,
@@ -234,6 +243,7 @@ export function createGitHubPollingRunner(
 
   /** @param {any} credential @param {number} installationId */
   async function prepareConnectionBaseline(credential, installationId) {
+    storageReserve.assertPollingObservationAdvanceAvailable();
     const [connection] = durableCore.all(
       `SELECT id, app_id, app_slug, installation_id, principal_id, principal_login
          FROM github_connections WHERE installation_id = ?`,
@@ -265,7 +275,18 @@ export function createGitHubPollingRunner(
     if (!prepared) {
       throw new TypeError("GitHub polling baseline is unavailable");
     }
+    storageReserve.assertPollingObservationAdvanceAvailable();
     polling.commitSuccess(transaction, connectionId, prepared);
+  }
+
+  async function pollScheduled() {
+    try {
+      await pollDue();
+    } catch (error) {
+      if (!(error instanceof StorageReserveError)) {
+        throw error;
+      }
+    }
   }
 
   return {
@@ -279,9 +300,9 @@ export function createGitHubPollingRunner(
       if (timer !== null) {
         return;
       }
-      timer = setInterval(() => void pollDue(), GITHUB_POLL_INTERVAL_MS);
+      timer = setInterval(() => void pollScheduled(), GITHUB_POLL_INTERVAL_MS);
       timer.unref();
-      void pollDue();
+      void pollScheduled();
     },
     repositoryVerifier,
     prepareConnectionBaseline,

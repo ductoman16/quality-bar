@@ -12,6 +12,19 @@ export function repositoryEvidence(id, name) {
   };
 }
 
+/** @param {number} number */
+export function pullRequest(number) {
+  return {
+    base: { sha: number.toString(16).padStart(40, "a") },
+    draft: false,
+    head: { sha: number.toString(16).padStart(40, "b") },
+    merged: false,
+    merged_at: null,
+    number,
+    state: "open",
+  };
+}
+
 /** @param {any[]} repositories */
 export function forgejoVerification(repositories) {
   return {

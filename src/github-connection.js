@@ -5,7 +5,10 @@ import {
   GITHUB_API_PROFILE,
   GITHUB_REQUIRED_PERMISSIONS,
 } from "./github-app-manifest.js";
-import { createGitHubConnectionCredentialCipher } from "./github-connection-credential.js";
+import {
+  createGitHubConnectionCredentialCipher,
+  validatePersistedGitHubCredentials,
+} from "./github-connection-credential.js";
 import {
   GitHubConnectionError,
   failGitHubConnection as fail,
@@ -22,7 +25,7 @@ import { createGitHubRepositorySelector } from "./github-repository-registration
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
 /** @typedef {{exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
-/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, verifier?: GitHubVerifier}} options */
+/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
   {
@@ -31,6 +34,7 @@ export function createGitHubConnectionService(
     masterKey,
     now = () => Date.now(),
     randomBytes = createRandomBytes,
+    storageReserve,
     verifier = createGitHubVerifier(),
   },
 ) {
@@ -44,6 +48,8 @@ export function createGitHubConnectionService(
     typeof createId !== "function" ||
     typeof now !== "function" ||
     typeof randomBytes !== "function" ||
+    typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
+      "function" ||
     typeof verifier?.exchangeManifest !== "function" ||
     typeof verifier.verifyInstallation !== "function" ||
     typeof verifier.verifyRepositories !== "function" ||
@@ -52,29 +58,7 @@ export function createGitHubConnectionService(
     throw new TypeError("GitHub Connection dependencies are invalid");
   }
   const cipher = createGitHubConnectionCredentialCipher(masterKey);
-  for (const row of durableCore.all(
-    `SELECT
-       github_connections.id,
-       github_connections.app_id,
-       github_connection_credentials.encrypted_credential
-     FROM github_connections
-     JOIN github_connection_credentials
-       ON github_connection_credentials.connection_id = github_connections.id`,
-  )) {
-    if (
-      !row ||
-      typeof row.id !== "string" ||
-      !Number.isSafeInteger(row.app_id) ||
-      typeof row.encrypted_credential !== "string"
-    ) {
-      cipher.destroy();
-      throw new TypeError("GitHub Connection credential row is invalid");
-    }
-    cipher.decrypt(
-      { appId: /** @type {number} */ (row.app_id), id: row.id },
-      row.encrypted_credential,
-    );
-  }
+  validatePersistedGitHubCredentials(durableCore, cipher);
   const pending = new Map();
   const callbackFailures = createGitHubCallbackFailureStore({
     now: timestamp,
@@ -96,6 +80,7 @@ export function createGitHubConnectionService(
   }
   const polling = createGitHubPollingRunner(durableCore, {
     cipher,
+    storageReserve,
     timestamp,
     verifier,
   });

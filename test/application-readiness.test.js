@@ -19,9 +19,38 @@ const temporaryDirectories = [];
 function validInstallation() {
   return {
     externalOrigin: "http://127.0.0.1:3000",
+    freeSpaceReserveBytes: 5 * 1024 ** 3,
     masterKey: Buffer.alloc(32, 7),
     trustedProxyAddresses: [],
   };
+}
+
+/** @returns {ReturnType<typeof import("../src/storage-reserve.js").createStorageReserveGate>} */
+function availableStorageReserve() {
+  const facts = {
+    filesystems: [
+      {
+        available_bytes: 8 * 1024 ** 3,
+        filesystem: "state",
+        path: "/var/lib/quality-bar",
+        status: "available",
+      },
+      {
+        available_bytes: 7 * 1024 ** 3,
+        filesystem: "checkouts",
+        path: "/var/cache/quality-bar/checkouts",
+        status: "available",
+      },
+    ],
+    reserve_bytes: 5 * 1024 ** 3,
+    status: "available",
+  };
+  return /** @type {any} */ ({
+    assertCodexStartAvailable: () => facts,
+    assertPollingObservationAdvanceAvailable: () => facts,
+    assertWorkAdmissionAvailable: () => facts,
+    readFacts: () => facts,
+  });
 }
 
 /**
@@ -31,6 +60,8 @@ function validInstallation() {
 async function startApplication(databasePath, options = {}) {
   const application = createApplication({
     databasePath,
+    createStorageReserve:
+      options.createStorageReserve ?? availableStorageReserve,
     loadInstallation: options.loadInstallation ?? validInstallation,
     validateInstallation:
       options.validateInstallation ??
@@ -96,6 +127,7 @@ test("liveness remains a process probe when the configured browser origin requir
   const { origin } = await startApplication(temporaryDatabasePath(), {
     loadInstallation: () => ({
       externalOrigin: "https://quality-bar.example",
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
       masterKey: Buffer.alloc(32, 7),
       trustedProxyAddresses: ["127.0.0.1"],
     }),
@@ -224,6 +256,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     implementer_token: {
       status: "revoked",
     },
+    storage: availableStorageReserve().readFacts(),
   });
 });
 
@@ -284,6 +317,7 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
     loadInstallation() {
       return {
         externalOrigin: "http://127.0.0.1:3000",
+        freeSpaceReserveBytes: 5 * 1024 ** 3,
         masterKey: Buffer.alloc(32, 8),
         trustedProxyAddresses: [],
       };

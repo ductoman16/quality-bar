@@ -124,3 +124,37 @@ export function createGitHubConnectionCredentialCipher(
     },
   };
 }
+
+/**
+ * @param {any} durableCore
+ * @param {{decrypt: (connection: {appId: number, id: string}, encrypted: string) => unknown, destroy: () => unknown}} cipher
+ */
+export function validatePersistedGitHubCredentials(durableCore, cipher) {
+  try {
+    for (const row of durableCore.all(
+      `SELECT
+       github_connections.id,
+       github_connections.app_id,
+       github_connection_credentials.encrypted_credential
+     FROM github_connections
+     JOIN github_connection_credentials
+       ON github_connection_credentials.connection_id = github_connections.id`,
+    )) {
+      if (
+        !row ||
+        typeof row.id !== "string" ||
+        !Number.isSafeInteger(row.app_id) ||
+        typeof row.encrypted_credential !== "string"
+      ) {
+        throw new TypeError("GitHub Connection credential row is invalid");
+      }
+      cipher.decrypt(
+        { appId: /** @type {number} */ (row.app_id), id: row.id },
+        row.encrypted_credential,
+      );
+    }
+  } catch (error) {
+    cipher.destroy();
+    throw error;
+  }
+}

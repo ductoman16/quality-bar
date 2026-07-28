@@ -179,6 +179,7 @@ test("System facts exclude browser sessions past their idle or absolute lifetime
     browserSessions: { isBootstrapped: () => true },
     codex: { status: "available" },
     implementerToken: { status: "revoked" },
+    storage: { status: "available" },
   });
   assert.equal(facts.browser_sessions.active_count, 1);
   assert.deepEqual(facts.codex.catalog, CODEX_CAPABILITY_CATALOG);

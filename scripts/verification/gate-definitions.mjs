@@ -1,4 +1,3 @@
-import { validateOperatorBrowserFacts } from "./gate-facts.mjs";
 import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
@@ -6,6 +5,8 @@ import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
 import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
+import { createOpenApiRuntimeConformanceGate } from "./openapi-runtime-conformance-gate.mjs";
+import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -187,21 +188,16 @@ export function createGateDefinitions(metadata) {
         "openapi-schema-validator": openApiValidator,
       },
     },
-    {
-      name: "openapi-runtime-conformance",
-      testGroup: "shared-http-request-and-response-conformance",
-      failureCode: "openapi_runtime_conformance_failed",
-      arguments: ["--test", "test/openapi-conformance.test.js"],
-      tools: {
-        ajv,
-        "ajv-formats": ajvFormats,
-        node,
-        "openapi-schema-validator": openApiValidator,
-      },
-    },
+    createOpenApiRuntimeConformanceGate({
+      ajv,
+      ajvFormats,
+      node,
+      openApiValidator,
+    }),
     {
       name: "unit",
-      testGroup: "core-unit-contracts-including-forgejo-polling-and-waivers",
+      testGroup:
+        "core-unit-contracts-including-runtime-storage-reserve-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -213,6 +209,7 @@ export function createGateDefinitions(metadata) {
         "test/health-live.test.js",
         "test/http-port.test.js",
         "test/installation-environment.test.js",
+        "test/storage-reserve.test.js",
         "test/operator-password.test.js",
         "test/quality-foundation.test.js",
         "test/browser-session.test.js",
@@ -245,7 +242,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-review-assignment-version-repository-guidance-lifecycle-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-storage-reserve-review-assignment-version-repository-guidance-lifecycle-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -270,6 +267,7 @@ export function createGateDefinitions(metadata) {
         "test/github-repository-browser-component.test.js",
         "test/forgejo-connection-browser-component.test.js",
         "test/waiver-adjudicator-configuration-browser-component.test.js",
+        "test/storage-reserve-browser-component.test.js",
       ],
     },
     FAKE_CODEX_GATE_DEFINITION,
@@ -300,7 +298,8 @@ export function createGateDefinitions(metadata) {
     },
     {
       name: "sqlite-integration",
-      testGroup: "durable-resources-including-forgejo-polling-and-waivers",
+      testGroup:
+        "durable-resources-including-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -326,6 +325,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-concurrency-sqlite-integration.test.js",
         "test/forgejo-connection-sqlite-integration.test.js",
         "test/forgejo-polling-sqlite-integration.test.js",
+        "test/storage-reserve-sqlite-integration.test.js",
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
       ],
     },
@@ -349,6 +349,7 @@ export function createGateDefinitions(metadata) {
         "test/github-connection-http-integration.test.js",
         "test/forgejo-connection-http-integration.test.js",
         "test/waiver-adjudicator-configuration-http-integration.test.js",
+        "test/storage-reserve-application-integration.test.js",
       ],
     },
     {
@@ -386,14 +387,7 @@ export function createGateDefinitions(metadata) {
       arguments: ["run", "coverage"],
       tools: { c8, node },
     },
-    {
-      name: "operator-browser-smoke",
-      testGroup: "authenticated-firefox-browser-cross-process",
-      failureCode: "operator_browser_smoke_failed",
-      factsMarker: "QUALITY_BAR_OPERATOR_BROWSER_FACTS",
-      validateFacts: validateOperatorBrowserFacts,
-      arguments: ["--test", "test/operator-browser-smoke.test.js"],
-    },
+    OPERATOR_BROWSER_SMOKE_GATE,
     {
       name: "package-integration",
       testGroup: "compose-service",

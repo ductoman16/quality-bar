@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -34,6 +35,7 @@ test("manifest and installation callbacks atomically create one verified secret-
   /** @type {any[]} */
   const calls = [];
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1"];
       return () => ids.shift();
@@ -198,6 +200,7 @@ test("manifest and installation callbacks atomically create one verified secret-
 test("failed or replayed GitHub onboarding stores nothing and returns one exact error", async () => {
   const core = createCore();
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     externalOrigin: "https://quality-bar.example",
     masterKey: Buffer.alloc(32, 7),
     now: () => 1_000,
@@ -263,6 +266,7 @@ test("retired GitHub Connection reactivation verifies the same App replacement k
   /** @type {any[]} */
   const verificationCalls = [];
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     externalOrigin: "https://quality-bar.example",
     masterKey: Buffer.alloc(32, 7),
     randomBytes: () => Buffer.alloc(32, 5),
@@ -309,6 +313,7 @@ test("a retired GitHub Connection rejects a new App Manifest flow", () => {
   core.all = (sql) =>
     sql.includes("SELECT lifecycle") ? [{ lifecycle: "retired" }] : [];
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     externalOrigin: "https://quality-bar.example",
     masterKey: Buffer.alloc(32, 7),
   });

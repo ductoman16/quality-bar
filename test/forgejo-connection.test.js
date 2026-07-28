@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -158,6 +159,7 @@ test("Forgejo PAT rotation rejects an empty replacement before reading or verify
       },
     },
     {
+      storageReserve: availableStorageReserve,
       masterKey: Buffer.alloc(32),
       verifier: {
         async listPullRequests() {
@@ -225,6 +227,7 @@ test("Forgejo Connection read rejects contradictory durable health errors", () =
         },
       },
       {
+        storageReserve: availableStorageReserve,
         masterKey: Buffer.alloc(32),
         verifier: {
           async listPullRequests() {

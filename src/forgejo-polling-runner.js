@@ -4,16 +4,20 @@ import {
   isDefinitiveForgejoPollingFailure,
   isRepositoryOwnedDefinitiveForgejoPollingFailure,
 } from "./forgejo-polling.js";
+import { readForgejoPollingGeneration } from "./forgejo-polling-generation.js";
+import { StorageReserveError } from "./storage-reserve.js";
 
-/** @param {any} durableCore @param {{cipher: any, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
-  { cipher, timestamp, verifier },
+  { cipher, storageReserve, timestamp, verifier },
 ) {
   if (
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
+    typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
+      "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function"
   ) {
@@ -115,25 +119,11 @@ export function createForgejoPollingRunner(
     );
   }
 
-  /** @param {any} row */
-  function expectedGeneration(row) {
-    if (row.poll_generation === null) {
-      return 0;
-    }
-    if (
-      typeof row.poll_generation !== "string" ||
-      !/^(0|[1-9]\d*)$/u.test(row.poll_generation) ||
-      !Number.isSafeInteger(Number(row.poll_generation))
-    ) {
-      throw new TypeError("Forgejo polling generation is invalid");
-    }
-    return Number(row.poll_generation);
-  }
-
   async function runDue() {
     if (running) {
       return;
     }
+    storageReserve.assertPollingObservationAdvanceAvailable();
     running = true;
     try {
       const due = durableCore.all(
@@ -189,7 +179,8 @@ export function createForgejoPollingRunner(
           continue;
         }
         const generation =
-          currentGenerations.get(row.connection_id) ?? expectedGeneration(row);
+          currentGenerations.get(row.connection_id) ??
+          readForgejoPollingGeneration(row.poll_generation);
         let token;
         try {
           token = cipher.decrypt(row.connection_id, row.encrypted_credential);
@@ -251,13 +242,15 @@ export function createForgejoPollingRunner(
             );
           }
           const committed = durableCore.transaction(
-            (/** @type {any} */ transaction) =>
-              polling.commitSuccess(
+            (/** @type {any} */ transaction) => {
+              storageReserve.assertPollingObservationAdvanceAvailable();
+              return polling.commitSuccess(
                 transaction,
                 row.connection_id,
                 prepared,
                 generation,
-              ),
+              );
+            },
           );
           if (committed) {
             currentGenerations.set(row.connection_id, generation + 1);
@@ -266,6 +259,9 @@ export function createForgejoPollingRunner(
             completedBaselines.add(row.connection_id);
           }
         } catch (error) {
+          if (error instanceof StorageReserveError) {
+            throw error;
+          }
           if (
             !(error instanceof Error) ||
             !("code" in error) ||
@@ -328,6 +324,7 @@ export function createForgejoPollingRunner(
    * @param {{ignoreGate?: boolean, recordFailure?: boolean}} [options]
    */
   function prepareBaseline(connection, token, repositories, options) {
+    storageReserve.assertPollingObservationAdvanceAvailable();
     return polling.prepare(
       {
         connection,
@@ -365,7 +362,13 @@ export function createForgejoPollingRunner(
   }
 
   async function runScheduled() {
-    await runDue();
+    try {
+      await runDue();
+    } catch (error) {
+      if (!(error instanceof StorageReserveError)) {
+        throw error;
+      }
+    }
     if (!started) {
       return;
     }
@@ -374,7 +377,16 @@ export function createForgejoPollingRunner(
   }
 
   return {
-    commitBaseline: polling.commitSuccess,
+    /** @param {any} transaction @param {string} connectionId @param {any} prepared @param {number} [generation] */
+    commitBaseline(transaction, connectionId, prepared, generation) {
+      storageReserve.assertPollingObservationAdvanceAvailable();
+      return polling.commitSuccess(
+        transaction,
+        connectionId,
+        prepared,
+        generation,
+      );
+    },
     destroy() {
       if (timer !== null) {
         clearTimeout(timer);

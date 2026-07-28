@@ -45,6 +45,11 @@ const serviceFixtureImage =
  *   loginStatus: number,
  *   openapiStatus: number,
  *   openapiVersion: string,
+ *   storage: {
+ *     filesystems: {available_bytes: number, filesystem: string, path: string, status: string}[],
+ *     reserve_bytes: number,
+ *     status: string
+ *   },
  * }} AuthenticatedHttpSmoke
  */
 
@@ -140,10 +145,9 @@ function packageFacts({
       volumeTarget: serviceVolumes[0].target,
     },
     installation: {
-      freeSpaceReserveBytes: 5 * 1024 ** 3,
+      freeSpaceReserveBytes: authenticatedHttpSmoke.storage.reserve_bytes,
       freeSpaceReserveMet:
-        filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3 &&
-        filesystemFacts.checkoutsFreeBytes >= 5 * 1024 ** 3,
+        authenticatedHttpSmoke.storage.status === "available",
     },
     network: {
       httpBindAddress: "127.0.0.1",
@@ -331,6 +335,26 @@ export function proveComposeService({ configuration, fixture }) {
     loginStatus: 204,
     openapiStatus: 200,
     openapiVersion: "3.1.0",
+    storage: {
+      filesystems: [
+        {
+          available_bytes:
+            authenticatedHttpSmoke.storage.filesystems[0].available_bytes,
+          filesystem: "state",
+          path: "/var/lib/quality-bar",
+          status: "available",
+        },
+        {
+          available_bytes:
+            authenticatedHttpSmoke.storage.filesystems[1].available_bytes,
+          filesystem: "checkouts",
+          path: "/var/cache/quality-bar/checkouts",
+          status: "available",
+        },
+      ],
+      reserve_bytes: 5 * 1024 ** 3,
+      status: "available",
+    },
   });
 
   const facts = packageFacts({

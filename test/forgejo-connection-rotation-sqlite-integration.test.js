@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +32,7 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let timestamp = 1_000;
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -116,6 +118,7 @@ test("a corrected Repository failure never strands its healthy Forgejo sibling",
   /** @type {number[]} */
   let attempted = [];
   const forgejo = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -214,6 +217,7 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
     releaseFailure = () => resolve(undefined);
   });
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -317,6 +321,7 @@ test("SQLite rotates after verifying an empty set of active Forgejo Repositories
   /** @type {any[]} */
   const verificationInputs = [];
   const service = createForgejoConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",

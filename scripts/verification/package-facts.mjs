@@ -41,6 +41,11 @@
  *     loginStatus?: number,
  *     openapiStatus?: number,
  *     openapiVersion?: string,
+ *     storage?: {
+ *       filesystems?: {available_bytes?: number, filesystem?: string, path?: string, status?: string}[],
+ *       reserve_bytes?: number,
+ *       status?: string
+ *     },
  *   },
  *   database?: {
  *     databaseVersion?: string,
@@ -195,7 +200,12 @@ export function validatePackageFacts(facts, applicationVersion) {
         packageFacts?.authenticatedHttpSmoke?.hasNavigation === true &&
         packageFacts?.authenticatedHttpSmoke?.loginStatus === 204 &&
         packageFacts?.authenticatedHttpSmoke?.openapiStatus === 200 &&
-        packageFacts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0",
+        packageFacts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0" &&
+        packageFacts?.authenticatedHttpSmoke?.storage?.reserve_bytes ===
+          5 * 1024 ** 3 &&
+        packageFacts?.authenticatedHttpSmoke?.storage?.status === "available" &&
+        packageFacts?.authenticatedHttpSmoke?.storage?.filesystems?.length ===
+          2,
       "authenticatedHttpSmoke must prove the packaged authenticated HTTP, OpenAPI, and Codex capability catalog contract",
     ],
     [

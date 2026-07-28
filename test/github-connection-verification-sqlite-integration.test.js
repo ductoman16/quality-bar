@@ -1,3 +1,4 @@
+import { availableStorageReserve } from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -55,6 +56,7 @@ test("SQLite records immutable scoped Connection verification without treating t
   /** @type {GitHubConnectionError | undefined} */
   let failure;
   const service = createGitHubConnectionService(core, {
+    storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
         "connection-1",
