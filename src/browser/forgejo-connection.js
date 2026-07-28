@@ -133,11 +133,12 @@ window.addEventListener("DOMContentLoaded", () => {
     forgejoRotationForm.hidden = connection.lifecycle === "retired";
     forgejoReactivationForm.hidden = connection.lifecycle !== "retired";
     forgejoLifecycleForm.hidden = false;
-    forgejoRetire.hidden = connection.lifecycle === "retired";
-    forgejoDelete.hidden = connection.verification_history.some(
+    const used = connection.verification_history.some(
       /** @param {any} verification */
       (verification) => verification.repositories.length > 0,
     );
+    forgejoRetire.hidden = connection.lifecycle === "retired" || !used;
+    forgejoDelete.hidden = used;
   }
 
   async function refreshForgejoConnection() {
@@ -381,8 +382,10 @@ window.addEventListener("DOMContentLoaded", () => {
   );
   bindLifecycleConfirmation({
     csrfToken: forgejoOperator.csrfToken,
+    hideState: hideForgejoConnectionState,
     identity: forgejoIdentity,
     remove: forgejoDelete,
+    refresh: refreshForgejoConnection,
     render: renderForgejoConnection,
     responseMessage: forgejoContract.forgejoResponseErrorMessage,
     showCaughtError: forgejoContract.forgejoErrorMessage,

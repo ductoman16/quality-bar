@@ -8,6 +8,11 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import {
+  assertForgejoFailedReactivationHistory,
+  assertForgejoPartialFailure,
+  assertForgejoVerificationRows,
+} from "./forgejo-v16-integration-support.js";
 
 function forgejoOpenApi() {
   return {
@@ -264,18 +269,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   } catch (error) {
     partialFailure = error;
   }
-  assert.deepEqual(partialFailure?.repositoryChecks, [
-    { forge_repository_id: 11, outcome: "success" },
-    {
-      error: {
-        code: "forgejo_required_route_unavailable",
-        message:
-          "Forgejo required route is unavailable: /api/v1/repos/operator/private-2/branches",
-      },
-      forge_repository_id: 12,
-      outcome: "error",
-    },
-  ]);
+  assertForgejoPartialFailure(partialFailure);
   forbiddenRepositoryId = null;
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-v16-rotation-"),
@@ -290,6 +284,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         "repository-1",
         "verification-2",
         "verification-3",
+        "verification-4",
       ];
       return () => ids.shift();
     })(),
@@ -310,21 +305,21 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
   );
   service.retire({ lifecycle: "retired" });
+  forbiddenRepositoryId = 11;
+  await assert.rejects(
+    service.reactivate({ token: "failed-reactivation-pat" }),
+    { code: "forgejo_required_route_unavailable" },
+  );
+  assertForgejoFailedReactivationHistory(
+    service.read()?.verification_history.at(-1),
+  );
+  forbiddenRepositoryId = null;
   await service.reactivate({ token: "reactivation-pat" });
   assert.deepEqual(
     gitReads.slice(-3).map(({ token }) => token),
     ["original-pat", "replacement-pat", "reactivation-pat"],
   );
-  assert.deepEqual(
-    core.all(
-      "SELECT id, trigger, error_code FROM forgejo_connection_verifications ORDER BY verified_at",
-    ),
-    [
-      { error_code: null, id: "verification-1", trigger: "onboarding" },
-      { error_code: null, id: "verification-2", trigger: "rotation" },
-      { error_code: null, id: "verification-3", trigger: "enablement" },
-    ],
-  );
+  assertForgejoVerificationRows(core);
   service.destroy();
   core.close();
   assert.ok(requests.every(({ method }) => method === "GET"));

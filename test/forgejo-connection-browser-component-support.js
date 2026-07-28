@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 /** @param {string} page */
 export function assertForgejoPage(page) {
+  assert.match(page, /<form hidden id="forgejo-connection-form">/);
   assert.match(
     page,
     /<fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories<\/legend><div id="forgejo-connection-repositories"><\/div><\/fieldset>.*aria-live="polite" id="forgejo-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
@@ -52,6 +53,74 @@ export async function assertForgejoLoadFailureState({
     controls.get("forgejo-connection-error").textContent,
     "Forgejo Connection load unavailable",
   );
+}
+
+/** @param {{confirmationForm: any, controls: Map<string, any>, currentResponse: {value: unknown}, lifecycleJsonFailure: {value: boolean}}} input */
+export async function assertUncertainForgejoRetirementState({
+  confirmationForm,
+  controls,
+  currentResponse,
+  lifecycleJsonFailure,
+}) {
+  lifecycleJsonFailure.value = true;
+  currentResponse.value = {
+    ...validForgejoConnection,
+    lifecycle: "retired",
+  };
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(
+    controls.get("forgejo-connection-lifecycle").textContent,
+    "Retired",
+  );
+  assert.equal(
+    controls.get("forgejo-connection-reactivation-form").hidden,
+    false,
+  );
+  assert.equal(
+    controls.get("forgejo-connection-error").textContent,
+    "Unexpected token < in JSON",
+  );
+  lifecycleJsonFailure.value = false;
+}
+
+/** @param {{confirmationForm: any, confirmationInput: any, controls: Map<string, any>, remove: any, requests: any[], retire: any, rotationForm: any, rotationResponse: {value: unknown}, rotationToken: any, status: any}} input */
+export async function assertNeverUsedForgejoDeletion({
+  confirmationForm,
+  confirmationInput,
+  controls,
+  remove,
+  requests,
+  retire,
+  rotationForm,
+  rotationResponse,
+  rotationToken,
+  status,
+}) {
+  rotationResponse.value = neverUsedForgejoConnection();
+  rotationToken.value = "never-used-connection-pat";
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(remove.hidden, false);
+  assert.equal(retire.hidden, true);
+  await remove.listener("click")({});
+  assert.equal(confirmationInput.focused, true);
+  confirmationInput.value = "delete";
+  const requestCount = requests.length;
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(requests.length, requestCount);
+  assert.equal(confirmationInput.focused, true);
+  confirmationInput.value = "DELETE";
+  await confirmationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(controls.get("forgejo-connection-details").hidden, true);
+  assert.equal(controls.get("forgejo-connection-form").hidden, false);
+  assert.equal(status.textContent, "Forgejo Connection deleted.");
+}
+
+/** @param {any[]} requests */
+export function assertForgejoReactivationRequest(requests) {
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), {
+    token: "reactivation-pat",
+  });
+  assert.equal(requests.at(-1).path, "/api/v1/forgejo-connections/reactivate");
 }
 
 export const validForgejoConnection = {

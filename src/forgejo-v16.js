@@ -378,7 +378,25 @@ export function createForgejoV16Verifier({
             forge_repository_id: selectedRepository.id,
             outcome: "error",
           };
-          throw Object.assign(error, { repositoryChecks });
+          throw Object.assign(error, {
+            repositoryChecks,
+            verificationEvidence: {
+              capabilities: {
+                aggregate_feedback: "not_completed",
+                branch_access: "not_completed",
+                commit_status: "not_completed",
+                enumeration: "verified",
+                inline_feedback: "not_completed",
+                private_git_read: "not_completed",
+                pull_request_access: "not_completed",
+              },
+              principal: verifiedPrincipal,
+              profile: PROFILE,
+              reported_version: reportedVersion,
+              repositories: repositoryChecks,
+              scopes: [...VERIFIED_AUTHORITIES],
+            },
+          });
         }
       }
       const repositoryCapabilities =

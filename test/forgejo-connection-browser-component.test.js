@@ -10,9 +10,11 @@ import {
   assertForgejoPage,
   assertForgejoContract,
   assertForgejoLoadFailureState,
+  assertForgejoReactivationRequest,
+  assertNeverUsedForgejoDeletion,
   assertRegisteredForgejoState,
+  assertUncertainForgejoRetirementState,
   failedForgejoReactivation,
-  neverUsedForgejoConnection,
   validForgejoConnection,
 } from "./forgejo-connection-browser-component-support.js";
 import { element } from "./github-connection-browser-component-support.js";
@@ -123,6 +125,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const currentFailure = { value: undefined };
   const rotationJsonFailure = { value: false };
   const reactivationJsonFailure = { value: false };
+  const lifecycleJsonFailure = { value: false };
   const rotationOk = { value: true };
   const reactivationOk = { value: true };
   const validRotationResponse = validForgejoConnection;
@@ -169,6 +172,9 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
             path.endsWith("/credential/rotate") &&
             rotationJsonFailure.value
           ) {
+            throw new SyntaxError("Unexpected token < in JSON");
+          }
+          if (path.endsWith("/lifecycle") && lifecycleJsonFailure.value) {
             throw new SyntaxError("Unexpected token < in JSON");
           }
           if (path.endsWith("/discover")) {
@@ -357,15 +363,14 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(confirmation.open, true);
   assert.match(confirmationMessage.textContent, /PAT will be destroyed/);
   assert.equal(confirmationSubmit.focused, true);
-  await confirmationForm.listener("submit")({ preventDefault() {} });
-  assert.equal(lifecycle.textContent, "Retired");
-  assert.equal(reactivationForm.hidden, false);
-  assert.equal(status.textContent, "Forgejo Connection retired.");
-  await reactivationForm.listener("submit")({ preventDefault() {} });
-  assert.deepEqual(JSON.parse(requests.at(-1).options.body), {
-    token: "reactivation-pat",
+  await assertUncertainForgejoRetirementState({
+    confirmationForm,
+    controls,
+    currentResponse,
+    lifecycleJsonFailure,
   });
-  assert.equal(requests.at(-1).path, "/api/v1/forgejo-connections/reactivate");
+  await reactivationForm.listener("submit")({ preventDefault() {} });
+  assertForgejoReactivationRequest(requests);
   assert.equal(lifecycle.textContent, "Enabled");
   assert.equal(reactivationToken.value, "");
   reactivationToken.value = "failed-reactivation-pat";
@@ -386,21 +391,17 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(lifecycle.textContent, "Enabled");
   assert.equal(error.textContent, "Unexpected token < in JSON");
   reactivationJsonFailure.value = false;
-  rotationResponse.value = neverUsedForgejoConnection();
-  rotationToken.value = "never-used-connection-pat";
-  await rotationForm.listener("submit")({ preventDefault() {} });
-  assert.equal(remove.hidden, false);
-  await remove.listener("click")({});
-  assert.equal(confirmationInput.focused, true);
-  confirmationInput.value = "delete";
-  const requestCount = requests.length;
-  await confirmationForm.listener("submit")({ preventDefault() {} });
-  assert.equal(requests.length, requestCount);
-  assert.equal(confirmationInput.focused, true);
-  confirmationInput.value = "DELETE";
-  await confirmationForm.listener("submit")({ preventDefault() {} });
-  assert.equal(details.hidden, true);
-  assert.equal(form.hidden, false);
-  assert.equal(status.textContent, "Forgejo Connection deleted.");
+  await assertNeverUsedForgejoDeletion({
+    confirmationForm,
+    confirmationInput,
+    controls,
+    remove,
+    requests,
+    retire,
+    rotationForm,
+    rotationResponse,
+    rotationToken,
+    status,
+  });
   await assertForgejoLoadFailureState({ controls, currentFailure, ready });
 });

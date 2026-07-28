@@ -1,4 +1,7 @@
-import { completeForgejoReactivationVerification } from "./forgejo-connection-reactivation-verification.js";
+import {
+  completeForgejoReactivationVerification,
+  failedForgejoReactivationVerification,
+} from "./forgejo-connection-reactivation-verification.js";
 import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
 
 /** @param {string} code @param {string} message @returns {never} */
@@ -315,6 +318,10 @@ export async function reactivateForgejoConnection(
     ) {
       throw error;
     }
+    const failedVerification = failedForgejoReactivationVerification(
+      error,
+      repositoryIds,
+    );
     durableCore.transaction((/** @type {any} */ transaction) => {
       const healthUpdate = transaction.run(
         `UPDATE forgejo_connections
@@ -338,19 +345,29 @@ export async function reactivateForgejoConnection(
         "INSERT INTO forgejo_connection_verifications (id, connection_id, trigger, profile, reported_version, principal, scopes, capabilities, repositories, error_code, error_message, verified_at) VALUES (?, ?, 'enablement', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         verificationId,
         connection.id,
-        completedVerification?.profile ?? null,
-        completedVerification?.reported_version ?? null,
-        completedVerification
-          ? JSON.stringify(completedVerification.principal)
+        failedVerification?.profile ?? completedVerification?.profile ?? null,
+        failedVerification?.reported_version ??
+          completedVerification?.reported_version ??
+          null,
+        failedVerification || completedVerification
+          ? JSON.stringify(
+              failedVerification?.principal ?? completedVerification?.principal,
+            )
           : null,
-        completedVerification
-          ? JSON.stringify(completedVerification.scopes)
+        failedVerification || completedVerification
+          ? JSON.stringify(
+              failedVerification?.scopes ?? completedVerification?.scopes,
+            )
           : null,
-        completedVerification
-          ? JSON.stringify(completedVerification.capabilities)
+        failedVerification || completedVerification
+          ? JSON.stringify(
+              failedVerification?.capabilities ??
+                completedVerification?.capabilities,
+            )
           : null,
         JSON.stringify(
-          completedVerification?.repositories ??
+          failedVerification?.repositories ??
+            completedVerification?.repositories ??
             failedForgejoRepositoryChecks(error, repositoryIds),
         ),
         error.code,

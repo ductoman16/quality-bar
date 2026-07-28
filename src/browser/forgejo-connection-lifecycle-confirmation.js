@@ -1,8 +1,10 @@
 /**
  * @param {{
  *   csrfToken: () => string,
+ *   hideState: () => void,
  *   identity: HTMLElement,
  *   remove: HTMLButtonElement,
+ *   refresh: () => Promise<void>,
  *   render: (value: unknown) => void,
  *   responseMessage: (response: Response) => Promise<string>,
  *   retire: HTMLButtonElement,
@@ -99,9 +101,7 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
         method: selected.method,
       });
       if (!response.ok) {
-        options.showError(await options.responseMessage(response));
-        selected.source.focus();
-        return;
+        throw new Error(await options.responseMessage(response));
       }
       if (selected.method === "DELETE") {
         options.render(null);
@@ -112,7 +112,16 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
       }
       options.status.focus();
     } catch (error) {
-      options.showError(options.showCaughtError(error));
+      const mutationError = options.showCaughtError(error);
+      try {
+        await options.refresh();
+        options.showError(mutationError);
+      } catch (refreshError) {
+        options.hideState();
+        options.showError(
+          `${mutationError}; Forgejo Connection refresh failed: ${options.showCaughtError(refreshError)}`,
+        );
+      }
       selected.source.focus();
     } finally {
       selected.source.disabled = false;
