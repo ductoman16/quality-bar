@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { provePackageOfflineRestore } from "./offline-restore.mjs";
 import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
 import { runPackageProbe } from "./package-probes.mjs";
 
@@ -114,6 +115,10 @@ function assertFilesystemFacts(filesystemFacts) {
  *     replacementAuthenticated: boolean,
  *   },
  *   recreatedDatabaseFacts: DatabaseFacts,
+ *   restorePasswordStatus: {
+ *     newAuthenticated: boolean,
+ *     snapshotAuthenticated: boolean,
+ *   },
  *   toolVersions: {codex: string, git: string},
  *   uid: number,
  * }} facts
@@ -130,6 +135,7 @@ function packageFacts({
   recoveryDatabaseFacts,
   recoveryPasswordStatus,
   recreatedDatabaseFacts,
+  restorePasswordStatus,
   toolVersions,
   uid,
 }) {
@@ -207,9 +213,16 @@ function packageFacts({
     },
     authenticatedHttpSmoke,
     restore: {
+      browserSessionsRevoked:
+        recreatedDatabaseFacts.activeBrowserSessions === 0,
+      implementerTokenRevoked:
+        recreatedDatabaseFacts.activeImplementerToken === false,
+      machineAccessDisabled:
+        recreatedDatabaseFacts.activeImplementerToken === false,
+      newPasswordAuthenticated: restorePasswordStatus.newAuthenticated,
       postBackupFactsAbsent:
         recreatedDatabaseFacts.persistedMarker === "survived",
-      snapshotPasswordAuthenticated: authenticatedHttpSmoke.loginStatus === 204,
+      snapshotPasswordRejected: !restorePasswordStatus.snapshotAuthenticated,
       snapshotEraFactsPreserved:
         recreatedDatabaseFacts.persistedMarker === "survived",
       status: "restored",
@@ -416,45 +429,16 @@ export function proveComposeService({ configuration, fixture }) {
       port: environment.QUALITY_BAR_HTTP_PORT,
       serviceName,
     });
-  const restoreSnapshot = /** @type {{manifestPath: string}} */ (
-    jsonProbe(fixture, "create-restore-snapshot.mjs", [
-      fixture.applicationVersion,
-      fixture.masterKey,
-    ])
-  );
-  assert.match(
-    restoreSnapshot.manifestPath,
-    /^\/var\/backups\/quality-bar\/quality-bar-daily-.+\.json$/,
-  );
-  runPackageProbe(fixture, "write-post-backup-marker.mjs");
-  fixture.runCompose(["stop", serviceName]);
-  assert.equal(
-    fixture.runCompose([
-      "run",
-      "--rm",
-      "--no-deps",
-      "-T",
-      serviceName,
-      "node",
-      "src/restore-backup.js",
-      restoreSnapshot.manifestPath,
-    ]),
-    `{"applicationVersion":"${fixture.applicationVersion}","schemaVersion":${recreatedDatabaseFacts.schemaVersion},"status":"restored"}`,
-  );
-  fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
-  const restoredDatabaseFacts = /** @type {DatabaseFacts} */ (
-    jsonProbe(fixture, "database-facts.mjs")
-  );
-  assert.equal(restoredDatabaseFacts.persistedMarker, "survived");
-  const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
-    jsonProbe(
-      fixture,
-      "authenticated-http-smoke.mjs",
-      [environment.QUALITY_BAR_HTTP_PORT],
-      recoveryPassword,
-    )
-  );
-  assert.equal(authenticatedHttpSmoke.loginStatus, 204);
+  const {
+    authenticatedHttpSmoke,
+    restoredDatabaseFacts,
+    restorePassword,
+    restorePasswordStatus,
+  } = provePackageOfflineRestore({
+    fixture,
+    recoveryPassword,
+    schemaVersion: recreatedDatabaseFacts.schemaVersion,
+  });
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
@@ -468,11 +452,13 @@ export function proveComposeService({ configuration, fixture }) {
     recoveryDatabaseFacts: /** @type {DatabaseFacts} */ (recoveryDatabaseFacts),
     recoveryPasswordStatus,
     recreatedDatabaseFacts: restoredDatabaseFacts,
+    restorePasswordStatus,
     toolVersions,
     uid,
   });
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(fixture.masterKey));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(bootstrapPassword));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(recoveryPassword));
+  assert.doesNotMatch(JSON.stringify(facts), new RegExp(restorePassword));
   console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(facts)}`);
 }
