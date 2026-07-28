@@ -9,6 +9,7 @@ import {
 } from "./durable-schema.js";
 
 export { DurableCoreError } from "./durable-error.js";
+const SQLITE_LOCK_WAIT_MILLISECONDS = 1_000;
 
 /** @param {DatabaseSync} database */
 function readFacts(database) {
@@ -31,7 +32,9 @@ function readFacts(database) {
 export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   let database;
   try {
-    database = new DatabaseSync(databasePath);
+    database = new DatabaseSync(databasePath, {
+      timeout: SQLITE_LOCK_WAIT_MILLISECONDS,
+    });
   } catch (error) {
     fail("sqlite_open_failed", "SQLite database could not be opened", error);
   }

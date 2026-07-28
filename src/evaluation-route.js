@@ -39,6 +39,7 @@ function failureStatus(failure) {
     [
       "evaluation_git_acquisition_failed",
       "evaluation_git_acquisition_unavailable",
+      "capacity_unavailable",
       "repository_authentication_failed",
       "repository_git_credentials_unavailable",
       "repository_git_read_failed",

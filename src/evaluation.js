@@ -9,6 +9,10 @@ import {
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
+import {
+  enqueueReviewRuns,
+  selectReviewRunsForAdmission,
+} from "./review-run-admission.js";
 
 export { EvaluationError };
 const ROUTE_PREFIX = "/api/v1/repositories/";
@@ -74,6 +78,37 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
 
 /**
+ * @param {{get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined}} access
+ * @param {string} channel
+ * @param {string} route
+ * @param {string} key
+ * @param {string} requestHash
+ */
+function readIdempotentReplay(access, channel, route, key, requestHash) {
+  const replay = access.get(
+    `SELECT request_hash, response_status, response_body
+     FROM evaluation_idempotency
+     WHERE channel = ? AND route = ? AND idempotency_key = ?`,
+    channel,
+    route,
+    key,
+  );
+  if (!replay) {
+    return null;
+  }
+  if (replay.request_hash !== requestHash) {
+    failEvaluation(
+      "idempotency_conflict",
+      "Idempotency key was already used with different input",
+    );
+  }
+  return {
+    resource: JSON.parse(/** @type {string} */ (replay.response_body)),
+    status: replay.response_status,
+  };
+}
+
+/**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
@@ -85,7 +120,9 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
  * }} durableCore
  * @param {{
  *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string}>,
+ *   readCodexCapabilityFailure: () => (Error & {code: string}) | null,
  *   createId?: () => string,
+ *   createReviewRunId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
  *   storageReserve: {assertWorkAdmissionAvailable: () => unknown}
@@ -95,7 +132,9 @@ export function createEvaluationService(
   durableCore,
   {
     acquireChangeset,
+    readCodexCapabilityFailure,
     createId = randomUUID,
+    createReviewRunId = randomUUID,
     masterKey,
     now = () => Date.now(),
     storageReserve,
@@ -104,7 +143,9 @@ export function createEvaluationService(
   if (
     typeof durableCore?.transaction !== "function" ||
     typeof acquireChangeset !== "function" ||
+    typeof readCodexCapabilityFailure !== "function" ||
     typeof createId !== "function" ||
+    typeof createReviewRunId !== "function" ||
     !Buffer.isBuffer(masterKey) ||
     masterKey.length !== 32 ||
     typeof now !== "function" ||
@@ -205,25 +246,15 @@ export function createEvaluationService(
       const requestHash = createHash("sha256")
         .update(JSON.stringify(canonicalRequest))
         .digest("hex");
-      const replay = durableCore.get(
-        `SELECT request_hash, response_status, response_body
-         FROM evaluation_idempotency
-         WHERE channel = ? AND route = ? AND idempotency_key = ?`,
+      const replay = readIdempotentReplay(
+        durableCore,
         channel,
         route,
         key,
+        requestHash,
       );
       if (replay) {
-        if (replay.request_hash !== requestHash) {
-          failEvaluation(
-            "idempotency_conflict",
-            "Idempotency key was already used with different input",
-          );
-        }
-        return {
-          resource: JSON.parse(/** @type {string} */ (replay.response_body)),
-          status: replay.response_status,
-        };
+        return replay;
       }
 
       storageReserve.assertWorkAdmissionAvailable();
@@ -246,6 +277,16 @@ export function createEvaluationService(
       }
       try {
         return durableCore.transaction((transaction) => {
+          const racedReplay = readIdempotentReplay(
+            transaction,
+            channel,
+            route,
+            key,
+            requestHash,
+          );
+          if (racedReplay) {
+            return racedReplay;
+          }
           const repository = transaction.get(
             `SELECT lifecycle, health, health_error_code, health_error_message
              FROM repositories WHERE id = ?`,
@@ -266,28 +307,15 @@ export function createEvaluationService(
               /** @type {string} */ (repository.health_error_message),
             );
           }
-          const selectedReviews = transaction.all(
-            `SELECT reviews.active_version_id
-             FROM reviews
-             JOIN review_assignments
-               ON review_assignments.review_id = reviews.id
-             WHERE reviews.archived_at IS NULL
-               AND (
-                 review_assignments.scope = 'installation_wide'
-                 OR EXISTS (
-                   SELECT 1 FROM review_assignment_repositories
-                   WHERE review_assignment_repositories.review_id = reviews.id
-                     AND review_assignment_repositories.repository_id = ?
-                 )
-               )`,
+          const reviewRuns = selectReviewRunsForAdmission(
+            transaction,
             repositoryId,
+            createReviewRunId,
+            readCodexCapabilityFailure,
           );
-          if (selectedReviews.length !== 0) {
-            failEvaluation(
-              "review_run_admission_unavailable",
-              "Assigned Review execution is not available in this Evaluation slice",
-            );
-          }
+          const executionStatus =
+            reviewRuns.length === 0 ? "completed" : "queued";
+          const completedAt = reviewRuns.length === 0 ? createdAt : null;
           transaction.run(
             `INSERT INTO evaluations (
                id, repository_id, provenance,
@@ -295,7 +323,7 @@ export function createEvaluationService(
                head_selector_type, head_selector_value,
                base_commit, head_commit, execution_status, next_attempt_at,
                created_at, completed_at
-             ) VALUES (?, ?, 'explicit', ?, ?, ?, ?, ?, ?, 'completed', NULL, ?, ?)`,
+             ) VALUES (?, ?, 'explicit', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
             evaluationId,
             repositoryId,
             canonicalRequest.base.type,
@@ -304,15 +332,20 @@ export function createEvaluationService(
             canonicalRequest.head.value,
             commits.base_commit,
             commits.head_commit,
+            executionStatus,
             createdAt,
-            createdAt,
+            completedAt,
           );
-          transaction.run(
-            `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
-             VALUES (?, 'clear', ?)`,
-            evaluationId,
-            createdAt,
-          );
+          if (reviewRuns.length === 0) {
+            transaction.run(
+              `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
+               VALUES (?, 'clear', ?)`,
+              evaluationId,
+              createdAt,
+            );
+          } else {
+            enqueueReviewRuns(transaction, evaluationId, reviewRuns, createdAt);
+          }
           const resource = readEvaluation(
             transaction.get(
               `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
@@ -345,24 +378,16 @@ export function createEvaluationService(
             "evaluation_idempotency.channel, evaluation_idempotency.route, evaluation_idempotency.idempotency_key",
           )
         ) {
-          const raced = durableCore.get(
-            `SELECT request_hash, response_status, response_body
-             FROM evaluation_idempotency
-             WHERE channel = ? AND route = ? AND idempotency_key = ?`,
+          const raced = readIdempotentReplay(
+            durableCore,
             channel,
             route,
             key,
+            requestHash,
           );
-          if (raced?.request_hash === requestHash) {
-            return {
-              resource: JSON.parse(/** @type {string} */ (raced.response_body)),
-              status: raced.response_status,
-            };
+          if (raced) {
+            return raced;
           }
-          failEvaluation(
-            "idempotency_conflict",
-            "Idempotency key was already used with different input",
-          );
         }
         if (
           error instanceof Error &&

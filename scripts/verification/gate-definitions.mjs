@@ -10,6 +10,7 @@ import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
 import { createOpenApiRuntimeConformanceGate } from "./openapi-runtime-conformance-gate.mjs";
 import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
+import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -28,7 +29,6 @@ import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
  *   validateFacts?: (facts: unknown) => string | null,
  * }} GateDefinition
  */
-
 /**
  * @param {{
  *   applicationVersion: string | null,
@@ -224,6 +224,7 @@ export function createGateDefinitions(metadata) {
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
         "test/evaluation-validation.test.js",
+        "test/review-run-admission.test.js",
         "test/repository-collection.test.js",
         "test/repository-selector.test.js",
         "test/review-archival.test.js",
@@ -282,6 +283,7 @@ export function createGateDefinitions(metadata) {
       ],
     },
     FAKE_CODEX_GATE_DEFINITION,
+    ...REVIEW_RUN_ADMISSION_GATE_DEFINITIONS,
     {
       name: "github-fixture-integration",
       testGroup:

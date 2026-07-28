@@ -30,6 +30,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
       return { base_commit: oid("1"), head_commit: oid("2") };
     },
     createId: () => `evaluation-${++nextId}`,
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     now: () => 10,
     storageReserve: { assertWorkAdmissionAvailable() {} },
@@ -95,6 +96,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
     acquireChangeset: async () => {
       throw new Error("replay must not reacquire Git");
     },
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
@@ -135,6 +137,7 @@ test("rejected explicit Evaluation stores neither partial work nor an idempotenc
       return { base_commit: oid("3"), head_commit: oid("4") };
     },
     createId: () => "evaluation-after-rejection",
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     now: () => 20,
     storageReserve: { assertWorkAdmissionAvailable() {} },
@@ -200,6 +203,7 @@ test("work-admission capacity rejection consumes no Evaluation identity or idemp
       head_commit: oid("6"),
     }),
     createId: () => "evaluation-after-capacity",
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     storageReserve: {
       assertWorkAdmissionAvailable() {
@@ -259,6 +263,7 @@ test("newest-first Evaluation listing never silently truncates accepted work", a
       head_commit: "b".repeat(64),
     }),
     createId: () => `evaluation-${String(++nextId).padStart(2, "0")}`,
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     now: () => nextId,
     storageReserve: { assertWorkAdmissionAvailable() {} },
@@ -336,6 +341,7 @@ test("Evaluation reads expose only a persisted exact delay time", (context) => {
     acquireChangeset: async () => {
       throw new Error("unused acquisition");
     },
+    readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     storageReserve: { assertWorkAdmissionAvailable() {} },
   });
