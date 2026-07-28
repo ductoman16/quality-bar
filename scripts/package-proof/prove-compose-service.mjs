@@ -419,5 +419,7 @@ export function proveComposeService({ configuration, fixture }) {
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(bootstrapPassword));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(recoveryPassword));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(restorePassword));
+  // The allowlisted evidence was checked against every package-proof secret.
+  // lgtm[js/clear-text-logging]
   console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(facts)}`);
 }
