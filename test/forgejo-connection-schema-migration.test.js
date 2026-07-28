@@ -19,6 +19,12 @@ test("SQLite preserves non-default Forgejo ports during v18 migration", (context
     [1, "https://FORGEJO.EXAMPLE:80/", "https://forgejo.example:80"],
     [2, "http://FORGEJO.EXAMPLE:080/", "http://forgejo.example"],
     [3, "https://FORGEJO.EXAMPLE:0443/", "https://forgejo.example"],
+    [4, "https://127.1:443/", "https://127.0.0.1"],
+    [5, "https://[0:0::1]:443/", "https://[::1]"],
+    [6, "https://%66orgejo.example:443/", "https://forgejo.example"],
+    [7, "https://forgejo.example:/", "https://forgejo.example"],
+    [8, "  https://forgejo.example:443/  ", "https://forgejo.example"],
+    [9, "https://forgejo.example/./", "https://forgejo.example"],
   ]) {
     const databasePath = join(directory, `quality-bar-${index}.sqlite3`);
     const prior = openDurableCore(databasePath);
@@ -117,6 +123,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
     FROM forgejo_connection_verifications_v18;
     UPDATE forgejo_connections
     SET base_url = 'https://FORGEJO.EXAMPLE:443/';
+    ALTER TABLE forgejo_connections DROP COLUMN lifecycle;
     UPDATE forgejo_connection_verifications
     SET repositories = (
       SELECT json_group_array(
@@ -143,6 +150,12 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 19);
+  assert.equal(
+    migrated.get(
+      "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",
+    )?.lifecycle,
+    "enabled",
+  );
   assert.equal(
     migrated.get(
       "SELECT base_url FROM forgejo_connections WHERE id = 'connection-1'",

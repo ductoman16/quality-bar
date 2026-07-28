@@ -1,50 +1,6 @@
 const NORMALIZE_FORGEJO_CONNECTION_IDENTITY = `
-  WITH origins(id, origin, scheme, authority) AS (
-    SELECT
-      id,
-      lower(rtrim(base_url, '/')),
-      CASE
-        WHEN lower(rtrim(base_url, '/')) LIKE 'https://%' THEN 'https'
-        WHEN lower(rtrim(base_url, '/')) LIKE 'http://%' THEN 'http'
-      END,
-      CASE
-        WHEN lower(rtrim(base_url, '/')) LIKE 'https://%'
-          THEN substr(lower(rtrim(base_url, '/')), 9)
-        WHEN lower(rtrim(base_url, '/')) LIKE 'http://%'
-          THEN substr(lower(rtrim(base_url, '/')), 8)
-      END
-    FROM forgejo_connections
-  ),
-  ports(id, origin, scheme, port) AS (
-    SELECT
-      id,
-      origin,
-      scheme,
-      CASE
-        WHEN substr(authority, 1, 1) = '['
-          AND substr(authority, instr(authority, ']') + 1, 1) = ':'
-          THEN substr(authority, instr(authority, ']') + 2)
-        WHEN substr(authority, 1, 1) != '[' AND instr(authority, ':') > 0
-          THEN substr(authority, instr(authority, ':') + 1)
-        ELSE ''
-      END
-    FROM origins
-  )
   UPDATE forgejo_connections
-  SET base_url = (
-    SELECT CASE
-      WHEN port != ''
-        AND port NOT GLOB '*[^0-9]*'
-        AND (
-          (scheme = 'https' AND CAST(port AS INTEGER) = 443)
-          OR (scheme = 'http' AND CAST(port AS INTEGER) = 80)
-        )
-        THEN substr(origin, 1, length(origin) - length(port) - 1)
-      ELSE origin
-    END
-    FROM ports
-    WHERE ports.id = forgejo_connections.id
-  );
+  SET base_url = quality_bar_normalize_forgejo_url(base_url);
 `;
 
 export const FORGEJO_CONNECTION_SCHEMA = `
@@ -157,6 +113,9 @@ export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_update;
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_delete;
   ${NORMALIZE_FORGEJO_CONNECTION_IDENTITY}
+  ALTER TABLE forgejo_connections
+    ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
+      CHECK (lifecycle IN ('enabled', 'retired'));
   ALTER TABLE forgejo_repositories RENAME TO forgejo_repositories_v17;
   ALTER TABLE forgejo_connection_verifications
     RENAME TO forgejo_connection_verifications_v17;
