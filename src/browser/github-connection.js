@@ -6,12 +6,16 @@ const { csrfToken, requiredElement } = githubOperator;
 const {
   consumeCallbackFailure: consumeGitHubCallback,
   historyText: githubHistoryText,
+  pollingFailureText: formatGitHubPollingFailure,
+  pollingText: formatGitHubPolling,
   responseErrorMessage,
   validConnection: validateGitHubConnection,
   verificationTime,
 } = /** @type {{
  * consumeCallbackFailure: (query: URLSearchParams, showError: (message: string) => void) => Promise<boolean>,
  * historyText: (verification: any) => string,
+ * pollingFailureText: (failure: any) => string,
+ * pollingText: (state: any) => string,
  * responseErrorMessage: (response: Response) => Promise<string>,
  * validConnection: (connection: unknown) => boolean,
  * verificationTime: (timestamp: number) => string
@@ -38,6 +42,7 @@ const githubPermissions = requiredElement("github-connection-permissions");
 const githubCapabilities = requiredElement("github-connection-capabilities");
 const githubLatest = requiredElement("github-connection-latest");
 const githubHistory = requiredElement("github-connection-history");
+const githubPolling = requiredElement("github-connection-polling");
 const githubRetire = /** @type {HTMLButtonElement} */ (
   requiredElement("github-connection-retire")
 );
@@ -119,6 +124,17 @@ function renderGitHubConnection(value) {
     const item = document.createElement("li");
     item.textContent = githubHistoryText(verification);
     githubHistory.append(item);
+  }
+  githubPolling.textContent = "";
+  if (value.polling_failure !== null) {
+    const item = document.createElement("li");
+    item.textContent = formatGitHubPollingFailure(value.polling_failure);
+    githubPolling.append(item);
+  }
+  for (const state of value.polling) {
+    const item = document.createElement("li");
+    item.textContent = formatGitHubPolling(state);
+    githubPolling.append(item);
   }
   githubRepositoryOptions.replaceChildren();
   const latestVerification = value.verification_history.at(-1);

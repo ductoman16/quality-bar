@@ -10,72 +10,16 @@ import {
   GITHUB_REPOSITORY_SCHEMA,
 } from "./github-connection-schema.js";
 import * as schemaMigration from "./durable-schema-migration.js";
+import {
+  GITHUB_POLLING_MIGRATION,
+  GITHUB_POLLING_SCHEMA,
+} from "./github-polling-schema.js";
+import { REPOSITORY_CREDENTIAL_SCHEMA } from "./repository-credential-schema.js";
+import {
+  REPOSITORY_LIFECYCLE_MIGRATION,
+  REPOSITORY_SCHEMA,
+} from "./repository-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
-const REPOSITORY_HEALTH_INTEGRITY = `
-  CREATE TRIGGER IF NOT EXISTS repository_health_integrity_insert
-    BEFORE INSERT ON repositories
-    WHEN NOT (
-      (NEW.health = 'healthy'
-        AND NEW.health_error_code IS NULL
-        AND NEW.health_error_message IS NULL)
-      OR
-      (NEW.health = 'error'
-        AND NEW.health_error_code IS NOT NULL
-        AND NEW.health_error_message IS NOT NULL)
-    )
-    BEGIN SELECT RAISE(ABORT, 'repository_health_invalid'); END;
-  CREATE TRIGGER IF NOT EXISTS repository_health_integrity_update
-    BEFORE UPDATE OF health, health_error_code, health_error_message
-    ON repositories
-    WHEN NOT (
-      (NEW.health = 'healthy'
-        AND NEW.health_error_code IS NULL
-        AND NEW.health_error_message IS NULL)
-      OR
-      (NEW.health = 'error'
-        AND NEW.health_error_code IS NOT NULL
-        AND NEW.health_error_message IS NOT NULL)
-    )
-    BEGIN SELECT RAISE(ABORT, 'repository_health_invalid'); END;
-`;
-const REPOSITORY_SCHEMA = `
-  CREATE TABLE IF NOT EXISTS repositories (
-    id TEXT PRIMARY KEY,
-    normalized_url TEXT NOT NULL UNIQUE,
-    created_at INTEGER NOT NULL,
-    verified_at INTEGER NOT NULL,
-    lifecycle TEXT NOT NULL DEFAULT 'enabled'
-      CHECK (lifecycle IN ('enabled', 'disabled', 'retired')),
-    health TEXT NOT NULL DEFAULT 'healthy'
-      CHECK (health IN ('healthy', 'error')),
-    health_error_code TEXT,
-    health_error_message TEXT,
-    CHECK (
-      (health = 'healthy' AND health_error_code IS NULL AND health_error_message IS NULL)
-      OR
-      (health = 'error' AND health_error_code IS NOT NULL AND health_error_message IS NOT NULL)
-    )
-  ) STRICT;
-  ${REPOSITORY_HEALTH_INTEGRITY}
-`;
-const REPOSITORY_LIFECYCLE_MIGRATION = `
-  ALTER TABLE repositories ADD COLUMN lifecycle TEXT NOT NULL
-    DEFAULT 'enabled'
-    CHECK (lifecycle IN ('enabled', 'disabled', 'retired'));
-  ALTER TABLE repositories ADD COLUMN health TEXT NOT NULL
-    DEFAULT 'healthy'
-    CHECK (health IN ('healthy', 'error'));
-  ALTER TABLE repositories ADD COLUMN health_error_code TEXT;
-  ALTER TABLE repositories ADD COLUMN health_error_message TEXT;
-  ${REPOSITORY_HEALTH_INTEGRITY}
-`;
-const REPOSITORY_CREDENTIAL_SCHEMA = `
-  CREATE TABLE IF NOT EXISTS repository_credentials (
-    repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
-    encrypted_credential TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  ) STRICT;
-`;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
@@ -138,8 +82,9 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
-/** @param {import("node:sqlite").DatabaseSync} database */
-export function initializeOrValidateSchema(database) {
+export function initializeOrValidateSchema(
+  /** @type {import("node:sqlite").DatabaseSync} */ database,
+) {
   const version = /** @type {{ user_version: number }} */ (
     database.prepare("PRAGMA user_version").get()
   ).user_version;
@@ -181,6 +126,7 @@ export function initializeOrValidateSchema(database) {
       ${REPOSITORY_SCHEMA}
       ${REPOSITORY_CREDENTIAL_SCHEMA}
       ${GITHUB_CONNECTION_SCHEMA}
+      ${GITHUB_POLLING_SCHEMA}
       INSERT INTO quality_bar_metadata (key, value)
       VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -210,6 +156,7 @@ export function initializeOrValidateSchema(database) {
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
+        ${GITHUB_POLLING_MIGRATION}
       `,
       SCHEMA_VERSION,
     );
@@ -238,6 +185,7 @@ export function initializeOrValidateSchema(database) {
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
+        ${GITHUB_POLLING_MIGRATION}
       `,
     );
   } else if (version === 4) {
@@ -258,12 +206,13 @@ export function initializeOrValidateSchema(database) {
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
+        ${GITHUB_POLLING_MIGRATION}
       `,
     );
   } else if (version === 5) {
     schemaMigration.migrateSchema(
       database,
-      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}`,
+      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 6) {
     schemaMigration.migrateSchema(
@@ -319,6 +268,7 @@ export function initializeOrValidateSchema(database) {
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${REVIEW_ASSIGNMENT_MIGRATION}
         ${GITHUB_CONNECTION_SCHEMA}
+        ${GITHUB_POLLING_MIGRATION}
       `,
     );
   } else if (version === 7) {
@@ -328,44 +278,50 @@ export function initializeOrValidateSchema(database) {
        ${REPOSITORY_SCHEMA}
        ${REPOSITORY_CREDENTIAL_SCHEMA}
        ${REVIEW_ASSIGNMENT_MIGRATION}
-       ${GITHUB_CONNECTION_SCHEMA}`,
+       ${GITHUB_CONNECTION_SCHEMA}
+       ${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 8) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
+      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 9) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 10) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
+      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 11) {
     schemaMigration.migrateSchema(
       database,
-      `${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}`,
+      `${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 12) {
-    schemaMigration.migrateSchema(database, GITHUB_CONNECTION_SCHEMA);
+    schemaMigration.migrateSchema(
+      database,
+      `${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+    );
   } else if (version === 13 || version === 14) {
     schemaMigration.migrateSchema(
       database,
       version === 13
-        ? `${GITHUB_CONNECTION_HEALTH_MIGRATION}${GITHUB_CONNECTION_LIFECYCLE_MIGRATION}${GITHUB_REPOSITORY_SCHEMA}`
-        : GITHUB_CONNECTION_LIFECYCLE_MIGRATION,
+        ? `${GITHUB_CONNECTION_HEALTH_MIGRATION}${GITHUB_CONNECTION_LIFECYCLE_MIGRATION}${GITHUB_REPOSITORY_SCHEMA}${GITHUB_POLLING_MIGRATION}`
+        : `${GITHUB_CONNECTION_LIFECYCLE_MIGRATION}${GITHUB_POLLING_MIGRATION}`,
     );
+  } else if (version === 15) {
+    schemaMigration.migrateSchema(database, GITHUB_POLLING_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   try {
     const storedVersion = database
       .prepare(
-        "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
+        "SELECT value FROM quality_bar_metadata WHERE key='schema_version'",
       )
       .get()?.value;
     if (storedVersion !== String(SCHEMA_VERSION)) {

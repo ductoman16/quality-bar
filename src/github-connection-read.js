@@ -1,3 +1,8 @@
+import {
+  readGitHubPollingFailure,
+  readGitHubPollingStates,
+} from "./github-polling-read.js";
+
 /**
  * @param {{
  *   all(
@@ -185,6 +190,8 @@ export function readGitHubConnection(durableCore) {
     id: row.id,
     lifecycle: /** @type {"enabled" | "retired"} */ (row.lifecycle),
     permissions: JSON.parse(row.permissions),
+    polling: readGitHubPollingStates(durableCore, row.id),
+    polling_failure: readGitHubPollingFailure(durableCore, row.id),
     principal: {
       id: row.principal_id,
       login: row.principal_login,

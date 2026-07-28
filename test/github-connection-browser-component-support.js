@@ -51,6 +51,8 @@ export function verifiedConnection() {
     health_error: null,
     lifecycle: "enabled",
     permissions: { contents: "read" },
+    polling: [],
+    polling_failure: null,
     principal: { login: "operator" },
     repository_count: 1,
     verification_history: [
@@ -95,6 +97,7 @@ export function githubElements(form, submit, status, error) {
   const capabilities = element();
   const latest = element();
   const history = element();
+  const polling = element();
   const repositoryForm = element({ hidden: true });
   const repositoryOptions = element({
     querySelector() {
@@ -147,6 +150,7 @@ export function githubElements(form, submit, status, error) {
       ["github-connection-capabilities", capabilities],
       ["github-connection-latest", latest],
       ["github-connection-history", history],
+      ["github-connection-polling", polling],
       ["github-connection-retire", retire],
       ["github-connection-delete", remove],
       ["github-connection-confirmation", confirmation],
@@ -165,6 +169,7 @@ export function githubElements(form, submit, status, error) {
     identity,
     latest,
     permissions,
+    polling,
     profile,
     repositoryForm,
     repositoryOptions,

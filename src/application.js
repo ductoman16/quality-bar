@@ -384,6 +384,7 @@ export function createApplication({
     },
     secureBrowserCookie,
   });
+  githubConnections.startPolling();
 
   return {
     server,

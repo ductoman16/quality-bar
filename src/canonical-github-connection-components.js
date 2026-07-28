@@ -1,3 +1,5 @@
+import { canonicalGitHubPollingSchemas } from "./canonical-github-polling-components.js";
+
 /** @param {Record<string, unknown>} properties @param {string[]} required */
 const closedObject = (properties, required) => ({
   additionalProperties: false,
@@ -8,6 +10,7 @@ const closedObject = (properties, required) => ({
 
 export function canonicalGitHubConnectionSchemas() {
   return {
+    ...canonicalGitHubPollingSchemas(),
     GitHubCallbackFailure: closedObject(
       {
         code: { minLength: 1, type: "string" },
@@ -259,6 +262,16 @@ export function canonicalGitHubConnectionSchemas() {
           id: { minLength: 1, type: "string" },
           lifecycle: { enum: ["enabled", "retired"], type: "string" },
           permissions: { $ref: "#/components/schemas/GitHubPermissions" },
+          polling: {
+            items: { $ref: "#/components/schemas/GitHubPollingState" },
+            type: "array",
+          },
+          polling_failure: {
+            oneOf: [
+              { $ref: "#/components/schemas/GitHubPollingFailure" },
+              { type: "null" },
+            ],
+          },
           principal: { $ref: "#/components/schemas/GitHubPrincipal" },
           repository_count: { minimum: 1, type: "integer" },
           verification_history: {
@@ -280,6 +293,8 @@ export function canonicalGitHubConnectionSchemas() {
           "id",
           "lifecycle",
           "permissions",
+          "polling",
+          "polling_failure",
           "principal",
           "repository_count",
           "verification_history",

@@ -43,6 +43,7 @@ test("manifest and installation callbacks atomically create one verified secret-
     now: () => 1_000,
     randomBytes: () => Buffer.alloc(32, 5),
     verifier: {
+      listPullRequests: async () => [],
       async exchangeManifest(code) {
         calls.push(["exchange", code]);
         return {
@@ -77,6 +78,9 @@ test("manifest and installation callbacks atomically create one verified secret-
             },
           ],
         };
+      },
+      async verifyRepositories() {
+        throw new Error("repository selection is not exercised");
       },
     },
   });
@@ -140,6 +144,8 @@ test("manifest and installation callbacks atomically create one verified secret-
       pull_requests: "write",
       statuses: "write",
     },
+    polling: [],
+    polling_failure: null,
     principal: { id: 91, login: "operator", type: "User" },
     repository_count: 1,
     verification_history: [
@@ -197,6 +203,7 @@ test("failed or replayed GitHub onboarding stores nothing and returns one exact 
     now: () => 1_000,
     randomBytes: () => Buffer.alloc(32, 6),
     verifier: {
+      listPullRequests: async () => [],
       async exchangeManifest() {
         throw new GitHubConnectionError(
           "github_manifest_exchange_failed",
@@ -204,6 +211,9 @@ test("failed or replayed GitHub onboarding stores nothing and returns one exact 
         );
       },
       async verifyInstallation() {
+        throw new Error("unreachable");
+      },
+      async verifyRepositories() {
         throw new Error("unreachable");
       },
     },
@@ -257,6 +267,7 @@ test("retired GitHub Connection reactivation verifies the same App replacement k
     masterKey: Buffer.alloc(32, 7),
     randomBytes: () => Buffer.alloc(32, 5),
     verifier: {
+      listPullRequests: async () => [],
       async exchangeManifest() {
         throw new Error("reactivation must not exchange a GitHub App Manifest");
       },
@@ -266,6 +277,9 @@ test("retired GitHub Connection reactivation verifies the same App replacement k
           "github_permissions_mismatch",
           "GitHub App permissions do not match the required profile",
         );
+      },
+      async verifyRepositories() {
+        throw new Error("repository selection is not exercised");
       },
     },
   });

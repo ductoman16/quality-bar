@@ -48,6 +48,10 @@ export function retireGitHubConnection(durableCore, request) {
       connection.id,
     );
     transaction.run(
+      "DELETE FROM quality_bar_metadata WHERE key = ?",
+      `github_poll_gate:${connection.id}`,
+    );
+    transaction.run(
       "UPDATE github_connections SET lifecycle = 'retired' WHERE id = ?",
       connection.id,
     );
@@ -86,6 +90,10 @@ export function removeNeverUsedGitHubConnection(durableCore) {
     transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,
+    );
+    transaction.run(
+      "DELETE FROM quality_bar_metadata WHERE key = ?",
+      `github_poll_gate:${connection.id}`,
     );
     transaction.run(
       "DELETE FROM github_connections WHERE id = ?",

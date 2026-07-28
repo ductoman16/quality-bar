@@ -2,17 +2,48 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 
 const API_VERSION = "2026-03-10";
 
-/** @param {string} code @param {string} message @param {{affectedRepositoryIds?: number[], cause?: unknown, repositoryId?: number}} [options] @returns {never} */
+/** @param {string} code @param {string} message @param {{affectedRepositoryIds?: number[], cause?: unknown, nextAttemptAt?: number, repositoryId?: number}} [options] @returns {never} */
 function fail(code, message, options) {
   throw new GitHubConnectionError(code, message, options);
 }
 
-/** @param {string} apiBaseUrl @param {typeof fetch} fetchRequest */
-export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
-  /** @param {string} path @param {{affectedRepositoryIds?: number[], authorization?: string, method?: "GET" | "POST", repositoryId?: number}} [options] */
+/** @param {Headers} headers @param {number} requestedAt */
+function providerNextAttemptAt(headers, requestedAt) {
+  const retryAfter = headers.get("retry-after");
+  if (retryAfter !== null) {
+    if (/^(?:0|[1-9][0-9]*)$/.test(retryAfter)) {
+      const value = requestedAt + Number(retryAfter) * 1_000;
+      return Number.isSafeInteger(value) ? value : undefined;
+    }
+    const value = Date.parse(retryAfter);
+    if (Number.isSafeInteger(value) && value >= 0) {
+      return value;
+    }
+  }
+  const rateReset = headers.get("x-ratelimit-reset");
+  if (rateReset !== null && /^(?:0|[1-9][0-9]*)$/.test(rateReset)) {
+    const value = Number(rateReset) * 1_000;
+    return Number.isSafeInteger(value) ? value : undefined;
+  }
+  return undefined;
+}
+
+/** @param {string} apiBaseUrl @param {typeof fetch} fetchRequest @param {() => number} [now] */
+export function createGitHubApiRequest(
+  apiBaseUrl,
+  fetchRequest,
+  now = () => Date.now(),
+) {
+  /** @param {string} path @param {{affectedRepositoryIds?: number[], authorization?: string, includePage?: boolean, method?: "GET" | "POST", repositoryId?: number}} [options] */
   return async function request(
     path,
-    { affectedRepositoryIds, authorization, method = "GET", repositoryId } = {},
+    {
+      affectedRepositoryIds,
+      authorization,
+      includePage = false,
+      method = "GET",
+      repositoryId,
+    } = {},
   ) {
     let response;
     try {
@@ -58,10 +89,11 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
             response.headers.get("x-ratelimit-remaining") === "0" ||
             rateLimitResponse))
       ) {
+        const nextAttemptAt = providerNextAttemptAt(response.headers, now());
         fail(
           "github_api_transient_failure",
           `GitHub API request temporarily failed with HTTP ${response.status}`,
-          { affectedRepositoryIds, repositoryId },
+          { affectedRepositoryIds, nextAttemptAt, repositoryId },
         );
       }
       if (Number.isSafeInteger(repositoryId) && response.status === 404) {
@@ -78,7 +110,8 @@ export function createGitHubApiRequest(apiBaseUrl, fetchRequest) {
       );
     }
     try {
-      return /** @type {unknown} */ (await response.json());
+      const body = /** @type {unknown} */ (await response.json());
+      return includePage ? { body, link: response.headers.get("link") } : body;
     } catch (cause) {
       fail("github_api_response_invalid", "GitHub API response is invalid", {
         affectedRepositoryIds,

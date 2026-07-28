@@ -20,6 +20,7 @@ function connectionService() {
     calls,
     create() {
       return {
+        startPolling() {},
         read() {
           calls.push(["read"]);
           return null;
@@ -252,6 +253,7 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
   let callbackFailure = null;
   const { request } = await startApplication({
     createGitHubConnections: () => ({
+      startPolling() {},
       read() {
         return null;
       },
@@ -327,6 +329,7 @@ test("transient GitHub Repository verification failures retain their exact ownin
   ]) {
     const { request } = await startApplication({
       createGitHubConnections: () => ({
+        startPolling() {},
         read() {
           return null;
         },

@@ -7,6 +7,7 @@ export function createUnavailableGitHubConnectionService(error) {
     start() {
       throw error;
     },
+    startPolling() {},
     async completeManifest() {
       throw error;
     },

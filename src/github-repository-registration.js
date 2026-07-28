@@ -7,32 +7,12 @@ import {
   validGitHubRepositoryEvidence,
   verifiedGitHubRepositoryEvidence,
 } from "./github-verification-error.js";
+import { githubVerificationErrorScope } from "./github-verification-scope.js";
 import {
   readRepositoryResource,
   REPOSITORY_SELECTION,
 } from "./repository-resource.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
-
-const CONNECTION_SCOPED_VERIFICATION_ERRORS = new Set([
-  "github_api_request_failed",
-  "github_api_response_invalid",
-  "github_app_profile_mismatch",
-  "github_connection_credential_invalid",
-  "github_installation_mismatch",
-  "github_installation_scope_invalid",
-  "github_permissions_mismatch",
-  "github_personal_account_required",
-  "github_principal_mismatch",
-  "github_private_repository_required",
-  "github_repository_enumeration_incomplete",
-  "github_repository_identity_invalid",
-]);
-const REPOSITORY_SCOPED_VERIFICATION_ERRORS = new Set([
-  "github_private_git_read_failed",
-  "github_repository_api_access_failed",
-  "github_repository_git_read_failed",
-  "github_repository_selection_unavailable",
-]);
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -51,13 +31,16 @@ function fail(code, message) {
  *   createId: () => string | undefined,
  *   createVerificationId?: () => string | undefined,
  *   timestamp: () => number,
- *   verifier: {verifyRepositories?: (...parameters: any[]) => Promise<any>}
+ *   verifier: {commitPollingBaseline: (verification: any, transaction: any, connectionId: string) => void, verifyRepositories?: (...parameters: any[]) => Promise<any>}
  * }} dependencies
  */
 export function createGitHubRepositorySelector(
   durableCore,
   { cipher, createId, createVerificationId = randomUUID, timestamp, verifier },
 ) {
+  if (typeof verifier.commitPollingBaseline !== "function") {
+    throw new TypeError("GitHub polling baseline dependency is unavailable");
+  }
   /** @param {unknown} request */
   return async function selectRepositories(
     request,
@@ -112,6 +95,7 @@ export function createGitHubRepositorySelector(
         "GitHub Connection is not configured",
       );
     }
+    const connectionId = connection.id;
     const credential = cipher.decrypt(
       {
         appId: /** @type {number} */ (connection.app_id),
@@ -138,11 +122,7 @@ export function createGitHubRepositorySelector(
       );
     } catch (error) {
       if (error instanceof GitHubConnectionError) {
-        const scope = CONNECTION_SCOPED_VERIFICATION_ERRORS.has(error.code)
-          ? "connection"
-          : REPOSITORY_SCOPED_VERIFICATION_ERRORS.has(error.code)
-            ? "repository"
-            : null;
+        const scope = githubVerificationErrorScope(error.code);
         if (scope) {
           const evidence = verifiedGitHubRepositoryEvidence(
             error,
@@ -322,6 +302,7 @@ export function createGitHubRepositorySelector(
       });
     try {
       durableCore.transaction((transaction) => {
+        verifier.commitPollingBaseline(verification, transaction, connectionId);
         for (const { id, repository } of records) {
           if (existing.has(repository.id)) {
             if (affectedRepositoryIds.includes(repository.id)) {

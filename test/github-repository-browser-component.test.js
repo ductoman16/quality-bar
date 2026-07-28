@@ -222,3 +222,72 @@ test("failed selection reloads server-owned GitHub Connection health without hid
     "GitHub App permissions do not match the required profile (github_permissions_mismatch)",
   );
 });
+
+test("GitHub polling state names baseline, error, rate gate, and next attempt", async () => {
+  const connection = /** @type {any} */ (verifiedConnection());
+  connection.polling_failure = {
+    error: {
+      code: "github_api_transient_failure",
+      message: "GitHub API request temporarily failed with HTTP 429",
+    },
+    forge_repository_id: 202,
+    next_attempt_at: 121_000,
+    rate_gate_until: 121_000,
+  };
+  connection.polling = [
+    {
+      baseline_status: "error",
+      error: {
+        code: "github_api_transient_failure",
+        message: "GitHub API request temporarily failed with HTTP 429",
+      },
+      forge_repository_id: 101,
+      last_success_at: 1_000,
+      next_attempt_at: 121_000,
+      rate_gate_until: 121_000,
+    },
+    {
+      baseline_status: "pending",
+      error: null,
+      forge_repository_id: 202,
+      last_success_at: null,
+      next_attempt_at: 0,
+      rate_gate_until: null,
+    },
+    {
+      baseline_status: "error",
+      error: {
+        code: "github_repository_api_access_failed",
+        message: "GitHub Repository API access verification failed",
+      },
+      forge_repository_id: 303,
+      last_success_at: null,
+      next_attempt_at: null,
+      rate_gate_until: null,
+    },
+  ];
+  const browser = browserContext(async () => ({
+    ok: true,
+    async json() {
+      return connection;
+    },
+  }));
+  executeGitHubBrowserAsset(browser.context);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    browser.github.polling.children[0].textContent,
+    "Forge Repository 202 baseline error; GitHub API request temporarily failed with HTTP 429 (github_api_transient_failure); rate gate until 1970-01-01T00:02:01.000Z; next attempt 1970-01-01T00:02:01.000Z",
+  );
+  assert.equal(
+    browser.github.polling.children[1].textContent,
+    "Forge Repository 101; baseline error; last success 1970-01-01T00:00:01.000Z; GitHub API request temporarily failed with HTTP 429 (github_api_transient_failure); rate gate until 1970-01-01T00:02:01.000Z; next attempt 1970-01-01T00:02:01.000Z",
+  );
+  assert.equal(
+    browser.github.polling.children[2].textContent,
+    "Forge Repository 202; baseline pending; no successful baseline; next attempt 1970-01-01T00:00:00.000Z",
+  );
+  assert.equal(
+    browser.github.polling.children[3].textContent,
+    "Forge Repository 303; baseline error; no successful baseline; GitHub Repository API access verification failed (github_repository_api_access_failed); next attempt after correction",
+  );
+});

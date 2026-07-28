@@ -6,7 +6,10 @@ import {
   GITHUB_REQUIRED_PERMISSIONS,
 } from "./github-app-manifest.js";
 import { createGitHubConnectionCredentialCipher } from "./github-connection-credential.js";
-import { GitHubConnectionError } from "./github-connection-error.js";
+import {
+  GitHubConnectionError,
+  failGitHubConnection as fail,
+} from "./github-connection-error.js";
 import { takeGitHubConnectionFlow } from "./github-connection-flow.js";
 import { readGitHubConnection } from "./github-connection-read.js";
 import { reactivateGitHubConnection } from "./github-connection-reactivation.js";
@@ -16,21 +19,9 @@ import {
   retireGitHubConnection,
 } from "./github-connection-lifecycle.js";
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
+import { createGitHubPollingRunner } from "./github-polling-runner.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/**
- * @param {string} code
- * @param {string} message
- * @param {unknown} [cause]
- * @returns {never}
- */
-function fail(code, message, cause) {
-  throw new GitHubConnectionError(
-    code,
-    message,
-    cause === undefined ? undefined : { cause },
-  );
-}
-/** @typedef {{exchangeManifest: (code: string) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories?: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -54,7 +45,9 @@ export function createGitHubConnectionService(
     typeof now !== "function" ||
     typeof randomBytes !== "function" ||
     typeof verifier?.exchangeManifest !== "function" ||
-    typeof verifier.verifyInstallation !== "function"
+    typeof verifier.verifyInstallation !== "function" ||
+    typeof verifier.verifyRepositories !== "function" ||
+    typeof verifier.listPullRequests !== "function"
   ) {
     throw new TypeError("GitHub Connection dependencies are invalid");
   }
@@ -101,15 +94,21 @@ export function createGitHubConnectionService(
     }
     return value;
   }
+  const polling = createGitHubPollingRunner(durableCore, {
+    cipher,
+    timestamp,
+    verifier,
+  });
   const selectRepositories = createGitHubRepositorySelector(durableCore, {
     cipher,
     createId,
     timestamp,
-    verifier,
+    verifier: polling.repositoryVerifier,
   });
   const take = takeGitHubConnectionFlow.bind(null, { pending, timestamp });
   return {
     read: () => readGitHubConnection(durableCore),
+    startPolling: polling.start,
     start: () =>
       startGitHubConnection({
         durableCore,
@@ -245,9 +244,13 @@ export function createGitHubConnectionService(
           }),
         ),
       );
+      const preparedBaseline = reactivating
+        ? await polling.prepareConnectionBaseline(flow.credential, installation)
+        : null;
       try {
         durableCore.transaction((/** @type {any} */ transaction) => {
           if (reactivating) {
+            polling.commitConnectionBaseline(transaction, id, preparedBaseline);
             transaction.run(
               `UPDATE github_connections
                SET lifecycle = 'enabled', app_slug = ?, principal_login = ?,
@@ -345,6 +348,8 @@ export function createGitHubConnectionService(
         id,
         lifecycle: "enabled",
         permissions: GITHUB_REQUIRED_PERMISSIONS,
+        polling: [],
+        polling_failure: null,
         principal: verification.principal,
         repository_count: verification.repositories.length,
         verification_history: [
@@ -391,6 +396,7 @@ export function createGitHubConnectionService(
     remove: () => removeNeverUsedGitHubConnection(durableCore),
     selectRepositories,
     destroy() {
+      polling.destroy();
       pending.clear();
       callbackFailures.destroy();
       cipher.destroy();
