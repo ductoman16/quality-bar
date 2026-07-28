@@ -8,6 +8,36 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 
+test("SQLite creates the final Forgejo schema directly from v16", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v16-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  prior.run("DROP TABLE forgejo_repositories");
+  prior.run("DROP TABLE forgejo_connection_verifications");
+  prior.run("DROP TABLE forgejo_connection_credentials");
+  prior.run("DROP TABLE forgejo_connections");
+  prior.run(
+    "UPDATE quality_bar_metadata SET value = '16' WHERE key = 'schema_version'",
+  );
+  prior.run("PRAGMA user_version = 16");
+  prior.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 19);
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+       FROM pragma_table_info('forgejo_connections')
+       WHERE name = 'lifecycle'`,
+    ),
+    { name: "lifecycle" },
+  );
+  migrated.close();
+});
+
 test("SQLite preserves non-default Forgejo ports during v18 migration", (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-v18-port-migration-"),

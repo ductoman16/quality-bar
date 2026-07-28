@@ -335,11 +335,7 @@ export function initializeOrValidateSchema(
   } else if (version === 15) {
     schemaMigration.migrateSchema(database, GITHUB_POLLING_MIGRATION);
   } else if (version === 16) {
-    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA, 17);
-    schemaMigration.migrateSchema(
-      database,
-      FORGEJO_VERIFICATION_HISTORY_MIGRATION,
-    );
+    schemaMigration.migrateSchema(database, FORGEJO_CONNECTION_SCHEMA);
   } else if (version === 17) {
     schemaMigration.migrateSchema(
       database,
