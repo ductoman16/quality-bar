@@ -216,21 +216,23 @@ export function createApplication({
           }
         },
       });
+      const evaluationRepositories =
+        /** @type {ReturnType<typeof createRepositoryService>} */ (
+          repositories
+        );
+      evaluations = createEvaluations(durableCore, {
+        acquireChangeset: (repositoryId, request) =>
+          evaluationRepositories.resolvePushedSelectors(repositoryId, request),
+        masterKey: installation.masterKey,
+        now,
+        storageReserve,
+      });
     } finally {
       installation.masterKey.fill(0);
     }
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
     reviews = createReviews(durableCore, { now });
-    const evaluationRepositories =
-      /** @type {ReturnType<typeof createRepositoryService>} */ (repositories);
-    evaluations = createEvaluations(durableCore, {
-      acquireChangeset: (repositoryId, request) =>
-        evaluationRepositories.resolvePushedSelectors(repositoryId, request),
-      masterKey: installation.masterKey,
-      now,
-      storageReserve,
-    });
     repositoryGuidance = createRepositoryGuidance(durableCore);
     waiverAdjudicatorConfiguration = createWaiverAdjudicatorConfiguration(
       durableCore,
@@ -259,6 +261,7 @@ export function createApplication({
       "success",
     );
   } catch (error) {
+    evaluations?.destroy?.();
     repositories?.destroy?.();
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
@@ -416,6 +419,7 @@ export function createApplication({
           })
         );
       }
+      evaluations?.destroy?.();
       repositories?.destroy?.();
       githubConnections?.destroy?.();
       forgejoConnections?.destroy?.();

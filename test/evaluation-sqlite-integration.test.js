@@ -291,6 +291,17 @@ test("newest-first Evaluation listing never silently truncates accepted work", a
       "code" in error &&
       error.code === "cursor_invalid",
   );
+  service.destroy();
+  assert.throws(
+    () =>
+      service.list({
+        cursor: /** @type {string} */ (first.next_cursor),
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "cursor_invalid",
+  );
   core.close();
 });
 

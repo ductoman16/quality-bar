@@ -20,8 +20,11 @@ const requestBody = {
 
 test("the browser creates, replays, polls, and reads complete zero-Review Evaluations", async () => {
   let nextId = 0;
+  /** @type {Buffer | undefined} */
+  let evaluationMasterKey;
   const { application, request } = await startApplication({
     createEvaluations(core, options) {
+      evaluationMasterKey = Buffer.from(options.masterKey);
       return createEvaluationService(core, {
         ...options,
         acquireChangeset: async () => ({
@@ -33,6 +36,7 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
       });
     },
   });
+  assert.deepEqual(evaluationMasterKey, Buffer.alloc(32, 7));
   application.durableCore.run(
     "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
     "repository-1",

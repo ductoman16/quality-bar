@@ -90,6 +90,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
               items: [
                 evaluation(),
                 evaluation({
+                  base_selector: { type: "branch", value: "failure" },
+                  id: "evaluation-result-failure",
+                }),
+                evaluation({
                   completed_at: null,
                   effective_outcome: "pending",
                   execution_status: "queued",
@@ -146,6 +150,9 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
           },
         };
       }
+      if (path === "/api/v1/evaluations/evaluation-result-failure/result") {
+        throw new Error("simulated Result transport failure");
+      }
       if (path === "/api/v1/repositories/repository-1/evaluations") {
         return {
           ok: true,
@@ -196,23 +203,31 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     /explicit branch main \(1111.*\) → branch topic \(2222.*\) — completed — clear/,
   );
   assert.match(
-    controls.get("evaluation-recent").options[1].textContent,
+    controls.get("evaluation-recent").options[0].options[0].textContent,
     /"evaluation_id":"evaluation-complete".*"outcome":"clear"/,
+  );
+  assert.match(
+    controls.get("evaluation-recent").options[1].textContent,
+    /branch failure/,
+  );
+  assert.equal(
+    controls.get("evaluation-recent").options[1].options[0].textContent,
+    "Result failed to load",
   );
   assert.match(
     controls.get("evaluation-active").options[0].textContent,
     /delayed until 2026-07-28T12:05:00.000Z — pending/,
   );
   assert.equal(
-    controls.get("evaluation-active").options[1].textContent,
+    controls.get("evaluation-active").options[0].options[0].textContent,
     "Result not ready",
   );
   assert.match(
-    controls.get("evaluation-active").options[2].textContent,
+    controls.get("evaluation-active").options[1].textContent,
     /queued — pending/,
   );
   assert.equal(
-    controls.get("evaluation-active").options[3].textContent,
+    controls.get("evaluation-active").options[1].options[0].textContent,
     "Result not ready",
   );
   assert.match(
@@ -234,9 +249,9 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   await controls.get("evaluation-create-form").listener("submit")({
     preventDefault() {},
   });
-  assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1))), {
-    path: "/api/v1/evaluations/evaluation-complete/result",
-  });
+  assert.ok(
+    requests.filter(({ path }) => path === "/api/v1/evaluations").length >= 2,
+  );
   const creation = requests.find(
     ({ path }) => path === "/api/v1/repositories/repository-1/evaluations",
   );

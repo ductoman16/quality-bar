@@ -103,6 +103,9 @@ export function createEvaluationCollection(masterKey, readPage) {
   }
 
   return {
+    destroy() {
+      cursorKey.fill(0);
+    },
     /** @param {{cursor?: string, limit?: string}} [query] */
     read({ cursor, limit } = {}) {
       const size = pageSize(limit);

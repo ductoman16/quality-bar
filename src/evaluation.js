@@ -144,6 +144,9 @@ export function createEvaluationService(
   }
 
   return {
+    destroy() {
+      collection.destroy();
+    },
     /** @param {{cursor?: string, limit?: string}} [query] */
     list({ cursor, limit } = {}) {
       const page = collection.read({ cursor, limit });
@@ -382,6 +385,7 @@ export function createUnavailableEvaluationService(error) {
           message: "Evaluation capability is unavailable",
         };
   return {
+    destroy() {},
     async createExplicit() {
       failEvaluation(failure.code, failure.message, error);
     },

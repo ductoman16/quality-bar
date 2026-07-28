@@ -30,13 +30,6 @@ function controlValue(id) {
   return control.value;
 }
 
-/** @param {HTMLElement} parent @param {string} value */
-function appendText(parent, value) {
-  const item = document.createElement("li");
-  item.textContent = value;
-  parent.append(item);
-}
-
 /** @param {any} evaluation */
 async function renderEvaluation(evaluation) {
   if (
@@ -87,27 +80,45 @@ async function renderEvaluation(evaluation) {
         )
       ? recent
       : attention;
-  appendText(target, summary);
+  const row = document.createElement("li");
+  row.textContent = summary;
+  const resultState = document.createElement("div");
+  row.append(resultState);
+  target.append(row);
   if (evaluation.execution_status !== "completed") {
     if (["queued", "running"].includes(evaluation.execution_status)) {
-      appendText(target, "Result not ready");
+      resultState.textContent = "Result not ready";
     }
     return;
   }
-  const resultResponse = await fetch(
-    "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/result",
-  );
+  let resultResponse;
+  try {
+    resultResponse = await fetch(
+      "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/result",
+    );
+  } catch {
+    resultState.textContent = "Result failed to load";
+    return;
+  }
   if (resultResponse.status === 409) {
-    appendText(target, "Result not ready");
+    resultState.textContent = "Result not ready";
     return;
   }
   if (!resultResponse.ok) {
-    const failure = await resultResponse.json();
-    appendText(target, failure.error.message);
+    try {
+      const failure = await resultResponse.json();
+      resultState.textContent = failure.error.message;
+    } catch {
+      resultState.textContent = "Result failed to load";
+    }
     return;
   }
-  const result = await resultResponse.json();
-  appendText(target, "Result " + JSON.stringify(result));
+  try {
+    const result = await resultResponse.json();
+    resultState.textContent = "Result " + JSON.stringify(result);
+  } catch {
+    resultState.textContent = "Result failed to load";
+  }
 }
 
 /** @param {string | undefined} cursor */

@@ -36,6 +36,13 @@ test("explicit Evaluation accepts exactly typed pushed branch and commit selecto
     }).head,
     { type: "commit", value: "a".repeat(64) },
   );
+  assert.deepEqual(
+    canonicalExplicitEvaluationRequest({
+      base: { type: "branch", value: "@/topic" },
+      head: { type: "branch", value: "main" },
+    }).base,
+    { type: "branch", value: "@/topic" },
+  );
 });
 
 test("Evaluation HTTP operations advertise only their implemented browser authority", () => {
@@ -48,6 +55,11 @@ test("Evaluation HTTP operations advertise only their implemented browser author
   ]) {
     assert.deepEqual(operation.security, [{ browser_session: [] }]);
   }
+  const branchPattern =
+    canonicalOpenApiDocument().components.schemas.EvaluationSelector.oneOf[0]
+      .properties.value.pattern;
+  assert.equal(new RegExp(branchPattern).test("@/topic"), true);
+  assert.equal(new RegExp(branchPattern).test("@"), false);
 });
 
 test("explicit Evaluation rejects every malformed request and selector shape", () => {

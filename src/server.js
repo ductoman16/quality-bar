@@ -199,6 +199,7 @@ export function createApplicationServer({
     );
   }
   if (
+    typeof evaluations?.destroy !== "function" ||
     typeof evaluations?.createExplicit !== "function" ||
     typeof evaluations.list !== "function" ||
     typeof evaluations.read !== "function" ||
