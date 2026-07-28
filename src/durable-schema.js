@@ -135,16 +135,7 @@ export function initializeOrValidateSchema(
         created_at INTEGER NOT NULL,
         last_authenticated_at INTEGER NOT NULL
       ) STRICT;
-      CREATE TABLE authority_attributions (
-        id TEXT PRIMARY KEY,
-        channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
-        action TEXT NOT NULL,
-        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
-        error_code TEXT,
-        occurred_at INTEGER NOT NULL
-      ) STRICT;
-      CREATE INDEX authority_attributions_keyset
-        ON authority_attributions (occurred_at DESC, id DESC);
+      ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
       ${REVIEW_SCHEMA}
       ${REPOSITORY_SCHEMA}
       ${REPOSITORY_CREDENTIAL_SCHEMA}
@@ -168,16 +159,7 @@ export function initializeOrValidateSchema(
           created_at INTEGER NOT NULL,
           last_authenticated_at INTEGER NOT NULL
         ) STRICT;
-        CREATE TABLE authority_attributions (
-          id TEXT PRIMARY KEY,
-          channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
-          action TEXT NOT NULL,
-          outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
-          error_code TEXT,
-          occurred_at INTEGER NOT NULL
-        ) STRICT;
-        CREATE INDEX authority_attributions_keyset
-          ON authority_attributions (occurred_at DESC, id DESC);
+        ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
@@ -197,16 +179,7 @@ export function initializeOrValidateSchema(
           created_at INTEGER NOT NULL,
           last_authenticated_at INTEGER NOT NULL
         ) STRICT;
-        CREATE TABLE authority_attributions (
-          id TEXT PRIMARY KEY,
-          channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
-          action TEXT NOT NULL,
-          outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
-          error_code TEXT,
-          occurred_at INTEGER NOT NULL
-        ) STRICT;
-        CREATE INDEX authority_attributions_keyset
-          ON authority_attributions (occurred_at DESC, id DESC);
+        ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
@@ -218,16 +191,7 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(
       database,
       `
-        CREATE TABLE authority_attributions (
-          id TEXT PRIMARY KEY,
-          channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'implementer_token')),
-          action TEXT NOT NULL,
-          outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
-          error_code TEXT,
-          occurred_at INTEGER NOT NULL
-        ) STRICT;
-        CREATE INDEX authority_attributions_keyset
-          ON authority_attributions (occurred_at DESC, id DESC);
+        ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
         ${REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
@@ -357,6 +321,8 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version === 20) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
+  } else if (version === 21) {
+    schemaMigration.migrateSchema(database, "");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

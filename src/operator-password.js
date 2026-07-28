@@ -4,6 +4,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import { insertAuthorityAttribution } from "./authority-attribution.js";
 import { clearFailedOperatorLoginDelay } from "./operator-login-throttle.js";
 
 export const OPERATOR_PASSWORD_VERIFIER_METADATA_KEY =
@@ -42,6 +43,23 @@ function fail(code, message, cause) {
 /** @param {string} password */
 function passwordCharacterCount(password) {
   return Array.from(password).length;
+}
+
+/** @param {unknown} password */
+function validatedNewOperatorPassword(password) {
+  if (typeof password !== "string") {
+    fail(
+      "operator_password_input_missing",
+      "Operator password input is required",
+    );
+  }
+  if (passwordCharacterCount(password) < MINIMUM_PASSWORD_LENGTH) {
+    fail(
+      "operator_password_too_short",
+      "Operator password must be at least 15 characters",
+    );
+  }
+  return password;
 }
 
 /**
@@ -197,19 +215,10 @@ export function prepareOperatorPasswordReplacement(
   { randomBytes = createRandomBytes } = {},
 ) {
   verifyOperatorPassword(durableCore, currentPassword);
-  if (typeof replacementPassword !== "string") {
-    fail(
-      "operator_password_input_missing",
-      "Operator password input is required",
-    );
-  }
-  if (passwordCharacterCount(replacementPassword) < MINIMUM_PASSWORD_LENGTH) {
-    fail(
-      "operator_password_too_short",
-      "Operator password must be at least 15 characters",
-    );
-  }
-  return createPasswordVerifier(replacementPassword, randomBytes);
+  return createPasswordVerifier(
+    validatedNewOperatorPassword(replacementPassword),
+    randomBytes,
+  );
 }
 
 /**
@@ -222,18 +231,7 @@ export function bootstrapOperatorPassword(
   password,
   { randomBytes = createRandomBytes } = {},
 ) {
-  if (typeof password !== "string") {
-    fail(
-      "operator_password_input_missing",
-      "Operator password input is required",
-    );
-  }
-  if (passwordCharacterCount(password) < MINIMUM_PASSWORD_LENGTH) {
-    fail(
-      "operator_password_too_short",
-      "Operator password must be at least 15 characters",
-    );
-  }
+  const validatedPassword = validatedNewOperatorPassword(password);
 
   durableCore.transaction((transaction) => {
     const existingVerifier = transaction.get(
@@ -246,8 +244,60 @@ export function bootstrapOperatorPassword(
     transaction.run(
       "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
       OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
-      createPasswordVerifier(password, randomBytes),
+      createPasswordVerifier(validatedPassword, randomBytes),
     );
     clearFailedOperatorLoginDelay(transaction);
+  });
+}
+
+/**
+ * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {unknown} password
+ * @param {{
+ *   now?: () => number,
+ *   randomBytes?: (size: number) => Buffer,
+ *   recordAttribution?: typeof insertAuthorityAttribution,
+ * }} [options]
+ */
+export function recoverOperatorAuthority(
+  durableCore,
+  password,
+  {
+    now = () => Date.now(),
+    randomBytes = createRandomBytes,
+    recordAttribution = insertAuthorityAttribution,
+  } = {},
+) {
+  const validatedPassword = validatedNewOperatorPassword(password);
+  const occurredAt = now();
+
+  durableCore.transaction((transaction) => {
+    const existingVerifier = transaction.get(
+      "SELECT value FROM quality_bar_metadata WHERE key = ?",
+      OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
+    );
+    if (!existingVerifier) {
+      fail(
+        "operator_password_uninitialized",
+        "Operator password has not been bootstrapped",
+      );
+    }
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = ? WHERE key = ?",
+      createPasswordVerifier(validatedPassword, randomBytes),
+      OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
+    );
+    transaction.run("DELETE FROM browser_sessions");
+    transaction.run(
+      "DELETE FROM quality_bar_metadata WHERE key = ?",
+      "implementer_token_verifier",
+    );
+    clearFailedOperatorLoginDelay(transaction);
+    recordAttribution(transaction, {
+      action: "password_recovery",
+      channel: "host",
+      occurredAt,
+      outcome: "success",
+    });
   });
 }

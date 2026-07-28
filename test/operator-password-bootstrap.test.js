@@ -22,7 +22,10 @@ function temporaryDatabasePath() {
 }
 
 function validInstallation() {
-  return { masterKey: Buffer.alloc(32, 7) };
+  return {
+    freeSpaceReserveBytes: 5 * 1024 ** 3,
+    masterKey: Buffer.alloc(32, 7),
+  };
 }
 
 afterEach(() => {

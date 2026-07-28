@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
 import { runPackageProbe } from "./package-probes.mjs";
 
 const serviceFixtureImage =
@@ -25,7 +26,11 @@ const serviceFixtureImage =
  */
 /**
  * @typedef {{
+ *   activeBrowserSessions: number,
+ *   activeImplementerToken: boolean,
  *   databaseVersion: string,
+ *   failedLoginAttempts: string | null,
+ *   failedLoginUntil: string | null,
  *   foreignKeys: boolean,
  *   installationKeyVerifier: string,
  *   integrity: string,
@@ -103,6 +108,11 @@ function assertFilesystemFacts(filesystemFacts) {
  *   httpFacts: HttpFacts,
  *   imagePlatform: string,
  *   processArguments: string[],
+ *   recoveryDatabaseFacts: DatabaseFacts,
+ *   recoveryPasswordStatus: {
+ *     originalAuthenticated: boolean,
+ *     replacementAuthenticated: boolean,
+ *   },
  *   recreatedDatabaseFacts: DatabaseFacts,
  *   toolVersions: {codex: string, git: string},
  *   uid: number,
@@ -117,6 +127,8 @@ function packageFacts({
   httpFacts,
   imagePlatform,
   processArguments,
+  recoveryDatabaseFacts,
+  recoveryPasswordStatus,
   recreatedDatabaseFacts,
   toolVersions,
   uid,
@@ -178,6 +190,20 @@ function packageFacts({
       operatorPasswordBootstrap: /^scrypt-v1\./.test(
         recreatedDatabaseFacts.operatorPasswordVerifier,
       ),
+      operatorAuthorityRecovery: {
+        browserSessionsRevoked:
+          recoveryDatabaseFacts.activeBrowserSessions === 0,
+        failedLoginDelayCleared:
+          recoveryDatabaseFacts.failedLoginAttempts === null &&
+          recoveryDatabaseFacts.failedLoginUntil === null,
+        implementerTokenRevoked:
+          recoveryDatabaseFacts.activeImplementerToken === false,
+        machineAccessDisabled:
+          recoveryDatabaseFacts.activeImplementerToken === false,
+        passwordReplaced:
+          recoveryPasswordStatus.originalAuthenticated === false &&
+          recoveryPasswordStatus.replacementAuthenticated === true,
+      },
     },
     authenticatedHttpSmoke,
     restore: {
@@ -383,6 +409,13 @@ export function proveComposeService({ configuration, fixture }) {
       status: "available",
     },
   });
+  const { recoveryDatabaseFacts, recoveryPassword, recoveryPasswordStatus } =
+    proveOperatorAuthorityRecovery({
+      fixture,
+      originalPassword: bootstrapPassword,
+      port: environment.QUALITY_BAR_HTTP_PORT,
+      serviceName,
+    });
   const restoreSnapshot = /** @type {{manifestPath: string}} */ (
     jsonProbe(fixture, "create-restore-snapshot.mjs", [
       fixture.applicationVersion,
@@ -418,7 +451,7 @@ export function proveComposeService({ configuration, fixture }) {
       fixture,
       "authenticated-http-smoke.mjs",
       [environment.QUALITY_BAR_HTTP_PORT],
-      bootstrapPassword,
+      recoveryPassword,
     )
   );
   assert.equal(authenticatedHttpSmoke.loginStatus, 204);
@@ -432,11 +465,14 @@ export function proveComposeService({ configuration, fixture }) {
     httpFacts,
     imagePlatform,
     processArguments,
+    recoveryDatabaseFacts: /** @type {DatabaseFacts} */ (recoveryDatabaseFacts),
+    recoveryPasswordStatus,
     recreatedDatabaseFacts: restoredDatabaseFacts,
     toolVersions,
     uid,
   });
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(fixture.masterKey));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(bootstrapPassword));
+  assert.doesNotMatch(JSON.stringify(facts), new RegExp(recoveryPassword));
   console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(facts)}`);
 }

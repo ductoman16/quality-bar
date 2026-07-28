@@ -114,6 +114,7 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       fixtures: "github-rest:2026-03-10",
     },
     securityBoundary: {
+      authorityRecovery: "host-stdin-atomic-revocation",
       browserMutations: "exact-origin-and-session-bound-csrf",
       machineAuthentication: "authorization-bearer-only",
       plaintextHttp: "loopback-only",
