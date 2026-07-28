@@ -343,10 +343,11 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   const { application, origin } = await startApplication(
     temporaryDatabasePath(),
   );
-  const codexProcess = spawn(process.execPath, [
-    join(import.meta.dirname, "../fixtures/test-probes/idle-child.mjs"),
-  ]);
-  application.registerCodexProcess(codexProcess);
+  const codexProcess = application.startCodexProcess(() =>
+    spawn(process.execPath, [
+      join(import.meta.dirname, "../fixtures/test-probes/idle-child.mjs"),
+    ]),
+  );
   const codexExited = new Promise((resolve) =>
     codexProcess.once("exit", () => resolve(undefined)),
   );

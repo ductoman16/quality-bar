@@ -3,9 +3,12 @@
 const reserveFacts = document.getElementById("storage-reserve-facts");
 
 document.addEventListener("quality-bar:system-loaded", (event) => {
-  const storage = /** @type {any} */ (event).detail?.storage;
+  const detail = /** @type {any} */ (event).detail;
+  const storage = detail?.storage;
   if (
     !reserveFacts ||
+    !detail?.codex ||
+    !["available", "unavailable"].includes(detail.codex.status) ||
     !storage ||
     !Array.isArray(storage.filesystems) ||
     !Number.isSafeInteger(storage.reserve_bytes) ||
@@ -51,6 +54,12 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
         "Storage reserve unavailable: " +
         storage.reserve_bytes +
         " bytes reserved";
+    }
+  } else if (detail.codex.status === "unavailable") {
+    const attention = document.getElementById("attention");
+    if (attention) {
+      attention.hidden = false;
+      attention.textContent = "Codex unavailable";
     }
   }
 });

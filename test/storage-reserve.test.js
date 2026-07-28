@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   StorageReserveError,
   createStorageReserveGate,
+  requireStorageReservePause,
 } from "../src/storage-reserve.js";
 
 const GIB = 1024 ** 3;
@@ -106,5 +107,26 @@ test("a failed runtime measurement owns an exact filesystem error without inferr
       assert.equal("facts" in error, false);
       return true;
     },
+  );
+});
+
+test("scheduled Forgejo polling pauses low reserve and fails fast on measurement errors", () => {
+  assert.doesNotThrow(() =>
+    requireStorageReservePause(
+      new StorageReserveError(
+        "storage_reserve_unavailable",
+        "A required runtime filesystem is below the free-space reserve",
+        {},
+      ),
+    ),
+  );
+  const measurementFailure = new StorageReserveError(
+    "storage_reserve_check_failed",
+    "The state filesystem free-space reserve could not be measured",
+    {},
+  );
+  assert.throws(
+    () => requireStorageReservePause(measurementFailure),
+    (error) => error === measurementFailure,
   );
 });

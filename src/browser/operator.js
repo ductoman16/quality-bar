@@ -309,6 +309,7 @@ fetch("/api/v1/system")
       new CustomEvent("quality-bar:system-loaded", {
         detail: {
           catalog: system.codex.catalog,
+          codex: system.codex,
           csrfCookieName,
           storage: system.storage,
         },
@@ -341,11 +342,6 @@ fetch("/api/v1/system")
         ". Implementer token: " +
         system.implementer_token.status +
         ".";
-    }
-    const attention = document.getElementById("attention");
-    if (system.codex.status === "unavailable" && attention) {
-      attention.hidden = false;
-      attention.textContent = "Codex unavailable";
     }
   })
   .catch((failure) => {

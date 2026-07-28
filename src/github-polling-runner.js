@@ -4,7 +4,8 @@ import {
   createGitHubPollingService,
   isDefinitiveGitHubPollingFailure,
 } from "./github-polling.js";
-import { StorageReserveError } from "./storage-reserve.js";
+import { requireStorageReservePause } from "./storage-reserve.js";
+import { createStorageReservePollingCore } from "./storage-reserve-polling-core.js";
 
 /** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
@@ -23,32 +24,35 @@ export function createGitHubPollingRunner(
   ) {
     throw new TypeError("GitHub polling runner dependencies are invalid");
   }
-  const polling = createGitHubPollingService(durableCore, {
-    fetchPullRequests: ({ connection, credential, repository }) => {
-      if (typeof verifier.listPullRequests !== "function") {
-        throw new TypeError(
-          "GitHub verifier must provide pull request polling",
-        );
-      }
-      return verifier.listPullRequests(
-        {
-          app_id: connection.app_id,
-          app_slug: connection.app_slug,
-          client_id: credential.client_id,
-          owner: {
-            id: connection.principal_id,
-            login: connection.principal_login,
-            type: "User",
+  const polling = createGitHubPollingService(
+    createStorageReservePollingCore(durableCore, storageReserve),
+    {
+      fetchPullRequests: ({ connection, credential, repository }) => {
+        if (typeof verifier.listPullRequests !== "function") {
+          throw new TypeError(
+            "GitHub verifier must provide pull request polling",
+          );
+        }
+        return verifier.listPullRequests(
+          {
+            app_id: connection.app_id,
+            app_slug: connection.app_slug,
+            client_id: credential.client_id,
+            owner: {
+              id: connection.principal_id,
+              login: connection.principal_login,
+              type: "User",
+            },
+            pem: credential.pem,
           },
-          pem: credential.pem,
-        },
-        connection.installation_id,
-        repository,
-      );
+          connection.installation_id,
+          repository,
+        );
+      },
+      now: timestamp,
+      recordOwningFailure,
     },
-    now: timestamp,
-    recordOwningFailure,
-  });
+  );
   const preparedBaselines = new WeakMap();
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
@@ -174,8 +178,8 @@ export function createGitHubPollingRunner(
           const prepared = await polling.prepare(input, {
             baseline: row.baseline_status !== "complete",
           });
-          storageReserve.assertPollingObservationAdvanceAvailable();
           durableCore.transaction((/** @type {any} */ transaction) => {
+            storageReserve.assertPollingObservationAdvanceAvailable();
             polling.commitSuccess(transaction, row.connection_id, prepared);
           });
         } catch (error) {
@@ -283,9 +287,7 @@ export function createGitHubPollingRunner(
     try {
       await pollDue();
     } catch (error) {
-      if (!(error instanceof StorageReserveError)) {
-        throw error;
-      }
+      requireStorageReservePause(error);
     }
   }
 

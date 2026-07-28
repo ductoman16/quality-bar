@@ -349,21 +349,29 @@ export function createApplication({
         : { status: "available" };
     },
     workerSignal: storageBoundary.signal,
-    assertCodexStartAvailable() {
+    /** @param {() => unknown} admit */
+    admitWork(admit) {
+      if (typeof admit !== "function") {
+        throw new TypeError("work admission transition is required");
+      }
       if (!storageReserve) {
         throw startupFailure;
       }
-      return storageReserve.assertCodexStartAvailable();
+      storageReserve.assertWorkAdmissionAvailable();
+      return admit();
     },
-    assertWorkAdmissionAvailable() {
+    /** @param {() => import("node:child_process").ChildProcess} start */
+    startCodexProcess(start) {
+      if (typeof start !== "function") {
+        throw new TypeError("Codex start transition is required");
+      }
       if (!storageReserve) {
         throw startupFailure;
       }
-      return storageReserve.assertWorkAdmissionAvailable();
-    },
-    /** @param {import("node:child_process").ChildProcess} childProcess */
-    registerCodexProcess(childProcess) {
+      storageReserve.assertCodexStartAvailable();
+      const childProcess = start();
       storageBoundary.registerCodexProcess(childProcess);
+      return childProcess;
     },
     freezeWaiverAdjudicatorConfiguration() {
       return waiverAdjudicatorConfiguration.freezeForAdjudication();

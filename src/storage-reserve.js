@@ -24,6 +24,17 @@ export class StorageReserveError extends Error {
   }
 }
 
+/** @param {unknown} error */
+export function requireStorageReservePause(error) {
+  if (
+    error instanceof StorageReserveError &&
+    error.code === "storage_reserve_unavailable"
+  ) {
+    return;
+  }
+  throw error;
+}
+
 /** @param {string} path */
 function readFilesystem(path) {
   return statfsSync(path, { bigint: true });
@@ -82,7 +93,7 @@ export function createStorageReserveGate({
       } catch (cause) {
         throw new StorageReserveError(
           "storage_reserve_check_failed",
-          `The ${filesystem} filesystem free-space reserve could not be measured`,
+          `The ${filesystem} filesystem free-space reserve at ${path} could not be measured`,
           { action, filesystem, path },
           { cause },
         );
@@ -102,7 +113,7 @@ export function createStorageReserveGate({
       } catch (cause) {
         throw new StorageReserveError(
           "storage_reserve_check_failed",
-          `The ${filesystem} filesystem returned invalid free-space facts`,
+          `The ${filesystem} filesystem at ${path} returned invalid free-space facts`,
           { action, filesystem, path },
           { cause },
         );

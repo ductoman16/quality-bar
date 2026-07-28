@@ -60,6 +60,10 @@ test("System renders exact state and checkout reserve facts and exposes low-spac
 
   loaded({
     detail: {
+      codex: {
+        error: "codex_authentication_unavailable",
+        status: "unavailable",
+      },
       storage: {
         filesystems: [
           {

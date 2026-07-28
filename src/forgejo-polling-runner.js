@@ -5,7 +5,11 @@ import {
   isRepositoryOwnedDefinitiveForgejoPollingFailure,
 } from "./forgejo-polling.js";
 import { readForgejoPollingGeneration } from "./forgejo-polling-generation.js";
-import { StorageReserveError } from "./storage-reserve.js";
+import {
+  StorageReserveError,
+  requireStorageReservePause,
+} from "./storage-reserve.js";
+import { createStorageReservePollingCore } from "./storage-reserve-polling-core.js";
 
 /** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
@@ -23,15 +27,18 @@ export function createForgejoPollingRunner(
   ) {
     throw new TypeError("Forgejo polling runner dependencies are invalid");
   }
-  const polling = createForgejoPollingService(durableCore, {
-    fetchPullRequests: ({ connection, credential, repository }) =>
-      verifier.listPullRequests(
-        { baseUrl: connection.base_url, token: credential },
-        repository,
-      ),
-    now: timestamp,
-    recordOwningFailure,
-  });
+  const polling = createForgejoPollingService(
+    createStorageReservePollingCore(durableCore, storageReserve),
+    {
+      fetchPullRequests: ({ connection, credential, repository }) =>
+        verifier.listPullRequests(
+          { baseUrl: connection.base_url, token: credential },
+          repository,
+        ),
+      now: timestamp,
+      recordOwningFailure,
+    },
+  );
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timer = null;
   let started = false;
@@ -274,8 +281,9 @@ export function createForgejoPollingRunner(
             Number.isSafeInteger(error.attemptedAt)
           ) {
             const committed = durableCore.transaction(
-              (/** @type {any} */ transaction) =>
-                polling.commitFailure(
+              (/** @type {any} */ transaction) => {
+                storageReserve.assertPollingObservationAdvanceAvailable();
+                return polling.commitFailure(
                   transaction,
                   row.connection_id,
                   forgeRepositoryIds,
@@ -285,7 +293,8 @@ export function createForgejoPollingRunner(
                   Number(error.attemptedAt),
                   baseline,
                   generation,
-                ),
+                );
+              },
             );
             if (committed) {
               currentGenerations.set(row.connection_id, generation + 1);
@@ -362,17 +371,17 @@ export function createForgejoPollingRunner(
   }
 
   async function runScheduled() {
+    let delay = FORGEJO_POLL_INTERVAL_MS;
     try {
       await runDue();
+      delay = nextDelay();
     } catch (error) {
-      if (!(error instanceof StorageReserveError)) {
-        throw error;
-      }
+      requireStorageReservePause(error);
     }
     if (!started) {
       return;
     }
-    timer = setTimeout(() => void runScheduled(), nextDelay());
+    timer = setTimeout(() => void runScheduled(), delay);
     timer.unref();
   }
 

@@ -63,3 +63,81 @@ export function createAvailableGitHubPollingRunner(durableCore, options) {
     storageReserve: availableStorageReserve,
   });
 }
+
+/** @param {any} core */
+export function seedDueGitHubPoll(core) {
+  core.run(
+    `INSERT INTO github_connections (
+       id, app_id, app_slug, installation_id, principal_id, principal_login,
+       api_profile, permissions, capabilities, repository_count,
+       created_at, verified_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "connection-1",
+    47,
+    "quality-bar",
+    73,
+    91,
+    "operator",
+    "github-rest:2026-03-10",
+    "{}",
+    "{}",
+    1,
+    1,
+    1,
+  );
+  core.run(
+    "INSERT INTO github_connection_credentials (connection_id, encrypted_credential, created_at) VALUES (?, ?, ?)",
+    "connection-1",
+    "encrypted",
+    1,
+  );
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://github.com/operator/private.git",
+    1,
+    1,
+  );
+  core.run(
+    `INSERT INTO github_connection_verifications (
+       id, connection_id, trigger, outcome, api_profile, principal_id,
+       principal_login, permissions, capabilities, affected_repository_ids,
+       repository_checks, repositories, verified_at
+     ) VALUES (?, ?, 'onboarding', 'success', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "verification-1",
+    "connection-1",
+    "github-rest:2026-03-10",
+    91,
+    "operator",
+    "{}",
+    "{}",
+    "[101]",
+    '[{"repository_id":101,"outcome":"success"}]',
+    '[{"id":101}]',
+    1,
+  );
+  core.run(
+    `INSERT INTO github_repositories (
+       repository_id, connection_id, forge_repository_id, name,
+       api_url, web_url, verification_id
+     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    "repository-1",
+    "connection-1",
+    101,
+    "operator/private",
+    "https://api.github.com/repos/operator/private",
+    "https://github.com/operator/private",
+    "verification-1",
+  );
+  core.run(
+    `INSERT INTO github_repository_polls (
+       connection_id, forge_repository_id, baseline_status, last_success_at,
+       next_attempt_at, snapshot
+     ) VALUES (?, ?, 'complete', ?, ?, ?)`,
+    "connection-1",
+    101,
+    5_000,
+    65_000,
+    "[]",
+  );
+}

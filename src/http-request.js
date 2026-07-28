@@ -220,7 +220,8 @@ export function isUnavailableError(error) {
     error instanceof Error &&
     "code" in error &&
     typeof error.code === "string" &&
-    error.code.endsWith("_unavailable")
+    (error.code.endsWith("_unavailable") ||
+      error.code === "storage_reserve_check_failed")
   );
 }
 
