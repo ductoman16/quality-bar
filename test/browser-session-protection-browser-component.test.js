@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { createUnavailableReviewService } from "../src/review.js";
 import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
+import { createUnavailableEvaluationService } from "../src/evaluation.js";
 import { createApplicationServer } from "../src/server.js";
 import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
 import { startApplication } from "./browser-session-component-support.js";
@@ -214,6 +215,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
   const failure = new Error("unexpected recorder implementation detail");
   const server = createApplicationServer({
     browserOrigin: "http://127.0.0.1:3000",
+    evaluations: createUnavailableEvaluationService(
+      new Error("unused Evaluation"),
+    ),
     githubConnections: createUnavailableGitHubConnectionService(
       new Error("unused GitHub Connection"),
     ),

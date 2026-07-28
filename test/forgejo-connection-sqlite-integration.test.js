@@ -24,7 +24,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  assert.equal(core.facts.schemaVersion, 21);
+  assert.equal(core.facts.schemaVersion, 22);
   const service = createForgejoConnectionService(core, {
     storageReserve: availableStorageReserve,
     createId: (() => {
@@ -54,6 +54,10 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
     base_url: "https://FORGEJO.EXAMPLE:443/",
     repository_ids: [11],
     token: "operator-created-pat",
+  });
+  assert.deepEqual(service.acquireRepositoryGitCredential("connection-1"), {
+    token: "operator-created-pat",
+    username: "oauth2",
   });
   const { verification_history: verificationHistory, ...projection } =
     /** @type {any} */ (connection);

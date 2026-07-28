@@ -1,0 +1,241 @@
+const operator = /** @type {any} */ (Reflect.get(window, "qualityBarOperator"));
+if (
+  !operator ||
+  typeof operator.requiredElement !== "function" ||
+  typeof operator.csrfToken !== "function" ||
+  typeof operator.readRepositoryCollection !== "function"
+) {
+  throw new Error("evaluation_operator_boundary_unavailable");
+}
+
+const form = operator.requiredElement("evaluation-create-form");
+const repositoryControl = operator.requiredElement("evaluation-repository");
+const loading = operator.requiredElement("evaluation-loading");
+const empty = operator.requiredElement("evaluation-empty");
+const state = operator.requiredElement("evaluation-state");
+const active = operator.requiredElement("evaluation-active");
+const recent = operator.requiredElement("evaluation-recent");
+const attention = operator.requiredElement("evaluation-attention");
+const more = operator.requiredElement("evaluation-more");
+const creationStatus = operator.requiredElement("evaluation-create-status");
+/** @type {string | null} */
+let nextCursor = null;
+
+/** @param {string} id */
+function controlValue(id) {
+  const control = operator.requiredElement(id);
+  if (!("value" in control) || typeof control.value !== "string") {
+    throw new Error("evaluation_control_unavailable");
+  }
+  return control.value;
+}
+
+/** @param {any} evaluation */
+async function renderEvaluation(evaluation) {
+  if (
+    !evaluation ||
+    typeof evaluation.id !== "string" ||
+    typeof evaluation.repository?.url !== "string" ||
+    typeof evaluation.base_selector?.type !== "string" ||
+    typeof evaluation.base_selector.value !== "string" ||
+    typeof evaluation.head_selector?.type !== "string" ||
+    typeof evaluation.head_selector.value !== "string" ||
+    typeof evaluation.base_commit !== "string" ||
+    typeof evaluation.head_commit !== "string" ||
+    typeof evaluation.execution_status !== "string" ||
+    typeof evaluation.effective_outcome !== "string" ||
+    !(
+      evaluation.next_attempt_at === undefined ||
+      evaluation.next_attempt_at === null ||
+      typeof evaluation.next_attempt_at === "string"
+    )
+  ) {
+    throw new Error("evaluation_collection_invalid");
+  }
+  const summary =
+    evaluation.repository.url +
+    " — explicit " +
+    evaluation.base_selector.type +
+    " " +
+    evaluation.base_selector.value +
+    " (" +
+    evaluation.base_commit +
+    ") → " +
+    evaluation.head_selector.type +
+    " " +
+    evaluation.head_selector.value +
+    " (" +
+    evaluation.head_commit +
+    ") — " +
+    (evaluation.execution_status === "queued" && evaluation.next_attempt_at
+      ? "delayed until " + evaluation.next_attempt_at
+      : evaluation.execution_status) +
+    " — " +
+    evaluation.effective_outcome;
+  const target = ["queued", "running"].includes(evaluation.execution_status)
+    ? active
+    : evaluation.execution_status === "completed" &&
+        !["advisory", "blocking", "error"].includes(
+          evaluation.effective_outcome,
+        )
+      ? recent
+      : attention;
+  const row = document.createElement("li");
+  row.textContent = summary;
+  const resultState = document.createElement("div");
+  row.append(resultState);
+  target.append(row);
+  if (evaluation.execution_status !== "completed") {
+    if (["queued", "running"].includes(evaluation.execution_status)) {
+      resultState.textContent = "Result not ready";
+    }
+    return;
+  }
+  let resultResponse;
+  try {
+    resultResponse = await fetch(
+      "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/result",
+    );
+  } catch {
+    resultState.textContent = "Result failed to load";
+    return;
+  }
+  if (resultResponse.status === 409) {
+    resultState.textContent = "Result not ready";
+    return;
+  }
+  if (!resultResponse.ok) {
+    try {
+      const failure = await resultResponse.json();
+      resultState.textContent = failure.error.message;
+    } catch {
+      resultState.textContent = "Result failed to load";
+    }
+    return;
+  }
+  try {
+    const result = await resultResponse.json();
+    resultState.textContent = "Result " + JSON.stringify(result);
+  } catch {
+    resultState.textContent = "Result failed to load";
+  }
+}
+
+/** @param {string | undefined} cursor */
+async function loadEvaluations(cursor = undefined) {
+  const initial = cursor === undefined;
+  if (initial) {
+    loading.hidden = false;
+    empty.hidden = true;
+    state.hidden = true;
+    more.hidden = true;
+    active.replaceChildren();
+    recent.replaceChildren();
+    attention.replaceChildren();
+  }
+  more.disabled = true;
+  let response;
+  try {
+    response = await fetch(
+      "/api/v1/evaluations" +
+        (cursor === undefined ? "" : "?cursor=" + encodeURIComponent(cursor)),
+    );
+  } catch {
+    loading.hidden = true;
+    state.hidden = false;
+    state.textContent = "Evaluations failed to load";
+    return;
+  }
+  loading.hidden = true;
+  if (!response.ok) {
+    const failure = await response.json();
+    state.hidden = false;
+    state.textContent =
+      response.status === 503
+        ? "Evaluations unavailable: " + failure.error.message
+        : failure.error.message;
+    return;
+  }
+  const collection = await response.json();
+  if (
+    !Array.isArray(collection.items) ||
+    !(
+      collection.next_cursor === null ||
+      (typeof collection.next_cursor === "string" &&
+        collection.next_cursor.length > 0)
+    )
+  ) {
+    throw new Error("evaluation_collection_invalid");
+  }
+  empty.hidden = !initial || collection.items.length !== 0;
+  await Promise.all(collection.items.map(renderEvaluation));
+  nextCursor = collection.next_cursor;
+  more.hidden = nextCursor === null;
+  more.disabled = false;
+}
+
+more.addEventListener("click", async () => {
+  if (nextCursor === null) {
+    throw new Error("evaluation_cursor_unavailable");
+  }
+  await loadEvaluations(nextCursor);
+});
+
+async function loadRepositories() {
+  const collection = await operator.readRepositoryCollection();
+  if (collection.failure) {
+    state.hidden = false;
+    state.textContent = (await collection.failure.json()).error.message;
+    return;
+  }
+  repositoryControl.replaceChildren();
+  for (const repository of collection.items) {
+    if (
+      typeof repository?.id !== "string" ||
+      typeof repository.url !== "string"
+    ) {
+      throw new Error("evaluation_repository_collection_invalid");
+    }
+    const option = document.createElement("option");
+    option.value = repository.id;
+    option.textContent = repository.url;
+    repositoryControl.append(option);
+  }
+  repositoryControl.disabled = collection.items.length === 0;
+}
+
+form.addEventListener("submit", async (/** @type {SubmitEvent} */ event) => {
+  event.preventDefault();
+  creationStatus.textContent = "";
+  const repositoryId = controlValue("evaluation-repository");
+  const response = await fetch(
+    "/api/v1/repositories/" + encodeURIComponent(repositoryId) + "/evaluations",
+    {
+      body: JSON.stringify({
+        base: {
+          type: controlValue("evaluation-base-type"),
+          value: controlValue("evaluation-base-value"),
+        },
+        head: {
+          type: controlValue("evaluation-head-type"),
+          value: controlValue("evaluation-head-value"),
+        },
+      }),
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": crypto.randomUUID(),
+        "x-quality-bar-csrf": operator.csrfToken(),
+      },
+      method: "POST",
+    },
+  );
+  if (!response.ok) {
+    await operator.displayMutationFailure(response);
+    return;
+  }
+  const evaluation = await response.json();
+  creationStatus.textContent = "Evaluation " + evaluation.id + " completed.";
+  await loadEvaluations();
+});
+
+Promise.all([loadRepositories(), loadEvaluations()]);

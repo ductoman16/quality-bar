@@ -30,6 +30,7 @@ import {
 } from "./forgejo-polling-schema.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
+import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -153,8 +154,8 @@ export function initializeOrValidateSchema(
       ${FORGEJO_CONNECTION_SCHEMA}
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
-      INSERT INTO quality_bar_metadata (key, value)
-      VALUES ('schema_version', '${SCHEMA_VERSION}');
+      ${EVALUATION_SCHEMA}
+      INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
       COMMIT;
     `);
@@ -357,6 +358,8 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version === 20) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
+  } else if (version === 21) {
+    schemaMigration.migrateSchema(database, "");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

@@ -242,7 +242,7 @@ function repositoryResourceMatch(uri) {
  *     requestId: string,
  *     resourceIds: string[]
  *   }) => void,
- *   repositories: ReturnType<typeof import("./repository.js").createRepositoryService>,
+ *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors">,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>
  * }} dependencies
  */

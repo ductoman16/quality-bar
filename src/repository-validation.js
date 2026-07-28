@@ -2,12 +2,15 @@ export class RepositoryError extends Error {
   /**
    * @param {string} code
    * @param {string} message
-   * @param {ErrorOptions} [options]
+   * @param {ErrorOptions & {unavailable?: boolean}} [options]
    */
   constructor(code, message, options) {
     super(message, options);
     this.name = "RepositoryError";
     this.code = code;
+    if (options?.unavailable === true) {
+      this.unavailable = true;
+    }
   }
 }
 
@@ -19,6 +22,16 @@ export class RepositoryError extends Error {
  */
 export function fail(code, message, cause) {
   throw new RepositoryError(code, message, { cause });
+}
+
+/**
+ * @param {string} code
+ * @param {string} message
+ * @param {unknown} [cause]
+ * @returns {never}
+ */
+export function failUnavailable(code, message, cause) {
+  throw new RepositoryError(code, message, { cause, unavailable: true });
 }
 
 /**
@@ -191,6 +204,9 @@ export function assertRepositoryAcceptsNewWork(repository) {
     if (!repository.healthError) {
       throw new TypeError("Repository health error is unavailable");
     }
-    fail(repository.healthError.code, repository.healthError.message);
+    failUnavailable(
+      repository.healthError.code,
+      repository.healthError.message,
+    );
   }
 }

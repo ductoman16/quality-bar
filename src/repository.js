@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 
+import { CHECKOUTS_PATH } from "./installation-environment.js";
 import { createRepositoryCollection } from "./repository-collection.js";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
-import { verifyRepositoryRead } from "./repository-git.js";
+import {
+  resolvePushedCommitSelectors,
+  verifyRepositoryRead,
+} from "./repository-git.js";
 import {
   readRepositoryResource,
   REPOSITORY_SELECTION,
@@ -10,6 +14,7 @@ import {
 import {
   assertRepositoryAcceptsNewWork,
   fail,
+  failUnavailable,
   normalizeRepositoryCredentialRotation,
   normalizeRepositoryLifecycleChange,
   normalizePublicRepositoryUrl,
@@ -17,6 +22,7 @@ import {
   RepositoryError,
 } from "./repository-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
+import { createRepositorySelectorResolver } from "./repository-selector.js";
 
 export { RepositoryError };
 
@@ -35,11 +41,14 @@ export { RepositoryError };
  *   createId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
+ *   objectDatabaseRoot?: string,
  *   verifyRead?: (
  *     normalizedUrl: string,
  *     credential?: {token: string, username: string}
  *   ) => Promise<void>
  *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
+ *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
+ *   resolveSelectors?: typeof resolvePushedCommitSelectors
  * }} options
  */
 export function createRepositoryService(
@@ -48,8 +57,11 @@ export function createRepositoryService(
     createId = randomUUID,
     masterKey,
     now = () => Date.now(),
+    objectDatabaseRoot = CHECKOUTS_PATH,
     verifyRead = verifyRepositoryRead,
     verifyForgeRepository,
+    resolveForgeCredential,
+    resolveSelectors = resolvePushedCommitSelectors,
   },
 ) {
   if (
@@ -61,7 +73,10 @@ export function createRepositoryService(
   if (
     typeof createId !== "function" ||
     typeof now !== "function" ||
-    typeof verifyRead !== "function"
+    typeof objectDatabaseRoot !== "string" ||
+    objectDatabaseRoot.length === 0 ||
+    typeof verifyRead !== "function" ||
+    typeof resolveSelectors !== "function"
   ) {
     throw new TypeError("Repository dependencies must be functions");
   }
@@ -107,6 +122,33 @@ export function createRepositoryService(
     return row;
   }
 
+  /** @param {string} id */
+  function requireAcceptsNewWork(id) {
+    const row = find(id);
+    const repository = readRepositoryResource(row);
+    if (
+      "forge_repository_id" in repository &&
+      row.forge_connection_health === "error"
+    ) {
+      if (
+        typeof row.forge_connection_health_error_code !== "string" ||
+        typeof row.forge_connection_health_error_message !== "string"
+      ) {
+        throw new TypeError("Forge Connection health error is invalid");
+      }
+      failUnavailable(
+        row.forge_connection_health_error_code,
+        row.forge_connection_health_error_message,
+      );
+    }
+    assertRepositoryAcceptsNewWork({
+      health: repository.health,
+      healthError: repository.health_error,
+      lifecycle: repository.lifecycle,
+    });
+    return repository;
+  }
+
   const repositoryCollection = createRepositoryCollection(
     masterKey,
     ({ after, limit }) => {
@@ -131,6 +173,14 @@ export function createRepositoryService(
         .map(readRepositoryResource);
     },
   );
+  const resolvePushedSelectors = createRepositorySelectorResolver({
+    credentialCipher,
+    find,
+    objectDatabaseRoot,
+    requireAcceptsNewWork,
+    resolveForgeCredential,
+    resolveSelectors,
+  });
 
   return {
     list() {
@@ -276,32 +326,8 @@ export function createRepositoryService(
       });
       return readRepositoryResource(find(id));
     },
-    /** @param {string} id */
-    requireAcceptsNewWork(id) {
-      const row = find(id);
-      const repository = readRepositoryResource(row);
-      if (
-        "forge_repository_id" in repository &&
-        row.forge_connection_health === "error"
-      ) {
-        if (
-          typeof row.forge_connection_health_error_code !== "string" ||
-          typeof row.forge_connection_health_error_message !== "string"
-        ) {
-          throw new TypeError("Forge Connection health error is invalid");
-        }
-        fail(
-          row.forge_connection_health_error_code,
-          row.forge_connection_health_error_message,
-        );
-      }
-      assertRepositoryAcceptsNewWork({
-        health: repository.health,
-        healthError: repository.health_error,
-        lifecycle: repository.lifecycle,
-      });
-      return repository;
-    },
+    requireAcceptsNewWork,
+    resolvePushedSelectors,
     /**
      * @param {string} id
      * @param {unknown} request
@@ -409,6 +435,9 @@ export function createUnavailableRepositoryService(error) {
       throw error;
     },
     requireAcceptsNewWork() {
+      throw error;
+    },
+    async resolvePushedSelectors() {
       throw error;
     },
     async setLifecycle() {
