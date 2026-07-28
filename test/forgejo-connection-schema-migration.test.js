@@ -17,6 +17,8 @@ test("SQLite preserves non-default Forgejo ports during v18 migration", (context
   for (const [index, baseUrl, expected] of [
     [0, "http://FORGEJO.EXAMPLE:443/", "http://forgejo.example:443"],
     [1, "https://FORGEJO.EXAMPLE:80/", "https://forgejo.example:80"],
+    [2, "http://FORGEJO.EXAMPLE:080/", "http://forgejo.example"],
+    [3, "https://FORGEJO.EXAMPLE:0443/", "https://forgejo.example"],
   ]) {
     const databasePath = join(directory, `quality-bar-${index}.sqlite3`);
     const prior = openDurableCore(databasePath);
