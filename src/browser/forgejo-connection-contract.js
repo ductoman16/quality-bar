@@ -147,8 +147,8 @@ function validForgejoConnection(value) {
 function forgejoVerificationText(verification) {
   const time = new Date(verification.verified_at).toISOString();
   const principal = verification.principal
-    ? `principal: ${verification.principal.login} (${verification.principal.id})`
-    : "principal: not completed";
+    ? `Repository owner: ${verification.principal.login} (${verification.principal.id})`
+    : "Repository owner: not completed";
   const scopes = verification.scopes
     ? `required authorities: ${verification.scopes.join(", ")}`
     : "required authorities: not completed";

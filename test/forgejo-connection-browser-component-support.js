@@ -34,6 +34,26 @@ export function assertRegisteredForgejoState(controls) {
   assert.match(history.children[0].textContent, /operator\/private: success/);
 }
 
+/** @param {{controls: Map<string, any>, currentFailure: {value: Error | undefined}, ready: () => void}} input */
+export async function assertForgejoLoadFailureState({
+  controls,
+  currentFailure,
+  ready,
+}) {
+  controls.get("forgejo-connection-details").hidden = false;
+  controls.get("forgejo-connection-lifecycle-form").hidden = false;
+  currentFailure.value = new Error("Forgejo Connection load unavailable");
+  ready();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(controls.get("forgejo-connection-details").hidden, true);
+  assert.equal(controls.get("forgejo-connection-form").hidden, true);
+  assert.equal(controls.get("forgejo-connection-lifecycle-form").hidden, true);
+  assert.equal(
+    controls.get("forgejo-connection-error").textContent,
+    "Forgejo Connection load unavailable",
+  );
+}
+
 export const validForgejoConnection = {
   api_profile: "forgejo-v16",
   base_url: "https://forgejo.example",

@@ -68,7 +68,8 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
   /** @type {any} */
   let core;
   let primaryFailure;
-  let cleanupFailure;
+  /** @type {unknown[]} */
+  const cleanupFailures = [];
   try {
     docker([
       "run",
@@ -215,20 +216,36 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     );
   } catch (error) {
     primaryFailure = error;
-    throw error;
   } finally {
-    service?.destroy();
-    core?.close();
+    try {
+      service?.destroy();
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    try {
+      core?.close();
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
     try {
       docker(["rm", "--force", container]);
     } catch (error) {
-      if (!primaryFailure) {
-        cleanupFailure = error;
-      }
+      cleanupFailures.push(error);
     }
-    rmSync(directory, { force: true, recursive: true });
+    try {
+      rmSync(directory, { force: true, recursive: true });
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
   }
-  if (cleanupFailure) {
-    throw cleanupFailure;
+  const failures = [
+    ...(primaryFailure === undefined ? [] : [primaryFailure]),
+    ...cleanupFailures,
+  ];
+  if (failures.length > 1) {
+    throw new AggregateError(failures, "Forgejo v16 service proof failed");
+  }
+  if (failures.length === 1) {
+    throw failures[0];
   }
 });

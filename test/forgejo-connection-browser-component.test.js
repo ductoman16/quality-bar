@@ -9,6 +9,7 @@ import {
   assertFailedForgejoReactivationState,
   assertForgejoPage,
   assertForgejoContract,
+  assertForgejoLoadFailureState,
   assertRegisteredForgejoState,
   failedForgejoReactivation,
   neverUsedForgejoConnection,
@@ -401,4 +402,5 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(details.hidden, true);
   assert.equal(form.hidden, false);
   assert.equal(status.textContent, "Forgejo Connection deleted.");
+  await assertForgejoLoadFailureState({ controls, currentFailure, ready });
 });

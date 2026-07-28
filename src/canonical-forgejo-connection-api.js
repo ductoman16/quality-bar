@@ -28,7 +28,11 @@ export function canonicalForgejoConnectionPaths(
       },
       id: { type: "string" },
       lifecycle: { enum: ["enabled", "retired"], type: "string" },
-      principal: { type: "object" },
+      principal: {
+        description:
+          "Repository-owner identity observed through the Repository-restricted PAT",
+        type: "object",
+      },
       reported_version: { pattern: "^16\\.", type: "string" },
       scopes: {
         description:
@@ -66,6 +70,8 @@ export function canonicalForgejoConnectionPaths(
             id: { minLength: 1, type: "string" },
             outcome: { enum: ["success", "error"], type: "string" },
             principal: {
+              description:
+                "Repository-owner identity observed through the Repository-restricted PAT",
               oneOf: [{ type: "object" }, { type: "null" }],
             },
             reported_version: {

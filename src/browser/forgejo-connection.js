@@ -162,6 +162,7 @@ window.addEventListener("DOMContentLoaded", () => {
     try {
       await refreshForgejoConnection();
     } catch (error) {
+      hideForgejoConnectionState();
       showForgejoError(forgejoContract.forgejoErrorMessage(error));
     }
   }
