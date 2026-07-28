@@ -364,14 +364,16 @@ export function proveComposeService({ configuration, fixture }) {
       filesystems: [
         {
           available_bytes:
-            authenticatedHttpSmoke.storage.filesystems[0].available_bytes,
+            initialAuthenticatedHttpSmoke.storage.filesystems[0]
+              .available_bytes,
           filesystem: "state",
           path: "/var/lib/quality-bar",
           status: "available",
         },
         {
           available_bytes:
-            authenticatedHttpSmoke.storage.filesystems[1].available_bytes,
+            initialAuthenticatedHttpSmoke.storage.filesystems[1]
+              .available_bytes,
           filesystem: "checkouts",
           path: "/var/cache/quality-bar/checkouts",
           status: "available",
