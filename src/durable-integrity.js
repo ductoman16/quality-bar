@@ -39,7 +39,7 @@ export function isFatalSqliteWrite(error) {
 }
 
 /** @param {unknown} error */
-function isSqliteCorruption(error) {
+export function isSqliteCorruption(error) {
   const resultCode =
     error instanceof Error &&
     "errcode" in error &&

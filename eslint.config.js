@@ -120,6 +120,7 @@ export default [
   {
     files: [
       "fixtures/package/authenticated-http-smoke.mjs",
+      "fixtures/package/backup-facts.mjs",
       "fixtures/package/database-facts.mjs",
       "fixtures/package/filesystem-facts.mjs",
       "fixtures/package/http-facts.mjs",
@@ -134,6 +135,7 @@ export default [
       "scripts/verification/harness.mjs",
       "src/healthcheck.js",
       "src/main.js",
+      "src/operator-password-bootstrap.js",
       "test/operator-browser-smoke.test.js",
       "test/verification-harness.test.js",
     ],

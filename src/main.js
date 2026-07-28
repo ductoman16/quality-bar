@@ -1,11 +1,14 @@
-import { createApplication } from "./application.js";
+import { createInstalledApplication } from "./installed-application.js";
 import { readHttpPort } from "./http-port.js";
 
 process.umask(0o077);
 
 const port = readHttpPort(process.env.QUALITY_BAR_HTTP_PORT);
 const databasePath = "/var/lib/quality-bar/quality-bar.sqlite3";
-const application = createApplication({ databasePath });
+const application = await createInstalledApplication({
+  applicationVersion: process.env.QUALITY_BAR_VERSION,
+  databasePath,
+});
 const { server } = application;
 
 server.listen(port, "127.0.0.1", () => {

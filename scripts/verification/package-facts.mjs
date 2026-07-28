@@ -55,6 +55,15 @@
  *     schemaVersion?: number,
  *     synchronous?: string,
  *   },
+ *   backup?: {
+ *     applicationVersion?: string,
+ *     count?: number,
+ *     integrity?: string,
+ *     keyIdentity?: string,
+ *     kind?: string,
+ *     masterKeyCopied?: boolean,
+ *     schemaVersion?: number,
+ *   },
  * }} PackageFacts
  */
 
@@ -232,6 +241,29 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.database?.synchronous === "full",
       "database.synchronous must equal full",
+    ],
+    [
+      packageFacts?.backup?.applicationVersion === applicationVersion,
+      "backup.applicationVersion must match the application version",
+    ],
+    [packageFacts?.backup?.count === 1, "backup.count must equal 1"],
+    [
+      packageFacts?.backup?.integrity === "ok",
+      "backup.integrity must equal ok",
+    ],
+    [
+      typeof packageFacts?.backup?.keyIdentity === "string" &&
+        /^sha256:[0-9a-f]{64}$/.test(packageFacts.backup.keyIdentity),
+      "backup.keyIdentity must be a SHA-256 digest",
+    ],
+    [packageFacts?.backup?.kind === "daily", "backup.kind must equal daily"],
+    [
+      packageFacts?.backup?.masterKeyCopied === false,
+      "backup.masterKeyCopied must equal false",
+    ],
+    [
+      packageFacts?.backup?.schemaVersion === SCHEMA_VERSION,
+      `backup.schemaVersion must equal ${SCHEMA_VERSION}`,
     ],
   ];
 
