@@ -104,6 +104,7 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let timestamp = 1_000;
+  let pollCredentialFails = false;
   let releaseFailure = () => {};
   let markFailureStarted = () => {};
   const failureStarted = new Promise((resolve) => {
@@ -126,7 +127,13 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
     masterKey: Buffer.alloc(32, 8),
     now: () => timestamp,
     verifier: {
-      async listPullRequests() {
+      async listPullRequests(connection) {
+        if (pollCredentialFails && connection.token === "original-pat") {
+          throw Object.assign(new Error("Forgejo credential is invalid"), {
+            code: "forgejo_connection_credential_invalid",
+            repositoryId: 11,
+          });
+        }
         return [];
       },
       async verify({ token }) {
@@ -153,10 +160,14 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
     repository_ids: [11],
     token: "original-pat",
   });
+  pollCredentialFails = true;
+  timestamp = 61_000;
+  await service.runPolling();
+  assert.equal(service.read()?.health, "error");
 
   const stale = service.rotate({ token: "stale-failing-pat" });
   await failureStarted;
-  timestamp = 2_000;
+  timestamp = 62_000;
   const current =
     /** @type {NonNullable<Awaited<ReturnType<typeof service.read>>>} */ (
       await service.rotate({ token: "current-replacement-pat" })
@@ -167,6 +178,23 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
   });
   assert.equal(current?.health, "healthy");
   assert.deepEqual(service.read()?.health_error, null);
+  assert.equal(
+    core.get(
+      "SELECT count(*) AS count FROM quality_bar_metadata WHERE key LIKE 'forgejo_poll_gate:%'",
+    )?.count,
+    0,
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT baseline_status, error_code, next_attempt_at
+         FROM forgejo_repository_polls`,
+    ),
+    {
+      baseline_status: "complete",
+      error_code: null,
+      next_attempt_at: 122_000,
+    },
+  );
   assert.deepEqual(
     core.all(
       "SELECT id, error_code FROM forgejo_connection_verifications ORDER BY rowid",

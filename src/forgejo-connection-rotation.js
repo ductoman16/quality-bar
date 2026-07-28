@@ -59,11 +59,11 @@ export function verifiedForgejoRepositories(verification, repositoryIds) {
 }
 
 /**
- * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, read: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
+ * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: Function, prepareBaseline: Function}, read: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
  * @param {unknown} input
  */
 export async function rotateForgejoConnection(
-  { cipher, createId, durableCore, now, read, verifier },
+  { cipher, createId, durableCore, now, polling, read, verifier },
   input,
 ) {
   const selected = rotationRequest(input);
@@ -85,7 +85,8 @@ export async function rotateForgejoConnection(
     throw new TypeError("Forgejo Connection credential row is invalid");
   }
   const activeRepositories = durableCore.all(
-    `SELECT forgejo_repositories.forge_repository_id
+    `SELECT forgejo_repositories.forge_repository_id,
+            forgejo_repositories.name
        FROM forgejo_repositories
        JOIN repositories ON repositories.id = forgejo_repositories.repository_id
        WHERE forgejo_repositories.connection_id = ?
@@ -101,7 +102,8 @@ export async function rotateForgejoConnection(
         !repository ||
         typeof repository.forge_repository_id !== "number" ||
         !Number.isSafeInteger(repository.forge_repository_id) ||
-        repository.forge_repository_id <= 0,
+        repository.forge_repository_id <= 0 ||
+        typeof repository.name !== "string",
     )
   ) {
     fail(
@@ -162,6 +164,15 @@ export async function rotateForgejoConnection(
         "Replacement Forgejo PAT does not match the configured Connection",
       );
     }
+    const preparedBaseline = await polling.prepareBaseline(
+      { base_url: connection.base_url, id: connection.id },
+      selected.token,
+      activeRepositories.map((/** @type {any} */ repository) => ({
+        full_name: repository?.name,
+        id: repository?.forge_repository_id,
+      })),
+      { ignoreGate: true },
+    );
     const encrypted = cipher.encrypt(connection.id, selected.token);
     durableCore.transaction((/** @type {any} */ transaction) => {
       transaction.run(
@@ -237,6 +248,7 @@ export async function rotateForgejoConnection(
           );
         }
       }
+      polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {
     if (

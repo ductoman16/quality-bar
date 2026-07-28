@@ -12,6 +12,18 @@ export function repositoryEvidence(id, name) {
   };
 }
 
+/** @param {any[]} repositories */
+export function forgejoVerification(repositories) {
+  return {
+    capabilities: { private_git_read: "verified" },
+    principal: { id: 7, login: "operator" },
+    profile: "forgejo-v16",
+    reported_version: "16.0.4",
+    repositories,
+    scopes: ["read:repository", "write:issue", "write:repository"],
+  };
+}
+
 /** @param {any} core @param {string} fields */
 export function enabledRepositoryPoll(core, fields) {
   return core.get(

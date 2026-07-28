@@ -248,6 +248,7 @@ export function createForgejoConnectionService(
           createId,
           durableCore,
           now,
+          polling,
           read: () => this.read(),
           verifier,
         },

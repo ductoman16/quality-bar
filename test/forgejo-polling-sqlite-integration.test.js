@@ -9,6 +9,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import {
   enabledRepositoryPoll,
+  forgejoVerification,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
 
@@ -211,14 +212,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
         return [pullRequest(repository.id)];
       },
       async verify() {
-        return {
-          capabilities: { private_git_read: "verified" },
-          principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
-          reported_version: "16.0.4",
-          repositories,
-          scopes: ["read:repository", "write:issue", "write:repository"],
-        };
+        return forgejoVerification(repositories);
       },
     },
   });
@@ -240,16 +234,17 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
       async listPullRequests(connection, repository) {
         assert.equal(connection.baseUrl, "https://forgejo.example");
         if (failSecond && repository.id === 22) {
-          throw Object.assign(new Error("Forgejo restore was rate limited"), {
-            code: "forgejo_api_rate_limited",
-            nextAttemptAt: 125_000,
+          throw Object.assign(new Error("Forgejo Repository is forbidden"), {
+            code: "forgejo_repository_permission_denied",
             repositoryId: 22,
           });
         }
         return [pullRequest(repository.id + 100)];
       },
-      async verify() {
-        throw new Error("verification is not part of restart baseline");
+      async verify({ repositoryIds }) {
+        return forgejoVerification(
+          repositories.filter(({ id }) => repositoryIds.includes(id)),
+        );
       },
     },
   });
@@ -285,14 +280,14 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
         baseline_status: "pending",
         error_code: null,
         last_success_at: 1_000,
-        next_attempt_at: 125_000,
+        next_attempt_at: Number.MAX_SAFE_INTEGER,
         snapshot: JSON.stringify([pullRequest(11)]),
       },
       {
         baseline_status: "error",
-        error_code: "forgejo_api_rate_limited",
+        error_code: "forgejo_repository_permission_denied",
         last_success_at: 1_000,
-        next_attempt_at: 125_000,
+        next_attempt_at: null,
         snapshot: JSON.stringify([pullRequest(22)]),
       },
     ],
@@ -300,7 +295,14 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
 
   currentTime = 125_000;
   failSecond = false;
-  await restored.runPolling();
+  const lifecycle = createRepositoryService(restoredCore, {
+    masterKey,
+    now: () => currentTime,
+    verifyForgeRepository: (forgeRepositoryId) =>
+      restored.prepareRepositoryEnablement(forgeRepositoryId),
+  });
+  await lifecycle.setLifecycle("repository-2", { lifecycle: "disabled" });
+  await lifecycle.setLifecycle("repository-2", { lifecycle: "enabled" });
   assert.deepEqual(
     restoredCore.all(
       `SELECT baseline_status, last_success_at, error_code, next_attempt_at
@@ -321,6 +323,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
       },
     ],
   );
+  lifecycle.destroy();
   restored.destroy();
   restoredCore.close();
 });

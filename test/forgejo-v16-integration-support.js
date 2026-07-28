@@ -89,6 +89,6 @@ export function assertForgejoFailedReactivationHistory(verification) {
     ],
     scopes: ["read:repository", "write:issue", "write:repository"],
     trigger: "enablement",
-    verified_at: 1_004,
+    verified_at: 1_006,
   });
 }
