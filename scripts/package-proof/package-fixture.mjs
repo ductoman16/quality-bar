@@ -9,6 +9,7 @@ import { join } from "node:path";
  *   applicationVersion: string,
  *   environment: Record<string, string>,
  *   fixtureDirectory: string,
+ *   imageRepository: string,
  *   masterKey: string,
  *   serviceName: string,
  *   runCompose: (arguments_: string[], input?: string) => string,
@@ -73,11 +74,13 @@ export async function createPackageFixture() {
   const configurationPath = join(fixtureDirectory, "config.env");
   const masterKeyPath = join(fixtureDirectory, "quality-bar-master-key");
   const masterKey = Buffer.alloc(32, 7).toString("base64");
+  const imageRepository = `quality-bar-package-${process.pid}`;
   const serviceName = "quality-bar";
   const environment = {
     COMPOSE_PROJECT_NAME: `quality-bar-package-${process.pid}`,
     QUALITY_BAR_CONFIG_FILE: configurationPath,
     QUALITY_BAR_HTTP_PORT: String(await reservePort()),
+    QUALITY_BAR_IMAGE_REPOSITORY: imageRepository,
     QUALITY_BAR_MASTER_KEY_FILE: masterKeyPath,
     QUALITY_BAR_VERSION: applicationVersion,
   };
@@ -95,6 +98,7 @@ export async function createPackageFixture() {
     applicationVersion,
     environment,
     fixtureDirectory,
+    imageRepository,
     masterKey,
     serviceName,
     /** @param {string[]} arguments_ @param {string} [input] */

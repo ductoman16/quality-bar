@@ -1,6 +1,6 @@
 services:
   quality-bar:
-    image: quality-bar:${QUALITY_BAR_VERSION:?QUALITY_BAR_VERSION must be set}
+    image: ${QUALITY_BAR_IMAGE_REPOSITORY:-quality-bar}:${QUALITY_BAR_VERSION:?QUALITY_BAR_VERSION must be set}
     platform: linux/amd64
     build:
       context: .

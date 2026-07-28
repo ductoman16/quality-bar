@@ -130,6 +130,13 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/sqlite-backup.test.js",
   "test/sqlite-backup-failure-integration.test.js",
   "test/backup-security-integration.test.js",
+  "test/offline-restore.test.js",
+  "test/offline-restore-missing-target-sqlite-failure-integration.test.js",
+  "test/offline-restore-sqlite-failure-integration.test.js",
+  "test/offline-restore-security-integration.test.js",
+  "test/offline-restore-candidate-security-integration.test.js",
+  "test/offline-restore-connection-security-integration.test.js",
+  "test/offline-restore-migrated-schema-security-integration.test.js",
 ]);
 
 /**

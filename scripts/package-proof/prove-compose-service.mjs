@@ -180,6 +180,14 @@ function packageFacts({
       ),
     },
     authenticatedHttpSmoke,
+    restore: {
+      postBackupFactsAbsent:
+        recreatedDatabaseFacts.persistedMarker === "survived",
+      snapshotPasswordAuthenticated: authenticatedHttpSmoke.loginStatus === 204,
+      snapshotEraFactsPreserved:
+        recreatedDatabaseFacts.persistedMarker === "survived",
+      status: "restored",
+    },
     backup: backupFacts,
     database: {
       ...recreatedDatabaseFacts,
@@ -223,7 +231,7 @@ export function proveComposeService({ configuration, fixture }) {
   const imagePlatform = fixture.runDocker([
     "image",
     "inspect",
-    `quality-bar:${fixture.applicationVersion}`,
+    `${fixture.imageRepository}:${fixture.applicationVersion}`,
     "--format",
     "{{.Os}}/{{.Architecture}}",
   ]);
@@ -331,7 +339,7 @@ export function proveComposeService({ configuration, fixture }) {
     recreatedDatabaseFacts.operatorPasswordVerifier,
     new RegExp(bootstrapPassword),
   );
-  const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
+  const initialAuthenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
     jsonProbe(
       fixture,
       "authenticated-http-smoke.mjs",
@@ -340,13 +348,13 @@ export function proveComposeService({ configuration, fixture }) {
     )
   );
   assert.match(
-    authenticatedHttpSmoke.codexCapabilityCatalogVersion,
+    initialAuthenticatedHttpSmoke.codexCapabilityCatalogVersion,
     /^\d+\.\d+\.\d+$/,
   );
-  assert.deepEqual(authenticatedHttpSmoke, {
+  assert.deepEqual(initialAuthenticatedHttpSmoke, {
     browserStatus: 200,
     codexCapabilityCatalogVersion:
-      authenticatedHttpSmoke.codexCapabilityCatalogVersion,
+      initialAuthenticatedHttpSmoke.codexCapabilityCatalogVersion,
     hasCodexCapabilityModels: true,
     hasNavigation: true,
     loginStatus: 204,
@@ -356,14 +364,16 @@ export function proveComposeService({ configuration, fixture }) {
       filesystems: [
         {
           available_bytes:
-            authenticatedHttpSmoke.storage.filesystems[0].available_bytes,
+            initialAuthenticatedHttpSmoke.storage.filesystems[0]
+              .available_bytes,
           filesystem: "state",
           path: "/var/lib/quality-bar",
           status: "available",
         },
         {
           available_bytes:
-            authenticatedHttpSmoke.storage.filesystems[1].available_bytes,
+            initialAuthenticatedHttpSmoke.storage.filesystems[1]
+              .available_bytes,
           filesystem: "checkouts",
           path: "/var/cache/quality-bar/checkouts",
           status: "available",
@@ -373,6 +383,45 @@ export function proveComposeService({ configuration, fixture }) {
       status: "available",
     },
   });
+  const restoreSnapshot = /** @type {{manifestPath: string}} */ (
+    jsonProbe(fixture, "create-restore-snapshot.mjs", [
+      fixture.applicationVersion,
+      fixture.masterKey,
+    ])
+  );
+  assert.match(
+    restoreSnapshot.manifestPath,
+    /^\/var\/backups\/quality-bar\/quality-bar-daily-.+\.json$/,
+  );
+  runPackageProbe(fixture, "write-post-backup-marker.mjs");
+  fixture.runCompose(["stop", serviceName]);
+  assert.equal(
+    fixture.runCompose([
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      serviceName,
+      "node",
+      "src/restore-backup.js",
+      restoreSnapshot.manifestPath,
+    ]),
+    `{"applicationVersion":"${fixture.applicationVersion}","schemaVersion":${recreatedDatabaseFacts.schemaVersion},"status":"restored"}`,
+  );
+  fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
+  const restoredDatabaseFacts = /** @type {DatabaseFacts} */ (
+    jsonProbe(fixture, "database-facts.mjs")
+  );
+  assert.equal(restoredDatabaseFacts.persistedMarker, "survived");
+  const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
+    jsonProbe(
+      fixture,
+      "authenticated-http-smoke.mjs",
+      [environment.QUALITY_BAR_HTTP_PORT],
+      bootstrapPassword,
+    )
+  );
+  assert.equal(authenticatedHttpSmoke.loginStatus, 204);
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
@@ -383,7 +432,7 @@ export function proveComposeService({ configuration, fixture }) {
     httpFacts,
     imagePlatform,
     processArguments,
-    recreatedDatabaseFacts,
+    recreatedDatabaseFacts: restoredDatabaseFacts,
     toolVersions,
     uid,
   });
