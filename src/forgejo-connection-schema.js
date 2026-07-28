@@ -1,3 +1,14 @@
+const NORMALIZE_FORGEJO_CONNECTION_IDENTITY = `
+  UPDATE forgejo_connections
+  SET base_url = CASE
+    WHEN substr(lower(rtrim(base_url, '/')), -4) = ':443'
+      THEN substr(lower(rtrim(base_url, '/')), 1, length(lower(rtrim(base_url, '/'))) - 4)
+    WHEN substr(lower(rtrim(base_url, '/')), -3) = ':80'
+      THEN substr(lower(rtrim(base_url, '/')), 1, length(lower(rtrim(base_url, '/'))) - 3)
+    ELSE lower(rtrim(base_url, '/'))
+  END;
+`;
+
 export const FORGEJO_CONNECTION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS forgejo_connections (
     id TEXT PRIMARY KEY,
@@ -76,6 +87,24 @@ export const FORGEJO_CONNECTION_LIFECYCLE_MIGRATION = `
   ALTER TABLE forgejo_connections
     ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'enabled'
       CHECK (lifecycle IN ('enabled', 'retired'));
+  ${NORMALIZE_FORGEJO_CONNECTION_IDENTITY}
+  DROP TRIGGER forgejo_connection_verifications_immutable_update;
+  -- Every pre-v19 success passed the same required admin/pull/push verifier.
+  UPDATE forgejo_connection_verifications
+  SET repositories = (
+    SELECT json_group_array(
+      CASE
+        WHEN json_extract(value, '$.outcome') = 'success'
+          THEN json_set(
+            value,
+            '$.permissions',
+            json('{"admin":true,"pull":true,"push":true}')
+          )
+        ELSE value
+      END
+    )
+    FROM json_each(forgejo_connection_verifications.repositories)
+  );
   DROP TRIGGER forgejo_connection_verifications_immutable_delete;
   CREATE TRIGGER forgejo_connection_verifications_immutable_delete
     BEFORE DELETE ON forgejo_connection_verifications
@@ -89,6 +118,7 @@ export const FORGEJO_CONNECTION_LIFECYCLE_MIGRATION = `
 export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_update;
   DROP TRIGGER IF EXISTS forgejo_connection_verifications_immutable_delete;
+  ${NORMALIZE_FORGEJO_CONNECTION_IDENTITY}
   ALTER TABLE forgejo_repositories RENAME TO forgejo_repositories_v17;
   ALTER TABLE forgejo_connection_verifications
     RENAME TO forgejo_connection_verifications_v17;
@@ -121,7 +151,13 @@ export const FORGEJO_VERIFICATION_HISTORY_MIGRATION = `
         SELECT json_group_array(
           CASE
             WHEN json_extract(value, '$.outcome') IS NULL
-              THEN json_set(value, '$.outcome', 'success')
+              THEN json_set(
+                value,
+                '$.outcome',
+                'success',
+                '$.permissions',
+                json('{"admin":true,"pull":true,"push":true}')
+              )
             ELSE value
           END
         )

@@ -8,6 +8,17 @@ import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoConnectionCredentialCipher } from "../src/forgejo-connection-credential.js";
 import { openDurableCore } from "../src/durable-core.js";
 
+const privateRepository = {
+  api_url: "https://forgejo.example/api/v1/repos/operator/private",
+  clone_url: "https://forgejo.example/operator/private.git",
+  full_name: "operator/private",
+  html_url: "https://forgejo.example/operator/private",
+  id: 11,
+  outcome: "success",
+  permissions: { admin: true, pull: true, push: true },
+  private: true,
+};
+
 test("SQLite atomically stores the selected Forgejo v16 Repositories and a secret-free verification", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -28,17 +39,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
           principal: { id: 7, login: "operator" },
           profile: "forgejo-v16",
           reported_version: "16.0.4",
-          repositories: [
-            {
-              api_url: "https://forgejo.example/api/v1/repos/operator/private",
-              clone_url: "https://forgejo.example/operator/private.git",
-              full_name: "operator/private",
-              html_url: "https://forgejo.example/operator/private",
-              id: 11,
-              outcome: "success",
-              private: true,
-            },
-          ],
+          repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],
         };
       },
@@ -135,17 +136,7 @@ test("SQLite admits exactly one Forgejo Connection when simultaneous verificatio
           principal: { id: 7, login: "operator" },
           profile: "forgejo-v16",
           reported_version: "16.0.4",
-          repositories: [
-            {
-              api_url: "https://forgejo.example/api/v1/repos/operator/private",
-              clone_url: "https://forgejo.example/operator/private.git",
-              full_name: "operator/private",
-              html_url: "https://forgejo.example/operator/private",
-              id: 11,
-              outcome: "success",
-              private: true,
-            },
-          ],
+          repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],
         };
       },
@@ -210,17 +201,7 @@ test("SQLite keeps the active Forgejo PAT when replacement verification fails", 
           principal: { id: 7, login: "operator" },
           profile: "forgejo-v16",
           reported_version: "16.0.4",
-          repositories: [
-            {
-              api_url: "https://forgejo.example/api/v1/repos/operator/private",
-              clone_url: "https://forgejo.example/operator/private.git",
-              full_name: "operator/private",
-              html_url: "https://forgejo.example/operator/private",
-              id: 11,
-              outcome: "success",
-              private: true,
-            },
-          ],
+          repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],
         };
       },
@@ -311,6 +292,7 @@ test("SQLite atomically activates a replacement PAT only after every enabled For
       html_url: "https://forgejo.example/operator/active",
       id: 11,
       outcome: "success",
+      permissions: { admin: true, pull: true, push: true },
       private: true,
     },
     {
@@ -320,6 +302,7 @@ test("SQLite atomically activates a replacement PAT only after every enabled For
       html_url: "https://forgejo.example/operator/disabled",
       id: 12,
       outcome: "success",
+      permissions: { admin: true, pull: true, push: true },
       private: true,
     },
   ];

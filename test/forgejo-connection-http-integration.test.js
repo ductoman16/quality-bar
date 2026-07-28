@@ -30,6 +30,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
           html_url: "https://forgejo.example/operator/private",
           id: 11,
           outcome: "success",
+          permissions: { admin: true, pull: true, push: true },
           private: true,
         },
       ],

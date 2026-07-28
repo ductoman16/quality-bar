@@ -119,15 +119,12 @@ export function verifiedForgejoRepositoryEvidence(value, succeeded) {
     const repository = object(candidate);
     if (
       !repository ||
-      ![
-        "api_url,clone_url,full_name,html_url,id,outcome,private",
-        "api_url,clone_url,full_name,html_url,id,outcome,permissions,private",
-      ].includes(Object.keys(repository).sort().join(",")) ||
+      Object.keys(repository).sort().join(",") !==
+        "api_url,clone_url,full_name,html_url,id,outcome,permissions,private" ||
       !Number.isSafeInteger(repository.id) ||
       Number(repository.id) <= 0 ||
       repository.outcome !== "success" ||
-      ("permissions" in repository &&
-        !verifiedPermissions(repository.permissions)) ||
+      !verifiedPermissions(repository.permissions) ||
       typeof repository.private !== "boolean" ||
       ["api_url", "clone_url", "full_name", "html_url"].some(
         (field) =>

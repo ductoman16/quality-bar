@@ -43,7 +43,10 @@ export function verifiedForgejoRepositories(verification, repositoryIds) {
         !repository ||
         !Number.isSafeInteger(repository.id) ||
         !repositoryIds.includes(repository.id) ||
-        repository.outcome !== "success",
+        repository.outcome !== "success" ||
+        repository.permissions?.admin !== true ||
+        repository.permissions?.pull !== true ||
+        repository.permissions?.push !== true,
     ) ||
     verifiedIds.size !== repositoryIds.length
   ) {

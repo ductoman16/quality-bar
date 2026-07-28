@@ -37,6 +37,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
               html_url: "https://forgejo.example/operator/private",
               id: 11,
               outcome: "success",
+              permissions: { admin: true, pull: true, push: true },
               private: true,
             },
           ],
@@ -75,9 +76,13 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
       (id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at)
     SELECT id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at
     FROM forgejo_connection_verifications_v18;
+    UPDATE forgejo_connections
+    SET base_url = 'https://FORGEJO.EXAMPLE:443/';
     UPDATE forgejo_connection_verifications
     SET repositories = (
-      SELECT json_group_array(json_remove(value, '$.outcome'))
+      SELECT json_group_array(
+        json_remove(value, '$.outcome', '$.permissions')
+      )
       FROM json_each(forgejo_connection_verifications.repositories)
     );
     DROP TABLE forgejo_connection_verifications_v18;
@@ -99,6 +104,12 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
 
   const migrated = openDurableCore(databasePath);
   assert.equal(migrated.facts.schemaVersion, 19);
+  assert.equal(
+    migrated.get(
+      "SELECT base_url FROM forgejo_connections WHERE id = 'connection-1'",
+    )?.base_url,
+    "https://forgejo.example",
+  );
   assert.deepEqual(
     migrated.get(
       `SELECT trigger, error_code, error_message
@@ -114,8 +125,16 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
           "SELECT repositories FROM forgejo_connection_verifications WHERE id = 'verification-1'",
         )
       ).repositories,
-    ).map((/** @type {any} */ repository) => repository.outcome),
-    ["success"],
+    ).map((/** @type {any} */ repository) => ({
+      outcome: repository.outcome,
+      permissions: repository.permissions,
+    })),
+    [
+      {
+        outcome: "success",
+        permissions: { admin: true, pull: true, push: true },
+      },
+    ],
   );
   assert.throws(
     () =>

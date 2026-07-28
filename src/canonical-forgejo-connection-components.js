@@ -1,4 +1,4 @@
-const forgejoRepositoryPermissions = {
+export const forgejoRepositoryPermissions = {
   additionalProperties: false,
   properties: {
     admin: { const: true, type: "boolean" },
@@ -9,31 +9,34 @@ const forgejoRepositoryPermissions = {
   type: "object",
 };
 
+export const forgejoRepositorySuccessCheck = {
+  additionalProperties: false,
+  properties: {
+    api_url: { format: "uri", type: "string" },
+    clone_url: { format: "uri", type: "string" },
+    full_name: { minLength: 1, type: "string" },
+    html_url: { format: "uri", type: "string" },
+    id: { minimum: 1, type: "integer" },
+    outcome: { const: "success", type: "string" },
+    permissions: forgejoRepositoryPermissions,
+    private: { type: "boolean" },
+  },
+  required: [
+    "api_url",
+    "clone_url",
+    "full_name",
+    "html_url",
+    "id",
+    "outcome",
+    "permissions",
+    "private",
+  ],
+  type: "object",
+};
+
 export const forgejoRepositoryCheck = {
   oneOf: [
-    {
-      additionalProperties: false,
-      properties: {
-        api_url: { format: "uri", type: "string" },
-        clone_url: { format: "uri", type: "string" },
-        full_name: { minLength: 1, type: "string" },
-        html_url: { format: "uri", type: "string" },
-        id: { minimum: 1, type: "integer" },
-        outcome: { const: "success", type: "string" },
-        permissions: forgejoRepositoryPermissions,
-        private: { type: "boolean" },
-      },
-      required: [
-        "api_url",
-        "clone_url",
-        "full_name",
-        "html_url",
-        "id",
-        "outcome",
-        "private",
-      ],
-      type: "object",
-    },
+    forgejoRepositorySuccessCheck,
     {
       additionalProperties: false,
       properties: {
@@ -64,4 +67,81 @@ export const forgejoRepositoryCheck = {
       type: "object",
     },
   ],
+};
+
+const forgejoCodedError = {
+  additionalProperties: false,
+  properties: {
+    code: { minLength: 1, type: "string" },
+    message: { minLength: 1, type: "string" },
+  },
+  required: ["code", "message"],
+  type: "object",
+};
+const forgejoPrincipal = {
+  additionalProperties: false,
+  properties: {
+    id: { minimum: 1, type: "integer" },
+    login: { minLength: 1, type: "string" },
+  },
+  required: ["id", "login"],
+  type: "object",
+};
+const verificationRequired = [
+  "api_profile",
+  "capabilities",
+  "error",
+  "id",
+  "outcome",
+  "principal",
+  "reported_version",
+  "repositories",
+  "scopes",
+  "trigger",
+  "verified_at",
+];
+const verificationFacts = {
+  id: { minLength: 1, type: "string" },
+  trigger: { minLength: 1, type: "string" },
+  verified_at: { type: "integer" },
+};
+
+export const forgejoSuccessfulVerification = {
+  additionalProperties: false,
+  properties: {
+    ...verificationFacts,
+    api_profile: { const: "forgejo-v16", type: "string" },
+    capabilities: { type: "object" },
+    error: { type: "null" },
+    outcome: { const: "success", type: "string" },
+    principal: forgejoPrincipal,
+    reported_version: { pattern: "^16\\.", type: "string" },
+    repositories: { items: forgejoRepositorySuccessCheck, type: "array" },
+    scopes: { items: { type: "string" }, type: "array" },
+  },
+  required: verificationRequired,
+  type: "object",
+};
+
+export const forgejoFailedVerification = {
+  additionalProperties: false,
+  properties: {
+    ...verificationFacts,
+    api_profile: {
+      oneOf: [{ const: "forgejo-v16", type: "string" }, { type: "null" }],
+    },
+    capabilities: { oneOf: [{ type: "object" }, { type: "null" }] },
+    error: forgejoCodedError,
+    outcome: { const: "error", type: "string" },
+    principal: { oneOf: [forgejoPrincipal, { type: "null" }] },
+    reported_version: {
+      oneOf: [{ pattern: "^16\\.", type: "string" }, { type: "null" }],
+    },
+    repositories: { items: forgejoRepositoryCheck, type: "array" },
+    scopes: {
+      oneOf: [{ items: { type: "string" }, type: "array" }, { type: "null" }],
+    },
+  },
+  required: verificationRequired,
+  type: "object",
 };

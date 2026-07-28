@@ -103,10 +103,9 @@ function validRepositoryCheck(value) {
   }
   const hasPermissions = "permissions" in check;
   return (
-    [
-      "api_url,clone_url,full_name,html_url,id,outcome,private",
-      "api_url,clone_url,full_name,html_url,id,outcome,permissions,private",
-    ].includes(Object.keys(check).sort().join(",")) &&
+    hasPermissions &&
+    Object.keys(check).sort().join(",") ===
+      "api_url,clone_url,full_name,html_url,id,outcome,permissions,private" &&
     Number.isSafeInteger(check.id) &&
     Number(check.id) > 0 &&
     ["api_url", "clone_url", "html_url"].every((field) =>
@@ -115,7 +114,35 @@ function validRepositoryCheck(value) {
     typeof check.full_name === "string" &&
     check.full_name.length > 0 &&
     typeof check.private === "boolean" &&
-    (!hasPermissions || validPermissions(check.permissions))
+    validPermissions(check.permissions)
+  );
+}
+
+/** @param {unknown} value */
+function validPrincipal(value) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    return false;
+  }
+  const principal = /** @type {Record<string, unknown>} */ (value);
+  return (
+    Object.keys(principal).sort().join(",") === "id,login" &&
+    Number.isSafeInteger(principal.id) &&
+    Number(principal.id) > 0 &&
+    typeof principal.login === "string" &&
+    principal.login.length > 0
+  );
+}
+
+/** @param {unknown} value */
+function validCapabilities(value) {
+  return Boolean(value && !Array.isArray(value) && typeof value === "object");
+}
+
+/** @param {unknown} value */
+function validScopes(value) {
+  return (
+    Array.isArray(value) &&
+    value.every((scope) => typeof scope === "string" && scope.length > 0)
   );
 }
 
@@ -132,6 +159,8 @@ function validForgejoVerification(value) {
       ? /** @type {Record<string, unknown>} */ (verification.error)
       : null;
   return (
+    Object.keys(verification).sort().join(",") ===
+      "api_profile,capabilities,error,id,outcome,principal,reported_version,repositories,scopes,trigger,verified_at" &&
     typeof verification.id === "string" &&
     verification.id.length > 0 &&
     typeof verification.trigger === "string" &&
@@ -149,16 +178,25 @@ function validForgejoVerification(value) {
         verification.api_profile === "forgejo-v16" &&
         typeof verification.reported_version === "string" &&
         /^16\./.test(verification.reported_version) &&
-        verification.principal !== null &&
-        typeof verification.principal === "object" &&
-        Array.isArray(verification.scopes) &&
-        verification.capabilities !== null &&
-        typeof verification.capabilities === "object" &&
-        !Array.isArray(verification.capabilities)
-      : typeof error?.code === "string" &&
+        validPrincipal(verification.principal) &&
+        validScopes(verification.scopes) &&
+        validCapabilities(verification.capabilities)
+      : error !== null &&
+        Object.keys(error).sort().join(",") === "code,message" &&
+        typeof error.code === "string" &&
         error.code.length > 0 &&
         typeof error.message === "string" &&
-        error.message.length > 0)
+        error.message.length > 0 &&
+        (verification.api_profile === null ||
+          verification.api_profile === "forgejo-v16") &&
+        (verification.reported_version === null ||
+          (typeof verification.reported_version === "string" &&
+            /^16\./.test(verification.reported_version))) &&
+        (verification.principal === null ||
+          validPrincipal(verification.principal)) &&
+        (verification.scopes === null || validScopes(verification.scopes)) &&
+        (verification.capabilities === null ||
+          validCapabilities(verification.capabilities)))
   );
 }
 

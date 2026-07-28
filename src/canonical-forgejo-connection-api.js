@@ -1,4 +1,7 @@
-import { forgejoRepositoryCheck } from "./canonical-forgejo-connection-components.js";
+import {
+  forgejoFailedVerification,
+  forgejoSuccessfulVerification,
+} from "./canonical-forgejo-connection-components.js";
 
 /** @param {object[]} mutationParameters @param {object} errorResponse */
 export function canonicalForgejoConnectionPaths(
@@ -42,65 +45,7 @@ export function canonicalForgejoConnectionPaths(
       },
       verification_history: {
         items: {
-          additionalProperties: false,
-          properties: {
-            api_profile: {
-              oneOf: [
-                { const: "forgejo-v16", type: "string" },
-                { type: "null" },
-              ],
-            },
-            capabilities: {
-              oneOf: [{ type: "object" }, { type: "null" }],
-            },
-            error: {
-              oneOf: [
-                {
-                  additionalProperties: false,
-                  properties: {
-                    code: { minLength: 1, type: "string" },
-                    message: { minLength: 1, type: "string" },
-                  },
-                  required: ["code", "message"],
-                  type: "object",
-                },
-                { type: "null" },
-              ],
-            },
-            id: { minLength: 1, type: "string" },
-            outcome: { enum: ["success", "error"], type: "string" },
-            principal: {
-              description:
-                "Repository-owner identity observed through the Repository-restricted PAT",
-              oneOf: [{ type: "object" }, { type: "null" }],
-            },
-            reported_version: {
-              oneOf: [{ pattern: "^16\\.", type: "string" }, { type: "null" }],
-            },
-            repositories: { items: forgejoRepositoryCheck, type: "array" },
-            scopes: {
-              oneOf: [
-                { items: { type: "string" }, type: "array" },
-                { type: "null" },
-              ],
-            },
-            trigger: { minLength: 1, type: "string" },
-            verified_at: { type: "integer" },
-          },
-          required: [
-            "api_profile",
-            "capabilities",
-            "error",
-            "id",
-            "outcome",
-            "principal",
-            "reported_version",
-            "repositories",
-            "scopes",
-            "trigger",
-            "verified_at",
-          ],
-          type: "object",
+          oneOf: [forgejoSuccessfulVerification, forgejoFailedVerification],
         },
         minItems: 1,
         type: "array",

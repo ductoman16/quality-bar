@@ -151,6 +151,7 @@ export const validForgejoConnection = {
           html_url: "https://forgejo.example/operator/private",
           id: 11,
           outcome: "success",
+          permissions: { admin: true, pull: true, push: true },
           private: true,
         },
       ],
@@ -166,6 +167,8 @@ export const validForgejoConnection = {
 export function malformedForgejoConnectionResponses(valid) {
   const verification = valid.verification_history[0];
   const repository = verification.repositories[0];
+  const failedVerification =
+    failedForgejoReactivation().verification_history.at(-1);
   return [
     null,
     [],
@@ -217,6 +220,28 @@ export function malformedForgejoConnectionResponses(valid) {
           repositories: [{ ...repository, api_url: "not a URI" }],
         },
       ],
+    },
+    {
+      ...valid,
+      verification_history: [
+        { ...failedVerification, api_profile: { unexpected: true } },
+      ],
+    },
+    {
+      ...valid,
+      verification_history: [{ ...failedVerification, error: null }],
+    },
+    {
+      ...valid,
+      verification_history: [{ ...failedVerification, principal: { id: 7 } }],
+    },
+    {
+      ...valid,
+      verification_history: [{ ...failedVerification, scopes: {} }],
+    },
+    {
+      ...valid,
+      verification_history: [{ ...failedVerification, capabilities: [] }],
     },
     { ...valid, verified_at: "now" },
     { ...valid, unexpected: true },
