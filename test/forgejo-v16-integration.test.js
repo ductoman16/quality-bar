@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
+import { openDurableCore } from "../src/durable-core.js";
+import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 
 function forgejoOpenApi() {
@@ -155,6 +160,35 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       username: "oauth2",
     },
   ]);
+  const emptySelectionRequestIndex = requests.length;
+  const emptySelection = await verifier.verify({
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    repositoryIds: [],
+    token: "operator-created-pat",
+  });
+  assert.deepEqual(emptySelection, {
+    capabilities: {
+      aggregate_feedback: "not_completed",
+      branch_access: "not_completed",
+      commit_status: "not_completed",
+      enumeration: "verified",
+      inline_feedback: "not_completed",
+      private_git_read: "not_completed",
+      pull_request_access: "not_completed",
+    },
+    principal: { id: 7, login: "operator" },
+    profile: "forgejo-v16",
+    reported_version: "16.0.4",
+    repositories: [],
+    scopes: ["read:repository", "write:issue", "write:repository"],
+  });
+  assert.deepEqual(requests.slice(emptySelectionRequestIndex), [
+    { method: "GET", path: "/api/v1/version" },
+    { method: "GET", path: "/swagger.v1.json" },
+    { method: "GET", path: "/api/v1/user" },
+    { method: "GET", path: "/api/v1/user/repos?page=1&limit=50" },
+  ]);
+  assert.equal(gitReads.length, 1);
   const discovered = await verifier.verify({
     baseUrl: `http://127.0.0.1:${address.port}`,
     token: "operator-created-pat",
@@ -181,6 +215,50 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     }),
     { code: "forgejo_required_route_unavailable" },
   );
+  forbiddenBranches = false;
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v16-rotation-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const service = createForgejoConnectionService(core, {
+    createId: (() => {
+      const ids = [
+        "connection-1",
+        "verification-1",
+        "repository-1",
+        "verification-2",
+      ];
+      return () => ids.shift();
+    })(),
+    masterKey: Buffer.alloc(32, 6),
+    now: (() => {
+      let timestamp = 1_000;
+      return () => timestamp++;
+    })(),
+    verifier,
+  });
+  await service.connect({
+    base_url: `http://127.0.0.1:${address.port}`,
+    repository_ids: [11],
+    token: "original-pat",
+  });
+  await service.rotate({ token: "replacement-pat" });
+  assert.deepEqual(
+    gitReads.slice(-2).map(({ token }) => token),
+    ["original-pat", "replacement-pat"],
+  );
+  assert.deepEqual(
+    core.all(
+      "SELECT id, trigger, error_code FROM forgejo_connection_verifications ORDER BY verified_at",
+    ),
+    [
+      { error_code: null, id: "verification-1", trigger: "onboarding" },
+      { error_code: null, id: "verification-2", trigger: "rotation" },
+    ],
+  );
+  service.destroy();
+  core.close();
   assert.ok(requests.every(({ method }) => method === "GET"));
 });
 

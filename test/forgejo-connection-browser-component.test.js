@@ -16,10 +16,14 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.match(page, /@media\(max-width:40rem\)/);
   assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
   const form = element();
+  const rotationForm = element();
   const baseUrl = /** @type {any} */ (
     element({ value: "https://forgejo.example" })
   );
   const token = /** @type {any} */ (element({ value: "operator-created-pat" }));
+  const rotationToken = /** @type {any} */ (
+    element({ value: "replacement-pat" })
+  );
   const repositories = element({
     querySelector() {
       return this.children[0]?.children[0] ?? null;
@@ -32,35 +36,74 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   });
   const fieldset = element({ disabled: true });
   const submit = element();
+  const rotationSubmit = element();
   const status = element();
   const error = element({ hidden: true });
   const controls = new Map([
     ["forgejo-connection-form", form],
+    ["forgejo-connection-rotation-form", rotationForm],
     ["forgejo-connection-base-url", baseUrl],
     ["forgejo-connection-token", token],
+    ["forgejo-connection-rotation-token", rotationToken],
     ["forgejo-connection-repositories", repositories],
     ["forgejo-connection-repository-fieldset", fieldset],
     ["forgejo-connection-submit", submit],
+    ["forgejo-connection-rotation-submit", rotationSubmit],
     ["forgejo-connection-status", status],
     ["forgejo-connection-error", error],
   ]);
   /** @type {any[]} */
   const requests = [];
+  /** @type {{value: Error | undefined}} */
+  const rotationFailure = { value: undefined };
+  const rotationJsonFailure = { value: false };
+  const rotationOk = { value: true };
+  const validRotationResponse = {
+    api_profile: "forgejo-v16",
+    base_url: "https://forgejo.example",
+    capabilities: { private_git_read: "verified" },
+    health: "healthy",
+    health_error: null,
+    id: "forgejo-connection",
+    principal: { id: 7, login: "operator" },
+    reported_version: "16.0.4",
+    scopes: ["read:repository", "write:issue", "write:repository"],
+    verified_at: 1_000,
+  };
+  /** @type {{value: unknown}} */
+  const rotationResponse = { value: validRotationResponse };
   let ready = () => {};
   const context = {
+    Error,
     document: { createElement: () => element() },
     fetch: async (/** @type {string} */ path, /** @type {any} */ options) => {
       requests.push({ options, path });
+      if (path.endsWith("/credential/rotate") && rotationFailure.value) {
+        throw rotationFailure.value;
+      }
       return {
-        ok: true,
+        ok: path.endsWith("/credential/rotate") ? rotationOk.value : true,
         async json() {
-          return path.endsWith("/discover")
-            ? [{ full_name: "operator/private", id: 11 }]
+          if (
+            path.endsWith("/credential/rotate") &&
+            rotationJsonFailure.value
+          ) {
+            throw new SyntaxError("Unexpected token < in JSON");
+          }
+          if (path.endsWith("/discover")) {
+            return [{ full_name: "operator/private", id: 11 }];
+          }
+          return path.endsWith("/credential/rotate")
+            ? rotationResponse.value
             : { id: "forgejo-connection" };
         },
       };
     },
     window: {
+      confirm(/** @type {string} */ message) {
+        assert.match(message, /Revoke the predecessor in Forgejo/);
+        return true;
+      },
       addEventListener(
         /** @type {string} */ name,
         /** @type {() => void} */ listener,
@@ -98,4 +141,66 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(requests[1].path, "/api/v1/forgejo-connections");
   assert.equal(status.focused, true);
   assert.equal(token.value, "");
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.deepEqual(JSON.parse(requests[2].options.body), {
+    token: "replacement-pat",
+  });
+  assert.equal(
+    requests[2].path,
+    "/api/v1/forgejo-connections/credential/rotate",
+  );
+  assert.equal(rotationToken.value, "");
+  assert.equal(
+    status.textContent,
+    "Forgejo PAT rotated. Revoke its predecessor in Forgejo.",
+  );
+  const malformedResponses = [
+    null,
+    [],
+    { ...validRotationResponse, api_profile: "forgejo-v17" },
+    { ...validRotationResponse, base_url: "" },
+    { ...validRotationResponse, capabilities: null },
+    { ...validRotationResponse, capabilities: [] },
+    { ...validRotationResponse, health: "error" },
+    { ...validRotationResponse, health_error: { code: "stale" } },
+    { ...validRotationResponse, id: "" },
+    { ...validRotationResponse, principal: null },
+    { ...validRotationResponse, principal: { id: "7", login: "operator" } },
+    { ...validRotationResponse, principal: { id: 7, login: "" } },
+    { ...validRotationResponse, reported_version: "17.0.0" },
+    { ...validRotationResponse, scopes: {} },
+    { ...validRotationResponse, scopes: [1] },
+    { ...validRotationResponse, verified_at: "now" },
+    { ...validRotationResponse, unexpected: true },
+  ];
+  for (const [index, malformed] of malformedResponses.entries()) {
+    rotationToken.value = `malformed-replacement-${index}`;
+    rotationResponse.value = malformed;
+    await rotationForm.listener("submit")({ preventDefault() {} });
+    assert.equal(rotationToken.value, `malformed-replacement-${index}`);
+    assert.equal(error.textContent, "Forgejo PAT rotation response is invalid");
+    assert.equal(error.focused, true);
+  }
+  rotationResponse.value = validRotationResponse;
+  for (const ok of [true, false]) {
+    rotationToken.value = `invalid-json-${ok}`;
+    rotationOk.value = ok;
+    rotationJsonFailure.value = true;
+    await rotationForm.listener("submit")({ preventDefault() {} });
+    assert.equal(rotationToken.value, `invalid-json-${ok}`);
+    assert.equal(error.textContent, "Forgejo PAT rotation response is invalid");
+    assert.equal(error.focused, true);
+    assert.equal(rotationSubmit.disabled, false);
+  }
+  rotationOk.value = true;
+  rotationJsonFailure.value = false;
+  rotationResponse.value = validRotationResponse;
+  rotationToken.value = "another-replacement-pat";
+  rotationFailure.value = new Error("Forgejo rotation transport failed");
+  await rotationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(status.textContent, "");
+  assert.equal(error.textContent, "Forgejo rotation transport failed");
+  assert.equal(error.hidden, false);
+  assert.equal(error.focused, true);
+  assert.equal(rotationSubmit.disabled, false);
 });

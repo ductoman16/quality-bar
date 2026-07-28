@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { createForgejoConnectionCredentialCipher } from "./forgejo-connection-credential.js";
+import {
+  rotateForgejoConnection,
+  verifiedForgejoRepositories,
+} from "./forgejo-connection-rotation.js";
 import { createForgejoV16Verifier } from "./forgejo-v16.js";
 
 /** @param {string} code @param {string} message @returns {never} */
@@ -71,16 +75,35 @@ function read(row) {
     typeof row.principal_login !== "string" ||
     typeof row.scopes !== "string" ||
     typeof row.capabilities !== "string" ||
-    row.health !== "healthy" ||
+    !["healthy", "error"].includes(/** @type {string} */ (row.health)) ||
     !Number.isSafeInteger(row.verified_at)
   ) {
     throw new TypeError("Forgejo Connection row is invalid");
+  }
+  const healthError =
+    row.health === "error"
+      ? {
+          code: row.health_error_code,
+          message: row.health_error_message,
+        }
+      : null;
+  if (
+    (row.health === "healthy" &&
+      (row.health_error_code !== null || row.health_error_message !== null)) ||
+    (row.health === "error" &&
+      (typeof healthError?.code !== "string" ||
+        healthError.code.length === 0 ||
+        typeof healthError.message !== "string" ||
+        healthError.message.length === 0))
+  ) {
+    throw new TypeError("Forgejo Connection health error is invalid");
   }
   return {
     api_profile: row.api_profile,
     base_url: row.base_url,
     capabilities: JSON.parse(row.capabilities),
     health: row.health,
+    health_error: healthError,
     id: row.id,
     principal: { id: row.principal_id, login: row.principal_login },
     reported_version: row.reported_version,
@@ -128,7 +151,21 @@ export function createForgejoConnectionService(
   return {
     read() {
       return read(
-        durableCore.all("SELECT * FROM forgejo_connections LIMIT 1")[0],
+        durableCore.all(
+          `SELECT forgejo_connections.*,
+             latest_verification.error_code AS health_error_code,
+             latest_verification.error_message AS health_error_message
+           FROM forgejo_connections
+           LEFT JOIN forgejo_connection_verifications AS latest_verification
+             ON latest_verification.rowid = (
+               SELECT rowid
+               FROM forgejo_connection_verifications
+               WHERE connection_id = forgejo_connections.id
+               ORDER BY rowid DESC
+               LIMIT 1
+             )
+           LIMIT 1`,
+        )[0],
       );
     },
     /** @param {unknown} input */
@@ -141,22 +178,7 @@ export function createForgejoConnectionService(
     async connect(input) {
       const selected = request(input);
       const verification = await verifier.verify(selected);
-      if (
-        !verification ||
-        !Array.isArray(verification.repositories) ||
-        verification.repositories.length !== selected.repositoryIds.length ||
-        verification.repositories.some(
-          /** @param {any} repository */ (repository) =>
-            !repository ||
-            !Number.isSafeInteger(repository.id) ||
-            !selected.repositoryIds.includes(repository.id),
-        )
-      ) {
-        fail(
-          "forgejo_verification_result_invalid",
-          "Forgejo verification result is invalid",
-        );
-      }
+      verifiedForgejoRepositories(verification, selected.repositoryIds);
       const id = createId();
       const verificationId = createId();
       const verifiedAt = now();
@@ -192,7 +214,7 @@ export function createForgejoConnectionService(
             verifiedAt,
           );
           transaction.run(
-            "INSERT INTO forgejo_connection_verifications (id, connection_id, profile, reported_version, principal, scopes, capabilities, repositories, verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO forgejo_connection_verifications (id, connection_id, trigger, profile, reported_version, principal, scopes, capabilities, repositories, error_code, error_message, verified_at) VALUES (?, ?, 'onboarding', ?, ?, ?, ?, ?, ?, NULL, NULL, ?)",
             verificationId,
             id,
             verification.profile,
@@ -255,6 +277,20 @@ export function createForgejoConnectionService(
       }
       return this.read();
     },
+    /** @param {unknown} input */
+    async rotate(input) {
+      return rotateForgejoConnection(
+        {
+          cipher,
+          createId,
+          durableCore,
+          now,
+          read: () => this.read(),
+          verifier,
+        },
+        input,
+      );
+    },
     destroy() {
       cipher.destroy();
     },
@@ -271,6 +307,9 @@ export function unavailableForgejoConnectionService(error) {
       throw error;
     },
     async connect() {
+      throw error;
+    },
+    async rotate() {
       throw error;
     },
     destroy() {},

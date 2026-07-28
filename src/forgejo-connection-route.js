@@ -6,7 +6,7 @@ import {
 import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {{browserOrigin: string, browserSessions: any, forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown}}} dependencies */
+/** @param {{browserOrigin: string, browserSessions: any, forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown, rotate: (body: unknown) => Promise<unknown>}}} dependencies */
 export function createForgejoConnectionRoute({
   browserOrigin,
   browserSessions,
@@ -76,6 +76,30 @@ export function createForgejoConnectionRoute({
               : 422,
         successStatus: 201,
         unexpectedMessage: "Forgejo Connection verification failed",
+      });
+      return true;
+    }
+    if (
+      method === "POST" &&
+      path === "/api/v1/forgejo-connections/credential/rotate" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "forgejo_connection_rotation_failed",
+        mutate: (body) => forgejoConnections.rotate(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "forgejo_connection_not_found"
+            ? 404
+            : code === "forgejo_connection_rotation_conflict"
+              ? 409
+              : isUnavailableError(error)
+                ? 503
+                : 422,
+        successStatus: 200,
+        unexpectedMessage: "Forgejo PAT rotation failed",
       });
       return true;
     }

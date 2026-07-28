@@ -11,6 +11,8 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   /** @type {unknown[]} */
   const calls = [];
   let conflict = "none";
+  /** @type {null | Record<string, unknown>} */
+  let current = null;
   const { request } = await startApplication({
     createForgejoConnections() {
       return {
@@ -41,9 +43,47 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             },
           );
         },
+        async rotate(/** @type {unknown} */ input) {
+          calls.push(input);
+          if (conflict === "rotation") {
+            current = {
+              api_profile: "forgejo-v16",
+              base_url: "https://forgejo.example",
+              capabilities: {},
+              health: "error",
+              health_error: {
+                code: "forgejo_connection_rotation_conflict",
+                message: "Forgejo PAT changed during rotation",
+              },
+              id: "forgejo-connection",
+              principal: { id: 7, login: "operator" },
+              reported_version: "16.0.4",
+              scopes: ["read:repository", "write:issue", "write:repository"],
+              verified_at: 2_000,
+            };
+            throw Object.assign(
+              new Error("Forgejo PAT changed during rotation"),
+              {
+                code: "forgejo_connection_rotation_conflict",
+              },
+            );
+          }
+          return {
+            api_profile: "forgejo-v16",
+            base_url: "https://forgejo.example",
+            capabilities: {},
+            health: "healthy",
+            health_error: null,
+            id: "forgejo-connection",
+            principal: { id: 7, login: "operator" },
+            reported_version: "16.0.4",
+            scopes: ["read:repository", "write:issue", "write:repository"],
+            verified_at: 1_000,
+          };
+        },
         destroy() {},
         read() {
-          return null;
+          return current;
         },
       };
     },
@@ -121,4 +161,39 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
     await responseErrorCode(repositoryConflict),
     "forgejo_repository_identity_conflict",
   );
+  const rotated = await request(
+    "/api/v1/forgejo-connections/credential/rotate",
+    {
+      body: JSON.stringify({ token: "replacement-pat" }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(rotated.status, 200);
+  assert.equal(
+    /** @type {{id: string}} */ (await rotated.json()).id,
+    "forgejo-connection",
+  );
+  assert.deepEqual(calls.at(-1), { token: "replacement-pat" });
+  conflict = "rotation";
+  const stale = await request("/api/v1/forgejo-connections/credential/rotate", {
+    body: JSON.stringify({ token: "stale-replacement-pat" }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(
+    await responseErrorCode(stale),
+    "forgejo_connection_rotation_conflict",
+  );
+  const unhealthy = await request("/api/v1/forgejo-connections", { headers });
+  assert.equal(unhealthy.status, 200);
+  const unhealthyBody = /** @type {{health: string, health_error: unknown}} */ (
+    await unhealthy.json()
+  );
+  assert.equal(unhealthyBody.health, "error");
+  assert.deepEqual(unhealthyBody.health_error, {
+    code: "forgejo_connection_rotation_conflict",
+    message: "Forgejo PAT changed during rotation",
+  });
 });

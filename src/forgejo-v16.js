@@ -244,7 +244,6 @@ export function createForgejoV16Verifier({
       if (
         (repositoryIds !== undefined &&
           (!Array.isArray(repositoryIds) ||
-            repositoryIds.length === 0 ||
             new Set(repositoryIds).size !== repositoryIds.length ||
             repositoryIds.some(
               (id) => !Number.isSafeInteger(id) || id <= 0,
@@ -359,15 +358,17 @@ export function createForgejoV16Verifier({
           { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
         );
       }
+      const repositoryCapabilities =
+        selected.length === 0 ? "not_completed" : "verified";
       return {
         capabilities: {
-          aggregate_feedback: "verified",
-          branch_access: "verified",
-          commit_status: "verified",
+          aggregate_feedback: repositoryCapabilities,
+          branch_access: repositoryCapabilities,
+          commit_status: repositoryCapabilities,
           enumeration: "verified",
-          inline_feedback: "verified",
-          private_git_read: "verified",
-          pull_request_access: "verified",
+          inline_feedback: repositoryCapabilities,
+          private_git_read: repositoryCapabilities,
+          pull_request_access: repositoryCapabilities,
         },
         principal: verifiedPrincipal,
         profile: PROFILE,

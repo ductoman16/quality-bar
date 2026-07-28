@@ -200,7 +200,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-polling-mcp-contract-and-lifecycle-unit",
+        "browser-authority-request-security-review-version-machine-repository-guidance-github-repository-selection-polling-mcp-contract-lifecycle-and-forgejo-pat-rotation-unit",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -241,7 +241,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-review-assignment-version-repository-guidance-and-lifecycle-browser-boundary",
+        "browser-authority-request-security-review-assignment-version-repository-guidance-lifecycle-and-forgejo-pat-rotation-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -295,7 +295,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "review-assignment-version-guidance-credential-github-repository-selection-polling-and-repository-lifecycle-sqlite-resource-boundary",
+        "review-assignment-version-guidance-credential-github-repository-selection-polling-repository-lifecycle-and-forgejo-pat-rotation-sqlite-resource-boundary",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -315,13 +315,15 @@ export function createGateDefinitions(metadata) {
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
         "test/github-polling.test.js",
+        "test/forgejo-connection-rotation-sqlite-integration.test.js",
+        "test/forgejo-connection-schema-migration.test.js",
         "test/forgejo-connection-sqlite-integration.test.js",
       ],
     },
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-machine-repository-guidance-and-repository-lifecycle-http-resource-boundary",
+        "review-assignment-version-machine-repository-guidance-repository-lifecycle-and-forgejo-pat-rotation-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
