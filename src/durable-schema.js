@@ -355,6 +355,8 @@ export function initializeOrValidateSchema(
     );
   } else if (version === 19) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
+  } else if (version === 20) {
+    schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

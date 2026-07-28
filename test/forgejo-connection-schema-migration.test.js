@@ -27,7 +27,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 20);
+  assert.equal(migrated.facts.schemaVersion, 21);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -109,6 +109,41 @@ test("SQLite restore migration requires a fresh Forgejo baseline before polling"
     },
   );
   restored.close();
+});
+
+test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-v20-polling-migration-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const canonicalV20 = openDurableCore(databasePath);
+  canonicalV20.run("DROP TABLE forgejo_repository_polls");
+  canonicalV20.run(
+    "UPDATE quality_bar_metadata SET value = '20' WHERE key = 'schema_version'",
+  );
+  canonicalV20.run("PRAGMA user_version = 20");
+  canonicalV20.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 21);
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+         FROM sqlite_schema
+        WHERE type = 'table' AND name = 'forgejo_repository_polls'`,
+    ),
+    { name: "forgejo_repository_polls" },
+  );
+  assert.deepEqual(
+    migrated.get(
+      `SELECT name
+         FROM sqlite_schema
+        WHERE type = 'table' AND name = 'waiver_adjudicator_configuration'`,
+    ),
+    { name: "waiver_adjudicator_configuration" },
+  );
+  migrated.close();
 });
 
 test("SQLite preserves non-default Forgejo ports during v18 migration", (context) => {
@@ -255,7 +290,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 20);
+  assert.equal(migrated.facts.schemaVersion, 21);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",
