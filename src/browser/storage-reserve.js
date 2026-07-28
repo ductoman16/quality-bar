@@ -7,8 +7,6 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
   const storage = detail?.storage;
   if (
     !reserveFacts ||
-    !detail?.codex ||
-    !["available", "unavailable"].includes(detail.codex.status) ||
     !storage ||
     !Array.isArray(storage.filesystems) ||
     !Number.isSafeInteger(storage.reserve_bytes) ||
@@ -45,21 +43,5 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
       " bytes available — " +
       filesystem.status;
     reserveFacts.append(term, description);
-  }
-  if (storage.status === "unavailable") {
-    const attention = document.getElementById("attention");
-    if (attention) {
-      attention.hidden = false;
-      attention.textContent =
-        "Storage reserve unavailable: " +
-        storage.reserve_bytes +
-        " bytes reserved";
-    }
-  } else if (detail.codex.status === "unavailable") {
-    const attention = document.getElementById("attention");
-    if (attention) {
-      attention.hidden = false;
-      attention.textContent = "Codex unavailable";
-    }
   }
 });

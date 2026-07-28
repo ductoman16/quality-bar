@@ -23,6 +23,12 @@ test("System renders exact state and checkout reserve facts and exposes low-spac
   assert.match(page, /<h2 id="storage-reserve-title">Storage reserve<\/h2>/);
   assert.match(page, /<dl id="storage-reserve-facts"><\/dl>/);
   assert.match(page, /<script src="\/assets\/storage-reserve\.js"><\/script>/);
+  for (const view of ["repositories", "reviews", "system"]) {
+    assert.match(
+      operatorPage({ view }),
+      /<script src="\/assets\/system-attention\.js"><\/script>/,
+    );
+  }
 
   const facts = element();
   const attention = element();
@@ -30,16 +36,14 @@ test("System renders exact state and checkout reserve facts and exposes low-spac
     ["storage-reserve-facts", facts],
     ["attention", attention],
   ]);
-  /** @type {(event: {detail: unknown}) => void} */
-  let loaded = () => {
-    throw new Error("storage_reserve_listener_missing");
-  };
+  /** @type {Array<(event: {detail: unknown}) => void>} */
+  const loaded = [];
   const context = {
     document: {
       /** @param {string} name @param {(event: {detail: unknown}) => void} listener */
       addEventListener(name, listener) {
         if (name === "quality-bar:system-loaded") {
-          loaded = listener;
+          loaded.push(listener);
         }
       },
       createElement() {
@@ -53,37 +57,46 @@ test("System renders exact state and checkout reserve facts and exposes low-spac
   };
   executeServedBrowserAsset(
     resolve("."),
+    "src/browser/system-attention.js",
+    readBrowserAsset("/assets/system-attention.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    resolve("."),
     "src/browser/storage-reserve.js",
     readBrowserAsset("/assets/storage-reserve.js"),
     context,
   );
 
-  loaded({
-    detail: {
-      codex: {
-        error: "codex_authentication_unavailable",
-        status: "unavailable",
+  assert.equal(loaded.length, 2);
+  for (const listener of loaded) {
+    listener({
+      detail: {
+        codex: {
+          error: "codex_authentication_unavailable",
+          status: "unavailable",
+        },
+        storage: {
+          filesystems: [
+            {
+              available_bytes: 6 * 1024 ** 3,
+              filesystem: "state",
+              path: "/var/lib/quality-bar",
+              status: "available",
+            },
+            {
+              available_bytes: 4 * 1024 ** 3,
+              filesystem: "checkouts",
+              path: "/var/cache/quality-bar/checkouts",
+              status: "unavailable",
+            },
+          ],
+          reserve_bytes: 5 * 1024 ** 3,
+          status: "unavailable",
+        },
       },
-      storage: {
-        filesystems: [
-          {
-            available_bytes: 6 * 1024 ** 3,
-            filesystem: "state",
-            path: "/var/lib/quality-bar",
-            status: "available",
-          },
-          {
-            available_bytes: 4 * 1024 ** 3,
-            filesystem: "checkouts",
-            path: "/var/cache/quality-bar/checkouts",
-            status: "unavailable",
-          },
-        ],
-        reserve_bytes: 5 * 1024 ** 3,
-        status: "unavailable",
-      },
-    },
-  });
+    });
+  }
 
   assert.equal(facts.children.length, 6);
   assert.deepEqual(

@@ -164,13 +164,30 @@ function validateFilesystem(filesystem, path, reserveBytes) {
   if (!LOCAL_FILESYSTEM_TYPES.has(facts.type)) {
     fail("filesystem_unsupported", "A required filesystem is not local");
   }
-  if (
-    reserveBytes !== null &&
-    BigInt(facts.bsize) * BigInt(facts.bavail) < BigInt(reserveBytes)
-  ) {
-    fail(
-      "storage_reserve_unavailable",
-      "A required filesystem is below the free-space reserve",
+  if (reserveBytes !== null) {
+    const available = BigInt(facts.bsize) * BigInt(facts.bavail);
+    if (available > BigInt(Number.MAX_SAFE_INTEGER)) {
+      fail(
+        "filesystem_unsupported",
+        "A required filesystem has unsupported free-space facts",
+      );
+    }
+    const availableBytes = Number(available);
+    if (availableBytes >= reserveBytes) {
+      return;
+    }
+    const filesystem = path === STATE_PATH ? "state" : "checkouts";
+    throw Object.assign(
+      new InstallationEnvironmentError(
+        "storage_reserve_unavailable",
+        `The ${filesystem} filesystem at ${path} has ${availableBytes} bytes available with ${reserveBytes} bytes reserved`,
+      ),
+      {
+        available_bytes: availableBytes,
+        filesystem,
+        path,
+        reserve_bytes: reserveBytes,
+      },
     );
   }
 }

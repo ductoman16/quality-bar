@@ -49,6 +49,8 @@ test("runtime reserve gates admission and Codex starts while System keeps exact 
         readFacts: () => lowFacts,
       }),
   });
+  assert.equal("registerCodexProcess" in application, false);
+  assert.equal("storageReserve" in application, false);
   let admitted = false;
   assert.throws(
     () =>

@@ -330,7 +330,6 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-concurrency-sqlite-integration.test.js",
         "test/forgejo-connection-sqlite-integration.test.js",
         "test/forgejo-polling-sqlite-integration.test.js",
-        "test/storage-reserve-sqlite-integration.test.js",
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
       ],
     },

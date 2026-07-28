@@ -18,6 +18,7 @@ test("runtime reserve facts remeasure both owned filesystems for every guarded a
   const measured = [];
   const gate = createStorageReserveGate({
     checkoutsPath: "/checkouts",
+    cleanupEligibleData() {},
     reserveBytes: 5 * GIB,
     statePath: "/state",
     statfs(path) {
@@ -77,12 +78,20 @@ test("runtime reserve facts remeasure both owned filesystems for every guarded a
       return true;
     },
   );
-  assert.deepEqual(measured, ["/state", "/checkouts", "/state", "/checkouts"]);
+  assert.deepEqual(measured, [
+    "/state",
+    "/checkouts",
+    "/state",
+    "/checkouts",
+    "/state",
+    "/checkouts",
+  ]);
 });
 
 test("a failed runtime measurement owns an exact filesystem error without inferred health", () => {
   const gate = createStorageReserveGate({
     checkoutsPath: "/checkouts",
+    cleanupEligibleData() {},
     reserveBytes: 5 * GIB,
     statePath: "/state",
     statfs(path) {
@@ -108,6 +117,24 @@ test("a failed runtime measurement owns an exact filesystem error without inferr
       return true;
     },
   );
+});
+
+test("runtime reserve removes eligible data and remeasures before blocking", () => {
+  let availableBytes = 4 * GIB;
+  let cleanupCalls = 0;
+  const gate = createStorageReserveGate({
+    checkoutsPath: "/checkouts",
+    cleanupEligibleData() {
+      cleanupCalls += 1;
+      availableBytes = 6 * GIB;
+    },
+    reserveBytes: 5 * GIB,
+    statePath: "/state",
+    statfs: () => ({ bavail: availableBytes, bsize: 1 }),
+  });
+
+  assert.equal(gate.assertWorkAdmissionAvailable().status, "available");
+  assert.equal(cleanupCalls, 1);
 });
 
 test("scheduled Forgejo polling pauses low reserve and fails fast on measurement errors", () => {

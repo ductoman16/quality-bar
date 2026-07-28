@@ -56,17 +56,19 @@ function nonnegativeInteger(value, fact) {
 /**
  * @param {{
  *   checkoutsPath?: string,
+ *   cleanupEligibleData: () => unknown,
  *   reserveBytes?: number,
  *   statePath?: string,
  *   statfs?: (path: string) => {bavail: number | bigint, bsize: number | bigint}
- * }} [options]
+ * }} options
  */
 export function createStorageReserveGate({
   checkoutsPath = CHECKOUTS_PATH,
+  cleanupEligibleData,
   reserveBytes = DEFAULT_FREE_SPACE_RESERVE_BYTES,
   statePath = STATE_PATH,
   statfs = readFilesystem,
-} = {}) {
+}) {
   if (
     typeof statePath !== "string" ||
     statePath.length === 0 ||
@@ -74,6 +76,7 @@ export function createStorageReserveGate({
     checkoutsPath.length === 0 ||
     !Number.isSafeInteger(reserveBytes) ||
     reserveBytes <= 0 ||
+    typeof cleanupEligibleData !== "function" ||
     typeof statfs !== "function"
   ) {
     throw new TypeError("storage reserve dependencies are invalid");
@@ -85,7 +88,7 @@ export function createStorageReserveGate({
   ]);
 
   /** @param {string} action */
-  function readFor(action) {
+  function measure(action) {
     const facts = filesystems.map(({ filesystem, path }) => {
       let measurement;
       try {
@@ -125,13 +128,22 @@ export function createStorageReserveGate({
         status: availableBytes >= reserveBytes ? "available" : "unavailable",
       };
     });
-    const exactFacts = {
+    return {
       filesystems: facts,
       reserve_bytes: reserveBytes,
       status: facts.every(({ status }) => status === "available")
         ? "available"
         : "unavailable",
     };
+  }
+
+  /** @param {string} action */
+  function readFor(action) {
+    let exactFacts = measure(action);
+    if (exactFacts.status === "unavailable") {
+      cleanupEligibleData();
+      exactFacts = measure(action);
+    }
     if (exactFacts.status === "unavailable") {
       throw new StorageReserveError(
         "storage_reserve_unavailable",

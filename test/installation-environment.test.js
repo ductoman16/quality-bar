@@ -196,7 +196,11 @@ test("startup enforces the configured reserve on state and checkout filesystems"
       }),
     (error) =>
       error instanceof InstallationEnvironmentError &&
-      error.code === "storage_reserve_unavailable",
+      error.code === "storage_reserve_unavailable" &&
+      /** @type {any} */ (error).filesystem === "state" &&
+      /** @type {any} */ (error).path === "/var/lib/quality-bar" &&
+      /** @type {any} */ (error).available_bytes === 6 * 1024 ** 3 &&
+      /** @type {any} */ (error).reserve_bytes === 7 * 1024 ** 3,
   );
 });
 

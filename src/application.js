@@ -12,6 +12,7 @@ import {
 import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
+  removeExpiredBrowserSessions,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import { requireCodedError } from "./coded-error.js";
@@ -109,6 +110,7 @@ export function createApplication({
   }
 
   const storageBoundary = createHardStorageBoundary(writeLog);
+  /** @type {ReturnType<typeof openDurableCore> | null} */
   let durableCore = null;
   let browserSessions = null;
   let implementerTokens = null;
@@ -142,6 +144,12 @@ export function createApplication({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
     storageReserve = createStorageReserve({
+      cleanupEligibleData() {
+        if (!durableCore) {
+          throw new TypeError("durable core is required for storage cleanup");
+        }
+        removeExpiredBrowserSessions(durableCore, { now });
+      },
       reserveBytes: installation.freeSpaceReserveBytes,
     });
     durableCore = openDurableCore(databasePath, {

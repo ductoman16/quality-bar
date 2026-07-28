@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import {
+  BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
+  removeExpiredBrowserSessions,
 } from "../src/browser-session.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
@@ -63,6 +65,30 @@ test("an unavailable browser-session boundary preserves the exact startup failur
   ]) {
     assert.throws(invoke, (error) => error === failure);
   }
+});
+
+test("storage cleanup removes only expired browser sessions", () => {
+  const core = openDurableCore(temporaryDatabasePath());
+  const now = BROWSER_SESSION_ABSOLUTE_LIFETIME_MS + 10_000;
+  for (const [hash, createdAt] of [
+    ["expired", 0],
+    ["current", now - 1_000],
+  ]) {
+    core.run(
+      "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
+      hash,
+      `${hash}-csrf`,
+      createdAt,
+      createdAt,
+    );
+  }
+
+  removeExpiredBrowserSessions(core, { now: () => now });
+
+  assert.deepEqual(core.all("SELECT session_hash FROM browser_sessions"), [
+    { session_hash: "current" },
+  ]);
+  core.close();
 });
 
 test("creates a durable opaque browser session without persisting its secret", () => {
