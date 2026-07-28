@@ -18,6 +18,14 @@ async function forgejoResponseErrorMessage(response) {
   return body.error.message;
 }
 
+/** @param {unknown} error */
+function forgejoErrorMessage(error) {
+  if (!(error instanceof Error)) {
+    throw error;
+  }
+  return error.message;
+}
+
 /** @param {unknown} value */
 function validForgejoVerification(value) {
   if (!value || Array.isArray(value) || typeof value !== "object") {
@@ -111,16 +119,39 @@ function validForgejoConnection(value) {
 /** @param {any} verification */
 function forgejoVerificationText(verification) {
   const time = new Date(verification.verified_at).toISOString();
-  if (verification.outcome === "error") {
-    return `${verification.trigger}; ${time}; ${verification.error.message} (${verification.error.code})`;
-  }
-  const capabilities = Object.entries(verification.capabilities)
-    .map(([name, outcome]) => `${name.replaceAll("_", " ")}: ${outcome}`)
-    .join("; ");
-  return `${verification.trigger}; ${time}; ${verification.api_profile}; ${verification.reported_version}; scopes: ${verification.scopes.join(", ")}; ${capabilities}`;
+  const principal = verification.principal
+    ? `principal: ${verification.principal.login} (${verification.principal.id})`
+    : "principal: not completed";
+  const scopes = verification.scopes
+    ? `scopes: ${verification.scopes.join(", ")}`
+    : "scopes: not completed";
+  const capabilities = verification.capabilities
+    ? Object.entries(verification.capabilities)
+        .map(([name, outcome]) => `${name.replaceAll("_", " ")}: ${outcome}`)
+        .join(", ")
+    : "capabilities: not completed";
+  const repositories = verification.repositories
+    .map((/** @type {any} */ repository) => {
+      const identity =
+        repository.full_name ??
+        `Forge Repository ${repository.id ?? repository.forge_repository_id}`;
+      const outcome =
+        repository.outcome ??
+        (repository.error
+          ? `error: ${repository.error.message} (${repository.error.code})`
+          : "verified");
+      return `${identity}: ${outcome}`;
+    })
+    .join(", ");
+  const error =
+    verification.error === null
+      ? ""
+      : `; ${verification.error.message} (${verification.error.code})`;
+  return `${verification.trigger}; ${time}; ${verification.api_profile ?? "profile not completed"}; ${verification.reported_version ?? "version not completed"}; ${principal}; ${scopes}; ${capabilities}; Repositories: ${repositories}${error}`;
 }
 
 Reflect.set(window, "qualityBarForgejoConnectionContract", {
+  forgejoErrorMessage,
   forgejoResponseErrorMessage,
   forgejoVerificationText,
   validForgejoConnection,

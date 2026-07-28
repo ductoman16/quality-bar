@@ -174,38 +174,6 @@ test("Forgejo PAT rotation rejects an empty replacement before reading or verify
   service.destroy();
 });
 
-test("Forgejo Connection lifecycle rejects malformed retirement and reactivation before durable access", async () => {
-  let reads = 0;
-  const service = createForgejoConnectionService(
-    {
-      all() {
-        reads += 1;
-        return [];
-      },
-      transaction() {
-        throw new Error("unused transaction");
-      },
-    },
-    {
-      masterKey: Buffer.alloc(32),
-      verifier: {
-        async verify() {
-          throw new Error("unused verification");
-        },
-      },
-    },
-  );
-  const constructionReads = reads;
-  assert.throws(() => service.retire({ lifecycle: "enabled" }), {
-    code: "forgejo_connection_lifecycle_request_invalid",
-  });
-  await assert.rejects(() => service.reactivate({ token: "" }), {
-    code: "forgejo_connection_reactivation_request_invalid",
-  });
-  assert.equal(reads, constructionReads);
-  service.destroy();
-});
-
 test("Forgejo Connection read rejects contradictory durable health errors", () => {
   const baseRow = {
     api_profile: "forgejo-v16",

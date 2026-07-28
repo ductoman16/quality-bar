@@ -6,6 +6,7 @@
  *   render: (value: unknown) => void,
  *   responseMessage: (response: Response) => Promise<string>,
  *   retire: HTMLButtonElement,
+ *   showCaughtError: (error: unknown) => string,
  *   showError: (message: string) => void,
  *   status: HTMLElement
  * }} options
@@ -81,8 +82,11 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
     }
     active = null;
     confirmation.close();
-    options.retire.disabled = true;
-    options.remove.disabled = true;
+    selected.source.disabled = true;
+    options.status.textContent =
+      selected.method === "DELETE"
+        ? "Deleting Forgejo Connection."
+        : "Retiring Forgejo Connection.";
     try {
       const response = await fetch("/api/v1/forgejo-connections/lifecycle", {
         body: JSON.stringify(
@@ -108,15 +112,10 @@ function bindForgejoConnectionLifecycleConfirmation(options) {
       }
       options.status.focus();
     } catch (error) {
-      options.showError(
-        error instanceof Error
-          ? error.message
-          : "Forgejo Connection lifecycle failed",
-      );
+      options.showError(options.showCaughtError(error));
       selected.source.focus();
     } finally {
-      options.retire.disabled = false;
-      options.remove.disabled = false;
+      selected.source.disabled = false;
     }
   });
 }

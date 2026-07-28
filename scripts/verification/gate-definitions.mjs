@@ -234,6 +234,7 @@ export function createGateDefinitions(metadata) {
         "test/github-connection.test.js",
         "test/github-repository-selection.test.js",
         "test/github-polling-state.test.js",
+        "test/forgejo-connection-lifecycle.test.js",
         "test/forgejo-connection.test.js",
         "test/verification-harness.test.js",
       ],

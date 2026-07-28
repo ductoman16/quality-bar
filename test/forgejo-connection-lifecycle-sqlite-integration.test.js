@@ -20,8 +20,15 @@ const repository = {
 function verified(repositories = [repository]) {
   return {
     capabilities: {
+      aggregate_feedback:
+        repositories.length === 0 ? "not_completed" : "verified",
+      branch_access: repositories.length === 0 ? "not_completed" : "verified",
+      commit_status: repositories.length === 0 ? "not_completed" : "verified",
       enumeration: "verified",
+      inline_feedback: repositories.length === 0 ? "not_completed" : "verified",
       private_git_read:
+        repositories.length === 0 ? "not_completed" : "verified",
+      pull_request_access:
         repositories.length === 0 ? "not_completed" : "verified",
     },
     principal: { id: 7, login: "operator" },
@@ -163,12 +170,8 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     reported_version: null,
     repositories: [
       {
-        error: {
-          code: "forgejo_verification_unavailable",
-          message: "Forgejo verification unavailable",
-        },
         forge_repository_id: 11,
-        outcome: "error",
+        outcome: "not_completed",
       },
     ],
     scopes: null,
@@ -223,8 +226,13 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     ],
   );
   assert.deepEqual(/** @type {any} */ (reactivated).capabilities, {
+    aggregate_feedback: "verified",
+    branch_access: "verified",
+    commit_status: "verified",
     enumeration: "verified",
+    inline_feedback: "verified",
     private_git_read: "verified",
+    pull_request_access: "verified",
   });
   assert.equal(/** @type {any} */ (reactivated).verification_history.length, 4);
   const cipher = createForgejoConnectionCredentialCipher(masterKey);

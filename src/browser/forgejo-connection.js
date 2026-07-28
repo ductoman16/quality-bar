@@ -4,7 +4,7 @@ window.addEventListener("DOMContentLoaded", () => {
       Reflect.get(window, "qualityBarOperator")
     );
   const forgejoContract =
-    /** @type {{forgejoResponseErrorMessage: (response: Response) => Promise<string>, forgejoVerificationText: (verification: any) => string, validForgejoConnection: (value: unknown) => boolean}} */ (
+    /** @type {{forgejoErrorMessage: (error: unknown) => string, forgejoResponseErrorMessage: (response: Response) => Promise<string>, forgejoVerificationText: (verification: any) => string, validForgejoConnection: (value: unknown) => boolean}} */ (
       Reflect.get(window, "qualityBarForgejoConnectionContract")
     );
   /** @param {string} id */
@@ -130,22 +130,21 @@ window.addEventListener("DOMContentLoaded", () => {
     forgejoDelete.hidden = false;
   }
 
+  async function refreshForgejoConnection() {
+    const response = await fetch("/api/v1/forgejo-connections");
+    if (!response.ok) {
+      throw new Error(
+        await forgejoContract.forgejoResponseErrorMessage(response),
+      );
+    }
+    renderForgejoConnection(await response.json());
+  }
+
   async function loadForgejoConnection() {
     try {
-      const response = await fetch("/api/v1/forgejo-connections");
-      if (!response.ok) {
-        showForgejoError(
-          await forgejoContract.forgejoResponseErrorMessage(response),
-        );
-        return;
-      }
-      renderForgejoConnection(await response.json());
+      await refreshForgejoConnection();
     } catch (error) {
-      showForgejoError(
-        error instanceof Error
-          ? error.message
-          : "Forgejo Connection loading failed",
-      );
+      showForgejoError(forgejoContract.forgejoErrorMessage(error));
     }
   }
 
@@ -194,13 +193,8 @@ window.addEventListener("DOMContentLoaded", () => {
         },
       );
       if (!response.ok) {
-        const body = /** @type {{error?: {message?: unknown}}} */ (
-          await response.json()
-        );
         showForgejoError(
-          typeof body.error?.message === "string"
-            ? body.error.message
-            : "Forgejo Connection response is invalid",
+          await forgejoContract.forgejoResponseErrorMessage(response),
         );
         return;
       }
@@ -246,8 +240,8 @@ window.addEventListener("DOMContentLoaded", () => {
       forgejoToken.value = "";
       forgejoStatus.textContent = "Forgejo Connection verified.";
       forgejoStatus.focus();
-    } catch {
-      showForgejoError("Forgejo Connection verification failed");
+    } catch (error) {
+      showForgejoError(forgejoContract.forgejoErrorMessage(error));
     } finally {
       submit.disabled = false;
     }
@@ -310,10 +304,7 @@ window.addEventListener("DOMContentLoaded", () => {
         "Forgejo PAT rotated. Revoke its predecessor in Forgejo.";
       forgejoStatus.focus();
     } catch (error) {
-      if (!(error instanceof Error)) {
-        throw error;
-      }
-      showForgejoError(error.message);
+      showForgejoError(forgejoContract.forgejoErrorMessage(error));
     } finally {
       submit.disabled = false;
     }
@@ -330,6 +321,7 @@ window.addEventListener("DOMContentLoaded", () => {
       forgejoOperator.requiredElement("forgejo-connection-reactivation-submit")
     );
     submit.disabled = true;
+    forgejoStatus.textContent = "Verifying Forgejo Connection reactivation.";
     try {
       const response = await fetch("/api/v1/forgejo-connections/reactivate", {
         body: JSON.stringify({ token: forgejoReactivationToken.value }),
@@ -340,9 +332,10 @@ window.addEventListener("DOMContentLoaded", () => {
         method: "POST",
       });
       if (!response.ok) {
-        showForgejoError(
-          await forgejoContract.forgejoResponseErrorMessage(response),
-        );
+        const message =
+          await forgejoContract.forgejoResponseErrorMessage(response);
+        await refreshForgejoConnection();
+        showForgejoError(message);
         return;
       }
       renderForgejoConnection(await response.json());
@@ -350,11 +343,7 @@ window.addEventListener("DOMContentLoaded", () => {
       forgejoStatus.textContent = "Forgejo Connection reactivated.";
       forgejoStatus.focus();
     } catch (error) {
-      showForgejoError(
-        error instanceof Error
-          ? error.message
-          : "Forgejo Connection reactivation failed",
-      );
+      showForgejoError(forgejoContract.forgejoErrorMessage(error));
     } finally {
       submit.disabled = false;
     }
@@ -369,6 +358,7 @@ window.addEventListener("DOMContentLoaded", () => {
     remove: forgejoDelete,
     render: renderForgejoConnection,
     responseMessage: forgejoContract.forgejoResponseErrorMessage,
+    showCaughtError: forgejoContract.forgejoErrorMessage,
     retire: forgejoRetire,
     showError: showForgejoError,
     status: forgejoStatus,

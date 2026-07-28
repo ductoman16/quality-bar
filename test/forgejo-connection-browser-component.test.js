@@ -5,6 +5,11 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import {
+  assertForgejoContract,
+  failedForgejoReactivation,
+  validForgejoConnection,
+} from "./forgejo-connection-browser-component-support.js";
 import { element } from "./github-connection-browser-component-support.js";
 
 test("Forgejo Connection discovers semantic Repository choices then atomically registers checked choices", async () => {
@@ -116,36 +121,12 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   const rotationFailure = { value: undefined };
   const rotationJsonFailure = { value: false };
   const rotationOk = { value: true };
-  const validRotationResponse = {
-    api_profile: "forgejo-v16",
-    base_url: "https://forgejo.example",
-    capabilities: { private_git_read: "verified" },
-    health: "healthy",
-    health_error: null,
-    id: "forgejo-connection",
-    lifecycle: "enabled",
-    principal: { id: 7, login: "operator" },
-    reported_version: "16.0.4",
-    scopes: ["read:repository", "write:issue", "write:repository"],
-    verification_history: [
-      {
-        api_profile: "forgejo-v16",
-        capabilities: { private_git_read: "verified" },
-        error: null,
-        id: "verification-1",
-        outcome: "success",
-        principal: { id: 7, login: "operator" },
-        reported_version: "16.0.4",
-        repositories: [{ id: 11 }],
-        scopes: ["read:repository", "write:issue", "write:repository"],
-        trigger: "onboarding",
-        verified_at: 1_000,
-      },
-    ],
-    verified_at: 1_000,
-  };
+  const reactivationOk = { value: true };
+  const validRotationResponse = validForgejoConnection;
   /** @type {{value: unknown}} */
   const rotationResponse = { value: validRotationResponse };
+  /** @type {{value: unknown}} */
+  const currentResponse = { value: null };
   let ready = () => {};
   const context = {
     Error,
@@ -155,8 +136,28 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
       if (path.endsWith("/credential/rotate") && rotationFailure.value) {
         throw rotationFailure.value;
       }
+      if (path.endsWith("/reactivate")) {
+        assert.equal(
+          status.textContent,
+          "Verifying Forgejo Connection reactivation.",
+        );
+      }
+      if (path.endsWith("/lifecycle")) {
+        assert.equal(
+          status.textContent,
+          options.method === "DELETE"
+            ? "Deleting Forgejo Connection."
+            : "Retiring Forgejo Connection.",
+        );
+        assert.equal(retire.disabled, options.method === "PATCH");
+        assert.equal(remove.disabled, options.method === "DELETE");
+      }
       return {
-        ok: path.endsWith("/credential/rotate") ? rotationOk.value : true,
+        ok: path.endsWith("/credential/rotate")
+          ? rotationOk.value
+          : path.endsWith("/reactivate")
+            ? reactivationOk.value
+            : true,
         async json() {
           if (
             path.endsWith("/credential/rotate") &&
@@ -176,9 +177,15 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
               : { ...validRotationResponse, lifecycle: "retired" };
           }
           if (path.endsWith("/reactivate")) {
-            return validRotationResponse;
+            return reactivationOk.value
+              ? validRotationResponse
+              : {
+                  error: {
+                    message: "Replacement PAT verification failed",
+                  },
+                };
           }
-          return options ? validRotationResponse : null;
+          return options ? validRotationResponse : currentResponse.value;
         },
       };
     },
@@ -208,32 +215,7 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   );
   const contract = /** @type {any} */ (context.window)
     .qualityBarForgejoConnectionContract;
-  assert.equal(
-    await contract.forgejoResponseErrorMessage({
-      async json() {
-        return { error: { message: "Exact lifecycle conflict" } };
-      },
-    }),
-    "Exact lifecycle conflict",
-  );
-  await assert.rejects(
-    () =>
-      contract.forgejoResponseErrorMessage({
-        async json() {
-          return { error: {} };
-        },
-      }),
-    /Forgejo error response is invalid/,
-  );
-  assert.match(
-    contract.forgejoVerificationText({
-      error: { code: "forgejo_failed", message: "Forgejo failed" },
-      outcome: "error",
-      trigger: "enablement",
-      verified_at: 2_000,
-    }),
-    /Forgejo failed \(forgejo_failed\)/,
-  );
+  await assertForgejoContract(contract);
   executeServedBrowserAsset(
     resolve(import.meta.dirname, ".."),
     "src/browser/forgejo-connection-lifecycle-confirmation.js",
@@ -270,6 +252,8 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.match(capabilities.textContent, /private git read: verified/);
   assert.equal(history.children.length, 1);
   assert.match(history.children[0].textContent, /onboarding/);
+  assert.match(history.children[0].textContent, /operator \(7\)/);
+  assert.match(history.children[0].textContent, /operator\/private: verified/);
   await rotationForm.listener("submit")({ preventDefault() {} });
   assert.deepEqual(JSON.parse(requests[3].options.body), {
     token: "replacement-pat",
@@ -380,6 +364,16 @@ test("Forgejo Connection discovers semantic Repository choices then atomically r
   assert.equal(requests.at(-1).path, "/api/v1/forgejo-connections/reactivate");
   assert.equal(lifecycle.textContent, "Enabled");
   assert.equal(reactivationToken.value, "");
+  reactivationToken.value = "failed-reactivation-pat";
+  reactivationOk.value = false;
+  currentResponse.value = failedForgejoReactivation();
+  await reactivationForm.listener("submit")({ preventDefault() {} });
+  assert.equal(lifecycle.textContent, "Retired");
+  assert.match(health.textContent, /Replacement PAT verification failed/);
+  assert.equal(history.children.length, 2);
+  assert.equal(error.textContent, "Replacement PAT verification failed");
+  assert.equal(reactivationToken.value, "failed-reactivation-pat");
+  assert.equal(reactivationSubmit.disabled, false);
   await remove.listener("click")({});
   assert.equal(confirmationInput.focused, true);
   confirmationInput.value = "delete";

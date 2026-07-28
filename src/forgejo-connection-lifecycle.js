@@ -1,4 +1,4 @@
-import { verifiedForgejoRepositories } from "./forgejo-connection-rotation.js";
+import { completeForgejoReactivationVerification } from "./forgejo-connection-reactivation-verification.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -232,7 +232,7 @@ export async function reactivateForgejoConnection(
   /** @type {any | undefined} */
   let completedVerification;
   try {
-    const verification = verifiedForgejoRepositories(
+    const verification = completeForgejoReactivationVerification(
       await verifier.verify({
         baseUrl: connection.base_url,
         repositoryIds,
@@ -352,9 +352,8 @@ export async function reactivateForgejoConnection(
           completedVerification?.repositories ??
             repositoryIds.map(
               /** @param {number} repositoryId */ (repositoryId) => ({
-                error: { code: error.code, message: error.message },
                 forge_repository_id: repositoryId,
-                outcome: "error",
+                outcome: "not_completed",
               }),
             ),
         ),
