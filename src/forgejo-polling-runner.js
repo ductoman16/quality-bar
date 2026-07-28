@@ -114,6 +114,21 @@ export function createForgejoPollingRunner(
     );
   }
 
+  /** @param {any} row */
+  function expectedGeneration(row) {
+    if (row.poll_generation === null) {
+      return 0;
+    }
+    if (
+      typeof row.poll_generation !== "string" ||
+      !/^(0|[1-9]\d*)$/u.test(row.poll_generation) ||
+      !Number.isSafeInteger(Number(row.poll_generation))
+    ) {
+      throw new TypeError("Forgejo polling generation is invalid");
+    }
+    return Number(row.poll_generation);
+  }
+
   async function runDue() {
     if (running) {
       return;
@@ -126,7 +141,12 @@ export function createForgejoPollingRunner(
                 forgejo_repository_polls.baseline_status,
                 forgejo_connections.base_url,
                 forgejo_connection_credentials.encrypted_credential,
-                forgejo_repositories.name
+                forgejo_repositories.name,
+                (
+                  SELECT value FROM quality_bar_metadata
+                   WHERE key = 'forgejo_poll_generation:' ||
+                               forgejo_repository_polls.connection_id
+                ) AS poll_generation
            FROM forgejo_repository_polls
            JOIN forgejo_connections
              ON forgejo_connections.id = forgejo_repository_polls.connection_id
@@ -148,6 +168,7 @@ export function createForgejoPollingRunner(
         timestamp(),
       );
       const gatedConnections = new Set();
+      const currentGenerations = new Map();
       const baselineConnections = new Set(
         due
           .filter(
@@ -166,6 +187,8 @@ export function createForgejoPollingRunner(
         ) {
           continue;
         }
+        const generation =
+          currentGenerations.get(row.connection_id) ?? expectedGeneration(row);
         let token;
         try {
           token = cipher.decrypt(row.connection_id, row.encrypted_credential);
@@ -182,41 +205,64 @@ export function createForgejoPollingRunner(
             error: /** @type {Error & {code: string}} */ (error),
             forgeRepositoryId: row.forge_repository_id,
           });
+          gatedConnections.add(row.connection_id);
           continue;
         }
+        let baseline = false;
+        let forgeRepositoryIds = [row.forge_repository_id];
         try {
+          let prepared;
           if (baselineConnections.has(row.connection_id)) {
+            baseline = true;
             const baselineRows = due.filter(
               (/** @type {any} */ candidate) =>
                 candidate.connection_id === row.connection_id &&
                 candidate.baseline_status !== "complete",
             );
-            const prepared = await prepareBaseline(
+            forgeRepositoryIds = baselineRows.map(
+              (/** @type {any} */ candidate) => candidate.forge_repository_id,
+            );
+            prepared = await prepareBaseline(
               { base_url: row.base_url, id: row.connection_id },
               token,
               baselineRows.map((/** @type {any} */ candidate) => ({
                 full_name: candidate.name,
                 id: candidate.forge_repository_id,
               })),
+              { recordFailure: false },
             );
-            durableCore.transaction((/** @type {any} */ transaction) => {
-              polling.commitSuccess(transaction, row.connection_id, prepared);
-            });
-            completedBaselines.add(row.connection_id);
           } else {
-            await polling.reconcile({
-              connection: {
-                base_url: row.base_url,
-                id: row.connection_id,
-              },
-              credential: token,
-              repositories: [
-                {
-                  full_name: row.name,
-                  id: row.forge_repository_id,
+            prepared = await polling.prepare(
+              {
+                connection: {
+                  base_url: row.base_url,
+                  id: row.connection_id,
                 },
-              ],
-            });
+                credential: token,
+                repositories: [
+                  {
+                    full_name: row.name,
+                    id: row.forge_repository_id,
+                  },
+                ],
+              },
+              { recordFailure: false },
+            );
+          }
+          const committed = durableCore.transaction(
+            (/** @type {any} */ transaction) =>
+              polling.commitSuccess(
+                transaction,
+                row.connection_id,
+                prepared,
+                generation,
+              ),
+          );
+          if (committed) {
+            currentGenerations.set(row.connection_id, generation + 1);
+          }
+          if (committed && baseline) {
+            completedBaselines.add(row.connection_id);
           }
         } catch (error) {
           if (
@@ -225,6 +271,28 @@ export function createForgejoPollingRunner(
             typeof error.code !== "string"
           ) {
             throw error;
+          }
+          if (
+            "attemptedAt" in error &&
+            Number.isSafeInteger(error.attemptedAt)
+          ) {
+            const committed = durableCore.transaction(
+              (/** @type {any} */ transaction) =>
+                polling.commitFailure(
+                  transaction,
+                  row.connection_id,
+                  forgeRepositoryIds,
+                  /** @type {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} */ (
+                    error
+                  ),
+                  Number(error.attemptedAt),
+                  baseline,
+                  generation,
+                ),
+            );
+            if (committed) {
+              currentGenerations.set(row.connection_id, generation + 1);
+            }
           }
           if (
             "nextAttemptAt" in error &&

@@ -14,8 +14,26 @@ export const REPOSITORY_SELECTION = `SELECT
   COALESCE(github_repositories.web_url, forgejo_repositories.web_url) AS forge_web_url,
   CASE WHEN github_repositories.repository_id IS NOT NULL THEN 'github' WHEN forgejo_repositories.repository_id IS NOT NULL THEN 'forgejo' ELSE NULL END AS forge_provider,
   COALESCE(github_connections.health, forgejo_connections.health) AS forge_connection_health,
-  COALESCE(github_connections.health_error_code, NULL) AS forge_connection_health_error_code,
-  COALESCE(github_connections.health_error_message, NULL) AS forge_connection_health_error_message,
+  CASE
+    WHEN github_repositories.repository_id IS NOT NULL
+      THEN github_connections.health_error_code
+    WHEN forgejo_repositories.repository_id IS NOT NULL
+      THEN json_extract((
+        SELECT value FROM quality_bar_metadata
+         WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id
+      ), '$.code')
+    ELSE NULL
+  END AS forge_connection_health_error_code,
+  CASE
+    WHEN github_repositories.repository_id IS NOT NULL
+      THEN github_connections.health_error_message
+    WHEN forgejo_repositories.repository_id IS NOT NULL
+      THEN json_extract((
+        SELECT value FROM quality_bar_metadata
+         WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id
+      ), '$.message')
+    ELSE NULL
+  END AS forge_connection_health_error_message,
   (
     SELECT count(*)
     FROM review_assignment_repositories

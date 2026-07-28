@@ -103,6 +103,9 @@ test("a partial Forgejo baseline commits no snapshot", async () => {
       /** @param {(transaction: any) => unknown} callback */
       transaction(callback) {
         return callback({
+          get() {
+            return undefined;
+          },
           /** @param {string} sql @param {...unknown} parameters */
           run(sql, ...parameters) {
             writes.push({ parameters, sql });

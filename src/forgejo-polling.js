@@ -50,6 +50,47 @@ function codedFailure(error) {
   throw new TypeError("Forgejo polling failed with a non-Error value");
 }
 
+/** @param {any} transaction @param {string} connectionId */
+function pollingGeneration(transaction, connectionId) {
+  const row = transaction.get(
+    "SELECT value FROM quality_bar_metadata WHERE key = ?",
+    `forgejo_poll_generation:${connectionId}`,
+  );
+  if (!row) {
+    return 0;
+  }
+  if (
+    typeof row.value !== "string" ||
+    !/^(0|[1-9]\d*)$/u.test(row.value) ||
+    !Number.isSafeInteger(Number(row.value))
+  ) {
+    throw new TypeError("Forgejo polling generation is invalid");
+  }
+  return Number(row.value);
+}
+
+/**
+ * @param {any} transaction
+ * @param {string} connectionId
+ * @param {number | undefined} expectedGeneration
+ */
+function claimPollingGeneration(transaction, connectionId, expectedGeneration) {
+  const current = pollingGeneration(transaction, connectionId);
+  if (expectedGeneration !== undefined && current !== expectedGeneration) {
+    return false;
+  }
+  if (current === Number.MAX_SAFE_INTEGER) {
+    throw new TypeError("Forgejo polling generation is exhausted");
+  }
+  transaction.run(
+    `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+    `forgejo_poll_generation:${connectionId}`,
+    String(current + 1),
+  );
+  return true;
+}
+
 /**
  * @param {{all: Function, transaction: Function}} durableCore
  * @param {{fetchPullRequests: (input: {connection: any, credential: any, repository: any}) => Promise<unknown[]>, now?: () => number, recordOwningFailure: (transaction: any, connectionId: string, forgeRepositoryIds: number[], failure: Error & {code: string, repositoryId?: number}, attemptedAt: number) => void}} options
@@ -165,6 +206,7 @@ export function createForgejoPollingService(
       }
     } catch (error) {
       const failure = codedFailure(error);
+      Object.assign(failure, { attemptedAt });
       if (recordFailure) {
         recordFailureState(
           input.connection.id,
@@ -193,59 +235,14 @@ export function createForgejoPollingService(
     attemptedAt,
     baseline,
   ) {
-    const nextAttemptAt = nextForgejoAttemptAt(attemptedAt, failure);
     durableCore.transaction((/** @type {any} */ transaction) => {
-      for (const forgeRepositoryId of forgeRepositoryIds) {
-        if (
-          failure.repositoryId !== undefined &&
-          failure.repositoryId !== forgeRepositoryId
-        ) {
-          if (baseline) {
-            transaction.run(
-              `UPDATE forgejo_repository_polls
-                  SET next_attempt_at = ?
-                WHERE connection_id = ? AND forge_repository_id = ?`,
-              nextAttemptAt ?? Number.MAX_SAFE_INTEGER,
-              connectionId,
-              forgeRepositoryId,
-            );
-          }
-          continue;
-        }
-        transaction.run(
-          `UPDATE forgejo_repository_polls
-              SET baseline_status = CASE WHEN ? THEN 'error'
-                    ELSE baseline_status END,
-                  error_code = ?, error_message = ?,
-                  rate_gate_until = ?, next_attempt_at = ?
-            WHERE connection_id = ? AND forge_repository_id = ?`,
-          baseline ? 1 : 0,
-          failure.code,
-          failure.message,
-          failure.rateGateUntil ?? null,
-          nextAttemptAt,
-          connectionId,
-          forgeRepositoryId,
-        );
-      }
-      transaction.run(
-        `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
-         ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
-        `forgejo_poll_gate:${connectionId}`,
-        JSON.stringify({
-          code: failure.code,
-          message: failure.message,
-          nextAttemptAt,
-          rateGateUntil: failure.rateGateUntil ?? null,
-          repositoryId: failure.repositoryId ?? null,
-        }),
-      );
-      recordOwningFailure(
+      commitFailure(
         transaction,
         connectionId,
         forgeRepositoryIds,
         failure,
         attemptedAt,
+        baseline,
       );
     });
   }
@@ -253,9 +250,99 @@ export function createForgejoPollingService(
   /**
    * @param {any} transaction
    * @param {string} connectionId
-   * @param {{completedAt: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
+   * @param {number[]} forgeRepositoryIds
+   * @param {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} failure
+   * @param {number} attemptedAt
+   * @param {boolean} baseline
+   * @param {number} [expectedGeneration]
    */
-  function commitSuccess(transaction, connectionId, prepared) {
+  function commitFailure(
+    transaction,
+    connectionId,
+    forgeRepositoryIds,
+    failure,
+    attemptedAt,
+    baseline,
+    expectedGeneration,
+  ) {
+    if (
+      !claimPollingGeneration(transaction, connectionId, expectedGeneration)
+    ) {
+      return false;
+    }
+    const nextAttemptAt = nextForgejoAttemptAt(attemptedAt, failure);
+    for (const forgeRepositoryId of forgeRepositoryIds) {
+      if (
+        failure.repositoryId !== undefined &&
+        failure.repositoryId !== forgeRepositoryId
+      ) {
+        if (baseline) {
+          transaction.run(
+            `UPDATE forgejo_repository_polls
+                SET next_attempt_at = ?
+              WHERE connection_id = ? AND forge_repository_id = ?`,
+            nextAttemptAt ?? Number.MAX_SAFE_INTEGER,
+            connectionId,
+            forgeRepositoryId,
+          );
+        }
+        continue;
+      }
+      transaction.run(
+        `UPDATE forgejo_repository_polls
+            SET baseline_status = CASE WHEN ? THEN 'error'
+                  ELSE baseline_status END,
+                error_code = ?, error_message = ?,
+                rate_gate_until = ?, next_attempt_at = ?
+          WHERE connection_id = ? AND forge_repository_id = ?`,
+        baseline ? 1 : 0,
+        failure.code,
+        failure.message,
+        failure.rateGateUntil ?? null,
+        nextAttemptAt,
+        connectionId,
+        forgeRepositoryId,
+      );
+    }
+    transaction.run(
+      `INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)
+       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      `forgejo_poll_gate:${connectionId}`,
+      JSON.stringify({
+        code: failure.code,
+        message: failure.message,
+        nextAttemptAt,
+        rateGateUntil: failure.rateGateUntil ?? null,
+        repositoryId: failure.repositoryId ?? null,
+      }),
+    );
+    recordOwningFailure(
+      transaction,
+      connectionId,
+      forgeRepositoryIds,
+      failure,
+      attemptedAt,
+    );
+    return true;
+  }
+
+  /**
+   * @param {any} transaction
+   * @param {string} connectionId
+   * @param {{completedAt: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
+   * @param {number} [expectedGeneration]
+   */
+  function commitSuccess(
+    transaction,
+    connectionId,
+    prepared,
+    expectedGeneration,
+  ) {
+    if (
+      !claimPollingGeneration(transaction, connectionId, expectedGeneration)
+    ) {
+      return false;
+    }
     transaction.run(
       "DELETE FROM quality_bar_metadata WHERE key = ?",
       `forgejo_poll_gate:${connectionId}`,
@@ -280,6 +367,7 @@ export function createForgejoPollingService(
         JSON.stringify(snapshot),
       );
     }
+    return true;
   }
 
   /** @param {{connection: any, credential: any, repositories: any[]}} input */
@@ -304,6 +392,7 @@ export function createForgejoPollingService(
   }
 
   return {
+    commitFailure,
     commitSuccess,
     prepare,
     reconcile,
