@@ -8,6 +8,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { executeReviewRun } from "../src/review-run-execution.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
@@ -146,6 +147,15 @@ test("the first valid fenced submission atomically preserves every complete Crit
     },
     fileChanges,
   );
+  createReviewRunEvidenceService(core).complete(claim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
   assert.equal(
     core.get("SELECT count(*) AS count FROM criterion_results")?.count,
     4,

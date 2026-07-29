@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createReviewService } from "../src/review.js";
 import {
@@ -146,6 +147,15 @@ test("the implementer token requests, polls, and reads canonical Evaluation fact
     },
     [],
   );
+  createReviewRunEvidenceService(application.durableCore).complete(claim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
 
   const resultResponse = await request(`${evaluationPath}/result`, {
     headers: readHeaders,
@@ -161,6 +171,11 @@ test("the implementer token requests, polls, and reads canonical Evaluation fact
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), expected);
   }
+  const malformed = await request("/api/v1/evaluations/%ZZ/result", {
+    headers: readHeaders,
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal(await responseErrorCode(malformed), "request_malformed");
 });
 
 test("disconnect after durable machine acceptance does not cancel Evaluation work", async () => {
@@ -233,12 +248,22 @@ test("disconnect after durable machine acceptance does not cancel Evaluation wor
     hostname: target.hostname,
     path: target.pathname,
   });
-  clientRequest.on("error", () => {});
+  const intentionalDisconnect = new Error("intentional machine disconnect");
+  /** @type {Promise<void>} */
+  const disconnected = new Promise((resolve, reject) => {
+    clientRequest.once("error", (error) => {
+      if (error === intentionalDisconnect) {
+        resolve();
+        return;
+      }
+      reject(error);
+    });
+  });
   clientRequest.end(body);
   await accepted;
-  clientRequest.destroy();
+  clientRequest.destroy(intentionalDisconnect);
   releaseResponse();
-  await new Promise((resolve) => setImmediate(resolve));
+  await disconnected;
 
   assert.deepEqual(
     application.durableCore.get(

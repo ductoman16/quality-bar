@@ -86,6 +86,26 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
     },
     [],
   );
+  assert.throws(
+    () => reader.readResult("evaluation-1"),
+    (error) =>
+      /** @type {{code?: string}} */ (error).code ===
+      "evaluation_result_not_ready",
+  );
+  assert.deepEqual(
+    (({ completed_at, criterion_results, execution_status, findings }) => ({
+      completed_at,
+      criterion_results,
+      execution_status,
+      findings,
+    }))(reader.readReviewRun("evaluation-1", firstClaim.workId)),
+    {
+      completed_at: null,
+      criterion_results: [],
+      execution_status: "running",
+      findings: [],
+    },
+  );
   const evidence = createReviewRunEvidenceService(core);
   evidence.appendTranscriptChunk(
     firstClaim,
@@ -153,6 +173,15 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
     },
     [],
   );
+  evidence.complete(secondClaim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
 
   const result = reader.readResult("evaluation-1");
   assert.deepEqual(

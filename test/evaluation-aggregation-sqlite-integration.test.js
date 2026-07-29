@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
@@ -84,6 +85,7 @@ test("independent sibling Review Runs publish one Result only after every run is
     createFindingId: () => "finding-blocking",
     now: () => observedAt,
   });
+  const evidence = createReviewRunEvidenceService(core);
   const frozenFileChanges = [
     {
       added: false,
@@ -121,6 +123,15 @@ test("independent sibling Review Runs publish one Result only after every run is
     },
     frozenFileChanges,
   );
+  evidence.complete(firstClaim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
   assert.equal(
     core.get(
       "SELECT count(*) AS count FROM evaluation_results WHERE evaluation_id = ?",
@@ -182,6 +193,15 @@ test("independent sibling Review Runs publish one Result only after every run is
       "The failing Review owns this exact configuration error.",
     ),
   );
+  evidence.complete(secondClaim, {
+    exitCode: 1,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
 
   const result = createEvaluationService(core, {
     acquireChangeset: async () => {

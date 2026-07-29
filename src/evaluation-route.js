@@ -8,6 +8,15 @@ import {
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
+/** @param {string} segment */
+export function decodeEvaluationPathSegment(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    throw new Error("request_malformed");
+  }
+}
+
 /** @param {string | undefined} method @param {string} path */
 export function matchEvaluationRoute(method, path) {
   const createMatch = path.match(
@@ -182,7 +191,7 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.readResult(decodeURIComponent(resultMatch[1])),
+          evaluations.readResult(decodeEvaluationPathSegment(resultMatch[1])),
         );
         return true;
       }
@@ -191,8 +200,8 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readReviewRunDiagnostics(
-            decodeURIComponent(diagnosticsMatch[1]),
-            decodeURIComponent(diagnosticsMatch[2]),
+            decodeEvaluationPathSegment(diagnosticsMatch[1]),
+            decodeEvaluationPathSegment(diagnosticsMatch[2]),
           ),
         );
         return true;
@@ -202,8 +211,8 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readReviewRun(
-            decodeURIComponent(reviewRunMatch[1]),
-            decodeURIComponent(reviewRunMatch[2]),
+            decodeEvaluationPathSegment(reviewRunMatch[1]),
+            decodeEvaluationPathSegment(reviewRunMatch[2]),
           ),
         );
         return true;
@@ -213,8 +222,8 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readFinding(
-            decodeURIComponent(findingMatch[1]),
-            decodeURIComponent(findingMatch[2]),
+            decodeEvaluationPathSegment(findingMatch[1]),
+            decodeEvaluationPathSegment(findingMatch[2]),
           ),
         );
         return true;
@@ -223,7 +232,7 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.read(decodeURIComponent(evaluationMatch[1])),
+          evaluations.read(decodeEvaluationPathSegment(evaluationMatch[1])),
         );
         return true;
       }
@@ -239,7 +248,7 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.cancel(decodeURIComponent(cancellationMatch[1])),
+          evaluations.cancel(decodeEvaluationPathSegment(cancellationMatch[1])),
         );
         return true;
       }
@@ -248,7 +257,7 @@ export function createEvaluationRoute({
         channel:
           authority === "machine" ? "implementer_token" : "browser_session",
         idempotencyKey,
-        repositoryId: decodeURIComponent(
+        repositoryId: decodeEvaluationPathSegment(
           /** @type {RegExpMatchArray} */ (createMatch)[1],
         ),
         request: await readJsonRequest(request),

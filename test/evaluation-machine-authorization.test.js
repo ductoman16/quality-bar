@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { matchEvaluationRoute } from "../src/evaluation-route.js";
+import {
+  decodeEvaluationPathSegment,
+  matchEvaluationRoute,
+} from "../src/evaluation-route.js";
 
 test("implementer-token Evaluation authority is narrow and resource-based", () => {
   for (const [method, path] of [
@@ -26,4 +29,8 @@ test("implementer-token Evaluation authority is narrow and resource-based", () =
   ]) {
     assert.equal(matchEvaluationRoute(method, path).machineAccessible, false);
   }
+});
+
+test("malformed Evaluation path encoding fails as a malformed request", () => {
+  assert.throws(() => decodeEvaluationPathSegment("%ZZ"), /request_malformed/);
 });
