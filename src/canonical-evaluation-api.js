@@ -1,6 +1,6 @@
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
-  const authenticated = [{ browser_session: [] }];
+  const authenticated = [{ browser_session: [] }, { implementer_token: [] }];
   const evaluationResponse = {
     content: {
       "application/json": {
@@ -15,6 +15,41 @@ export function canonicalEvaluationPaths(errorResponse) {
     required: true,
     schema: { minLength: 1, type: "string" },
   };
+  /** @param {string} name */
+  const relatedIdentityParameter = (name) => ({
+    in: "path",
+    name,
+    required: true,
+    schema: { minLength: 1, type: "string" },
+  });
+  /**
+   * @param {string} operationId
+   * @param {string} schema
+   * @param {string} description
+   * @param {string} parameter
+   */
+  const relatedRead = (operationId, schema, description, parameter) => ({
+    get: {
+      operationId,
+      parameters: [identityParameter, relatedIdentityParameter(parameter)],
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: { $ref: `#/components/schemas/${schema}` },
+            },
+          },
+          description,
+        },
+        400: errorResponse,
+        401: errorResponse,
+        404: errorResponse,
+        409: errorResponse,
+        503: errorResponse,
+      },
+      security: authenticated,
+    },
+  });
   return {
     "/api/v1/evaluations": {
       get: {
@@ -87,6 +122,19 @@ export function canonicalEvaluationPaths(errorResponse) {
         security: authenticated,
       },
     },
+    "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}":
+      relatedRead(
+        "getEvaluationReviewRun",
+        "TerminalReviewRun",
+        "Complete canonical Review Run",
+        "review_run_id",
+      ),
+    "/api/v1/evaluations/{evaluation_id}/findings/{finding_id}": relatedRead(
+      "getEvaluationFinding",
+      "Finding",
+      "Complete canonical Finding",
+      "finding_id",
+    ),
     "/api/v1/evaluations/{evaluation_id}/cancel": {
       post: {
         operationId: "cancelEvaluation",

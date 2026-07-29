@@ -26,6 +26,12 @@ export function createUnavailableEvaluationService(error) {
     readResult() {
       failEvaluation(failure.code, failure.message, error);
     },
+    readFinding() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readReviewRun() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     readReviewRunDiagnostics() {
       failEvaluation(failure.code, failure.message, error);
     },

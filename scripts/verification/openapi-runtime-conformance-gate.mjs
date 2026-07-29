@@ -1,3 +1,8 @@
+export const EVALUATION_HTTP_TESTS = [
+  "test/evaluation-http-integration.test.js",
+  "test/evaluation-machine-http-integration.test.js",
+];
+
 /**
  * @param {{
  *   ajv: string,
@@ -19,6 +24,7 @@ export function createOpenApiRuntimeConformanceGate({
     arguments: [
       "--test",
       "test/applicability-result-openapi-conformance.test.js",
+      "test/evaluation-machine-openapi-conformance.test.js",
       "test/openapi-conformance.test.js",
       "test/repository-lifecycle-openapi-conformance.test.js",
     ],

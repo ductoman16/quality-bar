@@ -1,0 +1,333 @@
+import assert from "node:assert/strict";
+import { request as sendHttpRequest } from "node:http";
+import { test } from "node:test";
+
+import { createEvaluationService } from "../src/evaluation.js";
+import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunResultService } from "../src/review-run-result.js";
+import { createReviewService } from "../src/review.js";
+import {
+  responseErrorCode,
+  startApplication,
+} from "./http-integration-support.js";
+
+const baseCommit = "1".repeat(40);
+const headCommit = "2".repeat(40);
+const requestBody = {
+  base: { type: "branch", value: "main" },
+  head: { type: "branch", value: "topic" },
+};
+
+/**
+ * @param {{implementerTokens: {create(password: string): string}}} application
+ * @param {string | undefined} [idempotencyKey]
+ */
+function machineHeaders(application, idempotencyKey) {
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  return {
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(idempotencyKey
+        ? {
+            "content-type": "application/json",
+            "idempotency-key": idempotencyKey,
+          }
+        : {}),
+    },
+    token,
+  };
+}
+
+test("the implementer token creates, replays, conflicts, polls, and reads an Evaluation", async () => {
+  let nextId = 0;
+  const { application, request } = await startApplication({
+    createEvaluations(core, options) {
+      return createEvaluationService(core, {
+        ...options,
+        acquireChangeset: async () => ({
+          base_commit: baseCommit,
+          head_commit: headCommit,
+        }),
+        createId: () => `machine-evaluation-${++nextId}`,
+        now: () => 1_000,
+      });
+    },
+  });
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  const { headers, token } = machineHeaders(application, "machine-key");
+  const path = "/api/v1/repositories/repository-1/evaluations";
+  const created = await request(path, {
+    body: JSON.stringify(requestBody),
+    headers,
+    method: "POST",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(
+    created.headers.get("location"),
+    "/api/v1/evaluations/machine-evaluation-1",
+  );
+  const resource = /** @type {{id: string}} */ (await created.json());
+
+  const replay = await request(path, {
+    body: JSON.stringify(requestBody),
+    headers,
+    method: "POST",
+  });
+  assert.equal(replay.status, 201);
+  assert.deepEqual(await replay.json(), resource);
+  const conflict = await request(path, {
+    body: JSON.stringify({
+      ...requestBody,
+      head: { type: "branch", value: "other" },
+    }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(conflict.status, 409);
+  assert.equal(await responseErrorCode(conflict), "idempotency_conflict");
+
+  for (const readPath of [
+    "/api/v1/evaluations",
+    `/api/v1/evaluations/${resource.id}`,
+    `/api/v1/evaluations/${resource.id}/result`,
+  ]) {
+    const response = await request(readPath, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 200);
+  }
+  assert.equal(
+    application.durableCore.get(
+      "SELECT count(*) AS count FROM evaluation_idempotency",
+    )?.count,
+    1,
+  );
+});
+
+test("the implementer token sees exact not-ready and canonical related resources", async () => {
+  const { application, request } = await startApplication({
+    createEvaluations(core, options) {
+      return createEvaluationService(core, {
+        ...options,
+        acquireChangeset: async () => ({
+          base_commit: baseCommit,
+          head_commit: headCommit,
+        }),
+        createId: () => "evaluation-1",
+        createReviewRunId: () => "review-run-1",
+        now: () => 10,
+      });
+    },
+  });
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/evaluation-1.git",
+    1,
+    1,
+  );
+  let factId = 0;
+  createReviewService(application.durableCore, {
+    createId: () => `machine-review-fact-${++factId}`,
+    now: () => 1,
+  }).create({
+    assignment: { scope: "installation_wide" },
+    codex_configuration: {
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
+    },
+    criteria: [{ impact: "blocking", instruction: "Prove the claim." }],
+    description: "Machine Evaluation Review",
+    name: "Machine Evaluation",
+  });
+  const { headers, token } = machineHeaders(
+    application,
+    "queued-machine-evaluation",
+  );
+  const evaluationPath = "/api/v1/evaluations/evaluation-1";
+  const queued = await request(
+    "/api/v1/repositories/repository-1/evaluations",
+    {
+      body: JSON.stringify(requestBody),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(queued.status, 201);
+  assert.equal(queued.headers.get("location"), evaluationPath);
+  assert.equal(
+    /** @type {{execution_status: string}} */ (await queued.json())
+      .execution_status,
+    "queued",
+  );
+  const readHeaders = { authorization: `Bearer ${token}` };
+  const earlyResult = await request(`${evaluationPath}/result`, {
+    headers: readHeaders,
+  });
+  assert.equal(earlyResult.status, 409);
+  assert.equal(
+    await responseErrorCode(earlyResult),
+    "evaluation_result_not_ready",
+  );
+  const cancellation = await request(`${evaluationPath}/cancel`, {
+    headers: readHeaders,
+    method: "POST",
+  });
+  assert.equal(cancellation.status, 403);
+  assert.equal(
+    await responseErrorCode(cancellation),
+    "authorization_forbidden",
+  );
+
+  const claims = createReviewRunClaimService(application.durableCore, {
+    createWorkerId: () => "machine-resource-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  claims.start(claim, "0.145.0");
+  const criterion = application.durableCore.get(
+    `SELECT review_version_criteria.criterion_id
+     FROM review_version_criteria
+     JOIN review_runs
+       ON review_runs.review_version_id =
+            review_version_criteria.review_version_id
+     WHERE review_runs.id = ?`,
+    "review-run-1",
+  );
+  const criterionId = /** @type {string} */ (criterion?.criterion_id);
+  assert.equal(typeof criterionId, "string");
+  createReviewRunResultService(application.durableCore, {
+    createFindingId: () => "finding-1",
+    now: () => 30,
+  }).prepare(
+    claim,
+    {
+      criterion_results: [
+        {
+          criterion_id: criterionId,
+          findings: [
+            {
+              evidence: "The machine-visible concern is exact.",
+              location: { kind: "changeset" },
+              remediation: "Resolve the exact concern.",
+            },
+          ],
+          outcome: "triggered",
+        },
+      ],
+    },
+    [],
+  );
+
+  const resultResponse = await request(`${evaluationPath}/result`, {
+    headers: readHeaders,
+  });
+  const result = /** @type {{findings: unknown[], review_runs: unknown[]}} */ (
+    await resultResponse.json()
+  );
+  for (const [path, expected] of /** @type {[string, unknown][]} */ ([
+    [`${evaluationPath}/review-runs/review-run-1`, result.review_runs[0]],
+    [`${evaluationPath}/findings/finding-1`, result.findings[0]],
+  ])) {
+    const response = await request(path, { headers: readHeaders });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected);
+  }
+  for (const [path, code] of [
+    [`${evaluationPath}/review-runs/missing`, "review_run_not_found"],
+    [`${evaluationPath}/findings/missing`, "finding_not_found"],
+  ]) {
+    const response = await request(path, { headers: readHeaders });
+    assert.equal(response.status, 404);
+    assert.equal(await responseErrorCode(response), code);
+  }
+});
+
+test("disconnect after durable machine acceptance does not cancel Evaluation work", async () => {
+  /** @type {(value?: unknown) => void} */
+  let reportAccepted = () => {};
+  const accepted = new Promise((resolve) => {
+    reportAccepted = resolve;
+  });
+  /** @type {(value?: unknown) => void} */
+  let releaseResponse = () => {};
+  const responseReleased = new Promise((resolve) => {
+    releaseResponse = resolve;
+  });
+  const { application, origin } = await startApplication({
+    createEvaluations(core, options) {
+      const evaluations = createEvaluationService(core, {
+        ...options,
+        acquireChangeset: async () => ({
+          base_commit: baseCommit,
+          head_commit: headCommit,
+        }),
+        createId: () => "evaluation-disconnected",
+        now: () => 40,
+      });
+      return {
+        ...evaluations,
+        async createExplicit(input) {
+          const created = await evaluations.createExplicit(input);
+          reportAccepted();
+          await responseReleased;
+          return created;
+        },
+      };
+    },
+  });
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-disconnected",
+    "https://example.invalid/disconnected.git",
+    1,
+    1,
+  );
+  const { headers } = machineHeaders(application, "disconnect-key");
+  const body = JSON.stringify(requestBody);
+  const target = new URL(
+    "/api/v1/repositories/repository-disconnected/evaluations",
+    origin,
+  );
+  const clientRequest = sendHttpRequest({
+    headers: {
+      ...headers,
+      "content-length": Buffer.byteLength(body),
+    },
+    method: "POST",
+    port: target.port,
+    hostname: target.hostname,
+    path: target.pathname,
+  });
+  clientRequest.on("error", () => {});
+  clientRequest.end(body);
+  await accepted;
+  clientRequest.destroy();
+  releaseResponse();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(
+    application.durableCore.get(
+      "SELECT execution_status FROM evaluations WHERE id = ?",
+      "evaluation-disconnected",
+    ),
+    { execution_status: "completed" },
+  );
+  assert.equal(
+    application.durableCore.get(
+      "SELECT count(*) AS count FROM evaluation_idempotency WHERE idempotency_key = ?",
+      "disconnect-key",
+    )?.count,
+    1,
+  );
+});

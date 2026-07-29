@@ -8,6 +8,20 @@ import {
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
+/** @param {string | undefined} method @param {string} path */
+export function machineMayAccessEvaluationRoute(method, path) {
+  return (
+    (method === "GET" &&
+      (path === "/api/v1/evaluations" ||
+        /^\/api\/v1\/evaluations\/[^/]+$/.test(path) ||
+        /^\/api\/v1\/evaluations\/[^/]+\/result$/.test(path) ||
+        /^\/api\/v1\/evaluations\/[^/]+\/review-runs\/[^/]+$/.test(path) ||
+        /^\/api\/v1\/evaluations\/[^/]+\/findings\/[^/]+$/.test(path))) ||
+    (method === "POST" &&
+      /^\/api\/v1\/repositories\/[^/]+\/evaluations$/.test(path))
+  );
+}
+
 /** @param {Error & {code: string, unavailable?: boolean}} failure */
 function failureStatus(failure) {
   const { code } = failure;
@@ -30,6 +44,7 @@ function failureStatus(failure) {
   if (
     [
       "evaluation_not_found",
+      "finding_not_found",
       "repository_not_found",
       "review_run_not_found",
     ].includes(code)
@@ -107,6 +122,12 @@ export function createEvaluationRoute({
     const diagnosticsMatch = path.match(
       /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
     );
+    const reviewRunMatch = path.match(
+      /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)$/,
+    );
+    const findingMatch = path.match(
+      /^\/api\/v1\/evaluations\/([^/]+)\/findings\/([^/]+)$/,
+    );
     const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
     if (
       !(
@@ -115,12 +136,17 @@ export function createEvaluationRoute({
         (method === "POST" && cancellationMatch) ||
         (method === "GET" && evaluationMatch) ||
         (method === "GET" && resultMatch) ||
+        (method === "GET" && reviewRunMatch) ||
+        (method === "GET" && findingMatch) ||
         (method === "GET" && diagnosticsMatch)
       )
     ) {
       return false;
     }
-    if (authority === "machine") {
+    if (
+      authority === "machine" &&
+      !machineMayAccessEvaluationRoute(method, path)
+    ) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
@@ -161,6 +187,28 @@ export function createEvaluationRoute({
         );
         return true;
       }
+      if (method === "GET" && reviewRunMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readReviewRun(
+            decodeURIComponent(reviewRunMatch[1]),
+            decodeURIComponent(reviewRunMatch[2]),
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && findingMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readFinding(
+            decodeURIComponent(findingMatch[1]),
+            decodeURIComponent(findingMatch[2]),
+          ),
+        );
+        return true;
+      }
       if (method === "GET" && evaluationMatch) {
         writeJson(
           response,
@@ -187,7 +235,8 @@ export function createEvaluationRoute({
       }
       const idempotencyKey = request.headers["idempotency-key"];
       const created = await evaluations.createExplicit({
-        channel: "browser_session",
+        channel:
+          authority === "machine" ? "implementer_token" : "browser_session",
         idempotencyKey,
         repositoryId: decodeURIComponent(
           /** @type {RegExpMatchArray} */ (createMatch)[1],

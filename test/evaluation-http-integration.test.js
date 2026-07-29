@@ -114,20 +114,6 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     review_runs: [],
   });
 
-  const machineForbidden = await request(path, {
-    body: JSON.stringify(requestBody),
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      "idempotency-key": "machine-key",
-    },
-    method: "POST",
-  });
-  assert.equal(machineForbidden.status, 403);
-  assert.equal(
-    await responseErrorCode(machineForbidden),
-    "authorization_forbidden",
-  );
   const collection = await request("/api/v1/evaluations", {
     headers: { cookie: operatorHeaders.cookie },
   });

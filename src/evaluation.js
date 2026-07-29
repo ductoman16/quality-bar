@@ -14,7 +14,7 @@ import {
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
-import { readCompletedEvaluationResult } from "./evaluation-result-read.js";
+import { createEvaluationResultResourceReader } from "./evaluation-result-resource.js";
 import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
 import {
   enqueueReviewRuns,
@@ -166,6 +166,8 @@ export function createEvaluationService(
     return readEvaluation(row);
   }
 
+  const resultResources = createEvaluationResultResourceReader(durableCore);
+
   return {
     /** @param {string} id */
     cancel(id) {
@@ -190,20 +192,7 @@ export function createEvaluationService(
       };
     },
     read,
-    /** @param {string} id */
-    readResult(id) {
-      const result = readCompletedEvaluationResult(durableCore, id);
-      if (!result) {
-        if (!durableCore.get("SELECT id FROM evaluations WHERE id = ?", id)) {
-          failEvaluation("evaluation_not_found", "Evaluation was not found");
-        }
-        failEvaluation(
-          "evaluation_result_not_ready",
-          "Evaluation Result is not ready",
-        );
-      }
-      return result;
-    },
+    ...resultResources,
     readReviewRunDiagnostics:
       createEvaluationReviewRunDiagnosticsReader(durableCore),
     /**
