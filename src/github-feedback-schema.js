@@ -113,13 +113,53 @@ export const GITHUB_FEEDBACK_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS github_feedback_bundle_identity_update
     BEFORE UPDATE OF evaluation_id ON github_feedback_bundles
     BEGIN SELECT RAISE(ABORT, 'github_feedback_bundle_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS github_feedback_bundle_publication_update
+    BEFORE UPDATE OF
+      publication_status, external_id, published_at, error_code, error_detail
+    ON github_feedback_bundles
+    WHEN NOT (
+      OLD.publication_status = 'waiting'
+      AND NEW.publication_status IN ('succeeded', 'unavailable')
+    )
+    BEGIN SELECT RAISE(ABORT, 'github_feedback_bundle_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS github_feedback_bundle_delete
     BEFORE DELETE ON github_feedback_bundles
     BEGIN SELECT RAISE(ABORT, 'github_feedback_bundle_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS github_finding_feedback_insert
+    BEFORE INSERT ON github_finding_feedback
+    WHEN NOT EXISTS (
+      SELECT 1
+      FROM findings
+      WHERE findings.id = NEW.finding_id
+        AND findings.evaluation_id = NEW.evaluation_id
+    )
+    BEGIN
+      SELECT RAISE(
+        ABORT, 'github_finding_feedback_evaluation_mismatch'
+      );
+    END;
   CREATE TRIGGER IF NOT EXISTS github_finding_feedback_identity_update
     BEFORE UPDATE OF finding_id, evaluation_id
     ON github_finding_feedback
     BEGIN SELECT RAISE(ABORT, 'github_finding_feedback_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS github_finding_feedback_materialization_update
+    BEFORE UPDATE OF
+      publication_status, path, side, start_line, start_side, line,
+      external_id, published_at, error_code, error_detail
+    ON github_finding_feedback
+    WHEN
+      NEW.path IS NOT OLD.path
+      OR NEW.side IS NOT OLD.side
+      OR NEW.start_line IS NOT OLD.start_line
+      OR NEW.start_side IS NOT OLD.start_side
+      OR NEW.line IS NOT OLD.line
+      OR NOT (
+        OLD.publication_status = 'waiting'
+        AND NEW.publication_status IN ('succeeded', 'unavailable')
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'github_finding_feedback_immutable');
+    END;
   CREATE TRIGGER IF NOT EXISTS github_finding_feedback_delete
     BEFORE DELETE ON github_finding_feedback
     BEGIN SELECT RAISE(ABORT, 'github_finding_feedback_immutable'); END;

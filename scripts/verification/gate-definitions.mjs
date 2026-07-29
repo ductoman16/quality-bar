@@ -311,7 +311,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "durable-resources-including-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
+        "durable-resources-including-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -337,6 +337,7 @@ export function createGateDefinitions(metadata) {
         "test/github-commit-status-publication.test.js",
         "test/github-commit-status-sqlite-integration.test.js",
         "test/github-feedback-publication.test.js",
+        "test/github-feedback-schema-integrity-sqlite-integration.test.js",
         "test/github-polling.test.js",
         ...FORGEJO_SQLITE_TESTS,
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",

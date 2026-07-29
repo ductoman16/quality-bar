@@ -77,7 +77,8 @@ export function migrateSchema(
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
         ? `DROP TRIGGER IF EXISTS review_run_queue_reference_delete;
-           DROP TRIGGER IF EXISTS waiver_adjudication_queue_reference_delete;`
+           DROP TRIGGER IF EXISTS waiver_adjudication_queue_reference_delete;
+           DROP TRIGGER IF EXISTS github_finding_feedback_insert;`
         : ""
     }
     ${statements}
