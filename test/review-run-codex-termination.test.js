@@ -46,7 +46,7 @@ function runningProcess(pid) {
 }
 
 test("accepted submission force-kills a Codex process group after five seconds", async () => {
-  /** @type {string[]} */
+  /** @type {(string | number)[]} */
   const signals = [];
   const child = runningProcess(74);
   await runReviewRunCodex({
@@ -73,8 +73,70 @@ test("accepted submission force-kills a Codex process group after five seconds",
   assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
 });
 
-test("an already-exited process group cannot overturn an accepted Result", async () => {
+test("a direct child exit does not spare a surviving process-group descendant", async () => {
+  /** @type {(string | number)[]} */
+  const signals = [];
   const child = runningProcess(75);
+  await runReviewRunCodex({
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -75);
+      signals.push(signal);
+      if (signal === "SIGTERM") {
+        queueMicrotask(() => child.emit("exit", 0, null));
+      }
+    },
+    openSubmissionChannel: async () => acceptedChannel(),
+    resultService: { submit() {} },
+    run,
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      setImmediate(callback);
+      return { unref() {} };
+    },
+    spawnProcess: () => /** @type {any} */ (child),
+  });
+  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+});
+
+test("process-first acceptance still terminates a surviving group descendant", async () => {
+  /** @type {(string | number)[]} */
+  const signals = [];
+  const child = runningProcess(76);
+  await runReviewRunCodex({
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -76);
+      signals.push(signal);
+    },
+    openSubmissionChannel: async () => ({
+      ...acceptedChannel(),
+      waitForResult: () =>
+        new Promise((resolve) => {
+          setImmediate(() => resolve("accepted"));
+        }),
+    }),
+    resultService: { submit() {} },
+    run,
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      setImmediate(callback);
+      return { unref() {} };
+    },
+    spawnProcess() {
+      queueMicrotask(() => child.emit("exit", 0, null));
+      return /** @type {any} */ (child);
+    },
+  });
+  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+});
+
+test("an already-exited process group cannot overturn an accepted Result", async () => {
+  const child = runningProcess(77);
   await runReviewRunCodex({
     checkoutPath: "/checkout",
     claim,

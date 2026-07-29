@@ -58,14 +58,12 @@ function isMissingProcess(error) {
 
 /**
  * @param {import("node:child_process").ChildProcess} child
- * @param {Promise<unknown>} processResult
- * @param {(pid: number, signal: NodeJS.Signals) => void} killProcessGroup
+ * @param {(pid: number, signal: NodeJS.Signals | 0) => void} killProcessGroup
  * @param {(callback: () => void, milliseconds: number) => any} setTerminationTimer
  * @param {(timer: any) => void} clearTerminationTimer
  */
 async function terminateCodexProcessGroup(
   child,
-  processResult,
   killProcessGroup,
   setTerminationTimer,
   clearTerminationTimer,
@@ -103,7 +101,7 @@ async function terminateCodexProcessGroup(
     terminationTimer.unref?.();
   });
   try {
-    await Promise.race([processResult, forceKill]);
+    await forceKill;
   } finally {
     clearTerminationTimer(terminationTimer);
   }
@@ -201,7 +199,7 @@ export function reviewRunCodexEnvironment(
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearTerminationTimer?: (timer: any) => void,
- *   killProcessGroup?: (pid: number, signal: NodeJS.Signals) => void,
+ *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
  *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
  *   spawnProcess?: (
  *     command: string,
@@ -277,10 +275,14 @@ export async function runReviewRunCodex({
         cause,
       ),
     );
-    if (terminal.kind === "submission" && terminal.result === "accepted") {
+    let accepted =
+      terminal.kind === "submission" && terminal.result === "accepted";
+    if (terminal.kind === "process" && channel.accepted()) {
+      accepted = (await channel.waitForResult()) === "accepted";
+    }
+    if (accepted) {
       await terminateCodexProcessGroup(
         child,
-        processResult,
         killProcessGroup,
         setTerminationTimer,
         clearTerminationTimer,
@@ -310,8 +312,6 @@ export async function runReviewRunCodex({
         "Codex Review Run process failed",
         new CodexProcessExitError(exit),
       );
-    } else if (terminal.kind === "process") {
-      await channel.waitForResult();
     }
   } catch (error) {
     executionFailure = error;
@@ -337,6 +337,6 @@ export async function runReviewRunCodex({
     throw executionFailure;
   }
   if (cleanupFailure) {
-    throw cleanupFailure;
+    return { submissionChannelCleanupFailure: cleanupFailure };
   }
 }

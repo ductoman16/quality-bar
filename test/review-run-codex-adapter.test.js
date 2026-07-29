@@ -61,6 +61,12 @@ function processThatFailsWithJsonl() {
   return process;
 }
 
+/** @param {() => void} callback */
+function immediateTerminationTimer(callback) {
+  queueMicrotask(callback);
+  return { unref() {} };
+}
+
 /**
  * @param {{
  *   accepted?: boolean,
@@ -122,7 +128,15 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       spawnCalls.push([command, arguments_, options]);
       return /** @type {any} */ (processThatExits(0));
     },
-    killProcessGroup() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -76);
+      if (signal === "SIGKILL") {
+        throw Object.assign(new Error("process group exited"), {
+          code: "ESRCH",
+        });
+      }
+    },
+    setTerminationTimer: immediateTerminationTimer,
   });
 
   assert.deepEqual(spawnCalls, [
@@ -172,10 +186,15 @@ test("accepted submission closes before terminating the still-running Codex proc
     spawnProcess: () => /** @type {any} */ (child),
     killProcessGroup(pid, signal) {
       assert.equal(pid, -73);
-      assert.equal(signal, "SIGTERM");
-      events.push("process-terminated");
-      queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
+      if (signal === "SIGTERM") {
+        events.push("process-terminated");
+        queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
+        return;
+      }
+      assert.equal(signal, "SIGKILL");
+      throw Object.assign(new Error("process group exited"), { code: "ESRCH" });
     },
+    setTerminationTimer: immediateTerminationTimer,
   });
   assert.deepEqual(events, ["submission-closed", "process-terminated"]);
 });
@@ -382,20 +401,27 @@ test("channel cleanup cannot replace the exact owning process failure", async ()
   );
 });
 
-test("channel cleanup failure after an accepted Result remains a hard failure", async () => {
+test("channel cleanup failure remains visible without overturning an accepted Result", async () => {
   const cleanupFailure = new Error("submission directory removal failed");
-  await assert.rejects(
-    () =>
-      runReviewRunCodex({
-        checkoutPath: "/checkout",
-        claim,
-        openSubmissionChannel: async () =>
-          channel({ accepted: true, closeFailure: cleanupFailure }),
-        resultService: { submit() {} },
-        run,
-        spawnProcess: () => /** @type {any} */ (processThatExits(0)),
-        killProcessGroup() {},
-      }),
-    (error) => error === cleanupFailure,
+  assert.deepEqual(
+    await runReviewRunCodex({
+      checkoutPath: "/checkout",
+      claim,
+      openSubmissionChannel: async () =>
+        channel({ accepted: true, closeFailure: cleanupFailure }),
+      resultService: { submit() {} },
+      run,
+      spawnProcess: () => /** @type {any} */ (processThatExits(0)),
+      killProcessGroup(pid, signal) {
+        assert.equal(pid, -76);
+        if (signal === "SIGKILL") {
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        }
+      },
+      setTerminationTimer: immediateTerminationTimer,
+    }),
+    { submissionChannelCleanupFailure: cleanupFailure },
   );
 });
