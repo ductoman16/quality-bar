@@ -61,12 +61,6 @@ function processThatFailsWithJsonl() {
   return process;
 }
 
-/** @param {() => void} callback */
-function immediateTerminationTimer(callback) {
-  queueMicrotask(callback);
-  return { unref() {} };
-}
-
 /**
  * @param {{
  *   accepted?: boolean,
@@ -130,13 +124,12 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
     },
     killProcessGroup(pid, signal) {
       assert.equal(pid, -76);
-      if (signal === "SIGKILL") {
+      if (signal === 0) {
         throw Object.assign(new Error("process group exited"), {
           code: "ESRCH",
         });
       }
     },
-    setTerminationTimer: immediateTerminationTimer,
   });
 
   assert.deepEqual(spawnCalls, [
@@ -191,10 +184,9 @@ test("accepted submission closes before terminating the still-running Codex proc
         queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
         return;
       }
-      assert.equal(signal, "SIGKILL");
+      assert.equal(signal, 0);
       throw Object.assign(new Error("process group exited"), { code: "ESRCH" });
     },
-    setTerminationTimer: immediateTerminationTimer,
   });
   assert.deepEqual(events, ["submission-closed", "process-terminated"]);
 });
@@ -414,14 +406,13 @@ test("channel cleanup failure remains visible without overturning an accepted Re
       spawnProcess: () => /** @type {any} */ (processThatExits(0)),
       killProcessGroup(pid, signal) {
         assert.equal(pid, -76);
-        if (signal === "SIGKILL") {
+        if (signal === 0) {
           throw Object.assign(new Error("process group exited"), {
             code: "ESRCH",
           });
         }
       },
-      setTerminationTimer: immediateTerminationTimer,
     }),
-    { submissionChannelCleanupFailure: cleanupFailure },
+    { diagnosticFailures: [cleanupFailure] },
   );
 });

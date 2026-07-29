@@ -56,14 +56,25 @@ function isMissingProcess(error) {
   return error instanceof Error && "code" in error && error.code === "ESRCH";
 }
 
+/** @param {unknown} error */
+function isUnavailableOwnedProcessGroup(error) {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "ESRCH" || error.code === "EPERM")
+  );
+}
+
 /**
  * @param {import("node:child_process").ChildProcess} child
+ * @param {Promise<unknown>} processResult
  * @param {(pid: number, signal: NodeJS.Signals | 0) => void} killProcessGroup
  * @param {(callback: () => void, milliseconds: number) => any} setTerminationTimer
  * @param {(timer: any) => void} clearTerminationTimer
  */
 async function terminateCodexProcessGroup(
   child,
+  processResult,
   killProcessGroup,
   setTerminationTimer,
   clearTerminationTimer,
@@ -98,10 +109,23 @@ async function terminateCodexProcessGroup(
         }
       }
     }, 5_000);
-    terminationTimer.unref?.();
   });
   try {
-    await forceKill;
+    const first = await Promise.race([
+      processResult.then(() => "process"),
+      forceKill.then(() => "force-kill"),
+    ]);
+    if (first === "process") {
+      try {
+        killProcessGroup(processGroupId, 0);
+      } catch (error) {
+        if (isUnavailableOwnedProcessGroup(error)) {
+          return;
+        }
+        throw error;
+      }
+      await forceKill;
+    }
   } finally {
     clearTerminationTimer(terminationTimer);
   }
@@ -224,6 +248,8 @@ export async function runReviewRunCodex({
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
+  /** @type {Error[]} */
+  const diagnosticFailures = [];
   try {
     const arguments_ = [
       ...codexPrefixArguments,
@@ -281,13 +307,21 @@ export async function runReviewRunCodex({
       accepted = (await channel.waitForResult()) === "accepted";
     }
     if (accepted) {
-      await terminateCodexProcessGroup(
-        child,
-        killProcessGroup,
-        setTerminationTimer,
-        clearTerminationTimer,
-      );
-      await processResult;
+      try {
+        await terminateCodexProcessGroup(
+          child,
+          processResult,
+          killProcessGroup,
+          setTerminationTimer,
+          clearTerminationTimer,
+        );
+      } catch (error) {
+        diagnosticFailures.push(
+          error instanceof Error
+            ? error
+            : new TypeError("Codex process-group termination failed"),
+        );
+      }
     }
     const submissionFailure = channel.failure();
     if (submissionFailure) {
@@ -337,6 +371,11 @@ export async function runReviewRunCodex({
     throw executionFailure;
   }
   if (cleanupFailure) {
-    return { submissionChannelCleanupFailure: cleanupFailure };
+    diagnosticFailures.push(
+      cleanupFailure instanceof Error
+        ? cleanupFailure
+        : new TypeError("Review Run submission channel cleanup failed"),
+    );
   }
+  return { diagnosticFailures };
 }

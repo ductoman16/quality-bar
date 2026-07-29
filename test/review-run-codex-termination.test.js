@@ -66,7 +66,11 @@ test("accepted submission force-kills a Codex process group after five seconds",
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
       queueMicrotask(callback);
-      return { unref() {} };
+      return {
+        unref() {
+          assert.fail("the load-bearing termination timer was unreferenced");
+        },
+      };
     },
     spawnProcess: () => /** @type {any} */ (child),
   });
@@ -98,7 +102,7 @@ test("a direct child exit does not spare a surviving process-group descendant", 
     },
     spawnProcess: () => /** @type {any} */ (child),
   });
-  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+  assert.deepEqual(signals, ["SIGTERM", 0, "SIGKILL"]);
 });
 
 test("process-first acceptance still terminates a surviving group descendant", async () => {
@@ -132,7 +136,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
       return /** @type {any} */ (child);
     },
   });
-  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+  assert.deepEqual(signals, ["SIGTERM", 0, "SIGKILL"]);
 });
 
 test("an already-exited process group cannot overturn an accepted Result", async () => {
@@ -151,4 +155,25 @@ test("an already-exited process group cannot overturn an accepted Result", async
     run,
     spawnProcess: () => /** @type {any} */ (child),
   });
+});
+
+test("termination failure stays diagnostic after an accepted Result", async () => {
+  const terminationFailure = Object.assign(new Error("kill not permitted"), {
+    code: "EPERM",
+  });
+  const child = runningProcess(78);
+  assert.deepEqual(
+    await runReviewRunCodex({
+      checkoutPath: "/checkout",
+      claim,
+      killProcessGroup() {
+        throw terminationFailure;
+      },
+      openSubmissionChannel: async () => acceptedChannel(),
+      resultService: { submit() {} },
+      run,
+      spawnProcess: () => /** @type {any} */ (child),
+    }),
+    { diagnosticFailures: [terminationFailure] },
+  );
 });
