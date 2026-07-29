@@ -70,8 +70,11 @@ if (mode === "machine") {
     body: JSON.stringify({
       id: 1,
       jsonrpc: "2.0",
-      method: "tools/list",
-      params: {},
+      method: "tools/call",
+      params: {
+        arguments: {},
+        name: "quality_bar.list_repositories",
+      },
     }),
     headers: {
       ...machineHeaders,
@@ -81,12 +84,14 @@ if (mode === "machine") {
     },
     method: "POST",
   });
-  const mcpDocument = /** @type {{result?: {tools?: {name?: string}[]}}} */ (
-    await mcp.json()
-  );
+  const mcpDocument =
+    /** @type {{result?: {structuredContent?: {items?: unknown[]}}}} */ (
+      await mcp.json()
+    );
   machineFacts = {
+    mcpRepositoryCount: mcpDocument.result?.structuredContent?.items?.length,
     mcpStatus: mcp.status,
-    mcpTools: mcpDocument.result?.tools?.map(({ name }) => name),
+    mcpTool: "quality_bar.list_repositories",
     repositoryCount: repositoryDocument.items?.length,
     repositoryListStatus: repositoryList.status,
     tokenStatus: tokenResponse.status,

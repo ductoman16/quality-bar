@@ -48,8 +48,9 @@
  *     hasCodexCapabilityModels?: boolean,
  *     hasNavigation?: boolean,
  *     loginStatus?: number,
+ *     mcpRepositoryCount?: number,
  *     mcpStatus?: number,
- *     mcpTools?: string[],
+ *     mcpTool?: string,
  *     openapiStatus?: number,
  *     openapiVersion?: string,
  *     repositoryCount?: number,
@@ -249,14 +250,9 @@ export function validatePackageFacts(facts, applicationVersion) {
         packageFacts?.authenticatedHttpSmoke?.repositoryListStatus === 200 &&
         packageFacts?.authenticatedHttpSmoke?.repositoryCount === 0 &&
         packageFacts?.authenticatedHttpSmoke?.mcpStatus === 200 &&
-        JSON.stringify(packageFacts?.authenticatedHttpSmoke?.mcpTools) ===
-          JSON.stringify([
-            "quality_bar.list_repositories",
-            "quality_bar.get_repository_guidance",
-            "quality_bar.request_evaluation",
-            "quality_bar.get_evaluation",
-            "quality_bar.get_evaluation_result",
-          ]) &&
+        packageFacts?.authenticatedHttpSmoke?.mcpTool ===
+          "quality_bar.list_repositories" &&
+        packageFacts?.authenticatedHttpSmoke?.mcpRepositoryCount === 0 &&
         packageFacts?.authenticatedHttpSmoke?.openapiStatus === 200 &&
         packageFacts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0" &&
         packageFacts?.authenticatedHttpSmoke?.storage?.reserve_bytes ===

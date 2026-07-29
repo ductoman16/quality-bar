@@ -1,18 +1,5 @@
 import { isMcpRecord } from "./mcp-message.js";
-
-/** @param {string} code @param {string} message */
-function mcpError(code, message) {
-  return Object.assign(new Error(message), { code });
-}
-
-/**
- * @param {unknown} value
- * @param {Set<string>} keys
- * @returns {value is Record<string, unknown>}
- */
-function isClosedRecord(value, keys) {
-  return isMcpRecord(value) && Object.keys(value).every((key) => keys.has(key));
-}
+import { isClosedMcpRecord, mcpError } from "./mcp-validation.js";
 
 /** @param {unknown} value */
 function evaluationSelector(value) {
@@ -21,7 +8,7 @@ function evaluationSelector(value) {
   }
   if (
     value.type === "branch" &&
-    isClosedRecord(value, new Set(["type", "name"])) &&
+    isClosedMcpRecord(value, new Set(["type", "name"])) &&
     typeof value.name === "string" &&
     value.name.length > 0
   ) {
@@ -29,7 +16,7 @@ function evaluationSelector(value) {
   }
   if (
     value.type === "commit" &&
-    isClosedRecord(value, new Set(["type", "object_id"])) &&
+    isClosedMcpRecord(value, new Set(["type", "object_id"])) &&
     typeof value.object_id === "string" &&
     /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/.test(value.object_id)
   ) {
@@ -41,7 +28,7 @@ function evaluationSelector(value) {
 /** @param {unknown} arguments_ */
 export function requestEvaluationArguments(arguments_) {
   if (
-    !isClosedRecord(
+    !isClosedMcpRecord(
       arguments_,
       new Set([
         "repository_id",
@@ -71,7 +58,7 @@ export function requestEvaluationArguments(arguments_) {
 /** @param {unknown} arguments_ */
 export function evaluationArguments(arguments_) {
   if (
-    !isClosedRecord(arguments_, new Set(["evaluation_id"])) ||
+    !isClosedMcpRecord(arguments_, new Set(["evaluation_id"])) ||
     Object.keys(arguments_).length !== 1 ||
     typeof arguments_.evaluation_id !== "string" ||
     arguments_.evaluation_id.length === 0
@@ -132,6 +119,25 @@ export function resultChildResourceLinks(document) {
 }
 
 /**
+ * @param {ReturnType<typeof import("./evaluation.js").createEvaluationService>} evaluations
+ * @param {string} evaluationId
+ */
+function readEvaluationResult(evaluations, evaluationId) {
+  try {
+    return evaluations.readResult(evaluationId);
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "evaluation_result_not_ready"
+    ) {
+      throw mcpError("not_ready", error.message);
+    }
+    throw error;
+  }
+}
+
+/**
  * @param {string} name
  * @param {unknown} arguments_
  * @param {ReturnType<typeof import("./evaluation.js").createEvaluationService>} evaluations
@@ -157,7 +163,10 @@ export async function executeEvaluationTool(name, arguments_, evaluations) {
       resourceIds: [evaluationId],
     };
   }
-  const document = evaluations.readResult(evaluationId);
+  if (name !== "quality_bar.get_evaluation_result") {
+    throw mcpError("request_malformed", "Unknown Evaluation tool");
+  }
+  const document = readEvaluationResult(evaluations, evaluationId);
   return {
     document,
     links: [
@@ -221,7 +230,7 @@ export function readWorkflowResource(
   }
   if (match.kind === "evaluations") {
     return match.suffix === "/result"
-      ? evaluations.readResult(match.id)
+      ? readEvaluationResult(evaluations, match.id)
       : evaluations.read(match.id);
   }
   if (match.kind === "review-runs") {

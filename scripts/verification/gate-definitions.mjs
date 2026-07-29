@@ -242,6 +242,7 @@ export function createGateDefinitions(metadata) {
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",
         "test/mcp-contract.test.js",
+        "test/mcp-evaluation.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",

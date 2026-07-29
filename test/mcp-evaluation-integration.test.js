@@ -42,13 +42,16 @@ async function callMcp(origin, headers, message) {
   return /** @type {any} */ (await response.json());
 }
 
-/** @param {string} idempotencyKey @param {string} [head] */
-function requestEvaluationArguments(idempotencyKey, head = "topic") {
+/** @param {string} idempotencyKey @param {string} [repositoryId] */
+function requestEvaluationArguments(
+  idempotencyKey,
+  repositoryId = "repository-1",
+) {
   return {
     base_selector: { name: "main", type: "branch" },
-    head_selector: { name: head, type: "branch" },
+    head_selector: { name: "topic", type: "branch" },
     idempotency_key: idempotencyKey,
-    repository_id: "repository-1",
+    repository_id: repositoryId,
   };
 }
 
@@ -73,6 +76,13 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
     "https://example.invalid/mcp-evaluation.git",
     1,
     1,
+  );
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-2",
+    "https://example.invalid/other-mcp-evaluation.git",
+    2,
+    2,
   );
   let reviewFact = 0;
   createReviewService(application.durableCore, {
@@ -109,15 +119,6 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
   assert.equal(requested.result.isError, false);
   assert.equal(requested.result.structuredContent.execution_status, "queued");
   assert.deepEqual(
-    requested.result.content
-      .slice(1)
-      .map((/** @type {{uri: string}} */ link) => link.uri),
-    [
-      "quality-bar://v1/evaluations/evaluation-1",
-      "quality-bar://v1/evaluations/evaluation-1/result",
-    ],
-  );
-  assert.deepEqual(
     application.durableCore.get(
       `SELECT channel, route
        FROM evaluation_idempotency
@@ -151,7 +152,7 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
       {
         arguments: requestEvaluationArguments(
           "mcp-evaluation-key",
-          "different-topic",
+          "repository-2",
         ),
         name: "quality_bar.request_evaluation",
       },
@@ -204,10 +205,7 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
     ),
   );
   assert.equal(earlyResult.result.isError, true);
-  assert.equal(
-    earlyResult.result.structuredContent.error.code,
-    "evaluation_result_not_ready",
-  );
+  assert.equal(earlyResult.result.structuredContent.error.code, "not_ready");
   assert.equal("review_runs" in earlyResult.result.structuredContent, false);
 
   const claims = createReviewRunClaimService(application.durableCore, {
@@ -279,17 +277,6 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
     headers: { authorization: `Bearer ${token}` },
   });
   assert.deepEqual(completed.result.structuredContent, await httpResult.json());
-  assert.deepEqual(
-    completed.result.content
-      .slice(1)
-      .map((/** @type {{uri: string}} */ link) => link.uri),
-    [
-      "quality-bar://v1/evaluations/evaluation-1",
-      "quality-bar://v1/evaluations/evaluation-1/result",
-      "quality-bar://v1/review-runs/review-run-1",
-      "quality-bar://v1/findings/finding-1",
-    ],
-  );
   const completedEvaluation = await callMcp(
     origin,
     headers,

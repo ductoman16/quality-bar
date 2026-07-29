@@ -1,23 +1,12 @@
-import { isMcpRecord } from "./mcp-message.js";
-
-/** @param {string} code @param {string} message */
-function mcpError(code, message) {
-  return Object.assign(new Error(message), { code });
-}
-
-/**
- * @param {unknown} value
- * @param {Set<string>} keys
- * @returns {value is Record<string, unknown>}
- */
-function isClosedRecord(value, keys) {
-  return isMcpRecord(value) && Object.keys(value).every((key) => keys.has(key));
-}
+import { isClosedMcpRecord, mcpError } from "./mcp-validation.js";
 
 /** @param {unknown} arguments_ */
 export function listRepositoryArguments(arguments_) {
   if (
-    !isClosedRecord(arguments_, new Set(["cursor", "limit", "remote_url"])) ||
+    !isClosedMcpRecord(
+      arguments_,
+      new Set(["cursor", "limit", "remote_url"]),
+    ) ||
     (Object.hasOwn(arguments_, "cursor") &&
       (typeof arguments_.cursor !== "string" ||
         arguments_.cursor.length === 0)) ||
@@ -47,7 +36,7 @@ export function listRepositoryArguments(arguments_) {
 /** @param {unknown} arguments_ */
 export function guidanceArguments(arguments_) {
   if (
-    !isClosedRecord(arguments_, new Set(["repository_id"])) ||
+    !isClosedMcpRecord(arguments_, new Set(["repository_id"])) ||
     Object.keys(arguments_).length !== 1 ||
     typeof arguments_.repository_id !== "string" ||
     arguments_.repository_id.length === 0

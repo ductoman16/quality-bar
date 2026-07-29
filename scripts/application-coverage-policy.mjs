@@ -88,6 +88,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-selection.test.js",
   "test/repository-guidance.test.js",
   "test/mcp-contract.test.js",
+  "test/mcp-evaluation.test.js",
   "test/mcp-evaluation-integration.test.js",
   "test/review-archival-browser-component.test.js",
   "test/review-delete-browser-component.test.js",

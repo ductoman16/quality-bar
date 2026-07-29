@@ -217,8 +217,12 @@ export function createEvaluationService(
         channel === "mcp"
           ? "quality_bar.request_evaluation"
           : `/api/v1/repositories/${repositoryId}/evaluations`;
+      const idempotentRequest =
+        channel === "mcp"
+          ? { repository_id: repositoryId, ...canonicalRequest }
+          : canonicalRequest;
       const requestHash = createHash("sha256")
-        .update(JSON.stringify(canonicalRequest))
+        .update(JSON.stringify(idempotentRequest))
         .digest("hex");
       const replay = readIdempotentReplay(
         durableCore,

@@ -28,6 +28,7 @@ import {
   guidanceArguments,
   listRepositoryArguments,
 } from "./mcp-repository.js";
+import { isClosedMcpRecord } from "./mcp-validation.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -90,15 +91,6 @@ function writeAccepted(response) {
 }
 
 /**
- * @param {unknown} value
- * @param {Set<string>} keys
- * @returns {value is Record<string, unknown>}
- */
-function isClosedRecord(value, keys) {
-  return isMcpRecord(value) && Object.keys(value).every((key) => keys.has(key));
-}
-
-/**
  * @param {unknown} params
  * @returns {params is {
  *   name: string,
@@ -108,7 +100,7 @@ function isClosedRecord(value, keys) {
  */
 function isToolCallParameters(params) {
   return (
-    isClosedRecord(params, new Set(["name", "arguments", "_meta"])) &&
+    isClosedMcpRecord(params, new Set(["name", "arguments", "_meta"])) &&
     typeof params.name === "string" &&
     (!Object.hasOwn(params, "arguments") || isMcpRecord(params.arguments)) &&
     (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
@@ -121,7 +113,7 @@ function isToolCallParameters(params) {
  */
 function isResourceReadParameters(params) {
   return (
-    isClosedRecord(params, new Set(["uri", "_meta"])) &&
+    isClosedMcpRecord(params, new Set(["uri", "_meta"])) &&
     typeof params.uri === "string" &&
     (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
   );
