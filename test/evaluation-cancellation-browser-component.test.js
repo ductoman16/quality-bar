@@ -105,6 +105,7 @@ test("the operator cancels active work and reads one complete cancelled Result",
   };
   for (const [sourcePath, route] of [
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+    ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
     executeServedBrowserAsset(
@@ -218,6 +219,7 @@ test("superseded pull-request work exposes its exact cancellation state", async 
   };
   for (const [sourcePath, route] of [
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+    ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
     executeServedBrowserAsset(
@@ -283,6 +285,11 @@ test("each explicit browser rerun of one Changeset owns a fresh key", async () =
     },
     window: {
       location: { search: "" },
+      qualityBarEvaluationFeedback: {
+        hasUnavailable: () => false,
+        render() {},
+        valid: () => true,
+      },
       qualityBarEvaluationResult: {
         async render() {
           throw new Error("an empty collection must not render a Result");

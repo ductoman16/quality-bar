@@ -2,6 +2,9 @@ const operator = /** @type {any} */ (Reflect.get(window, "qualityBarOperator"));
 const resultRenderer = /** @type {any} */ (
   Reflect.get(window, "qualityBarEvaluationResult")
 );
+const feedbackRenderer = /** @type {any} */ (
+  Reflect.get(window, "qualityBarEvaluationFeedback")
+);
 if (
   !operator ||
   typeof operator.requiredElement !== "function" ||
@@ -12,6 +15,14 @@ if (
 }
 if (!resultRenderer || typeof resultRenderer.render !== "function") {
   throw new Error("evaluation_result_boundary_unavailable");
+}
+if (
+  !feedbackRenderer ||
+  typeof feedbackRenderer.valid !== "function" ||
+  typeof feedbackRenderer.hasUnavailable !== "function" ||
+  typeof feedbackRenderer.render !== "function"
+) {
+  throw new Error("evaluation_feedback_boundary_unavailable");
 }
 
 const form = operator.requiredElement("evaluation-create-form");
@@ -94,6 +105,7 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.base_commit !== "string" ||
     typeof evaluation.head_commit !== "string" ||
     !validCommitStatus(evaluation.commit_status, evaluation.head_commit) ||
+    !feedbackRenderer.valid(evaluation.feedback) ||
     !["automatic", "explicit"].includes(evaluation.provenance) ||
     !(
       (evaluation.provenance === "explicit" &&
@@ -138,7 +150,8 @@ async function renderEvaluation(evaluation) {
     " — " +
     evaluation.effective_outcome;
   const target =
-    evaluation.commit_status?.publication_status === "unavailable"
+    evaluation.commit_status?.publication_status === "unavailable" ||
+    feedbackRenderer.hasUnavailable(evaluation.feedback)
       ? attention
       : ["queued", "running"].includes(evaluation.execution_status)
         ? active
@@ -172,6 +185,9 @@ async function renderEvaluation(evaluation) {
           ? " — Published " + evaluation.commit_status.published_at
           : "");
     row.append(commitStatus);
+  }
+  if (evaluation.feedback) {
+    feedbackRenderer.render(row, evaluation.feedback);
   }
   target.append(row);
   if (["queued", "running"].includes(evaluation.execution_status)) {

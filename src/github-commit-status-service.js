@@ -1,24 +1,7 @@
-import { GitHubConnectionError } from "./github-connection-error.js";
 import { githubCommitStatusForEvaluation } from "./github-commit-status.js";
+import { githubPublicationFailure } from "./github-publication-error.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
-
-/** @param {unknown} error */
-function publicationFailure(error) {
-  if (
-    error instanceof GitHubConnectionError ||
-    (error instanceof Error &&
-      "code" in error &&
-      typeof error.code === "string" &&
-      error.code.length > 0)
-  ) {
-    return {
-      code: /** @type {string} */ (error.code),
-      detail: error.message,
-    };
-  }
-  throw error;
-}
 
 /**
  * @param {any} durableCore
@@ -160,7 +143,7 @@ export function createGitHubCommitStatusService(
             ),
           );
         } catch (error) {
-          const failure = publicationFailure(error);
+          const failure = githubPublicationFailure(error);
           durableCore.transaction((/** @type {any} */ transaction) =>
             transaction.run(
               `UPDATE github_commit_statuses

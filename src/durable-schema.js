@@ -33,6 +33,7 @@ import {
   FINDING_RESULT_MIGRATION,
 } from "./evaluation-schema.js";
 import { reviewRunResultColumnMigration } from "./review-run-result-schema-migration.js";
+import { GITHUB_FEEDBACK_SCHEMA } from "./github-feedback-schema.js";
 import * as reviewDeletionSchema from "./review-deletion-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
@@ -144,6 +145,7 @@ export function initializeOrValidateSchema(
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
       ${EVALUATION_SCHEMA}
+      ${GITHUB_FEEDBACK_SCHEMA}
       ${reviewDeletionSchema.REVIEW_DELETION_LINEAGE_INTEGRITY}
       ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
       INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');

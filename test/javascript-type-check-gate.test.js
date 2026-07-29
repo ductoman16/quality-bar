@@ -199,6 +199,7 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
       (path) =>
         ![
           "src/browser/evaluation-result.js",
+          "src/browser/evaluation-feedback.js",
           "src/browser/evaluation.js",
           "src/browser/storage-reserve.js",
           "src/browser/system-attention.js",

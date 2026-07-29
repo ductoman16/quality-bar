@@ -11,6 +11,7 @@ import { verifyGitHubRepositories } from "./github-repository-verification.js";
 import { createGitHubPullRequestReader } from "./github-pull-request-api.js";
 import { createGitHubInstallationToken } from "./github-installation-token.js";
 import { createGitHubCommitStatusPublisher } from "./github-commit-status-api.js";
+import { createGitHubFeedbackPublisher } from "./github-feedback-api.js";
 import { createGitHubManifestExchange } from "./github-manifest-exchange.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
@@ -126,6 +127,11 @@ export function createGitHubVerifier({
     request,
   });
   const publishCommitStatus = createGitHubCommitStatusPublisher({
+    fail,
+    installationToken,
+    request,
+  });
+  const feedback = createGitHubFeedbackPublisher({
     fail,
     installationToken,
     request,
@@ -420,7 +426,9 @@ export function createGitHubVerifier({
       );
     },
     createInstallationToken: installationToken,
+    publishAggregateFeedback: feedback.publishAggregate,
     publishCommitStatus,
+    publishInlineFeedback: feedback.publishInline,
     listPullRequests: createGitHubPullRequestReader({
       installationToken,
       request,
