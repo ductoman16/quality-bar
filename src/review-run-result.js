@@ -23,13 +23,12 @@ function fail(code, message) {
 /**
  * @param {unknown} candidate
  * @param {(string | {criterion_id: string, impact: string})[]} criteria
- * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} [fileChanges]
+ * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} fileChanges
  */
-export function validateReviewRunSubmission(
-  candidate,
-  criteria,
-  fileChanges = [],
-) {
+export function validateReviewRunSubmission(candidate, criteria, fileChanges) {
+  if (!Array.isArray(fileChanges)) {
+    throw new TypeError("Frozen File Changes are required");
+  }
   if (
     !candidate ||
     Array.isArray(candidate) ||
@@ -222,9 +221,12 @@ export function createReviewRunResultService(
     /**
      * @param {{fencingToken: number, workerId: string, workId: string}} claim
      * @param {unknown} candidate
-     * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} [fileChanges]
+     * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} fileChanges
      */
-    submit(claim, candidate, fileChanges = []) {
+    submit(claim, candidate, fileChanges) {
+      if (!Array.isArray(fileChanges)) {
+        throw new TypeError("Frozen File Changes are required");
+      }
       const completedAt = now();
       if (!Number.isSafeInteger(completedAt) || completedAt < 0) {
         throw new TypeError("Review Run completion time is invalid");

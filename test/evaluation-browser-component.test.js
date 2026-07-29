@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import { TRIGGERED_EVALUATION_RESULT } from "./openapi-triggered-evaluation-result.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
 /** @param {string} digit */
@@ -141,38 +142,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
         return {
           ok: true,
           async json() {
-            return {
-              applicability_results: [],
-              completed_at: "2026-07-28T12:00:00.000Z",
-              criterion_results: [
-                {
-                  criterion_id: "criterion-triggered",
-                  outcome: "triggered",
-                  review_run_id: "review-run-triggered",
-                },
-              ],
-              evaluation_id: "evaluation-triggered",
-              findings: [
-                {
-                  criterion_id: "criterion-triggered",
-                  evidence: "The changed branch returns stale state.",
-                  id: "finding-opaque-1",
-                  impact: "blocking",
-                  location: {
-                    end_line: 3,
-                    file_change_id: "file-change-1",
-                    kind: "line_range",
-                    path: "src/current.js",
-                    side: "head",
-                    start_line: 2,
-                  },
-                  remediation: "Return the newly computed state.",
-                  review_run_id: "review-run-triggered",
-                },
-              ],
-              outcome: "blocking",
-              review_runs: [],
-            };
+            return TRIGGERED_EVALUATION_RESULT;
           },
         };
       }
@@ -190,6 +160,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
       throw new Error(`unexpected fetch: ${path}`);
     },
     window: {
+      location: {
+        search:
+          "?view=evaluations&evaluation_id=evaluation-triggered&file_change_id=file-change-1&side=head&start_line=2&end_line=3",
+      },
       qualityBarOperator: {
         csrfToken: () => "browser-csrf-owned-secret",
         async displayMutationFailure() {},
@@ -252,9 +226,38 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     controls.get("evaluation-attention").options[0].textContent,
     /completed — blocking/,
   );
-  assert.match(
-    controls.get("evaluation-attention").options[0].options[0].textContent,
-    /"id":"finding-opaque-1".*"impact":"blocking".*"kind":"line_range".*"path":"src\/current.js".*"start_line":2/,
+  const resultDetails = controls.get("evaluation-attention").options[0]
+    .options[0];
+  assert.equal(resultDetails.textContent, "Result blocking");
+  const criterionDetails = resultDetails.options[0];
+  assert.equal(
+    criterionDetails.options[0].textContent,
+    "Criterion criterion-1 — triggered — Review review-1 review-version-1",
+  );
+  const findingDetails = criterionDetails.options[1];
+  assert.equal(criterionDetails.open, true);
+  assert.equal(findingDetails.open, true);
+  assert.equal(
+    findingDetails.options[0].textContent,
+    "Finding finding-1 — blocking",
+  );
+  assert.equal(
+    findingDetails.options[1].textContent,
+    "Evidence: The changed branch returns stale state.",
+  );
+  assert.equal(
+    findingDetails.options[2].textContent,
+    "Remediation: Return the newly computed state.",
+  );
+  assert.deepEqual(
+    {
+      href: findingDetails.options[3].href,
+      textContent: findingDetails.options[3].textContent,
+    },
+    {
+      href: "/?view=evaluations&evaluation_id=evaluation-triggered&file_change_id=file-change-1&side=head&start_line=2&end_line=3",
+      textContent: "head src/current.js:2-3",
+    },
   );
   assert.match(
     controls.get("evaluation-attention").options[1].textContent,

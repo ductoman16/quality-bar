@@ -34,7 +34,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-result-sqlite-integration",
     testGroup:
-      "first-valid-fenced-clear-or-triggered-result-opaque-finding-identity-inherited-impact-no-fallback-boundary-failure-and-v25-migration-boundary",
+      "first-valid-fenced-clear-or-triggered-result-opaque-finding-identity-inherited-impact-no-fallback-boundary-failure-and-v26-migration-boundary",
     failureCode: "review_run_result_sqlite_integration_tests_failed",
     arguments: [
       "--test",

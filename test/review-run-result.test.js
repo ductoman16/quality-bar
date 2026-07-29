@@ -30,11 +30,21 @@ test("a clear Review Run submission covers every frozen Criterion exactly once",
         ],
       },
       ["criterion-1", "criterion-2"],
+      [],
     ),
     [
       { criterion_id: "criterion-1", outcome: "clear" },
       { criterion_id: "criterion-2", outcome: "clear" },
     ],
+  );
+  assert.throws(
+    () =>
+      validateReviewRunSubmission(
+        { criterion_results: [] },
+        [],
+        /** @type {any} */ (undefined),
+      ),
+    /Frozen File Changes are required/,
   );
 });
 

@@ -36,16 +36,28 @@ function sideLineCount(checkoutPath, commit, path) {
   if (commit === null || path === null) {
     return null;
   }
-  const mode = execFileSync(
-    "git",
-    ["-C", checkoutPath, "ls-tree", commit, "--", path],
-    { encoding: "utf8" },
-  ).slice(0, 6);
+  const entry = execFileSync("git", [
+    "-C",
+    checkoutPath,
+    "ls-tree",
+    "-z",
+    commit,
+    "--",
+    `:(literal)${path}`,
+  ]);
+  const separator = entry.indexOf(9);
+  const [mode, type, objectId] = entry
+    .subarray(0, separator)
+    .toString("utf8")
+    .split(" ");
   if (!["100644", "100755"].includes(mode)) {
     return null;
   }
+  if (type !== "blob" || !/^[0-9a-f]{40,64}$/.test(objectId)) {
+    throw new TypeError("Frozen File Change object is invalid");
+  }
   return lineCount(
-    execFileSync("git", ["-C", checkoutPath, "show", `${commit}:${path}`]),
+    execFileSync("git", ["-C", checkoutPath, "cat-file", "blob", objectId]),
   );
 }
 

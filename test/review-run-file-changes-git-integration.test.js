@@ -43,29 +43,50 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
   renameSync(join(repository, "renamed.txt"), join(repository, "current.txt"));
   writeFileSync(join(repository, "current.txt"), "base\nline\nhead\n");
   writeFileSync(join(repository, "added.bin"), Buffer.from([0, 1, 2]));
+  writeFileSync(join(repository, ":(glob)*"), "literal pathspec filename\n");
   const head = commit(repository, "head");
 
-  assert.deepEqual(readReviewRunFileChanges(repository, base, head), [
-    {
-      after_path: "added.bin",
-      base_line_count: null,
-      before_path: null,
-      head_line_count: null,
-      id: "file-change-1",
-    },
-    {
-      after_path: "current.txt",
-      base_line_count: 2,
-      before_path: "renamed.txt",
-      head_line_count: 3,
-      id: "file-change-2",
-    },
-    {
-      after_path: null,
-      base_line_count: 2,
-      before_path: "deleted.txt",
-      head_line_count: null,
-      id: "file-change-3",
-    },
-  ]);
+  const changes = readReviewRunFileChanges(repository, base, head);
+  assert.equal(changes.length, 4);
+  assert.equal(new Set(changes.map(({ id }) => id)).size, 4);
+  assert.deepEqual(
+    changes
+      .map((change) => ({
+        after_path: change.after_path,
+        base_line_count: change.base_line_count,
+        before_path: change.before_path,
+        head_line_count: change.head_line_count,
+      }))
+      .sort((left, right) => {
+        const leftPath = left.after_path ?? left.before_path ?? "";
+        const rightPath = right.after_path ?? right.before_path ?? "";
+        return leftPath.localeCompare(rightPath);
+      }),
+    [
+      {
+        after_path: ":(glob)*",
+        base_line_count: null,
+        before_path: null,
+        head_line_count: 1,
+      },
+      {
+        after_path: "added.bin",
+        base_line_count: null,
+        before_path: null,
+        head_line_count: null,
+      },
+      {
+        after_path: "current.txt",
+        base_line_count: 2,
+        before_path: "renamed.txt",
+        head_line_count: 3,
+      },
+      {
+        after_path: null,
+        base_line_count: 2,
+        before_path: "deleted.txt",
+        head_line_count: null,
+      },
+    ],
+  );
 });

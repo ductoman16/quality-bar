@@ -20,6 +20,14 @@ const more = operator.requiredElement("evaluation-more");
 const creationStatus = operator.requiredElement("evaluation-create-status");
 /** @type {string | null} */
 let nextCursor = null;
+const focusSearch =
+  typeof window.location?.search === "string" ? window.location.search : "";
+
+/** @param {string} name */
+function focusValue(name) {
+  const match = new RegExp("(?:^|[?&])" + name + "=([^&]*)").exec(focusSearch);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 /** @param {string} id */
 function controlValue(id) {
@@ -28,6 +36,130 @@ function controlValue(id) {
     throw new Error("evaluation_control_unavailable");
   }
   return control.value;
+}
+
+/** @param {any} location */
+function locationText(location) {
+  if (location.kind === "changeset") {
+    return "Changeset";
+  }
+  const side = location.side + " " + location.path;
+  return location.kind === "line_range"
+    ? side + ":" + location.start_line + "-" + location.end_line
+    : side;
+}
+
+/** @param {string} evaluationId @param {any} finding */
+function findingLocation(evaluationId, finding) {
+  const location = finding.location;
+  const text = locationText(location);
+  if (location.kind === "changeset") {
+    const value = document.createElement("span");
+    value.textContent = text;
+    return value;
+  }
+  const link = document.createElement("a");
+  const lineQuery =
+    location.kind === "line_range"
+      ? "&start_line=" +
+        encodeURIComponent(location.start_line) +
+        "&end_line=" +
+        encodeURIComponent(location.end_line)
+      : "";
+  link.href =
+    "/?view=evaluations&evaluation_id=" +
+    encodeURIComponent(evaluationId) +
+    "&file_change_id=" +
+    encodeURIComponent(location.file_change_id) +
+    "&side=" +
+    encodeURIComponent(location.side) +
+    lineQuery;
+  link.textContent = text;
+  return link;
+}
+
+/** @param {any} target @param {any} evaluation @param {any} result */
+function renderResult(target, evaluation, result) {
+  if (
+    !result ||
+    typeof result.outcome !== "string" ||
+    !Array.isArray(result.criterion_results) ||
+    !Array.isArray(result.findings) ||
+    !Array.isArray(result.review_runs)
+  ) {
+    throw new Error("evaluation_result_invalid");
+  }
+  target.textContent = "Result " + result.outcome;
+  for (const criterion of result.criterion_results) {
+    const run = result.review_runs.find(
+      /** @param {any} candidate */
+      (candidate) => candidate.id === criterion.review_run_id,
+    );
+    if (
+      typeof criterion.criterion_id !== "string" ||
+      typeof criterion.outcome !== "string" ||
+      typeof run?.review_id !== "string" ||
+      typeof run.review_version_id !== "string"
+    ) {
+      throw new Error("evaluation_result_invalid");
+    }
+    const criterionDetails = document.createElement("details");
+    const criterionSummary = document.createElement("summary");
+    criterionSummary.textContent =
+      "Criterion " +
+      criterion.criterion_id +
+      " — " +
+      criterion.outcome +
+      " — Review " +
+      run.review_id +
+      " " +
+      run.review_version_id;
+    criterionDetails.append(criterionSummary);
+    for (const finding of result.findings.filter(
+      /** @param {any} candidate */
+      (candidate) =>
+        candidate.review_run_id === criterion.review_run_id &&
+        candidate.criterion_id === criterion.criterion_id,
+    )) {
+      if (
+        typeof finding.id !== "string" ||
+        typeof finding.impact !== "string" ||
+        typeof finding.evidence !== "string" ||
+        typeof finding.remediation !== "string" ||
+        typeof finding.location?.kind !== "string"
+      ) {
+        throw new Error("evaluation_result_invalid");
+      }
+      const findingDetails = document.createElement("details");
+      const findingSummary = document.createElement("summary");
+      findingSummary.textContent =
+        "Finding " + finding.id + " — " + finding.impact;
+      findingDetails.append(findingSummary);
+      for (const [label, value] of [
+        ["Evidence", finding.evidence],
+        ["Remediation", finding.remediation],
+      ]) {
+        const fact = document.createElement("p");
+        fact.textContent = label + ": " + value;
+        findingDetails.append(fact);
+      }
+      findingDetails.append(findingLocation(evaluation.id, finding));
+      const location = finding.location;
+      if (
+        focusValue("evaluation_id") === evaluation.id &&
+        focusValue("file_change_id") === location.file_change_id &&
+        focusValue("side") === location.side &&
+        (location.kind !== "line_range" ||
+          (focusValue("start_line") === String(location.start_line) &&
+            focusValue("end_line") === String(location.end_line)))
+      ) {
+        criterionDetails.open = true;
+        findingDetails.open = true;
+      }
+      criterionDetails.append(findingDetails);
+    }
+    target.append(criterionDetails);
+  }
 }
 
 /** @param {any} evaluation */
@@ -115,7 +247,7 @@ async function renderEvaluation(evaluation) {
   }
   try {
     const result = await resultResponse.json();
-    resultState.textContent = "Result " + JSON.stringify(result);
+    renderResult(resultState, evaluation, result);
   } catch {
     resultState.textContent = "Result failed to load";
   }

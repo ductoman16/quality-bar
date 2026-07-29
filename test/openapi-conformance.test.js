@@ -9,6 +9,7 @@ import {
   createHttpConformanceAssertion,
   validateOpenApi31Document,
 } from "../scripts/openapi-conformance.mjs";
+import { TRIGGERED_EVALUATION_RESULT } from "./openapi-triggered-evaluation-result.js";
 
 function documentedExchange(overrides = {}) {
   return {
@@ -154,6 +155,22 @@ test("runtime conformance accepts a documented request and empty success", async
     responseDocuments: 1,
     statuses: 2,
   });
+});
+
+test("runtime conformance accepts a triggered Finding Result", async () => {
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
+  await assertion.assertExchange(
+    documentedExchange({
+      request: {
+        method: "GET",
+        url: "http://127.0.0.1/api/v1/evaluations/evaluation-1/result",
+      },
+      response: Response.json(TRIGGERED_EVALUATION_RESULT),
+    }),
+  );
+  assert.equal(assertion.facts().responseDocuments, 1);
 });
 
 test("the shared HTTP fetch validates every exchange automatically", async () => {

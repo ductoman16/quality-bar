@@ -104,6 +104,7 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
         instruction: "Reject broken changes",
       },
     ],
+    fileChanges: [],
     headCommit: "b".repeat(40),
     reviewName: "Correctness",
   };
@@ -128,6 +129,13 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
     ].join("\n"),
   );
   assert.doesNotMatch(prompt, /example\.test|Repository Guidance|credential/i);
+  assert.throws(
+    () =>
+      createReviewRunPrompt(
+        /** @type {any} */ ({ ...run, fileChanges: undefined }),
+      ),
+    /Frozen File Changes are required/,
+  );
 });
 
 test("checkout failure remains pre-start and does not launch Codex", async () => {

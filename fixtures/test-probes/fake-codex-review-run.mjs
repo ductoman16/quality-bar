@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const arguments_ = process.argv.slice(2);
 const prompt = arguments_.at(-1) ?? "";
+const triggered = arguments_.includes("--fake-triggered");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
   /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
@@ -76,21 +77,23 @@ writeFileSync(
   resultPath,
   JSON.stringify({
     criterion_results: [
-      {
-        criterion_id: criterion,
-        findings: [
-          {
-            evidence: "The changed file contains the triggered proof.",
-            location: {
-              file_change_id: fileChanges[0].id,
-              kind: "whole_side",
-              side: "head",
-            },
-            remediation: "Replace the triggered proof.",
-          },
-        ],
-        outcome: "triggered",
-      },
+      triggered
+        ? {
+            criterion_id: criterion,
+            findings: [
+              {
+                evidence: "The changed file contains the triggered proof.",
+                location: {
+                  file_change_id: fileChanges[0].id,
+                  kind: "whole_side",
+                  side: "head",
+                },
+                remediation: "Replace the triggered proof.",
+              },
+            ],
+            outcome: "triggered",
+          }
+        : { criterion_id: criterion, outcome: "clear" },
     ],
   }),
 );
