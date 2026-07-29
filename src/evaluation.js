@@ -213,9 +213,16 @@ export function createEvaluationService(
       }
       const key = requireIdempotencyKey(idempotencyKey);
       const canonicalRequest = canonicalExplicitEvaluationRequest(request);
-      const route = `/api/v1/repositories/${repositoryId}/evaluations`;
+      const route =
+        channel === "mcp"
+          ? "quality_bar.request_evaluation"
+          : `/api/v1/repositories/${repositoryId}/evaluations`;
+      const idempotentRequest =
+        channel === "mcp"
+          ? { repository_id: repositoryId, ...canonicalRequest }
+          : canonicalRequest;
       const requestHash = createHash("sha256")
-        .update(JSON.stringify(canonicalRequest))
+        .update(JSON.stringify(idempotentRequest))
         .digest("hex");
       const replay = readIdempotentReplay(
         durableCore,
