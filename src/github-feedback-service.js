@@ -98,19 +98,32 @@ export function createGitHubFeedbackService(
         const coordinate = fileChange
           ? projectFrozenDiffLineRange(finding.location, fileChange)
           : null;
+        const unavailable =
+          coordinate && bundle.publication_status === "unavailable";
+        const errorDetail =
+          bundle.error_code === "github_connection_retired"
+            ? "GitHub inline feedback publication is unavailable because the GitHub Connection is retired"
+            : bundle.error_detail;
         transaction.run(
           `INSERT INTO github_finding_feedback (
              finding_id, evaluation_id, publication_status,
-             path, side, start_line, start_side, line
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             path, side, start_line, start_side, line,
+             error_code, error_detail
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           finding.id,
           bundle.evaluation_id,
-          coordinate ? "waiting" : "aggregate_only",
+          coordinate
+            ? unavailable
+              ? "unavailable"
+              : "waiting"
+            : "aggregate_only",
           coordinate?.path ?? null,
           coordinate?.side ?? null,
           coordinate?.start_line ?? null,
           coordinate?.start_side ?? null,
           coordinate?.line ?? null,
+          unavailable ? bundle.error_code : null,
+          unavailable ? errorDetail : null,
         );
       }
     });
@@ -152,6 +165,28 @@ export function createGitHubFeedbackService(
     }
     running = true;
     try {
+      const missingFindingFeedback = durableCore.all(
+        `SELECT evaluation_id, publication_status, error_code, error_detail
+         FROM github_feedback_bundles
+         WHERE EXISTS (
+           SELECT 1 FROM findings
+           WHERE findings.evaluation_id =
+                 github_feedback_bundles.evaluation_id
+         )
+           AND NOT EXISTS (
+             SELECT 1 FROM github_finding_feedback
+             WHERE github_finding_feedback.evaluation_id =
+                   github_feedback_bundles.evaluation_id
+           )
+         ORDER BY evaluation_id`,
+      );
+      for (const bundle of missingFindingFeedback) {
+        const evaluationId = /** @type {string} */ (bundle?.evaluation_id);
+        materializeFindingFeedback(
+          bundle,
+          readEvaluationFindings(durableCore, evaluationId),
+        );
+      }
       while (true) {
         const [bundle] = durableCore.all(
           `SELECT

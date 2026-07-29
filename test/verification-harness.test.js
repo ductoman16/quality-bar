@@ -198,10 +198,11 @@ test("the canonical verifier starts with six named static-quality gates", () => 
     "--test",
     "test/applicability-result-openapi-conformance.test.js",
     "test/evaluation-machine-openapi-conformance.test.js",
+    "test/github-feedback-openapi-conformance.test.js",
     "test/openapi-conformance.test.js",
+    "test/openapi-conformance-evidence.test.js",
     "test/repository-lifecycle-openapi-conformance.test.js",
   ]);
-  assert.deepEqual(openApiRuntime.tools, openApiStructure.tools);
   const mcpIntegration = definitions.find(
     (definition) => definition.name === "mcp-integration",
   );

@@ -76,6 +76,7 @@ export function createGitHubFeedbackPublisher(dependencies) {
     if (
       !response ||
       !Number.isSafeInteger(response.id) ||
+      /** @type {number} */ (response.id) <= 0 ||
       response.body !== body
     ) {
       dependencies.fail(
@@ -142,6 +143,7 @@ export function createGitHubFeedbackPublisher(dependencies) {
     if (
       !response ||
       !Number.isSafeInteger(response.id) ||
+      /** @type {number} */ (response.id) <= 0 ||
       response.body !== comment.body ||
       response.commit_id !== comment.commit_id ||
       response.path !== comment.path ||

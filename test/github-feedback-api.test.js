@@ -117,3 +117,46 @@ test("invalid GitHub feedback responses fail instead of inferring publication", 
       error.code === "github_api_response_invalid",
   );
 });
+
+test("nonpositive GitHub feedback identities fail at the response boundary", async () => {
+  const publish = createGitHubFeedbackPublisher({
+    fail(code, message) {
+      throw Object.assign(new Error(message), { code });
+    },
+    async installationToken() {
+      return "installation-token";
+    },
+    async request(path, options) {
+      if (path.includes("/issues/")) {
+        return { body: options.body.body, id: 0 };
+      }
+      return {
+        ...options.body,
+        id: -1,
+        start_line: options.body.start_line ?? null,
+        start_side: options.body.start_side ?? null,
+      };
+    },
+  });
+  /** @param {unknown} error */
+  const invalid = (error) =>
+    error instanceof Error &&
+    "code" in error &&
+    error.code === "github_api_response_invalid";
+
+  await assert.rejects(
+    () => publish.publishAggregate({}, 73, repository, 17, "aggregate"),
+    invalid,
+  );
+  await assert.rejects(
+    () =>
+      publish.publishInline({}, 73, repository, 17, {
+        body: "finding",
+        commit_id: "a".repeat(40),
+        line: 2,
+        path: "src/example.js",
+        side: "RIGHT",
+      }),
+    invalid,
+  );
+});

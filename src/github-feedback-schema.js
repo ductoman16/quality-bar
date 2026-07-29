@@ -75,10 +75,13 @@ export const GITHUB_FEEDBACK_SCHEMA = `
     WHEN EXISTS (
       SELECT 1
       FROM github_automatic_evaluations
+      JOIN evaluations
+        ON evaluations.id = github_automatic_evaluations.evaluation_id
       JOIN github_repositories
         ON github_repositories.repository_id =
              github_automatic_evaluations.repository_id
       WHERE github_automatic_evaluations.evaluation_id = NEW.evaluation_id
+        AND evaluations.execution_status != 'cancelled'
     )
     BEGIN
       INSERT INTO github_feedback_bundles (
@@ -139,6 +142,8 @@ export const GITHUB_FEEDBACK_SCHEMA = `
       ELSE NULL
     END
   FROM evaluation_results
+  JOIN evaluations
+    ON evaluations.id = evaluation_results.evaluation_id
   JOIN github_automatic_evaluations
     ON github_automatic_evaluations.evaluation_id =
          evaluation_results.evaluation_id
@@ -147,5 +152,6 @@ export const GITHUB_FEEDBACK_SCHEMA = `
          github_automatic_evaluations.repository_id
   JOIN github_connections
     ON github_connections.id = github_repositories.connection_id
+  WHERE evaluations.execution_status != 'cancelled'
   ON CONFLICT (evaluation_id) DO NOTHING;
 `;

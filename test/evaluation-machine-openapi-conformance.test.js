@@ -21,4 +21,13 @@ test("Evaluation related reads publish complete canonical resource schemas", () 
       .code.enum,
     ["cancelled_by_operator", "cancelled_by_supersession"],
   );
+  assert.equal(
+    document.components.schemas.Evaluation.properties.feedback.$ref,
+    "#/components/schemas/GitHubEvaluationFeedback",
+  );
+  assert.deepEqual(
+    document.components.schemas.GitHubFindingFeedbackPublication.properties
+      .publication_status.enum,
+    ["aggregate_only", "waiting", "succeeded", "unavailable"],
+  );
 });
