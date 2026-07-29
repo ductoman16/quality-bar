@@ -8,6 +8,7 @@ const notApplicable = arguments_.includes("--fake-not-applicable");
 const criterionError = arguments_.includes("--fake-error");
 const correctionProof = arguments_.includes("--fake-correction");
 const processFailure = arguments_.includes("--fake-process-failure");
+const deadline = arguments_.includes("--fake-deadline");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
   /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
@@ -53,6 +54,21 @@ if (
 ) {
   throw new Error("fake_codex_review_run_arguments_invalid");
 }
+if (deadline) {
+  process.on("SIGTERM", () => {
+    try {
+      execFileSync("quality-bar-submit", {
+        input: JSON.stringify({
+          criterion_results: [{ criterion_id: criterion, outcome: "clear" }],
+        }),
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      process.stdout.write('{"type":"fake.deadline_submission_accepted"}\n');
+    } catch {
+      process.stdout.write('{"type":"fake.deadline_submission_rejected"}\n');
+    }
+  });
+}
 writeFileSync("codex-scratch.txt", "not a Result\n");
 process.stdout.write(
   `${JSON.stringify({
@@ -77,6 +93,11 @@ process.stdout.write(
 process.stderr.write("fake Codex diagnostic\n");
 if (processFailure) {
   throw new Error("fake_codex_process_failure");
+}
+if (deadline) {
+  process.stdout.write('{"type":"fake.deadline_ready"}\n');
+  setInterval(() => {}, 1_000);
+  await new Promise(() => {});
 }
 if (correctionProof) {
   let correction = "";

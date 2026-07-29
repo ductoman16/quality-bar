@@ -1,51 +1,14 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
-import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
-
-const claim = Object.freeze({
-  fencingToken: 7,
-  workerId: "worker-1",
-  workId: "run-1",
-});
-const run = Object.freeze({
-  configuration: {
-    model: "gpt-5.6-terra",
-    reasoning_effort: "high",
-    service_tier: "fast",
-  },
-  criteria: [{ criterionId: "criterion-1" }],
-  prompt: "Review the frozen Changeset",
-});
-
-function acceptedChannel() {
-  return {
-    accepted: () => true,
-    async close() {},
-    commandDirectory: "/submit-bin",
-    environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
-      QUALITY_BAR_SUBMIT_TOKEN: "secret",
-    },
-    failure: () => null,
-    lastValidationFailure: () => null,
-    submission: () => ({ prepared: true }),
-    waitForResult: () =>
-      Promise.resolve(/** @type {"accepted"} */ ("accepted")),
-  };
-}
-
-/** @param {number} pid */
-function runningProcess(pid) {
-  return Object.assign(new EventEmitter(), {
-    pid,
-    stderr: new PassThrough(),
-    stdout: new PassThrough(),
-  });
-}
+import {
+  acceptedChannel,
+  claim,
+  run,
+  runningProcess,
+  runReviewRunCodex,
+} from "./review-run-codex-adapter-support.js";
 
 test("accepted submission force-kills a Codex process group after five seconds", async () => {
   /** @type {(string | number)[]} */
@@ -77,6 +40,136 @@ test("accepted submission force-kills a Codex process group after five seconds",
     spawnProcess: () => /** @type {any} */ (child),
   });
   assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+});
+
+test(
+  "the fixed fifteen-minute deadline closes submission before terminating and force-killing the process group",
+  { timeout: 1_000 },
+  async () => {
+    /** @type {(string | number)[]} */
+    const events = [];
+    const child = runningProcess(80);
+    await assert.rejects(
+      () =>
+        runReviewRunCodex({
+          checkoutPath: "/checkout",
+          claim,
+          clearDeadlineTimer() {},
+          clearTerminationTimer() {},
+          killProcessGroup(pid, signal) {
+            assert.equal(pid, -80);
+            events.push(signal);
+            if (signal === "SIGKILL") {
+              queueMicrotask(() => child.emit("close", null, "SIGKILL"));
+            }
+          },
+          openSubmissionChannel: async () => ({
+            ...acceptedChannel(),
+            accepted: () => false,
+            async close() {
+              events.push("submission-closed");
+            },
+            waitForResult: () => new Promise(() => {}),
+          }),
+          recordDeadline(failure) {
+            assert.equal(failure.code, "deadline_exceeded");
+            events.push("deadline-recorded");
+          },
+          resultService: { prepare() {} },
+          run,
+          setDeadlineTimer(callback, milliseconds) {
+            assert.equal(milliseconds, 15 * 60 * 1_000);
+            events.push("deadline-started");
+            queueMicrotask(callback);
+            return {};
+          },
+          setTerminationTimer(callback, milliseconds) {
+            assert.equal(milliseconds, 5_000);
+            queueMicrotask(callback);
+            return {};
+          },
+          spawnProcess() {
+            events.push("spawn");
+            return /** @type {any} */ (child);
+          },
+        }),
+      (error) =>
+        error instanceof ReviewRunExecutionError &&
+        error.code === "deadline_exceeded" &&
+        error.message === "Codex Review Run exceeded its 15-minute deadline",
+    );
+    assert.deepEqual(events, [
+      "deadline-started",
+      "spawn",
+      "submission-closed",
+      "deadline-recorded",
+      "SIGTERM",
+      "SIGKILL",
+    ]);
+  },
+);
+
+test("parallel Review Runs own independent deadline timers", async () => {
+  /** @type {(() => void)[]} */
+  const deadlines = [];
+  /** @type {number[]} */
+  const terminated = [];
+  /** @param {number} pid */
+  function runUntilDeadline(pid) {
+    const child = runningProcess(pid);
+    return runReviewRunCodex({
+      checkoutPath: "/checkout",
+      claim: { ...claim, workId: `run-${pid}` },
+      clearDeadlineTimer() {},
+      killProcessGroup(processGroupId, signal) {
+        assert.equal(processGroupId, -pid);
+        if (signal === "SIGTERM") {
+          terminated.push(pid);
+          queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+        } else {
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        }
+      },
+      openSubmissionChannel: async () => ({
+        ...acceptedChannel(),
+        accepted: () => false,
+        waitForResult: () => new Promise(() => {}),
+      }),
+      resultService: { prepare() {} },
+      run,
+      setDeadlineTimer(callback, milliseconds) {
+        assert.equal(milliseconds, 15 * 60 * 1_000);
+        deadlines.push(callback);
+        return {};
+      },
+      spawnProcess: () => /** @type {any} */ (child),
+    });
+  }
+
+  const first = runUntilDeadline(81);
+  const second = runUntilDeadline(82);
+  while (deadlines.length < 2) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  deadlines[0]();
+  await assert.rejects(
+    () => first,
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "deadline_exceeded",
+  );
+  assert.deepEqual(terminated, [81]);
+  deadlines[1]();
+  await assert.rejects(
+    () => second,
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "deadline_exceeded",
+  );
+  assert.deepEqual(terminated, [81, 82]);
 });
 
 test("a direct child exit does not spare a surviving process-group descendant", async () => {

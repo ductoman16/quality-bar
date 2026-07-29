@@ -12,13 +12,15 @@ import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { fakeCodexScenarios } from "./review-run-fake-codex-scenarios.js";
 
 const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure"} outcome */
+/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline"} outcome */
 async function proveFakeCodexResult(context, outcome) {
+  const scenario = fakeCodexScenarios[outcome];
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -91,32 +93,41 @@ async function proveFakeCodexResult(context, outcome) {
     new Error("SQLite durable evidence write failed"),
     { code: "storage_unavailable" },
   );
+  /** @type {() => void} */
+  let signalDeadline = () => assert.fail("deadline timer was not installed");
+  /** @type {() => void} */
+  let forceKill = () => assert.fail("termination timer was not installed");
+  let deadlineSubmissionOutcome = "missing";
+  const deadlineEvidence = {
+    /** @param {any} evidenceClaim @param {"stdout" | "stderr"} stream @param {string} content */
+    appendTranscriptChunk(evidenceClaim, stream, content) {
+      durableEvidence.appendTranscriptChunk(evidenceClaim, stream, content);
+      if (content.includes('"type":"fake.deadline_ready"')) {
+        queueMicrotask(signalDeadline);
+      }
+      if (content.includes('"type":"fake.deadline_submission_rejected"')) {
+        deadlineSubmissionOutcome = "rejected";
+        queueMicrotask(forceKill);
+      }
+      if (content.includes('"type":"fake.deadline_submission_accepted"')) {
+        deadlineSubmissionOutcome = "accepted";
+        queueMicrotask(forceKill);
+      }
+    },
+    complete: durableEvidence.complete.bind(durableEvidence),
+  };
 
   const execution = () =>
     executeReviewRun(core, claim, {
       checkoutRoot,
       claimService: claims,
       codexCommand: process.execPath,
-      codexPrefixArguments:
-        outcome === "process_failure"
-          ? [fakeCodexPath, "--fake-process-failure"]
-          : outcome === "triggered"
-            ? [fakeCodexPath, "--fake-triggered"]
-            : outcome === "not_applicable"
-              ? [fakeCodexPath, "--fake-not-applicable"]
-              : outcome === "error"
-                ? [fakeCodexPath, "--fake-error"]
-                : [fakeCodexPath, "--fake-correction"],
-      evidenceService:
-        outcome === "evidence_failure"
-          ? {
-              appendTranscriptChunk:
-                durableEvidence.appendTranscriptChunk.bind(durableEvidence),
-              complete() {
-                throw evidenceFailure;
-              },
-            }
-          : durableEvidence,
+      codexPrefixArguments: [fakeCodexPath, ...scenario.arguments],
+      evidenceService: scenario.createEvidenceService({
+        deadlineEvidence,
+        durableEvidence,
+        evidenceFailure,
+      }),
       processEnvironment: {
         CODEX_HOME: "/var/lib/quality-bar/codex",
         HOME: "/var/lib/quality-bar",
@@ -131,75 +142,26 @@ async function proveFakeCodexResult(context, outcome) {
         QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
       },
       resultService: results,
+      ...scenario.createTimerOptions({
+        /** @param {() => void} callback */
+        setForceKill(callback) {
+          forceKill = callback;
+        },
+        /** @param {() => void} callback */
+        setSignalDeadline(callback) {
+          signalDeadline = callback;
+        },
+      }),
     });
-  if (outcome === "process_failure" || outcome === "evidence_failure") {
-    await assert.rejects(
-      execution,
-      (error) =>
-        error instanceof Error &&
-        "code" in error &&
-        error.code ===
-          (outcome === "process_failure"
-            ? "codex_process_failed"
-            : "storage_unavailable"),
-    );
-  } else {
-    await execution();
-  }
+  await scenario.execute(execution);
 
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
-  if (outcome === "process_failure") {
-    assert.deepEqual(
-      core.get(
-        `SELECT execution_status, process_exit_code, process_signal,
-                execution_evidence_recorded
-         FROM review_runs WHERE id = ?`,
-        claim.workId,
-      ),
-      {
-        execution_evidence_recorded: 1,
-        execution_status: "failed",
-        process_exit_code: 1,
-        process_signal: null,
-      },
-    );
-    assert.ok(
-      Number(
-        core.get(
-          `SELECT count(*) AS count
-           FROM review_run_transcript_chunks
-           WHERE review_run_id = ?`,
-          claim.workId,
-        )?.count,
-      ) >= 2,
-    );
-    return;
-  }
-  if (outcome === "evidence_failure") {
-    assert.deepEqual(
-      core.get(
-        `SELECT review_runs.execution_status,
-                review_runs.execution_evidence_recorded,
-                evaluations.execution_status,
-                evaluation_results.outcome,
-                criterion_results.outcome AS criterion_outcome
-         FROM review_runs
-         JOIN evaluations
-           ON evaluations.id = review_runs.evaluation_id
-         JOIN evaluation_results
-           ON evaluation_results.evaluation_id = evaluations.id
-         JOIN criterion_results
-           ON criterion_results.review_run_id = review_runs.id
-         WHERE review_runs.id = ?`,
-        claim.workId,
-      ),
-      {
-        criterion_outcome: "clear",
-        execution_evidence_recorded: 0,
-        execution_status: "completed",
-        outcome: "clear",
-      },
-    );
+  if (scenario.verifySpecialResult) {
+    scenario.verifySpecialResult({
+      claim,
+      core,
+      deadlineSubmissionOutcome,
+    });
     return;
   }
   assert.deepEqual(
@@ -256,22 +218,14 @@ async function proveFakeCodexResult(context, outcome) {
     ),
     {
       execution_status: "completed",
-      outcome:
-        outcome === "error"
-          ? "error"
-          : outcome === "triggered"
-            ? "blocking"
-            : "clear",
+      outcome: scenario.evaluationOutcome,
     },
   );
   assert.deepEqual(
     core.get(`SELECT outcome, error_code, error_detail FROM criterion_results`),
     {
-      error_code: outcome === "error" ? "required_evidence_unavailable" : null,
-      error_detail:
-        outcome === "error"
-          ? "The required generated file is absent from the head."
-          : null,
+      error_code: scenario.criterionErrorCode,
+      error_detail: scenario.criterionErrorDetail,
       outcome,
     },
   );
@@ -279,7 +233,7 @@ async function proveFakeCodexResult(context, outcome) {
     `SELECT id, evidence, remediation, location_kind, side
      FROM findings`,
   );
-  if (outcome === "triggered") {
+  if (scenario.finding) {
     assert.deepEqual(persistedFinding, {
       evidence: "The changed file contains the triggered proof.",
       id: "finding-fake-codex",
@@ -315,3 +269,11 @@ test("one failed fake Codex run durably retains transcript and process evidence"
 test("post-acceptance evidence failure cannot overturn the complete Result", async (context) => {
   await proveFakeCodexResult(context, "evidence_failure");
 });
+
+test(
+  "one overdue fake Codex run closes submission and force-kills its process group without a partial Result",
+  { timeout: 10_000 },
+  async (context) => {
+    await proveFakeCodexResult(context, "deadline");
+  },
+);

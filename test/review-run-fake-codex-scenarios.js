@@ -1,0 +1,209 @@
+import assert from "node:assert/strict";
+
+/** @param {() => Promise<unknown>} execution */
+const successfulExecution = (execution) => execution();
+/** @param {string} code */
+const failedExecution =
+  (code) => async (/** @type {() => Promise<unknown>} */ execution) => {
+    await assert.rejects(
+      execution,
+      (/** @type {any} */ error) =>
+        error instanceof Error && "code" in error && error.code === code,
+    );
+  };
+/** @param {any} options */
+const durableEvidence = ({ durableEvidence: service }) => service;
+const noTimers = () => ({});
+
+/** @param {any} options */
+function deadlineEvidence({ deadlineEvidence: service }) {
+  return service;
+}
+
+/** @param {any} options */
+function deadlineTimers({ setForceKill, setSignalDeadline }) {
+  return {
+    clearDeadlineTimer() {},
+    clearTerminationTimer() {},
+    /** @param {() => void} callback @param {number} milliseconds */
+    setDeadlineTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 15 * 60 * 1_000);
+      setSignalDeadline(callback);
+      return {};
+    },
+    /** @param {() => void} callback @param {number} milliseconds */
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      setForceKill(callback);
+      return {};
+    },
+  };
+}
+
+/** @param {any} options */
+function failingEvidence({ durableEvidence: service, evidenceFailure }) {
+  return {
+    appendTranscriptChunk: service.appendTranscriptChunk.bind(service),
+    complete() {
+      throw evidenceFailure;
+    },
+  };
+}
+
+/** @param {any} options */
+function verifyDeadline({ core, claim, deadlineSubmissionOutcome }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, error_code, error_detail,
+              process_exit_code, process_signal,
+              execution_evidence_recorded
+       FROM review_runs WHERE id = ?`,
+      claim.workId,
+    ),
+    {
+      error_code: "deadline_exceeded",
+      error_detail: "Codex Review Run exceeded its 15-minute deadline",
+      execution_evidence_recorded: 1,
+      execution_status: "failed",
+      process_exit_code: null,
+      process_signal: "SIGKILL",
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  assert.equal(deadlineSubmissionOutcome, "rejected");
+  const transcript = core
+    .all(
+      `SELECT content FROM review_run_transcript_chunks
+       WHERE review_run_id = ? ORDER BY sequence`,
+      claim.workId,
+    )
+    .map((/** @type {any} */ chunk) => chunk?.content)
+    .join("");
+  assert.match(transcript, /"type":"fake\.deadline_submission_rejected"/);
+  assert.doesNotMatch(transcript, /fake\.deadline_submission_accepted/);
+}
+
+/** @param {any} options */
+function verifyProcessFailure({ core, claim }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, process_exit_code, process_signal,
+              execution_evidence_recorded
+       FROM review_runs WHERE id = ?`,
+      claim.workId,
+    ),
+    {
+      execution_evidence_recorded: 1,
+      execution_status: "failed",
+      process_exit_code: 1,
+      process_signal: null,
+    },
+  );
+  assert.ok(
+    Number(
+      core.get(
+        `SELECT count(*) AS count
+         FROM review_run_transcript_chunks
+         WHERE review_run_id = ?`,
+        claim.workId,
+      )?.count,
+    ) >= 2,
+  );
+}
+
+/** @param {any} options */
+function verifyEvidenceFailure({ core, claim }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT review_runs.execution_status,
+              review_runs.execution_evidence_recorded,
+              evaluations.execution_status,
+              evaluation_results.outcome,
+              criterion_results.outcome AS criterion_outcome
+       FROM review_runs
+       JOIN evaluations
+         ON evaluations.id = review_runs.evaluation_id
+       JOIN evaluation_results
+         ON evaluation_results.evaluation_id = evaluations.id
+       JOIN criterion_results
+         ON criterion_results.review_run_id = review_runs.id
+       WHERE review_runs.id = ?`,
+      claim.workId,
+    ),
+    {
+      criterion_outcome: "clear",
+      execution_evidence_recorded: 0,
+      execution_status: "completed",
+      outcome: "clear",
+    },
+  );
+}
+
+const common = {
+  criterionErrorCode: undefined,
+  criterionErrorDetail: undefined,
+  createEvidenceService: durableEvidence,
+  createTimerOptions: noTimers,
+  evaluationOutcome: undefined,
+  execute: successfulExecution,
+  finding: false,
+  verifySpecialResult: undefined,
+};
+
+export const fakeCodexScenarios = Object.freeze({
+  clear: {
+    ...common,
+    arguments: ["--fake-correction"],
+    criterionErrorCode: null,
+    criterionErrorDetail: null,
+    evaluationOutcome: "clear",
+  },
+  deadline: {
+    ...common,
+    arguments: ["--fake-deadline"],
+    createEvidenceService: deadlineEvidence,
+    createTimerOptions: deadlineTimers,
+    execute: failedExecution("deadline_exceeded"),
+    verifySpecialResult: verifyDeadline,
+  },
+  error: {
+    ...common,
+    arguments: ["--fake-error"],
+    criterionErrorCode: "required_evidence_unavailable",
+    criterionErrorDetail:
+      "The required generated file is absent from the head.",
+    evaluationOutcome: "error",
+  },
+  evidence_failure: {
+    ...common,
+    arguments: ["--fake-correction"],
+    createEvidenceService: failingEvidence,
+    execute: failedExecution("storage_unavailable"),
+    verifySpecialResult: verifyEvidenceFailure,
+  },
+  not_applicable: {
+    ...common,
+    arguments: ["--fake-not-applicable"],
+    criterionErrorCode: null,
+    criterionErrorDetail: null,
+    evaluationOutcome: "clear",
+  },
+  process_failure: {
+    ...common,
+    arguments: ["--fake-process-failure"],
+    execute: failedExecution("codex_process_failed"),
+    verifySpecialResult: verifyProcessFailure,
+  },
+  triggered: {
+    ...common,
+    arguments: ["--fake-triggered"],
+    criterionErrorCode: null,
+    criterionErrorDetail: null,
+    evaluationOutcome: "blocking",
+    finding: true,
+  },
+});

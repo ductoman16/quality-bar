@@ -182,3 +182,81 @@ test("historical CLI evidence is explicitly unavailable and diagnostics failures
     /Diagnostics storage unavailable/,
   );
 });
+
+test("the operator browser keeps the exact deadline failure beside force-kill evidence", async () => {
+  const target = browserElement();
+  const context = /** @type {any} */ ({
+    document: {
+      createElement() {
+        return browserElement();
+      },
+    },
+    async fetch() {
+      return {
+        ok: true,
+        async json() {
+          return {
+            codex_cli_version: "0.145.0",
+            completed_at: "2026-07-28T12:15:00.020Z",
+            duration_ms: 900_020,
+            process: { kind: "signal", signal: "SIGKILL" },
+            review_run_id: "review-run-deadline",
+            started_at: "2026-07-28T12:00:00.000Z",
+            token_counters: {
+              cached_input_tokens: null,
+              input_tokens: null,
+              output_tokens: null,
+            },
+            transcript_chunks: [
+              {
+                content: '{"type":"turn.started"}\n',
+                sequence: 1,
+                stream: "stdout",
+              },
+            ],
+          };
+        },
+      };
+    },
+    window: {},
+  });
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-result.js",
+    readBrowserAsset("/assets/evaluation-result.js"),
+    context,
+  );
+  await context.window.qualityBarEvaluationResult.render(
+    target,
+    { id: "evaluation-deadline" },
+    {
+      applicability_results: [],
+      criterion_results: [],
+      file_changes: [],
+      findings: [],
+      outcome: "error",
+      review_runs: [
+        {
+          error: {
+            code: "deadline_exceeded",
+            detail: "Codex Review Run exceeded its 15-minute deadline",
+          },
+          id: "review-run-deadline",
+          review_id: "review-1",
+          review_version_id: "review-version-1",
+          status: "failed",
+        },
+      ],
+    },
+    "",
+  );
+
+  assert.equal(
+    target.options[0].options[1].textContent,
+    "Error deadline_exceeded: Codex Review Run exceeded its 15-minute deadline",
+  );
+  assert.equal(
+    target.options[1].options[1].textContent,
+    "Codex CLI 0.145.0 — 900020 ms — input unavailable, cached input unavailable, output unavailable — signal SIGKILL",
+  );
+});
