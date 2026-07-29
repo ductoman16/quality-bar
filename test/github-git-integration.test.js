@@ -10,7 +10,10 @@ import { openDurableCore } from "../src/durable-core.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { verifyGitHubRepositoryRead } from "../src/github-git-verification.js";
 import { createGitHubPollingService } from "../src/github-polling.js";
-import { verifyRepositoryRead } from "../src/repository-git.js";
+import {
+  resolvePushedCommitSelectors,
+  verifyRepositoryRead,
+} from "../src/repository-git.js";
 
 test("real Git distinguishes transient GitHub failure from definitive access loss", async (context) => {
   const server = createServer((request, response) => {
@@ -136,4 +139,134 @@ test("a GitHub baseline preserves exact real Git base and head object IDs", asyn
   assert.equal(snapshot[0].base.sha, base);
   assert.equal(snapshot[0].head.sha, head);
   core.close();
+});
+
+test("real Git proves the stored pull-request merge-base and current head pair", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-pr-git-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const repository = join(directory, "repository");
+  const objectDatabases = join(directory, "objects");
+  execFileSync("mkdir", ["-p", objectDatabases]);
+  execFileSync("git", ["init", "--initial-branch=main", repository], {
+    stdio: "ignore",
+  });
+  execFileSync("git", ["-C", repository, "config", "user.name", "Quality Bar"]);
+  execFileSync("git", [
+    "-C",
+    repository,
+    "config",
+    "user.email",
+    "quality-bar@example.invalid",
+  ]);
+  execFileSync("git", [
+    "-C",
+    repository,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "common",
+  ]);
+  const common = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  execFileSync("git", ["-C", repository, "branch", "topic"]);
+  execFileSync("git", [
+    "-C",
+    repository,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "target advanced",
+  ]);
+  const target = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  execFileSync("git", ["-C", repository, "switch", "topic"], {
+    stdio: "ignore",
+  });
+  execFileSync("git", [
+    "-C",
+    repository,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "pull request head",
+  ]);
+  const head = execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+
+  const changeset = await resolvePushedCommitSelectors(
+    `file://${repository}`,
+    undefined,
+    {
+      base: { type: "commit", value: target },
+      head: { type: "commit", value: head },
+    },
+    { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+  );
+
+  assert.equal(changeset.base_commit, common);
+  assert.equal(changeset.head_commit, head);
+  changeset.release?.();
+
+  execFileSync("git", [
+    "-C",
+    repository,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "force-pushed head",
+  ]);
+  const changedHead = execFileSync(
+    "git",
+    ["-C", repository, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  ).trim();
+  const changed = await resolvePushedCommitSelectors(
+    `file://${repository}`,
+    undefined,
+    {
+      base: { type: "commit", value: target },
+      head: { type: "commit", value: changedHead },
+    },
+    { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+  );
+  assert.equal(changed.base_commit, common);
+  assert.equal(changed.head_commit, changedHead);
+  changed.release?.();
+
+  execFileSync("git", ["-C", repository, "reset", "--hard", head], {
+    stdio: "ignore",
+  });
+  const returned = await resolvePushedCommitSelectors(
+    `file://${repository}`,
+    undefined,
+    {
+      base: { type: "commit", value: target },
+      head: { type: "commit", value: head },
+    },
+    { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+  );
+  assert.equal(returned.base_commit, common);
+  assert.equal(returned.head_commit, head);
+  returned.release?.();
+
+  await assert.rejects(
+    () =>
+      resolvePushedCommitSelectors(
+        `file://${repository}`,
+        undefined,
+        {
+          base: { type: "commit", value: target },
+          head: { type: "commit", value: "f".repeat(40) },
+        },
+        { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+      ),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "github_pull_request_head_inaccessible" &&
+      error.message === "GitHub pull request head is inaccessible",
+  );
 });

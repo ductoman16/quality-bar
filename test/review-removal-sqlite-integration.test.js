@@ -266,7 +266,7 @@ test("schema v29 gains the whole-lineage deletion guard without weakening Review
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.get(
       "SELECT hard_delete_pending FROM reviews WHERE id = ?",

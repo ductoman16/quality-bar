@@ -12,6 +12,10 @@ import { createQueuedReviewRun } from "./review-run-claim-support.js";
 /** @param {any} transaction */
 function removeWaiverBatchSchema(transaction) {
   transaction.run("DROP TRIGGER codex_execution_queue_reference_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_requests_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_lifecycle_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_seal_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_active_delete");
   transaction.run("DROP TABLE waiver_batch_idempotency");
   transaction.run("DROP TABLE waiver_adjudication_requests");
   transaction.run("DROP TABLE waiver_requests");
@@ -62,7 +66,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -151,7 +155,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
@@ -257,7 +261,7 @@ test("schema v32 preserves exact File Change kinds while adding durable facts", 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.all(
       `SELECT added, deleted, modified, renamed,

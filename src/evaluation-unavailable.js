@@ -10,6 +10,9 @@ export function createUnavailableEvaluationService(error) {
           message: "Evaluation capability is unavailable",
         };
   return {
+    admitAutomatic() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     cancel() {
       failEvaluation(failure.code, failure.message, error);
     },

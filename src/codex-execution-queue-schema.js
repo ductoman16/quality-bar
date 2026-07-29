@@ -15,6 +15,49 @@ export const CODEX_EXECUTION_QUEUE_TRIGGERS = `
         ))
     )
     BEGIN SELECT RAISE(ABORT, 'codex_execution_queue_reference_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_waiver_requests_insert
+    BEFORE INSERT ON codex_execution_queue
+    WHEN NEW.work_kind = 'waiver_adjudication'
+      AND NOT EXISTS (
+        SELECT 1 FROM waiver_adjudication_requests
+        WHERE waiver_adjudication_id = NEW.work_id
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'waiver_adjudication_requests_required');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_waiver_lifecycle_insert
+    BEFORE INSERT ON codex_execution_queue
+    WHEN NEW.work_kind = 'waiver_adjudication'
+      AND NOT EXISTS (
+        SELECT 1 FROM waiver_adjudications
+        WHERE id = NEW.work_id
+          AND execution_status = 'queued'
+          AND requests_sealed_at IS NULL
+          AND started_at IS NULL
+          AND completed_at IS NULL
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'waiver_adjudication_queue_lifecycle_invalid');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_waiver_seal_insert
+    AFTER INSERT ON codex_execution_queue
+    WHEN NEW.work_kind = 'waiver_adjudication'
+    BEGIN
+      UPDATE waiver_adjudications
+      SET requests_sealed_at = NEW.accepted_at
+      WHERE id = NEW.work_id;
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_waiver_active_delete
+    BEFORE DELETE ON codex_execution_queue
+    WHEN OLD.work_kind = 'waiver_adjudication'
+      AND EXISTS (
+        SELECT 1 FROM waiver_adjudications
+        WHERE id = OLD.work_id
+          AND execution_status IN ('queued', 'running')
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'waiver_adjudication_queue_active');
+    END;
   CREATE TRIGGER IF NOT EXISTS review_run_queue_reference_delete
     BEFORE DELETE ON review_runs
     WHEN EXISTS (

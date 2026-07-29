@@ -18,6 +18,10 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
   const current = openDurableCore(databasePath);
   await createQueuedReviewRun(current);
   current.transaction((transaction) => {
+    transaction.run(
+      "DROP TRIGGER waiver_adjudication_request_set_frozen_insert",
+    );
+    transaction.run("DROP TRIGGER waiver_adjudication_request_seal_update");
     transaction.run("DROP TRIGGER codex_execution_queue_identity_update");
     transaction.run("DROP TRIGGER codex_execution_queue_claim_update");
     transaction.run("DROP INDEX codex_execution_queue_ready");
@@ -52,7 +56,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.get(
       `SELECT worker_id, fencing_token, lease_expires_at

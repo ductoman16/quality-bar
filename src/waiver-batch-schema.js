@@ -10,10 +10,12 @@ export const WAIVER_BATCH_SCHEMA = `
     execution_status TEXT NOT NULL CHECK (
       execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')
     ),
+    requests_sealed_at INTEGER,
     created_at INTEGER NOT NULL,
     started_at INTEGER,
     completed_at INTEGER,
-    CHECK (length(base_commit) = length(head_commit))
+    CHECK (length(base_commit) = length(head_commit)),
+    CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at)
   ) STRICT;
   CREATE UNIQUE INDEX IF NOT EXISTS waiver_adjudication_active_evaluation
     ON waiver_adjudications (evaluation_id)
@@ -65,6 +67,17 @@ export const WAIVER_BATCH_SCHEMA = `
       reasoning_effort, service_tier, created_at
     ON waiver_adjudications
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_seal_update
+    BEFORE UPDATE OF requests_sealed_at ON waiver_adjudications
+    WHEN OLD.requests_sealed_at IS NOT NULL
+      OR NEW.requests_sealed_at IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM codex_execution_queue
+        WHERE work_kind = 'waiver_adjudication'
+          AND work_id = NEW.id
+          AND accepted_at = NEW.requests_sealed_at
+      )
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_request_seal_invalid'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_queue_reference_delete
     BEFORE DELETE ON waiver_adjudications
     WHEN EXISTS (
@@ -88,6 +101,15 @@ export const WAIVER_BATCH_SCHEMA = `
     BEGIN
       SELECT RAISE(ABORT, 'waiver_adjudication_request_evaluation_invalid');
     END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_set_frozen_insert
+    BEFORE INSERT ON waiver_adjudication_requests
+    WHEN (
+      SELECT requests_sealed_at FROM waiver_adjudications
+      WHERE id = NEW.waiver_adjudication_id
+    ) IS NOT NULL
+    BEGIN
+      SELECT RAISE(ABORT, 'waiver_adjudication_request_set_frozen');
+    END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_immutable_delete
     BEFORE DELETE ON waiver_adjudication_requests
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_request_immutable'); END;
@@ -104,6 +126,10 @@ export const WAIVER_QUEUE_MIGRATION = `
   DROP INDEX IF EXISTS codex_execution_queue_worker;
   DROP TRIGGER IF EXISTS codex_execution_queue_identity_update;
   DROP TRIGGER IF EXISTS codex_execution_queue_reference_insert;
+  DROP TRIGGER IF EXISTS codex_execution_queue_waiver_requests_insert;
+  DROP TRIGGER IF EXISTS codex_execution_queue_waiver_lifecycle_insert;
+  DROP TRIGGER IF EXISTS codex_execution_queue_waiver_seal_insert;
+  DROP TRIGGER IF EXISTS codex_execution_queue_waiver_active_delete;
   DROP TRIGGER IF EXISTS review_run_queue_reference_delete;
   DROP TRIGGER IF EXISTS waiver_adjudication_queue_reference_delete;
   DROP TRIGGER IF EXISTS codex_execution_queue_claim_insert;

@@ -29,6 +29,7 @@ import {
   normalizePublicRepositoryUrl,
   RepositoryError,
 } from "./repository-validation.js";
+export { createUnavailableRepositoryService } from "./repository-unavailable.js";
 import { createRepositorySelectorResolver } from "./repository-selector.js";
 
 export { RepositoryError };
@@ -308,6 +309,20 @@ export function createRepositoryService(
     remove(id) {
       removeNeverUsedRepository(/** @type {any} */ (durableCore), id);
     },
+    /**
+     * @param {string} id
+     * @param {{baseSha: string, headSha: string}} pullRequest
+     */
+    resolvePullRequestChangeset(id, pullRequest) {
+      return resolvePushedSelectors(
+        id,
+        {
+          base: { type: "commit", value: pullRequest?.baseSha },
+          head: { type: "commit", value: pullRequest?.headSha },
+        },
+        { useMergeBase: true },
+      );
+    },
     resolvePushedSelectors,
     /**
      * @param {string} id
@@ -413,36 +428,5 @@ export function createRepositoryService(
       repositoryCollection.destroy();
       credentialCipher.destroy();
     },
-  };
-}
-
-/** @param {unknown} error */
-export function createUnavailableRepositoryService(error) {
-  return {
-    list() {
-      throw error;
-    },
-    listPage() {
-      throw error;
-    },
-    async register() {
-      throw error;
-    },
-    async rotateCredential() {
-      throw error;
-    },
-    requireAcceptsNewWork() {
-      throw error;
-    },
-    remove() {
-      throw error;
-    },
-    async resolvePushedSelectors() {
-      throw error;
-    },
-    async setLifecycle() {
-      throw error;
-    },
-    destroy() {},
   };
 }

@@ -28,7 +28,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -149,7 +149,7 @@ test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (
   canonicalV20.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   migrated.run(
     `INSERT INTO authority_attributions
       (id, channel, action, outcome, error_code, occurred_at)
@@ -319,7 +319,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",

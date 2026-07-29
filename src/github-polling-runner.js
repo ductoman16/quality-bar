@@ -1,5 +1,11 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
 import {
+  acquireAutomaticEvaluations,
+  admitAutomaticEvaluations,
+  completeAutomaticEvaluationAdmissions,
+  releaseAutomaticEvaluationChangesets,
+} from "./github-automatic-evaluation-admission.js";
+import {
   GITHUB_POLL_INTERVAL_MS,
   createGitHubPollingService,
   isDefinitiveGitHubPollingFailure,
@@ -10,17 +16,26 @@ import {
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
 
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
   durableCore,
-  { cipher, storageReserve, timestamp, verifier },
+  {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
+    cipher,
+    storageReserve,
+    timestamp,
+    verifier,
+  },
 ) {
   if (
     !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function" ||
-    typeof verifier.verifyRepositories !== "function"
+    typeof verifier.verifyRepositories !== "function" ||
+    typeof acquirePullRequestChangeset !== "function" ||
+    typeof admitAutomaticEvaluation !== "function"
   ) {
     throw new TypeError("GitHub polling runner dependencies are invalid");
   }
@@ -30,11 +45,6 @@ export function createGitHubPollingRunner(
   );
   const polling = createGitHubPollingService(pollingCore, {
     fetchPullRequests: ({ connection, credential, repository }) => {
-      if (typeof verifier.listPullRequests !== "function") {
-        throw new TypeError(
-          "GitHub verifier must provide pull request polling",
-        );
-      }
       return verifier.listPullRequests(
         {
           app_id: connection.app_id,
@@ -118,7 +128,9 @@ export function createGitHubPollingRunner(
               github_connections.app_id, github_connections.app_slug,
               github_connections.installation_id, github_connections.principal_id,
               github_connections.principal_login, github_connection_credentials.encrypted_credential,
-              github_repositories.name, github_repository_polls.baseline_status
+              github_repositories.name, github_repositories.repository_id,
+              github_repository_polls.baseline_status,
+              github_repository_polls.snapshot
          FROM github_repository_polls
          JOIN github_connections ON github_connections.id = github_repository_polls.connection_id
          JOIN github_connection_credentials ON github_connection_credentials.connection_id = github_connections.id
@@ -177,19 +189,76 @@ export function createGitHubPollingRunner(
               { id: row.forge_repository_id, full_name: row.name },
             ],
           };
+          const baseline = row.baseline_status !== "complete";
           const prepared = await polling.prepare(input, {
-            baseline: row.baseline_status !== "complete",
+            baseline,
           });
-          const committed = pollingCore.transaction((transaction) =>
-            polling.commitSuccess(transaction, row.connection_id, prepared),
-          );
-          if (!committed) {
-            throw new GitHubConnectionError(
-              "github_polling_conflict",
-              "GitHub polling changed during reconciliation",
-            );
+          /** @type {{changeset: any, pullRequestNumber: number, repositoryId: string}[]} */
+          const automaticEvaluations = [];
+          /** @type {{afterCommit: () => void, resource: any}[]} */
+          const admissions = [];
+          const releaseAttempted = new Set();
+          try {
+            if (!baseline) {
+              automaticEvaluations.push(
+                ...(await acquireAutomaticEvaluations(
+                  JSON.parse(row.snapshot),
+                  prepared.snapshots[0]?.snapshot,
+                  row.repository_id,
+                  acquirePullRequestChangeset,
+                )),
+              );
+            }
+            const committed = pollingCore.transaction((transaction) => {
+              if (
+                !polling.commitSuccess(transaction, row.connection_id, prepared)
+              ) {
+                return false;
+              }
+              admissions.push(
+                ...admitAutomaticEvaluations(
+                  transaction,
+                  automaticEvaluations,
+                  admitAutomaticEvaluation,
+                ),
+              );
+              releaseAutomaticEvaluationChangesets(
+                automaticEvaluations,
+                releaseAttempted,
+              );
+              return true;
+            });
+            if (!committed) {
+              throw new GitHubConnectionError(
+                "github_polling_conflict",
+                "GitHub polling changed during reconciliation",
+              );
+            }
+            completeAutomaticEvaluationAdmissions(admissions);
+          } finally {
+            for (const { changeset } of automaticEvaluations) {
+              if (!releaseAttempted.has(changeset)) {
+                changeset?.release?.();
+              }
+            }
           }
         } catch (error) {
+          if (
+            !(error instanceof GitHubConnectionError) &&
+            error instanceof Error &&
+            "code" in error &&
+            typeof error.code === "string"
+          ) {
+            polling.recordFailure({
+              connectionId: row.connection_id,
+              error: new GitHubConnectionError(error.code, error.message, {
+                cause: error,
+                repositoryId: row.forge_repository_id,
+              }),
+              forgeRepositoryId: row.forge_repository_id,
+            });
+            continue;
+          }
           if (!(error instanceof GitHubConnectionError)) {
             throw error;
           }

@@ -50,6 +50,8 @@ test("Evaluations renders no partial data before the complete first-valid Result
                 evaluation({
                   base_selector: { type: "branch", value: "failure" },
                   id: "evaluation-result-failure",
+                  provenance: "automatic",
+                  pull_request: { number: 17 },
                 }),
                 evaluation({
                   completed_at: null,
@@ -207,7 +209,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
   assert.equal(controls.get("evaluation-empty").hidden, true);
   assert.match(
     controls.get("evaluation-recent").options[0].textContent,
-    /branch failure/,
+    /automatic pull request #17 branch failure/,
   );
   assert.equal(
     controls.get("evaluation-recent").options[0].options[0].textContent,

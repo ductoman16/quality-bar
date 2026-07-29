@@ -148,12 +148,12 @@ test("durable waiver identities cannot cross Evaluations and one Request may be 
       /waiver_adjudication_request_evaluation_invalid/,
     );
     core.run(
-      "INSERT INTO codex_execution_queue (work_id, work_kind, ready_at, accepted_at) VALUES ('cross-adjudication', 'waiver_adjudication', 3, 3)",
+      "INSERT INTO codex_execution_queue (work_id, work_kind, ready_at, accepted_at) VALUES ('recovery-adjudication', 'waiver_adjudication', 3, 3)",
     );
     assert.throws(
       () =>
         core.run(
-          "DELETE FROM waiver_adjudications WHERE id = 'cross-adjudication'",
+          "DELETE FROM waiver_adjudications WHERE id = 'recovery-adjudication'",
         ),
       /codex_execution_queue_reference_in_use/,
     );

@@ -17,6 +17,7 @@ import {
 } from "./secure-git-command.js";
 import { createFrozenFileContentReader } from "./frozen-file-content.js";
 import { createGitPathMatcher } from "./git-path-matcher.js";
+import { proveMergeBase } from "./repository-git-merge-base.js";
 
 /**
  * @typedef {{
@@ -168,7 +169,7 @@ export function verifyPublicRepositoryRead(normalizedUrl, options) {
  *   certificateAuthorityPath?: string,
  *   objectDatabaseRoot: string,
  *   removeDirectory?: (path: string) => void,
- *   spawnProcess?: typeof spawn
+ *   spawnProcess?: typeof spawn, useMergeBase?: boolean
  * }} options
  */
 export async function resolvePushedCommitSelectors(
@@ -180,6 +181,7 @@ export async function resolvePushedCommitSelectors(
     objectDatabaseRoot,
     removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
     spawnProcess = spawn,
+    useMergeBase = false,
   },
 ) {
   const selectors = canonicalExplicitEvaluationRequest(request);
@@ -266,8 +268,12 @@ export async function resolvePushedCommitSelectors(
     if (!objectIdPattern) {
       throw new TypeError("Repository object format is unsupported");
     }
+    if (typeof useMergeBase !== "boolean") {
+      throw new TypeError("Evaluation merge-base mode is invalid");
+    }
     const resolved = [];
-    for (const selector of [selectors.base, selectors.head]) {
+    const selectorEntries = [selectors.base, selectors.head];
+    for (const [selectorIndex, selector] of selectorEntries.entries()) {
       if (selector.type === "commit" && !objectIdPattern.test(selector.value)) {
         failEvaluation(
           "evaluation_selector_invalid",
@@ -288,6 +294,13 @@ export async function resolvePushedCommitSelectors(
           ).stdout.trim(),
         );
       } catch (cause) {
+        if (useMergeBase && selectorIndex === 1) {
+          failEvaluation(
+            "github_pull_request_head_inaccessible",
+            "GitHub pull request head is inaccessible",
+            cause,
+          );
+        }
         failEvaluation(
           "evaluation_selector_not_found",
           "An Evaluation selector does not identify a fetchable pushed commit",
@@ -301,8 +314,12 @@ export async function resolvePushedCommitSelectors(
     ) {
       throw new TypeError("Resolved Evaluation commits are invalid");
     }
+    let frozenBase = resolved[0];
+    if (useMergeBase) {
+      frozenBase = await proveMergeBase(runGit, resolved, objectIdPattern);
+    }
     acquired = {
-      base_commit: resolved[0].toLowerCase(),
+      base_commit: frozenBase.toLowerCase(),
       head_commit: resolved[1].toLowerCase(),
       file_changes: fileChangesFromGitNameStatus(
         /** @type {{stdoutBuffer: Buffer}} */ (
@@ -312,7 +329,7 @@ export async function resolvePushedCommitSelectors(
               "--find-renames",
               "--name-status",
               "-z",
-              resolved[0],
+              frozenBase,
               resolved[1],
             ],
             false,

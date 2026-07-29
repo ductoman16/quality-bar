@@ -11,6 +11,7 @@ import {
   EVALUATION_CANCELLATION_TRIGGERS,
 } from "./evaluation-cancellation-schema.js";
 import { CODEX_EXECUTION_QUEUE_TRIGGERS } from "./codex-execution-queue-schema.js";
+import { GITHUB_AUTOMATIC_EVALUATION_SCHEMA } from "./github-automatic-evaluation-schema.js";
 
 export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
 export { evaluationCancellationMigration } from "./evaluation-cancellation-schema.js";
@@ -46,6 +47,7 @@ export const EVALUATION_SCHEMA = `
   ) STRICT;
   CREATE INDEX IF NOT EXISTS evaluations_newest
     ON evaluations (created_at DESC, id DESC);
+  ${GITHUB_AUTOMATIC_EVALUATION_SCHEMA}
   CREATE TABLE IF NOT EXISTS evaluation_results (
     evaluation_id TEXT PRIMARY KEY REFERENCES evaluations(id),
     outcome TEXT NOT NULL
