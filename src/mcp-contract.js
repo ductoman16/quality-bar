@@ -70,7 +70,12 @@ export const MCP_TOOLS = Object.freeze([
       properties: {
         base_selector: evaluationSelector,
         head_selector: evaluationSelector,
-        idempotency_key: { maxLength: 255, minLength: 1, type: "string" },
+        idempotency_key: {
+          maxLength: 255,
+          minLength: 1,
+          pattern: "^[!-~]+$",
+          type: "string",
+        },
         repository_id: identifier,
       },
       required: [

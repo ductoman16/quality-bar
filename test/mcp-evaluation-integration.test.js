@@ -207,6 +207,17 @@ test("MCP durably requests and polls an Evaluation, then reads every complete re
   assert.equal(earlyResult.result.isError, true);
   assert.equal(earlyResult.result.structuredContent.error.code, "not_ready");
   assert.equal("review_runs" in earlyResult.result.structuredContent, false);
+  const earlyResultResource = await callMcp(
+    origin,
+    headers,
+    requestMessage(
+      "resources/read",
+      { uri: "quality-bar://v1/evaluations/evaluation-1/result" },
+      12,
+    ),
+  );
+  assert.equal(earlyResultResource.error.code, -32000);
+  assert.equal(earlyResultResource.error.data.error.code, "not_ready");
 
   const claims = createReviewRunClaimService(application.durableCore, {
     createWorkerId: () => "mcp-evaluation-worker",

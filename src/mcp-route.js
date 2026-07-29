@@ -157,6 +157,22 @@ function errorDocument(error) {
 }
 
 /** @param {unknown} error */
+function resourceFailure(error) {
+  try {
+    const failure = requireCodedError(error);
+    return {
+      document: createErrorDocument(failure.code, failure.message),
+      protocolCode: /_not_found$/.test(failure.code) ? -32002 : -32000,
+    };
+  } catch {
+    return {
+      document: createErrorDocument("internal_error", "Internal server error"),
+      protocolCode: -32603,
+    };
+  }
+}
+
+/** @param {unknown} error */
 function toolFailure(error) {
   const document = errorDocument(error);
   return {
@@ -423,12 +439,12 @@ export function createMcpRoute({
         });
         return true;
       } catch (error) {
-        const document = errorDocument(error);
+        const { document, protocolCode } = resourceFailure(error);
         recordOutcome("failure", [match.id], document.error.code);
         writeProtocolErrorWithData(
           response,
           message.id,
-          /_not_found$/.test(document.error.code) ? -32002 : -32603,
+          protocolCode,
           document.error.message,
           document,
         );

@@ -25,6 +25,16 @@ test("the fixed MCP contract pins Repository and Evaluation tools and resources"
       "quality_bar.get_evaluation_result",
     ],
   );
+  assert.deepEqual(
+    MCP_TOOLS.find(({ name }) => name === "quality_bar.request_evaluation")
+      ?.inputSchema.properties?.idempotency_key,
+    {
+      maxLength: 255,
+      minLength: 1,
+      pattern: "^[!-~]+$",
+      type: "string",
+    },
+  );
   for (const tool of MCP_TOOLS) {
     assert.equal(
       tool.inputSchema.$schema,
