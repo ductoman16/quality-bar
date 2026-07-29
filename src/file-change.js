@@ -5,7 +5,10 @@ export function gitPathFields(output) {
     decoded =
       typeof output === "string"
         ? output
-        : new TextDecoder("utf-8", { fatal: true }).decode(output);
+        : new TextDecoder("utf-8", {
+            fatal: true,
+            ignoreBOM: true,
+          }).decode(output);
   } catch (cause) {
     failEvaluation(
       "evaluation_file_change_invalid",

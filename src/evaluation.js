@@ -97,7 +97,7 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
  *   }) => Result): Result
  * }} durableCore
  * @param {{
- *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string, file_changes?: unknown, matches_path?: (pathspec: string, path: string) => boolean}>,
+ *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string, file_changes?: unknown, matches_path?: (pathspec: string, path: string) => boolean, read_content?: (fileChange: any, side: "before" | "after") => any}>,
  *   readCodexCapabilityFailure: () => (Error & {code: string}) | null,
  *   createId?: () => string,
  *   createReviewRunId?: () => string,
@@ -245,6 +245,12 @@ export function createEvaluationService(
         repositoryId,
         canonicalRequest,
         (commits, releaseChangeset) => {
+          if (
+            commits.read_content !== undefined &&
+            typeof commits.read_content !== "function"
+          ) {
+            throw new TypeError("Frozen Changeset content reader is invalid");
+          }
           const evaluationId = createId();
           const createdAt = now();
           if (
@@ -304,6 +310,7 @@ export function createEvaluationService(
                           { code: "applicability_path_matching_unavailable" },
                         );
                       },
+                  commits.read_content,
                 );
               const executionStatus =
                 reviewRuns.length === 0 ? "completed" : "queued";

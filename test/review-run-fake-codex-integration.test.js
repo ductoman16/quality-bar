@@ -74,8 +74,30 @@ async function proveFakeCodexResult(context, outcome) {
     encoding: "utf8",
   }).trim();
   await createQueuedReviewRun(core, {
+    applicabilityRule:
+      'file_changes.exists(file, file.after_content.matches("triggered proof"))',
     baseCommit: commit,
+    fileChanges: [
+      {
+        added: true,
+        after_path: "reviewed.txt",
+        before_path: null,
+        deleted: false,
+        id: "file-change-applicability",
+        modified: false,
+        renamed: false,
+      },
+    ],
     headCommit: head,
+    matchesPath() {
+      throw new Error("Content-only Applicability must not match paths");
+    },
+    readContent(fileChange, side) {
+      assert.equal(fileChange.id, "file-change-applicability");
+      return side === "before"
+        ? { state: "absent" }
+        : { state: "text", value: "triggered proof\n" };
+    },
     repositoryUrl: source,
   });
   const claims = createReviewRunClaimService(core, {

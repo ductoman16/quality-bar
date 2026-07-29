@@ -50,8 +50,11 @@ test("Evaluation Results expose each Applicability outcome with its owning scope
         {
           assignment: { scope: "repository_specific" },
           error: {
-            code: "applicability_file_changes_unavailable",
-            detail: "Frozen File Changes are unavailable.",
+            code: "applicability_file_side_unreadable",
+            detail: "The frozen after side could not be read.",
+            file_change_id: "file-change-2",
+            predicate_id: "predicate-3",
+            side: "after",
           },
           outcome: "error",
           review_id: "review-2",
@@ -93,6 +96,6 @@ test("Evaluation Results expose each Applicability outcome with its owning scope
   );
   assert.equal(
     target.options[1].options[2].textContent,
-    "Error applicability_file_changes_unavailable: Frozen File Changes are unavailable.",
+    "Error applicability_file_side_unreadable: The frozen after side could not be read.",
   );
 });

@@ -9,6 +9,7 @@ import {
   trace,
   unique,
 } from "./applicability-evidence.js";
+import { predicateFailure } from "./applicability-predicate-failure.js";
 import { isValidFileChange } from "./file-change.js";
 
 export { APPLICABILITY_RULE_PROFILE };
@@ -60,6 +61,7 @@ function identify(expression) {
  *   fileChanges: any[] | undefined,
  *   file?: any,
  *   matchesPath: (pathspec: string, path: string) => boolean,
+ *   readContent?: (fileChange: any, side: "before" | "after") => any,
  *   path?: {side: "before" | "after", value: string}
  * }} context
  * @returns {any}
@@ -236,7 +238,23 @@ function evaluate(node, context) {
       value = context.file?.after_path;
     } else {
       side = node.member.startsWith("before_") ? "before" : "after";
-      const content = context.file?.[node.member];
+      let content = context.file?.[node.member];
+      if (content === undefined && context.readContent) {
+        try {
+          content = context.readContent(
+            context.file,
+            /** @type {"before" | "after"} */ (side),
+          );
+        } catch (cause) {
+          return predicateFailure(
+            cause,
+            context,
+            /** @type {string} */ (predicateId),
+            side,
+            "Frozen File Change content could not be read",
+          );
+        }
+      }
       if (content?.state === "error") {
         if (
           typeof content.error?.code !== "string" ||
@@ -255,17 +273,36 @@ function evaluate(node, context) {
           },
         };
       }
-      return {
-        ...trace("error"),
-        error: {
-          code: "applicability_content_predicate_unsupported",
-          detail:
-            "Content predicates are not available in this evaluation slice",
-          file_change_id: context.file?.id,
-          predicate_id: /** @type {string} */ (predicateId),
+      if (content?.state === "absent" || content?.state === "binary") {
+        return trace(OUTSIDE);
+      }
+      if (content === undefined) {
+        return predicateFailure(
+          Object.assign(
+            new Error(
+              "Frozen File Change content is unavailable for Applicability evaluation",
+            ),
+            { code: "applicability_file_side_unavailable" },
+          ),
+          context,
+          /** @type {string} */ (predicateId),
           side,
-        },
-      };
+          "Frozen File Change content is unavailable",
+        );
+      }
+      if (content?.state !== "text" || typeof content.value !== "string") {
+        return predicateFailure(
+          Object.assign(
+            new Error("Frozen File Change content state is invalid"),
+            { code: "applicability_file_content_invalid" },
+          ),
+          context,
+          /** @type {string} */ (predicateId),
+          side,
+          "Frozen File Change content state is invalid",
+        );
+      }
+      value = content.value;
     }
     if (typeof value !== "string") {
       return trace(false);
@@ -276,27 +313,13 @@ function evaluate(node, context) {
         ? node.matcher.test(value)
         : context.matchesPath(node.matcher.pathspec, value);
     } catch (cause) {
-      const owned =
-        cause instanceof Error &&
-        "code" in cause &&
-        typeof cause.code === "string" &&
-        /^[a-z][a-z0-9_]*$/.test(cause.code);
-      if (!owned) {
-        throw cause;
-      }
-      return {
-        ...trace("error"),
-        error: {
-          code: cause.code,
-          detail:
-            cause.message.trim().length > 0
-              ? cause.message
-              : "Applicability predicate evaluation failed",
-          file_change_id: context.file?.id,
-          predicate_id: /** @type {string} */ (predicateId),
-          side,
-        },
-      };
+      return predicateFailure(
+        cause,
+        context,
+        /** @type {string} */ (predicateId),
+        side,
+        "Applicability predicate evaluation failed",
+      );
     }
     return trace(matched, {
       matches: matched ? [{ sides: [side] }] : [],
@@ -309,11 +332,21 @@ function evaluate(node, context) {
 /**
  * @param {string} source
  * @param {{file_changes?: unknown, base_commit?: string, head_commit?: string}} changeset
- * @param {{matchesPath: (pathspec: string, path: string) => boolean}} options
+ * @param {{
+ *   matchesPath: (pathspec: string, path: string) => boolean,
+ *   readContent?: (fileChange: any, side: "before" | "after") => any
+ * }} options
  */
-export function evaluateApplicabilityRule(source, changeset, { matchesPath }) {
+export function evaluateApplicabilityRule(
+  source,
+  changeset,
+  { matchesPath, readContent },
+) {
   if (typeof matchesPath !== "function") {
     throw new TypeError("Applicability path matcher is invalid");
+  }
+  if (readContent !== undefined && typeof readContent !== "function") {
+    throw new TypeError("Applicability content reader is invalid");
   }
   const compiled = compileApplicabilityRule(source);
   const fileChanges = Array.isArray(changeset?.file_changes)
@@ -342,6 +375,7 @@ export function evaluateApplicabilityRule(source, changeset, { matchesPath }) {
       left.id.localeCompare(right.id),
     ),
     matchesPath,
+    readContent,
   });
   if (result.state === "error") {
     return {
