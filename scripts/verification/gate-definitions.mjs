@@ -20,6 +20,7 @@ import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
 import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
 import { repositoryGateTests } from "./repository-gate-definition.mjs";
+import { MCP_GATE_DEFINITION } from "./mcp-gate-definition.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -233,6 +234,7 @@ export function createGateDefinitions(metadata) {
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",
         "test/mcp-contract.test.js",
+        "test/mcp-evaluation.test.js",
         "test/review-validation.test.js",
         "test/review-version-reactivation.test.js",
         "test/repository-credential.test.js",
@@ -375,17 +377,7 @@ export function createGateDefinitions(metadata) {
         "test/evaluation-cancellation-http-integration.test.js",
       ],
     },
-    {
-      name: "mcp-integration",
-      testGroup:
-        "authenticated-streamable-http-mcp-repository-guidance-resource-and-security-boundary",
-      failureCode: "mcp_integration_tests_failed",
-      arguments: [
-        "--test",
-        "test/mcp-http-integration.test.js",
-        "test/mcp-security-integration.test.js",
-      ],
-    },
+    MCP_GATE_DEFINITION,
     SECURITY_INTEGRATION_GATE,
     {
       name: "application-coverage",

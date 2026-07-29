@@ -19,6 +19,16 @@ import {
   readMcpMessage,
 } from "./mcp-message.js";
 import { createMcpOutcomeRecorder } from "./mcp-operation.js";
+import {
+  executeEvaluationTool,
+  matchWorkflowResource,
+  readWorkflowResource,
+} from "./mcp-evaluation.js";
+import {
+  guidanceArguments,
+  listRepositoryArguments,
+} from "./mcp-repository.js";
+import { isClosedMcpRecord } from "./mcp-validation.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -80,63 +90,6 @@ function writeAccepted(response) {
   response.end();
 }
 
-/** @param {string} code @param {string} message */
-function mcpError(code, message) {
-  return Object.assign(new Error(message), { code });
-}
-
-/**
- * @param {unknown} value
- * @param {Set<string>} keys
- * @returns {value is Record<string, unknown>}
- */
-function isClosedRecord(value, keys) {
-  return isMcpRecord(value) && Object.keys(value).every((key) => keys.has(key));
-}
-
-/** @param {unknown} arguments_ */
-function listRepositoryArguments(arguments_) {
-  if (
-    !isClosedRecord(arguments_, new Set(["cursor", "limit", "remote_url"])) ||
-    (Object.hasOwn(arguments_, "cursor") &&
-      (typeof arguments_.cursor !== "string" ||
-        arguments_.cursor.length === 0)) ||
-    (Object.hasOwn(arguments_, "limit") &&
-      (typeof arguments_.limit !== "number" ||
-        !Number.isInteger(arguments_.limit))) ||
-    (Object.hasOwn(arguments_, "remote_url") &&
-      (typeof arguments_.remote_url !== "string" ||
-        arguments_.remote_url.length === 0))
-  ) {
-    throw mcpError("request_malformed", "Request is malformed");
-  }
-  return {
-    cursor:
-      typeof arguments_.cursor === "string" ? arguments_.cursor : undefined,
-    limit:
-      typeof arguments_.limit === "number"
-        ? String(arguments_.limit)
-        : undefined,
-    remoteUrl:
-      typeof arguments_.remote_url === "string"
-        ? arguments_.remote_url
-        : undefined,
-  };
-}
-
-/** @param {unknown} arguments_ */
-function guidanceArguments(arguments_) {
-  if (
-    !isClosedRecord(arguments_, new Set(["repository_id"])) ||
-    Object.keys(arguments_).length !== 1 ||
-    typeof arguments_.repository_id !== "string" ||
-    arguments_.repository_id.length === 0
-  ) {
-    throw mcpError("request_malformed", "Request is malformed");
-  }
-  return { repositoryId: arguments_.repository_id };
-}
-
 /**
  * @param {unknown} params
  * @returns {params is {
@@ -147,7 +100,7 @@ function guidanceArguments(arguments_) {
  */
 function isToolCallParameters(params) {
   return (
-    isClosedRecord(params, new Set(["name", "arguments", "_meta"])) &&
+    isClosedMcpRecord(params, new Set(["name", "arguments", "_meta"])) &&
     typeof params.name === "string" &&
     (!Object.hasOwn(params, "arguments") || isMcpRecord(params.arguments)) &&
     (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
@@ -160,7 +113,7 @@ function isToolCallParameters(params) {
  */
 function isResourceReadParameters(params) {
   return (
-    isClosedRecord(params, new Set(["uri", "_meta"])) &&
+    isClosedMcpRecord(params, new Set(["uri", "_meta"])) &&
     typeof params.uri === "string" &&
     (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
   );
@@ -204,6 +157,22 @@ function errorDocument(error) {
 }
 
 /** @param {unknown} error */
+function resourceFailure(error) {
+  try {
+    const failure = requireCodedError(error);
+    return {
+      document: createErrorDocument(failure.code, failure.message),
+      protocolCode: /_not_found$/.test(failure.code) ? -32002 : -32000,
+    };
+  } catch {
+    return {
+      document: createErrorDocument("internal_error", "Internal server error"),
+      protocolCode: -32603,
+    };
+  }
+}
+
+/** @param {unknown} error */
 function toolFailure(error) {
   const document = errorDocument(error);
   return {
@@ -211,24 +180,6 @@ function toolFailure(error) {
     isError: true,
     structuredContent: document,
   };
-}
-
-/** @param {string} uri */
-function repositoryResourceMatch(uri) {
-  const match = /^quality-bar:\/\/v1\/repositories\/([^/]+)(\/guidance)?$/.exec(
-    uri,
-  );
-  if (!match) {
-    return null;
-  }
-  try {
-    return {
-      guidance: match[2] !== undefined,
-      repositoryId: decodeURIComponent(match[1]),
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -242,12 +193,14 @@ function repositoryResourceMatch(uri) {
  *     requestId: string,
  *     resourceIds: string[]
  *   }) => void,
+ *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
  *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>
  * }} dependencies
  */
 export function createMcpRoute({
   browserOrigin,
+  evaluations,
   recordMcpOperation,
   repositories,
   repositoryGuidance,
@@ -380,6 +333,9 @@ export function createMcpRoute({
         ![
           "quality_bar.list_repositories",
           "quality_bar.get_repository_guidance",
+          "quality_bar.request_evaluation",
+          "quality_bar.get_evaluation",
+          "quality_bar.get_evaluation_result",
         ].includes(name)
       ) {
         writeProtocolError(response, message.id, -32602, "Unknown tool");
@@ -403,22 +359,36 @@ export function createMcpRoute({
           writeResult(response, message.id, result);
           return true;
         }
-        const { repositoryId } = guidanceArguments(
+        if (name === "quality_bar.get_repository_guidance") {
+          const { repositoryId } = guidanceArguments(
+            message.params.arguments ?? {},
+          );
+          const document = repositoryGuidance.read(repositoryId);
+          const repository = document.repository;
+          const guidanceUri = `${repositoryUri(repository)}/guidance`;
+          const result = toolSuccess(document, [
+            repositoryLink(repository),
+            {
+              mimeType: "application/json",
+              name: `${repository.id} Guidance`,
+              type: "resource_link",
+              uri: guidanceUri,
+            },
+          ]);
+          recordOutcome("success", [repository.id]);
+          writeResult(response, message.id, result);
+          return true;
+        }
+        const evaluationCall = await executeEvaluationTool(
+          name,
           message.params.arguments ?? {},
+          evaluations,
         );
-        const document = repositoryGuidance.read(repositoryId);
-        const repository = document.repository;
-        const guidanceUri = `${repositoryUri(repository)}/guidance`;
-        const result = toolSuccess(document, [
-          repositoryLink(repository),
-          {
-            mimeType: "application/json",
-            name: `${repository.id} Guidance`,
-            type: "resource_link",
-            uri: guidanceUri,
-          },
-        ]);
-        recordOutcome("success", [repository.id]);
+        const result = toolSuccess(
+          evaluationCall.document,
+          evaluationCall.links,
+        );
+        recordOutcome("success", evaluationCall.resourceIds);
         writeResult(response, message.id, result);
         return true;
       } catch (error) {
@@ -441,7 +411,7 @@ export function createMcpRoute({
         return true;
       }
       const uri = message.params.uri;
-      const match = repositoryResourceMatch(uri);
+      const match = matchWorkflowResource(uri);
       if (!match) {
         writeProtocolError(
           response,
@@ -452,13 +422,12 @@ export function createMcpRoute({
         return true;
       }
       try {
-        const document = match.guidance
-          ? repositoryGuidance.read(match.repositoryId)
-          : repositories.list().find(({ id }) => id === match.repositoryId);
-        if (!document) {
-          throw mcpError("repository_not_found", "Repository was not found");
-        }
-        recordOutcome("success", [match.repositoryId]);
+        const document = readWorkflowResource(match, {
+          evaluations,
+          repositories,
+          repositoryGuidance,
+        });
+        recordOutcome("success", [match.id]);
         writeResult(response, message.id, {
           contents: [
             {
@@ -470,12 +439,12 @@ export function createMcpRoute({
         });
         return true;
       } catch (error) {
-        const document = errorDocument(error);
-        recordOutcome("failure", [match.repositoryId], document.error.code);
+        const { document, protocolCode } = resourceFailure(error);
+        recordOutcome("failure", [match.id], document.error.code);
         writeProtocolErrorWithData(
           response,
           message.id,
-          document.error.code === "repository_not_found" ? -32002 : -32603,
+          protocolCode,
           document.error.message,
           document,
         );

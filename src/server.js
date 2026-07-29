@@ -206,7 +206,9 @@ export function createApplicationServer({
     typeof evaluations.read !== "function" ||
     typeof evaluations.readResult !== "function" ||
     typeof evaluations.readFinding !== "function" ||
+    typeof evaluations.readFindingById !== "function" ||
     typeof evaluations.readReviewRun !== "function" ||
+    typeof evaluations.readReviewRunById !== "function" ||
     typeof evaluations.readReviewRunDiagnostics !== "function"
   ) {
     throw new TypeError("evaluations must provide the Evaluation resource");
@@ -256,6 +258,7 @@ export function createApplicationServer({
   });
   const handleMcp = createMcpRoute({
     browserOrigin,
+    evaluations,
     recordMcpOperation,
     repositories,
     repositoryGuidance,

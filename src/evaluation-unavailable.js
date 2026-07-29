@@ -32,7 +32,13 @@ export function createUnavailableEvaluationService(error) {
     readFinding() {
       failEvaluation(failure.code, failure.message, error);
     },
+    readFindingById() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     readReviewRun() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readReviewRunById() {
       failEvaluation(failure.code, failure.message, error);
     },
     readReviewRunDiagnostics() {

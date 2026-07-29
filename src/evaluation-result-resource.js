@@ -177,45 +177,70 @@ export function createEvaluationResultResourceReader(durableCore) {
     };
   }
 
+  /** @param {string} evaluationId @param {string} findingId */
+  function readFinding(evaluationId, findingId) {
+    if (
+      !durableCore.get("SELECT id FROM evaluations WHERE id = ?", evaluationId)
+    ) {
+      failEvaluation("evaluation_not_found", "Evaluation was not found");
+    }
+    const finding = readEvaluationFindings(durableCore, evaluationId).find(
+      ({ id }) => id === findingId,
+    );
+    if (!finding) {
+      failEvaluation("finding_not_found", "Finding was not found");
+    }
+    return finding;
+  }
+
+  /** @param {string} evaluationId @param {string} reviewRunId */
+  function readReviewRun(evaluationId, reviewRunId) {
+    const row =
+      /** @type {Record<string, import("node:sqlite").SQLInputValue>} */ (
+        readReviewRunRow(evaluationId, reviewRunId)
+      );
+    const terminal = ["completed", "failed", "cancelled"].includes(
+      /** @type {string} */ (row.execution_status),
+    );
+    const result = terminal
+      ? readCompletedEvaluationResult(durableCore, evaluationId)
+      : undefined;
+    return reviewRunResource(row, result);
+  }
+
   return {
+    /** @param {string} findingId */
+    readFindingById(findingId) {
+      const row = durableCore.get(
+        "SELECT evaluation_id FROM findings WHERE id = ?",
+        findingId,
+      );
+      if (!row || typeof row.evaluation_id !== "string") {
+        failEvaluation("finding_not_found", "Finding was not found");
+      }
+      return readFinding(row.evaluation_id, findingId);
+    },
     /**
      * @param {string} evaluationId
      * @param {string} findingId
      */
-    readFinding(evaluationId, findingId) {
-      if (
-        !durableCore.get(
-          "SELECT id FROM evaluations WHERE id = ?",
-          evaluationId,
-        )
-      ) {
-        failEvaluation("evaluation_not_found", "Evaluation was not found");
-      }
-      const finding = readEvaluationFindings(durableCore, evaluationId).find(
-        ({ id }) => id === findingId,
-      );
-      if (!finding) {
-        failEvaluation("finding_not_found", "Finding was not found");
-      }
-      return finding;
-    },
+    readFinding,
     readResult,
+    /** @param {string} reviewRunId */
+    readReviewRunById(reviewRunId) {
+      const row = durableCore.get(
+        "SELECT evaluation_id FROM review_runs WHERE id = ?",
+        reviewRunId,
+      );
+      if (!row || typeof row.evaluation_id !== "string") {
+        failEvaluation("review_run_not_found", "Review Run was not found");
+      }
+      return readReviewRun(row.evaluation_id, reviewRunId);
+    },
     /**
      * @param {string} evaluationId
      * @param {string} reviewRunId
      */
-    readReviewRun(evaluationId, reviewRunId) {
-      const row =
-        /** @type {Record<string, import("node:sqlite").SQLInputValue>} */ (
-          readReviewRunRow(evaluationId, reviewRunId)
-        );
-      const terminal = ["completed", "failed", "cancelled"].includes(
-        /** @type {string} */ (row.execution_status),
-      );
-      const result = terminal
-        ? readCompletedEvaluationResult(durableCore, evaluationId)
-        : undefined;
-      return reviewRunResource(row, result);
-    },
+    readReviewRun,
   };
 }
