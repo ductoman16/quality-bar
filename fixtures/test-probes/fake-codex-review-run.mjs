@@ -15,6 +15,10 @@ if (
   !arguments_.includes("workspace-write") ||
   !arguments_.includes('approval_policy="never"') ||
   !arguments_.includes("sandbox_workspace_write.network_access=false") ||
+  !arguments_.includes(
+    "shell_environment_policy.ignore_default_excludes=true",
+  ) ||
+  !arguments_.includes("allow_login_shell=false") ||
   !arguments_.includes("project_doc_max_bytes=0") ||
   !prompt.startsWith("Quality Bar Review Run contract\n") ||
   !prompt.includes('"base_commit":"') ||

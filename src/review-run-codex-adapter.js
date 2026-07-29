@@ -82,6 +82,10 @@ export function reviewRunCodexArguments(candidate) {
     'approval_policy="never"',
     "--config",
     "sandbox_workspace_write.network_access=false",
+    "--config",
+    "shell_environment_policy.ignore_default_excludes=true",
+    "--config",
+    "allow_login_shell=false",
     input.prompt,
   ];
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -83,4 +83,25 @@ test("preserves unexpected storage failures for the owning execution", async () 
   } finally {
     await channel.close();
   }
+});
+
+test("removes the trusted command directory when channel setup fails", async () => {
+  const failure = new Error("submission command write failed");
+  let commandPath = "";
+  await assert.rejects(
+    () =>
+      openReviewRunSubmissionChannel(
+        claim,
+        { submit() {} },
+        {
+          writeCommand(path) {
+            commandPath = String(path);
+            throw failure;
+          },
+        },
+      ),
+    (error) => error === failure,
+  );
+  assert.notEqual(commandPath, "");
+  assert.equal(existsSync(join(commandPath, "..")), false);
 });
