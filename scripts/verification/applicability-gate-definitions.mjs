@@ -14,7 +14,7 @@ export const APPLICABILITY_GATE_DEFINITIONS = [
   {
     name: "applicability-git-integration",
     testGroup:
-      "frozen-changeset-file-change-kind-complete-utf8-nul-free-text-binary-absent-case-sensitive-native-positive-glob-applicability-git-boundary",
+      "replace-ref-excluding-frozen-object-identity-file-change-kind-complete-utf8-nul-free-text-binary-absent-case-sensitive-native-positive-glob-applicability-git-boundary",
     failureCode: "applicability_git_integration_tests_failed",
     arguments: ["--test", "test/applicability-git-integration.test.js"],
   },

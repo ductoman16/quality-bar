@@ -259,27 +259,28 @@ test("real Git acquisition reads complete text while absent and binary sides sta
   const head = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
     encoding: "utf8",
   }).trim();
+  execFileSync("git", ["-C", source, "checkout", "-b", "replacement-object"], {
+    stdio: "ignore",
+  });
+  writeFileSync(join(source, "modified.txt"), "replacement text\n");
+  writeFileSync(join(source, "spoofed.txt"), "replacement-only path\n");
+  execFileSync("git", ["-C", source, "add", "--all"]);
+  execFileSync("git", ["-C", source, "commit", "-m", "replacement"], {
+    stdio: "ignore",
+  });
+  const replacementCommit = execFileSync(
+    "git",
+    ["-C", source, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  ).trim();
+  execFileSync("git", ["-C", source, "checkout", "main"], {
+    stdio: "ignore",
+  });
   const repository = join(directory, "repository.git");
   execFileSync("git", ["clone", "--bare", source, repository], {
     stdio: "ignore",
   });
-  const originalBlob = execFileSync(
-    "git",
-    ["-C", repository, "rev-parse", `${head}:modified.txt`],
-    { encoding: "utf8" },
-  ).trim();
-  const replacementBlob = execFileSync(
-    "git",
-    ["-C", repository, "hash-object", "-w", "--stdin"],
-    { encoding: "utf8", input: "replacement text\n" },
-  ).trim();
-  execFileSync("git", [
-    "-C",
-    repository,
-    "replace",
-    originalBlob,
-    replacementBlob,
-  ]);
+  execFileSync("git", ["-C", repository, "replace", head, replacementCommit]);
 
   const frozen = await resolvePushedCommitSelectors(
     pathToFileURL(repository).href,
@@ -291,6 +292,22 @@ test("real Git acquisition reads complete text while absent and binary sides sta
     { objectDatabaseRoot: directory },
   );
   try {
+    assert.equal(frozen.base_commit, base);
+    assert.equal(frozen.head_commit, head);
+    assert.equal(
+      frozen.file_changes.some(
+        (fileChange) => fileChange.after_path === "spoofed.txt",
+      ),
+      false,
+    );
+    assert.equal(
+      frozen.matches_path(":(glob)modified.txt", "modified.txt"),
+      true,
+    );
+    assert.equal(
+      frozen.matches_path(":(glob)spoofed.txt", "spoofed.txt"),
+      false,
+    );
     for (const rule of [
       'file_changes.exists(file, file.before_path.matches(":(glob)deleted.txt") && file.before_content.matches("complete base marker"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)modified.txt") && file.after_content.matches("complete 雪だるま text"))',
