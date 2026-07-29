@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,7 @@ import {
   EvaluationError,
   failEvaluation,
 } from "./evaluation-validation.js";
+import { fileChangesFromGitNameStatus } from "./file-change.js";
 import { RepositoryError } from "./repository-validation.js";
 import {
   gitCredentialIsValid,
@@ -288,20 +289,35 @@ export async function resolvePushedCommitSelectors(
     acquired = {
       base_commit: resolved[0].toLowerCase(),
       head_commit: resolved[1].toLowerCase(),
+      file_changes: fileChangesFromGitNameStatus(
+        /** @type {{stdout: string}} */ (
+          await runGit(
+            [
+              "diff",
+              "--find-renames",
+              "--name-status",
+              "-z",
+              resolved[0],
+              resolved[1],
+            ],
+            false,
+          )
+        ).stdout,
+      ),
     };
   } catch (error) {
     acquisitionFailure = error;
   }
-  try {
-    removeDirectory(objectDatabase);
-  } catch (cause) {
-    failEvaluation(
-      "evaluation_git_acquisition_unavailable",
-      "Evaluation Git acquisition cleanup failed",
-      cause,
-    );
-  }
   if (acquisitionFailure) {
+    try {
+      removeDirectory(objectDatabase);
+    } catch (cause) {
+      failEvaluation(
+        "evaluation_git_acquisition_unavailable",
+        "Evaluation Git acquisition cleanup failed",
+        cause,
+      );
+    }
     if (acquisitionFailure instanceof EvaluationError) {
       failEvaluation(
         acquisitionFailure.code,
@@ -341,5 +357,62 @@ export async function resolvePushedCommitSelectors(
       acquisitionFailure,
     );
   }
-  return /** @type {{base_commit: string, head_commit: string}} */ (acquired);
+  const frozen = /** @type {{
+   *   base_commit: string,
+   *   head_commit: string,
+   *   file_changes: ReturnType<typeof fileChangesFromGitNameStatus>,
+   *   matches_path: (pathspec: string, path: string) => boolean,
+   *   release: () => void
+   * }} */ (acquired);
+  frozen.matches_path = (pathspec, path) => {
+    try {
+      return [frozen.base_commit, frozen.head_commit].some((commit) =>
+        execFileSync(
+          "git",
+          [
+            "-C",
+            objectDatabase,
+            "ls-files",
+            "-z",
+            `--with-tree=${commit}`,
+            "--",
+            pathspec,
+          ],
+          {
+            encoding: "utf8",
+            env: {
+              GIT_CONFIG_GLOBAL: "/dev/null",
+              GIT_CONFIG_NOSYSTEM: "1",
+              LC_ALL: "C",
+            },
+            maxBuffer: Number.MAX_SAFE_INTEGER,
+          },
+        )
+          .split("\0")
+          .includes(path),
+      );
+    } catch (cause) {
+      throw Object.assign(new Error("Frozen Git path matching failed"), {
+        cause,
+        code: "applicability_git_match_failed",
+      });
+    }
+  };
+  let released = false;
+  frozen.release = () => {
+    if (released) {
+      throw new TypeError("Frozen Changeset is already released");
+    }
+    released = true;
+    try {
+      removeDirectory(objectDatabase);
+    } catch (cause) {
+      failEvaluation(
+        "evaluation_git_acquisition_unavailable",
+        "Evaluation Git acquisition cleanup failed",
+        cause,
+      );
+    }
+  };
+  return frozen;
 }

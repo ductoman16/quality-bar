@@ -59,6 +59,10 @@
     if (
       !fileChange ||
       typeof fileChange.patch !== "string" ||
+      typeof fileChange.added !== "boolean" ||
+      typeof fileChange.deleted !== "boolean" ||
+      typeof fileChange.modified !== "boolean" ||
+      typeof fileChange.renamed !== "boolean" ||
       !nullableString(fileChange.before_path) ||
       !nullableString(fileChange.after_path)
     ) {
@@ -133,6 +137,33 @@
         typeof applicability.evidence.kind !== "string"
       ) {
         throw new Error("evaluation_result_invalid");
+      } else if (applicability.evidence.kind === "matched") {
+        if (!Array.isArray(applicability.evidence.matches)) {
+          throw new Error("evaluation_result_invalid");
+        }
+        const paths = document.createElement("ul");
+        let hasPaths = false;
+        for (const match of applicability.evidence.matches) {
+          if (
+            !nullableString(match.before_path) ||
+            !nullableString(match.after_path) ||
+            !Array.isArray(match.sides)
+          ) {
+            throw new Error("evaluation_result_invalid");
+          }
+          for (const side of ["before", "after"]) {
+            const path = match[side + "_path"];
+            if (match.sides.includes(side) && typeof path === "string") {
+              const item = document.createElement("li");
+              item.textContent = side + " " + path;
+              paths.append(item);
+              hasPaths = true;
+            }
+          }
+        }
+        if (hasPaths) {
+          details.append(paths);
+        }
       }
       target.append(details);
     }

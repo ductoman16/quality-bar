@@ -21,7 +21,7 @@ function fail(code, message, cause) {
  * @param {{
  *   baseCommit: string,
  *   criteria: {criterionId: string, impact: string, instruction: string}[],
- *   fileChanges: {id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null, patch?: string}[],
+ *   fileChanges: {id: string, added: boolean, deleted: boolean, modified: boolean, renamed: boolean, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null, patch?: string}[],
  *   headCommit: string,
  *   reviewName: string
  * }} run
@@ -53,11 +53,15 @@ export function createReviewRunPrompt(run) {
     })}`,
     `file_changes: ${JSON.stringify(
       run.fileChanges.map((fileChange) => ({
+        added: fileChange.added,
         after_path: fileChange.after_path,
         base_line_count: fileChange.base_line_count,
         before_path: fileChange.before_path,
+        deleted: fileChange.deleted,
         head_line_count: fileChange.head_line_count,
         id: fileChange.id,
+        modified: fileChange.modified,
+        renamed: fileChange.renamed,
       })),
     )}`,
     'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered OR not_applicable OR error","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location","error":"required only when error; stable nonblank code and exact nonblank detail"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',

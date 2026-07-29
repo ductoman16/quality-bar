@@ -55,7 +55,7 @@ export { RepositoryError };
  *   ) => Promise<void>
  *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
  *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
- *   resolveSelectors?: typeof resolvePushedCommitSelectors
+ *   resolveSelectors?: (...arguments_: any[]) => Promise<any>
  * }} options
  */
 export function createRepositoryService(

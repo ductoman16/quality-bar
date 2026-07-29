@@ -26,7 +26,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-checkout-git-integration",
     testGroup:
-      "fresh-writable-disposable-frozen-commit-credential-free-checkout-honest-file-change-and-exact-criterion-result-coverage-boundary",
+      "fresh-writable-disposable-frozen-commit-credential-free-checkout-honest-file-change-kind-sides-and-exact-criterion-result-coverage-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
     arguments: [
       "--test",

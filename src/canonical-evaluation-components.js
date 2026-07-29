@@ -180,12 +180,25 @@ export function canonicalEvaluationSchemas() {
     ),
     EvaluationFileChange: closedObject(
       {
+        added: { type: "boolean" },
         after_path: { type: ["string", "null"] },
         before_path: { type: ["string", "null"] },
+        deleted: { type: "boolean" },
         id: { minLength: 1, type: "string" },
+        modified: { type: "boolean" },
         patch: { type: "string" },
+        renamed: { type: "boolean" },
       },
-      ["id", "before_path", "after_path", "patch"],
+      [
+        "id",
+        "added",
+        "deleted",
+        "modified",
+        "renamed",
+        "before_path",
+        "after_path",
+        "patch",
+      ],
     ),
     CompletedReviewRun: closedObject(
       {

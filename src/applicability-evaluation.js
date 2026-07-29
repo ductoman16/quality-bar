@@ -9,6 +9,7 @@ import {
   trace,
   unique,
 } from "./applicability-evidence.js";
+import { isValidFileChange } from "./file-change.js";
 
 export { APPLICABILITY_RULE_PROFILE };
 const OUTSIDE = "outside";
@@ -49,20 +50,6 @@ function identify(expression) {
   }
   visit(expression);
   return { branches, predicates };
-}
-
-/** @param {any} value */
-function validFileChange(value) {
-  return (
-    value &&
-    typeof value === "object" &&
-    typeof value.id === "string" &&
-    (value.before_path === null || typeof value.before_path === "string") &&
-    (value.after_path === null || typeof value.after_path === "string") &&
-    ["added", "deleted", "modified", "renamed"].every(
-      (field) => typeof value[field] === "boolean",
-    )
-  );
 }
 
 /**
@@ -332,9 +319,9 @@ export function evaluateApplicabilityRule(source, changeset, { matchesPath }) {
   const fileChanges = Array.isArray(changeset?.file_changes)
     ? changeset.file_changes
     : undefined;
-  if (fileChanges && !fileChanges.every(validFileChange)) {
+  if (fileChanges && !fileChanges.every(isValidFileChange)) {
     const invalid = fileChanges.find(
-      (fileChange) => !validFileChange(fileChange),
+      (fileChange) => !isValidFileChange(fileChange),
     );
     return {
       error: {

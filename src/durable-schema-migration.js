@@ -20,12 +20,25 @@ export function migrateSchema(
   const migrationCreatesDeletionMarker = statements.includes(
     "hard_delete_pending",
   );
+  const fileChangeTableExists = Boolean(
+    database
+      .prepare(
+        "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'evaluation_file_changes'",
+      )
+      .all().length,
+  );
+  const fileChangeHasKinds =
+    fileChangeTableExists &&
+    database
+      .prepare("PRAGMA table_info(evaluation_file_changes)")
+      .all()
+      .some((column) => column.name === "added");
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -39,7 +52,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30].includes(version)) {
+  if (![29, 30, 31].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   const hasApplicabilitySeal = database
@@ -58,11 +71,14 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 31;
+export const CURRENT_SCHEMA_VERSION = 32;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
-import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
+import {
+  EVALUATION_FILE_CHANGE_KIND_MIGRATION,
+  EVALUATION_SCHEMA,
+} from "./evaluation-schema.js";
 import {
   REPOSITORY_USAGE_INTEGRITY,
   REPOSITORY_USAGE_MIGRATION,

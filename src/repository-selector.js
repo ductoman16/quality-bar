@@ -7,7 +7,7 @@ import { fail, failUnavailable } from "./repository-validation.js";
  *   objectDatabaseRoot: string,
  *   requireAcceptsNewWork: (id: string) => ReturnType<typeof import("./repository-resource.js").readRepositoryResource>,
  *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
- *   resolveSelectors: typeof import("./repository-git.js").resolvePushedCommitSelectors
+ *   resolveSelectors: (...arguments_: any[]) => Promise<any>
  * }} dependencies
  */
 export function createRepositorySelectorResolver({

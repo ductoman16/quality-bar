@@ -103,13 +103,25 @@ export function readCompletedEvaluationResult(durableCore, id) {
       outcome: result?.outcome,
       review_run_id: result?.review_run_id,
     }));
-  const fileChanges = durableCore.all(
-    `SELECT id, before_path, after_path, patch
-     FROM evaluation_file_changes
-     WHERE evaluation_id = ?
-     ORDER BY id`,
-    id,
-  );
+  const fileChanges = durableCore
+    .all(
+      `SELECT id, added, deleted, modified, renamed,
+              before_path, after_path, patch
+       FROM evaluation_file_changes
+       WHERE evaluation_id = ?
+       ORDER BY id`,
+      id,
+    )
+    .map((fileChange) => ({
+      added: fileChange?.added === 1,
+      after_path: fileChange?.after_path,
+      before_path: fileChange?.before_path,
+      deleted: fileChange?.deleted === 1,
+      id: fileChange?.id,
+      modified: fileChange?.modified === 1,
+      patch: fileChange?.patch,
+      renamed: fileChange?.renamed === 1,
+    }));
   const findings = durableCore
     .all(
       `SELECT findings.id, findings.review_run_id, findings.criterion_id,

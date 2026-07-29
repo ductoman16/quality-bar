@@ -1,5 +1,11 @@
 import { APPLICABILITY_RESULT_SCHEMA } from "./applicability-result-schema.js";
 import { APPLICABILITY_SEAL_SCHEMA } from "./applicability-seal-schema.js";
+import {
+  EVALUATION_FILE_CHANGE_SCHEMA,
+  EVALUATION_FILE_CHANGE_TRIGGERS,
+} from "./evaluation-file-change-schema.js";
+
+export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
 
 export const EVALUATION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS evaluations (
@@ -95,17 +101,7 @@ export const EVALUATION_SCHEMA = `
     ),
     PRIMARY KEY (review_run_id, criterion_id)
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS evaluation_file_changes (
-    evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
-    id TEXT NOT NULL,
-    before_path TEXT,
-    after_path TEXT,
-    base_line_count INTEGER CHECK (base_line_count IS NULL OR base_line_count >= 0),
-    head_line_count INTEGER CHECK (head_line_count IS NULL OR head_line_count >= 0),
-    patch TEXT NOT NULL,
-    PRIMARY KEY (evaluation_id, id),
-    CHECK (before_path IS NOT NULL OR after_path IS NOT NULL)
-  ) STRICT;
+  ${EVALUATION_FILE_CHANGE_SCHEMA}
   CREATE TABLE IF NOT EXISTS findings (
     id TEXT PRIMARY KEY,
     evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
@@ -232,12 +228,7 @@ export const EVALUATION_SCHEMA = `
       WHERE id = NEW.review_run_id
     ) <> 'running'
     BEGIN SELECT RAISE(ABORT, 'criterion_result_review_run_not_running'); END;
-  CREATE TRIGGER IF NOT EXISTS evaluation_file_change_immutable_update
-    BEFORE UPDATE ON evaluation_file_changes
-    BEGIN SELECT RAISE(ABORT, 'evaluation_file_change_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS evaluation_file_change_immutable_delete
-    BEFORE DELETE ON evaluation_file_changes
-    BEGIN SELECT RAISE(ABORT, 'evaluation_file_change_immutable'); END;
+  ${EVALUATION_FILE_CHANGE_TRIGGERS}
   CREATE TRIGGER IF NOT EXISTS finding_immutable_update
     BEFORE UPDATE ON findings
     BEGIN SELECT RAISE(ABORT, 'finding_immutable'); END;
