@@ -1,49 +1,13 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
-
-const claim = Object.freeze({
-  fencingToken: 7,
-  workerId: "worker-1",
-  workId: "run-1",
-});
-const run = Object.freeze({
-  configuration: {
-    model: "gpt-5.6-terra",
-    reasoning_effort: "high",
-    service_tier: "fast",
-  },
-  criteria: [{ criterionId: "criterion-1" }],
-  prompt: "Review the frozen Changeset",
-});
-
-function acceptedChannel() {
-  return {
-    accepted: () => true,
-    async close() {},
-    commandDirectory: "/submit-bin",
-    environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
-      QUALITY_BAR_SUBMIT_TOKEN: "secret",
-    },
-    failure: () => null,
-    lastValidationFailure: () => null,
-    waitForResult: () =>
-      Promise.resolve(/** @type {"accepted"} */ ("accepted")),
-  };
-}
-
-/** @param {number} pid */
-function runningProcess(pid) {
-  return Object.assign(new EventEmitter(), {
-    pid,
-    stderr: new PassThrough(),
-    stdout: new PassThrough(),
-  });
-}
+import {
+  acceptedChannel,
+  claim,
+  run,
+  runningProcess,
+  runReviewRunCodex,
+} from "./review-run-codex-adapter-support.js";
 
 test("process-group signaling failure cannot replace the recorded deadline", async () => {
   /** @type {(string | number)[]} */
@@ -99,6 +63,66 @@ test("process-group signaling failure cannot replace the recorded deadline", asy
     "deadline-recorded",
     "SIGTERM",
   ]);
+});
+
+test("post-deadline evidence and submission failures remain diagnostics on the deadline", async () => {
+  const child = runningProcess(85);
+  const evidenceFailure = new Error("evidence completion failed");
+  const submissionFailure = new Error("submission channel failed");
+  /** @type {Error | undefined} */
+  let recordedDeadline;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        clearDeadlineTimer() {},
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -85);
+          if (signal === "SIGTERM") {
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete() {
+            throw evidenceFailure;
+          },
+        },
+        openSubmissionChannel: async () => ({
+          ...acceptedChannel(),
+          accepted: () => false,
+          failure: () => submissionFailure,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        recordDeadline(failure) {
+          recordedDeadline = failure;
+        },
+        resultService: { prepare() {} },
+        run,
+        setDeadlineTimer(callback) {
+          queueMicrotask(callback);
+          return {};
+        },
+        spawnProcess: () => /** @type {any} */ (child),
+      }),
+    (error) => {
+      assert.equal(error, recordedDeadline);
+      assert.equal(
+        /** @type {any} */ (error).evidenceCompletionFailure,
+        evidenceFailure,
+      );
+      assert.equal(
+        /** @type {any} */ (error).submissionFailure,
+        submissionFailure,
+      );
+      return true;
+    },
+  );
 });
 
 test("a Result accepted before the deadline close keeps authority", async () => {

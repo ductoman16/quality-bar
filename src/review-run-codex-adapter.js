@@ -2,7 +2,12 @@ import { spawn } from "node:child_process";
 import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
-import { readTerminalTokenCounters } from "./review-run-evidence.js";
+import {
+  attachDeadlineCleanupFailures,
+  captureDeadlineRecordingFailure,
+  createDeadlineFailure,
+} from "./review-run-deadline.js";
+import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
@@ -241,6 +246,14 @@ export async function runReviewRunCodex({
         resolve({ code, signal, stderr, stdout });
       });
     });
+    const terminateProcessGroup = () =>
+      terminateReviewRunProcessGroup({
+        child,
+        processResult,
+        killProcessGroup,
+        setTerminationTimer,
+        clearTerminationTimer,
+      });
     /** @type {unknown} */
     let transcriptFailure;
     /** @type {Promise<void> | undefined} */
@@ -257,30 +270,26 @@ export async function runReviewRunCodex({
       }
       transcriptFailure = error;
       resolveTranscriptFailure(undefined);
-      transcriptTermination = terminateReviewRunProcessGroup({
-        child,
-        processResult,
-        killProcessGroup,
-        setTerminationTimer,
-        clearTerminationTimer,
-      }).catch((terminationFailure) => {
-        const failure =
-          terminationFailure instanceof Error
-            ? terminationFailure
-            : new TypeError("Codex process-group termination failed");
-        diagnosticFailures.push(failure);
-        if (transcriptFailure instanceof Error) {
-          Object.defineProperty(
-            transcriptFailure,
-            "processTerminationFailure",
-            {
-              configurable: true,
-              enumerable: false,
-              value: failure,
-            },
-          );
-        }
-      });
+      transcriptTermination = terminateProcessGroup().catch(
+        (terminationFailure) => {
+          const failure =
+            terminationFailure instanceof Error
+              ? terminationFailure
+              : new TypeError("Codex process-group termination failed");
+          diagnosticFailures.push(failure);
+          if (transcriptFailure instanceof Error) {
+            Object.defineProperty(
+              transcriptFailure,
+              "processTerminationFailure",
+              {
+                configurable: true,
+                enumerable: false,
+                value: failure,
+              },
+            );
+          }
+        },
+      );
     }
     child.stdout?.setEncoding("utf8").on("data", (chunk) => {
       stdout += chunk;
@@ -342,33 +351,19 @@ export async function runReviewRunCodex({
     if (terminal.kind === "deadline" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
-    const deadlineFailure =
-      terminal.kind === "deadline" && !accepted
-        ? new ReviewRunExecutionError(
-            "deadline_exceeded",
-            "Codex Review Run exceeded its 15-minute deadline",
-          )
-        : undefined;
-    /** @type {unknown} */
-    let deadlineRecordingFailure;
-    if (deadlineFailure) {
-      try {
-        recordDeadline(deadlineFailure);
-      } catch (error) {
-        deadlineRecordingFailure = error;
-      }
-    }
+    const deadlineFailure = createDeadlineFailure(
+      terminal.kind === "deadline",
+      accepted,
+    );
+    const deadlineRecordingFailure = captureDeadlineRecordingFailure(
+      recordDeadline,
+      deadlineFailure,
+    );
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
     if ((accepted || terminal.kind === "deadline") && !transcriptTermination) {
       try {
-        await terminateReviewRunProcessGroup({
-          child,
-          processResult,
-          killProcessGroup,
-          setTerminationTimer,
-          clearTerminationTimer,
-        });
+        await terminateProcessGroup();
       } catch (error) {
         const failure =
           error instanceof Error
@@ -410,23 +405,28 @@ export async function runReviewRunCodex({
     }
     const terminalProcess =
       terminal.kind === "process" ? terminal.result : await processResult;
-    evidenceService.complete(claim, {
-      exitCode: terminalProcess?.code ?? null,
-      signal: terminalProcess?.signal ?? null,
-      tokenCounters: readTerminalTokenCounters(stdout),
-    });
+    const evidenceCompletionFailure = captureEvidenceCompletionFailure(
+      evidenceService,
+      claim,
+      terminalProcess,
+      stdout,
+    );
     const submissionFailure = channel.failure();
+    if (deadlineFailure) {
+      throw attachDeadlineCleanupFailures(
+        deadlineFailure,
+        deadlineRecordingFailure,
+        { evidenceCompletionFailure, submissionFailure },
+      );
+    }
+    if (evidenceCompletionFailure) {
+      throw evidenceCompletionFailure;
+    }
     if (submissionFailure) {
       throw submissionFailure;
     }
     if (terminal.kind === "submission" && terminal.result === "failed") {
       throw new TypeError("Review Run submission failed");
-    }
-    if (deadlineFailure) {
-      if (deadlineRecordingFailure) {
-        throw deadlineRecordingFailure;
-      }
-      throw deadlineFailure;
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

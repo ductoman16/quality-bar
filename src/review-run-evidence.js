@@ -131,6 +131,29 @@ export function readTerminalTokenCounters(stdout) {
   return { ...UNAVAILABLE_TOKEN_COUNTERS };
 }
 
+/**
+ * @param {{complete: (claim: unknown, facts: unknown) => void}} evidenceService
+ * @param {unknown} claim
+ * @param {{code?: number | null, signal?: string | null} | undefined} process
+ * @param {string} stdout
+ */
+export function captureEvidenceCompletionFailure(
+  evidenceService,
+  claim,
+  process,
+  stdout,
+) {
+  try {
+    evidenceService.complete(claim, {
+      exitCode: process?.code ?? null,
+      signal: process?.signal ?? null,
+      tokenCounters: readTerminalTokenCounters(stdout),
+    });
+  } catch (error) {
+    return error;
+  }
+}
+
 /** @param {unknown} claim */
 function assertClaim(claim) {
   const input = /** @type {any} */ (claim);

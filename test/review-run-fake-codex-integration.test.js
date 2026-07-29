@@ -95,6 +95,7 @@ async function proveFakeCodexResult(context, outcome) {
   let signalDeadline = () => assert.fail("deadline timer was not installed");
   /** @type {() => void} */
   let forceKill = () => assert.fail("termination timer was not installed");
+  let deadlineSubmissionOutcome = "missing";
   const deadlineEvidence = {
     /** @param {any} evidenceClaim @param {"stdout" | "stderr"} stream @param {string} content */
     appendTranscriptChunk(evidenceClaim, stream, content) {
@@ -103,6 +104,11 @@ async function proveFakeCodexResult(context, outcome) {
         queueMicrotask(signalDeadline);
       }
       if (content.includes('"type":"fake.deadline_submission_rejected"')) {
+        deadlineSubmissionOutcome = "rejected";
+        queueMicrotask(forceKill);
+      }
+      if (content.includes('"type":"fake.deadline_submission_accepted"')) {
+        deadlineSubmissionOutcome = "accepted";
         queueMicrotask(forceKill);
       }
     },
@@ -216,6 +222,7 @@ async function proveFakeCodexResult(context, outcome) {
       0,
     );
     assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+    assert.equal(deadlineSubmissionOutcome, "rejected");
     const transcript = core
       .all(
         `SELECT content FROM review_run_transcript_chunks
@@ -396,6 +403,10 @@ test("post-acceptance evidence failure cannot overturn the complete Result", asy
   await proveFakeCodexResult(context, "evidence_failure");
 });
 
-test("one overdue fake Codex run closes submission and force-kills its process group without a partial Result", async (context) => {
-  await proveFakeCodexResult(context, "deadline");
-});
+test(
+  "one overdue fake Codex run closes submission and force-kills its process group without a partial Result",
+  { timeout: 10_000 },
+  async (context) => {
+    await proveFakeCodexResult(context, "deadline");
+  },
+);
