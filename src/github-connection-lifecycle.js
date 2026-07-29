@@ -43,6 +43,20 @@ export function retireGitHubConnection(durableCore, request) {
     );
   }
   durableCore.transaction((/** @type {any} */ transaction) => {
+    transaction.run(
+      `UPDATE github_commit_statuses
+       SET publication_status = 'unavailable',
+           error_code = 'github_connection_retired',
+           error_detail =
+             'GitHub commit status publication is unavailable because the GitHub Connection is retired'
+       WHERE publication_status = 'waiting'
+         AND repository_id IN (
+           SELECT repository_id
+           FROM github_repositories
+           WHERE connection_id = ?
+         )`,
+      connection.id,
+    );
     const credential = transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,

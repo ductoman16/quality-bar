@@ -10,6 +10,8 @@ import * as gitVerification from "./github-git-verification.js";
 import { verifyGitHubRepositories } from "./github-repository-verification.js";
 import { createGitHubPullRequestReader } from "./github-pull-request-api.js";
 import { createGitHubInstallationToken } from "./github-installation-token.js";
+import { createGitHubCommitStatusPublisher } from "./github-commit-status-api.js";
+import { createGitHubManifestExchange } from "./github-manifest-exchange.js";
 import { verifyRepositoryRead } from "./repository-git.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
@@ -123,45 +125,21 @@ export function createGitHubVerifier({
     object,
     request,
   });
+  const publishCommitStatus = createGitHubCommitStatusPublisher({
+    fail,
+    installationToken,
+    request,
+  });
+  const exchangeManifest = createGitHubManifestExchange({
+    fail,
+    nonemptyString,
+    object,
+    principal,
+    request,
+  });
 
   const verifier = {
-    /** @param {string} code */
-    async exchangeManifest(code) {
-      if (typeof code !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(code)) {
-        fail(
-          "github_manifest_callback_invalid",
-          "GitHub App Manifest callback is invalid",
-        );
-      }
-      const response = object(
-        await request(
-          `/app-manifests/${encodeURIComponent(code)}/conversions`,
-          { method: "POST" },
-        ),
-      );
-      if (!response || !Number.isSafeInteger(response.id)) {
-        fail(
-          "github_api_response_invalid",
-          "GitHub App Manifest response is invalid",
-        );
-      }
-      return {
-        app_id: /** @type {number} */ (response.id),
-        app_slug: nonemptyString(
-          response.slug,
-          "GitHub App Manifest response is invalid",
-        ),
-        client_id: nonemptyString(
-          response.client_id,
-          "GitHub App Manifest response is invalid",
-        ),
-        owner: principal(response.owner),
-        pem: nonemptyString(
-          response.pem,
-          "GitHub App Manifest response is invalid",
-        ),
-      };
-    },
+    exchangeManifest,
     /**
      * @param {{
      *   app_id: number,
@@ -442,6 +420,7 @@ export function createGitHubVerifier({
       );
     },
     createInstallationToken: installationToken,
+    publishCommitStatus,
     listPullRequests: createGitHubPullRequestReader({
       installationToken,
       request,

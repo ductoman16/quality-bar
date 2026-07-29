@@ -13,7 +13,11 @@ import {
   GitHubConnectionError,
   failGitHubConnection as fail,
 } from "./github-connection-error.js";
-import { takeGitHubConnectionFlow } from "./github-connection-flow.js";
+import {
+  createGitHubConnectionFlowToken,
+  createGitHubConnectionTimestamp,
+  takeGitHubConnectionFlow,
+} from "./github-connection-flow.js";
 import { readGitHubConnection } from "./github-connection-read.js";
 import { reactivateGitHubConnection } from "./github-connection-reactivation.js";
 import { startGitHubConnection } from "./github-connection-start.js";
@@ -24,8 +28,9 @@ import {
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
+import { createGitHubCommitStatusService } from "./github-commit-status-service.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishCommitStatus?: (...parameters: any[]) => Promise<void>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -57,31 +62,21 @@ export function createGitHubConnectionService(
     typeof verifier?.exchangeManifest !== "function" ||
     typeof verifier.verifyInstallation !== "function" ||
     typeof verifier.verifyRepositories !== "function" ||
-    typeof verifier.listPullRequests !== "function"
+    typeof verifier.listPullRequests !== "function" ||
+    typeof verifier.publishCommitStatus !== "function"
   ) {
     throw new TypeError("GitHub Connection dependencies are invalid");
   }
+  const publishCommitStatus = verifier.publishCommitStatus;
   const cipher = createGitHubConnectionCredentialCipher(masterKey);
   validatePersistedGitHubCredentials(durableCore, cipher);
   const pending = new Map();
+  const timestamp = createGitHubConnectionTimestamp(now);
   const callbackFailures = createGitHubCallbackFailureStore({
     now: timestamp,
     randomBytes,
   });
-  function timestamp() {
-    const value = now();
-    if (!Number.isSafeInteger(value)) {
-      throw new TypeError("now must return a safe integer timestamp");
-    }
-    return value;
-  }
-  function transientToken() {
-    const value = randomBytes(32).toString("base64url");
-    if (!/^[A-Za-z0-9_-]{8,256}$/.test(value)) {
-      throw new TypeError("randomBytes must return usable entropy");
-    }
-    return value;
-  }
+  const transientToken = createGitHubConnectionFlowToken(randomBytes);
   const polling = createGitHubPollingRunner(durableCore, {
     acquirePullRequestChangeset,
     admitAutomaticEvaluation,
@@ -89,6 +84,12 @@ export function createGitHubConnectionService(
     storageReserve,
     timestamp,
     verifier,
+  });
+  const commitStatuses = createGitHubCommitStatusService(durableCore, {
+    cipher,
+    externalOrigin,
+    now,
+    verifier: { publishCommitStatus },
   });
   const selectRepositories = createGitHubRepositorySelector(durableCore, {
     cipher,
@@ -104,7 +105,10 @@ export function createGitHubConnectionService(
   return {
     read: () => readGitHubConnection(durableCore),
     acquireRepositoryGitCredential,
-    startPolling: polling.start,
+    startPolling() {
+      polling.start();
+      commitStatuses.start();
+    },
     start: () =>
       startGitHubConnection({
         durableCore,
@@ -393,6 +397,7 @@ export function createGitHubConnectionService(
     selectRepositories,
     destroy() {
       polling.destroy();
+      commitStatuses.destroy();
       pending.clear();
       callbackFailures.destroy();
       cipher.destroy();

@@ -34,12 +34,13 @@ export function createGitHubApiRequest(
   fetchRequest,
   now = () => Date.now(),
 ) {
-  /** @param {string} path @param {{affectedRepositoryIds?: number[], authorization?: string, includePage?: boolean, method?: "GET" | "POST", repositoryId?: number}} [options] */
+  /** @param {string} path @param {{affectedRepositoryIds?: number[], authorization?: string, body?: unknown, includePage?: boolean, method?: "GET" | "POST", repositoryId?: number}} [options] */
   return async function request(
     path,
     {
       affectedRepositoryIds,
       authorization,
+      body,
       includePage = false,
       method = "GET",
       repositoryId,
@@ -53,8 +54,10 @@ export function createGitHubApiRequest(
           ...(authorization
             ? { authorization: `Bearer ${authorization}` }
             : {}),
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
           "x-github-api-version": API_VERSION,
         },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         method,
         redirect: "error",
       });
