@@ -333,7 +333,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

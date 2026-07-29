@@ -72,7 +72,7 @@ test("schema v31 Applicability history migrates without invented Review Run evid
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.all(
       `SELECT review_id, review_version_id, assignment_scope, outcome

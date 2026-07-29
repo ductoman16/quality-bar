@@ -9,7 +9,7 @@ import {
   forgejoGateDefinitions,
 } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
-import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
+import { CODEX_GATE_DEFINITIONS } from "./fake-codex-gate-definition.mjs";
 import {
   NODE_OWNERSHIP_LINT_PROOF_GATE,
   PRODUCTION_TYPE_CHECK_PROOF_GATE,
@@ -296,7 +296,7 @@ export function createGateDefinitions(metadata) {
         "test/review-run-failure-browser-component.test.js",
       ],
     },
-    FAKE_CODEX_GATE_DEFINITION,
+    ...CODEX_GATE_DEFINITIONS,
     ...REVIEW_RUN_ADMISSION_GATE_DEFINITIONS,
     {
       name: "github-fixture-integration",

@@ -28,6 +28,8 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
     transaction.run("DROP TRIGGER codex_execution_queue_claim_insert");
     transaction.run("DROP TRIGGER codex_execution_queue_claim_update");
     transaction.run("DROP TRIGGER review_run_queue_reference_delete");
+    transaction.run("DROP TABLE waiver_adjudication_transcript_chunks");
+    transaction.run("DROP TABLE waiver_decisions");
     transaction.run("DROP TABLE waiver_batch_idempotency");
     transaction.run("DROP TABLE waiver_adjudication_requests");
     transaction.run("DROP TABLE waiver_requests");
@@ -55,7 +57,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 38);
+    assert.equal(migrated.facts.schemaVersion, 39);
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -160,6 +162,8 @@ for (const version of [28, 36, 37]) {
       transaction.run("DROP TRIGGER codex_execution_queue_claim_insert");
       transaction.run("DROP TRIGGER codex_execution_queue_claim_update");
       transaction.run("DROP TRIGGER review_run_queue_reference_delete");
+      transaction.run("DROP TABLE waiver_adjudication_transcript_chunks");
+      transaction.run("DROP TABLE waiver_decisions");
       transaction.run("DROP TABLE waiver_batch_idempotency");
       transaction.run("DROP TABLE waiver_adjudication_requests");
       transaction.run("DROP TABLE waiver_requests");
@@ -197,7 +201,7 @@ for (const version of [28, 36, 37]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 38);
+      assert.equal(migrated.facts.schemaVersion, 39);
       assert.match(
         String(
           migrated.get(

@@ -54,10 +54,10 @@ test("queue admission seals one nonempty Waiver Adjudication Request set", () =>
       /waiver_adjudication_requests_required/,
     );
     core.run(
-      "UPDATE waiver_adjudications SET execution_status = 'failed', completed_at = 3 WHERE id = 'empty-adjudication'",
+      "UPDATE waiver_adjudications SET execution_status = 'failed', completed_at = 3, error_code = 'checkout_failed', error_detail = 'Checkout failed before Codex started' WHERE id = 'empty-adjudication'",
     );
     core.run(
-      "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at, started_at, completed_at) VALUES ('terminal-adjudication', 'evaluation-1', ?, ?, 'gpt-5.6-terra', 'high', 'standard', 'completed', 3, 3, 3)",
+      "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at, started_at, completed_at, error_code, error_detail) VALUES ('terminal-adjudication', 'evaluation-1', ?, ?, 'gpt-5.6-terra', 'high', 'standard', 'failed', 3, 3, 3, 'codex_process_failed', 'Codex process failed')",
       "a".repeat(40),
       "b".repeat(40),
     );
@@ -114,7 +114,7 @@ test("queue admission seals one nonempty Waiver Adjudication Request set", () =>
       /waiver_adjudication_queue_active/,
     );
     core.run(
-      "UPDATE waiver_adjudications SET execution_status = 'completed', started_at = 3, completed_at = 4 WHERE id = 'sealed-adjudication'",
+      "UPDATE waiver_adjudications SET execution_status = 'failed', started_at = 3, completed_at = 4, error_code = 'codex_process_failed', error_detail = 'Codex process failed' WHERE id = 'sealed-adjudication'",
     );
     core.run(
       "DELETE FROM codex_execution_queue WHERE work_id = 'sealed-adjudication'",

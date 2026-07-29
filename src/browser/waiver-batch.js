@@ -1,4 +1,34 @@
 (() => {
+  /** @param {any} adjudication */
+  function describeStatus(adjudication) {
+    if (
+      !adjudication ||
+      typeof adjudication.id !== "string" ||
+      !["queued", "running", "completed", "failed", "cancelled"].includes(
+        adjudication.execution_status,
+      )
+    ) {
+      throw new Error("waiver_adjudication_invalid");
+    }
+    let status =
+      "Waiver Adjudication " +
+      adjudication.id +
+      " " +
+      adjudication.execution_status +
+      ".";
+    if (adjudication.execution_status === "failed") {
+      if (
+        typeof adjudication.error?.code !== "string" ||
+        typeof adjudication.error?.detail !== "string"
+      ) {
+        throw new Error("waiver_adjudication_invalid");
+      }
+      status +=
+        " Error " + adjudication.error.code + ": " + adjudication.error.detail;
+    }
+    return status;
+  }
+
   /**
    * @param {string} evaluationId
    * @param {{findingId: string, rationale: any}[]} rationales
@@ -51,15 +81,10 @@
         return;
       }
       const created = await response.json();
-      status.textContent =
-        "Waiver Adjudication " +
-        created.adjudication.id +
-        " " +
-        created.adjudication.execution_status +
-        ".";
+      status.textContent = describeStatus(created.adjudication);
     });
     return form;
   }
 
-  Reflect.set(window, "qualityBarWaiverBatch", { createForm });
+  Reflect.set(window, "qualityBarWaiverBatch", { createForm, describeStatus });
 })();

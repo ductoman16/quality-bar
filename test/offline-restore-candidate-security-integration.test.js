@@ -370,7 +370,7 @@ test("a validated snapshot replaces an unreadable stopped target", async () => {
   });
 
   const restored = openDurableCore(input.databasePath);
-  assert.equal(restored.facts.schemaVersion, 38);
+  assert.equal(restored.facts.schemaVersion, 39);
   verifyInstallationKey(restored, input.masterKey);
   restored.close();
 });
