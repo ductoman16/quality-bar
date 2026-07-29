@@ -1,5 +1,10 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
-import { newlyEligibleGitHubPullRequests } from "./github-automatic-evaluation.js";
+import {
+  acquireAutomaticEvaluations,
+  admitAutomaticEvaluations,
+  completeAutomaticEvaluationAdmissions,
+  releaseAutomaticEvaluationChangesets,
+} from "./github-automatic-evaluation-admission.js";
 import {
   GITHUB_POLL_INTERVAL_MS,
   createGitHubPollingService,
@@ -40,11 +45,6 @@ export function createGitHubPollingRunner(
   );
   const polling = createGitHubPollingService(pollingCore, {
     fetchPullRequests: ({ connection, credential, repository }) => {
-      if (typeof verifier.listPullRequests !== "function") {
-        throw new TypeError(
-          "GitHub verifier must provide pull request polling",
-        );
-      }
       return verifier.listPullRequests(
         {
           app_id: connection.app_id,
@@ -195,23 +195,19 @@ export function createGitHubPollingRunner(
           });
           /** @type {{changeset: any, pullRequestNumber: number, repositoryId: string}[]} */
           const automaticEvaluations = [];
+          /** @type {{afterCommit: () => void, resource: any}[]} */
+          const admissions = [];
           const releaseAttempted = new Set();
           try {
             if (!baseline) {
-              const candidates = newlyEligibleGitHubPullRequests(
-                JSON.parse(row.snapshot),
-                prepared.snapshots[0]?.snapshot,
+              automaticEvaluations.push(
+                ...(await acquireAutomaticEvaluations(
+                  JSON.parse(row.snapshot),
+                  prepared.snapshots[0]?.snapshot,
+                  row.repository_id,
+                  acquirePullRequestChangeset,
+                )),
               );
-              for (const pullRequest of candidates) {
-                automaticEvaluations.push({
-                  changeset: await acquirePullRequestChangeset({
-                    pullRequest,
-                    repositoryId: row.repository_id,
-                  }),
-                  pullRequestNumber: pullRequest.number,
-                  repositoryId: row.repository_id,
-                });
-              }
             }
             const committed = pollingCore.transaction((transaction) => {
               if (
@@ -219,13 +215,17 @@ export function createGitHubPollingRunner(
               ) {
                 return false;
               }
-              for (const automaticEvaluation of automaticEvaluations) {
-                admitAutomaticEvaluation(transaction, automaticEvaluation);
-              }
-              for (const { changeset } of automaticEvaluations) {
-                releaseAttempted.add(changeset);
-                changeset.release?.();
-              }
+              admissions.push(
+                ...admitAutomaticEvaluations(
+                  transaction,
+                  automaticEvaluations,
+                  admitAutomaticEvaluation,
+                ),
+              );
+              releaseAutomaticEvaluationChangesets(
+                automaticEvaluations,
+                releaseAttempted,
+              );
               return true;
             });
             if (!committed) {
@@ -234,6 +234,7 @@ export function createGitHubPollingRunner(
                 "GitHub polling changed during reconciliation",
               );
             }
+            completeAutomaticEvaluationAdmissions(admissions);
           } finally {
             for (const { changeset } of automaticEvaluations) {
               if (!releaseAttempted.has(changeset)) {

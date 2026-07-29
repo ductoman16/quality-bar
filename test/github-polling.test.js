@@ -296,7 +296,9 @@ test("due GitHub polling reconciles only enabled healthy state and persists its 
       head_commit: "b".repeat(40),
       release() {},
     }),
-    admitAutomaticEvaluation() {},
+    admitAutomaticEvaluation() {
+      return { afterCommit() {}, resource: {} };
+    },
     cipher: {
       decrypt() {
         if (credentialFailure) {

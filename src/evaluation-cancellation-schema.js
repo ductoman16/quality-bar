@@ -1,3 +1,5 @@
+import { EVALUATION_CANCELLATION_SQL_CODES } from "./evaluation-cancellation-reason.js";
+
 export const EVALUATION_CANCELLATION_COLUMNS = `
   cancellation_requested_at INTEGER,
   cancellation_code TEXT,
@@ -11,7 +13,7 @@ export const EVALUATION_CANCELLATION_CHECK = `
       AND cancellation_requested_at >= created_at
       AND completed_at = cancellation_requested_at
       AND cancellation_code IS NOT NULL
-      AND cancellation_code = 'cancelled_by_operator'
+      AND cancellation_code IN (${EVALUATION_CANCELLATION_SQL_CODES})
       AND cancellation_detail IS NOT NULL
       AND length(trim(cancellation_detail)) > 0)
     OR
@@ -33,7 +35,9 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
           OR NEW.completed_at IS NULL
           OR NEW.completed_at <> NEW.cancellation_requested_at
           OR NEW.cancellation_code IS NULL
-          OR NEW.cancellation_code <> 'cancelled_by_operator'
+          OR NEW.cancellation_code NOT IN (
+            ${EVALUATION_CANCELLATION_SQL_CODES}
+          )
           OR NEW.cancellation_detail IS NULL
           OR length(trim(NEW.cancellation_detail)) = 0
         ))
@@ -62,7 +66,9 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
           OR NEW.completed_at IS NULL
           OR NEW.completed_at <> NEW.cancellation_requested_at
           OR NEW.cancellation_code IS NULL
-          OR NEW.cancellation_code <> 'cancelled_by_operator'
+          OR NEW.cancellation_code NOT IN (
+            ${EVALUATION_CANCELLATION_SQL_CODES}
+          )
           OR NEW.cancellation_detail IS NULL
           OR length(trim(NEW.cancellation_detail)) = 0
         ))
@@ -124,7 +130,9 @@ export function evaluationCancellationMigration(database) {
              OR completed_at IS NULL
              OR completed_at <> cancellation_requested_at
              OR cancellation_code IS NULL
-             OR cancellation_code <> 'cancelled_by_operator'
+             OR cancellation_code NOT IN (
+               ${EVALUATION_CANCELLATION_SQL_CODES}
+             )
              OR cancellation_detail IS NULL
              OR length(trim(cancellation_detail)) = 0
            )

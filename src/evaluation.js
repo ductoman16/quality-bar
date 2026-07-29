@@ -16,6 +16,10 @@ import {
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
+import {
+  prepareGitHubAutomaticEvaluation,
+  recordGitHubPullRequestEvaluation,
+} from "./github-evaluation-supersession.js";
 import { createEvaluationResultResourceReader } from "./evaluation-result-resource.js";
 import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
 import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
@@ -131,30 +135,27 @@ export function createEvaluationService(
       repositoryId,
       selectors,
     } = input;
+    /** @type {string[]} */
+    const cancelledRunningReviewRunIds = [];
     requireFrozenChangeset(changeset);
     if (provenance === "automatic") {
-      if (
-        !Number.isSafeInteger(pullRequestNumber) ||
-        /** @type {number} */ (pullRequestNumber) <= 0
-      ) {
-        throw new TypeError("Automatic Evaluation provenance is invalid");
-      }
-      const existing = transaction.get(
-        `SELECT evaluation_id FROM github_automatic_evaluations
-          WHERE repository_id = ? AND base_commit = ? AND head_commit = ?`,
-        repositoryId,
-        changeset.base_commit,
-        changeset.head_commit,
+      const automatic = prepareGitHubAutomaticEvaluation(
+        transaction,
+        {
+          changeset,
+          pullRequestNumber: /** @type {number} */ (pullRequestNumber),
+          repositoryId,
+        },
+        now,
+        failEvaluation,
       );
-      if (existing) {
-        const row = transaction.get(
-          `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
-          existing.evaluation_id,
-        );
+      cancelledRunningReviewRunIds.push(
+        ...automatic.cancelledRunningReviewRunIds,
+      );
+      if (automatic.existing) {
         return {
-          createdAt: row.created_at,
-          evaluationId: existing.evaluation_id,
-          resource: readEvaluation(row),
+          cancelledRunningReviewRunIds,
+          ...automatic.existing,
         };
       }
       storageReserve.assertWorkAdmissionAvailable();
@@ -238,6 +239,7 @@ export function createEvaluationService(
         changeset.base_commit,
         changeset.head_commit,
       );
+      recordGitHubPullRequestEvaluation(transaction, evaluationId, input);
     }
     insertApplicabilityResults(transaction, evaluationId, applicabilityResults);
     sealApplicabilityResults(transaction, evaluationId, createdAt);
@@ -258,6 +260,7 @@ export function createEvaluationService(
       enqueueReviewRuns(transaction, evaluationId, reviewRuns, createdAt);
     }
     return {
+      cancelledRunningReviewRunIds,
       createdAt,
       evaluationId,
       resource: readEvaluation(
@@ -284,14 +287,20 @@ export function createEvaluationService(
       ) {
         throw new TypeError("Automatic Evaluation admission is invalid");
       }
-      return admitFrozenEvaluation(transaction, {
+      const admitted = admitFrozenEvaluation(transaction, {
         ...input,
         provenance: "automatic",
         selectors: {
           base: { type: "commit", value: input.changeset?.base_commit },
           head: { type: "commit", value: input.changeset?.head_commit },
         },
-      }).resource;
+      });
+      return {
+        afterCommit() {
+          signalCancellations(admitted.cancelledRunningReviewRunIds);
+        },
+        resource: admitted.resource,
+      };
     },
     /** @param {string} id */
     cancel(id) {

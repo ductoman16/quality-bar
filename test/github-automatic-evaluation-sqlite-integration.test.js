@@ -80,12 +80,16 @@ test("automatic Evaluation admission is durably unique for one frozen Changeset"
     repositoryId: "repository-1",
   };
 
-  const created = core.transaction((transaction) =>
+  const createdAdmission = core.transaction((transaction) =>
     service.admitAutomatic(transaction, input),
   );
-  const replay = core.transaction((transaction) =>
+  createdAdmission.afterCommit();
+  const replayAdmission = core.transaction((transaction) =>
     service.admitAutomatic(transaction, input),
   );
+  replayAdmission.afterCommit();
+  const created = createdAdmission.resource;
+  const replay = replayAdmission.resource;
 
   assert.deepEqual(replay, created);
   assert.equal(created.provenance, "automatic");
@@ -131,6 +135,7 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
   openDurableCore(databasePath).close();
   const legacy = new DatabaseSync(databasePath);
   legacy.exec(`
+    DROP TABLE github_automatic_evaluation_pull_requests;
     DROP TABLE github_automatic_evaluations;
     UPDATE quality_bar_metadata SET value = '34' WHERE key = 'schema_version';
     PRAGMA user_version = 34;
@@ -139,11 +144,19 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 35);
+  assert.equal(migrated.facts.schemaVersion, 36);
   assert.equal(
     migrated.get(
       `SELECT count(*) AS count FROM sqlite_schema
         WHERE type = 'table' AND name = 'github_automatic_evaluations'`,
+    )?.count,
+    1,
+  );
+  assert.equal(
+    migrated.get(
+      `SELECT count(*) AS count FROM sqlite_schema
+        WHERE type = 'table'
+          AND name = 'github_automatic_evaluation_pull_requests'`,
     )?.count,
     1,
   );

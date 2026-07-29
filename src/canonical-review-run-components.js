@@ -1,4 +1,5 @@
 import { closedObject } from "./canonical-schema.js";
+import { EVALUATION_CANCELLATION_CODES } from "./evaluation-cancellation-reason.js";
 
 export function canonicalReviewRunSchemas() {
   const nullableTimestamp = {
@@ -128,7 +129,10 @@ export function canonicalReviewRunSchemas() {
         completed_at: { format: "date-time", type: "string" },
         error: closedObject(
           {
-            code: { const: "cancelled_by_operator", type: "string" },
+            code: {
+              enum: EVALUATION_CANCELLATION_CODES,
+              type: "string",
+            },
             detail: { minLength: 1, type: "string" },
           },
           ["code", "detail"],

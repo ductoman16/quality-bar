@@ -140,6 +140,108 @@ test("the operator cancels active work and reads one complete cancelled Result",
   );
 });
 
+test("superseded pull-request work exposes its exact cancellation state", async () => {
+  const controls = evaluationElements();
+  const context = {
+    document: {
+      createElement() {
+        return browserElement();
+      },
+    },
+    async fetch(/** @type {string} */ path) {
+      if (path === "/api/v1/evaluations") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              items: [
+                evaluation({
+                  completed_at: "2026-07-29T12:00:00.000Z",
+                  effective_outcome: "error",
+                  execution_status: "cancelled",
+                  id: "evaluation-superseded",
+                  provenance: "automatic",
+                  pull_request: { number: 17 },
+                }),
+              ],
+              next_cursor: null,
+            };
+          },
+        };
+      }
+      if (path === "/api/v1/evaluations/evaluation-superseded/result") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              applicability_results: [],
+              completed_at: "2026-07-29T12:00:00.000Z",
+              criterion_results: [],
+              evaluation_id: "evaluation-superseded",
+              file_changes: [],
+              findings: [],
+              outcome: "error",
+              review_runs: [
+                {
+                  completed_at: "2026-07-29T12:00:00.000Z",
+                  error: {
+                    code: "cancelled_by_supersession",
+                    detail:
+                      "Evaluation was superseded by a different pull request Changeset",
+                  },
+                  execution_status: "cancelled",
+                  id: "review-run-superseded",
+                  review_id: "review-1",
+                  review_version_id: "review-version-1",
+                  started_at: null,
+                },
+              ],
+            };
+          },
+        };
+      }
+      throw new Error(`unexpected fetch: ${path}`);
+    },
+    window: {
+      location: { search: "?view=evaluations" },
+      qualityBarOperator: {
+        csrfToken: () => "browser-csrf-owned-secret",
+        async displayMutationFailure() {},
+        async readRepositoryCollection() {
+          return { failure: null, items: [] };
+        },
+        requiredElement(/** @type {string} */ id) {
+          return controls.get(id);
+        },
+      },
+    },
+  };
+  for (const [sourcePath, route] of [
+    ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+    ["src/browser/evaluation.js", "/assets/evaluation.js"],
+  ]) {
+    executeServedBrowserAsset(
+      resolve("."),
+      sourcePath,
+      readBrowserAsset(route),
+      context,
+    );
+  }
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+
+  const row = controls.get("evaluation-attention").options[0];
+  assert.match(
+    row.textContent,
+    /automatic pull request #17 .* cancelled — error/,
+  );
+  assert.equal(row.options.length, 1);
+  assert.equal(row.options[0].textContent, "Result error");
+  assert.equal(
+    row.options[0].options[0].options[1].textContent,
+    "Error cancelled_by_supersession: Evaluation was superseded by a different pull request Changeset",
+  );
+});
+
 test("each explicit browser rerun of one Changeset owns a fresh key", async () => {
   const controls = evaluationElements();
   controls.get("evaluation-repository").value = "repository-1";
