@@ -283,7 +283,7 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
   );
 });
 
-test("terminal-kind measurement snapshots remain immutable on schema v34", async (context) => {
+test("terminal-kind measurement snapshots remain immutable on schema v35", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-snapshot-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));

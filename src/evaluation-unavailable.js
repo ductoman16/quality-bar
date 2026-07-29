@@ -41,5 +41,8 @@ export function createUnavailableEvaluationService(error) {
     readReviewRunDiagnostics() {
       failEvaluation(failure.code, failure.message, error);
     },
+    submitWaiverBatch() {
+      failEvaluation(failure.code, failure.message, error);
+    },
   };
 }

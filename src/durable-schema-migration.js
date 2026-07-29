@@ -40,6 +40,28 @@ export function migrateSchema(
       .some((column) => column.name === "added");
   const evaluationCancellationStatements =
     evaluationCancellationMigration(database);
+  const queueSchema = database
+    .prepare(
+      "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'codex_execution_queue'",
+    )
+    .all()[0]?.sql;
+  const queueColumns =
+    typeof queueSchema === "string"
+      ? new Set(
+          database
+            .prepare("PRAGMA table_info(codex_execution_queue)")
+            .all()
+            .map((column) => column.name),
+        )
+      : new Set();
+  const queueNeedsWaiverKind =
+    schemaVersion === CURRENT_SCHEMA_VERSION &&
+    typeof queueSchema === "string" &&
+    !queueSchema.includes("waiver_adjudication");
+  const queueNeedsClaimColumns =
+    queueNeedsWaiverKind &&
+    !queueColumns.has("worker_id") &&
+    !statements.includes("ADD COLUMN worker_id");
   database.function(
     "quality_bar_legacy_file_change_modified",
     { deterministic: true },
@@ -52,10 +74,29 @@ export function migrateSchema(
   );
   database.exec(`
     BEGIN IMMEDIATE;
-    ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
+        ? `DROP TRIGGER IF EXISTS review_run_queue_reference_delete;
+           DROP TRIGGER IF EXISTS waiver_adjudication_queue_reference_delete;`
+        : ""
+    }
+    ${statements}
+    ${
+      queueNeedsClaimColumns
+        ? `ALTER TABLE codex_execution_queue
+             ADD COLUMN worker_id TEXT
+             CHECK (worker_id IS NULL OR length(worker_id) > 0);
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN fencing_token INTEGER NOT NULL DEFAULT 0
+             CHECK (fencing_token >= 0);
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN lease_expires_at INTEGER;`
+        : ""
+    }
+    ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
+    ${
+      schemaVersion === CURRENT_SCHEMA_VERSION
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -69,7 +110,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30, 31, 32, 33].includes(version)) {
+  if (![29, 30, 31, 32, 33, 34].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   const hasApplicabilitySeal = database
@@ -88,7 +129,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 34;
+export const CURRENT_SCHEMA_VERSION = 35;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -110,6 +151,10 @@ import {
   REVIEW_DELETION_INTEGRITY,
 } from "./review-deletion-schema.js";
 import { reviewRunEvidenceMigration } from "./review-run-evidence.js";
+import {
+  WAIVER_BATCH_SCHEMA,
+  WAIVER_QUEUE_MIGRATION,
+} from "./waiver-batch-schema.js";
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `
   DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_update;

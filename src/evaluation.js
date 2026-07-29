@@ -22,6 +22,7 @@ import {
   sealApplicabilityResults,
   selectReviewRunsForAdmission,
 } from "./review-run-admission.js";
+import { createWaiverBatchService } from "./waiver-batch.js";
 
 export { EvaluationError };
 export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
@@ -101,6 +102,8 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
  *   readCodexCapabilityFailure: () => (Error & {code: string}) | null,
  *   createId?: () => string,
  *   createReviewRunId?: () => string,
+ *   createWaiverAdjudicationId?: () => string,
+ *   createWaiverRequestId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
  *   signalCancellations?: (workIds: string[]) => void,
@@ -114,6 +117,8 @@ export function createEvaluationService(
     readCodexCapabilityFailure,
     createId = randomUUID,
     createReviewRunId = randomUUID,
+    createWaiverAdjudicationId = () => randomUUID(),
+    createWaiverRequestId = () => randomUUID(),
     masterKey,
     now = () => Date.now(),
     signalCancellations = signalReviewRunCancellations,
@@ -167,6 +172,13 @@ export function createEvaluationService(
   }
 
   const resultResources = createEvaluationResultResourceReader(durableCore);
+  const waiverBatches = createWaiverBatchService(durableCore, {
+    createAdjudicationId: createWaiverAdjudicationId,
+    createRequestId: createWaiverRequestId,
+    now,
+    readCodexCapabilityFailure,
+    storageReserve,
+  });
 
   return {
     /** @param {string} id */
@@ -192,6 +204,7 @@ export function createEvaluationService(
       };
     },
     read,
+    submitWaiverBatch: waiverBatches.submit,
     ...resultResources,
     readReviewRunDiagnostics:
       createEvaluationReviewRunDiagnosticsReader(durableCore),

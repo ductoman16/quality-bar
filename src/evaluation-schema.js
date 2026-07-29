@@ -10,6 +10,7 @@ import {
   EVALUATION_CANCELLATION_COLUMNS,
   EVALUATION_CANCELLATION_TRIGGERS,
 } from "./evaluation-cancellation-schema.js";
+import { CODEX_EXECUTION_QUEUE_TRIGGERS } from "./codex-execution-queue-schema.js";
 
 export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
 export { evaluationCancellationMigration } from "./evaluation-cancellation-schema.js";
@@ -153,9 +154,9 @@ export const EVALUATION_SCHEMA = `
     )
   ) STRICT;
   CREATE TABLE IF NOT EXISTS codex_execution_queue (
-    work_id TEXT PRIMARY KEY REFERENCES review_runs(id),
+    work_id TEXT PRIMARY KEY,
     work_kind TEXT NOT NULL
-      CHECK (work_kind = 'review_run'),
+      CHECK (work_kind IN ('review_run', 'waiver_adjudication')),
     ready_at INTEGER NOT NULL,
     accepted_at INTEGER NOT NULL,
     started_at INTEGER,
@@ -263,31 +264,7 @@ export const EVALUATION_SCHEMA = `
         AND criterion_id = NEW.criterion_id
     ) <> 'triggered'
     BEGIN SELECT RAISE(ABORT, 'finding_result_mismatch'); END;
-  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
-    BEFORE UPDATE OF work_id, work_kind, accepted_at
-    ON codex_execution_queue
-    BEGIN SELECT RAISE(ABORT, 'codex_execution_queue_identity_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_claim_insert
-    BEFORE INSERT ON codex_execution_queue
-    WHEN (
-      (NEW.worker_id IS NULL) <> (NEW.lease_expires_at IS NULL)
-      OR (NEW.worker_id IS NULL AND NEW.fencing_token <> 0)
-      OR (NEW.worker_id IS NOT NULL AND NEW.fencing_token <= 0)
-    )
-    BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
-  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_claim_update
-    BEFORE UPDATE OF worker_id, fencing_token, lease_expires_at
-    ON codex_execution_queue
-    WHEN (
-      (NEW.worker_id IS NULL) <> (NEW.lease_expires_at IS NULL)
-      OR (NEW.worker_id IS NULL AND NEW.fencing_token <> 0)
-      OR (NEW.worker_id IS NOT NULL AND NEW.fencing_token <= 0)
-      OR (
-        NEW.worker_id IS NOT OLD.worker_id
-        AND NEW.fencing_token <= OLD.fencing_token
-      )
-    )
-    BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
+  ${CODEX_EXECUTION_QUEUE_TRIGGERS}
 `;
 
 export const FINDING_RESULT_MIGRATION = `
