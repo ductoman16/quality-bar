@@ -53,6 +53,26 @@ export function createReviewRunPrompt(run) {
 }
 
 /**
+ * @param {{remove(): void}} checkout
+ * @param {unknown} executionFailure
+ */
+function removeCheckout(checkout, executionFailure) {
+  try {
+    checkout.remove();
+  } catch (cleanupFailure) {
+    if (executionFailure instanceof Error) {
+      Object.defineProperty(executionFailure, "checkoutCleanupFailure", {
+        configurable: true,
+        enumerable: false,
+        value: cleanupFailure,
+      });
+      return;
+    }
+    throw cleanupFailure;
+  }
+}
+
+/**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined
@@ -188,6 +208,7 @@ export async function executeReviewRun(
       repositoryUrl: run.repositoryUrl,
       workId: claim.workId,
     });
+    let executionFailure;
     try {
       if (claimFailure) {
         throw claimFailure;
@@ -200,8 +221,11 @@ export async function executeReviewRun(
         run,
         ...codexOptions,
       });
+    } catch (error) {
+      executionFailure = error;
+      throw error;
     } finally {
-      checkout.remove();
+      removeCheckout(checkout, executionFailure);
     }
   } finally {
     stopRenewal();

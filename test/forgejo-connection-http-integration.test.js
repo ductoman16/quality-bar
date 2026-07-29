@@ -8,6 +8,8 @@ import {
 } from "./http-integration-support.js";
 
 test("Forgejo Connection HTTP registration keeps PAT input write-only and preserves its owning error", async () => {
+  /** @type {string[]} */
+  const logs = [];
   /** @type {unknown[]} */
   const calls = [];
   let conflict = "none";
@@ -188,6 +190,9 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
         },
       };
     },
+    writeLog(line) {
+      logs.push(line);
+    },
   });
   const headers = await authenticatedOperatorHeaders(request);
   const anonymous = await request("/api/v1/forgejo-connections");
@@ -202,9 +207,14 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
     method: "POST",
   });
   assert.equal(response.status, 422);
+  const responseDocument = await response.clone().json();
   assert.equal(
     await responseErrorCode(response),
     "forgejo_version_unsupported",
+  );
+  assert.doesNotMatch(
+    JSON.stringify({ logs, response: responseDocument }),
+    /operator-created-pat/,
   );
   assert.deepEqual(calls, [
     {

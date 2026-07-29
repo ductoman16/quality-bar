@@ -46,6 +46,20 @@ function processThatExits(code, signal = null) {
   return process;
 }
 
+function processThatFailsWithJsonl() {
+  const child = new EventEmitter();
+  const process = Object.assign(child, {
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  queueMicrotask(() => {
+    process.stdout.end('{"type":"turn.failed","error":"model failure"}\n');
+    process.stderr.end("pinned Codex diagnostic\n");
+    child.emit("exit", 1, null);
+  });
+  return process;
+}
+
 /** @param {{accepted?: boolean, failure?: Error | null}} [options] */
 function channel({ accepted = false, failure = null } = {}) {
   return {
@@ -145,6 +159,27 @@ test("constructs a fixed host-login-safe environment instead of inheriting appli
   );
 });
 
+test("disables Repository instruction discovery and requests the JSONL event protocol", () => {
+  const arguments_ = reviewRunCodexArguments(run);
+  assert.deepEqual(
+    arguments_.slice(arguments_.indexOf("project_doc_max_bytes=0") - 1),
+    [
+      "--config",
+      "project_doc_max_bytes=0",
+      "exec",
+      "--ignore-rules",
+      "--json",
+      "--sandbox",
+      "workspace-write",
+      "--config",
+      'approval_policy="never"',
+      "--config",
+      "sandbox_workspace_write.network_access=false",
+      run.prompt,
+    ],
+  );
+});
+
 test("maps process completion without an accepted Result to exact owning failures", async () => {
   /** @type {[number, string][]} */
   const cases = [
@@ -186,6 +221,33 @@ test("maps process completion without an accepted Result to exact owning failure
       },
     );
   }
+});
+
+test("preserves raw JSONL stdout and stderr when the pinned Codex process fails", async () => {
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () => channel(),
+        resultService: { submit() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (processThatFailsWithJsonl()),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "codex_process_failed");
+      assert.equal(
+        /** @type {any} */ (error.cause).stdout,
+        '{"type":"turn.failed","error":"model failure"}\n',
+      );
+      assert.equal(
+        /** @type {any} */ (error.cause).stderr,
+        "pinned Codex diagnostic\n",
+      );
+      return true;
+    },
+  );
 });
 
 test("preserves an unexpected submission storage failure", async () => {

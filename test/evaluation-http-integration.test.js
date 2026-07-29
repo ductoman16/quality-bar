@@ -19,6 +19,8 @@ const requestBody = {
 };
 
 test("the browser creates, replays, polls, and reads complete zero-Review Evaluations", async () => {
+  /** @type {string[]} */
+  const logs = [];
   let nextId = 0;
   /** @type {Buffer | undefined} */
   let evaluationMasterKey;
@@ -34,6 +36,9 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
         createId: () => `evaluation-${++nextId}`,
         now: () => 1_000,
       });
+    },
+    writeLog(line) {
+      logs.push(line);
     },
   });
   assert.deepEqual(evaluationMasterKey, Buffer.alloc(32, 7));
@@ -94,7 +99,8 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     headers: { cookie: operatorHeaders.cookie },
   });
   assert.equal(result.status, 200);
-  assert.deepEqual(await result.json(), {
+  const resultDocument = await result.json();
+  assert.deepEqual(resultDocument, {
     applicability_results: [],
     completed_at: "1970-01-01T00:00:01.000Z",
     criterion_results: [],
@@ -141,6 +147,21 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     });
     assert.equal(malformed.status, 400);
     assert.equal(await responseErrorCode(malformed), "request_malformed");
+  }
+  const ordinaryArtifacts = JSON.stringify({
+    logs,
+    resource,
+    result: resultDocument,
+  });
+  for (const secret of [
+    "a correct operator password",
+    evaluationMasterKey?.toString("hex"),
+    operatorHeaders.cookie,
+    operatorHeaders["x-quality-bar-csrf"],
+    token,
+  ]) {
+    assert.equal(typeof secret, "string");
+    assert.doesNotMatch(ordinaryArtifacts, new RegExp(secret));
   }
 });
 

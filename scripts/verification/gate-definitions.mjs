@@ -349,7 +349,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-machine-repository-guidance-repository-lifecycle-and-forgejo-connection-lifecycle-http-resource-boundary",
+        "review-assignment-version-machine-repository-guidance-repository-lifecycle-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",

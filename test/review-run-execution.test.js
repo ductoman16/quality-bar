@@ -6,6 +6,7 @@ import {
   executeReviewRun,
 } from "../src/review-run-execution.js";
 import { ReviewRunCheckoutError } from "../src/review-run-checkout.js";
+import { ReviewRunExecutionError } from "../src/review-run-result.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -153,4 +154,75 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
   );
   assert.equal(started, false);
   assert.equal(launched, false);
+});
+
+test("cleanup failure cannot replace the exact owning execution failure", async () => {
+  const executionFailure = new ReviewRunExecutionError(
+    "configuration_unavailable",
+    "Network-disabled Codex launch could not be constructed",
+  );
+  const cleanupFailure = new ReviewRunCheckoutError(
+    "review_run_checkout_failed",
+    "Review Run checkout cleanup failed",
+  );
+  await assert.rejects(
+    () =>
+      executeReviewRun(durableCore(), claim, {
+        claimService: {
+          start() {},
+          startRenewal() {
+            return () => {};
+          },
+        },
+        async prepareCheckout() {
+          return {
+            path: "/checkout",
+            remove() {
+              throw cleanupFailure;
+            },
+          };
+        },
+        resultService: { submit() {} },
+        async runCodex() {
+          throw executionFailure;
+        },
+      }),
+    (error) => {
+      assert.equal(error, executionFailure);
+      assert.equal(
+        /** @type {any} */ (error).checkoutCleanupFailure,
+        cleanupFailure,
+      );
+      return true;
+    },
+  );
+});
+
+test("cleanup failure after an accepted Result remains an exact hard failure", async () => {
+  const cleanupFailure = new ReviewRunCheckoutError(
+    "review_run_checkout_failed",
+    "Review Run checkout cleanup failed",
+  );
+  await assert.rejects(
+    () =>
+      executeReviewRun(durableCore(), claim, {
+        claimService: {
+          start() {},
+          startRenewal() {
+            return () => {};
+          },
+        },
+        async prepareCheckout() {
+          return {
+            path: "/checkout",
+            remove() {
+              throw cleanupFailure;
+            },
+          };
+        },
+        resultService: { submit() {} },
+        async runCodex() {},
+      }),
+    (error) => error === cleanupFailure,
+  );
 });

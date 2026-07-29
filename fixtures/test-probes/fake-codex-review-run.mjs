@@ -8,10 +8,13 @@ const environmentNames = Object.keys(process.env);
 if (
   arguments_[0] !== "--ignore-user-config" ||
   !arguments_.includes("exec") ||
+  !arguments_.includes("--ignore-rules") ||
+  !arguments_.includes("--json") ||
   !arguments_.includes("--sandbox") ||
   !arguments_.includes("workspace-write") ||
   !arguments_.includes('approval_policy="never"') ||
   !arguments_.includes("sandbox_workspace_write.network_access=false") ||
+  !arguments_.includes("project_doc_max_bytes=0") ||
   !prompt.startsWith("Quality Bar Review Run contract\n") ||
   !prompt.includes('"base_commit":"') ||
   !prompt.includes('"head_commit":"') ||
@@ -38,7 +41,16 @@ if (typeof submitPath !== "string" || submitPath.length === 0) {
   throw new Error("fake_codex_review_run_submission_path_missing");
 }
 writeFileSync("codex-scratch.txt", "not a Result\n");
-process.stdout.write("Review complete in prose only.\n");
+process.stdout.write(
+  `${JSON.stringify({
+    item: {
+      id: "fake-message",
+      text: "Review complete in prose only.",
+      type: "agent_message",
+    },
+    type: "item.completed",
+  })}\n`,
+);
 let invalidFailure = "";
 try {
   execFileSync(process.execPath, [submitPath], {
