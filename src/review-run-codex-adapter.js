@@ -266,7 +266,12 @@ export async function runReviewRunCodex({
     } finally {
       clearDeadlineTimer(deadlineTimer);
     }
-    if (closesSubmissionForCancellationOrDeadline(terminal.kind)) {
+    const failedSubmission =
+      terminal.kind === "submission" && terminal.result === "failed";
+    if (
+      closesSubmissionForCancellationOrDeadline(terminal.kind) ||
+      failedSubmission
+    ) {
       try {
         await closeSubmissionChannel();
       } catch (error) {
@@ -302,7 +307,9 @@ export async function runReviewRunCodex({
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
     if (
-      (accepted || closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
+      (accepted ||
+        failedSubmission ||
+        closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
       !transcriptTermination
     ) {
       try {
@@ -326,6 +333,17 @@ export async function runReviewRunCodex({
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
+      if (failedSubmission) {
+        const owningFailure = createSubmissionFailure(
+          channel.failure() ?? new TypeError("Review Run submission failed"),
+        );
+        Object.defineProperty(owningFailure, "processTerminationFailure", {
+          configurable: true,
+          enumerable: false,
+          value: acceptedTerminationFailure,
+        });
+        throw owningFailure;
+      }
       if (deadlineFailure) {
         const failure =
           acceptedTerminationFailure instanceof Error
@@ -379,7 +397,7 @@ export async function runReviewRunCodex({
     if (submissionFailure) {
       throw createSubmissionFailure(submissionFailure);
     }
-    if (terminal.kind === "submission" && terminal.result === "failed") {
+    if (failedSubmission) {
       throw createSubmissionFailure(
         new TypeError("Review Run submission failed"),
       );

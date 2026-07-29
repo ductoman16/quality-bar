@@ -250,16 +250,50 @@ test("maps an uncoded submission-channel failure without exposing its detail", a
   );
 });
 
-test("maps a failed submission terminal without a channel failure", async () => {
+test("a failed submission terminal closes and terminates a running Codex process", async () => {
+  /** @type {string[]} */
+  const events = [];
+  /** @type {unknown[]} */
+  const evidence = [];
+  const child = Object.assign(new EventEmitter(), {
+    pid: 79,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
   await assert.rejects(
     () =>
       runReviewRunCodex({
         checkoutPath: "/checkout",
         claim,
-        openSubmissionChannel: async () => channel({ result: "failed" }),
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete(evidenceClaim, facts) {
+            assert.deepEqual(evidenceClaim, claim);
+            events.push("evidence");
+            evidence.push(facts);
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -79);
+          if (signal === "SIGTERM") {
+            events.push("SIGTERM");
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          ...channel({ result: "failed" }),
+          async close() {
+            events.push("close");
+          },
+        }),
         resultService: { prepare() {} },
         run,
-        spawnProcess: () => /** @type {any} */ (processThatExitsWithStderr("")),
+        spawnProcess: () => /** @type {any} */ (child),
       }),
     (error) => {
       assert.ok(error instanceof ReviewRunExecutionError);
@@ -268,6 +302,18 @@ test("maps a failed submission terminal without a channel failure", async () => 
       return true;
     },
   );
+  assert.deepEqual(events, ["close", "SIGTERM", "evidence"]);
+  assert.deepEqual(evidence, [
+    {
+      exitCode: null,
+      signal: "SIGTERM",
+      tokenCounters: {
+        cached_input_tokens: null,
+        input_tokens: null,
+        output_tokens: null,
+      },
+    },
+  ]);
 });
 
 test("preserves a coded submission storage failure", async () => {
