@@ -1,5 +1,12 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
+/** @param {unknown} recordDeadline */
+export function requireDeadlineRecorder(recordDeadline) {
+  if (typeof recordDeadline !== "function") {
+    throw new TypeError("Review Run deadline recorder is required");
+  }
+}
+
 /** @param {boolean} deadlineExpired @param {boolean} accepted */
 export function createDeadlineFailure(deadlineExpired, accepted) {
   return deadlineExpired && !accepted
@@ -31,7 +38,7 @@ export function captureDeadlineRecordingFailure(
 /**
  * @param {Error} deadlineFailure
  * @param {unknown} recordingFailure
- * @param {{evidenceCompletionFailure: unknown, submissionFailure: unknown}} diagnostics
+ * @param {{evidenceCompletionFailure: unknown, submissionFailure: unknown, transcriptFailure: unknown}} diagnostics
  */
 export function attachDeadlineCleanupFailures(
   deadlineFailure,
@@ -52,6 +59,13 @@ export function attachDeadlineCleanupFailures(
       configurable: true,
       enumerable: false,
       value: diagnostics.submissionFailure,
+    });
+  }
+  if (diagnostics.transcriptFailure instanceof Error) {
+    Object.defineProperty(owningFailure, "transcriptFailure", {
+      configurable: true,
+      enumerable: false,
+      value: diagnostics.transcriptFailure,
     });
   }
   return owningFailure;

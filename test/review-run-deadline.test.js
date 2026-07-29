@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { runReviewRunCodex as runCodexAdapter } from "../src/review-run-codex-adapter.js";
 import {
   acceptedChannel,
   claim,
@@ -8,6 +9,27 @@ import {
   runningProcess,
   runReviewRunCodex,
 } from "./review-run-codex-adapter-support.js";
+
+test("the exported adapter requires durable deadline recording before opening submission", async () => {
+  let submissionOpened = false;
+  await assert.rejects(
+    () =>
+      runCodexAdapter(
+        /** @type {any} */ ({
+          checkoutPath: "/checkout",
+          claim,
+          openSubmissionChannel() {
+            submissionOpened = true;
+          },
+          resultService: { prepare() {} },
+          run,
+          startRun() {},
+        }),
+      ),
+    /Review Run deadline recorder is required/,
+  );
+  assert.equal(submissionOpened, false);
+});
 
 test("process-group signaling failure cannot replace the recorded deadline", async () => {
   /** @type {(string | number)[]} */
@@ -69,6 +91,7 @@ test("post-deadline evidence and submission failures remain diagnostics on the d
   const child = runningProcess(85);
   const evidenceFailure = new Error("evidence completion failed");
   const submissionFailure = new Error("submission channel failed");
+  const transcriptFailure = new Error("transcript append failed");
   /** @type {Error | undefined} */
   let recordedDeadline;
   await assert.rejects(
@@ -80,6 +103,7 @@ test("post-deadline evidence and submission failures remain diagnostics on the d
         killProcessGroup(pid, signal) {
           assert.equal(pid, -85);
           if (signal === "SIGTERM") {
+            child.stdout.write("late transcript");
             queueMicrotask(() => child.emit("close", null, "SIGTERM"));
             return;
           }
@@ -88,7 +112,9 @@ test("post-deadline evidence and submission failures remain diagnostics on the d
           });
         },
         evidenceService: {
-          appendTranscriptChunk() {},
+          appendTranscriptChunk() {
+            throw transcriptFailure;
+          },
           complete() {
             throw evidenceFailure;
           },
@@ -119,6 +145,10 @@ test("post-deadline evidence and submission failures remain diagnostics on the d
       assert.equal(
         /** @type {any} */ (error).submissionFailure,
         submissionFailure,
+      );
+      assert.equal(
+        /** @type {any} */ (error).transcriptFailure,
+        transcriptFailure,
       );
       return true;
     },

@@ -2,11 +2,7 @@ import { spawn } from "node:child_process";
 import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
-import {
-  attachDeadlineCleanupFailures,
-  captureDeadlineRecordingFailure,
-  createDeadlineFailure,
-} from "./review-run-deadline.js";
+import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
@@ -148,7 +144,7 @@ export function reviewRunCodexEnvironment(
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},
- *   recordDeadline?: (failure: ReviewRunExecutionError) => unknown,
+ *   recordDeadline: (failure: ReviewRunExecutionError) => unknown,
  *   startRun: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
@@ -182,7 +178,7 @@ export async function runReviewRunCodex({
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
-  recordDeadline = () => {},
+  recordDeadline,
   resultService,
   run,
   setDeadlineTimer = setTimeout,
@@ -190,6 +186,7 @@ export async function runReviewRunCodex({
   spawnProcess = spawn,
   startRun,
 }) {
+  deadline.requireDeadlineRecorder(recordDeadline);
   const channel = await openSubmissionChannel(claim, resultService);
   /** @type {Promise<void> | undefined} */
   let channelClose;
@@ -351,11 +348,11 @@ export async function runReviewRunCodex({
     if (terminal.kind === "deadline" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
-    const deadlineFailure = createDeadlineFailure(
+    const deadlineFailure = deadline.createDeadlineFailure(
       terminal.kind === "deadline",
       accepted,
     );
-    const deadlineRecordingFailure = captureDeadlineRecordingFailure(
+    const deadlineRecordingFailure = deadline.captureDeadlineRecordingFailure(
       recordDeadline,
       deadlineFailure,
     );
@@ -377,7 +374,7 @@ export async function runReviewRunCodex({
       }
     }
     await transcriptTermination;
-    if (transcriptFailure) {
+    if (transcriptFailure && !deadlineFailure) {
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
@@ -413,10 +410,10 @@ export async function runReviewRunCodex({
     );
     const submissionFailure = channel.failure();
     if (deadlineFailure) {
-      throw attachDeadlineCleanupFailures(
+      throw deadline.attachDeadlineCleanupFailures(
         deadlineFailure,
         deadlineRecordingFailure,
-        { evidenceCompletionFailure, submissionFailure },
+        { evidenceCompletionFailure, submissionFailure, transcriptFailure },
       );
     }
     if (evidenceCompletionFailure) {

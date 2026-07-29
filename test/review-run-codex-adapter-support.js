@@ -45,6 +45,10 @@ export function runningProcess(pid) {
   });
 }
 
-/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "startRun"> & {startRun?: () => unknown}} options */
+/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "recordDeadline" | "startRun"> & {recordDeadline?: Parameters<typeof runCodexAdapter>[0]["recordDeadline"], startRun?: () => unknown}} options */
 export const runReviewRunCodex = (options) =>
-  runCodexAdapter({ ...options, startRun: options.startRun ?? (() => {}) });
+  runCodexAdapter({
+    ...options,
+    recordDeadline: options.recordDeadline ?? (() => {}),
+    startRun: options.startRun ?? (() => {}),
+  });
