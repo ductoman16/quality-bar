@@ -288,9 +288,11 @@ export async function runReviewRunCodex({
     }
     let stdout = "";
     let stderr = "";
+    let processClosed = false;
     const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
       child.once("close", (code, signal) => {
+        processClosed = true;
         resolve({ code, signal, stderr, stdout });
       });
     });
@@ -376,6 +378,8 @@ export async function runReviewRunCodex({
     if (terminal.kind === "process" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
+    /** @type {Error | undefined} */
+    let acceptedTerminationFailure;
     if (accepted && !transcriptTermination) {
       try {
         await terminateCodexProcessGroup(
@@ -386,16 +390,27 @@ export async function runReviewRunCodex({
           clearTerminationTimer,
         );
       } catch (error) {
-        diagnosticFailures.push(
+        const failure =
           error instanceof Error
             ? error
-            : new TypeError("Codex process-group termination failed"),
-        );
+            : new TypeError("Codex process-group termination failed");
+        if (processClosed) {
+          diagnosticFailures.push(failure);
+        } else {
+          acceptedTerminationFailure = failure;
+        }
       }
     }
     await transcriptTermination;
     if (transcriptFailure) {
       throw transcriptFailure;
+    }
+    if (acceptedTerminationFailure) {
+      fail(
+        "codex_process_failed",
+        "Codex Review Run process-group termination failed",
+        acceptedTerminationFailure,
+      );
     }
     const terminalProcess =
       terminal.kind === "process" ? terminal.result : await processResult;

@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
+import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
@@ -158,27 +159,34 @@ test("an already-exited process group cannot overturn an accepted Result", async
   });
 });
 
-test("termination failure stays diagnostic after an accepted Result", async () => {
-  const terminationFailure = Object.assign(new Error("kill not permitted"), {
-    code: "EPERM",
-  });
-  const child = runningProcess(78);
-  assert.deepEqual(
-    await runReviewRunCodex({
-      checkoutPath: "/checkout",
-      claim,
-      killProcessGroup() {
-        queueMicrotask(() => child.emit("close", null, "SIGTERM"));
-        throw terminationFailure;
-      },
-      openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { prepare() {} },
-      run,
-      spawnProcess: () => /** @type {any} */ (child),
-    }),
-    { diagnosticFailures: [terminationFailure] },
-  );
-});
+test(
+  "termination failure surfaces without waiting for process close after an accepted Result",
+  { timeout: 1_000 },
+  async () => {
+    const terminationFailure = Object.assign(new Error("kill not permitted"), {
+      code: "EPERM",
+    });
+    const child = runningProcess(78);
+    await assert.rejects(
+      () =>
+        runReviewRunCodex({
+          checkoutPath: "/checkout",
+          claim,
+          killProcessGroup() {
+            throw terminationFailure;
+          },
+          openSubmissionChannel: async () => acceptedChannel(),
+          resultService: { prepare() {} },
+          run,
+          spawnProcess: () => /** @type {any} */ (child),
+        }),
+      (error) =>
+        error instanceof ReviewRunExecutionError &&
+        error.code === "codex_process_failed" &&
+        error.cause === terminationFailure,
+    );
+  },
+);
 
 test("permission-denied liveness still attempts the survivor force-kill", async () => {
   /** @type {(string | number)[]} */
