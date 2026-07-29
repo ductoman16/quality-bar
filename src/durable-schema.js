@@ -30,7 +30,11 @@ import {
 } from "./forgejo-polling-schema.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
-import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
+import {
+  EVALUATION_SCHEMA,
+  FINDING_RESULT_MIGRATION,
+} from "./evaluation-schema.js";
+import { reviewRunResultColumnMigration } from "./review-run-result-schema-migration.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -94,20 +98,6 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
-
-/** @param {import("node:sqlite").DatabaseSync} database */
-function reviewRunResultColumnMigration(database) {
-  const columns = new Set(
-    database
-      .prepare("PRAGMA table_info(review_runs)")
-      .all()
-      .map((column) => column.name),
-  );
-  return `
-    ${columns.has("started_at") ? "" : "ALTER TABLE review_runs ADD COLUMN started_at INTEGER;"}
-    ${columns.has("completed_at") ? "" : "ALTER TABLE review_runs ADD COLUMN completed_at INTEGER;"}
-  `;
-}
 
 export function initializeOrValidateSchema(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
@@ -359,6 +349,8 @@ export function initializeOrValidateSchema(
       database,
       reviewRunResultColumnMigration(database),
     );
+  } else if (version === 26) {
+    schemaMigration.migrateSchema(database, FINDING_RESULT_MIGRATION);
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

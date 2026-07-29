@@ -15,7 +15,7 @@ import {
 import { createReviewService } from "../src/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
-test("the first valid fenced submission creates the sole clear Evaluation Result", async (context) => {
+test("the first valid fenced submission atomically creates triggered Findings with inherited impact", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -72,21 +72,56 @@ test("the first valid fenced submission creates the sole clear Evaluation Result
   const claim = claims.claimNext();
   assert.ok(claim);
   claims.start(claim);
-  const results = createReviewRunResultService(core, { now: () => 30 });
+  let finding = 0;
+  const results = createReviewRunResultService(core, {
+    createFindingId: () => `finding-${++finding}`,
+    now: () => 30,
+  });
+  const fileChanges = [
+    {
+      after_path: "src/current.js",
+      base_line_count: 2,
+      before_path: "src/previous.js",
+      head_line_count: 3,
+      id: "file-change-1",
+      patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+    },
+  ];
 
   assert.throws(
     () =>
-      results.submit(claim, {
-        criterion_results: [
-          {
-            criterion_id: review.active_version.criteria[0].id,
-            outcome: "clear",
-          },
-        ],
-      }),
+      results.submit(
+        claim,
+        {
+          criterion_results: [
+            {
+              criterion_id: review.active_version.criteria[0].id,
+              findings: [
+                {
+                  evidence: "The submitted range invents a head line.",
+                  location: {
+                    end_line: 4,
+                    file_change_id: "file-change-1",
+                    kind: "line_range",
+                    side: "head",
+                    start_line: 4,
+                  },
+                  remediation: "Use an inclusive range within the frozen side.",
+                },
+              ],
+              outcome: "triggered",
+            },
+            {
+              criterion_id: review.active_version.criteria[1].id,
+              outcome: "clear",
+            },
+          ],
+        },
+        fileChanges,
+      ),
     (error) =>
       error instanceof ReviewRunExecutionError &&
-      error.code === "criterion_result_coverage_invalid",
+      error.code === "finding_location_line_range_invalid",
   );
   assert.equal(
     core.get("SELECT count(*) AS count FROM criterion_results")?.count,
@@ -96,13 +131,41 @@ test("the first valid fenced submission creates the sole clear Evaluation Result
     core.get("SELECT count(*) AS count FROM evaluation_results")?.count,
     0,
   );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM evaluation_file_changes")?.count,
+    0,
+  );
 
-  results.submit(claim, {
-    criterion_results: review.active_version.criteria.map(({ id }) => ({
-      criterion_id: id,
-      outcome: "clear",
-    })),
-  });
+  results.submit(
+    claim,
+    {
+      criterion_results: [
+        {
+          criterion_id: review.active_version.criteria[0].id,
+          findings: [
+            {
+              evidence: "The changed branch returns stale state.",
+              location: {
+                end_line: 3,
+                file_change_id: "file-change-1",
+                kind: "line_range",
+                side: "head",
+                start_line: 2,
+              },
+              remediation: "Return the newly computed state.",
+            },
+          ],
+          outcome: "triggered",
+        },
+        {
+          criterion_id: review.active_version.criteria[1].id,
+          outcome: "clear",
+        },
+      ],
+    },
+    fileChanges,
+  );
   assert.deepEqual(
     createEvaluationService(core, {
       acquireChangeset: async () => {
@@ -115,14 +178,46 @@ test("the first valid fenced submission creates the sole clear Evaluation Result
     {
       applicability_results: [],
       completed_at: "1970-01-01T00:00:00.030Z",
-      criterion_results: review.active_version.criteria.map(({ id }) => ({
-        criterion_id: id,
-        outcome: "clear",
-        review_run_id: "review-run-1",
-      })),
+      criterion_results: [
+        {
+          criterion_id: review.active_version.criteria[0].id,
+          outcome: "triggered",
+          review_run_id: "review-run-1",
+        },
+        {
+          criterion_id: review.active_version.criteria[1].id,
+          outcome: "clear",
+          review_run_id: "review-run-1",
+        },
+      ],
       evaluation_id: "evaluation-1",
-      findings: [],
-      outcome: "clear",
+      file_changes: [
+        {
+          after_path: "src/current.js",
+          before_path: "src/previous.js",
+          id: "file-change-1",
+          patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+        },
+      ],
+      findings: [
+        {
+          criterion_id: review.active_version.criteria[0].id,
+          evidence: "The changed branch returns stale state.",
+          id: "finding-1",
+          impact: "blocking",
+          location: {
+            end_line: 3,
+            file_change_id: "file-change-1",
+            kind: "line_range",
+            path: "src/current.js",
+            side: "head",
+            start_line: 2,
+          },
+          remediation: "Return the newly computed state.",
+          review_run_id: "review-run-1",
+        },
+      ],
+      outcome: "blocking",
       review_runs: [
         {
           completed_at: "1970-01-01T00:00:00.030Z",
@@ -137,12 +232,16 @@ test("the first valid fenced submission creates the sole clear Evaluation Result
   );
   assert.throws(
     () =>
-      results.submit(claim, {
-        criterion_results: review.active_version.criteria.map(({ id }) => ({
-          criterion_id: id,
-          outcome: "clear",
-        })),
-      }),
+      results.submit(
+        claim,
+        {
+          criterion_results: review.active_version.criteria.map(({ id }) => ({
+            criterion_id: id,
+            outcome: "clear",
+          })),
+        },
+        fileChanges,
+      ),
     (error) =>
       error instanceof ReviewRunExecutionError &&
       error.code === "submission_channel_closed",
@@ -180,6 +279,7 @@ test("an exact Review Run boundary failure creates no partial or fallback Result
           path: "/discarded-checkout",
           remove() {},
         }),
+        readFileChanges: () => [],
         resultService: createReviewRunResultService(core, { now: () => 30 }),
         async runCodex() {
           throw failure;

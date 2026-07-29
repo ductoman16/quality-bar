@@ -15,21 +15,26 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   },
   {
     name: "review-run-result-unit",
-    testGroup: "complete-clear-criterion-result-validation",
+    testGroup:
+      "complete-clear-and-triggered-criterion-result-finding-location-validation",
     failureCode: "review_run_result_unit_tests_failed",
     arguments: ["--test", "test/review-run-result.test.js"],
   },
   {
     name: "review-run-checkout-git-integration",
     testGroup:
-      "fresh-writable-disposable-frozen-commit-and-credential-free-checkout-boundary",
+      "fresh-writable-disposable-frozen-commit-credential-free-checkout-and-honest-file-change-coordinate-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
-    arguments: ["--test", "test/review-run-checkout-git-integration.test.js"],
+    arguments: [
+      "--test",
+      "test/review-run-checkout-git-integration.test.js",
+      "test/review-run-file-changes-git-integration.test.js",
+    ],
   },
   {
     name: "review-run-result-sqlite-integration",
     testGroup:
-      "first-valid-fenced-clear-result-no-fallback-boundary-failure-and-v25-migration-boundary",
+      "first-valid-fenced-clear-or-triggered-result-opaque-finding-identity-inherited-impact-no-fallback-boundary-failure-and-v26-migration-boundary",
     failureCode: "review_run_result_sqlite_integration_tests_failed",
     arguments: [
       "--test",

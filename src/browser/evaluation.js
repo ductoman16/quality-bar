@@ -20,6 +20,18 @@ const more = operator.requiredElement("evaluation-more");
 const creationStatus = operator.requiredElement("evaluation-create-status");
 /** @type {string | null} */
 let nextCursor = null;
+const renderedEvaluationIds = new Set();
+const focusSearch =
+  typeof window.location?.search === "string" ? window.location.search : "";
+
+/** @param {string} name */
+function focusValue(name) {
+  const match = new RegExp("(?:^|[?&])" + name + "=([^&]*)").exec(focusSearch);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** @param {unknown} value */
+const nullableString = (value) => value === null || typeof value === "string";
 
 /** @param {string} id */
 function controlValue(id) {
@@ -28,6 +40,158 @@ function controlValue(id) {
     throw new Error("evaluation_control_unavailable");
   }
   return control.value;
+}
+
+/** @param {any} location */
+function locationText(location) {
+  if (location.kind === "changeset") {
+    return "Changeset";
+  }
+  const side = location.side + " " + location.path;
+  return location.kind === "line_range"
+    ? side + ":" + location.start_line + "-" + location.end_line
+    : side;
+}
+
+/** @param {string} evaluationId @param {any} finding */
+function findingLocation(evaluationId, finding) {
+  const location = finding.location;
+  const text = locationText(location);
+  if (location.kind === "changeset") {
+    const value = document.createElement("span");
+    value.textContent = text;
+    return value;
+  }
+  const link = document.createElement("a");
+  const lineQuery =
+    location.kind === "line_range"
+      ? "&start_line=" +
+        encodeURIComponent(location.start_line) +
+        "&end_line=" +
+        encodeURIComponent(location.end_line)
+      : "";
+  link.href =
+    "/?view=evaluations&evaluation_id=" +
+    encodeURIComponent(evaluationId) +
+    "&file_change_id=" +
+    encodeURIComponent(location.file_change_id) +
+    "&side=" +
+    encodeURIComponent(location.side) +
+    lineQuery;
+  link.textContent = text;
+  return link;
+}
+
+/** @param {any} result @param {any} location */
+function frozenDiff(result, location) {
+  const fileChange = result.file_changes.find(
+    /** @param {any} candidate */
+    (candidate) => candidate.id === location.file_change_id,
+  );
+  if (
+    !fileChange ||
+    typeof fileChange.patch !== "string" ||
+    !nullableString(fileChange.before_path) ||
+    !nullableString(fileChange.after_path)
+  ) {
+    throw new Error("evaluation_result_invalid");
+  }
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "Frozen diff — " + locationText(location);
+  details.append(summary);
+  const patch = document.createElement("pre");
+  patch.textContent = fileChange.patch;
+  details.append(patch);
+  return details;
+}
+
+/** @param {any} target @param {any} evaluation @param {any} result */
+function renderResult(target, evaluation, result) {
+  if (
+    !result ||
+    typeof result.outcome !== "string" ||
+    !Array.isArray(result.criterion_results) ||
+    !Array.isArray(result.file_changes) ||
+    !Array.isArray(result.findings) ||
+    !Array.isArray(result.review_runs)
+  ) {
+    throw new Error("evaluation_result_invalid");
+  }
+  target.textContent = "Result " + result.outcome;
+  for (const criterion of result.criterion_results) {
+    const run = result.review_runs.find(
+      /** @param {any} candidate */
+      (candidate) => candidate.id === criterion.review_run_id,
+    );
+    if (
+      typeof criterion.criterion_id !== "string" ||
+      typeof criterion.outcome !== "string" ||
+      typeof run?.review_id !== "string" ||
+      typeof run.review_version_id !== "string"
+    ) {
+      throw new Error("evaluation_result_invalid");
+    }
+    const criterionDetails = document.createElement("details");
+    const criterionSummary = document.createElement("summary");
+    criterionSummary.textContent =
+      "Criterion " +
+      criterion.criterion_id +
+      " — " +
+      criterion.outcome +
+      " — Review " +
+      run.review_id +
+      " " +
+      run.review_version_id;
+    criterionDetails.append(criterionSummary);
+    for (const finding of result.findings.filter(
+      /** @param {any} candidate */
+      (candidate) =>
+        candidate.review_run_id === criterion.review_run_id &&
+        candidate.criterion_id === criterion.criterion_id,
+    )) {
+      if (
+        typeof finding.id !== "string" ||
+        typeof finding.impact !== "string" ||
+        typeof finding.evidence !== "string" ||
+        typeof finding.remediation !== "string" ||
+        typeof finding.location?.kind !== "string"
+      ) {
+        throw new Error("evaluation_result_invalid");
+      }
+      const findingDetails = document.createElement("details");
+      const findingSummary = document.createElement("summary");
+      findingSummary.textContent =
+        "Finding " + finding.id + " — " + finding.impact;
+      findingDetails.append(findingSummary);
+      for (const [label, value] of [
+        ["Evidence", finding.evidence],
+        ["Remediation", finding.remediation],
+      ]) {
+        const fact = document.createElement("p");
+        fact.textContent = label + ": " + value;
+        findingDetails.append(fact);
+      }
+      findingDetails.append(findingLocation(evaluation.id, finding));
+      const location = finding.location;
+      if (
+        focusValue("evaluation_id") === evaluation.id &&
+        focusValue("file_change_id") === location.file_change_id &&
+        focusValue("side") === location.side &&
+        (location.kind !== "line_range" ||
+          (focusValue("start_line") === String(location.start_line) &&
+            focusValue("end_line") === String(location.end_line)))
+      ) {
+        criterionDetails.open = true;
+        findingDetails.open = true;
+        const diff = frozenDiff(result, location);
+        diff.open = true;
+        findingDetails.append(diff);
+      }
+      criterionDetails.append(findingDetails);
+    }
+    target.append(criterionDetails);
+  }
 }
 
 /** @param {any} evaluation */
@@ -44,14 +208,14 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.head_commit !== "string" ||
     typeof evaluation.execution_status !== "string" ||
     typeof evaluation.effective_outcome !== "string" ||
-    !(
-      evaluation.next_attempt_at === undefined ||
-      evaluation.next_attempt_at === null ||
-      typeof evaluation.next_attempt_at === "string"
-    )
+    !nullableString(evaluation.next_attempt_at ?? null)
   ) {
     throw new Error("evaluation_collection_invalid");
   }
+  if (renderedEvaluationIds.has(evaluation.id)) {
+    return;
+  }
+  renderedEvaluationIds.add(evaluation.id);
   const summary =
     evaluation.repository.url +
     " — explicit " +
@@ -113,12 +277,31 @@ async function renderEvaluation(evaluation) {
     }
     return;
   }
+  let result;
   try {
-    const result = await resultResponse.json();
-    resultState.textContent = "Result " + JSON.stringify(result);
+    result = await resultResponse.json();
   } catch {
     resultState.textContent = "Result failed to load";
+    return;
   }
+  renderResult(resultState, evaluation, result);
+}
+
+async function loadFocusedEvaluation() {
+  const evaluationId = focusValue("evaluation_id");
+  if (evaluationId === null || renderedEvaluationIds.has(evaluationId)) {
+    return;
+  }
+  const response = await fetch(
+    "/api/v1/evaluations/" + encodeURIComponent(evaluationId),
+  );
+  if (!response.ok) {
+    const failure = await response.json();
+    state.hidden = false;
+    state.textContent = failure.error.message;
+    return;
+  }
+  await renderEvaluation(await response.json());
 }
 
 /** @param {string | undefined} cursor */
@@ -132,6 +315,7 @@ async function loadEvaluations(cursor = undefined) {
     active.replaceChildren();
     recent.replaceChildren();
     attention.replaceChildren();
+    renderedEvaluationIds.clear();
   }
   more.disabled = true;
   let response;
@@ -169,6 +353,9 @@ async function loadEvaluations(cursor = undefined) {
   }
   empty.hidden = !initial || collection.items.length !== 0;
   await Promise.all(collection.items.map(renderEvaluation));
+  if (initial) {
+    await loadFocusedEvaluation();
+  }
   nextCursor = collection.next_cursor;
   more.hidden = nextCursor === null;
   more.disabled = false;

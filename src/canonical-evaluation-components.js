@@ -98,13 +98,69 @@ export function canonicalEvaluationSchemas() {
       },
       ["items", "next_cursor"],
     ),
-    ClearCriterionResult: closedObject(
+    CriterionResult: closedObject(
       {
         criterion_id: { minLength: 1, type: "string" },
-        outcome: { const: "clear", type: "string" },
+        outcome: { enum: ["clear", "triggered"], type: "string" },
         review_run_id: { minLength: 1, type: "string" },
       },
       ["review_run_id", "criterion_id", "outcome"],
+    ),
+    FindingLocation: {
+      oneOf: [
+        closedObject(
+          {
+            end_line: { minimum: 1, type: "integer" },
+            file_change_id: { minLength: 1, type: "string" },
+            kind: { const: "line_range", type: "string" },
+            path: { minLength: 1, type: "string" },
+            side: { enum: ["base", "head"], type: "string" },
+            start_line: { minimum: 1, type: "integer" },
+          },
+          ["kind", "file_change_id", "side", "path", "start_line", "end_line"],
+        ),
+        closedObject(
+          {
+            file_change_id: { minLength: 1, type: "string" },
+            kind: { const: "whole_side", type: "string" },
+            path: { minLength: 1, type: "string" },
+            side: { enum: ["base", "head"], type: "string" },
+          },
+          ["kind", "file_change_id", "side", "path"],
+        ),
+        closedObject({ kind: { const: "changeset", type: "string" } }, [
+          "kind",
+        ]),
+      ],
+    },
+    Finding: closedObject(
+      {
+        criterion_id: { minLength: 1, type: "string" },
+        evidence: { minLength: 1, type: "string" },
+        id: { minLength: 1, type: "string" },
+        impact: { enum: ["advisory", "blocking"], type: "string" },
+        location: { $ref: "#/components/schemas/FindingLocation" },
+        remediation: { minLength: 1, type: "string" },
+        review_run_id: { minLength: 1, type: "string" },
+      },
+      [
+        "id",
+        "review_run_id",
+        "criterion_id",
+        "impact",
+        "evidence",
+        "remediation",
+        "location",
+      ],
+    ),
+    EvaluationFileChange: closedObject(
+      {
+        after_path: { type: ["string", "null"] },
+        before_path: { type: ["string", "null"] },
+        id: { minLength: 1, type: "string" },
+        patch: { type: "string" },
+      },
+      ["id", "before_path", "after_path", "patch"],
     ),
     CompletedReviewRun: closedObject(
       {
@@ -129,12 +185,22 @@ export function canonicalEvaluationSchemas() {
         applicability_results: emptyCollection,
         completed_at: { format: "date-time", type: "string" },
         criterion_results: {
-          items: { $ref: "#/components/schemas/ClearCriterionResult" },
+          items: { $ref: "#/components/schemas/CriterionResult" },
           type: "array",
         },
         evaluation_id: { minLength: 1, type: "string" },
-        findings: emptyCollection,
-        outcome: { const: "clear", type: "string" },
+        file_changes: {
+          items: { $ref: "#/components/schemas/EvaluationFileChange" },
+          type: "array",
+        },
+        findings: {
+          items: { $ref: "#/components/schemas/Finding" },
+          type: "array",
+        },
+        outcome: {
+          enum: ["clear", "advisory", "blocking", "error"],
+          type: "string",
+        },
         review_runs: {
           items: { $ref: "#/components/schemas/CompletedReviewRun" },
           type: "array",
@@ -147,6 +213,7 @@ export function canonicalEvaluationSchemas() {
         "applicability_results",
         "review_runs",
         "criterion_results",
+        "file_changes",
         "findings",
       ],
     ),

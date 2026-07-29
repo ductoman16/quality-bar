@@ -89,7 +89,7 @@ test("restores a compatible current snapshot produced by the genuine v6 migratio
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 26);
+    assert.equal(migrated.facts.schemaVersion, 27);
     assert.match(
       String(
         migrated.get(

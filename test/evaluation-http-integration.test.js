@@ -105,6 +105,7 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     completed_at: "1970-01-01T00:00:01.000Z",
     criterion_results: [],
     evaluation_id: "evaluation-1",
+    file_changes: [],
     findings: [],
     outcome: "clear",
     review_runs: [],

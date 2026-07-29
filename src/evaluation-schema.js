@@ -61,8 +61,50 @@ export const EVALUATION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS criterion_results (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),
     criterion_id TEXT NOT NULL REFERENCES criteria(id),
-    outcome TEXT NOT NULL CHECK (outcome = 'clear'),
+    outcome TEXT NOT NULL CHECK (outcome IN ('clear', 'triggered')),
     PRIMARY KEY (review_run_id, criterion_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS evaluation_file_changes (
+    evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+    id TEXT NOT NULL,
+    before_path TEXT,
+    after_path TEXT,
+    base_line_count INTEGER CHECK (base_line_count IS NULL OR base_line_count >= 0),
+    head_line_count INTEGER CHECK (head_line_count IS NULL OR head_line_count >= 0),
+    patch TEXT NOT NULL,
+    PRIMARY KEY (evaluation_id, id),
+    CHECK (before_path IS NOT NULL OR after_path IS NOT NULL)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS findings (
+    id TEXT PRIMARY KEY,
+    evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+    review_run_id TEXT NOT NULL,
+    criterion_id TEXT NOT NULL,
+    evidence TEXT NOT NULL CHECK (length(trim(evidence)) > 0),
+    remediation TEXT NOT NULL CHECK (length(trim(remediation)) > 0),
+    location_kind TEXT NOT NULL
+      CHECK (location_kind IN ('line_range', 'whole_side', 'changeset')),
+    file_change_id TEXT,
+    side TEXT CHECK (side IN ('base', 'head')),
+    start_line INTEGER CHECK (start_line IS NULL OR start_line > 0),
+    end_line INTEGER CHECK (end_line IS NULL OR end_line >= start_line),
+    FOREIGN KEY (review_run_id, criterion_id)
+      REFERENCES criterion_results(review_run_id, criterion_id),
+    FOREIGN KEY (evaluation_id, file_change_id)
+      REFERENCES evaluation_file_changes(evaluation_id, id),
+    CHECK (
+      (location_kind = 'changeset'
+        AND file_change_id IS NULL AND side IS NULL
+        AND start_line IS NULL AND end_line IS NULL)
+      OR
+      (location_kind = 'whole_side'
+        AND file_change_id IS NOT NULL AND side IS NOT NULL
+        AND start_line IS NULL AND end_line IS NULL)
+      OR
+      (location_kind = 'line_range'
+        AND file_change_id IS NOT NULL AND side IS NOT NULL
+        AND start_line IS NOT NULL AND end_line IS NOT NULL)
+    )
   ) STRICT;
   CREATE TABLE IF NOT EXISTS codex_execution_queue (
     work_id TEXT PRIMARY KEY REFERENCES review_runs(id),
@@ -131,6 +173,18 @@ export const EVALUATION_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS criterion_result_immutable_delete
     BEFORE DELETE ON criterion_results
     BEGIN SELECT RAISE(ABORT, 'criterion_result_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS evaluation_file_change_immutable_update
+    BEFORE UPDATE ON evaluation_file_changes
+    BEGIN SELECT RAISE(ABORT, 'evaluation_file_change_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS evaluation_file_change_immutable_delete
+    BEFORE DELETE ON evaluation_file_changes
+    BEGIN SELECT RAISE(ABORT, 'evaluation_file_change_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS finding_immutable_update
+    BEFORE UPDATE ON findings
+    BEGIN SELECT RAISE(ABORT, 'finding_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS finding_immutable_delete
+    BEFORE DELETE ON findings
+    BEGIN SELECT RAISE(ABORT, 'finding_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
     BEFORE UPDATE OF work_id, work_kind, accepted_at
     ON codex_execution_queue
@@ -156,4 +210,20 @@ export const EVALUATION_SCHEMA = `
       )
     )
     BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
+`;
+
+export const FINDING_RESULT_MIGRATION = `
+  DROP TRIGGER criterion_result_immutable_update;
+  DROP TRIGGER criterion_result_immutable_delete;
+  ALTER TABLE criterion_results RENAME TO criterion_results_v27;
+  CREATE TABLE criterion_results (
+    review_run_id TEXT NOT NULL REFERENCES review_runs(id),
+    criterion_id TEXT NOT NULL REFERENCES criteria(id),
+    outcome TEXT NOT NULL CHECK (outcome IN ('clear', 'triggered')),
+    PRIMARY KEY (review_run_id, criterion_id)
+  ) STRICT;
+  INSERT INTO criterion_results (review_run_id, criterion_id, outcome)
+  SELECT review_run_id, criterion_id, outcome
+  FROM criterion_results_v27;
+  DROP TABLE criterion_results_v27;
 `;

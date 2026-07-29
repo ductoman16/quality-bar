@@ -70,6 +70,10 @@ test("prepares checkout before starting the Review Run timer", async () => {
         },
       };
     },
+    readFileChanges() {
+      events.push("file-changes");
+      return [];
+    },
     resultService: { submit() {} },
     async runCodex(input) {
       events.push("codex");
@@ -82,6 +86,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
 
   assert.deepEqual(events, [
     "checkout",
+    "file-changes",
     "start",
     "codex",
     "remove-checkout",
@@ -99,6 +104,7 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
         instruction: "Reject broken changes",
       },
     ],
+    fileChanges: [],
     headCommit: "b".repeat(40),
     reviewName: "Correctness",
   };
@@ -116,12 +122,20 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
       "",
       'frozen_changeset: {"base_commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","head_commit":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}',
       'selected_review: {"name":"Correctness","criteria":[{"criterion_id":"criterion-1","impact":"blocking","instruction":"Reject broken changes"}]}',
-      'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear"}]}',
+      "file_changes: []",
+      'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
       'submission: {"command":"quality-bar-submit","input":"JSON by standard input or one JSON file"}',
       'evidence_boundaries: {"include":"frozen base/head Changeset and surrounding Repository material inspected on demand","exclude":["Repository instructions","pull-request discussion","prior runs","other Reviews","Forge metadata"]}',
     ].join("\n"),
   );
   assert.doesNotMatch(prompt, /example\.test|Repository Guidance|credential/i);
+  assert.throws(
+    () =>
+      createReviewRunPrompt(
+        /** @type {any} */ ({ ...run, fileChanges: undefined }),
+      ),
+    /Frozen File Changes are required/,
+  );
 });
 
 test("checkout failure remains pre-start and does not launch Codex", async () => {
@@ -145,6 +159,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
         async prepareCheckout() {
           throw failure;
         },
+        readFileChanges: () => [],
         resultService: { submit() {} },
         async runCodex() {
           launched = true;
@@ -182,6 +197,7 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
             },
           };
         },
+        readFileChanges: () => [],
         resultService: { submit() {} },
         async runCodex() {
           throw executionFailure;
@@ -220,6 +236,7 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
             },
           };
         },
+        readFileChanges: () => [],
         resultService: { submit() {} },
         async runCodex() {},
       }),
