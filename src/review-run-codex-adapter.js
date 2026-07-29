@@ -14,7 +14,11 @@ import {
   createCodexProcessFailure,
   createSubmissionFailure,
 } from "./review-run-codex-failure.js";
-import { observeCodexProcess } from "./review-run-codex-process.js";
+import {
+  createCodexLaunchFailure,
+  createTranscriptFailureController,
+  observeCodexProcess,
+} from "./review-run-codex-process.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
@@ -160,11 +164,12 @@ export async function runReviewRunCodex({
       });
     } catch (cause) {
       clearDeadlineTimer(deadlineTimer);
-      fail(
-        "codex_process_failed",
-        "Codex Review Run process could not start",
+      throw createCodexLaunchFailure({
         cause,
-      );
+        claim,
+        environment: channel.environment,
+        evidenceService,
+      });
     }
     let [stdout, stderr] = ["", ""];
     const {
@@ -179,45 +184,17 @@ export async function runReviewRunCodex({
       setTerminationTimer,
       clearTerminationTimer,
     });
-    /** @type {unknown} */
-    let transcriptFailure;
-    /** @type {Promise<void> | undefined} */
-    let transcriptTermination;
-    /** @type {(value: void | PromiseLike<void>) => void} */
-    let resolveTranscriptFailure;
-    const transcriptFailureSignal = new Promise((resolve) => {
-      resolveTranscriptFailure = resolve;
+    const transcript = createTranscriptFailureController({
+      closeSubmissionChannel,
+      diagnosticFailures,
+      terminateProcessGroup,
     });
-    /** @param {unknown} error */
-    function stopAfterTranscriptFailure(error) {
-      if (transcriptFailure) {
-        return;
-      }
-      transcriptFailure = error;
-      resolveTranscriptFailure(undefined);
-      transcriptTermination = terminateProcessGroup().catch(
-        (terminationFailure) => {
-          const failure =
-            terminationFailure instanceof Error
-              ? terminationFailure
-              : new TypeError("Codex process-group termination failed");
-          diagnosticFailures.push(failure);
-          if (transcriptFailure instanceof Error) {
-            attachDiagnostic(
-              transcriptFailure,
-              "processTerminationFailure",
-              failure,
-            );
-          }
-        },
-      );
-    }
     child.stdout?.setEncoding("utf8").on("data", (chunk) => {
       stdout += chunk;
       try {
         evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
       } catch (error) {
-        stopAfterTranscriptFailure(error);
+        transcript.stop(error);
       }
     });
     child.stderr?.setEncoding("utf8").on("data", (chunk) => {
@@ -225,7 +202,7 @@ export async function runReviewRunCodex({
       try {
         evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
       } catch (error) {
-        stopAfterTranscriptFailure(error);
+        transcript.stop(error);
       }
     });
     /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "process-error" } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
@@ -246,7 +223,7 @@ export async function runReviewRunCodex({
           kind: /** @type {const} */ ("submission"),
           result,
         })),
-        transcriptFailureSignal.then(() => ({
+        transcript.signal.then(() => ({
           kind: /** @type {const} */ ("transcript"),
         })),
         deadlineSignal.then(() => ({
@@ -267,7 +244,9 @@ export async function runReviewRunCodex({
     const processError = terminal.kind === "process-error";
     if (
       closesSubmissionForCancellationOrDeadline(terminal.kind) ||
-      failedSubmission
+      failedSubmission ||
+      processError ||
+      terminal.kind === "transcript"
     ) {
       try {
         await closeSubmissionChannel();
@@ -285,7 +264,7 @@ export async function runReviewRunCodex({
     }
     let accepted =
       terminal.kind === "submission" && terminal.result === "accepted";
-    if ((terminal.kind === "process" || processError) && channel.accepted()) {
+    if (terminal.kind === "process" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
     if (terminal.kind === "deadline" && channel.accepted()) {
@@ -310,7 +289,7 @@ export async function runReviewRunCodex({
         failedSubmission ||
         processError ||
         closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
-      !transcriptTermination
+      !transcript.termination()
     ) {
       try {
         await terminateProcessGroup();
@@ -332,8 +311,17 @@ export async function runReviewRunCodex({
         }
       }
     }
-    await transcriptTermination;
-    if (transcriptFailure && !deadlineFailure && !failedSubmission) {
+    await transcript.termination();
+    const transcriptFailure = transcript.failure();
+    if (transcriptFailure && terminal.kind === "cancellation") {
+      diagnosticFailures.push(
+        transcriptFailure instanceof Error
+          ? transcriptFailure
+          : new TypeError("Review Run transcript persistence failed", {
+              cause: transcriptFailure,
+            }),
+      );
+    } else if (transcriptFailure && !deadlineFailure && !failedSubmission) {
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {

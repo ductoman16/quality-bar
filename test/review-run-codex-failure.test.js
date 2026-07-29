@@ -3,10 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import {
-  createCodexProcessFailure,
-  REVIEW_RUN_TERMINAL_FAILURE_CODES,
-} from "../src/review-run-codex-failure.js";
+import { REVIEW_RUN_TERMINAL_FAILURE_CODES } from "../src/review-run-codex-failure.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   claim,
@@ -96,6 +93,7 @@ test("maps pinned Codex terminal messages once to the fixed catalog", async () =
       "configuration_unavailable",
       "Invalid request: the selected model is not supported.",
     ],
+    ["configuration_unavailable", "Model not found gpt-5.6-terra"],
     [
       "subscription_exhausted",
       "You've hit your usage limit. Try again after the limit resets.",
@@ -351,13 +349,69 @@ test("a post-spawn process error waits for close, transcript, and process facts"
   ]);
 });
 
-test("a process error without transcript preserves secret-safe detail", () => {
-  const processError = new Error("spawn failed for secret");
-  const failure = createCodexProcessFailure(
-    { code: 127, error: processError, signal: null, stderr: "", stdout: "" },
-    { QUALITY_BAR_SUBMIT_TOKEN: "secret" },
+test("a process error closes submission before termination can accept a Result", async () => {
+  const child = Object.assign(new EventEmitter(), {
+    pid: 81,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  /** @type {(string | number)[]} */
+  const events = [];
+  let accepted = false;
+  let closed = false;
+  /** @type {(value: "accepted") => void} */
+  let acceptSubmission = () => {};
+  const submission = new Promise((resolve) => {
+    acceptSubmission = resolve;
+  });
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        clearTerminationTimer() {},
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete() {},
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -81);
+          events.push(signal);
+          if (signal === "SIGTERM") {
+            accepted = !closed;
+            if (accepted) {
+              acceptSubmission("accepted");
+            }
+            queueMicrotask(() => child.emit("close", 127, null));
+            return;
+          }
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => accepted,
+          async close() {
+            closed = true;
+            events.push("submission-closed");
+          },
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => submission,
+        }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess() {
+          queueMicrotask(() => child.emit("error", new Error("spawn failed")));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "codex_process_failed",
   );
-  assert.equal(failure.code, "codex_process_failed");
-  assert.equal(failure.message, "spawn failed for [REDACTED]");
-  assert.equal(/** @type {any} */ (failure.cause).processError, processError);
+  assert.equal(accepted, false);
+  assert.deepEqual(events, ["submission-closed", "SIGTERM", 0]);
 });

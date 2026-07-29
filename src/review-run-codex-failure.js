@@ -49,7 +49,7 @@ const FAILURE_PATTERNS = Object.freeze([
   Object.freeze({
     code: "configuration_unavailable",
     pattern:
-      /\b(?:bad request|configuration|invalid request|model is not supported|unsupported operation)\b/i,
+      /\b(?:bad request|configuration|invalid request|model is not supported|model not found|unsupported operation)\b/i,
   }),
 ]);
 

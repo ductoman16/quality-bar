@@ -1,3 +1,116 @@
+import {
+  attachFailureDiagnostic,
+  createCodexProcessFailure,
+} from "./review-run-codex-failure.js";
+import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
+
+/**
+ * @param {{
+ *   cause: unknown,
+ *   claim: unknown,
+ *   environment: Record<string, string>,
+ *   evidenceService: {complete: (claim: any, facts: any) => unknown},
+ * }} input
+ */
+export function createCodexLaunchFailure({
+  cause,
+  claim,
+  environment,
+  evidenceService,
+}) {
+  const processError =
+    cause instanceof Error
+      ? cause
+      : new TypeError("Codex Review Run process could not start", { cause });
+  const failedProcess = {
+    code: null,
+    error: processError,
+    signal: null,
+    stderr: "",
+    stdout: "",
+  };
+  const failure = createCodexProcessFailure(failedProcess, environment);
+  const evidenceFailure = captureEvidenceCompletionFailure(
+    evidenceService,
+    claim,
+    failedProcess,
+    "",
+  );
+  if (evidenceFailure) {
+    attachFailureDiagnostic(
+      failure,
+      "evidenceCompletionFailure",
+      evidenceFailure,
+    );
+  }
+  return failure;
+}
+
+/**
+ * @param {{
+ *   closeSubmissionChannel: () => Promise<void>,
+ *   diagnosticFailures: Error[],
+ *   terminateProcessGroup: () => Promise<void>,
+ * }} input
+ */
+export function createTranscriptFailureController({
+  closeSubmissionChannel,
+  diagnosticFailures,
+  terminateProcessGroup,
+}) {
+  /** @type {unknown} */
+  let failure;
+  /** @type {Promise<void> | undefined} */
+  let termination;
+  /** @type {(value: void | PromiseLike<void>) => void} */
+  let signalFailure;
+  const signal = new Promise((resolve) => {
+    signalFailure = resolve;
+  });
+  return {
+    failure: () => failure,
+    signal,
+    /** @param {unknown} error */
+    stop(error) {
+      if (failure) {
+        return;
+      }
+      failure = error;
+      signalFailure(undefined);
+      termination = (async () => {
+        try {
+          await closeSubmissionChannel();
+        } catch (submissionCloseFailure) {
+          if (failure instanceof Error) {
+            attachFailureDiagnostic(
+              failure,
+              "submissionChannelCleanupFailure",
+              submissionCloseFailure,
+            );
+          }
+        }
+        try {
+          await terminateProcessGroup();
+        } catch (terminationFailure) {
+          const diagnostic =
+            terminationFailure instanceof Error
+              ? terminationFailure
+              : new TypeError("Codex process-group termination failed");
+          diagnosticFailures.push(diagnostic);
+          if (failure instanceof Error) {
+            attachFailureDiagnostic(
+              failure,
+              "processTerminationFailure",
+              diagnostic,
+            );
+          }
+        }
+      })();
+    },
+    termination: () => termination,
+  };
+}
+
 /**
  * @param {import("node:child_process").ChildProcess} child
  * @param {() => {stderr: string, stdout: string}} readTranscript
