@@ -199,20 +199,21 @@ function verifyAuthenticationFailure({ core, claim }) {
      ORDER BY sequence`,
     claim.workId,
   );
-  assert.ok(
-    transcript.some(
-      (/** @type {any} */ chunk) =>
-        chunk.stream === "stdout" &&
-        chunk.content ===
-          '{"error":{"message":"You must be logged in to use Codex. Run codex login."},"type":"turn.failed"}\n',
-    ),
+  const stdout = transcript
+    .filter((/** @type {any} */ chunk) => chunk.stream === "stdout")
+    .map((/** @type {any} */ chunk) => chunk.content)
+    .join("");
+  const stderr = transcript
+    .filter((/** @type {any} */ chunk) => chunk.stream === "stderr")
+    .map((/** @type {any} */ chunk) => chunk.content)
+    .join("");
+  assert.equal(
+    stdout,
+    '{"error":{"message":"You must be logged in to use Codex. Run codex login."},"type":"turn.failed"}\n',
   );
-  assert.ok(
-    transcript.some(
-      (/** @type {any} */ chunk) =>
-        chunk.stream === "stderr" &&
-        chunk.content === "fake Codex authentication diagnostic\n",
-    ),
+  assert.equal(
+    stderr.slice(0, "fake Codex authentication diagnostic\n".length),
+    "fake Codex authentication diagnostic\n",
   );
   assert.deepEqual(
     core.get(

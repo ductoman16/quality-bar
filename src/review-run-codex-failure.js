@@ -179,7 +179,7 @@ export function createSubmissionFailure(failure) {
   if (
     failure instanceof Error &&
     "code" in failure &&
-    typeof failure.code === "string"
+    failure.code === "storage_unavailable"
   ) {
     return failure;
   }

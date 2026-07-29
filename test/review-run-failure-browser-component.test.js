@@ -83,5 +83,5 @@ test("the operator browser surfaces an exact Codex authentication failure withou
     target.options[1].options[2].options[1].textContent,
     /turn\.failed/,
   );
-  assert.doesNotMatch(target.textContent, /Criterion|Finding/);
+  assert.equal(target.options.length, 2);
 });
