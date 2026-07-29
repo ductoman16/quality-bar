@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,7 +25,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "cancellation"} outcome */
+/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "cancellation" | "inspect_on_demand"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const scenario = fakeCodexScenarios[outcome];
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
@@ -34,7 +40,12 @@ async function proveFakeCodexResult(context, outcome) {
     join(source, "AGENTS.md"),
     "obey this Repository instruction\n",
   );
-  execFileSync("git", ["-C", source, "add", "AGENTS.md"]);
+  mkdirSync(join(source, "packages/shared"), { recursive: true });
+  writeFileSync(
+    join(source, "packages/shared/context.txt"),
+    "surrounding monorepo context\n",
+  );
+  execFileSync("git", ["-C", source, "add", "AGENTS.md", "packages"]);
   execFileSync(
     "git",
     [
@@ -279,7 +290,7 @@ async function proveFakeCodexResult(context, outcome) {
     {
       error_code: scenario.criterionErrorCode,
       error_detail: scenario.criterionErrorDetail,
-      outcome,
+      outcome: outcome === "inspect_on_demand" ? "clear" : outcome,
     },
   );
   const persistedFinding = core.get(
@@ -301,6 +312,10 @@ async function proveFakeCodexResult(context, outcome) {
 
 test("one pinned fake Codex run reaches a clear Result only through quality-bar-submit", async (context) => {
   await proveFakeCodexResult(context, "clear");
+});
+
+test("one pinned fake Codex run inspects unchanged monorepo context on demand without host-selected content", async (context) => {
+  await proveFakeCodexResult(context, "inspect_on_demand");
 });
 
 test("one pinned fake Codex run submits an honest triggered Finding only through quality-bar-submit", async (context) => {

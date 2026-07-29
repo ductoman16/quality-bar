@@ -262,7 +262,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-review-run-deadline-failure-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-deadline-failure-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",

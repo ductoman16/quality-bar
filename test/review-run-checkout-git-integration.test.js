@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -52,6 +53,54 @@ test("checkout preparation creates a fresh disposable frozen-head checkout with 
   execFileSync("git", ["init", "--initial-branch=main", source], {
     stdio: "ignore",
   });
+  const submodule = join(directory, "submodule");
+  execFileSync("git", ["init", "--initial-branch=main", submodule], {
+    stdio: "ignore",
+  });
+  commit(submodule, "external.txt", "external contents\n", "external");
+  mkdirSync(join(source, "packages"), { recursive: true });
+  for (let index = 0; index < 128; index += 1) {
+    writeFileSync(
+      join(source, "packages", `unchanged-${index}.txt`),
+      `surrounding context ${index}\n`,
+    );
+  }
+  writeFileSync(
+    join(source, ".gitattributes"),
+    "*.lfs filter=lfs diff=lfs merge=lfs -text\n",
+  );
+  writeFileSync(
+    join(source, "artifact.lfs"),
+    [
+      "version https://git-lfs.github.com/spec/v1",
+      `oid sha256:${"a".repeat(64)}`,
+      "size 999999999",
+      "",
+    ].join("\n"),
+  );
+  execFileSync(
+    "git",
+    [
+      "-C",
+      source,
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      "--quiet",
+      submodule,
+      "vendor/external",
+    ],
+    { stdio: "ignore" },
+  );
+  execFileSync("git", [
+    "-C",
+    source,
+    "add",
+    ".gitattributes",
+    "artifact.lfs",
+    "packages",
+  ]);
   const base = commit(source, "reviewed.txt", "base\n", "base");
   writeFileSync(join(source, "untracked.txt"), "must not escape\n");
   const head = commit(source, "reviewed.txt", "head\n", "head");
@@ -70,6 +119,18 @@ test("checkout preparation creates a fresh disposable frozen-head checkout with 
     "head\n",
   );
   assert.equal(existsSync(join(prepared.path, "untracked.txt")), false);
+  assert.equal(
+    readFileSync(join(prepared.path, "packages", "unchanged-127.txt"), "utf8"),
+    "surrounding context 127\n",
+  );
+  assert.match(
+    readFileSync(join(prepared.path, "artifact.lfs"), "utf8"),
+    /^version https:\/\/git-lfs\.github\.com\/spec\/v1\n/,
+  );
+  assert.equal(
+    existsSync(join(prepared.path, "vendor", "external", "external.txt")),
+    false,
+  );
   assert.equal(
     execFileSync(
       "git",
@@ -143,6 +204,10 @@ test("credentialed checkout keeps credentials out of Git arguments, environment,
   assert.doesNotMatch(
     JSON.stringify(captures),
     /private-git-token-value|private-git-user/,
+  );
+  assert.equal(
+    JSON.stringify(captures).match(/"GIT_LFS_SKIP_SMUDGE":"1"/g)?.length,
+    captures.length,
   );
   assert.doesNotMatch(
     readFileSync(join(prepared.path, ".git", "config"), "utf8"),
