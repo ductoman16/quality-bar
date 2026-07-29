@@ -60,11 +60,25 @@ function processThatFailsWithJsonl() {
   return process;
 }
 
-/** @param {{accepted?: boolean, failure?: Error | null}} [options] */
-function channel({ accepted = false, failure = null } = {}) {
+/**
+ * @param {{
+ *   accepted?: boolean,
+ *   closeFailure?: Error | null,
+ *   failure?: Error | null
+ * }} [options]
+ */
+function channel({
+  accepted = false,
+  closeFailure = null,
+  failure = null,
+} = {}) {
   return {
     accepted: () => accepted,
-    async close() {},
+    async close() {
+      if (closeFailure) {
+        throw closeFailure;
+      }
+    },
     commandDirectory: "/submit-bin",
     environment: {
       QUALITY_BAR_SUBMIT_SOCKET: "/socket",
@@ -271,5 +285,47 @@ test("preserves an unexpected submission storage failure", async () => {
         spawnProcess: () => /** @type {any} */ (processThatExits(1)),
       }),
     (error) => error === storageFailure,
+  );
+});
+
+test("channel cleanup cannot replace the exact owning process failure", async () => {
+  const cleanupFailure = new Error("submission directory removal failed");
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () =>
+          channel({ closeFailure: cleanupFailure }),
+        resultService: { submit() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (processThatExits(2)),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "codex_process_failed");
+      assert.equal(
+        /** @type {any} */ (error).submissionChannelCleanupFailure,
+        cleanupFailure,
+      );
+      return true;
+    },
+  );
+});
+
+test("channel cleanup failure after an accepted Result remains a hard failure", async () => {
+  const cleanupFailure = new Error("submission directory removal failed");
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () =>
+          channel({ accepted: true, closeFailure: cleanupFailure }),
+        resultService: { submit() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (processThatExits(0)),
+      }),
+    (error) => error === cleanupFailure,
   );
 });

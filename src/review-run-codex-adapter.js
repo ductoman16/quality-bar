@@ -159,6 +159,7 @@ export async function runReviewRunCodex({
   spawnProcess = spawn,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
+  let executionFailure;
   try {
     const arguments_ = [
       ...codexPrefixArguments,
@@ -217,7 +218,30 @@ export async function runReviewRunCodex({
         new CodexProcessExitError(processResult),
       );
     }
-  } finally {
+  } catch (error) {
+    executionFailure = error;
+  }
+  let cleanupFailure;
+  try {
     await channel.close();
+  } catch (error) {
+    cleanupFailure = error;
+  }
+  if (executionFailure instanceof Error) {
+    if (cleanupFailure) {
+      Object.defineProperty(
+        executionFailure,
+        "submissionChannelCleanupFailure",
+        {
+          configurable: true,
+          enumerable: false,
+          value: cleanupFailure,
+        },
+      );
+    }
+    throw executionFailure;
+  }
+  if (cleanupFailure) {
+    throw cleanupFailure;
   }
 }
