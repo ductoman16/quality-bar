@@ -57,6 +57,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-run-evidence-adapter.test.js",
   "test/review-run-evidence.test.js",
   "test/review-run-execution.test.js",
+  "test/review-run-inspect-on-demand.test.js",
   "test/review-run-submission-channel.test.js",
   "test/repository-collection.test.js",
   "test/repository-selector.test.js",

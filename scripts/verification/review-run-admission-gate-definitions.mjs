@@ -6,7 +6,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-execution-unit",
     testGroup:
-      "review-run-pre-start-prompt-credential-exclusion-transcript-terminal-counter-first-valid-submission-channel-closure-fixed-independent-fifteen-minute-deadlines-and-codex-process-group-termination-boundaries",
+      "review-run-pre-start-git-native-inspect-on-demand-no-host-content-selection-unavailable-material-error-prompt-credential-exclusion-transcript-terminal-counter-first-valid-submission-channel-closure-fixed-independent-fifteen-minute-deadlines-and-codex-process-group-termination-boundaries",
     failureCode: "review_run_execution_unit_tests_failed",
     arguments: [
       "--test",
@@ -15,6 +15,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/review-run-deadline.test.js",
       "test/review-run-evidence-adapter.test.js",
       "test/review-run-execution.test.js",
+      "test/review-run-inspect-on-demand.test.js",
       "test/review-run-evidence.test.js",
       "test/review-run-submission-channel.test.js",
     ],
@@ -33,7 +34,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-checkout-git-integration",
     testGroup:
-      "fresh-writable-disposable-frozen-commit-credential-free-checkout-before-review-run-deadline-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-kind-sides-and-exact-criterion-result-coverage-boundary",
+      "fresh-writable-disposable-frozen-commit-large-repository-unchanged-context-lfs-pointer-no-smudge-uninitialized-submodule-credential-free-checkout-before-review-run-deadline-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-kind-sides-and-exact-criterion-result-coverage-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
     arguments: [
       "--test",

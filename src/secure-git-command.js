@@ -64,6 +64,7 @@ export function runGitCommand({
         env: {
           GIT_CONFIG_GLOBAL: "/dev/null",
           GIT_CONFIG_NOSYSTEM: "1",
+          GIT_LFS_SKIP_SMUDGE: "1",
           GIT_NO_REPLACE_OBJECTS: "1",
           GIT_TERMINAL_PROMPT: "0",
           LC_ALL: "C",

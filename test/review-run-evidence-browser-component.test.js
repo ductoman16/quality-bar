@@ -6,6 +6,83 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
+test("the operator browser preserves an exact unavailable-material Criterion error without partial Findings", async () => {
+  const target = browserElement();
+  const context = /** @type {any} */ ({
+    document: {
+      createElement() {
+        return browserElement();
+      },
+    },
+    async fetch() {
+      return {
+        ok: true,
+        async json() {
+          return {
+            codex_cli_version: "0.145.0",
+            completed_at: "2026-07-28T12:00:01.000Z",
+            duration_ms: 1_000,
+            process: { code: 0, kind: "exit" },
+            review_run_id: "review-run-large",
+            started_at: "2026-07-28T12:00:00.000Z",
+            token_counters: {
+              cached_input_tokens: null,
+              input_tokens: null,
+              output_tokens: null,
+            },
+            transcript_chunks: [],
+          };
+        },
+      };
+    },
+    window: {},
+  });
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-result.js",
+    readBrowserAsset("/assets/evaluation-result.js"),
+    context,
+  );
+  await context.window.qualityBarEvaluationResult.render(
+    target,
+    { id: "evaluation-large" },
+    {
+      applicability_results: [],
+      criterion_results: [
+        {
+          criterion_id: "criterion-binary",
+          error: {
+            code: "required_evidence_unavailable",
+            detail:
+              "The Criterion requires binary contents that are unavailable.",
+          },
+          outcome: "error",
+          review_run_id: "review-run-large",
+        },
+      ],
+      file_changes: [],
+      findings: [],
+      outcome: "error",
+      review_runs: [
+        {
+          id: "review-run-large",
+          review_id: "review-large",
+          review_version_id: "review-version-large",
+          status: "completed",
+        },
+      ],
+    },
+    "",
+  );
+
+  assert.equal(
+    target.options[0].options[1].textContent,
+    "Error required_evidence_unavailable: The Criterion requires binary contents that are unavailable.",
+  );
+  assert.equal(target.textContent, "Result error");
+  assert.equal(target.options.length, 2);
+});
+
 test("the operator browser renders raw Review Run diagnostics without configuration attestation", async () => {
   const target = browserElement();
   const context = /** @type {any} */ ({

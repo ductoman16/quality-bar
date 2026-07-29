@@ -185,6 +185,13 @@ export const fakeCodexScenarios = Object.freeze({
     execute: failedExecution("storage_unavailable"),
     verifySpecialResult: verifyEvidenceFailure,
   },
+  inspect_on_demand: {
+    ...common,
+    arguments: ["--fake-inspect-on-demand"],
+    criterionErrorCode: null,
+    criterionErrorDetail: null,
+    evaluationOutcome: "clear",
+  },
   not_applicable: {
     ...common,
     arguments: ["--fake-not-applicable"],
