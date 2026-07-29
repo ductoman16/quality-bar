@@ -67,7 +67,16 @@ export function canonicalEvaluationSchemas() {
         next_attempt_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
         },
-        provenance: { const: "explicit", type: "string" },
+        provenance: {
+          enum: ["automatic", "explicit"],
+          type: "string",
+        },
+        pull_request: closedObject(
+          {
+            number: { minimum: 1, type: "integer" },
+          },
+          ["number"],
+        ),
         repository: closedObject(
           {
             id: { minLength: 1, type: "string" },

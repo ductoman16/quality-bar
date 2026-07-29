@@ -210,7 +210,7 @@ export function matchWorkflowResource(uri) {
  * @param {NonNullable<ReturnType<typeof matchWorkflowResource>>} match
  * @param {{
  *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
- *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors">,
+ *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>
  * }} dependencies
  */

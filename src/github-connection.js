@@ -26,10 +26,12 @@ import { createGitHubRepositoryGitCredential } from "./github-repository-git-cre
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
 /** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
-/** @param {any} durableCore @param {{createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
+/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
   {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
     createId = randomUUID,
     externalOrigin,
     masterKey,
@@ -81,6 +83,8 @@ export function createGitHubConnectionService(
     return value;
   }
   const polling = createGitHubPollingRunner(durableCore, {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
     cipher,
     storageReserve,
     timestamp,

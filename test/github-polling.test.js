@@ -11,19 +11,10 @@ import {
 } from "../src/github-polling.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { readGitHubPollingFailure } from "../src/github-polling-read.js";
-import { createAvailableGitHubPollingRunner as createGitHubPollingRunner } from "./storage-reserve-support.js";
-
-/** @param {number} number */
-function pullRequest(number) {
-  return {
-    base: { sha: "a".repeat(40) },
-    draft: false,
-    head: { sha: "b".repeat(40) },
-    merged_at: null,
-    number,
-    state: "open",
-  };
-}
+import {
+  createAvailableGitHubPollingRunner as createGitHubPollingRunner,
+  githubPullRequest as pullRequest,
+} from "./storage-reserve-support.js";
 
 test("a complete GitHub baseline absorbs every page before it makes polling effective", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-poll-"));
@@ -300,6 +291,12 @@ test("due GitHub polling reconciles only enabled healthy state and persists its 
   /** @type {GitHubConnectionError | null} */
   let providerFailure = null;
   const runner = createGitHubPollingRunner(core, {
+    acquirePullRequestChangeset: async () => ({
+      base_commit: "a".repeat(40),
+      head_commit: "b".repeat(40),
+      release() {},
+    }),
+    admitAutomaticEvaluation() {},
     cipher: {
       decrypt() {
         if (credentialFailure) {

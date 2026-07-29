@@ -32,6 +32,29 @@ export const availableStorageReserve =
     })
   );
 
+export const githubAutomaticEvaluationTestDependencies = Object.freeze({
+  async acquirePullRequestChangeset() {
+    return {
+      base_commit: "a".repeat(40),
+      head_commit: "b".repeat(40),
+      release() {},
+    };
+  },
+  admitAutomaticEvaluation() {},
+});
+
+/** @param {number} number */
+export function githubPullRequest(number) {
+  return {
+    base: { sha: "a".repeat(40) },
+    draft: false,
+    head: { sha: "b".repeat(40) },
+    merged_at: null,
+    number,
+    state: "open",
+  };
+}
+
 /**
  * @param {Parameters<typeof createForgejoService>[0]} durableCore
  * @param {Omit<Parameters<typeof createForgejoService>[1], "storageReserve">} options
@@ -45,10 +68,11 @@ export function createAvailableForgejoConnectionService(durableCore, options) {
 
 /**
  * @param {Parameters<typeof createGitHubService>[0]} durableCore
- * @param {Omit<Parameters<typeof createGitHubService>[1], "storageReserve">} options
+ * @param {Omit<Parameters<typeof createGitHubService>[1], "acquirePullRequestChangeset" | "admitAutomaticEvaluation" | "storageReserve"> & Partial<Pick<Parameters<typeof createGitHubService>[1], "acquirePullRequestChangeset" | "admitAutomaticEvaluation" | "storageReserve">>} options
  */
 export function createAvailableGitHubConnectionService(durableCore, options) {
   return createGitHubService(durableCore, {
+    ...githubAutomaticEvaluationTestDependencies,
     ...options,
     storageReserve: availableStorageReserve,
   });
@@ -56,10 +80,11 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
 
 /**
  * @param {Parameters<typeof createGitHubRunner>[0]} durableCore
- * @param {Omit<Parameters<typeof createGitHubRunner>[1], "storageReserve">} options
+ * @param {Omit<Parameters<typeof createGitHubRunner>[1], "acquirePullRequestChangeset" | "admitAutomaticEvaluation" | "storageReserve"> & Partial<Pick<Parameters<typeof createGitHubRunner>[1], "acquirePullRequestChangeset" | "admitAutomaticEvaluation" | "storageReserve">>} options
  */
 export function createAvailableGitHubPollingRunner(durableCore, options) {
   return createGitHubRunner(durableCore, {
+    ...githubAutomaticEvaluationTestDependencies,
     ...options,
     storageReserve: availableStorageReserve,
   });

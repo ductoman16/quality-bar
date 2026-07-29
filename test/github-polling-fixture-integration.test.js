@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 
 import { createGitHubVerifier } from "../src/github-api.js";
+import { newlyEligibleGitHubPullRequests } from "../src/github-automatic-evaluation.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 
 const permissions = {
@@ -72,6 +73,33 @@ test("GitHub polling fixture completes every pull-request page", async () => {
     "GET:/repos/operator/private/pulls?state=all&per_page=100&page=2",
   ]);
   assert.equal(snapshot[0].state, "closed");
+});
+
+test("GitHub fixture observes a draft becoming ready as newly eligible", async () => {
+  let draft = true;
+  const verifier = createGitHubVerifier({
+    async fetch(url) {
+      const requestUrl = new URL(url);
+      if (requestUrl.pathname.endsWith("/access_tokens")) {
+        return Response.json({ permissions, token: "installation-token" });
+      }
+      return Response.json([{ ...pullRequest(1), draft }]);
+    },
+  });
+  const previous = await verifier.listPullRequests(credential(), 73, {
+    full_name: "operator/private",
+  });
+  draft = false;
+  const current = await verifier.listPullRequests(credential(), 73, {
+    full_name: "operator/private",
+  });
+
+  assert.deepEqual(
+    newlyEligibleGitHubPullRequests(previous, current).map(
+      ({ number }) => number,
+    ),
+    [1],
+  );
 });
 
 test("GitHub polling fixture rejects truncated pagination and incomplete state", async () => {

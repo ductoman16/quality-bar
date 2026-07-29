@@ -9,6 +9,8 @@ const DEFINITIVE_FAILURES = new Set([
   "github_permissions_mismatch",
   "github_principal_mismatch",
   "github_repository_api_access_failed",
+  "repository_authentication_failed",
+  "repository_permission_denied",
 ]);
 
 /** @param {{code?: string}} failure */

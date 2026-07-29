@@ -1,11 +1,11 @@
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  createAvailableGitHubConnectionService as createGitHubConnectionService,
+} from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  GitHubConnectionError,
-  createGitHubConnectionService,
-} from "../src/github-connection.js";
+import { GitHubConnectionError } from "../src/github-connection.js";
 
 function createCore() {
   /** @type {any[]} */

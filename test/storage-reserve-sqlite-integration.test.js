@@ -21,7 +21,10 @@ import {
   forgejoVerification,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
-import { seedDueGitHubPoll } from "./storage-reserve-support.js";
+import {
+  githubAutomaticEvaluationTestDependencies,
+  seedDueGitHubPoll,
+} from "./storage-reserve-support.js";
 
 /** @param {number} number */
 function pullRequest(number) {
@@ -263,6 +266,7 @@ test("GitHub provider and credential failures advance nothing after reserve loss
     }
   }
   const runner = createGitHubPollingRunner(core, {
+    ...githubAutomaticEvaluationTestDependencies,
     cipher: {
       decrypt() {
         if (credentialFailure) {

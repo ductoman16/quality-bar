@@ -201,7 +201,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "core-unit-contracts-including-runtime-storage-reserve-forgejo-polling-and-waivers",
+        "core-unit-contracts-including-runtime-storage-reserve-github-automatic-evaluation-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -245,6 +245,7 @@ export function createGateDefinitions(metadata) {
         "test/github-callback-failure.test.js",
         "test/github-connection.test.js",
         "test/github-repository-selection.test.js",
+        "test/github-automatic-evaluation.test.js",
         "test/github-polling-state.test.js",
         "test/forgejo-connection-lifecycle.test.js",
         "test/forgejo-connection.test.js",
@@ -257,7 +258,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-automatic-and-explicit-evaluation-provenance-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -296,7 +297,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "github-fixture-integration",
       testGroup:
-        "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-atomic-selection-enumeration-and-private-git-boundary",
+        "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-draft-to-ready-observation-atomic-selection-enumeration-and-private-git-boundary",
       failureCode: "github_fixture_integration_tests_failed",
       arguments: [
         "--test",
@@ -309,7 +310,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "git-integration",
       testGroup:
-        "generic-and-github-app-https-repository-read-guidance-assignment-retirement-reactivation-deletion-and-polling-object-identity-boundary",
+        "generic-and-github-app-https-repository-read-guidance-assignment-retirement-reactivation-deletion-polling-object-identity-pull-request-merge-base-and-inaccessible-head-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: [
         "--test",
@@ -322,7 +323,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "durable-resources-including-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
+        "durable-resources-including-atomic-github-automatic-evaluation-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -343,6 +344,7 @@ export function createGateDefinitions(metadata) {
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
         ...repositoryGateTests.githubSqliteRaces,
+        "test/github-automatic-evaluation-sqlite-integration.test.js",
         "test/github-polling.test.js",
         ...FORGEJO_SQLITE_TESTS,
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
