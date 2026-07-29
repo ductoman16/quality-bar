@@ -123,18 +123,11 @@ async function proveFakeCodexResult(context, outcome) {
       claimService: claims,
       codexCommand: process.execPath,
       codexPrefixArguments: [fakeCodexPath, ...scenario.arguments],
-      evidenceService:
-        scenario.specialResult === "deadline"
-          ? deadlineEvidence
-          : scenario.evidenceFailure
-            ? {
-                appendTranscriptChunk:
-                  durableEvidence.appendTranscriptChunk.bind(durableEvidence),
-                complete() {
-                  throw evidenceFailure;
-                },
-              }
-            : durableEvidence,
+      evidenceService: scenario.createEvidenceService({
+        deadlineEvidence,
+        durableEvidence,
+        evidenceFailure,
+      }),
       processEnvironment: {
         CODEX_HOME: "/var/lib/quality-bar/codex",
         HOME: "/var/lib/quality-bar",
@@ -149,126 +142,26 @@ async function proveFakeCodexResult(context, outcome) {
         QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
       },
       resultService: results,
-      ...(scenario.specialResult === "deadline"
-        ? {
-            clearDeadlineTimer() {},
-            clearTerminationTimer() {},
-            /** @param {() => void} callback @param {number} milliseconds */
-            setDeadlineTimer(callback, milliseconds) {
-              assert.equal(milliseconds, 15 * 60 * 1_000);
-              signalDeadline = callback;
-              return {};
-            },
-            /** @param {() => void} callback @param {number} milliseconds */
-            setTerminationTimer(callback, milliseconds) {
-              assert.equal(milliseconds, 5_000);
-              forceKill = callback;
-              return {};
-            },
-          }
-        : {}),
+      ...scenario.createTimerOptions({
+        /** @param {() => void} callback */
+        setForceKill(callback) {
+          forceKill = callback;
+        },
+        /** @param {() => void} callback */
+        setSignalDeadline(callback) {
+          signalDeadline = callback;
+        },
+      }),
     });
-  if (scenario.executionErrorCode) {
-    await assert.rejects(
-      execution,
-      (error) =>
-        error instanceof Error &&
-        "code" in error &&
-        error.code === scenario.executionErrorCode,
-    );
-  } else {
-    await execution();
-  }
+  await scenario.execute(execution);
 
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
-  if (scenario.specialResult === "deadline") {
-    assert.deepEqual(
-      core.get(
-        `SELECT execution_status, error_code, error_detail,
-                process_exit_code, process_signal,
-                execution_evidence_recorded
-         FROM review_runs WHERE id = ?`,
-        claim.workId,
-      ),
-      {
-        error_code: "deadline_exceeded",
-        error_detail: "Codex Review Run exceeded its 15-minute deadline",
-        execution_evidence_recorded: 1,
-        execution_status: "failed",
-        process_exit_code: null,
-        process_signal: "SIGKILL",
-      },
-    );
-    assert.equal(
-      core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-      0,
-    );
-    assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
-    assert.equal(deadlineSubmissionOutcome, "rejected");
-    const transcript = core
-      .all(
-        `SELECT content FROM review_run_transcript_chunks
-         WHERE review_run_id = ? ORDER BY sequence`,
-        claim.workId,
-      )
-      .map((chunk) => chunk?.content)
-      .join("");
-    assert.match(transcript, /"type":"fake\.deadline_submission_rejected"/);
-    assert.doesNotMatch(transcript, /fake\.deadline_submission_accepted/);
-    return;
-  }
-  if (scenario.specialResult === "process_failure") {
-    assert.deepEqual(
-      core.get(
-        `SELECT execution_status, process_exit_code, process_signal,
-                execution_evidence_recorded
-         FROM review_runs WHERE id = ?`,
-        claim.workId,
-      ),
-      {
-        execution_evidence_recorded: 1,
-        execution_status: "failed",
-        process_exit_code: 1,
-        process_signal: null,
-      },
-    );
-    assert.ok(
-      Number(
-        core.get(
-          `SELECT count(*) AS count
-           FROM review_run_transcript_chunks
-           WHERE review_run_id = ?`,
-          claim.workId,
-        )?.count,
-      ) >= 2,
-    );
-    return;
-  }
-  if (scenario.specialResult === "evidence_failure") {
-    assert.deepEqual(
-      core.get(
-        `SELECT review_runs.execution_status,
-                review_runs.execution_evidence_recorded,
-                evaluations.execution_status,
-                evaluation_results.outcome,
-                criterion_results.outcome AS criterion_outcome
-         FROM review_runs
-         JOIN evaluations
-           ON evaluations.id = review_runs.evaluation_id
-         JOIN evaluation_results
-           ON evaluation_results.evaluation_id = evaluations.id
-         JOIN criterion_results
-           ON criterion_results.review_run_id = review_runs.id
-         WHERE review_runs.id = ?`,
-        claim.workId,
-      ),
-      {
-        criterion_outcome: "clear",
-        execution_evidence_recorded: 0,
-        execution_status: "completed",
-        outcome: "clear",
-      },
-    );
+  if (scenario.verifySpecialResult) {
+    scenario.verifySpecialResult({
+      claim,
+      core,
+      deadlineSubmissionOutcome,
+    });
     return;
   }
   assert.deepEqual(
