@@ -1,0 +1,71 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { readReviewRunFileChanges } from "../src/review-run-file-changes.js";
+
+/** @param {string} repository @param {string} message */
+function commit(repository, message) {
+  execFileSync("git", ["-C", repository, "add", "--all"]);
+  execFileSync(
+    "git",
+    [
+      "-C",
+      repository,
+      "-c",
+      "user.name=Quality Bar",
+      "-c",
+      "user.email=quality-bar@example.invalid",
+      "commit",
+      "-m",
+      message,
+    ],
+    { stdio: "ignore" },
+  );
+  return execFileSync("git", ["-C", repository, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+}
+
+test("reads inclusive base/head coordinates for added, deleted, and renamed File Changes", (context) => {
+  const repository = mkdtempSync(join(tmpdir(), "quality-bar-changes-"));
+  context.after(() => rmSync(repository, { force: true, recursive: true }));
+  execFileSync("git", ["init", "--initial-branch=main", repository], {
+    stdio: "ignore",
+  });
+  writeFileSync(join(repository, "deleted.txt"), "one\ntwo\n");
+  writeFileSync(join(repository, "renamed.txt"), "base\nline\n");
+  const base = commit(repository, "base");
+  rmSync(join(repository, "deleted.txt"));
+  renameSync(join(repository, "renamed.txt"), join(repository, "current.txt"));
+  writeFileSync(join(repository, "current.txt"), "base\nline\nhead\n");
+  writeFileSync(join(repository, "added.bin"), Buffer.from([0, 1, 2]));
+  const head = commit(repository, "head");
+
+  assert.deepEqual(readReviewRunFileChanges(repository, base, head), [
+    {
+      after_path: "added.bin",
+      base_line_count: null,
+      before_path: null,
+      head_line_count: null,
+      id: "file-change-1",
+    },
+    {
+      after_path: "current.txt",
+      base_line_count: 2,
+      before_path: "renamed.txt",
+      head_line_count: 3,
+      id: "file-change-2",
+    },
+    {
+      after_path: null,
+      base_line_count: 2,
+      before_path: "deleted.txt",
+      head_line_count: null,
+      id: "file-change-3",
+    },
+  ]);
+});

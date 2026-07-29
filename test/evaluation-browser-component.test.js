@@ -88,7 +88,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
           async json() {
             return {
               items: [
-                evaluation(),
+                evaluation({
+                  effective_outcome: "blocking",
+                  id: "evaluation-triggered",
+                }),
                 evaluation({
                   base_selector: { type: "branch", value: "failure" },
                   id: "evaluation-result-failure",
@@ -134,7 +137,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
           },
         };
       }
-      if (path === "/api/v1/evaluations/evaluation-complete/result") {
+      if (path === "/api/v1/evaluations/evaluation-triggered/result") {
         return {
           ok: true,
           async json() {
@@ -143,24 +146,32 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
               completed_at: "2026-07-28T12:00:00.000Z",
               criterion_results: [
                 {
-                  criterion_id: "criterion-clear",
-                  outcome: "clear",
-                  review_run_id: "review-run-clear",
+                  criterion_id: "criterion-triggered",
+                  outcome: "triggered",
+                  review_run_id: "review-run-triggered",
                 },
               ],
-              evaluation_id: "evaluation-complete",
-              findings: [],
-              outcome: "clear",
-              review_runs: [
+              evaluation_id: "evaluation-triggered",
+              findings: [
                 {
-                  completed_at: "2026-07-28T12:00:00.000Z",
-                  id: "review-run-clear",
-                  review_id: "review-clear",
-                  review_version_id: "review-version-clear",
-                  started_at: "2026-07-28T11:59:00.000Z",
-                  status: "completed",
+                  criterion_id: "criterion-triggered",
+                  evidence: "The changed branch returns stale state.",
+                  id: "finding-opaque-1",
+                  impact: "blocking",
+                  location: {
+                    end_line: 3,
+                    file_change_id: "file-change-1",
+                    kind: "line_range",
+                    path: "src/current.js",
+                    side: "head",
+                    start_line: 2,
+                  },
+                  remediation: "Return the newly computed state.",
+                  review_run_id: "review-run-triggered",
                 },
               ],
+              outcome: "blocking",
+              review_runs: [],
             };
           },
         };
@@ -215,22 +226,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.equal(controls.get("evaluation-empty").hidden, true);
   assert.match(
     controls.get("evaluation-recent").options[0].textContent,
-    /explicit branch main \(1111.*\) → branch topic \(2222.*\) — completed — clear/,
-  );
-  assert.match(
-    controls.get("evaluation-recent").options[0].options[0].textContent,
-    /"evaluation_id":"evaluation-complete".*"outcome":"clear"/,
-  );
-  assert.match(
-    controls.get("evaluation-recent").options[0].options[0].textContent,
-    /"criterion_id":"criterion-clear".*"outcome":"clear"/,
-  );
-  assert.match(
-    controls.get("evaluation-recent").options[1].textContent,
     /branch failure/,
   );
   assert.equal(
-    controls.get("evaluation-recent").options[1].options[0].textContent,
+    controls.get("evaluation-recent").options[0].options[0].textContent,
     "Result failed to load",
   );
   assert.match(
@@ -251,13 +250,21 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   );
   assert.match(
     controls.get("evaluation-attention").options[0].textContent,
+    /completed — blocking/,
+  );
+  assert.match(
+    controls.get("evaluation-attention").options[0].options[0].textContent,
+    /"id":"finding-opaque-1".*"impact":"blocking".*"kind":"line_range".*"path":"src\/current.js".*"start_line":2/,
+  );
+  assert.match(
+    controls.get("evaluation-attention").options[1].textContent,
     /failed — error/,
   );
   assert.equal(controls.get("evaluation-more").hidden, false);
   await controls.get("evaluation-more").listener("click")();
   assert.equal(controls.get("evaluation-more").hidden, true);
   assert.match(
-    controls.get("evaluation-attention").options[1].textContent,
+    controls.get("evaluation-attention").options[2].textContent,
     /cancelled — error/,
   );
   assert.ok(

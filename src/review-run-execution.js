@@ -1,5 +1,6 @@
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
+import { readReviewRunFileChanges } from "./review-run-file-changes.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
 /**
@@ -20,6 +21,7 @@ function fail(code, message, cause) {
  * @param {{
  *   baseCommit: string,
  *   criteria: {criterionId: string, impact: string, instruction: string}[],
+ *   fileChanges?: {id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[],
  *   headCommit: string,
  *   reviewName: string
  * }} run
@@ -46,7 +48,8 @@ export function createReviewRunPrompt(run) {
         instruction: criterion.instruction,
       })),
     })}`,
-    'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear"}]}',
+    `file_changes: ${JSON.stringify(run.fileChanges ?? [])}`,
+    'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
     'submission: {"command":"quality-bar-submit","input":"JSON by standard input or one JSON file"}',
     'evidence_boundaries: {"include":"frozen base/head Changeset and surrounding Repository material inspected on demand","exclude":["Repository instructions","pull-request discussion","prior runs","other Reviews","Forge metadata"]}',
   ].join("\n");
@@ -167,7 +170,8 @@ function readRun(durableCore, workId) {
  *   codexPrefixArguments?: string[],
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
- *   resultService: {submit(claim: any, candidate: unknown): unknown},
+ *   readFileChanges?: typeof readReviewRunFileChanges,
+ *   resultService: {submit(claim: any, candidate: unknown, fileChanges?: any[]): unknown},
  *   runCodex?: typeof runReviewRunCodex,
  *   spawnProcess?: (
  *     command: string,
@@ -184,6 +188,7 @@ export async function executeReviewRun(
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
     prepareCheckout = prepareReviewRunCheckout,
+    readFileChanges = readReviewRunFileChanges,
     resultService,
     runCodex = runReviewRunCodex,
     ...codexOptions
@@ -213,12 +218,30 @@ export async function executeReviewRun(
       if (claimFailure) {
         throw claimFailure;
       }
+      const fileChanges = readFileChanges(
+        checkout.path,
+        run.baseCommit,
+        run.headCommit,
+      );
+      const reviewRun = {
+        ...run,
+        fileChanges,
+      };
+      reviewRun.prompt = createReviewRunPrompt(reviewRun);
       claimService.start(claim);
       await runCodex({
         checkoutPath: checkout.path,
         claim,
-        resultService,
-        run,
+        resultService: {
+          submit(submissionClaim, candidate) {
+            return resultService.submit(
+              submissionClaim,
+              candidate,
+              fileChanges,
+            );
+          },
+        },
+        run: reviewRun,
         ...codexOptions,
       });
     } catch (error) {

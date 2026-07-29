@@ -32,7 +32,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 26);
+  assert.equal(core.facts.schemaVersion, 27);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {
@@ -134,7 +134,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 26);
+  assert.equal(core.facts.schemaVersion, 27);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -272,7 +272,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 26);
+  assert.equal(core.facts.schemaVersion, 27);
   let verificationFails = false;
   const repositories = createRepositoryService(core, {
     createId: () => "repository-lifecycle",

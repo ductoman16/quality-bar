@@ -4,6 +4,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 const arguments_ = process.argv.slice(2);
 const prompt = arguments_.at(-1) ?? "";
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
+const fileChanges = JSON.parse(
+  /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
+);
 const environmentNames = Object.keys(process.env);
 const execIndex = arguments_.indexOf("exec");
 if (
@@ -33,7 +36,9 @@ if (
       !["QUALITY_BAR_SUBMIT_SOCKET", "QUALITY_BAR_SUBMIT_TOKEN"].includes(name),
   ) ||
   readFileSync(".git/config", "utf8").includes("[remote ") ||
-  typeof criterion !== "string"
+  typeof criterion !== "string" ||
+  !Array.isArray(fileChanges) ||
+  fileChanges.length !== 1
 ) {
   throw new Error("fake_codex_review_run_arguments_invalid");
 }
@@ -70,7 +75,23 @@ const resultPath = "candidate-result.json";
 writeFileSync(
   resultPath,
   JSON.stringify({
-    criterion_results: [{ criterion_id: criterion, outcome: "clear" }],
+    criterion_results: [
+      {
+        criterion_id: criterion,
+        findings: [
+          {
+            evidence: "The changed file contains the triggered proof.",
+            location: {
+              file_change_id: fileChanges[0].id,
+              kind: "whole_side",
+              side: "head",
+            },
+            remediation: "Replace the triggered proof.",
+          },
+        ],
+        outcome: "triggered",
+      },
+    ],
   }),
 );
 execFileSync("quality-bar-submit", [resultPath], {
