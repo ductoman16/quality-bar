@@ -358,9 +358,9 @@ export function initializeOrValidateSchema(
   } else if (version === 28) {
     schemaMigration.migrateSchema(database, "");
   } else if (version === 29) {
-    schemaMigration.migrateSchema(database, "");
+    schemaMigration.finalizeSchemaMigration(database, version);
   } else if (version !== SCHEMA_VERSION) {
-    fail("schema_invalid", `SQLite schema version ${version} is not supported`);
+    schemaMigration.finalizeSchemaMigration(database, version);
   }
   try {
     const storedVersion = database

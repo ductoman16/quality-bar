@@ -1,3 +1,6 @@
+import { APPLICABILITY_RESULT_SCHEMA } from "./applicability-result-schema.js";
+import { APPLICABILITY_SEAL_SCHEMA } from "./applicability-seal-schema.js";
+
 export const EVALUATION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS evaluations (
     id TEXT PRIMARY KEY,
@@ -17,11 +20,13 @@ export const EVALUATION_SCHEMA = `
     ),
     execution_status TEXT NOT NULL
       CHECK (execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+    applicability_sealed_at INTEGER,
     next_attempt_at INTEGER,
     created_at INTEGER NOT NULL,
     completed_at INTEGER,
     CHECK (length(base_commit) = length(head_commit)),
-    CHECK (next_attempt_at IS NULL OR execution_status = 'queued')
+    CHECK (next_attempt_at IS NULL OR execution_status = 'queued'),
+    CHECK (applicability_sealed_at IS NULL OR applicability_sealed_at >= created_at)
   ) STRICT;
   CREATE INDEX IF NOT EXISTS evaluations_newest
     ON evaluations (created_at DESC, id DESC);
@@ -31,6 +36,9 @@ export const EVALUATION_SCHEMA = `
       CHECK (outcome IN ('clear', 'advisory', 'blocking', 'error')),
     completed_at INTEGER NOT NULL
   ) STRICT;
+  CREATE UNIQUE INDEX IF NOT EXISTS review_versions_applicability_identity
+    ON review_versions (id, review_id);
+  ${APPLICABILITY_RESULT_SCHEMA}
   CREATE TABLE IF NOT EXISTS evaluation_idempotency (
     channel TEXT NOT NULL
       CHECK (channel IN ('browser_session', 'implementer_token', 'mcp')),
@@ -164,6 +172,7 @@ export const EVALUATION_SCHEMA = `
       created_at
     ON evaluations
     BEGIN SELECT RAISE(ABORT, 'evaluation_identity_immutable'); END;
+  ${APPLICABILITY_SEAL_SCHEMA}
   CREATE TRIGGER IF NOT EXISTS evaluation_result_immutable_update
     BEFORE UPDATE ON evaluation_results
     BEGIN SELECT RAISE(ABORT, 'evaluation_result_immutable'); END;

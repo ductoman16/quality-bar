@@ -1,6 +1,8 @@
 import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-definitions.mjs";
+import { APPLICABILITY_GATE_DEFINITIONS } from "./applicability-gate-definitions.mjs";
 
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
+  ...APPLICABILITY_GATE_DEFINITIONS,
   {
     name: "review-run-execution-unit",
     testGroup:

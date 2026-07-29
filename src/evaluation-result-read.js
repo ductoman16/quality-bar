@@ -45,6 +45,38 @@ export function readCompletedEvaluationResult(durableCore, id) {
         status,
       };
     });
+  const applicabilityResults = durableCore
+    .all(
+      `SELECT review_id, review_version_id, assignment_scope,
+              profile, rule_source, outcome, evidence_json,
+              error_code, error_detail, error_context_json
+       FROM applicability_results
+       WHERE evaluation_id = ?
+       ORDER BY review_id`,
+      id,
+    )
+    .map((result) => ({
+      assignment: { scope: result?.assignment_scope },
+      ...(result?.outcome === "error"
+        ? {
+            error: JSON.parse(
+              /** @type {string} */ (result.error_context_json),
+            ),
+          }
+        : {
+            evidence: JSON.parse(/** @type {string} */ (result?.evidence_json)),
+          }),
+      outcome: result?.outcome,
+      review_id: result?.review_id,
+      review_version_id: result?.review_version_id,
+      rule:
+        result?.rule_source === null
+          ? null
+          : {
+              profile: result?.profile,
+              source: result?.rule_source,
+            },
+    }));
   const criterionResults = durableCore
     .all(
       `SELECT criterion_results.review_run_id,
@@ -130,7 +162,7 @@ export function readCompletedEvaluationResult(durableCore, id) {
       };
     });
   return {
-    applicability_results: [],
+    applicability_results: applicabilityResults,
     completed_at: timestamp(/** @type {number} */ (row.completed_at)),
     criterion_results: criterionResults,
     evaluation_id: row.evaluation_id,

@@ -14,6 +14,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { APPLICABILITY_SEAL_SCHEMA } from "../src/applicability-seal-schema.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
 import { owningRestoreError } from "../src/offline-restore-error.js";
 import { restoreOfflineBackup } from "../src/offline-restore.js";
@@ -369,7 +370,7 @@ test("a validated snapshot replaces an unreadable stopped target", async () => {
   });
 
   const restored = openDurableCore(input.databasePath);
-  assert.equal(restored.facts.schemaVersion, 30);
+  assert.equal(restored.facts.schemaVersion, 31);
   verifyInstallationKey(restored, input.masterKey);
   restored.close();
 });
@@ -396,8 +397,10 @@ test("a compatible current schema produced by migration remains restorable", asy
   const input = await restoreFixture();
   const migrated = new DatabaseSync(input.backup.databasePath);
   migrated.exec(`
+    DROP TRIGGER evaluation_applicability_seal_complete_update;
     ALTER TABLE reviews DROP COLUMN archived_at;
     ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
+    ${APPLICABILITY_SEAL_SCHEMA}
   `);
   migrated.close();
   const current = openDurableCore(input.databasePath);

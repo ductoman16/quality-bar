@@ -396,13 +396,22 @@ export function createReviewRunResultService(
                 ({ criterion_id: frozenId }) => frozenId === criterionId,
               )?.impact,
           );
-        const outcome = results.some(({ outcome }) => outcome === "error")
-          ? "error"
-          : triggeredImpacts.includes("blocking")
-            ? "blocking"
-            : triggeredImpacts.includes("advisory")
-              ? "advisory"
-              : "clear";
+        const applicabilityFailed =
+          transaction.get(
+            `SELECT count(*) AS count
+             FROM applicability_results
+             WHERE evaluation_id = ? AND outcome = 'error'`,
+            evaluationId,
+          )?.count !== 0;
+        const outcome =
+          applicabilityFailed ||
+          results.some(({ outcome }) => outcome === "error")
+            ? "error"
+            : triggeredImpacts.includes("blocking")
+              ? "blocking"
+              : triggeredImpacts.includes("advisory")
+                ? "advisory"
+                : "clear";
         transaction.run(
           `INSERT INTO evaluation_results (
              evaluation_id, outcome, completed_at

@@ -196,6 +196,7 @@ test("the canonical verifier starts with six named static-quality gates", () => 
   assert.ok(openApiRuntime);
   assert.deepEqual(openApiRuntime.arguments, [
     "--test",
+    "test/applicability-result-openapi-conformance.test.js",
     "test/openapi-conformance.test.js",
     "test/repository-lifecycle-openapi-conformance.test.js",
   ]);
