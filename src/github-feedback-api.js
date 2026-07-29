@@ -106,8 +106,7 @@ export function createGitHubFeedbackPublisher(dependencies) {
     const range =
       Number.isSafeInteger(startLine) &&
       /** @type {number} */ (startLine) > 0 &&
-      /** @type {number} */ (startLine) <= comment.line &&
-      comment.start_side === comment.side;
+      ["LEFT", "RIGHT"].includes(/** @type {string} */ (comment?.start_side));
     if (
       !Number.isSafeInteger(installationId) ||
       installationId <= 0 ||

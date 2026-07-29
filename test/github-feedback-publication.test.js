@@ -143,7 +143,7 @@ function arrange(core) {
      ) VALUES
        ('finding-inline', 'evaluation-1', 'run-1', 'criterion-1',
         'Inline evidence', 'Inline remediation', 'line_range', 'change-1',
-        'head', 2, 3),
+        'base', 1, 2),
        ('finding-whole', 'evaluation-1', 'run-1', 'criterion-1',
         'Whole-side evidence', 'Whole-side remediation', 'whole_side', 'change-1',
         'base', NULL, NULL),
@@ -216,10 +216,10 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
     },
     {
       commit_id: head,
-      line: 3,
+      line: 2,
       path: "src/example.js",
-      side: "RIGHT",
-      start_line: 2,
+      side: "LEFT",
+      start_line: 1,
       start_side: "RIGHT",
     },
   );

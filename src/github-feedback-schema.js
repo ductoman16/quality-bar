@@ -33,6 +33,7 @@ export const GITHUB_FEEDBACK_SCHEMA = `
     path TEXT,
     side TEXT CHECK (side IN ('LEFT', 'RIGHT')),
     start_line INTEGER CHECK (start_line IS NULL OR start_line > 0),
+    start_side TEXT CHECK (start_side IN ('LEFT', 'RIGHT')),
     line INTEGER CHECK (line IS NULL OR line > 0),
     external_id INTEGER CHECK (external_id IS NULL OR external_id > 0),
     published_at INTEGER,
@@ -41,14 +42,17 @@ export const GITHUB_FEEDBACK_SCHEMA = `
     CHECK (
       (publication_status = 'aggregate_only'
         AND path IS NULL AND side IS NULL
-        AND start_line IS NULL AND line IS NULL
+        AND start_line IS NULL AND start_side IS NULL AND line IS NULL
         AND external_id IS NULL AND published_at IS NULL
         AND error_code IS NULL AND error_detail IS NULL)
       OR
       (publication_status IN ('waiting', 'succeeded', 'unavailable')
         AND path IS NOT NULL AND length(path) > 0
         AND side IS NOT NULL AND line IS NOT NULL
-        AND (start_line IS NULL OR start_line <= line)
+        AND (
+          (start_line IS NULL AND start_side IS NULL)
+          OR (start_line IS NOT NULL AND start_side IS NOT NULL)
+        )
         AND (
           (publication_status = 'waiting'
             AND external_id IS NULL AND published_at IS NULL

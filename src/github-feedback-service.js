@@ -101,14 +101,15 @@ export function createGitHubFeedbackService(
         transaction.run(
           `INSERT INTO github_finding_feedback (
              finding_id, evaluation_id, publication_status,
-             path, side, start_line, line
-           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             path, side, start_line, start_side, line
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           finding.id,
           bundle.evaluation_id,
           coordinate ? "waiting" : "aggregate_only",
           coordinate?.path ?? null,
           coordinate?.side ?? null,
           coordinate?.start_line ?? null,
+          coordinate?.start_side ?? null,
           coordinate?.line ?? null,
         );
       }
@@ -282,7 +283,9 @@ export function createGitHubFeedbackService(
                 ? {}
                 : {
                     start_line: /** @type {number} */ (row?.start_line),
-                    start_side: /** @type {"LEFT" | "RIGHT"} */ (row?.side),
+                    start_side: /** @type {"LEFT" | "RIGHT"} */ (
+                      row?.start_side
+                    ),
                   }),
             };
             const externalId = await verifier.publishInlineFeedback(

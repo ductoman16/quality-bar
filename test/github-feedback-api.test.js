@@ -70,8 +70,8 @@ test("GitHub inline publication preserves exact frozen head and coordinate", asy
     commit_id: head,
     line: 12,
     path: "src/example.js",
-    side: "RIGHT",
-    start_line: 11,
+    side: "LEFT",
+    start_line: 14,
     start_side: "RIGHT",
   });
 
@@ -85,8 +85,8 @@ test("GitHub inline publication preserves exact frozen head and coordinate", asy
         commit_id: head,
         line: 12,
         path: "src/example.js",
-        side: "RIGHT",
-        start_line: 11,
+        side: "LEFT",
+        start_line: 14,
         start_side: "RIGHT",
       },
       method: "POST",

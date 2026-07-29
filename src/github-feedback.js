@@ -133,15 +133,6 @@ export function projectFrozenDiffLineRange(location, fileChange) {
     coordinates.push(coordinate);
   }
   const [first] = coordinates;
-  if (
-    coordinates.some(
-      (coordinate, index) =>
-        coordinate.side !== first.side ||
-        coordinate.line !== first.line + index,
-    )
-  ) {
-    return null;
-  }
   const last = /** @type {{line: number, side: "LEFT" | "RIGHT"}} */ (
     coordinates.at(-1)
   );

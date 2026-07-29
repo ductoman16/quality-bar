@@ -131,6 +131,24 @@ test("only honest line ranges on the frozen diff receive inline coordinates", ()
       side: "LEFT",
     },
   );
+  assert.deepEqual(
+    projectFrozenDiffLineRange(
+      {
+        end_line: 9,
+        kind: "line_range",
+        side: "base",
+        start_line: 8,
+      },
+      fileChange,
+    ),
+    {
+      line: 9,
+      path: "src/current.js",
+      side: "LEFT",
+      start_line: 8,
+      start_side: "RIGHT",
+    },
+  );
   for (const location of [
     { kind: "whole_side", side: "head" },
     { kind: "changeset" },
@@ -145,12 +163,6 @@ test("only honest line ranges on the frozen diff receive inline coordinates", ()
       kind: "line_range",
       side: "base",
       start_line: 10,
-    },
-    {
-      end_line: 9,
-      kind: "line_range",
-      side: "base",
-      start_line: 8,
     },
   ]) {
     assert.equal(projectFrozenDiffLineRange(location, fileChange), null);
