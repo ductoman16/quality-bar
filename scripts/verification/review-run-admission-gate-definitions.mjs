@@ -64,7 +64,8 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   },
   {
     name: "review-run-admission-sqlite-integration",
-    testGroup: "review-run-admission-atomic-persistence-boundary",
+    testGroup:
+      "review-run-admission-atomic-persistence-distinct-same-changeset-rerun-current-assignment-and-review-version-boundary",
     failureCode: "review_run_admission_sqlite_integration_tests_failed",
     arguments: [
       "--test",
