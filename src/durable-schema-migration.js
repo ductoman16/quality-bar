@@ -43,6 +43,11 @@ export function migrateSchema(
     { deterministic: true },
     legacyFileChangeModified,
   );
+  database.function(
+    "quality_bar_legacy_file_change_paths_valid",
+    { deterministic: true },
+    legacyFileChangePathsValid,
+  );
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
@@ -89,7 +94,10 @@ import {
   EVALUATION_FILE_CHANGE_KIND_MIGRATION,
   EVALUATION_SCHEMA,
 } from "./evaluation-schema.js";
-import { legacyFileChangeModified } from "./evaluation-file-change-schema.js";
+import {
+  legacyFileChangeModified,
+  legacyFileChangePathsValid,
+} from "./evaluation-file-change-schema.js";
 import {
   REPOSITORY_USAGE_INTEGRITY,
   REPOSITORY_USAGE_MIGRATION,

@@ -291,57 +291,72 @@ test("schema v32 preserves exact File Change kinds while adding durable facts", 
   );
 });
 
-test("schema v32 rejects a legacy Git type-change instead of inferring modification", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-kind-reject-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  await createQueuedReviewRun(prior);
-  prior.transaction((transaction) => {
-    transaction.run("DROP TRIGGER finding_immutable_update");
-    transaction.run("DROP TRIGGER finding_immutable_delete");
-    transaction.run("DROP TABLE findings");
-    transaction.run("DROP TRIGGER evaluation_file_change_immutable_update");
-    transaction.run("DROP TRIGGER evaluation_file_change_immutable_delete");
-    transaction.run("DROP TRIGGER evaluation_file_change_kind_insert");
-    transaction.run("DROP TABLE evaluation_file_changes");
-    transaction.run(
-      `CREATE TABLE evaluation_file_changes (
-         evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
-         id TEXT NOT NULL,
-         before_path TEXT,
-         after_path TEXT,
-         base_line_count INTEGER,
-         head_line_count INTEGER,
-         patch TEXT NOT NULL,
-         PRIMARY KEY (evaluation_id, id)
-       ) STRICT`,
-    );
-    transaction.run(
-      `INSERT INTO evaluation_file_changes (
-         evaluation_id, id, before_path, after_path,
-         base_line_count, head_line_count, patch
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      "evaluation-1",
-      "file-change-1",
+test("schema v32 rejects impossible legacy File Changes", async (context) => {
+  for (const [name, path, patch] of [
+    [
+      "type-change",
       "src/entry",
-      "src/entry",
-      1,
-      1,
       "diff --git a/src/entry b/src/entry\nold mode 100644\nnew mode 120000\n",
+    ],
+    [
+      "invalid-path",
+      "src\\entry.js",
+      "diff --git a/src/entry.js b/src/entry.js\n",
+    ],
+  ]) {
+    const directory = mkdtempSync(
+      join(tmpdir(), `quality-bar-${name}-reject-`),
     );
-    transaction.run(
-      "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
-    );
-    transaction.run("PRAGMA user_version = 32");
-  });
-  prior.close();
+    context.after(() => rmSync(directory, { force: true, recursive: true }));
+    const databasePath = join(directory, "quality-bar.sqlite3");
+    const prior = openDurableCore(databasePath);
+    await createQueuedReviewRun(prior);
+    prior.transaction((transaction) => {
+      transaction.run("DROP TRIGGER finding_immutable_update");
+      transaction.run("DROP TRIGGER finding_immutable_delete");
+      transaction.run("DROP TABLE findings");
+      transaction.run("DROP TRIGGER evaluation_file_change_immutable_update");
+      transaction.run("DROP TRIGGER evaluation_file_change_immutable_delete");
+      transaction.run("DROP TRIGGER evaluation_file_change_kind_insert");
+      transaction.run("DROP TABLE evaluation_file_changes");
+      transaction.run(
+        `CREATE TABLE evaluation_file_changes (
+           evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+           id TEXT NOT NULL,
+           before_path TEXT,
+           after_path TEXT,
+           base_line_count INTEGER,
+           head_line_count INTEGER,
+           patch TEXT NOT NULL,
+           PRIMARY KEY (evaluation_id, id)
+         ) STRICT`,
+      );
+      transaction.run(
+        `INSERT INTO evaluation_file_changes (
+           evaluation_id, id, before_path, after_path,
+           base_line_count, head_line_count, patch
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        "evaluation-1",
+        "file-change-1",
+        path,
+        path,
+        1,
+        1,
+        patch,
+      );
+      transaction.run(
+        "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
+      );
+      transaction.run("PRAGMA user_version = 32");
+    });
+    prior.close();
 
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "schema_invalid",
-  );
+    assert.throws(
+      () => openDurableCore(databasePath),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "schema_invalid",
+    );
+  }
 });

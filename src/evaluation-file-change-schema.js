@@ -1,3 +1,16 @@
+import { isNormalizedRepositoryPath } from "./file-change.js";
+
+/** @param {unknown} beforePath @param {unknown} afterPath */
+export function legacyFileChangePathsValid(beforePath, afterPath) {
+  if (
+    !(beforePath === null || isNormalizedRepositoryPath(beforePath)) ||
+    !(afterPath === null || isNormalizedRepositoryPath(afterPath))
+  ) {
+    throw new TypeError("Legacy File Change path is invalid");
+  }
+  return 1;
+}
+
 /**
  * @param {unknown} beforePath
  * @param {unknown} afterPath
@@ -68,7 +81,11 @@ export const EVALUATION_FILE_CHANGE_KIND_MIGRATION = `
         before_path,
         after_path,
         patch
-      );
+      )
+  WHERE quality_bar_legacy_file_change_paths_valid(
+    before_path,
+    after_path
+  ) = 1;
 `;
 
 export const EVALUATION_FILE_CHANGE_SCHEMA = `
