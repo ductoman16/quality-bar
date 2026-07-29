@@ -6,7 +6,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-execution-unit",
     testGroup:
-      "review-run-pre-start-prompt-credential-exclusion-transcript-terminal-counter-first-valid-submission-channel-closure-and-codex-process-group-termination-boundaries",
+      "review-run-pre-start-prompt-credential-exclusion-transcript-terminal-counter-first-valid-submission-channel-closure-fixed-independent-fifteen-minute-deadlines-and-codex-process-group-termination-boundaries",
     failureCode: "review_run_execution_unit_tests_failed",
     arguments: [
       "--test",
@@ -32,7 +32,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-checkout-git-integration",
     testGroup:
-      "fresh-writable-disposable-frozen-commit-credential-free-checkout-before-review-run-timing-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-and-exact-criterion-result-coverage-boundary",
+      "fresh-writable-disposable-frozen-commit-credential-free-checkout-before-review-run-deadline-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-and-exact-criterion-result-coverage-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
     arguments: [
       "--test",
@@ -45,11 +45,12 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-result-sqlite-integration",
     testGroup:
-      "first-valid-fenced-aggregate-terminal-review-runs-preserved-sibling-facts-outcome-precedence-append-only-transcript-exact-run-measurement-invalid-attempt-zero-storage-four-meaning-criterion-result-opaque-finding-identity-inherited-impact-exact-run-failure-no-fallback-and-v26-v27-v30-migration-boundary",
+      "first-valid-fenced-aggregate-terminal-review-runs-preserved-sibling-facts-outcome-precedence-append-only-transcript-exact-run-measurement-deadline-failure-invalid-attempt-zero-storage-four-meaning-criterion-result-opaque-finding-identity-inherited-impact-exact-run-failure-no-fallback-and-v26-v27-v30-migration-boundary",
     failureCode: "review_run_result_sqlite_integration_tests_failed",
     arguments: [
       "--test",
       "test/evaluation-aggregation-sqlite-integration.test.js",
+      "test/review-run-deadline-sqlite-integration.test.js",
       "test/review-run-result-sqlite-integration.test.js",
       "test/review-run-evidence-schema-migration.test.js",
       "test/review-run-result-schema-migration.test.js",

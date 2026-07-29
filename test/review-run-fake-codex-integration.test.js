@@ -17,7 +17,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure"} outcome */
+/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -98,15 +98,17 @@ async function proveFakeCodexResult(context, outcome) {
       claimService: claims,
       codexCommand: process.execPath,
       codexPrefixArguments:
-        outcome === "process_failure"
-          ? [fakeCodexPath, "--fake-process-failure"]
-          : outcome === "triggered"
-            ? [fakeCodexPath, "--fake-triggered"]
-            : outcome === "not_applicable"
-              ? [fakeCodexPath, "--fake-not-applicable"]
-              : outcome === "error"
-                ? [fakeCodexPath, "--fake-error"]
-                : [fakeCodexPath, "--fake-correction"],
+        outcome === "deadline"
+          ? [fakeCodexPath, "--fake-deadline"]
+          : outcome === "process_failure"
+            ? [fakeCodexPath, "--fake-process-failure"]
+            : outcome === "triggered"
+              ? [fakeCodexPath, "--fake-triggered"]
+              : outcome === "not_applicable"
+                ? [fakeCodexPath, "--fake-not-applicable"]
+                : outcome === "error"
+                  ? [fakeCodexPath, "--fake-error"]
+                  : [fakeCodexPath, "--fake-correction"],
       evidenceService:
         outcome === "evidence_failure"
           ? {
@@ -131,8 +133,26 @@ async function proveFakeCodexResult(context, outcome) {
         QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
       },
       resultService: results,
+      ...(outcome === "deadline"
+        ? {
+            /** @param {() => void} callback @param {number} milliseconds */
+            setDeadlineTimer(callback, milliseconds) {
+              assert.equal(milliseconds, 15 * 60 * 1_000);
+              return setTimeout(callback, 100);
+            },
+            /** @param {() => void} callback @param {number} milliseconds */
+            setTerminationTimer(callback, milliseconds) {
+              assert.equal(milliseconds, 5_000);
+              return setTimeout(callback, 20);
+            },
+          }
+        : {}),
     });
-  if (outcome === "process_failure" || outcome === "evidence_failure") {
+  if (
+    outcome === "process_failure" ||
+    outcome === "evidence_failure" ||
+    outcome === "deadline"
+  ) {
     await assert.rejects(
       execution,
       (error) =>
@@ -141,13 +161,40 @@ async function proveFakeCodexResult(context, outcome) {
         error.code ===
           (outcome === "process_failure"
             ? "codex_process_failed"
-            : "storage_unavailable"),
+            : outcome === "deadline"
+              ? "deadline_exceeded"
+              : "storage_unavailable"),
     );
   } else {
     await execution();
   }
 
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
+  if (outcome === "deadline") {
+    assert.deepEqual(
+      core.get(
+        `SELECT execution_status, error_code, error_detail,
+                process_exit_code, process_signal,
+                execution_evidence_recorded
+         FROM review_runs WHERE id = ?`,
+        claim.workId,
+      ),
+      {
+        error_code: "deadline_exceeded",
+        error_detail: "Codex Review Run exceeded its 15-minute deadline",
+        execution_evidence_recorded: 1,
+        execution_status: "failed",
+        process_exit_code: null,
+        process_signal: "SIGKILL",
+      },
+    );
+    assert.equal(
+      core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+      0,
+    );
+    assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+    return;
+  }
   if (outcome === "process_failure") {
     assert.deepEqual(
       core.get(
@@ -314,4 +361,8 @@ test("one failed fake Codex run durably retains transcript and process evidence"
 
 test("post-acceptance evidence failure cannot overturn the complete Result", async (context) => {
   await proveFakeCodexResult(context, "evidence_failure");
+});
+
+test("one overdue fake Codex run closes submission and force-kills its process group without a partial Result", async (context) => {
+  await proveFakeCodexResult(context, "deadline");
 });
