@@ -2,7 +2,6 @@ import {
   REVIEW_RUN_EVIDENCE_INTEGRITY,
   REVIEW_RUN_TRANSCRIPT_SCHEMA,
 } from "./review-run-evidence.js";
-import { REVIEW_RUN_ACCEPTED_SUBMISSION_SCHEMA } from "./review-run-accepted-submission.js";
 
 export const EVALUATION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS evaluations (
@@ -85,7 +84,6 @@ export const EVALUATION_SCHEMA = `
     UNIQUE (evaluation_id, review_id)
   ) STRICT;
   ${REVIEW_RUN_TRANSCRIPT_SCHEMA}
-  ${REVIEW_RUN_ACCEPTED_SUBMISSION_SCHEMA}
   ${REVIEW_RUN_EVIDENCE_INTEGRITY}
   CREATE TABLE IF NOT EXISTS criterion_results (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),

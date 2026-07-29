@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { executeReviewRun } from "../src/review-run-execution.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
@@ -16,7 +17,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error"} outcome */
+/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -81,45 +82,126 @@ async function proveFakeCodexResult(context, outcome) {
   const claim = claims.claimNext();
   assert.ok(claim);
   const checkoutRoot = join(directory, "checkouts");
-  let resultClockReads = 0;
-  const acceptanceClockReads = outcome === "clear" ? 3 : 2;
   const results = createReviewRunResultService(core, {
     createFindingId: () => "finding-fake-codex",
-    now() {
-      resultClockReads += 1;
-      return resultClockReads <= acceptanceClockReads ? 30 : 5_030;
-    },
+    now: () => 30,
   });
+  const durableEvidence = createReviewRunEvidenceService(core);
+  const evidenceFailure = Object.assign(
+    new Error("SQLite durable evidence write failed"),
+    { code: "storage_unavailable" },
+  );
 
-  await executeReviewRun(core, claim, {
-    checkoutRoot,
-    claimService: claims,
-    codexCommand: process.execPath,
-    codexPrefixArguments:
-      outcome === "triggered"
-        ? [fakeCodexPath, "--fake-triggered"]
-        : outcome === "not_applicable"
-          ? [fakeCodexPath, "--fake-not-applicable"]
-          : outcome === "error"
-            ? [fakeCodexPath, "--fake-error"]
-            : [fakeCodexPath, "--fake-correction"],
-    processEnvironment: {
-      CODEX_HOME: "/var/lib/quality-bar/codex",
-      HOME: "/var/lib/quality-bar",
-      LANG: "C.UTF-8",
-      PATH: "/usr/local/bin:/usr/bin",
-      QUALITY_BAR_FORGE_TOKEN: "forge-owned-secret",
-      QUALITY_BAR_GIT_TOKEN: "git-owned-secret",
-      QUALITY_BAR_IMPLEMENTER_TOKEN: "implementer-owned-secret",
-      QUALITY_BAR_MASTER_KEY: "master-key-owned-secret",
-      QUALITY_BAR_OPERATOR_PASSWORD: "operator-owned-secret",
-      QUALITY_BAR_SESSION_SECRET: "session-owned-secret",
-      QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
-    },
-    resultService: results,
-  });
+  const execution = () =>
+    executeReviewRun(core, claim, {
+      checkoutRoot,
+      claimService: claims,
+      codexCommand: process.execPath,
+      codexPrefixArguments:
+        outcome === "process_failure"
+          ? [fakeCodexPath, "--fake-process-failure"]
+          : outcome === "triggered"
+            ? [fakeCodexPath, "--fake-triggered"]
+            : outcome === "not_applicable"
+              ? [fakeCodexPath, "--fake-not-applicable"]
+              : outcome === "error"
+                ? [fakeCodexPath, "--fake-error"]
+                : [fakeCodexPath, "--fake-correction"],
+      evidenceService:
+        outcome === "evidence_failure"
+          ? {
+              appendTranscriptChunk:
+                durableEvidence.appendTranscriptChunk.bind(durableEvidence),
+              complete() {
+                throw evidenceFailure;
+              },
+            }
+          : durableEvidence,
+      processEnvironment: {
+        CODEX_HOME: "/var/lib/quality-bar/codex",
+        HOME: "/var/lib/quality-bar",
+        LANG: "C.UTF-8",
+        PATH: "/usr/local/bin:/usr/bin",
+        QUALITY_BAR_FORGE_TOKEN: "forge-owned-secret",
+        QUALITY_BAR_GIT_TOKEN: "git-owned-secret",
+        QUALITY_BAR_IMPLEMENTER_TOKEN: "implementer-owned-secret",
+        QUALITY_BAR_MASTER_KEY: "master-key-owned-secret",
+        QUALITY_BAR_OPERATOR_PASSWORD: "operator-owned-secret",
+        QUALITY_BAR_SESSION_SECRET: "session-owned-secret",
+        QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
+      },
+      resultService: results,
+    });
+  if (outcome === "process_failure" || outcome === "evidence_failure") {
+    await assert.rejects(
+      execution,
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code ===
+          (outcome === "process_failure"
+            ? "codex_process_failed"
+            : "storage_unavailable"),
+    );
+  } else {
+    await execution();
+  }
 
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
+  if (outcome === "process_failure") {
+    assert.deepEqual(
+      core.get(
+        `SELECT execution_status, process_exit_code, process_signal,
+                execution_evidence_recorded
+         FROM review_runs WHERE id = ?`,
+        claim.workId,
+      ),
+      {
+        execution_evidence_recorded: 1,
+        execution_status: "failed",
+        process_exit_code: 1,
+        process_signal: null,
+      },
+    );
+    assert.ok(
+      Number(
+        core.get(
+          `SELECT count(*) AS count
+           FROM review_run_transcript_chunks
+           WHERE review_run_id = ?`,
+          claim.workId,
+        )?.count,
+      ) >= 2,
+    );
+    return;
+  }
+  if (outcome === "evidence_failure") {
+    assert.deepEqual(
+      core.get(
+        `SELECT review_runs.execution_status,
+                review_runs.execution_evidence_recorded,
+                evaluations.execution_status,
+                evaluation_results.outcome,
+                criterion_results.outcome AS criterion_outcome
+         FROM review_runs
+         JOIN evaluations
+           ON evaluations.id = review_runs.evaluation_id
+         JOIN evaluation_results
+           ON evaluation_results.evaluation_id = evaluations.id
+         JOIN criterion_results
+           ON criterion_results.review_run_id = review_runs.id
+         WHERE review_runs.id = ?`,
+        claim.workId,
+      ),
+      {
+        criterion_outcome: "clear",
+        execution_evidence_recorded: 0,
+        execution_status: "completed",
+        outcome: "clear",
+      },
+    );
+    return;
+  }
   assert.deepEqual(
     core.get(
       `SELECT codex_cli_version, started_at, completed_at,
@@ -224,4 +306,12 @@ test("one pinned fake Codex run preserves a successful not-applicable fact", asy
 
 test("one pinned fake Codex run preserves an exact Criterion error without a Finding", async (context) => {
   await proveFakeCodexResult(context, "error");
+});
+
+test("one failed fake Codex run durably retains transcript and process evidence", async (context) => {
+  await proveFakeCodexResult(context, "process_failure");
+});
+
+test("post-acceptance evidence failure cannot overturn the complete Result", async (context) => {
+  await proveFakeCodexResult(context, "evidence_failure");
 });

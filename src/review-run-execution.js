@@ -233,8 +233,7 @@ function readRun(durableCore, workId) {
  *   reportDiagnostic?: (failure: Error) => unknown,
  *   resultService: {
  *     fail(claim: any, failure: ReviewRunExecutionError): unknown,
- *     prepare(claim: any, candidate: unknown, fileChanges: any[]): unknown,
- *     submitPrepared(claim: any): unknown
+ *     prepare(claim: any, candidate: unknown, fileChanges: any[]): unknown
  *   },
  *   runCodex?: typeof runReviewRunCodex,
  *   spawnProcess?: (
@@ -314,7 +313,6 @@ export async function executeReviewRun(
               fileChanges,
             );
           },
-          submitPrepared: resultService.submitPrepared,
         },
         run: reviewRun,
         startRun() {

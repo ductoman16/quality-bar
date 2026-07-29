@@ -219,10 +219,7 @@ export function reviewRunCodexEnvironment(
  *     lastValidationFailure(): ReviewRunExecutionError | null,
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
- *   resultService: {
- *     prepare(claim: any, candidate: unknown): unknown,
- *     submitPrepared(claim: any): unknown
- *   },
+ *   resultService: {prepare(claim: any, candidate: unknown): unknown},
  *   startRun: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
@@ -301,12 +298,18 @@ export async function runReviewRunCodex({
     let transcriptFailure;
     /** @type {Promise<void> | undefined} */
     let transcriptTermination;
+    /** @type {(value: void | PromiseLike<void>) => void} */
+    let resolveTranscriptFailure;
+    const transcriptFailureSignal = new Promise((resolve) => {
+      resolveTranscriptFailure = resolve;
+    });
     /** @param {unknown} error */
     function stopAfterTranscriptFailure(error) {
       if (transcriptFailure) {
         return;
       }
       transcriptFailure = error;
+      resolveTranscriptFailure(undefined);
       transcriptTermination = terminateCodexProcessGroup(
         child,
         processResult,
@@ -314,11 +317,22 @@ export async function runReviewRunCodex({
         setTerminationTimer,
         clearTerminationTimer,
       ).catch((terminationFailure) => {
-        diagnosticFailures.push(
+        const failure =
           terminationFailure instanceof Error
             ? terminationFailure
-            : new TypeError("Codex process-group termination failed"),
-        );
+            : new TypeError("Codex process-group termination failed");
+        diagnosticFailures.push(failure);
+        if (transcriptFailure instanceof Error) {
+          Object.defineProperty(
+            transcriptFailure,
+            "processTerminationFailure",
+            {
+              configurable: true,
+              enumerable: false,
+              value: failure,
+            },
+          );
+        }
       });
     }
     child.stdout?.setEncoding("utf8").on("data", (chunk) => {
@@ -337,11 +351,18 @@ export async function runReviewRunCodex({
         stopAfterTranscriptFailure(error);
       }
     });
+    /** @type {{ kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     const terminal = await Promise.race([
-      processResult.then((result) => ({ kind: "process", result })),
-      channel.waitForResult().then((result) => ({
-        kind: "submission",
+      processResult.then((result) => ({
+        kind: /** @type {const} */ ("process"),
         result,
+      })),
+      channel.waitForResult().then((result) => ({
+        kind: /** @type {const} */ ("submission"),
+        result,
+      })),
+      transcriptFailureSignal.then(() => ({
+        kind: /** @type {const} */ ("transcript"),
       })),
     ]).catch((cause) =>
       fail(
@@ -389,9 +410,6 @@ export async function runReviewRunCodex({
     }
     if (terminal.kind === "submission" && terminal.result === "failed") {
       throw new TypeError("Review Run submission failed");
-    }
-    if (accepted) {
-      resultService.submitPrepared(claim);
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

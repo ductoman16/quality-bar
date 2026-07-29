@@ -151,7 +151,8 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
   const criterionId = migrated.get(
     "SELECT criterion_id FROM review_version_criteria",
   )?.criterion_id;
-  createReviewRunResultService(migrated, { now: () => 30 }).submit(
+  const results = createReviewRunResultService(migrated, { now: () => 30 });
+  results.prepare(
     claim,
     {
       criterion_results: [

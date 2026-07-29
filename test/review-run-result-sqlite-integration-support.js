@@ -91,7 +91,7 @@ export function assertRejectedCandidatesStoreNothing(
     ],
   ]) {
     assert.throws(
-      () => results.submit(claim, candidate, fileChanges),
+      () => results.prepare(claim, candidate, fileChanges),
       (error) =>
         error instanceof ReviewRunExecutionError && error.code === code,
     );

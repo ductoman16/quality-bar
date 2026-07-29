@@ -25,7 +25,8 @@ test("schema v30 history migrates without invented Review Run evidence", async (
   const criterionId = prior.get(
     "SELECT criterion_id FROM review_version_criteria",
   )?.criterion_id;
-  createReviewRunResultService(prior, { now: () => 30 }).submit(
+  const results = createReviewRunResultService(prior, { now: () => 30 });
+  results.prepare(
     claim,
     {
       criterion_results: [{ criterion_id: criterionId, outcome: "clear" }],
@@ -33,8 +34,6 @@ test("schema v30 history migrates without invented Review Run evidence", async (
     [],
   );
   prior.transaction((transaction) => {
-    transaction.run("DROP TRIGGER review_run_accepted_submission_immutable");
-    transaction.run("DROP TABLE review_run_accepted_submissions");
     transaction.run("DROP TRIGGER review_run_cli_version_immutable");
     transaction.run("DROP TRIGGER review_run_execution_evidence_immutable");
     transaction.run(

@@ -1,5 +1,3 @@
-import { REVIEW_RUN_ACCEPTED_SUBMISSION_SCHEMA } from "./review-run-accepted-submission.js";
-
 const UNAVAILABLE_TOKEN_COUNTERS = Object.freeze({
   cached_input_tokens: null,
   input_tokens: null,
@@ -81,7 +79,6 @@ export function reviewRunEvidenceMigration(database) {
     ${columns.has("output_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN output_tokens INTEGER;"}
     ${columns.has("execution_evidence_recorded") ? "" : "ALTER TABLE review_runs ADD COLUMN execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1));"}
     ${REVIEW_RUN_TRANSCRIPT_SCHEMA}
-    ${REVIEW_RUN_ACCEPTED_SUBMISSION_SCHEMA}
     ${REVIEW_RUN_EVIDENCE_INTEGRITY}
   `;
 }

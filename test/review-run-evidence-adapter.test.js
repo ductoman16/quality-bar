@@ -68,7 +68,7 @@ test("streams exact transcript chunks and retains supplied terminal counters and
           submission: () => undefined,
           waitForResult: () => new Promise(() => {}),
         }),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess: () =>
           /** @type {any} */ (processThatCompletesWithUsage()),
@@ -103,7 +103,7 @@ test("streams exact transcript chunks and retains supplied terminal counters and
   ]);
 });
 
-test("terminal evidence failure prevents the prepared Result from committing", async () => {
+test("terminal evidence failure remains exact after Result acceptance", async () => {
   const storageFailure = Object.assign(
     new Error("SQLite durable write failed"),
     {
@@ -115,7 +115,6 @@ test("terminal evidence failure prevents the prepared Result from committing", a
     stderr: new PassThrough(),
     stdout: new PassThrough(),
   });
-  let resultCommitted = false;
   await assert.rejects(
     () =>
       runReviewRunCodex({
@@ -151,18 +150,12 @@ test("terminal evidence failure prevents the prepared Result from committing", a
           submission: () => ({ prepared: true }),
           waitForResult: async () => "accepted",
         }),
-        resultService: {
-          prepare() {},
-          submitPrepared() {
-            resultCommitted = true;
-          },
-        },
+        resultService: { prepare() {} },
         run,
         spawnProcess: () => /** @type {any} */ (child),
       }),
     (error) => error === storageFailure,
   );
-  assert.equal(resultCommitted, false);
 });
 
 test("a transcript write failure immediately terminates Codex with its owning error", async () => {
@@ -212,7 +205,7 @@ test("a transcript write failure immediately terminates Codex with its owning er
           lastValidationFailure: () => null,
           waitForResult: () => new Promise(() => {}),
         }),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess() {
           queueMicrotask(() => child.stdout.write("raw JSONL\n"));
@@ -244,7 +237,7 @@ test("claim start failures remain exact and prevent process spawn", async () => 
           lastValidationFailure: () => null,
           waitForResult: () => new Promise(() => {}),
         }),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess() {
           spawned = true;
@@ -257,4 +250,61 @@ test("claim start failures remain exact and prevent process spawn", async () => 
     (error) => error === claimFailure,
   );
   assert.equal(spawned, false);
+});
+
+test("transcript failure surfaces even when process termination also fails", async () => {
+  const storageFailure = Object.assign(
+    new Error("SQLite durable write failed"),
+    {
+      code: "storage_unavailable",
+    },
+  );
+  const child = Object.assign(new EventEmitter(), {
+    pid: 80,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {
+            throw storageFailure;
+          },
+          complete() {
+            assert.fail("terminal evidence followed transcript failure");
+          },
+        },
+        killProcessGroup() {
+          throw Object.assign(new Error("kill not permitted"), {
+            code: "EPERM",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => false,
+          async close() {},
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess() {
+          queueMicrotask(() => child.stdout.write("raw JSONL\n"));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) => {
+      assert.equal(error, storageFailure);
+      assert.match(
+        /** @type {any} */ (error).processTerminationFailure.message,
+        /kill not permitted/,
+      );
+      return true;
+    },
+  );
 });

@@ -122,7 +122,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
       QUALITY_BAR_CSRF_SECRET: ownedSecrets.csrf,
     },
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     startRun() {
       launchEvents.push("start");
@@ -185,7 +185,7 @@ test("accepted submission closes before terminating the still-running Codex proc
         return "accepted";
       },
     }),
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
     killProcessGroup(pid, signal) {
@@ -276,7 +276,7 @@ test("maps process completion without an accepted Result to exact owning failure
           checkoutPath: "/checkout",
           claim,
           openSubmissionChannel: async () => channel(),
-          resultService: { prepare() {}, submitPrepared() {} },
+          resultService: { prepare() {} },
           run,
           spawnProcess: () => /** @type {any} */ (processThatExits(code)),
         }),
@@ -319,7 +319,7 @@ test("every exit without acceptance preserves the last exact correction error", 
           claim,
           openSubmissionChannel: async () =>
             channel({ lastValidationFailure: validationFailure }),
-          resultService: { prepare() {}, submitPrepared() {} },
+          resultService: { prepare() {} },
           run,
           spawnProcess: () => /** @type {any} */ (processThatExits(exitCode)),
         }),
@@ -343,7 +343,7 @@ test("preserves raw JSONL stdout and stderr when the pinned Codex process fails"
         checkoutPath: "/checkout",
         claim,
         openSubmissionChannel: async () => channel(),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatFailsWithJsonl()),
       }),
@@ -371,7 +371,7 @@ test("preserves an unexpected submission storage failure", async () => {
         checkoutPath: "/checkout",
         claim,
         openSubmissionChannel: async () => channel({ failure: storageFailure }),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(1)),
       }),
@@ -388,7 +388,7 @@ test("channel cleanup cannot replace the exact owning process failure", async ()
         claim,
         openSubmissionChannel: async () =>
           channel({ closeFailure: cleanupFailure }),
-        resultService: { prepare() {}, submitPrepared() {} },
+        resultService: { prepare() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(2)),
       }),
@@ -412,7 +412,7 @@ test("channel cleanup failure remains visible without overturning an accepted Re
       claim,
       openSubmissionChannel: async () =>
         channel({ accepted: true, closeFailure: cleanupFailure }),
-      resultService: { prepare() {}, submitPrepared() {} },
+      resultService: { prepare() {} },
       run,
       spawnProcess: () => /** @type {any} */ (processThatExits(0)),
       killProcessGroup(pid, signal) {

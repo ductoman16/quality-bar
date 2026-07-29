@@ -62,7 +62,7 @@ test("accepted submission force-kills a Codex process group after five seconds",
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -94,7 +94,7 @@ test("a direct child exit does not spare a surviving process-group descendant", 
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -125,7 +125,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
           setImmediate(() => resolve("accepted"));
         }),
     }),
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -152,7 +152,7 @@ test("an already-exited process group cannot overturn an accepted Result", async
       });
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { prepare() {}, submitPrepared() {} },
+    resultService: { prepare() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
   });
@@ -172,7 +172,7 @@ test("termination failure stays diagnostic after an accepted Result", async () =
         throw terminationFailure;
       },
       openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { prepare() {}, submitPrepared() {} },
+      resultService: { prepare() {} },
       run,
       spawnProcess: () => /** @type {any} */ (child),
     }),
@@ -202,7 +202,7 @@ test("permission-denied liveness still attempts the survivor force-kill", async 
         }
       },
       openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { prepare() {}, submitPrepared() {} },
+      resultService: { prepare() {} },
       run,
       setTerminationTimer(callback) {
         setImmediate(callback);

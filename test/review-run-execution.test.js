@@ -79,7 +79,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
       assert.equal(failure, cleanupDiagnostic);
       events.push("diagnostic");
     },
-    resultService: { fail() {}, prepare() {}, submitPrepared() {} },
+    resultService: { fail() {}, prepare() {} },
     async runCodex(input) {
       input.startRun?.();
       events.push("codex");
@@ -169,7 +169,6 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
         assert.fail("accepted Result was converted to failure");
       },
       prepare() {},
-      submitPrepared() {},
     },
     async runCodex(input) {
       input.startRun?.();
@@ -203,7 +202,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
           throw failure;
         },
         readFileChanges: () => [],
-        resultService: { fail() {}, prepare() {}, submitPrepared() {} },
+        resultService: { fail() {}, prepare() {} },
         async runCodex() {
           launched = true;
           return { diagnosticFailures: [] };
@@ -245,7 +244,6 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
         resultService: {
           fail() {},
           prepare() {},
-          submitPrepared() {},
         },
         async runCodex(input) {
           input.startRun?.();
@@ -289,7 +287,6 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
         resultService: {
           fail() {},
           prepare() {},
-          submitPrepared() {},
         },
         async runCodex(input) {
           input.startRun?.();
@@ -328,7 +325,6 @@ test("an unexpected started failure has one stable safe owning detail", async ()
             persistedFailure = failure;
           },
           prepare() {},
-          submitPrepared() {},
         },
         async runCodex(input) {
           input.startRun?.();
