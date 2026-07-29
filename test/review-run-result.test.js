@@ -12,11 +12,15 @@ const criteria = [
 ];
 const fileChanges = [
   {
+    added: false,
     after_path: "src/current.js",
     base_line_count: 3,
     before_path: "src/previous.js",
+    deleted: false,
     head_line_count: 4,
     id: "file-change-1",
+    modified: true,
+    renamed: true,
   },
 ];
 

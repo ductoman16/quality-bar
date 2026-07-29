@@ -118,18 +118,19 @@ test("public Repository verification accepts a reactivated installation credenti
     ["--git-dir", join(directory, "populated.git"), "rev-parse", "main"],
     { encoding: "utf8" },
   ).trim();
-  assert.deepEqual(
-    await resolvePushedCommitSelectors(
-      `https://127.0.0.1:${address.port}/populated.git`,
-      undefined,
-      {
-        base: { type: "branch", value: "main" },
-        head: { type: "commit", value: expectedCommit },
-      },
-      { certificateAuthorityPath: certificate, objectDatabaseRoot: directory },
-    ),
-    { base_commit: expectedCommit, head_commit: expectedCommit },
+  const frozen = await resolvePushedCommitSelectors(
+    `https://127.0.0.1:${address.port}/populated.git`,
+    undefined,
+    {
+      base: { type: "branch", value: "main" },
+      head: { type: "commit", value: expectedCommit },
+    },
+    { certificateAuthorityPath: certificate, objectDatabaseRoot: directory },
   );
+  assert.equal(frozen.base_commit, expectedCommit);
+  assert.equal(frozen.head_commit, expectedCommit);
+  assert.deepEqual(frozen.file_changes, []);
+  frozen.release();
   await verifyPublicRepositoryRead(
     `https://127.0.0.1:${address.port}/empty.git`,
     { certificateAuthorityPath: certificate },

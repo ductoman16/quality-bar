@@ -275,3 +275,87 @@ test("terminal Applicability error retains its exact predicate context without a
     review_runs: [],
   });
 });
+
+test("renamed before and after paths persist one matched Applicability Result and queue one Review Run", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-applicability-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  let fact = 0;
+  const reviews = createReviewService(core, {
+    createId: () => `fact-${++fact}`,
+    now: () => fact,
+  });
+  const rule =
+    'file_changes.exists(file, file.renamed && file.paths.exists(path, path.matches(":(glob)src/*name*.js")))';
+  createAssignedReview(reviews, "renamed path", rule);
+  const evaluations = createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: "1".repeat(40),
+      file_changes: [
+        {
+          added: false,
+          after_path: "src/renamed.js",
+          before_path: "src/name.js",
+          deleted: false,
+          id: "file-change-1",
+          modified: true,
+          renamed: true,
+        },
+      ],
+      head_commit: "2".repeat(40),
+      matches_path(pathspec, path) {
+        return (
+          pathspec === ":(glob)src/*name*.js" &&
+          ["src/name.js", "src/renamed.js"].includes(path)
+        );
+      },
+    }),
+    createId: () => "evaluation-renamed",
+    createReviewRunId: () => "review-run-renamed",
+    readCodexCapabilityFailure: () => null,
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 100,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  await evaluations.createExplicit({
+    channel: "implementer_token",
+    idempotencyKey: "renamed",
+    repositoryId: "repository-1",
+    request: {
+      base: { type: "branch", value: "main" },
+      head: { type: "branch", value: "topic" },
+    },
+  });
+  const result = core.get(
+    "SELECT outcome, evidence_json FROM applicability_results",
+  );
+  assert.equal(result?.outcome, "applicable");
+  assert.deepEqual(
+    JSON.parse(/** @type {string} */ (result?.evidence_json)).matches[0],
+    {
+      after_path: "src/renamed.js",
+      before_path: "src/name.js",
+      branch_ids: ["branch-1", "branch-2", "branch-3"],
+      file_change_id: "file-change-1",
+      predicate_ids: [
+        "predicate-1",
+        "predicate-2",
+        "predicate-3",
+        "predicate-4",
+      ],
+      sides: ["change", "before", "after"],
+    },
+  );
+  assert.deepEqual(core.get("SELECT id, execution_status FROM review_runs"), {
+    execution_status: "queued",
+    id: "review-run-renamed",
+  });
+});

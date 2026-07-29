@@ -83,12 +83,16 @@ test("the first valid fenced submission atomically preserves every complete Crit
   });
   const fileChanges = [
     {
+      added: false,
       after_path: "src/current.js",
       base_line_count: 2,
       before_path: "src/previous.js",
+      deleted: false,
       head_line_count: 3,
       id: "file-change-1",
+      modified: true,
       patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+      renamed: true,
     },
   ];
 
@@ -203,10 +207,14 @@ test("the first valid fenced submission atomically preserves every complete Crit
       evaluation_id: "evaluation-1",
       file_changes: [
         {
+          added: false,
           after_path: "src/current.js",
           before_path: "src/previous.js",
+          deleted: false,
           id: "file-change-1",
+          modified: true,
           patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+          renamed: true,
         },
       ],
       findings: [

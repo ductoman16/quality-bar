@@ -29,7 +29,19 @@ test("Evaluation Results expose each Applicability outcome with its owning scope
       applicability_results: [
         {
           assignment: { scope: "installation_wide" },
-          evidence: { kind: "unconditional" },
+          evidence: {
+            kind: "matched",
+            matches: [
+              {
+                after_path: "src/current.js",
+                before_path: "src/legacy.js",
+                branch_ids: ["branch-1"],
+                file_change_id: "file-change-1",
+                predicate_ids: ["predicate-1"],
+                sides: ["before", "after"],
+              },
+            ],
+          },
           outcome: "applicable",
           review_id: "review-1",
           review_version_id: "review-version-1",
@@ -66,6 +78,14 @@ test("Evaluation Results expose each Applicability outcome with its owning scope
   assert.equal(
     target.options[0].options[1].textContent,
     "Assignment installation_wide",
+  );
+  assert.equal(
+    target.options[0].options[2].options[0].textContent,
+    "before src/legacy.js",
+  );
+  assert.equal(
+    target.options[0].options[2].options[1].textContent,
+    "after src/current.js",
   );
   assert.equal(
     target.options[1].options[0].textContent,

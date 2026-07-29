@@ -84,6 +84,20 @@ test("independent sibling Review Runs publish one Result only after every run is
     createFindingId: () => "finding-blocking",
     now: () => observedAt,
   });
+  const frozenFileChanges = [
+    {
+      added: false,
+      after_path: "after.txt",
+      base_line_count: 1,
+      before_path: "before.txt",
+      deleted: false,
+      head_line_count: 1,
+      id: "file-change-1",
+      modified: false,
+      patch: "",
+      renamed: true,
+    },
+  ];
   const firstClaim = claims.claimNext();
   assert.ok(firstClaim);
   claims.start(firstClaim, "0.145.0");
@@ -105,7 +119,7 @@ test("independent sibling Review Runs publish one Result only after every run is
         },
       ],
     },
-    [],
+    frozenFileChanges,
   );
   assert.equal(
     core.get(
@@ -141,16 +155,18 @@ test("independent sibling Review Runs publish one Result only after every run is
         },
         [
           {
-            after_path: "invented.txt",
-            base_line_count: null,
-            before_path: null,
+            ...frozenFileChanges[0],
             head_line_count: 1,
-            id: "invented-file-change",
-            patch: "@@ -0,0 +1 @@\n+invented\n",
+            modified: true,
           },
         ],
       ),
-    /Frozen File Changes do not match the Evaluation authority/,
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "evaluation_file_change_authority_mismatch" &&
+      error.message ===
+        "Frozen File Changes do not match the Evaluation authority",
   );
   assert.equal(
     core.get(

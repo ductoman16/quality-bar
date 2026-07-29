@@ -27,8 +27,8 @@ test("multiple independent fake Codex runs share one frozen Git Changeset and pu
   execFileSync("git", ["init", "--initial-branch=main", source], {
     stdio: "ignore",
   });
-  writeFileSync(join(source, "reviewed.txt"), "clear proof\n");
-  execFileSync("git", ["-C", source, "add", "reviewed.txt"]);
+  writeFileSync(join(source, "base.txt"), "frozen base\n");
+  execFileSync("git", ["-C", source, "add", "base.txt"]);
   execFileSync(
     "git",
     [

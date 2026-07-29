@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
+import { storeEvaluationFileChanges } from "./evaluation-file-change-persistence.js";
 import { createReviewRunFailureService } from "./review-run-failure.js";
 import {
   ReviewRunExecutionError,
@@ -65,66 +66,12 @@ function readCriteria(transaction, run) {
 
 /** @param {any} transaction @param {any} run @param {any} submission */
 function storeResultFacts(transaction, run, submission) {
-  const storedFileChanges = transaction.all(
-    `SELECT id, before_path, after_path, base_line_count, head_line_count, patch
-     FROM evaluation_file_changes
-     WHERE evaluation_id = ?
-     ORDER BY id`,
+  storeEvaluationFileChanges(
+    transaction,
     run.evaluation_id,
+    submission.workId,
+    submission.fileChanges,
   );
-  if (storedFileChanges.length === 0) {
-    const completedSiblingCount = transaction.get(
-      `SELECT count(*) AS count FROM review_runs
-       WHERE evaluation_id = ? AND id <> ? AND execution_status = 'completed'`,
-      run.evaluation_id,
-      submission.workId,
-    )?.count;
-    if (completedSiblingCount !== 0 && submission.fileChanges.length !== 0) {
-      throw new TypeError(
-        "Frozen File Changes do not match the Evaluation authority",
-      );
-    }
-    for (const fileChange of submission.fileChanges) {
-      transaction.run(
-        `INSERT INTO evaluation_file_changes (
-           evaluation_id, id, before_path, after_path,
-           base_line_count, head_line_count, patch
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        run.evaluation_id,
-        fileChange.id,
-        fileChange.before_path,
-        fileChange.after_path,
-        fileChange.base_line_count,
-        fileChange.head_line_count,
-        fileChange.patch,
-      );
-    }
-  } else {
-    const canonicalFileChange = (
-      /** @type {Record<string, any>} */ fileChange,
-    ) => ({
-      after_path: fileChange.after_path,
-      base_line_count: fileChange.base_line_count,
-      before_path: fileChange.before_path,
-      head_line_count: fileChange.head_line_count,
-      id: fileChange.id,
-      patch: fileChange.patch,
-    });
-    const expected = submission.fileChanges
-      .map(canonicalFileChange)
-      .sort(
-        (
-          /** @type {Record<string, any>} */ left,
-          /** @type {Record<string, any>} */ right,
-        ) => left.id.localeCompare(right.id),
-      );
-    const actual = storedFileChanges.map(canonicalFileChange);
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new TypeError(
-        "Frozen File Changes do not match the Evaluation authority",
-      );
-    }
-  }
   for (const result of submission.results) {
     transaction.run(
       `INSERT INTO criterion_results (

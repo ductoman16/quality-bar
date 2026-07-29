@@ -33,7 +33,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-checkout-git-integration",
     testGroup:
-      "fresh-writable-disposable-frozen-commit-credential-free-checkout-before-review-run-deadline-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-and-exact-criterion-result-coverage-boundary",
+      "fresh-writable-disposable-frozen-commit-credential-free-checkout-before-review-run-deadline-multiple-independent-review-runs-over-one-frozen-changeset-honest-file-change-kind-sides-and-exact-criterion-result-coverage-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
     arguments: [
       "--test",
@@ -46,7 +46,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-result-sqlite-integration",
     testGroup:
-      "first-valid-fenced-aggregate-terminal-review-runs-preserved-sibling-facts-outcome-precedence-append-only-transcript-exact-run-measurement-deadline-failure-invalid-attempt-zero-storage-four-meaning-criterion-result-opaque-finding-identity-inherited-impact-exact-run-failure-no-fallback-and-v26-v27-v30-migration-boundary",
+      "first-valid-fenced-aggregate-terminal-review-runs-preserved-sibling-facts-outcome-precedence-append-only-transcript-exact-run-measurement-deadline-failure-invalid-attempt-zero-storage-four-meaning-criterion-result-opaque-finding-identity-inherited-impact-exact-run-failure-no-fallback-and-v26-v27-v30-v31-v32-migration-boundary",
     failureCode: "review_run_result_sqlite_integration_tests_failed",
     arguments: [
       "--test",

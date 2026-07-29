@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -156,4 +162,25 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
         error.code === "criterion_result_coverage_invalid",
     );
   }
+});
+
+test("preserves the exact unsupported File Change kind error", (context) => {
+  const repository = mkdtempSync(join(tmpdir(), "quality-bar-kind-"));
+  context.after(() => rmSync(repository, { force: true, recursive: true }));
+  execFileSync("git", ["init", "--initial-branch=main", repository], {
+    stdio: "ignore",
+  });
+  writeFileSync(join(repository, "entry"), "regular\n");
+  const base = commit(repository, "regular");
+  rmSync(join(repository, "entry"));
+  symlinkSync("target", join(repository, "entry"));
+  const head = commit(repository, "symlink");
+
+  assert.throws(
+    () => readReviewRunFileChanges(repository, base, head),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "evaluation_file_change_kind_unsupported" &&
+      error.message === "Git File Change status T is unsupported",
+  );
 });

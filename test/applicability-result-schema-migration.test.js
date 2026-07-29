@@ -49,7 +49,7 @@ test("schema v30 adds Applicability Results without inventing historical facts",
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   assert.deepEqual(
     migrated.get("SELECT count(*) AS count FROM applicability_results"),
     { count: 0 },
@@ -105,6 +105,7 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
       exec(statements) {
         migration = statements;
       },
+      function() {},
       /** @param {string} sql */
       prepare(sql) {
         return {
