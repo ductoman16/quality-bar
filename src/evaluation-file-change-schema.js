@@ -15,6 +15,22 @@ export function legacyFileChangeModified(beforePath, afterPath, patch) {
     return 0;
   }
   if (beforePath === afterPath) {
+    const oldModes = patch
+      .split("\n")
+      .filter((line) => line.startsWith("old mode "));
+    const newModes = patch
+      .split("\n")
+      .filter((line) => line.startsWith("new mode "));
+    if (
+      oldModes.length !== newModes.length ||
+      oldModes.length > 1 ||
+      (oldModes.length === 1 &&
+        (!/^old mode [0-7]{6}$/.test(oldModes[0]) ||
+          !/^new mode [0-7]{6}$/.test(newModes[0]) ||
+          oldModes[0].slice(-6, -3) !== newModes[0].slice(-6, -3)))
+    ) {
+      throw new TypeError("Legacy File Change kind is unsupported");
+    }
     return 1;
   }
   const similarityLines = patch

@@ -76,7 +76,8 @@ export function runGitCommand({
       return;
     }
     let completed = false;
-    let stdout = "";
+    /** @type {Buffer[]} */
+    const stdoutChunks = [];
     let stderr = "";
     /** @param {unknown} result @param {boolean} failed */
     function complete(result, failed) {
@@ -101,7 +102,7 @@ export function runGitCommand({
       return;
     }
     child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
+      stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     });
     child.stderr.on("data", (chunk) => {
       const message = String(chunk);
@@ -124,7 +125,17 @@ export function runGitCommand({
       complete(cause, true);
     });
     child.once("close", (code, signal) => {
-      complete({ code, signal, stderr, stdout }, false);
+      const stdoutBuffer = Buffer.concat(stdoutChunks);
+      complete(
+        {
+          code,
+          signal,
+          stderr,
+          stdout: stdoutBuffer.toString("utf8"),
+          stdoutBuffer,
+        },
+        false,
+      );
     });
   });
 }

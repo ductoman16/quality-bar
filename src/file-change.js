@@ -1,3 +1,21 @@
+/** @param {string | Buffer} output */
+export function gitPathFields(output) {
+  let decoded;
+  try {
+    decoded =
+      typeof output === "string"
+        ? output
+        : new TextDecoder("utf-8", { fatal: true }).decode(output);
+  } catch (cause) {
+    failEvaluation(
+      "evaluation_file_change_invalid",
+      "Git returned invalid UTF-8 File Change paths",
+      cause,
+    );
+  }
+  return decoded.split("\0").filter((field) => field.length > 0);
+}
+
 /** @param {unknown} value */
 export function isNormalizedRepositoryPath(value) {
   return (
@@ -54,9 +72,9 @@ export function isValidFileChange(value) {
   return value.modified && before !== null && after === before;
 }
 
-/** @param {string} output */
+/** @param {string | Buffer} output */
 export function fileChangesFromGitNameStatus(output) {
-  const fields = output.split("\0").filter((field) => field.length > 0);
+  const fields = gitPathFields(output);
   const changes = [];
   for (let index = 0; index < fields.length; ) {
     const status = fields[index++];

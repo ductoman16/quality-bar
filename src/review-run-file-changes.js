@@ -99,20 +99,16 @@ function frozenPatch(checkoutPath, baseCommit, headCommit, paths) {
 export function readReviewRunFileChanges(checkoutPath, baseCommit, headCommit) {
   try {
     return fileChangesFromGitNameStatus(
-      execFileSync(
-        "git",
-        [
-          "-C",
-          checkoutPath,
-          "diff",
-          "--find-renames",
-          "--name-status",
-          "-z",
-          baseCommit,
-          headCommit,
-        ],
-        { encoding: "utf8" },
-      ),
+      execFileSync("git", [
+        "-C",
+        checkoutPath,
+        "diff",
+        "--find-renames",
+        "--name-status",
+        "-z",
+        baseCommit,
+        headCommit,
+      ]),
     ).map((change) => ({
       ...change,
       base_line_count: sideLineCount(

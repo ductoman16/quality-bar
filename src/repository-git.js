@@ -8,7 +8,7 @@ import {
   EvaluationError,
   failEvaluation,
 } from "./evaluation-validation.js";
-import { fileChangesFromGitNameStatus } from "./file-change.js";
+import { fileChangesFromGitNameStatus, gitPathFields } from "./file-change.js";
 import { RepositoryError } from "./repository-validation.js";
 import {
   gitCredentialIsValid,
@@ -218,7 +218,8 @@ export async function resolvePushedCommitSelectors(
        *   code: number | null,
        *   signal: NodeJS.Signals | null,
        *   stderr: string,
-       *   stdout: string
+       *   stdout: string,
+       *   stdoutBuffer: Buffer
        * }} */ (result);
       if (command.code === 0 && command.signal === null) {
         return command;
@@ -301,7 +302,7 @@ export async function resolvePushedCommitSelectors(
       base_commit: resolved[0].toLowerCase(),
       head_commit: resolved[1].toLowerCase(),
       file_changes: fileChangesFromGitNameStatus(
-        /** @type {{stdout: string}} */ (
+        /** @type {{stdoutBuffer: Buffer}} */ (
           await runGit(
             [
               "diff",
@@ -313,7 +314,7 @@ export async function resolvePushedCommitSelectors(
             ],
             false,
           )
-        ).stdout,
+        ).stdoutBuffer,
       ),
     };
   } catch (error) {
@@ -377,29 +378,28 @@ export async function resolvePushedCommitSelectors(
     [frozen.base_commit, frozen.head_commit],
     (commit, pathspec) => {
       try {
-        return execFileSync(
-          "git",
-          [
-            "-C",
-            objectDatabase,
-            "ls-files",
-            "-z",
-            `--with-tree=${commit}`,
-            "--",
-            pathspec,
-          ],
-          {
-            encoding: "utf8",
-            env: {
-              GIT_CONFIG_GLOBAL: "/dev/null",
-              GIT_CONFIG_NOSYSTEM: "1",
-              LC_ALL: "C",
+        return gitPathFields(
+          execFileSync(
+            "git",
+            [
+              "-C",
+              objectDatabase,
+              "ls-files",
+              "-z",
+              `--with-tree=${commit}`,
+              "--",
+              pathspec,
+            ],
+            {
+              env: {
+                GIT_CONFIG_GLOBAL: "/dev/null",
+                GIT_CONFIG_NOSYSTEM: "1",
+                LC_ALL: "C",
+              },
+              maxBuffer: Number.MAX_SAFE_INTEGER,
             },
-            maxBuffer: Number.MAX_SAFE_INTEGER,
-          },
-        )
-          .split("\0")
-          .filter((matchedPath) => matchedPath.length > 0);
+          ),
+        );
       } catch (cause) {
         throw Object.assign(new Error("Frozen Git path matching failed"), {
           cause,
