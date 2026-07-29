@@ -9,6 +9,19 @@ import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
+/** @param {any} transaction */
+function removeWaiverBatchSchema(transaction) {
+  transaction.run("DROP TRIGGER codex_execution_queue_reference_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_requests_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_lifecycle_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_seal_insert");
+  transaction.run("DROP TRIGGER codex_execution_queue_waiver_active_delete");
+  transaction.run("DROP TABLE waiver_batch_idempotency");
+  transaction.run("DROP TABLE waiver_adjudication_requests");
+  transaction.run("DROP TABLE waiver_requests");
+  transaction.run("DROP TABLE waiver_adjudications");
+}
+
 test("schema v26 migrates queued Review Runs without inventing a partial Result", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-migrate-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -16,6 +29,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
   const current = openDurableCore(databasePath);
   await createQueuedReviewRun(current);
   current.transaction((transaction) => {
+    removeWaiverBatchSchema(transaction);
     transaction.run("DROP TRIGGER finding_immutable_update");
     transaction.run("DROP TRIGGER finding_immutable_delete");
     transaction.run("DROP TABLE findings");
@@ -52,7 +66,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -77,6 +91,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
   const prior = openDurableCore(databasePath);
   await createQueuedReviewRun(prior);
   prior.transaction((transaction) => {
+    removeWaiverBatchSchema(transaction);
     transaction.run("DROP TRIGGER finding_immutable_update");
     transaction.run("DROP TRIGGER finding_immutable_delete");
     transaction.run("DROP TABLE findings");
@@ -140,7 +155,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
@@ -191,6 +206,7 @@ test("schema v32 preserves exact File Change kinds while adding durable facts", 
   const prior = openDurableCore(databasePath);
   await createQueuedReviewRun(prior);
   prior.transaction((transaction) => {
+    removeWaiverBatchSchema(transaction);
     transaction.run("DROP TRIGGER finding_immutable_update");
     transaction.run("DROP TRIGGER finding_immutable_delete");
     transaction.run("DROP TABLE findings");
@@ -245,7 +261,7 @@ test("schema v32 preserves exact File Change kinds while adding durable facts", 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.all(
       `SELECT added, deleted, modified, renamed,
@@ -312,6 +328,7 @@ test("schema v32 rejects impossible legacy File Changes", async (context) => {
     const prior = openDurableCore(databasePath);
     await createQueuedReviewRun(prior);
     prior.transaction((transaction) => {
+      removeWaiverBatchSchema(transaction);
       transaction.run("DROP TRIGGER finding_immutable_update");
       transaction.run("DROP TRIGGER finding_immutable_delete");
       transaction.run("DROP TABLE findings");

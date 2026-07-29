@@ -27,6 +27,7 @@ function returnSchemaToVersionSix(current) {
       "review_assignment_repository_scope_insert",
       "review_assignment_repository_scope_update",
       "review_assignment_scope_update",
+      "waiver_request_advisory_insert",
     ]) {
       transaction.run(`DROP TRIGGER ${trigger}`);
     }
@@ -92,7 +93,7 @@ test("restores a compatible current snapshot produced by the genuine v6 migratio
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 38);
+    assert.equal(migrated.facts.schemaVersion, 39);
     assert.match(
       String(
         migrated.get(

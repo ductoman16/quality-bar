@@ -188,6 +188,8 @@
       throw new Error("evaluation_result_invalid");
     }
     target.textContent = "Result " + result.outcome;
+    /** @type {{findingId: string, rationale: any}[]} */
+    const waiverRationales = [];
     for (const applicability of result.applicability_results) {
       if (
         typeof applicability.review_id !== "string" ||
@@ -363,6 +365,15 @@
           findingDetails.append(fact);
         }
         findingDetails.append(findingLocation(evaluation.id, finding));
+        if (finding.impact === "advisory") {
+          const rationale = document.createElement("textarea");
+          rationale.setAttribute(
+            "aria-label",
+            "Waiver rationale for " + finding.id,
+          );
+          findingDetails.append(rationale);
+          waiverRationales.push({ findingId: finding.id, rationale });
+        }
         const location = finding.location;
         if (
           focusValue(focusSearch, "evaluation_id") === evaluation.id &&
@@ -384,6 +395,13 @@
         criterionDetails.append(findingDetails);
       }
       target.append(criterionDetails);
+    }
+    if (waiverRationales.length > 0) {
+      const waiverBatch = Reflect.get(window, "qualityBarWaiverBatch");
+      if (typeof waiverBatch?.createForm !== "function") {
+        throw new Error("waiver_batch_boundary_unavailable");
+      }
+      target.append(waiverBatch.createForm(evaluation.id, waiverRationales));
     }
     for (const run of result.review_runs.filter(
       /** @param {any} candidate */

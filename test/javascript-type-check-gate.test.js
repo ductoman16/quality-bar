@@ -200,6 +200,7 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
         ![
           "src/browser/evaluation-result.js",
           "src/browser/evaluation-feedback.js",
+          "src/browser/waiver-batch.js",
           "src/browser/evaluation.js",
           "src/browser/storage-reserve.js",
           "src/browser/system-attention.js",

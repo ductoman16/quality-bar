@@ -21,6 +21,10 @@ import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
 import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
 import { repositoryGateTests } from "./repository-gate-definition.mjs";
 import { MCP_GATE_DEFINITION } from "./mcp-gate-definition.mjs";
+import {
+  GITHUB_FIXTURE_GATE,
+  GIT_GATE,
+} from "./github-feedback-gate-definitions.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -254,6 +258,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection.test.js",
         "test/forgejo-polling.test.js",
         "test/waiver-adjudicator-configuration.test.js",
+        "test/waiver-batch.test.js",
         "test/sqlite-backup.test.js",
         "test/verification-harness.test.js",
       ],
@@ -290,6 +295,7 @@ export function createGateDefinitions(metadata) {
         "test/waiver-adjudicator-configuration-browser-component.test.js",
         "test/storage-reserve-browser-component.test.js",
         "test/evaluation-browser-component.test.js",
+        "test/evaluation-browser-state-component.test.js",
         "test/github-commit-status-browser-component.test.js",
         "test/github-feedback-browser-component.test.js",
         "test/evaluation-cancellation-browser-component.test.js",
@@ -299,35 +305,9 @@ export function createGateDefinitions(metadata) {
     },
     FAKE_CODEX_GATE_DEFINITION,
     ...REVIEW_RUN_ADMISSION_GATE_DEFINITIONS,
-    {
-      name: "github-fixture-integration",
-      testGroup:
-        "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-draft-ready-force-push-retarget-close-merge-and-reopen-observation-exact-frozen-head-stable-commit-status-append-only-aggregate-and-inline-feedback-atomic-selection-enumeration-and-private-git-boundary",
-      failureCode: "github_fixture_integration_tests_failed",
-      arguments: [
-        "--test",
-        "test/github-fixture-integration.test.js",
-        "test/github-commit-status-fixture-integration.test.js",
-        "test/github-feedback-fixture-integration.test.js",
-        "test/github-polling-fixture-integration.test.js",
-        "test/github-private-proof-failure-fixture-integration.test.js",
-      ],
-    },
+    GITHUB_FIXTURE_GATE,
     ...forgejoGateDefinitions,
-    {
-      name: "git-integration",
-      testGroup:
-        "generic-and-github-app-https-repository-read-guidance-assignment-retirement-reactivation-deletion-polling-object-identity-pull-request-merge-base-exact-frozen-head-status-and-valid-diff-feedback-force-push-return-to-prior-pair-and-inaccessible-head-boundary",
-      failureCode: "git_integration_tests_failed",
-      arguments: [
-        "--test",
-        "test/evaluation-git-object-format-integration.test.js",
-        "test/repository-git-integration.test.js",
-        "test/github-git-integration.test.js",
-        "test/github-feedback-git-integration.test.js",
-        "test/repository-git-credential-integration.test.js",
-      ],
-    },
+    GIT_GATE,
     {
       name: "sqlite-integration",
       testGroup:
@@ -360,6 +340,10 @@ export function createGateDefinitions(metadata) {
         "test/github-polling.test.js",
         ...FORGEJO_SQLITE_TESTS,
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
+        "test/waiver-batch-cancelled-sqlite-integration.test.js",
+        "test/waiver-batch-schema-integrity-sqlite-integration.test.js",
+        "test/waiver-batch-sqlite-integration.test.js",
+        "test/waiver-batch-schema-migration.test.js",
         "test/evaluation-sqlite-integration.test.js",
       ],
     },

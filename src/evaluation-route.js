@@ -35,6 +35,9 @@ export function matchEvaluationRoute(method, path) {
   const findingMatch = path.match(
     /^\/api\/v1\/evaluations\/([^/]+)\/findings\/([^/]+)$/,
   );
+  const waiverBatchMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/waiver-adjudications$/,
+  );
   const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
   const collection = method === "GET" && path === "/api/v1/evaluations";
   const readable =
@@ -51,15 +54,20 @@ export function matchEvaluationRoute(method, path) {
     evaluationMatch,
     findingMatch,
     machineAccessible:
-      collection || readable || (method === "POST" && Boolean(createMatch)),
+      collection ||
+      readable ||
+      (method === "POST" && Boolean(createMatch || waiverBatchMatch)),
     recognized:
       collection ||
       readable ||
       (method === "POST" &&
-        (createMatch !== null || cancellationMatch !== null)) ||
+        (createMatch !== null ||
+          cancellationMatch !== null ||
+          waiverBatchMatch !== null)) ||
       (method === "GET" && diagnosticsMatch !== null),
     resultMatch,
     reviewRunMatch,
+    waiverBatchMatch,
   };
 }
 
@@ -97,6 +105,10 @@ function failureStatus(failure) {
       "evaluation_result_not_ready",
       "evaluation_not_cancellable",
       "idempotency_conflict",
+      "waiver_adjudication_active",
+      "waiver_finding_ineligible",
+      "waiver_request_duplicate",
+      "waiver_request_limit_reached",
       "repository_disabled",
       "repository_not_enabled",
       "repository_retired",
@@ -116,6 +128,7 @@ function failureStatus(failure) {
       "review_run_admission_unavailable",
       "storage_reserve_check_failed",
       "storage_reserve_unavailable",
+      "waiver_adjudicator_configuration_required",
     ].includes(code) ||
     failure.unavailable === true ||
     isUnavailableError(failure)
@@ -163,6 +176,7 @@ export function createEvaluationRoute({
       findingMatch,
       resultMatch,
       reviewRunMatch,
+      waiverBatchMatch,
     } = matches;
     if (!matches.recognized) {
       return false;
@@ -250,6 +264,21 @@ export function createEvaluationRoute({
           200,
           evaluations.cancel(decodeEvaluationPathSegment(cancellationMatch[1])),
         );
+        return true;
+      }
+      if (waiverBatchMatch) {
+        const created = evaluations.submitWaiverBatch({
+          channel:
+            authority === "machine" ? "implementer_token" : "browser_session",
+          evaluationId: decodeEvaluationPathSegment(waiverBatchMatch[1]),
+          idempotencyKey: request.headers["idempotency-key"],
+          request: await readJsonRequest(request),
+        });
+        writeJson(response, created.status, created.resource, {
+          location: `/api/v1/waiver-adjudications/${encodeURIComponent(
+            created.resource.adjudication.id,
+          )}`,
+        });
         return true;
       }
       const idempotencyKey = request.headers["idempotency-key"];

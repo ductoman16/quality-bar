@@ -167,13 +167,6 @@ export const GITHUB_COMMIT_STATUS_SCHEMA = `
   LEFT JOIN evaluation_results
     ON evaluation_results.evaluation_id = evaluations.id
   WHERE true
-  ORDER BY evaluations.created_at, evaluations.id
-  ON CONFLICT (repository_id, head_commit) DO UPDATE SET
-    evaluation_id = excluded.evaluation_id,
-    desired_state = excluded.desired_state,
-    publication_status = excluded.publication_status,
-    published_state = NULL,
-    published_at = NULL,
-    error_code = excluded.error_code,
-    error_detail = excluded.error_detail;
+  ORDER BY evaluations.created_at DESC, evaluations.id DESC
+  ON CONFLICT (repository_id, head_commit) DO NOTHING;
 `;

@@ -1,8 +1,5 @@
 import { DurableCoreError, fail } from "./durable-error.js";
-import {
-  REVIEW_ASSIGNMENT_MIGRATION,
-  REVIEW_ASSIGNMENT_SCHEMA,
-} from "./review-assignment-schema.js";
+import * as reviewAssignmentSchema from "./review-assignment-schema.js";
 import {
   GITHUB_CONNECTION_HEALTH_MIGRATION,
   GITHUB_CONNECTION_LIFECYCLE_MIGRATION,
@@ -35,6 +32,7 @@ import {
 import { reviewRunResultColumnMigration } from "./review-run-result-schema-migration.js";
 import { GITHUB_FEEDBACK_SCHEMA } from "./github-feedback-schema.js";
 import * as reviewDeletionSchema from "./review-deletion-schema.js";
+import { WAIVER_BATCH_SCHEMA } from "./waiver-batch-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -75,7 +73,7 @@ const REVIEW_SCHEMA = `
     PRIMARY KEY (review_version_id, criterion_id),
     UNIQUE (review_version_id, position)
   ) STRICT;
-  ${REVIEW_ASSIGNMENT_SCHEMA}
+  ${reviewAssignmentSchema.REVIEW_ASSIGNMENT_SCHEMA}
   CREATE TRIGGER IF NOT EXISTS review_versions_immutable_update
     BEFORE UPDATE ON review_versions
     WHEN OLD.sealed_at IS NOT NULL OR NEW.sealed_at IS NULL
@@ -145,6 +143,7 @@ export function initializeOrValidateSchema(
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
       ${EVALUATION_SCHEMA}
+      ${WAIVER_BATCH_SCHEMA}
       ${GITHUB_FEEDBACK_SCHEMA}
       ${reviewDeletionSchema.REVIEW_DELETION_LINEAGE_INTEGRITY}
       ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
@@ -259,7 +258,7 @@ export function initializeOrValidateSchema(
         ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
         ${repositorySchema.REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
-        ${REVIEW_ASSIGNMENT_MIGRATION}
+        ${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}
         ${GITHUB_CONNECTION_SCHEMA}
         ${GITHUB_POLLING_MIGRATION}
       `,
@@ -270,29 +269,29 @@ export function initializeOrValidateSchema(
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
        ${repositorySchema.REPOSITORY_SCHEMA}
        ${REPOSITORY_CREDENTIAL_SCHEMA}
-       ${REVIEW_ASSIGNMENT_MIGRATION}
+       ${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}
        ${GITHUB_CONNECTION_SCHEMA}
        ${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 8) {
     schemaMigration.migrateSchema(
       database,
-      `${repositorySchema.REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${repositorySchema.REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 9) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_CREDENTIAL_SCHEMA}${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 10) {
     schemaMigration.migrateSchema(
       database,
-      `${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 11) {
     schemaMigration.migrateSchema(
       database,
-      `${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${reviewAssignmentSchema.REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 12) {
     schemaMigration.migrateSchema(
