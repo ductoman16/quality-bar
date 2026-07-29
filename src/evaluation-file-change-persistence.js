@@ -16,6 +16,14 @@ function canonicalFileChange(fileChange) {
   };
 }
 
+/** @returns {never} */
+function failAuthorityMismatch() {
+  throw Object.assign(
+    new Error("Frozen File Changes do not match the Evaluation authority"),
+    { code: "evaluation_file_change_authority_mismatch" },
+  );
+}
+
 /**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
@@ -59,9 +67,7 @@ export function storeEvaluationFileChanges(
       canonicalFileChange(/** @type {Record<string, any>} */ (fileChange)),
     );
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new TypeError(
-        "Frozen File Changes do not match the Evaluation authority",
-      );
+      failAuthorityMismatch();
     }
     return;
   }
@@ -72,9 +78,7 @@ export function storeEvaluationFileChanges(
     reviewRunId,
   )?.count;
   if (completedSiblingCount !== 0 && fileChanges.length !== 0) {
-    throw new TypeError(
-      "Frozen File Changes do not match the Evaluation authority",
-    );
+    failAuthorityMismatch();
   }
   for (const fileChange of fileChanges) {
     transaction.run(

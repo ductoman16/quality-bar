@@ -161,7 +161,12 @@ test("independent sibling Review Runs publish one Result only after every run is
           },
         ],
       ),
-    /Frozen File Changes do not match the Evaluation authority/,
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "evaluation_file_change_authority_mismatch" &&
+      error.message ===
+        "Frozen File Changes do not match the Evaluation authority",
   );
   assert.equal(
     core.get(
