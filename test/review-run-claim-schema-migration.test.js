@@ -52,7 +52,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 36);
+  assert.equal(migrated.facts.schemaVersion, 37);
   assert.deepEqual(
     migrated.get(
       `SELECT worker_id, fencing_token, lease_expires_at

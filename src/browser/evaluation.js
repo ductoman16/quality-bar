@@ -48,6 +48,39 @@ function controlValue(id) {
   return control.value;
 }
 
+/** @param {any} status @param {string} head */
+function validCommitStatus(status, head) {
+  if (status === undefined) {
+    return true;
+  }
+  const validError =
+    status.error === null ||
+    (typeof status.error?.code === "string" &&
+      status.error.code.length > 0 &&
+      typeof status.error.detail === "string" &&
+      status.error.detail.length > 0);
+  return (
+    status &&
+    status.context === "Quality Bar" &&
+    status.head_commit === head &&
+    ["pending", "success", "failure", "error"].includes(status.state) &&
+    ["waiting", "succeeded", "unavailable"].includes(
+      status.publication_status,
+    ) &&
+    nullableString(status.published_at) &&
+    validError &&
+    ((status.publication_status === "waiting" &&
+      status.published_at === null &&
+      status.error === null) ||
+      (status.publication_status === "succeeded" &&
+        typeof status.published_at === "string" &&
+        status.error === null) ||
+      (status.publication_status === "unavailable" &&
+        status.published_at === null &&
+        status.error !== null))
+  );
+}
+
 /** @param {any} evaluation */
 async function renderEvaluation(evaluation) {
   if (
@@ -60,6 +93,7 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.head_selector.value !== "string" ||
     typeof evaluation.base_commit !== "string" ||
     typeof evaluation.head_commit !== "string" ||
+    !validCommitStatus(evaluation.commit_status, evaluation.head_commit) ||
     !["automatic", "explicit"].includes(evaluation.provenance) ||
     !(
       (evaluation.provenance === "explicit" &&
@@ -103,18 +137,42 @@ async function renderEvaluation(evaluation) {
       : evaluation.execution_status) +
     " — " +
     evaluation.effective_outcome;
-  const target = ["queued", "running"].includes(evaluation.execution_status)
-    ? active
-    : evaluation.execution_status === "completed" &&
-        !["advisory", "blocking", "error"].includes(
-          evaluation.effective_outcome,
-        )
-      ? recent
-      : attention;
+  const target =
+    evaluation.commit_status?.publication_status === "unavailable"
+      ? attention
+      : ["queued", "running"].includes(evaluation.execution_status)
+        ? active
+        : evaluation.execution_status === "completed" &&
+            !["advisory", "blocking", "error"].includes(
+              evaluation.effective_outcome,
+            )
+          ? recent
+          : attention;
   const row = document.createElement("li");
   row.textContent = summary;
   const resultState = document.createElement("div");
   row.append(resultState);
+  if (evaluation.commit_status) {
+    const commitStatus = document.createElement("div");
+    commitStatus.setAttribute("aria-live", "polite");
+    commitStatus.setAttribute("role", "status");
+    commitStatus.textContent =
+      "Commit status — " +
+      evaluation.commit_status.context +
+      " — intended state " +
+      evaluation.commit_status.state +
+      " — " +
+      evaluation.commit_status.publication_status +
+      (evaluation.commit_status.error
+        ? " — Error " +
+          evaluation.commit_status.error.code +
+          ": " +
+          evaluation.commit_status.error.detail
+        : evaluation.commit_status.published_at
+          ? " — Published " + evaluation.commit_status.published_at
+          : "");
+    row.append(commitStatus);
+  }
   target.append(row);
   if (["queued", "running"].includes(evaluation.execution_status)) {
     resultState.textContent = "Result not ready";

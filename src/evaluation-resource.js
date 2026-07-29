@@ -38,6 +38,27 @@ export function readEvaluation(row) {
     row.result_outcome === null
       ? "pending"
       : /** @type {string} */ (row.result_outcome);
+  const hasCommitStatus = row.commit_status_evaluation_id !== null;
+  if (
+    hasCommitStatus &&
+    (row.commit_status_evaluation_id !== row.id ||
+      row.commit_status_head_commit !== row.head_commit ||
+      !["pending", "success", "failure", "error"].includes(
+        /** @type {string} */ (row.commit_status_state),
+      ) ||
+      !["waiting", "succeeded", "unavailable"].includes(
+        /** @type {string} */ (row.commit_status_publication_status),
+      ))
+  ) {
+    throw new TypeError("Evaluation commit status row is invalid");
+  }
+  const commitStatusError =
+    row.commit_status_error_code === null
+      ? null
+      : {
+          code: row.commit_status_error_code,
+          detail: row.commit_status_error_detail,
+        };
   return {
     base_commit: row.base_commit,
     base_selector: {
@@ -45,6 +66,23 @@ export function readEvaluation(row) {
       value: row.base_selector_value,
     },
     completed_at: completedAt === null ? null : timestamp(completedAt),
+    ...(hasCommitStatus
+      ? {
+          commit_status: {
+            context: "Quality Bar",
+            error: commitStatusError,
+            head_commit: row.commit_status_head_commit,
+            publication_status: row.commit_status_publication_status,
+            published_at:
+              row.commit_status_published_at === null
+                ? null
+                : timestamp(
+                    /** @type {number} */ (row.commit_status_published_at),
+                  ),
+            state: row.commit_status_state,
+          },
+        }
+      : {}),
     created_at: timestamp(/** @type {number} */ (row.created_at)),
     effective_outcome: outcome,
     execution_status: row.execution_status,
@@ -75,8 +113,19 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
     THEN evaluations.provenance ELSE 'automatic' END AS resource_provenance,
   github_automatic_evaluations.pull_request_number
     AS automatic_pull_request_number,
-  evaluation_results.outcome AS result_outcome FROM evaluations
+  evaluation_results.outcome AS result_outcome,
+  github_commit_statuses.evaluation_id AS commit_status_evaluation_id,
+  github_commit_statuses.head_commit AS commit_status_head_commit,
+  github_commit_statuses.desired_state AS commit_status_state,
+  github_commit_statuses.publication_status
+    AS commit_status_publication_status,
+  github_commit_statuses.published_at AS commit_status_published_at,
+  github_commit_statuses.error_code AS commit_status_error_code,
+  github_commit_statuses.error_detail AS commit_status_error_detail
+  FROM evaluations
   JOIN repositories ON repositories.id = evaluations.repository_id
   LEFT JOIN github_automatic_evaluations
     ON github_automatic_evaluations.evaluation_id = evaluations.id
-  LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
+  LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id
+  LEFT JOIN github_commit_statuses
+    ON github_commit_statuses.evaluation_id = evaluations.id`;

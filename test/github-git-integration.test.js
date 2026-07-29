@@ -10,6 +10,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { verifyGitHubRepositoryRead } from "../src/github-git-verification.js";
 import { createGitHubPollingService } from "../src/github-polling.js";
+import { createGitHubCommitStatusPublisher } from "../src/github-commit-status-api.js";
 import {
   resolvePushedCommitSelectors,
   verifyRepositoryRead,
@@ -235,6 +236,41 @@ test("real Git proves the stored pull-request merge-base and current head pair",
   assert.equal(changed.base_commit, common);
   assert.equal(changed.head_commit, changedHead);
   changed.release?.();
+
+  let statusPath = "";
+  const publishStatus = createGitHubCommitStatusPublisher({
+    fail(code, message) {
+      throw Object.assign(new Error(message), { code });
+    },
+    async installationToken() {
+      return "installation-token";
+    },
+    async request(path) {
+      statusPath = path;
+      return {
+        context: "Quality Bar",
+        sha: changeset.head_commit,
+        state: "success",
+        target_url: "https://quality-bar.example/evaluation-1",
+      };
+    },
+  });
+  await publishStatus(
+    {},
+    73,
+    { full_name: "operator/repository", id: 101 },
+    {
+      description: "Quality Bar Evaluation is clear",
+      head: changeset.head_commit,
+      state: "success",
+      targetUrl: "https://quality-bar.example/evaluation-1",
+    },
+  );
+  assert.equal(statusPath, `/repos/operator/repository/statuses/${head}`);
+  assert.notEqual(
+    statusPath,
+    `/repos/operator/repository/statuses/${changedHead}`,
+  );
 
   execFileSync("git", ["-C", repository, "reset", "--hard", head], {
     stdio: "ignore",
