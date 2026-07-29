@@ -306,6 +306,8 @@ export async function runReviewRunCodex({
     );
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
+    /** @type {Error | undefined} */
+    let submissionTerminationFailure;
     if (
       (accepted ||
         failedSubmission ||
@@ -321,7 +323,9 @@ export async function runReviewRunCodex({
             : new TypeError("Codex process-group termination failed", {
                 cause: error,
               });
-        if (processClosed && terminal.kind !== "deadline") {
+        if (failedSubmission && processClosed) {
+          submissionTerminationFailure = failure;
+        } else if (processClosed && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
         } else {
           acceptedTerminationFailure = failure;
@@ -394,13 +398,18 @@ export async function runReviewRunCodex({
     if (evidenceCompletionFailure) {
       throw evidenceCompletionFailure;
     }
-    if (submissionFailure) {
-      throw createSubmissionFailure(submissionFailure);
-    }
-    if (failedSubmission) {
-      throw createSubmissionFailure(
-        new TypeError("Review Run submission failed"),
+    if (submissionFailure || failedSubmission) {
+      const owningFailure = createSubmissionFailure(
+        submissionFailure ?? new TypeError("Review Run submission failed"),
       );
+      if (submissionTerminationFailure) {
+        Object.defineProperty(owningFailure, "processTerminationFailure", {
+          configurable: true,
+          enumerable: false,
+          value: submissionTerminationFailure,
+        });
+      }
+      throw owningFailure;
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

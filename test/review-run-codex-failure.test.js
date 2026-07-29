@@ -316,6 +316,78 @@ test("a failed submission terminal closes and terminates a running Codex process
   ]);
 });
 
+test("a failed submission retains a post-close termination diagnostic", async () => {
+  const terminationFailure = Object.assign(
+    new Error("process group liveness unavailable"),
+    { code: "EPERM" },
+  );
+  /** @type {string[]} */
+  const events = [];
+  const child = Object.assign(new EventEmitter(), {
+    pid: 80,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete(evidenceClaim, facts) {
+            assert.deepEqual(evidenceClaim, claim);
+            assert.deepEqual(facts, {
+              exitCode: null,
+              signal: "SIGTERM",
+              tokenCounters: {
+                cached_input_tokens: null,
+                input_tokens: null,
+                output_tokens: null,
+              },
+            });
+            events.push("evidence");
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -80);
+          events.push(String(signal));
+          if (signal === "SIGTERM") {
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          if (signal === 0) {
+            throw terminationFailure;
+          }
+          assert.equal(signal, "SIGKILL");
+        },
+        openSubmissionChannel: async () => ({
+          ...channel({ result: "failed" }),
+          async close() {
+            events.push("close");
+          },
+        }),
+        resultService: { prepare() {} },
+        run,
+        setTerminationTimer(callback) {
+          queueMicrotask(callback);
+          return {};
+        },
+        spawnProcess: () => /** @type {any} */ (child),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "submission_failed");
+      assert.equal(
+        /** @type {any} */ (error).processTerminationFailure,
+        terminationFailure,
+      );
+      return true;
+    },
+  );
+  assert.deepEqual(events, ["close", "SIGTERM", "SIGKILL", "0", "evidence"]);
+});
+
 test("preserves a coded submission storage failure", async () => {
   const storageFailure = Object.assign(new Error("sqlite write failed"), {
     code: "storage_unavailable",
