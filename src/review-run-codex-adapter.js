@@ -10,12 +10,13 @@ import {
   reviewRunCodexArguments,
 } from "./review-run-codex-command.js";
 import {
+  attachFailureDiagnostic as attachDiagnostic,
   createCodexProcessFailure,
   createSubmissionFailure,
 } from "./review-run-codex-failure.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
-import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
+import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
@@ -164,24 +165,24 @@ export async function runReviewRunCodex({
         cause,
       );
     }
-    let stdout = "";
-    let stderr = "";
+    let [stdout, stderr] = ["", ""];
     let processClosed = false;
-    const processResult = new Promise((resolve, reject) => {
-      child.once("error", reject);
+    const processResult = new Promise((resolve) => {
+      child.once("error", (error) => {
+        resolve({ code: null, error, signal: null, stderr, stdout });
+      });
       child.once("close", (code, signal) => {
         processClosed = true;
         resolve({ code, signal, stderr, stdout });
       });
     });
-    const terminateProcessGroup = () =>
-      terminateReviewRunProcessGroup({
-        child,
-        processResult,
-        killProcessGroup,
-        setTerminationTimer,
-        clearTerminationTimer,
-      });
+    const terminateProcessGroup = createReviewRunProcessGroupTermination({
+      child,
+      processResult,
+      killProcessGroup,
+      setTerminationTimer,
+      clearTerminationTimer,
+    });
     /** @type {unknown} */
     let transcriptFailure;
     /** @type {Promise<void> | undefined} */
@@ -206,14 +207,10 @@ export async function runReviewRunCodex({
               : new TypeError("Codex process-group termination failed");
           diagnosticFailures.push(failure);
           if (transcriptFailure instanceof Error) {
-            Object.defineProperty(
+            attachDiagnostic(
               transcriptFailure,
               "processTerminationFailure",
-              {
-                configurable: true,
-                enumerable: false,
-                value: failure,
-              },
+              failure,
             );
           }
         },
@@ -268,6 +265,7 @@ export async function runReviewRunCodex({
     }
     const failedSubmission =
       terminal.kind === "submission" && terminal.result === "failed";
+    const processError = terminal.kind === "process" && terminal.result.error;
     if (
       closesSubmissionForCancellationOrDeadline(terminal.kind) ||
       failedSubmission
@@ -275,8 +273,6 @@ export async function runReviewRunCodex({
       try {
         await closeSubmissionChannel();
       } catch (error) {
-        // The durable terminal transition remains authoritative. Final cleanup
-        // preserves its exact submission-channel failure where applicable.
         if (terminal.kind === "cancellation") {
           diagnosticFailures.push(
             error instanceof Error
@@ -308,9 +304,12 @@ export async function runReviewRunCodex({
     let acceptedTerminationFailure;
     /** @type {Error | undefined} */
     let submissionTerminationFailure;
+    /** @type {Error | undefined} */
+    let processErrorTerminationFailure;
     if (
       (accepted ||
         failedSubmission ||
+        processError ||
         closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
       !transcriptTermination
     ) {
@@ -323,7 +322,9 @@ export async function runReviewRunCodex({
             : new TypeError("Codex process-group termination failed", {
                 cause: error,
               });
-        if (failedSubmission && processClosed) {
+        if (processError) {
+          processErrorTerminationFailure = failure;
+        } else if (failedSubmission && processClosed) {
           submissionTerminationFailure = failure;
         } else if (processClosed && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
@@ -333,7 +334,7 @@ export async function runReviewRunCodex({
       }
     }
     await transcriptTermination;
-    if (transcriptFailure && !deadlineFailure) {
+    if (transcriptFailure && !deadlineFailure && !failedSubmission) {
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
@@ -341,27 +342,23 @@ export async function runReviewRunCodex({
         const owningFailure = createSubmissionFailure(
           channel.failure() ?? new TypeError("Review Run submission failed"),
         );
-        Object.defineProperty(owningFailure, "processTerminationFailure", {
-          configurable: true,
-          enumerable: false,
-          value: acceptedTerminationFailure,
-        });
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          acceptedTerminationFailure,
+        );
         throw owningFailure;
       }
       if (deadlineFailure) {
-        const failure =
-          acceptedTerminationFailure instanceof Error
-            ? acceptedTerminationFailure
-            : new TypeError("Codex process-group termination failed");
         const owningFailure =
           deadlineRecordingFailure instanceof Error
             ? deadlineRecordingFailure
             : deadlineFailure;
-        Object.defineProperty(owningFailure, "processTerminationFailure", {
-          configurable: true,
-          enumerable: false,
-          value: failure,
-        });
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          acceptedTerminationFailure,
+        );
         throw owningFailure;
       }
       fail(
@@ -395,21 +392,31 @@ export async function runReviewRunCodex({
         { evidenceCompletionFailure, submissionFailure, transcriptFailure },
       );
     }
-    if (evidenceCompletionFailure) {
-      throw evidenceCompletionFailure;
-    }
     if (submissionFailure || failedSubmission) {
       const owningFailure = createSubmissionFailure(
         submissionFailure ?? new TypeError("Review Run submission failed"),
       );
+      if (evidenceCompletionFailure) {
+        attachDiagnostic(
+          owningFailure,
+          "evidenceCompletionFailure",
+          evidenceCompletionFailure,
+        );
+      }
+      if (transcriptFailure) {
+        attachDiagnostic(owningFailure, "transcriptFailure", transcriptFailure);
+      }
       if (submissionTerminationFailure) {
-        Object.defineProperty(owningFailure, "processTerminationFailure", {
-          configurable: true,
-          enumerable: false,
-          value: submissionTerminationFailure,
-        });
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          submissionTerminationFailure,
+        );
       }
       throw owningFailure;
+    }
+    if (evidenceCompletionFailure) {
+      throw evidenceCompletionFailure;
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);
@@ -422,7 +429,15 @@ export async function runReviewRunCodex({
             : "Codex Review Run exited without an accepted Result",
         );
       }
-      throw createCodexProcessFailure(exit, channel.environment);
+      const failure = createCodexProcessFailure(exit, channel.environment);
+      if (processErrorTerminationFailure) {
+        attachDiagnostic(
+          failure,
+          "processTerminationFailure",
+          processErrorTerminationFailure,
+        );
+      }
+      throw failure;
     }
   } catch (error) {
     executionFailure = error;
@@ -435,14 +450,10 @@ export async function runReviewRunCodex({
   }
   if (executionFailure instanceof Error) {
     if (cleanupFailure) {
-      Object.defineProperty(
+      attachDiagnostic(
         executionFailure,
         "submissionChannelCleanupFailure",
-        {
-          configurable: true,
-          enumerable: false,
-          value: cleanupFailure,
-        },
+        cleanupFailure,
       );
     }
     throw executionFailure;

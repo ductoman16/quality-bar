@@ -200,6 +200,107 @@ test("a failed submission retains a post-close termination diagnostic", async ()
   assert.deepEqual(events, ["close", "SIGTERM", "SIGKILL", "0", "evidence"]);
 });
 
+test("a failed submission retains an evidence completion diagnostic", async () => {
+  const evidenceFailure = Object.assign(new Error("evidence write failed"), {
+    code: "storage_unavailable",
+  });
+  const child = Object.assign(new EventEmitter(), {
+    pid: 81,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete() {
+            throw evidenceFailure;
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -81);
+          if (signal === "SIGTERM") {
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => channel({ result: "failed" }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (child),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "submission_failed");
+      assert.equal(
+        /** @type {any} */ (error).evidenceCompletionFailure,
+        evidenceFailure,
+      );
+      return true;
+    },
+  );
+});
+
+test("a failed submission retains transcript failure without duplicate termination", async () => {
+  const transcriptFailure = Object.assign(
+    new Error("transcript persistence failed"),
+    { code: "storage_unavailable" },
+  );
+  const child = Object.assign(new EventEmitter(), {
+    pid: 83,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  let terminationSignals = 0;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {
+            throw transcriptFailure;
+          },
+          complete() {},
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -83);
+          if (signal === "SIGTERM") {
+            terminationSignals += 1;
+            child.stderr.write("shutdown diagnostic\n");
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => channel({ result: "failed" }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (child),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "submission_failed");
+      assert.equal(
+        /** @type {any} */ (error).transcriptFailure,
+        transcriptFailure,
+      );
+      return true;
+    },
+  );
+  assert.equal(terminationSignals, 1);
+});
+
 test("preserves a coded submission storage failure", async () => {
   const storageFailure = Object.assign(new Error("sqlite write failed"), {
     code: "storage_unavailable",

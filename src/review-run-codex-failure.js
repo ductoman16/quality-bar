@@ -16,11 +16,20 @@ export const REVIEW_RUN_TERMINAL_FAILURE_CODES = Object.freeze([
   "unexpected_execution_failure",
 ]);
 
+/** @param {Error} failure @param {string} name @param {unknown} diagnostic */
+export function attachFailureDiagnostic(failure, name, diagnostic) {
+  Object.defineProperty(failure, name, {
+    configurable: true,
+    enumerable: false,
+    value: diagnostic,
+  });
+}
+
 const FAILURE_PATTERNS = Object.freeze([
   Object.freeze({
     code: "authentication_failed",
     pattern:
-      /\b(?:401|authentication|log(?:ged)? in|refresh token|unauthorized)\b/i,
+      /\b(?:401|authentication|log(?:ged)? in|refresh token|unauthorized|access token could not be refreshed|ChatGPT (?:login|credentials))\b/i,
   }),
   Object.freeze({
     code: "subscription_exhausted",

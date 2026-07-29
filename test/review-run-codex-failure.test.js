@@ -82,6 +82,14 @@ test("maps pinned Codex terminal messages once to the fixed catalog", async () =
       "You must be logged in to use Codex. Run codex login.",
     ],
     [
+      "authentication_failed",
+      "Your access token could not be refreshed. Please log out and sign in again.",
+    ],
+    [
+      "authentication_failed",
+      "Your access token could not be refreshed because it was issued to a different account. Please log out and sign in again.",
+    ],
+    [
       "configuration_unavailable",
       "Invalid request: the selected model is not supported.",
     ],
@@ -171,6 +179,14 @@ test("maps pinned Codex startup stderr before the JSONL stream exists", async ()
       "configuration_unavailable",
       "Error parsing -c overrides: invalid service_tier value\n",
     ],
+    [
+      "authentication_failed",
+      "ChatGPT login is required, but an API key is currently being used. Logging out.\n",
+    ],
+    [
+      "authentication_failed",
+      "Failed to load ChatGPT credentials while enforcing workspace restrictions: unavailable. Logging out.\n",
+    ],
   ];
   for (const [expectedCode, stderr] of cases) {
     await assert.rejects(
@@ -224,4 +240,71 @@ test("redacts the submission credential from exact Codex failure detail", async 
       return true;
     },
   );
+});
+
+test("a post-spawn process error records unavailable process facts", async () => {
+  const processFailure = Object.assign(new Error("spawn transport failed"), {
+    code: "ENOENT",
+  });
+  const child = Object.assign(new EventEmitter(), {
+    pid: 82,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  /** @type {unknown[]} */
+  const evidence = [];
+  let terminationSignals = 0;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete(evidenceClaim, facts) {
+            assert.deepEqual(evidenceClaim, claim);
+            evidence.push(facts);
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -82);
+          if (signal === "SIGTERM") {
+            terminationSignals += 1;
+            return;
+          }
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => channel(),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess: () => {
+          queueMicrotask(() => child.emit("error", processFailure));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "codex_process_failed");
+      assert.equal(
+        /** @type {any} */ (error.cause).processError,
+        processFailure,
+      );
+      return true;
+    },
+  );
+  assert.equal(terminationSignals, 1);
+  assert.deepEqual(evidence, [
+    {
+      exitCode: null,
+      signal: null,
+      tokenCounters: {
+        cached_input_tokens: null,
+        input_tokens: null,
+        output_tokens: null,
+      },
+    },
+  ]);
 });
