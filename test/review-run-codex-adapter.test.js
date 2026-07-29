@@ -161,30 +161,27 @@ test("constructs a fixed host-login-safe environment instead of inheriting appli
 
 test("disables Repository instruction discovery and requests the JSONL event protocol", () => {
   const arguments_ = reviewRunCodexArguments(run);
-  assert.deepEqual(
-    arguments_,
-    [
-      "--model",
-      "gpt-5.6-terra",
-      "--config",
-      'model_reasoning_effort="high"',
-      "--config",
-      'service_tier="fast"',
-      "--config",
-      "project_doc_max_bytes=0",
-      "exec",
-      "--ignore-user-config",
-      "--ignore-rules",
-      "--json",
-      "--sandbox",
-      "workspace-write",
-      "--config",
-      'approval_policy="never"',
-      "--config",
-      "sandbox_workspace_write.network_access=false",
-      run.prompt,
-    ],
-  );
+  assert.deepEqual(arguments_, [
+    "--model",
+    "gpt-5.6-terra",
+    "--config",
+    'model_reasoning_effort="high"',
+    "--config",
+    'service_tier="fast"',
+    "--config",
+    "project_doc_max_bytes=0",
+    "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--json",
+    "--sandbox",
+    "workspace-write",
+    "--config",
+    'approval_policy="never"',
+    "--config",
+    "sandbox_workspace_write.network_access=false",
+    run.prompt,
+  ]);
 });
 
 test("maps process completion without an accepted Result to exact owning failures", async () => {
