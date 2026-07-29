@@ -2,6 +2,7 @@ import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
+import { formattingGateDefinition } from "./format-gate-definition.mjs";
 import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
 import {
   FORGEJO_SQLITE_TESTS,
@@ -83,16 +84,7 @@ export function createGateDefinitions(metadata) {
     "typescript",
   );
   return [
-    {
-      name: "formatting",
-      failureCode: "formatting_failed",
-      command: "npm",
-      arguments: ["run", "format:check"],
-      checkGroups: [
-        { name: "repository-format", count: 1, unit: "repository" },
-      ],
-      tools: { node, prettier },
-    },
+    formattingGateDefinition({ node, prettier }),
     {
       name: "structural-lint",
       failureCode: "structural_lint_failed",
