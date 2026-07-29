@@ -130,3 +130,47 @@ test("content is read only for a relevant branch and preserves its owning failur
   });
   assert.equal(result.outcome, "error");
 });
+
+test("required content without a reader produces an exact Applicability error", () => {
+  const source =
+    'file_changes.exists(file, file.after_content.matches("current"))';
+  assert.deepEqual(
+    evaluateApplicabilityRule(
+      source,
+      { file_changes: [textChange] },
+      {
+        matchesPath,
+      },
+    ),
+    {
+      error: {
+        code: "applicability_file_side_unavailable",
+        detail:
+          "Frozen File Change content is unavailable for Applicability evaluation",
+        file_change_id: "file-change-2",
+        predicate_id: "predicate-2",
+        side: "after",
+      },
+      outcome: "error",
+      profile: APPLICABILITY_RULE_PROFILE,
+      source,
+    },
+  );
+});
+
+test("an invalid content reader fails before evaluating even an irrelevant rule", () => {
+  assert.throws(
+    () =>
+      evaluateApplicabilityRule(
+        "true",
+        { file_changes: [textChange] },
+        {
+          matchesPath,
+          readContent: /** @type {any} */ ("invalid"),
+        },
+      ),
+    (error) =>
+      error instanceof TypeError &&
+      error.message === "Applicability content reader is invalid",
+  );
+});

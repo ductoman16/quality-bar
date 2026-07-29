@@ -9,6 +9,7 @@ import {
   trace,
   unique,
 } from "./applicability-evidence.js";
+import { predicateFailure } from "./applicability-predicate-failure.js";
 import { isValidFileChange } from "./file-change.js";
 
 export { APPLICABILITY_RULE_PROFILE };
@@ -245,27 +246,13 @@ function evaluate(node, context) {
             /** @type {"before" | "after"} */ (side),
           );
         } catch (cause) {
-          const owned =
-            cause instanceof Error &&
-            "code" in cause &&
-            typeof cause.code === "string" &&
-            /^[a-z][a-z0-9_]*$/.test(cause.code);
-          if (!owned) {
-            throw cause;
-          }
-          return {
-            ...trace("error"),
-            error: {
-              code: cause.code,
-              detail:
-                cause.message.trim().length > 0
-                  ? cause.message
-                  : "Frozen File Change content could not be read",
-              file_change_id: context.file?.id,
-              predicate_id: /** @type {string} */ (predicateId),
-              side,
-            },
-          };
+          return predicateFailure(
+            cause,
+            context,
+            /** @type {string} */ (predicateId),
+            side,
+            "Frozen File Change content could not be read",
+          );
         }
       }
       if (content?.state === "error") {
@@ -289,8 +276,31 @@ function evaluate(node, context) {
       if (content?.state === "absent" || content?.state === "binary") {
         return trace(OUTSIDE);
       }
+      if (content === undefined) {
+        return predicateFailure(
+          Object.assign(
+            new Error(
+              "Frozen File Change content is unavailable for Applicability evaluation",
+            ),
+            { code: "applicability_file_side_unavailable" },
+          ),
+          context,
+          /** @type {string} */ (predicateId),
+          side,
+          "Frozen File Change content is unavailable",
+        );
+      }
       if (content?.state !== "text" || typeof content.value !== "string") {
-        throw new TypeError("Frozen File Change content state is invalid");
+        return predicateFailure(
+          Object.assign(
+            new Error("Frozen File Change content state is invalid"),
+            { code: "applicability_file_content_invalid" },
+          ),
+          context,
+          /** @type {string} */ (predicateId),
+          side,
+          "Frozen File Change content state is invalid",
+        );
       }
       value = content.value;
     }
@@ -303,27 +313,13 @@ function evaluate(node, context) {
         ? node.matcher.test(value)
         : context.matchesPath(node.matcher.pathspec, value);
     } catch (cause) {
-      const owned =
-        cause instanceof Error &&
-        "code" in cause &&
-        typeof cause.code === "string" &&
-        /^[a-z][a-z0-9_]*$/.test(cause.code);
-      if (!owned) {
-        throw cause;
-      }
-      return {
-        ...trace("error"),
-        error: {
-          code: cause.code,
-          detail:
-            cause.message.trim().length > 0
-              ? cause.message
-              : "Applicability predicate evaluation failed",
-          file_change_id: context.file?.id,
-          predicate_id: /** @type {string} */ (predicateId),
-          side,
-        },
-      };
+      return predicateFailure(
+        cause,
+        context,
+        /** @type {string} */ (predicateId),
+        side,
+        "Applicability predicate evaluation failed",
+      );
     }
     return trace(matched, {
       matches: matched ? [{ sides: [side] }] : [],
@@ -348,6 +344,9 @@ export function evaluateApplicabilityRule(
 ) {
   if (typeof matchesPath !== "function") {
     throw new TypeError("Applicability path matcher is invalid");
+  }
+  if (readContent !== undefined && typeof readContent !== "function") {
+    throw new TypeError("Applicability content reader is invalid");
   }
   const compiled = compileApplicabilityRule(source);
   const fileChanges = Array.isArray(changeset?.file_changes)

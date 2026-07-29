@@ -239,6 +239,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
     "prefix\ncomplete 雪だるま text\nsuffix\n",
   );
   writeFileSync(join(source, "generated.js"), "generated text marker\n");
+  writeFileSync(join(source, "bom.txt"), Buffer.from([0xef, 0xbb, 0xbf, 0x61]));
   writeFileSync(join(source, "nul.bin"), Buffer.from([116, 101, 120, 116, 0]));
   writeFileSync(join(source, "invalid-utf8.bin"), Buffer.from([0xc3, 0x28]));
   execFileSync("git", ["-C", source, "add", "--all"]);
@@ -275,6 +276,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
       'file_changes.exists(file, file.before_path.matches(":(glob)deleted.txt") && file.before_content.matches("complete base marker"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)modified.txt") && file.after_content.matches("complete 雪だるま text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)generated.js") && file.after_content.matches("generated text marker"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)bom.txt") && file.after_content.matches("^\\\\x{FEFF}a"))',
     ]) {
       assert.equal(
         evaluateApplicabilityRule(rule, frozen, {
@@ -290,6 +292,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
       'file_changes.exists(file, file.after_path.matches(":(glob)nul.bin") && file.after_content.matches("text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)nul.bin") && !file.after_content.matches("text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)invalid-utf8.bin") && !file.after_content.matches("text"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)bom.txt") && file.after_content.matches("^a"))',
     ]) {
       assert.equal(
         evaluateApplicabilityRule(rule, frozen, {
@@ -311,7 +314,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
         error: {
           code: "applicability_file_side_unprocessable",
           detail: "The frozen after side could not be processed.",
-          file_change_id: "file-change-3",
+          file_change_id: "file-change-4",
           predicate_id: "predicate-3",
           side: "after",
         },

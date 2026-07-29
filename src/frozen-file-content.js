@@ -101,7 +101,10 @@ function classify(bytes) {
   try {
     return {
       state: "text",
-      value: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      value: new TextDecoder("utf-8", {
+        fatal: true,
+        ignoreBOM: true,
+      }).decode(bytes),
     };
   } catch {
     return { state: "binary" };
