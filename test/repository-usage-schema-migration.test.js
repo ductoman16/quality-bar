@@ -8,8 +8,8 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import { createReviewService } from "../src/review.js";
 
-test("migrates genuine v24 Repository usage into an immutable deletion guard", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-v24-usage-"));
+test("migrates genuine v28 Repository usage into an immutable deletion guard", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-v28-usage-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const current = openDurableCore(databasePath);
@@ -30,7 +30,7 @@ test("migrates genuine v24 Repository usage into an immutable deletion guard", (
   const reviews = createReviewService(current, {
     createId: (() => {
       let next = 0;
-      return () => `v24-review-${++next}`;
+      return () => `v28-review-${++next}`;
     })(),
     now: () => 1,
   });
@@ -42,8 +42,8 @@ test("migrates genuine v24 Repository usage into an immutable deletion guard", (
       service_tier: "standard",
     },
     criteria: [{ impact: "blocking", instruction: "Preserve identity." }],
-    description: "v24 migration fixture",
-    name: "v24 migration",
+    description: "v28 migration fixture",
+    name: "v28 migration",
   });
   reviews.setAssignment(review.id, {
     repository_ids: ["formerly-assigned-repository"],
@@ -67,7 +67,7 @@ test("migrates genuine v24 Repository usage into an immutable deletion guard", (
        head_selector_type, head_selector_value, base_commit, head_commit,
        execution_status, created_at, completed_at
      ) VALUES (?, ?, 'explicit', 'commit', ?, 'commit', ?, ?, ?, 'completed', 1, 1)`,
-    "v24-evaluation",
+    "v28-evaluation",
     "evaluated-repository",
     "a".repeat(40),
     "b".repeat(40),
@@ -81,9 +81,9 @@ test("migrates genuine v24 Repository usage into an immutable deletion guard", (
     transaction.run("ALTER TABLE repositories DROP COLUMN has_been_used");
     transaction.run("ALTER TABLE repositories DROP COLUMN lifecycle_revision");
     transaction.run(
-      "UPDATE quality_bar_metadata SET value = '24' WHERE key = 'schema_version'",
+      "UPDATE quality_bar_metadata SET value = '28' WHERE key = 'schema_version'",
     );
-    transaction.run("PRAGMA user_version = 24");
+    transaction.run("PRAGMA user_version = 28");
   });
   current.close();
 

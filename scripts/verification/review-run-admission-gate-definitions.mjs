@@ -1,4 +1,47 @@
+import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-definitions.mjs";
+
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
+  {
+    name: "review-run-execution-unit",
+    testGroup:
+      "review-run-pre-start-prompt-credential-exclusion-and-codex-submission-boundaries",
+    failureCode: "review_run_execution_unit_tests_failed",
+    arguments: [
+      "--test",
+      "test/review-run-codex-adapter.test.js",
+      "test/review-run-execution.test.js",
+      "test/review-run-submission-channel.test.js",
+    ],
+  },
+  {
+    name: "review-run-result-unit",
+    testGroup:
+      "complete-clear-triggered-not-applicable-and-error-criterion-result-finding-location-validation",
+    failureCode: "review_run_result_unit_tests_failed",
+    arguments: ["--test", "test/review-run-result.test.js"],
+  },
+  {
+    name: "review-run-checkout-git-integration",
+    testGroup:
+      "fresh-writable-disposable-frozen-commit-credential-free-checkout-honest-file-change-and-criterion-result-meaning-boundary",
+    failureCode: "review_run_checkout_git_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/review-run-checkout-git-integration.test.js",
+      "test/review-run-file-changes-git-integration.test.js",
+    ],
+  },
+  {
+    name: "review-run-result-sqlite-integration",
+    testGroup:
+      "first-valid-fenced-four-meaning-criterion-result-opaque-finding-identity-inherited-impact-exact-run-failure-no-fallback-and-v26-v27-migration-boundary",
+    failureCode: "review_run_result_sqlite_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/review-run-result-sqlite-integration.test.js",
+      "test/review-run-result-schema-migration.test.js",
+    ],
+  },
   {
     name: "review-run-admission-sqlite-integration",
     testGroup: "review-run-admission-atomic-persistence-boundary",
@@ -26,4 +69,5 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/review-run-admission-process-integration.test.js",
     ],
   },
+  ...REVIEW_RUN_CLAIM_GATE_DEFINITIONS,
 ];

@@ -15,11 +15,7 @@ import {
   GITHUB_POLLING_SCHEMA,
 } from "./github-polling-schema.js";
 import { REPOSITORY_CREDENTIAL_SCHEMA } from "./repository-credential-schema.js";
-import {
-  REPOSITORY_LIFECYCLE_MIGRATION,
-  REPOSITORY_SCHEMA,
-  REPOSITORY_USAGE_INTEGRITY,
-} from "./repository-schema.js";
+import * as repositorySchema from "./repository-schema.js";
 import {
   FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
   FORGEJO_CONNECTION_SCHEMA,
@@ -31,7 +27,12 @@ import {
 } from "./forgejo-polling-schema.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
-import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
+import {
+  CRITERION_RESULT_MEANING_MIGRATION,
+  EVALUATION_SCHEMA,
+  FINDING_RESULT_MIGRATION,
+} from "./evaluation-schema.js";
+import { reviewRunResultColumnMigration } from "./review-run-result-schema-migration.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -95,6 +96,7 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
+
 export function initializeOrValidateSchema(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
 ) {
@@ -139,7 +141,7 @@ export function initializeOrValidateSchema(
       ) STRICT;
       ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
       ${REVIEW_SCHEMA}
-      ${REPOSITORY_SCHEMA}
+      ${repositorySchema.REPOSITORY_SCHEMA}
       ${REPOSITORY_CREDENTIAL_SCHEMA}
       ${GITHUB_CONNECTION_SCHEMA}
       ${GITHUB_POLLING_SCHEMA}
@@ -147,7 +149,7 @@ export function initializeOrValidateSchema(
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
       ${EVALUATION_SCHEMA}
-      ${REPOSITORY_USAGE_INTEGRITY}
+      ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
       INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
       COMMIT;
@@ -164,7 +166,7 @@ export function initializeOrValidateSchema(
         ) STRICT;
         ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
-        ${REPOSITORY_SCHEMA}
+        ${repositorySchema.REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
         ${GITHUB_POLLING_MIGRATION}
@@ -184,7 +186,7 @@ export function initializeOrValidateSchema(
         ) STRICT;
         ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
-        ${REPOSITORY_SCHEMA}
+        ${repositorySchema.REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
         ${GITHUB_POLLING_MIGRATION}
@@ -196,7 +198,7 @@ export function initializeOrValidateSchema(
       `
         ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
         ${REVIEW_SCHEMA}
-        ${REPOSITORY_SCHEMA}
+        ${repositorySchema.REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${GITHUB_CONNECTION_SCHEMA}
         ${GITHUB_POLLING_MIGRATION}
@@ -205,7 +207,7 @@ export function initializeOrValidateSchema(
   } else if (version === 5) {
     schemaMigration.migrateSchema(
       database,
-      `${REVIEW_SCHEMA}${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${REVIEW_SCHEMA}${repositorySchema.REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 6) {
     schemaMigration.migrateSchema(
@@ -257,7 +259,7 @@ export function initializeOrValidateSchema(
           ) IS NOT NULL
           BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
         ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
-        ${REPOSITORY_SCHEMA}
+        ${repositorySchema.REPOSITORY_SCHEMA}
         ${REPOSITORY_CREDENTIAL_SCHEMA}
         ${REVIEW_ASSIGNMENT_MIGRATION}
         ${GITHUB_CONNECTION_SCHEMA}
@@ -268,7 +270,7 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(
       database,
       `ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
-       ${REPOSITORY_SCHEMA}
+       ${repositorySchema.REPOSITORY_SCHEMA}
        ${REPOSITORY_CREDENTIAL_SCHEMA}
        ${REVIEW_ASSIGNMENT_MIGRATION}
        ${GITHUB_CONNECTION_SCHEMA}
@@ -277,17 +279,17 @@ export function initializeOrValidateSchema(
   } else if (version === 8) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${repositorySchema.REPOSITORY_SCHEMA}${REPOSITORY_CREDENTIAL_SCHEMA}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 9) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_CREDENTIAL_SCHEMA}${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${REPOSITORY_CREDENTIAL_SCHEMA}${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 10) {
     schemaMigration.migrateSchema(
       database,
-      `${REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
+      `${repositorySchema.REPOSITORY_LIFECYCLE_MIGRATION}${REVIEW_ASSIGNMENT_MIGRATION}${GITHUB_CONNECTION_SCHEMA}${GITHUB_POLLING_MIGRATION}`,
     );
   } else if (version === 11) {
     schemaMigration.migrateSchema(
@@ -320,11 +322,44 @@ export function initializeOrValidateSchema(
       database,
       FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
     );
-  } else if (version === 19) {
+  } else if (version === 19 || version === 20) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
-  } else if (version === 20) {
-    schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
-  } else if ([21, 22, 23, 24].includes(version)) {
+  } else if (version === 21 || version === 22 || version === 23) {
+    schemaMigration.migrateSchema(
+      database,
+      "DROP TRIGGER IF EXISTS criterion_result_requires_running_review_run;",
+    );
+  } else if (version === 24) {
+    schemaMigration.migrateSchema(
+      database,
+      `
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN worker_id TEXT
+          CHECK (worker_id IS NULL OR length(worker_id) > 0);
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN fencing_token INTEGER NOT NULL DEFAULT 0
+          CHECK (fencing_token >= 0);
+        ALTER TABLE codex_execution_queue
+          ADD COLUMN lease_expires_at INTEGER;
+        ${reviewRunResultColumnMigration(database)}
+      `,
+    );
+  } else if (version === 25) {
+    schemaMigration.migrateSchema(
+      database,
+      reviewRunResultColumnMigration(database),
+    );
+  } else if (version === 26) {
+    schemaMigration.migrateSchema(
+      database,
+      `${reviewRunResultColumnMigration(database)}${FINDING_RESULT_MIGRATION}`,
+    );
+  } else if (version === 27) {
+    schemaMigration.migrateSchema(
+      database,
+      `${reviewRunResultColumnMigration(database)}${CRITERION_RESULT_MEANING_MIGRATION}`,
+    );
+  } else if (version === 28) {
     schemaMigration.migrateSchema(database, "");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);

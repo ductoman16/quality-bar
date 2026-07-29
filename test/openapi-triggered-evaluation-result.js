@@ -1,0 +1,88 @@
+export const TRIGGERED_EVALUATION_RESULT = {
+  applicability_results: [],
+  completed_at: "2026-07-28T12:00:00.000Z",
+  criterion_results: [
+    {
+      criterion_id: "criterion-1",
+      outcome: "triggered",
+      review_run_id: "review-run-1",
+    },
+    {
+      criterion_id: "criterion-2",
+      outcome: "not_applicable",
+      review_run_id: "review-run-1",
+    },
+    {
+      criterion_id: "criterion-3",
+      error: {
+        code: "required_evidence_unavailable",
+        detail: "The required generated file is absent from the head.",
+      },
+      outcome: "error",
+      review_run_id: "review-run-1",
+    },
+  ],
+  evaluation_id: "evaluation-1",
+  file_changes: [
+    {
+      after_path: "src/current.js",
+      before_path: "src/previous.js",
+      id: "file-change-1",
+      patch:
+        "@@ -1,3 +1,3 @@\n unchanged\n-old state\n+new state\n unchanged\n",
+    },
+  ],
+  findings: [
+    {
+      criterion_id: "criterion-1",
+      evidence: "The changed branch returns stale state.",
+      id: "finding-1",
+      impact: "blocking",
+      location: {
+        end_line: 3,
+        file_change_id: "file-change-1",
+        kind: "line_range",
+        path: "src/current.js",
+        side: "head",
+        start_line: 2,
+      },
+      remediation: "Return the newly computed state.",
+      review_run_id: "review-run-1",
+    },
+  ],
+  outcome: "error",
+  review_runs: [
+    {
+      completed_at: "2026-07-28T12:00:00.000Z",
+      id: "review-run-1",
+      review_id: "review-1",
+      review_version_id: "review-version-1",
+      started_at: "2026-07-28T11:59:00.000Z",
+      status: "completed",
+    },
+  ],
+};
+
+export const FAILED_REVIEW_RUN_EVALUATION_RESULT = {
+  applicability_results: [],
+  completed_at: "2026-07-28T12:00:00.000Z",
+  criterion_results: [],
+  evaluation_id: "evaluation-run-failed",
+  file_changes: [],
+  findings: [],
+  outcome: "error",
+  review_runs: [
+    {
+      completed_at: "2026-07-28T12:00:00.000Z",
+      error: {
+        code: "configuration_unavailable",
+        detail: "Network-disabled Codex launch could not be constructed.",
+      },
+      id: "review-run-failed",
+      review_id: "review-1",
+      review_version_id: "review-version-1",
+      started_at: "2026-07-28T11:59:00.000Z",
+      status: "failed",
+    },
+  ],
+};

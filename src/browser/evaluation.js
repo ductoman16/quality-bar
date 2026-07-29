@@ -1,4 +1,7 @@
 const operator = /** @type {any} */ (Reflect.get(window, "qualityBarOperator"));
+const resultRenderer = /** @type {any} */ (
+  Reflect.get(window, "qualityBarEvaluationResult")
+);
 if (
   !operator ||
   typeof operator.requiredElement !== "function" ||
@@ -6,6 +9,9 @@ if (
   typeof operator.readRepositoryCollection !== "function"
 ) {
   throw new Error("evaluation_operator_boundary_unavailable");
+}
+if (!resultRenderer || typeof resultRenderer.render !== "function") {
+  throw new Error("evaluation_result_boundary_unavailable");
 }
 
 const form = operator.requiredElement("evaluation-create-form");
@@ -20,6 +26,18 @@ const more = operator.requiredElement("evaluation-more");
 const creationStatus = operator.requiredElement("evaluation-create-status");
 /** @type {string | null} */
 let nextCursor = null;
+const renderedEvaluationIds = new Set();
+const focusSearch =
+  typeof window.location?.search === "string" ? window.location.search : "";
+
+/** @param {string} name */
+function focusValue(name) {
+  const match = new RegExp("(?:^|[?&])" + name + "=([^&]*)").exec(focusSearch);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** @param {unknown} value */
+const nullableString = (value) => value === null || typeof value === "string";
 
 /** @param {string} id */
 function controlValue(id) {
@@ -44,14 +62,14 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.head_commit !== "string" ||
     typeof evaluation.execution_status !== "string" ||
     typeof evaluation.effective_outcome !== "string" ||
-    !(
-      evaluation.next_attempt_at === undefined ||
-      evaluation.next_attempt_at === null ||
-      typeof evaluation.next_attempt_at === "string"
-    )
+    !nullableString(evaluation.next_attempt_at ?? null)
   ) {
     throw new Error("evaluation_collection_invalid");
   }
+  if (renderedEvaluationIds.has(evaluation.id)) {
+    return;
+  }
+  renderedEvaluationIds.add(evaluation.id);
   const summary =
     evaluation.repository.url +
     " — explicit " +
@@ -113,12 +131,31 @@ async function renderEvaluation(evaluation) {
     }
     return;
   }
+  let result;
   try {
-    const result = await resultResponse.json();
-    resultState.textContent = "Result " + JSON.stringify(result);
+    result = await resultResponse.json();
   } catch {
     resultState.textContent = "Result failed to load";
+    return;
   }
+  resultRenderer.render(resultState, evaluation, result, focusSearch);
+}
+
+async function loadFocusedEvaluation() {
+  const evaluationId = focusValue("evaluation_id");
+  if (evaluationId === null || renderedEvaluationIds.has(evaluationId)) {
+    return;
+  }
+  const response = await fetch(
+    "/api/v1/evaluations/" + encodeURIComponent(evaluationId),
+  );
+  if (!response.ok) {
+    const failure = await response.json();
+    state.hidden = false;
+    state.textContent = failure.error.message;
+    return;
+  }
+  await renderEvaluation(await response.json());
 }
 
 /** @param {string | undefined} cursor */
@@ -132,6 +169,7 @@ async function loadEvaluations(cursor = undefined) {
     active.replaceChildren();
     recent.replaceChildren();
     attention.replaceChildren();
+    renderedEvaluationIds.clear();
   }
   more.disabled = true;
   let response;
@@ -169,6 +207,9 @@ async function loadEvaluations(cursor = undefined) {
   }
   empty.hidden = !initial || collection.items.length !== 0;
   await Promise.all(collection.items.map(renderEvaluation));
+  if (initial) {
+    await loadFocusedEvaluation();
+  }
   nextCursor = collection.next_cursor;
   more.hidden = nextCursor === null;
   more.disabled = false;

@@ -28,7 +28,7 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 25;
+export const CURRENT_SCHEMA_VERSION = 29;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
