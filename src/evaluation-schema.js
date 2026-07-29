@@ -61,10 +61,21 @@ export const EVALUATION_SCHEMA = `
     ready_at INTEGER NOT NULL,
     accepted_at INTEGER NOT NULL,
     started_at INTEGER,
+    worker_id TEXT CHECK (worker_id IS NULL OR length(worker_id) > 0),
+    fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
+    lease_expires_at INTEGER,
+    CHECK (
+      (worker_id IS NULL AND lease_expires_at IS NULL AND fencing_token = 0)
+      OR
+      (worker_id IS NOT NULL AND lease_expires_at IS NOT NULL AND fencing_token > 0)
+    ),
     CHECK (started_at IS NULL OR started_at >= accepted_at)
   ) STRICT;
   CREATE INDEX IF NOT EXISTS codex_execution_queue_ready
     ON codex_execution_queue (started_at, ready_at, work_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS codex_execution_queue_worker
+    ON codex_execution_queue (worker_id)
+    WHERE worker_id IS NOT NULL;
   CREATE TRIGGER IF NOT EXISTS evaluation_frozen_identity_update
     BEFORE UPDATE OF
       repository_id,
@@ -108,4 +119,25 @@ export const EVALUATION_SCHEMA = `
     BEFORE UPDATE OF work_id, work_kind, accepted_at
     ON codex_execution_queue
     BEGIN SELECT RAISE(ABORT, 'codex_execution_queue_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_claim_insert
+    BEFORE INSERT ON codex_execution_queue
+    WHEN (
+      (NEW.worker_id IS NULL) <> (NEW.lease_expires_at IS NULL)
+      OR (NEW.worker_id IS NULL AND NEW.fencing_token <> 0)
+      OR (NEW.worker_id IS NOT NULL AND NEW.fencing_token <= 0)
+    )
+    BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_claim_update
+    BEFORE UPDATE OF worker_id, fencing_token, lease_expires_at
+    ON codex_execution_queue
+    WHEN (
+      (NEW.worker_id IS NULL) <> (NEW.lease_expires_at IS NULL)
+      OR (NEW.worker_id IS NULL AND NEW.fencing_token <> 0)
+      OR (NEW.worker_id IS NOT NULL AND NEW.fencing_token <= 0)
+      OR (
+        NEW.worker_id IS NOT OLD.worker_id
+        AND NEW.fencing_token <= OLD.fencing_token
+      )
+    )
+    BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
 `;

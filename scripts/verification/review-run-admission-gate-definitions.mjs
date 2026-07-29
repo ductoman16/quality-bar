@@ -1,3 +1,5 @@
+import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-definitions.mjs";
+
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-admission-sqlite-integration",
@@ -26,4 +28,5 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/review-run-admission-process-integration.test.js",
     ],
   },
+  ...REVIEW_RUN_CLAIM_GATE_DEFINITIONS,
 ];
