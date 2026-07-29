@@ -162,11 +162,18 @@ test("constructs a fixed host-login-safe environment instead of inheriting appli
 test("disables Repository instruction discovery and requests the JSONL event protocol", () => {
   const arguments_ = reviewRunCodexArguments(run);
   assert.deepEqual(
-    arguments_.slice(arguments_.indexOf("project_doc_max_bytes=0") - 1),
+    arguments_,
     [
+      "--model",
+      "gpt-5.6-terra",
+      "--config",
+      'model_reasoning_effort="high"',
+      "--config",
+      'service_tier="fast"',
       "--config",
       "project_doc_max_bytes=0",
       "exec",
+      "--ignore-user-config",
       "--ignore-rules",
       "--json",
       "--sandbox",

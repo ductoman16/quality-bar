@@ -63,7 +63,6 @@ export function reviewRunCodexArguments(candidate) {
     throw new TypeError("Review Run Codex input is invalid");
   }
   return [
-    "--ignore-user-config",
     "--model",
     configuration.model,
     "--config",
@@ -73,6 +72,7 @@ export function reviewRunCodexArguments(candidate) {
     "--config",
     "project_doc_max_bytes=0",
     "exec",
+    "--ignore-user-config",
     "--ignore-rules",
     "--json",
     "--sandbox",

@@ -5,11 +5,12 @@ const arguments_ = process.argv.slice(2);
 const prompt = arguments_.at(-1) ?? "";
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const environmentNames = Object.keys(process.env);
+const execIndex = arguments_.indexOf("exec");
 if (
-  arguments_[0] !== "--ignore-user-config" ||
-  !arguments_.includes("exec") ||
-  !arguments_.includes("--ignore-rules") ||
-  !arguments_.includes("--json") ||
+  execIndex < 0 ||
+  arguments_[execIndex + 1] !== "--ignore-user-config" ||
+  arguments_[execIndex + 2] !== "--ignore-rules" ||
+  arguments_[execIndex + 3] !== "--json" ||
   !arguments_.includes("--sandbox") ||
   !arguments_.includes("workspace-write") ||
   !arguments_.includes('approval_policy="never"') ||
