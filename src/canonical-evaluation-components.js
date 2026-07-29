@@ -98,15 +98,47 @@ export function canonicalEvaluationSchemas() {
       },
       ["items", "next_cursor"],
     ),
+    ClearCriterionResult: closedObject(
+      {
+        criterion_id: { minLength: 1, type: "string" },
+        outcome: { const: "clear", type: "string" },
+        review_run_id: { minLength: 1, type: "string" },
+      },
+      ["review_run_id", "criterion_id", "outcome"],
+    ),
+    CompletedReviewRun: closedObject(
+      {
+        completed_at: { format: "date-time", type: "string" },
+        id: { minLength: 1, type: "string" },
+        review_id: { minLength: 1, type: "string" },
+        review_version_id: { minLength: 1, type: "string" },
+        started_at: { format: "date-time", type: "string" },
+        status: { const: "completed", type: "string" },
+      },
+      [
+        "id",
+        "review_id",
+        "review_version_id",
+        "status",
+        "started_at",
+        "completed_at",
+      ],
+    ),
     EvaluationResult: closedObject(
       {
         applicability_results: emptyCollection,
         completed_at: { format: "date-time", type: "string" },
-        criterion_results: emptyCollection,
+        criterion_results: {
+          items: { $ref: "#/components/schemas/ClearCriterionResult" },
+          type: "array",
+        },
         evaluation_id: { minLength: 1, type: "string" },
         findings: emptyCollection,
         outcome: { const: "clear", type: "string" },
-        review_runs: emptyCollection,
+        review_runs: {
+          items: { $ref: "#/components/schemas/CompletedReviewRun" },
+          type: "array",
+        },
       },
       [
         "evaluation_id",

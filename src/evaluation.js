@@ -9,6 +9,7 @@ import {
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
+import { readCompletedEvaluationResult } from "./evaluation-result-read.js";
 import {
   enqueueReviewRuns,
   selectReviewRunsForAdmission,
@@ -200,12 +201,8 @@ export function createEvaluationService(
     read,
     /** @param {string} id */
     readResult(id) {
-      const row = durableCore.get(
-        `SELECT evaluation_id, outcome, completed_at
-         FROM evaluation_results WHERE evaluation_id = ?`,
-        id,
-      );
-      if (!row) {
+      const result = readCompletedEvaluationResult(durableCore, id);
+      if (!result) {
         if (!durableCore.get("SELECT id FROM evaluations WHERE id = ?", id)) {
           failEvaluation("evaluation_not_found", "Evaluation was not found");
         }
@@ -214,15 +211,7 @@ export function createEvaluationService(
           "Evaluation Result is not ready",
         );
       }
-      return {
-        applicability_results: [],
-        completed_at: timestamp(/** @type {number} */ (row.completed_at)),
-        criterion_results: [],
-        evaluation_id: row.evaluation_id,
-        findings: [],
-        outcome: row.outcome,
-        review_runs: [],
-      };
+      return result;
     },
     /**
      * @param {{

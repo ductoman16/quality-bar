@@ -94,6 +94,21 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
+
+/** @param {import("node:sqlite").DatabaseSync} database */
+function reviewRunResultColumnMigration(database) {
+  const columns = new Set(
+    database
+      .prepare("PRAGMA table_info(review_runs)")
+      .all()
+      .map((column) => column.name),
+  );
+  return `
+    ${columns.has("started_at") ? "" : "ALTER TABLE review_runs ADD COLUMN started_at INTEGER;"}
+    ${columns.has("completed_at") ? "" : "ALTER TABLE review_runs ADD COLUMN completed_at INTEGER;"}
+  `;
+}
+
 export function initializeOrValidateSchema(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
 ) {
@@ -336,7 +351,13 @@ export function initializeOrValidateSchema(
           CHECK (fencing_token >= 0);
         ALTER TABLE codex_execution_queue
           ADD COLUMN lease_expires_at INTEGER;
+        ${reviewRunResultColumnMigration(database)}
       `,
+    );
+  } else if (version === 25) {
+    schemaMigration.migrateSchema(
+      database,
+      reviewRunResultColumnMigration(database),
     );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
