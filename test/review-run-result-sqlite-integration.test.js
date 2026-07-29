@@ -75,7 +75,7 @@ test("the first valid fenced submission atomically preserves every complete Crit
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim);
+  claims.start(claim, "0.145.0");
   let finding = 0;
   const results = createReviewRunResultService(core, {
     createFindingId: () => `finding-${++finding}`,

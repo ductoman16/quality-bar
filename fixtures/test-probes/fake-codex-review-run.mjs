@@ -57,6 +57,17 @@ process.stdout.write(
     type: "item.completed",
   })}\n`,
 );
+process.stdout.write(
+  `${JSON.stringify({
+    type: "turn.completed",
+    usage: {
+      cached_input_tokens: 45,
+      input_tokens: 120,
+      output_tokens: 30,
+    },
+  })}\n`,
+);
+process.stderr.write("fake Codex diagnostic\n");
 if (correctionProof) {
   let correction = "";
   try {

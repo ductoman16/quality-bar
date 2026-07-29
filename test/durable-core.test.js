@@ -37,7 +37,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 30,
+    schemaVersion: 31,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -58,7 +58,7 @@ test("migrates the existing operator-password schema atomically before serving s
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 30);
+  assert.equal(migrated.facts.schemaVersion, 31);
   assert.equal(
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
@@ -97,7 +97,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 30);
+  assert.equal(migrated.facts.schemaVersion, 31);
   assert.equal(
     migrated.get("SELECT session_hash FROM browser_sessions"),
     undefined,
@@ -126,7 +126,7 @@ test("migrates v4 to v30 without losing existing authority facts", () => {
   core.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 30);
+  assert.equal(migrated.facts.schemaVersion, 31);
   assert.deepEqual(migrated.get("SELECT session_hash FROM browser_sessions"), {
     session_hash: "retained-session-hash",
   });
@@ -172,7 +172,7 @@ test("migrates the v23 Evaluation schema to durable Review Run admission", () =>
   current.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 30);
+  assert.equal(migrated.facts.schemaVersion, 31);
   assert.deepEqual(
     migrated.all(
       `SELECT name FROM sqlite_schema

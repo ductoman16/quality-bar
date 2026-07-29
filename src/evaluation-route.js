@@ -21,7 +21,13 @@ function failureStatus(failure) {
   ) {
     return 400;
   }
-  if (["evaluation_not_found", "repository_not_found"].includes(code)) {
+  if (
+    [
+      "evaluation_not_found",
+      "repository_not_found",
+      "review_run_not_found",
+    ].includes(code)
+  ) {
     return 404;
   }
   if (
@@ -88,13 +94,17 @@ export function createEvaluationRoute({
       /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
     );
     const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
+    const diagnosticsMatch = path.match(
+      /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
+    );
     const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
     if (
       !(
         (method === "GET" && path === "/api/v1/evaluations") ||
         (method === "POST" && createMatch) ||
         (method === "GET" && evaluationMatch) ||
-        (method === "GET" && resultMatch)
+        (method === "GET" && resultMatch) ||
+        (method === "GET" && diagnosticsMatch)
       )
     ) {
       return false;
@@ -126,6 +136,17 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readResult(decodeURIComponent(resultMatch[1])),
+        );
+        return true;
+      }
+      if (method === "GET" && diagnosticsMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readReviewRunDiagnostics(
+            decodeURIComponent(diagnosticsMatch[1]),
+            decodeURIComponent(diagnosticsMatch[2]),
+          ),
         );
         return true;
       }

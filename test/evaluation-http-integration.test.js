@@ -5,11 +5,14 @@ import {
   createEvaluationService,
   createUnavailableEvaluationService,
 } from "../src/evaluation.js";
+import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
   startApplication,
 } from "./http-integration-support.js";
+import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 const baseCommit = "1".repeat(40);
 const headCommit = "2".repeat(40);
@@ -182,6 +185,72 @@ test("Evaluation capability and storage-reserve failures are hard dependency gat
     assert.equal(response.status, 503);
     assert.equal(await responseErrorCode(response), code);
   }
+});
+
+test("raw Review Run diagnostics are available only to the operator browser", async () => {
+  const { application, request } = await startApplication();
+  await createQueuedReviewRun(application.durableCore);
+  const claims = createReviewRunClaimService(application.durableCore, {
+    createWorkerId: () => "browser-diagnostics-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  claims.start(claim, "0.145.0");
+  const evidence = createReviewRunEvidenceService(application.durableCore);
+  evidence.appendTranscriptChunk(
+    claim,
+    "stdout",
+    '{"type":"turn.completed"}\n',
+  );
+  evidence.complete(claim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
+  const path =
+    "/api/v1/evaluations/evaluation-1/review-runs/review-run-1/diagnostics";
+  const operatorHeaders = await authenticatedOperatorHeaders(request);
+  const operatorResponse = await request(path, {
+    headers: { cookie: operatorHeaders.cookie },
+  });
+  assert.equal(operatorResponse.status, 200);
+  assert.deepEqual(await operatorResponse.json(), {
+    codex_cli_version: "0.145.0",
+    completed_at: null,
+    duration_ms: null,
+    process: { code: 0, kind: "exit" },
+    review_run_id: "review-run-1",
+    started_at: "1970-01-01T00:00:00.020Z",
+    token_counters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+    transcript_chunks: [
+      {
+        content: '{"type":"turn.completed"}\n',
+        sequence: 1,
+        stream: "stdout",
+      },
+    ],
+  });
+
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const machineResponse = await request(path, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(machineResponse.status, 403);
+  assert.equal(
+    await responseErrorCode(machineResponse),
+    "authorization_forbidden",
+  );
 });
 
 test("Evaluation admission preserves Repository lifecycle and health status", async () => {

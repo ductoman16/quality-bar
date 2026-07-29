@@ -117,6 +117,50 @@ async function proveFakeCodexResult(context, outcome) {
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
   assert.deepEqual(
     core.get(
+      `SELECT codex_cli_version, started_at, completed_at,
+              completed_at - started_at AS duration_ms,
+              process_exit_code, process_signal,
+              input_tokens, cached_input_tokens, output_tokens
+       FROM review_runs WHERE id = ?`,
+      claim.workId,
+    ),
+    {
+      cached_input_tokens: 45,
+      codex_cli_version: "0.145.0",
+      completed_at: 30,
+      duration_ms: 10,
+      input_tokens: 120,
+      output_tokens: 30,
+      process_exit_code: null,
+      process_signal: "SIGTERM",
+      started_at: 20,
+    },
+  );
+  const transcriptChunks = core.all(
+    `SELECT sequence, stream, content
+     FROM review_run_transcript_chunks
+     WHERE review_run_id = ?
+     ORDER BY sequence`,
+    claim.workId,
+  );
+  assert.ok(transcriptChunks.length >= 2);
+  assert.deepEqual(
+    transcriptChunks.map((row) => row?.sequence),
+    Array.from(transcriptChunks.keys(), (index) => index + 1),
+  );
+  const stdout = transcriptChunks
+    .filter((row) => row?.stream === "stdout")
+    .map((row) => row?.content)
+    .join("");
+  const stderr = transcriptChunks
+    .filter((row) => row?.stream === "stderr")
+    .map((row) => row?.content)
+    .join("");
+  assert.match(stdout, /item\.completed/);
+  assert.match(stdout, /turn\.completed/);
+  assert.equal(stderr, "fake Codex diagnostic\n");
+  assert.deepEqual(
+    core.get(
       `SELECT evaluations.execution_status, evaluation_results.outcome
        FROM evaluations
        JOIN evaluation_results

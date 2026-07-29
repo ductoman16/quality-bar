@@ -14,6 +14,7 @@ import {
   enqueueReviewRuns,
   selectReviewRunsForAdmission,
 } from "./review-run-admission.js";
+import { readReviewRunDiagnostics } from "./review-run-evidence.js";
 
 export { EvaluationError };
 const ROUTE_PREFIX = "/api/v1/repositories/";
@@ -212,6 +213,26 @@ export function createEvaluationService(
         );
       }
       return result;
+    },
+    /** @param {string} evaluationId @param {string} reviewRunId */
+    readReviewRunDiagnostics(evaluationId, reviewRunId) {
+      const diagnostics = readReviewRunDiagnostics(
+        durableCore,
+        evaluationId,
+        reviewRunId,
+      );
+      if (!diagnostics) {
+        if (
+          !durableCore.get(
+            "SELECT id FROM evaluations WHERE id = ?",
+            evaluationId,
+          )
+        ) {
+          failEvaluation("evaluation_not_found", "Evaluation was not found");
+        }
+        failEvaluation("review_run_not_found", "Review Run was not found");
+      }
+      return diagnostics;
     },
     /**
      * @param {{
@@ -414,6 +435,9 @@ export function createUnavailableEvaluationService(error) {
       failEvaluation(failure.code, failure.message, error);
     },
     readResult() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readReviewRunDiagnostics() {
       failEvaluation(failure.code, failure.message, error);
     },
   };

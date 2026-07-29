@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
+import { readTerminalTokenCounters } from "./review-run-evidence.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
@@ -222,6 +223,10 @@ export function reviewRunCodexEnvironment(
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearTerminationTimer?: (timer: any) => void,
+ *   evidenceService?: {
+ *     appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown,
+ *     complete(claim: any, facts: unknown): unknown
+ *   },
  *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
  *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
  *   spawnProcess?: (
@@ -237,6 +242,10 @@ export async function runReviewRunCodex({
   codexCommand = "codex",
   codexPrefixArguments = [],
   clearTerminationTimer = clearTimeout,
+  evidenceService = {
+    appendTranscriptChunk() {},
+    complete() {},
+  },
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
@@ -275,16 +284,29 @@ export async function runReviewRunCodex({
     }
     let stdout = "";
     let stderr = "";
+    let transcriptFailure;
     child.stdout?.setEncoding("utf8").on("data", (chunk) => {
       stdout += chunk;
+      try {
+        evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
+      } catch (error) {
+        transcriptFailure = error;
+      }
     });
     child.stderr?.setEncoding("utf8").on("data", (chunk) => {
       stderr += chunk;
+      try {
+        evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
+      } catch (error) {
+        transcriptFailure = error;
+      }
     });
+    let latestProcessResult;
     const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
       child.once("exit", (code, signal) => {
-        resolve({ code, signal, stderr, stdout });
+        latestProcessResult = { code, signal, stderr, stdout };
+        resolve(latestProcessResult);
       });
     });
     const terminal = await Promise.race([
@@ -322,6 +344,16 @@ export async function runReviewRunCodex({
         );
       }
     }
+    if (transcriptFailure) {
+      throw transcriptFailure;
+    }
+    const terminalProcess =
+      terminal.kind === "process" ? terminal.result : latestProcessResult;
+    evidenceService.complete(claim, {
+      exitCode: terminalProcess?.code ?? null,
+      signal: terminalProcess?.signal ?? null,
+      tokenCounters: readTerminalTokenCounters(stdout),
+    });
     const submissionFailure = channel.failure();
     if (submissionFailure) {
       throw submissionFailure;

@@ -1,5 +1,7 @@
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
+import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
+import { createReviewRunEvidenceService } from "./review-run-evidence.js";
 import { readReviewRunFileChanges } from "./review-run-file-changes.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
@@ -209,11 +211,12 @@ function readRun(durableCore, workId) {
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
- *     start(claim: any): unknown,
+ *     start(claim: any, codexCliVersion: string): unknown,
  *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void
  *   },
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
+ *   evidenceService?: ReturnType<typeof createReviewRunEvidenceService>,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
@@ -237,6 +240,7 @@ export async function executeReviewRun(
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
+    evidenceService = createReviewRunEvidenceService(durableCore),
     prepareCheckout = prepareReviewRunCheckout,
     readFileChanges = readReviewRunFileChanges,
     reportDiagnostic = (failure) => process.emitWarning(failure),
@@ -287,11 +291,12 @@ export async function executeReviewRun(
         ...reviewRunWithoutPrompt,
         prompt: createReviewRunPrompt(reviewRunWithoutPrompt),
       };
-      claimService.start(claim);
+      claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
       started = true;
       const codexExecution = await runCodex({
         checkoutPath: checkout.path,
         claim,
+        evidenceService,
         resultService: {
           submit(submissionClaim, candidate) {
             return resultService.submit(
