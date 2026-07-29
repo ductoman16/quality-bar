@@ -3,7 +3,7 @@ import { createReviewService } from "../src/review.js";
 
 /**
  * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
- * @param {{baseCommit?: string, headCommit?: string, repositoryUrl?: string}} [options]
+ * @param {{baseCommit?: string, headCommit?: string, repositoryUrl?: string, reviewCount?: number}} [options]
  */
 export async function createQueuedReviewRun(
   core,
@@ -11,10 +11,13 @@ export async function createQueuedReviewRun(
     baseCommit = "1".repeat(40),
     headCommit = "2".repeat(40),
     repositoryUrl = "https://example.invalid/evaluation-1.git",
+    reviewCount = 1,
   } = {},
 ) {
   const evaluationId = "evaluation-1";
-  const reviewRunId = "review-run-1";
+  if (!Number.isSafeInteger(reviewCount) || reviewCount < 1) {
+    throw new TypeError("Review Run proof count is invalid");
+  }
   core.run(
     "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
     `repository-${evaluationId}`,
@@ -23,27 +26,31 @@ export async function createQueuedReviewRun(
     1,
   );
   let factId = 0;
-  createReviewService(core, {
+  const reviews = createReviewService(core, {
     createId: () => `${evaluationId}-review-fact-${++factId}`,
     now: () => 1,
-  }).create({
-    assignment: { scope: "installation_wide" },
-    codex_configuration: {
-      model: "gpt-5.6-terra",
-      reasoning_effort: "high",
-      service_tier: "standard",
-    },
-    criteria: [{ impact: "blocking", instruction: "Prove the claim." }],
-    description: "Review Run claim proof",
-    name: `Claim proof ${evaluationId}`,
   });
+  for (let index = 1; index <= reviewCount; index += 1) {
+    reviews.create({
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [{ impact: "blocking", instruction: "Prove the claim." }],
+      description: `Review Run claim proof ${index}`,
+      name: `Claim proof ${evaluationId} ${index}`,
+    });
+  }
+  let reviewRun = 0;
   await createEvaluationService(core, {
     acquireChangeset: async () => ({
       base_commit: baseCommit,
       head_commit: headCommit,
     }),
     createId: () => evaluationId,
-    createReviewRunId: () => reviewRunId,
+    createReviewRunId: () => `review-run-${++reviewRun}`,
     readCodexCapabilityFailure: () => null,
     masterKey: Buffer.alloc(32, 7),
     now: () => 10,

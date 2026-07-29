@@ -218,6 +218,10 @@ test("Evaluations renders no partial data before the complete first-valid Result
     failedRunResult.options[0].options[1].textContent,
     "Error configuration_unavailable: Network-disabled Codex launch could not be constructed.",
   );
+  assert.equal(
+    failedRunResult.options[1].options[0].textContent,
+    "Criterion criterion-completed-sibling — clear — Review review-completed review-version-completed",
+  );
   assert.match(
     controls.get("evaluation-attention").options[2].textContent,
     /completed — error/,

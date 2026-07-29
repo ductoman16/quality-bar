@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { insertEvaluationFileChanges } from "./evaluation-file-change-persistence.js";
+import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
+import { storeEvaluationFileChanges } from "./evaluation-file-change-persistence.js";
 import { createReviewRunFailureService } from "./review-run-failure.js";
 import {
   ReviewRunExecutionError,
@@ -63,26 +64,12 @@ function readCriteria(transaction, run) {
     });
 }
 
-/** @param {any} transaction @param {any} run */
-function assertSupportedSelection(transaction, run) {
-  if (
-    transaction.get(
-      "SELECT count(*) AS count FROM review_runs WHERE evaluation_id = ?",
-      run.evaluation_id,
-    )?.count !== 1
-  ) {
-    fail(
-      "review_run_selection_unsupported",
-      "Only one selected Review Run is supported",
-    );
-  }
-}
-
 /** @param {any} transaction @param {any} run @param {any} submission */
 function storeResultFacts(transaction, run, submission) {
-  insertEvaluationFileChanges(
+  storeEvaluationFileChanges(
     transaction,
     run.evaluation_id,
+    submission.workId,
     submission.fileChanges,
   );
   for (const result of submission.results) {
@@ -120,34 +107,6 @@ function storeResultFacts(transaction, run, submission) {
   }
 }
 
-/** @param {any} transaction @param {string} evaluationId @param {any[]} criteria @param {any[]} results */
-function resultOutcome(transaction, evaluationId, criteria, results) {
-  const triggeredImpacts = results
-    .filter((/** @type {any} */ result) => result.outcome === "triggered")
-    .map(
-      (/** @type {any} */ result) =>
-        criteria.find(
-          (/** @type {any} */ criterion) =>
-            criterion.criterion_id === result.criterion_id,
-        )?.impact,
-    );
-  const applicabilityFailed =
-    transaction.get(
-      `SELECT count(*) AS count
-       FROM applicability_results
-       WHERE evaluation_id = ? AND outcome = 'error'`,
-      evaluationId,
-    )?.count !== 0;
-  return applicabilityFailed ||
-    results.some((/** @type {any} */ result) => result.outcome === "error")
-    ? "error"
-    : triggeredImpacts.includes("blocking")
-      ? "blocking"
-      : triggeredImpacts.includes("advisory")
-        ? "advisory"
-        : "clear";
-}
-
 /** @param {any} durableCore @param {{createFindingId?: () => string, now?: () => number}} [options] */
 export function createReviewRunResultService(
   durableCore,
@@ -167,7 +126,6 @@ export function createReviewRunResultService(
       return durableCore.transaction((/** @type {any} */ transaction) => {
         const run = readAuthoritativeRun(transaction, claim, checkedAt);
         const criteria = readCriteria(transaction, run);
-        assertSupportedSelection(transaction, run);
         const results = validateReviewRunSubmission(
           candidate,
           criteria,
@@ -222,26 +180,10 @@ export function createReviewRunResultService(
             "Review Run submission channel is closed",
           );
         }
-        const outcome = resultOutcome(
+        completeEvaluationIfTerminal(
           transaction,
           run.evaluation_id,
-          submission.criteria,
-          submission.results,
-        );
-        transaction.run(
-          `INSERT INTO evaluation_results (
-             evaluation_id, outcome, completed_at
-           ) VALUES (?, ?, ?)`,
-          run.evaluation_id,
-          outcome,
           acceptedAt,
-        );
-        transaction.run(
-          `UPDATE evaluations
-           SET execution_status = 'completed', completed_at = ?
-           WHERE id = ? AND execution_status IN ('queued', 'running')`,
-          acceptedAt,
-          run.evaluation_id,
         );
       });
     },
