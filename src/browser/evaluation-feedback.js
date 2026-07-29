@@ -87,46 +87,32 @@ function render(row, feedback) {
         feedback.aggregate.error.code +
         ": " +
         feedback.aggregate.error.detail
-      : feedback.aggregate.published_at
-        ? " — Published " + feedback.aggregate.published_at
+      : feedback.aggregate.external_id !== null
+        ? " — GitHub comment " +
+          feedback.aggregate.external_id +
+          " — Published " +
+          feedback.aggregate.published_at
         : "");
   row.append(aggregate);
-  const counts = new Map();
   for (const finding of feedback.findings) {
-    counts.set(
-      finding.publication_status,
-      (counts.get(finding.publication_status) ?? 0) + 1,
-    );
-  }
-  const inline = document.createElement("div");
-  inline.setAttribute("aria-live", "polite");
-  inline.setAttribute("role", "status");
-  inline.textContent =
-    "Inline feedback — " +
-    ["succeeded", "waiting", "unavailable", "aggregate_only"]
-      .filter((status) => counts.has(status))
-      .map(
-        (status) =>
-          counts.get(status) +
-          " " +
-          (status === "aggregate_only" ? "aggregate-only" : status),
-      )
-      .join(" — ");
-  row.append(inline);
-  for (const finding of feedback.findings) {
-    if (!finding.error) {
-      continue;
-    }
     const findingState = document.createElement("div");
     findingState.setAttribute("aria-live", "polite");
     findingState.setAttribute("role", "status");
     findingState.textContent =
       "Finding " +
       finding.finding_id +
-      " inline feedback — unavailable — Error " +
-      finding.error.code +
-      ": " +
-      finding.error.detail;
+      " inline feedback — " +
+      (finding.publication_status === "aggregate_only"
+        ? "aggregate-only"
+        : finding.publication_status) +
+      (finding.error
+        ? " — Error " + finding.error.code + ": " + finding.error.detail
+        : finding.external_id !== null
+          ? " — GitHub comment " +
+            finding.external_id +
+            " — Published " +
+            finding.published_at
+          : "");
     row.append(findingState);
   }
 }

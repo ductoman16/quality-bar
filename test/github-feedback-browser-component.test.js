@@ -108,13 +108,18 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
         ariaLive: "polite",
         role: "status",
         textContent:
-          "Aggregate feedback — succeeded — Published 2026-07-29T12:00:00.000Z",
+          "Aggregate feedback — succeeded — GitHub comment 701 — Published 2026-07-29T12:00:00.000Z",
       },
       {
         ariaLive: "polite",
         role: "status",
         textContent:
-          "Inline feedback — 1 succeeded — 1 unavailable — 1 aggregate-only",
+          "Finding finding-inline inline feedback — succeeded — GitHub comment 702 — Published 2026-07-29T12:00:00.000Z",
+      },
+      {
+        ariaLive: "polite",
+        role: "status",
+        textContent: "Finding finding-whole inline feedback — aggregate-only",
       },
       {
         ariaLive: "polite",

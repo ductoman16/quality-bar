@@ -56,7 +56,7 @@ Frozen head: \`${identity.head_commit}\`
 
 /** @param {string} patch */
 function frozenDiffLines(patch) {
-  const sides = { base: new Set(), head: new Set() };
+  const sides = { base: new Map(), head: new Map() };
   let baseLine = 0;
   let headLine = 0;
   let inHunk = false;
@@ -81,16 +81,20 @@ function frozenDiffLines(patch) {
       continue;
     }
     if (line.startsWith("-")) {
-      sides.base.add(baseLine++);
+      sides.base.set(baseLine, { line: baseLine, side: "LEFT" });
+      baseLine += 1;
       continue;
     }
     if (line.startsWith("+")) {
-      sides.head.add(headLine++);
+      sides.head.set(headLine, { line: headLine, side: "RIGHT" });
+      headLine += 1;
       continue;
     }
     if (line.startsWith(" ")) {
-      sides.base.add(baseLine++);
-      sides.head.add(headLine++);
+      sides.base.set(baseLine, { line: headLine, side: "RIGHT" });
+      sides.head.set(headLine, { line: headLine, side: "RIGHT" });
+      baseLine += 1;
+      headLine += 1;
       continue;
     }
     inHunk = false;
@@ -120,18 +124,33 @@ export function projectFrozenDiffLineRange(location, fileChange) {
   }
   const locationSide = /** @type {"base" | "head"} */ (location.side);
   const lines = frozenDiffLines(fileChange.patch)[locationSide];
+  const coordinates = [];
   for (let line = location.start_line; line <= location.end_line; line += 1) {
-    if (!lines.has(line)) {
+    const coordinate = lines.get(line);
+    if (!coordinate) {
       return null;
     }
+    coordinates.push(coordinate);
   }
-  const side = location.side === "base" ? "LEFT" : "RIGHT";
+  const [first] = coordinates;
+  if (
+    coordinates.some(
+      (coordinate, index) =>
+        coordinate.side !== first.side ||
+        coordinate.line !== first.line + index,
+    )
+  ) {
+    return null;
+  }
+  const last = /** @type {{line: number, side: "LEFT" | "RIGHT"}} */ (
+    coordinates.at(-1)
+  );
   return {
-    line: location.end_line,
+    line: last.line,
     path,
-    side,
-    ...(location.start_line === location.end_line
+    side: last.side,
+    ...(coordinates.length === 1
       ? {}
-      : { start_line: location.start_line, start_side: side }),
+      : { start_line: first.line, start_side: first.side }),
   };
 }
