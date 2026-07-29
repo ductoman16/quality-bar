@@ -293,6 +293,17 @@ export function validateArchivalRequest(request) {
   return { archived: request.archived };
 }
 
+/** @param {unknown} request */
+export function validateDeletionRequest(request) {
+  if (!isExactObject(request, [])) {
+    fail(
+      "review_deletion_request_malformed",
+      "Review deletion request must be an empty object",
+    );
+  }
+  return {};
+}
+
 /** @param {unknown} state */
 export function validateReviewListState(state) {
   if (state === undefined) {

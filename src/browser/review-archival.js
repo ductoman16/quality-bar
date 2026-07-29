@@ -4,6 +4,7 @@
    *   id: string,
    *   name: string,
    *   archived: boolean,
+   *   deletion_eligible: boolean,
    *   active_version: {id: string},
    *   versions: Array<{id: string}>
    * }} Review
@@ -46,6 +47,14 @@
   /** @type {Map<string, Review>} */
   const reviews = new Map();
   let pending = false;
+  let ready = Promise.resolve(false);
+
+  function syncDeleteAvailability() {
+    const review = reviews.get(selector.value);
+    /** @type {HTMLButtonElement} */ (
+      requiredElement("review-delete")
+    ).disabled = pending || review?.deletion_eligible !== true;
+  }
 
   /** @param {string} message */
   function showFailure(message) {
@@ -95,6 +104,7 @@
     const review = reviews.get(selector.value);
     submit.disabled = pending || !review;
     submit.textContent = state.value === "archived" ? "Restore" : "Archive";
+    syncDeleteAvailability();
   }
 
   /** @param {Review[]} listed */
@@ -127,10 +137,10 @@
       if (!response.ok) {
         const failure = await readFailure(response);
         if (redirectForAuthentication(response, failure)) {
-          return;
+          return false;
         }
         showFailure(failure.message);
-        return;
+        return false;
       }
       const body = /** @type {{reviews?: unknown}} */ (await response.json());
       if (!Array.isArray(body.reviews)) {
@@ -142,6 +152,7 @@
         throw new Error("Review archival response was invalid");
       }
       render(listed);
+      return true;
     } finally {
       pending = false;
       updateAction();
@@ -207,10 +218,22 @@
       updateAction();
     }
   });
+  Reflect.set(
+    window,
+    "qualityBarReviewLifecycle",
+    Object.freeze({
+      /** @param {string} id */
+      find: (id) => reviews.get(id),
+      ready: () => ready,
+      refresh: load,
+      syncDeleteAvailability,
+    }),
+  );
   document.addEventListener("quality-bar:system-loaded", (event) => {
     if (!(event instanceof CustomEvent)) {
       throw new Error("system_loaded_event_invalid");
     }
-    return load();
+    ready = load();
+    return ready;
   });
 }

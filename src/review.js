@@ -7,6 +7,7 @@ import {
 } from "./review-assignment.js";
 import { readReviewCollection } from "./review-read-collection.js";
 import { readReview } from "./review-read.js";
+import { removeNeverUsedReview } from "./review-removal.js";
 import { selectReviewVersionsForRegisteredRepository } from "./review-selection.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import {
@@ -173,6 +174,7 @@ export function createReviewService(
         },
         archived: false,
         assignment: validated.assignment,
+        deletion_eligible: true,
         description: validated.description,
         id: reviewId,
         name: validated.name,
@@ -186,6 +188,13 @@ export function createReviewService(
           },
         ],
       };
+    },
+    /**
+     * @param {string} reviewId
+     * @param {unknown} request
+     */
+    remove(reviewId, request) {
+      removeNeverUsedReview(durableCore, reviewId, request);
     },
     /**
      * @param {string} reviewId
@@ -412,30 +421,19 @@ export function createReviewService(
 
 /** @param {unknown} error */
 export function createUnavailableReviewService(error) {
+  /** @returns {never} */
+  function unavailable() {
+    throw error;
+  }
   return {
-    list() {
-      throw error;
-    },
-    create() {
-      throw error;
-    },
-    saveVersion() {
-      throw error;
-    },
-    reactivateVersion() {
-      throw error;
-    },
-    setArchived() {
-      throw error;
-    },
-    setAssignment() {
-      throw error;
-    },
-    selectForNewEvaluation() {
-      throw error;
-    },
-    updateMetadata() {
-      throw error;
-    },
+    create: unavailable,
+    list: unavailable,
+    reactivateVersion: unavailable,
+    remove: unavailable,
+    saveVersion: unavailable,
+    selectForNewEvaluation: unavailable,
+    setArchived: unavailable,
+    setAssignment: unavailable,
+    updateMetadata: unavailable,
   };
 }

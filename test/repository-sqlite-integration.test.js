@@ -10,6 +10,7 @@ import { createRepositoryService, RepositoryError } from "../src/repository.js";
 /** @param {ReturnType<typeof openDurableCore>} core */
 function dropReviewAssignmentSchema(core) {
   for (const trigger of [
+    "review_hard_delete_lineage",
     "review_assignment_repository_scope_insert",
     "review_assignment_repository_scope_update",
     "review_assignment_scope_update",
@@ -32,7 +33,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 29);
+  assert.equal(core.facts.schemaVersion, 30);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {
@@ -135,7 +136,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 29);
+  assert.equal(core.facts.schemaVersion, 30);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -274,7 +275,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 29);
+  assert.equal(core.facts.schemaVersion, 30);
   let verificationFails = false;
   const repositories = createRepositoryService(core, {
     createId: () => "repository-lifecycle",

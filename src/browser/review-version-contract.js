@@ -77,7 +77,7 @@
   /** @param {unknown} value */
   function requireReview(value) {
     const review =
-      /** @type {{id?: unknown, name?: unknown, archived?: unknown, active_version?: unknown}} */ (
+      /** @type {{id?: unknown, name?: unknown, archived?: unknown, deletion_eligible?: unknown, active_version?: unknown}} */ (
         value
       );
     if (
@@ -85,6 +85,7 @@
       typeof review.id !== "string" ||
       typeof review.name !== "string" ||
       typeof review.archived !== "boolean" ||
+      typeof review.deletion_eligible !== "boolean" ||
       !review.active_version ||
       typeof review.active_version !== "object"
     ) {
@@ -146,6 +147,7 @@
      * id: string,
      * name: string,
      * archived: boolean,
+     * deletion_eligible: boolean,
      * active_version: {
      *   id: string,
      *   number: number,

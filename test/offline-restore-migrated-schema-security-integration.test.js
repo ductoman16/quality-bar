@@ -18,6 +18,7 @@ import {
 function returnSchemaToVersionSix(current) {
   current.transaction((transaction) => {
     for (const trigger of [
+      "review_hard_delete_lineage",
       "review_version_criteria_immutable_update",
       "review_version_criteria_immutable_delete",
       "review_version_criteria_immutable_insert",
@@ -89,7 +90,7 @@ test("restores a compatible current snapshot produced by the genuine v6 migratio
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 29);
+    assert.equal(migrated.facts.schemaVersion, 30);
     assert.match(
       String(
         migrated.get(

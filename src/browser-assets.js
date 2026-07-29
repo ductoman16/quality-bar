@@ -131,6 +131,11 @@ const browserAssets = [
     url: new URL("./browser/review-archival.js", import.meta.url),
   },
   {
+    route: "/assets/review-delete.js",
+    sourcePath: "src/browser/review-delete.js",
+    url: new URL("./browser/review-delete.js", import.meta.url),
+  },
+  {
     route: "/assets/review-assignment.js",
     sourcePath: "src/browser/review-assignment.js",
     url: new URL("./browser/review-assignment.js", import.meta.url),

@@ -133,6 +133,16 @@ test("a sole implementer bearer cannot read or edit Review authoring resources",
     await responseErrorCode(forbiddenAssignment),
     "authorization_forbidden",
   );
+  const forbiddenDeletion = await request(`/api/v1/reviews/${first.id}`, {
+    body: "{}",
+    headers: machineHeaders,
+    method: "DELETE",
+  });
+  assert.equal(forbiddenDeletion.status, 403);
+  assert.equal(
+    await responseErrorCode(forbiddenDeletion),
+    "authorization_forbidden",
+  );
 
   assert.deepEqual(
     application.durableCore.get(

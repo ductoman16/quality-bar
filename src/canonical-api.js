@@ -1,6 +1,7 @@
 import { createCanonicalComponents } from "./canonical-api-components.js";
 import { canonicalReviewAssignmentPath } from "./canonical-review-assignment-api.js";
 import { canonicalReviewArchivalPath } from "./canonical-review-archival-api.js";
+import { canonicalReviewPath } from "./canonical-review-api.js";
 import { canonicalRepositoryPath } from "./canonical-repository-api.js";
 import { canonicalGitHubConnectionPaths } from "./canonical-github-connection-api.js";
 import { canonicalForgejoConnectionPaths } from "./canonical-forgejo-connection-api.js";
@@ -255,6 +256,7 @@ export function canonicalOpenApiDocument() {
       ...canonicalForgejoConnectionPaths(mutationParameters, errorResponse),
       ...canonicalReviewAssignmentPath(mutationParameters, errorResponse),
       ...canonicalReviewArchivalPath(mutationParameters, errorResponse),
+      ...canonicalReviewPath(mutationParameters, errorResponse),
       "/api/v1/reviews/{review_id}/metadata": {
         patch: {
           operationId: "updateReviewMetadata",

@@ -18,6 +18,7 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
   const state = browserElement({ value: "active" });
   const selector = browserElement();
   const submit = browserElement();
+  const deleteButton = browserElement();
   const result = browserElement();
   const error = browserElement({ hidden: true });
   const elements = new Map([
@@ -36,6 +37,7 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
     ["review-archival-review", selector],
     ["review-archival-submit", submit],
     ["review-archival-result", result],
+    ["review-delete", deleteButton],
   ]);
   const listeners = new Map();
   const active = reviewResource({
@@ -43,6 +45,7 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
     id: "review/one",
     name: "Review lifecycle",
   });
+  active.deletion_eligible = false;
   const archived = { ...active, archived: true };
   /** @type {Array<{path: string, options?: object}>} */
   const requests = [];
@@ -130,6 +133,7 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
       pathname: "/",
       search: "?view=reviews",
     },
+    window: {},
   };
   for (const sourcePath of [
     "src/browser/review-version-contract.js",
@@ -151,6 +155,7 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
   assert.equal(form.hidden, false);
   assert.equal(selector.value, active.id);
   assert.equal(submit.textContent, "Archive");
+  assert.equal(deleteButton.disabled, true);
 
   await submit.listener("click")({ preventDefault() {} });
   assert.equal(requests.length, 1);
