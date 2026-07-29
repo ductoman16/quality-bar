@@ -9,8 +9,13 @@ import {
   signalReviewRunCancellations,
   subscribeReviewRunCancellation,
 } from "../src/evaluation-cancellation.js";
+import { createEvaluationResultResourceReader } from "../src/evaluation-result-resource.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import {
+  createReviewRunEvidenceService,
+  readReviewRunDiagnostics,
+} from "../src/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
@@ -121,8 +126,18 @@ test("durable cancellation wins before signaling and preserves completed child f
     cancellation_requested_at: 40,
     execution_status: "cancelled",
   });
-  assert.equal(cancelled.execution_status, "cancelled");
-  assert.equal(cancelled.effective_outcome, "error");
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(cancelled),
+    {
+      completed_at: "1970-01-01T00:00:00.040Z",
+      effective_outcome: "error",
+      execution_status: "cancelled",
+    },
+  );
   assert.deepEqual(
     core.all(
       `SELECT id, execution_status, started_at, completed_at
@@ -174,7 +189,18 @@ test("durable cancellation wins before signaling and preserves completed child f
       error instanceof ReviewRunExecutionError &&
       error.code === "submission_channel_closed",
   );
-
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(evaluations.read("evaluation-cancellation")),
+    {
+      completed_at: "1970-01-01T00:00:00.040Z",
+      effective_outcome: "error",
+      execution_status: "cancelled",
+    },
+  );
   const result = evaluations.readResult("evaluation-cancellation");
   assert.equal(result.outcome, "error");
   assert.equal(result.completed_at, "1970-01-01T00:00:00.040Z");
@@ -182,7 +208,7 @@ test("durable cancellation wins before signaling and preserves completed child f
     result.review_runs.map((run) => ({
       error: run.error,
       id: run.id,
-      status: run.status,
+      status: run.execution_status,
     })),
     [
       {
@@ -216,6 +242,45 @@ test("durable cancellation wins before signaling and preserves completed child f
     },
   ]);
   assert.deepEqual(result.findings, []);
+  const resourceReader = createEvaluationResultResourceReader(core);
+  const canonicalResult = resourceReader.readResult("evaluation-cancellation");
+  const canonicalRunningChild = resourceReader.readReviewRun(
+    "evaluation-cancellation",
+    runningClaim.workId,
+  );
+  assert.deepEqual(
+    canonicalResult.review_runs.find(({ id }) => id === runningClaim.workId),
+    canonicalRunningChild,
+  );
+  const evidence = createReviewRunEvidenceService(core);
+  evidence.complete(runningClaim, {
+    exitCode: null,
+    signal: "SIGTERM",
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
+  assert.deepEqual(
+    resourceReader.readResult("evaluation-cancellation"),
+    canonicalResult,
+  );
+  assert.deepEqual(
+    resourceReader.readReviewRun(
+      "evaluation-cancellation",
+      runningClaim.workId,
+    ),
+    canonicalRunningChild,
+  );
+  assert.deepEqual(
+    readReviewRunDiagnostics(
+      core,
+      "evaluation-cancellation",
+      runningClaim.workId,
+    )?.process,
+    { kind: "signal", signal: "SIGTERM" },
+  );
   assert.throws(
     () =>
       core.run(
