@@ -207,3 +207,120 @@ test("real Git acquisition models every File Change kind and matches each touche
     frozen.release();
   }
 });
+
+test("real Git acquisition reads complete text while absent and binary sides stay outside content predicates", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-content-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const source = join(directory, "source");
+  execFileSync("git", ["init", "--initial-branch=main", source], {
+    stdio: "ignore",
+  });
+  execFileSync("git", ["-C", source, "config", "user.name", "Quality Bar"]);
+  execFileSync("git", [
+    "-C",
+    source,
+    "config",
+    "user.email",
+    "quality-bar@example.invalid",
+  ]);
+  writeFileSync(join(source, "deleted.txt"), "complete base marker\n");
+  writeFileSync(join(source, "modified.txt"), "before\n");
+  execFileSync("git", ["-C", source, "add", "--all"]);
+  execFileSync("git", ["-C", source, "commit", "-m", "base"], {
+    stdio: "ignore",
+  });
+  const base = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+
+  rmSync(join(source, "deleted.txt"));
+  writeFileSync(
+    join(source, "modified.txt"),
+    "prefix\ncomplete 雪だるま text\nsuffix\n",
+  );
+  writeFileSync(join(source, "generated.js"), "generated text marker\n");
+  writeFileSync(join(source, "nul.bin"), Buffer.from([116, 101, 120, 116, 0]));
+  writeFileSync(join(source, "invalid-utf8.bin"), Buffer.from([0xc3, 0x28]));
+  execFileSync("git", ["-C", source, "add", "--all"]);
+  execFileSync("git", [
+    "-C",
+    source,
+    "update-index",
+    "--add",
+    "--cacheinfo",
+    `160000,${base},gitlink`,
+  ]);
+  execFileSync("git", ["-C", source, "commit", "-m", "head"], {
+    stdio: "ignore",
+  });
+  const head = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  const repository = join(directory, "repository.git");
+  execFileSync("git", ["clone", "--bare", source, repository], {
+    stdio: "ignore",
+  });
+
+  const frozen = await resolvePushedCommitSelectors(
+    pathToFileURL(repository).href,
+    undefined,
+    {
+      base: { type: "commit", value: base },
+      head: { type: "commit", value: head },
+    },
+    { objectDatabaseRoot: directory },
+  );
+  try {
+    for (const rule of [
+      'file_changes.exists(file, file.before_path.matches(":(glob)deleted.txt") && file.before_content.matches("complete base marker"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)modified.txt") && file.after_content.matches("complete 雪だるま text"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)generated.js") && file.after_content.matches("generated text marker"))',
+    ]) {
+      assert.equal(
+        evaluateApplicabilityRule(rule, frozen, {
+          matchesPath: frozen.matches_path,
+          readContent: frozen.read_content,
+        }).outcome,
+        "applicable",
+        rule,
+      );
+    }
+    for (const rule of [
+      'file_changes.exists(file, file.added && !file.before_content.matches("anything"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)nul.bin") && file.after_content.matches("text"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)nul.bin") && !file.after_content.matches("text"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)invalid-utf8.bin") && !file.after_content.matches("text"))',
+    ]) {
+      assert.equal(
+        evaluateApplicabilityRule(rule, frozen, {
+          matchesPath: frozen.matches_path,
+          readContent: frozen.read_content,
+        }).outcome,
+        "not_applicable",
+        rule,
+      );
+    }
+    const gitlinkRule =
+      'file_changes.exists(file, file.after_path.matches(":(glob)gitlink") && file.after_content.matches("anything"))';
+    assert.deepEqual(
+      evaluateApplicabilityRule(gitlinkRule, frozen, {
+        matchesPath: frozen.matches_path,
+        readContent: frozen.read_content,
+      }),
+      {
+        error: {
+          code: "applicability_file_side_unprocessable",
+          detail: "The frozen after side could not be processed.",
+          file_change_id: "file-change-3",
+          predicate_id: "predicate-3",
+          side: "after",
+        },
+        outcome: "error",
+        profile: "quality-bar-restricted-cel-v1",
+        source: gitlinkRule,
+      },
+    );
+  } finally {
+    frozen.release();
+  }
+});

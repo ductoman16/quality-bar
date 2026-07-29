@@ -284,7 +284,7 @@ test("irrelevant Boolean branches do not require successor-owned content", () =>
   );
 });
 
-test("successor-owned File Change and content states fail explicitly", () => {
+test("invalid File Change state fails explicitly", () => {
   const malformed = {
     ...changeset.file_changes[0],
     added: undefined,
@@ -303,23 +303,6 @@ test("successor-owned File Change and content states fail explicitly", () => {
       outcome: "error",
       profile: APPLICABILITY_RULE_PROFILE,
       source: "file_changes.exists(file, file.added)",
-    },
-  );
-  const source =
-    'file_changes.exists(file, file.after_content.matches("current"))';
-  assert.deepEqual(
-    evaluateApplicabilityRule(source, changeset, { matchesPath }),
-    {
-      error: {
-        code: "applicability_content_predicate_unsupported",
-        detail: "Content predicates are not available in this evaluation slice",
-        file_change_id: "file-change-1",
-        predicate_id: "predicate-2",
-        side: "after",
-      },
-      outcome: "error",
-      profile: APPLICABILITY_RULE_PROFILE,
-      source,
     },
   );
 });

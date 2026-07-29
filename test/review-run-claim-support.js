@@ -3,13 +3,26 @@ import { createReviewService } from "../src/review.js";
 
 /**
  * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
- * @param {{baseCommit?: string, headCommit?: string, repositoryUrl?: string, reviewCount?: number}} [options]
+ * @param {{
+ *   applicabilityRule?: string | null,
+ *   baseCommit?: string,
+ *   fileChanges?: any[],
+ *   headCommit?: string,
+ *   matchesPath?: (pathspec: string, path: string) => boolean,
+ *   readContent?: (fileChange: any, side: "before" | "after") => any,
+ *   repositoryUrl?: string,
+ *   reviewCount?: number
+ * }} [options]
  */
 export async function createQueuedReviewRun(
   core,
   {
+    applicabilityRule = null,
     baseCommit = "1".repeat(40),
+    fileChanges,
     headCommit = "2".repeat(40),
+    matchesPath,
+    readContent,
     repositoryUrl = "https://example.invalid/evaluation-1.git",
     reviewCount = 1,
   } = {},
@@ -31,7 +44,7 @@ export async function createQueuedReviewRun(
     now: () => 1,
   });
   for (let index = 1; index <= reviewCount; index += 1) {
-    reviews.create({
+    const created = reviews.create({
       assignment: { scope: "installation_wide" },
       codex_configuration: {
         model: "gpt-5.6-terra",
@@ -42,12 +55,26 @@ export async function createQueuedReviewRun(
       description: `Review Run claim proof ${index}`,
       name: `Claim proof ${evaluationId} ${index}`,
     });
+    if (applicabilityRule !== null) {
+      reviews.saveVersion(created.id, {
+        applicability_rule: applicabilityRule,
+        codex_configuration: created.active_version.codex_configuration,
+        criteria: created.active_version.criteria.map((criterion) => ({
+          id: criterion.id,
+          impact: criterion.impact,
+          instruction: criterion.instruction,
+        })),
+      });
+    }
   }
   let reviewRun = 0;
   await createEvaluationService(core, {
     acquireChangeset: async () => ({
       base_commit: baseCommit,
+      file_changes: fileChanges,
       head_commit: headCommit,
+      matches_path: matchesPath,
+      read_content: readContent,
     }),
     createId: () => evaluationId,
     createReviewRunId: () => `review-run-${++reviewRun}`,

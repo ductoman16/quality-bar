@@ -15,6 +15,7 @@ import {
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { createFrozenFileContentReader } from "./frozen-file-content.js";
 import { createGitPathMatcher } from "./git-path-matcher.js";
 
 /**
@@ -23,6 +24,8 @@ import { createGitPathMatcher } from "./git-path-matcher.js";
  *   head_commit: string,
  *   file_changes?: ReturnType<typeof fileChangesFromGitNameStatus>,
  *   matches_path?: (pathspec: string, path: string) => boolean,
+ *   read_content?: (fileChange: any, side: "before" | "after") =>
+ *     {state: "absent" | "binary"} | {state: "text", value: string},
  *   release?: () => void
  * }} ResolvedPushedCommitSelectors
  */
@@ -372,8 +375,15 @@ export async function resolvePushedCommitSelectors(
   const frozen = /** @type {ResolvedPushedCommitSelectors & {
    *   file_changes: ReturnType<typeof fileChangesFromGitNameStatus>,
    *   matches_path: (pathspec: string, path: string) => boolean,
+   *   read_content: (fileChange: any, side: "before" | "after") =>
+   *     {state: "absent" | "binary"} | {state: "text", value: string},
    *   release: () => void
    * }} */ (acquired);
+  const gitEnvironment = {
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    LC_ALL: "C",
+  };
   frozen.matches_path = createGitPathMatcher(
     [frozen.base_commit, frozen.head_commit],
     (commit, pathspec) => {
@@ -391,11 +401,7 @@ export async function resolvePushedCommitSelectors(
               pathspec,
             ],
             {
-              env: {
-                GIT_CONFIG_GLOBAL: "/dev/null",
-                GIT_CONFIG_NOSYSTEM: "1",
-                LC_ALL: "C",
-              },
+              env: gitEnvironment,
               maxBuffer: Number.MAX_SAFE_INTEGER,
             },
           ),
@@ -408,6 +414,12 @@ export async function resolvePushedCommitSelectors(
       }
     },
   );
+  frozen.read_content = createFrozenFileContentReader({
+    baseCommit: frozen.base_commit,
+    fileChanges: frozen.file_changes,
+    headCommit: frozen.head_commit,
+    objectDatabase,
+  });
   let released = false;
   frozen.release = () => {
     if (released) {
