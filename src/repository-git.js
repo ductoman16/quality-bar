@@ -15,6 +15,7 @@ import {
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { createGitPathMatcher } from "./git-path-matcher.js";
 
 /**
  * @typedef {{
@@ -372,10 +373,11 @@ export async function resolvePushedCommitSelectors(
    *   matches_path: (pathspec: string, path: string) => boolean,
    *   release: () => void
    * }} */ (acquired);
-  frozen.matches_path = (pathspec, path) => {
-    try {
-      return [frozen.base_commit, frozen.head_commit].some((commit) =>
-        execFileSync(
+  frozen.matches_path = createGitPathMatcher(
+    [frozen.base_commit, frozen.head_commit],
+    (commit, pathspec) => {
+      try {
+        return execFileSync(
           "git",
           [
             "-C",
@@ -397,15 +399,15 @@ export async function resolvePushedCommitSelectors(
           },
         )
           .split("\0")
-          .includes(path),
-      );
-    } catch (cause) {
-      throw Object.assign(new Error("Frozen Git path matching failed"), {
-        cause,
-        code: "applicability_git_match_failed",
-      });
-    }
-  };
+          .filter((matchedPath) => matchedPath.length > 0);
+      } catch (cause) {
+        throw Object.assign(new Error("Frozen Git path matching failed"), {
+          cause,
+          code: "applicability_git_match_failed",
+        });
+      }
+    },
+  );
   let released = false;
   frozen.release = () => {
     if (released) {

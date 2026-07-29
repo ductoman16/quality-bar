@@ -8,6 +8,7 @@ import {
 import { EvaluationError } from "../src/evaluation-validation.js";
 import { legacyFileChangeModified } from "../src/evaluation-file-change-schema.js";
 import { fileChangesFromGitNameStatus } from "../src/file-change.js";
+import { createGitPathMatcher } from "../src/git-path-matcher.js";
 
 /** @param {any} fileChange */
 function evaluate(fileChange) {
@@ -117,4 +118,32 @@ test("legacy rename migration requires exact Git similarity metadata", () => {
       ),
     /Legacy renamed File Change similarity metadata is invalid/,
   );
+});
+
+test("one authored Git pathspec expansion serves every touched path", () => {
+  /** @type {{commit: string, pathspec: string}[]} */
+  const calls = [];
+  const matchesPath = createGitPathMatcher(
+    ["base", "head"],
+    (commit, pathspec) => {
+      calls.push({ commit, pathspec });
+      return commit === "base"
+        ? ["src/deleted.js", "src/old.js"]
+        : ["src/added.js", "src/new.js"];
+    },
+  );
+  assert.deepEqual(
+    [
+      "src/deleted.js",
+      "src/old.js",
+      "src/added.js",
+      "src/new.js",
+      "src/missing.js",
+    ].map((path) => matchesPath(":(glob)src/*.js", path)),
+    [true, true, true, true, false],
+  );
+  assert.deepEqual(calls, [
+    { commit: "base", pathspec: ":(glob)src/*.js" },
+    { commit: "head", pathspec: ":(glob)src/*.js" },
+  ]);
 });
