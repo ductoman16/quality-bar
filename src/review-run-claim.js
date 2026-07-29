@@ -174,9 +174,16 @@ export function createReviewRunClaimService(
     },
     /**
      * @param {ReviewRunClaim} claim
+     * @param {string} codexCliVersion
      */
-    start(claim) {
+    start(claim, codexCliVersion) {
       assertClaim(claim);
+      if (
+        typeof codexCliVersion !== "string" ||
+        codexCliVersion.trim().length === 0
+      ) {
+        throw new TypeError("Review Run Codex CLI version is invalid");
+      }
       const startedAt = now();
       assertTimestamp(startedAt);
       return durableCore.transaction((transaction) => {
@@ -199,9 +206,11 @@ export function createReviewRunClaimService(
         }
         const startedReviewRun = transaction.run(
           `UPDATE review_runs
-           SET execution_status = 'running', started_at = ?
+           SET execution_status = 'running', started_at = ?,
+               codex_cli_version = ?
            WHERE id = ? AND execution_status = 'queued'`,
           startedAt,
+          codexCliVersion,
           claim.workId,
         );
         if (startedReviewRun.changes !== 1) {

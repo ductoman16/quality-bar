@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
+import { readTerminalTokenCounters } from "./review-run-evidence.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
@@ -218,10 +219,15 @@ export function reviewRunCodexEnvironment(
  *     lastValidationFailure(): ReviewRunExecutionError | null,
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
- *   resultService: {submit(claim: any, candidate: unknown): unknown},
+ *   resultService: {prepare(claim: any, candidate: unknown): unknown},
+ *   startRun: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearTerminationTimer?: (timer: any) => void,
+ *   evidenceService?: {
+ *     appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown,
+ *     complete(claim: any, facts: unknown): unknown
+ *   },
  *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
  *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
  *   spawnProcess?: (
@@ -237,6 +243,10 @@ export async function runReviewRunCodex({
   codexCommand = "codex",
   codexPrefixArguments = [],
   clearTerminationTimer = clearTimeout,
+  evidenceService = {
+    appendTranscriptChunk() {},
+    complete() {},
+  },
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
@@ -244,6 +254,7 @@ export async function runReviewRunCodex({
   run,
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
+  startRun,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
@@ -254,6 +265,8 @@ export async function runReviewRunCodex({
       ...codexPrefixArguments,
       ...reviewRunCodexArguments(run),
     ];
+    startRun();
+    /** @type {import("node:child_process").ChildProcess} */
     let child;
     try {
       child = spawnProcess(codexCommand, arguments_, {
@@ -275,23 +288,83 @@ export async function runReviewRunCodex({
     }
     let stdout = "";
     let stderr = "";
-    child.stdout?.setEncoding("utf8").on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-      stderr += chunk;
-    });
+    let processClosed = false;
     const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
-      child.once("exit", (code, signal) => {
+      child.once("close", (code, signal) => {
+        processClosed = true;
         resolve({ code, signal, stderr, stdout });
       });
     });
+    /** @type {unknown} */
+    let transcriptFailure;
+    /** @type {Promise<void> | undefined} */
+    let transcriptTermination;
+    /** @type {(value: void | PromiseLike<void>) => void} */
+    let resolveTranscriptFailure;
+    const transcriptFailureSignal = new Promise((resolve) => {
+      resolveTranscriptFailure = resolve;
+    });
+    /** @param {unknown} error */
+    function stopAfterTranscriptFailure(error) {
+      if (transcriptFailure) {
+        return;
+      }
+      transcriptFailure = error;
+      resolveTranscriptFailure(undefined);
+      transcriptTermination = terminateCodexProcessGroup(
+        child,
+        processResult,
+        killProcessGroup,
+        setTerminationTimer,
+        clearTerminationTimer,
+      ).catch((terminationFailure) => {
+        const failure =
+          terminationFailure instanceof Error
+            ? terminationFailure
+            : new TypeError("Codex process-group termination failed");
+        diagnosticFailures.push(failure);
+        if (transcriptFailure instanceof Error) {
+          Object.defineProperty(
+            transcriptFailure,
+            "processTerminationFailure",
+            {
+              configurable: true,
+              enumerable: false,
+              value: failure,
+            },
+          );
+        }
+      });
+    }
+    child.stdout?.setEncoding("utf8").on("data", (chunk) => {
+      stdout += chunk;
+      try {
+        evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
+      } catch (error) {
+        stopAfterTranscriptFailure(error);
+      }
+    });
+    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
+      stderr += chunk;
+      try {
+        evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
+      } catch (error) {
+        stopAfterTranscriptFailure(error);
+      }
+    });
+    /** @type {{ kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     const terminal = await Promise.race([
-      processResult.then((result) => ({ kind: "process", result })),
-      channel.waitForResult().then((result) => ({
-        kind: "submission",
+      processResult.then((result) => ({
+        kind: /** @type {const} */ ("process"),
         result,
+      })),
+      channel.waitForResult().then((result) => ({
+        kind: /** @type {const} */ ("submission"),
+        result,
+      })),
+      transcriptFailureSignal.then(() => ({
+        kind: /** @type {const} */ ("transcript"),
       })),
     ]).catch((cause) =>
       fail(
@@ -305,7 +378,9 @@ export async function runReviewRunCodex({
     if (terminal.kind === "process" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
-    if (accepted) {
+    /** @type {Error | undefined} */
+    let acceptedTerminationFailure;
+    if (accepted && !transcriptTermination) {
       try {
         await terminateCodexProcessGroup(
           child,
@@ -315,13 +390,35 @@ export async function runReviewRunCodex({
           clearTerminationTimer,
         );
       } catch (error) {
-        diagnosticFailures.push(
+        const failure =
           error instanceof Error
             ? error
-            : new TypeError("Codex process-group termination failed"),
-        );
+            : new TypeError("Codex process-group termination failed");
+        if (processClosed) {
+          diagnosticFailures.push(failure);
+        } else {
+          acceptedTerminationFailure = failure;
+        }
       }
     }
+    await transcriptTermination;
+    if (transcriptFailure) {
+      throw transcriptFailure;
+    }
+    if (acceptedTerminationFailure) {
+      fail(
+        "codex_process_failed",
+        "Codex Review Run process-group termination failed",
+        acceptedTerminationFailure,
+      );
+    }
+    const terminalProcess =
+      terminal.kind === "process" ? terminal.result : await processResult;
+    evidenceService.complete(claim, {
+      exitCode: terminalProcess?.code ?? null,
+      signal: terminalProcess?.signal ?? null,
+      tokenCounters: readTerminalTokenCounters(stdout),
+    });
     const submissionFailure = channel.failure();
     if (submissionFailure) {
       throw submissionFailure;

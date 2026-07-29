@@ -10,6 +10,7 @@ import {
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import { readCompletedEvaluationResult } from "./evaluation-result-read.js";
+import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
 import {
   enqueueReviewRuns,
   insertApplicabilityResults,
@@ -215,6 +216,8 @@ export function createEvaluationService(
       }
       return result;
     },
+    readReviewRunDiagnostics:
+      createEvaluationReviewRunDiagnosticsReader(durableCore),
     /**
      * @param {{
      *   channel: "browser_session" | "implementer_token" | "mcp",
@@ -438,6 +441,9 @@ export function createUnavailableEvaluationService(error) {
       failEvaluation(failure.code, failure.message, error);
     },
     readResult() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readReviewRunDiagnostics() {
       failEvaluation(failure.code, failure.message, error);
     },
   };

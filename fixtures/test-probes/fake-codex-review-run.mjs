@@ -7,6 +7,7 @@ const triggered = arguments_.includes("--fake-triggered");
 const notApplicable = arguments_.includes("--fake-not-applicable");
 const criterionError = arguments_.includes("--fake-error");
 const correctionProof = arguments_.includes("--fake-correction");
+const processFailure = arguments_.includes("--fake-process-failure");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
   /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
@@ -57,6 +58,20 @@ process.stdout.write(
     type: "item.completed",
   })}\n`,
 );
+process.stdout.write(
+  `${JSON.stringify({
+    type: "turn.completed",
+    usage: {
+      cached_input_tokens: 45,
+      input_tokens: 120,
+      output_tokens: 30,
+    },
+  })}\n`,
+);
+process.stderr.write("fake Codex diagnostic\n");
+if (processFailure) {
+  throw new Error("fake_codex_process_failure");
+}
 if (correctionProof) {
   let correction = "";
   try {

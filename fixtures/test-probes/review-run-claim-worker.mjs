@@ -28,12 +28,15 @@ try {
     Number.isSafeInteger(Number(fencingToken))
   ) {
     try {
-      claims.start({
-        fencingToken: Number(fencingToken),
-        leaseExpiresAt: 0,
-        workerId,
-        workId,
-      });
+      claims.start(
+        {
+          fencingToken: Number(fencingToken),
+          leaseExpiresAt: 0,
+          workerId,
+          workId,
+        },
+        "0.145.0",
+      );
       process.stdout.write(`${JSON.stringify({ outcome: "started" })}\n`);
     } catch (error) {
       if (

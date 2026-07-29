@@ -52,7 +52,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 31);
+  assert.equal(migrated.facts.schemaVersion, 32);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -140,18 +140,19 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 31);
+  assert.equal(migrated.facts.schemaVersion, 32);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim);
+  claims.start(claim, "0.145.0");
   const criterionId = migrated.get(
     "SELECT criterion_id FROM review_version_criteria",
   )?.criterion_id;
-  createReviewRunResultService(migrated, { now: () => 30 }).submit(
+  const results = createReviewRunResultService(migrated, { now: () => 30 });
+  results.prepare(
     claim,
     {
       criterion_results: [

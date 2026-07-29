@@ -75,7 +75,7 @@ test("the first valid fenced submission atomically preserves every complete Crit
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim);
+  claims.start(claim, "0.145.0");
   let finding = 0;
   const results = createReviewRunResultService(core, {
     createFindingId: () => `finding-${++finding}`,
@@ -101,7 +101,7 @@ test("the first valid fenced submission atomically preserves every complete Crit
     criterionIds,
   );
 
-  results.submit(
+  results.prepare(
     claim,
     {
       criterion_results: [
@@ -141,6 +141,17 @@ test("the first valid fenced submission atomically preserves every complete Crit
       ],
     },
     fileChanges,
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    4,
+  );
+  assert.deepEqual(
+    core.get(
+      "SELECT execution_status, completed_at FROM review_runs WHERE id = ?",
+      claim.workId,
+    ),
+    { completed_at: 30, execution_status: "completed" },
   );
   assert.deepEqual(
     createEvaluationService(core, {
@@ -231,7 +242,7 @@ test("the first valid fenced submission atomically preserves every complete Crit
   );
   assert.throws(
     () =>
-      results.submit(
+      results.prepare(
         claim,
         {
           criterion_results: review.active_version.criteria.map(({ id }) => ({
@@ -280,7 +291,8 @@ test("an exact Review Run boundary failure creates no partial or fallback Result
         }),
         readFileChanges: () => [],
         resultService: createReviewRunResultService(core, { now: () => 30 }),
-        async runCodex() {
+        async runCodex(input) {
+          input.startRun?.();
           throw failure;
         },
       }),

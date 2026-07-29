@@ -41,7 +41,7 @@ test("the fake Codex adapter is reached only after its durable claim commits", a
 
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim);
+  claims.start(claim, "0.145.0");
   launchFakeCodex(claim);
   assert.deepEqual(launches, [
     {

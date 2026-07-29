@@ -187,6 +187,80 @@ export function canonicalEvaluationSchemas() {
       },
       ["id", "before_path", "after_path", "patch"],
     ),
+    ReviewRunTranscriptChunk: closedObject(
+      {
+        content: { minLength: 1, type: "string" },
+        sequence: { minimum: 1, type: "integer" },
+        stream: { enum: ["stdout", "stderr"], type: "string" },
+      },
+      ["sequence", "stream", "content"],
+    ),
+    ReviewRunDiagnostics: closedObject(
+      {
+        codex_cli_version: {
+          oneOf: [{ minLength: 1, type: "string" }, { type: "null" }],
+        },
+        completed_at: {
+          oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+        },
+        duration_ms: {
+          oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+        },
+        process: {
+          oneOf: [
+            closedObject(
+              {
+                code: { minimum: 0, type: "integer" },
+                kind: { const: "exit", type: "string" },
+              },
+              ["kind", "code"],
+            ),
+            closedObject(
+              {
+                kind: { const: "signal", type: "string" },
+                signal: { minLength: 1, type: "string" },
+              },
+              ["kind", "signal"],
+            ),
+            closedObject({ kind: { const: "unavailable", type: "string" } }, [
+              "kind",
+            ]),
+          ],
+        },
+        review_run_id: { minLength: 1, type: "string" },
+        started_at: {
+          oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+        },
+        token_counters: closedObject(
+          {
+            cached_input_tokens: {
+              oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+            },
+            input_tokens: {
+              oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+            },
+            output_tokens: {
+              oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+            },
+          },
+          ["input_tokens", "cached_input_tokens", "output_tokens"],
+        ),
+        transcript_chunks: {
+          items: { $ref: "#/components/schemas/ReviewRunTranscriptChunk" },
+          type: "array",
+        },
+      },
+      [
+        "review_run_id",
+        "codex_cli_version",
+        "started_at",
+        "completed_at",
+        "duration_ms",
+        "process",
+        "token_counters",
+        "transcript_chunks",
+      ],
+    ),
     CompletedReviewRun: closedObject(
       {
         completed_at: { format: "date-time", type: "string" },

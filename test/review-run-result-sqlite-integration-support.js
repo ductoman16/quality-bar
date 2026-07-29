@@ -91,7 +91,7 @@ export function assertRejectedCandidatesStoreNothing(
     ],
   ]) {
     assert.throws(
-      () => results.submit(claim, candidate, fileChanges),
+      () => results.prepare(claim, candidate, fileChanges),
       (error) =>
         error instanceof ReviewRunExecutionError && error.code === code,
     );
@@ -127,7 +127,8 @@ export async function executeUnexpectedReviewRun(core, underlyingFailure) {
     }),
     readFileChanges: () => [],
     resultService: createReviewRunResultService(core, { now: () => 30 }),
-    async runCodex() {
+    async runCodex(input) {
+      input.startRun?.();
       throw underlyingFailure;
     },
   });

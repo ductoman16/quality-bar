@@ -1,5 +1,7 @@
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
+import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
+import { createReviewRunEvidenceService } from "./review-run-evidence.js";
 import { readReviewRunFileChanges } from "./review-run-file-changes.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
@@ -90,6 +92,16 @@ function removeCheckout(checkout, executionFailure) {
 function owningExecutionFailure(error) {
   if (error instanceof ReviewRunExecutionError) {
     return error;
+  }
+  if (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^[a-z][a-z0-9_]*$/.test(error.code)
+  ) {
+    return new ReviewRunExecutionError(error.code, error.message, {
+      cause: error,
+    });
   }
   return new ReviewRunExecutionError(
     "unexpected_execution_failure",
@@ -203,18 +215,19 @@ function readRun(durableCore, workId) {
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
- *     start(claim: any): unknown,
+ *     start(claim: any, codexCliVersion: string): unknown,
  *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void
  *   },
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
+ *   evidenceService?: ReturnType<typeof createReviewRunEvidenceService>,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
  *   reportDiagnostic?: (failure: Error) => unknown,
  *   resultService: {
  *     fail(claim: any, failure: ReviewRunExecutionError): unknown,
- *     submit(claim: any, candidate: unknown, fileChanges: any[]): unknown
+ *     prepare(claim: any, candidate: unknown, fileChanges: any[]): unknown
  *   },
  *   runCodex?: typeof runReviewRunCodex,
  *   spawnProcess?: (
@@ -231,6 +244,7 @@ export async function executeReviewRun(
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
+    evidenceService = createReviewRunEvidenceService(durableCore),
     prepareCheckout = prepareReviewRunCheckout,
     readFileChanges = readReviewRunFileChanges,
     reportDiagnostic = (failure) => process.emitWarning(failure),
@@ -281,14 +295,13 @@ export async function executeReviewRun(
         ...reviewRunWithoutPrompt,
         prompt: createReviewRunPrompt(reviewRunWithoutPrompt),
       };
-      claimService.start(claim);
-      started = true;
       const codexExecution = await runCodex({
         checkoutPath: checkout.path,
         claim,
+        evidenceService,
         resultService: {
-          submit(submissionClaim, candidate) {
-            return resultService.submit(
+          prepare(submissionClaim, candidate) {
+            return resultService.prepare(
               submissionClaim,
               candidate,
               fileChanges,
@@ -296,6 +309,10 @@ export async function executeReviewRun(
           },
         },
         run: reviewRun,
+        startRun() {
+          claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
+          started = true;
+        },
         ...codexOptions,
       });
       diagnosticFailures = codexExecution?.diagnosticFailures ?? [];

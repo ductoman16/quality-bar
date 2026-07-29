@@ -8,6 +8,11 @@ export function migrateSchema(
   statements,
   schemaVersion = CURRENT_SCHEMA_VERSION,
 ) {
+  const reviewRunEvidenceStatements = statements.includes(
+    "DROP TABLE review_runs",
+  )
+    ? ""
+    : reviewRunEvidenceMigration(database);
   const repositoryHasUsageMarker = database
     .prepare("PRAGMA table_info(repositories)")
     .all()
@@ -25,7 +30,7 @@ export function migrateSchema(
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -39,7 +44,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30].includes(version)) {
+  if (![29, 30, 31].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   const hasApplicabilitySeal = database
@@ -58,7 +63,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 31;
+export const CURRENT_SCHEMA_VERSION = 32;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -71,6 +76,15 @@ import {
   REVIEW_DELETION_COLUMN_MIGRATION,
   REVIEW_DELETION_INTEGRITY,
 } from "./review-deletion-schema.js";
+import { reviewRunEvidenceMigration } from "./review-run-evidence.js";
+
+export const REVIEW_RUN_REBUILD_CLEANUP = `
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_update;
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_delete;
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_requires_started_run;
+  DROP TABLE IF EXISTS review_run_transcript_chunks;
+  DROP TRIGGER IF EXISTS criterion_result_requires_running_review_run;
+`;
 
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (
