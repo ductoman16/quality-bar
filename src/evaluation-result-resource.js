@@ -15,22 +15,6 @@ const timestamp = (/** @type {number} */ value) =>
  * }} durableCore
  */
 export function createEvaluationResultResourceReader(durableCore) {
-  /** @param {string} evaluationId */
-  function terminalEvidencePending(evaluationId) {
-    return Boolean(
-      durableCore.get(
-        `SELECT id
-         FROM review_runs
-         WHERE evaluation_id = ?
-           AND started_at IS NOT NULL
-           AND execution_status IN ('completed', 'failed', 'cancelled')
-           AND execution_evidence_recorded = 0
-         LIMIT 1`,
-        evaluationId,
-      ),
-    );
-  }
-
   /** @param {string} evaluationId @param {string} reviewRunId */
   function readReviewRunRow(evaluationId, reviewRunId) {
     const row = durableCore.get(
@@ -59,17 +43,11 @@ export function createEvaluationResultResourceReader(durableCore) {
    * @param {ReturnType<typeof readCompletedEvaluationResult>} result
    */
   function reviewRunResource(row, result) {
-    const storedExecutionStatus = /** @type {string} */ (row.execution_status);
+    const executionStatus = /** @type {string} */ (row.execution_status);
     const startedAt = /** @type {number | null} */ (row.started_at);
     const storedCompletedAt = /** @type {number | null} */ (row.completed_at);
-    const evidencePending =
-      startedAt !== null &&
-      ["completed", "failed", "cancelled"].includes(storedExecutionStatus) &&
-      row.execution_evidence_recorded === 0;
-    const executionStatus = evidencePending ? "running" : storedExecutionStatus;
-    const completedAt = evidencePending
-      ? null
-      : executionStatus === "cancelled"
+    const completedAt =
+      executionStatus === "cancelled"
         ? /** @type {number | null} */ (row.cancellation_requested_at)
         : storedCompletedAt;
     const exitCode = row.process_exit_code;
@@ -81,9 +59,8 @@ export function createEvaluationResultResourceReader(durableCore) {
           ? { kind: "signal", signal }
           : { kind: "unavailable" };
     const runId = /** @type {string} */ (row.id);
-    const error = evidencePending
-      ? undefined
-      : executionStatus === "failed"
+    const error =
+      executionStatus === "failed"
         ? {
             code: row.error_code,
             detail: row.error_detail,
@@ -97,31 +74,27 @@ export function createEvaluationResultResourceReader(durableCore) {
     return {
       completed_at: completedAt === null ? null : timestamp(completedAt),
       created_at: timestamp(/** @type {number} */ (row.created_at)),
-      criterion_results: evidencePending
-        ? []
-        : result
-          ? result.criterion_results.filter(
-              ({ review_run_id: reviewRunId }) => reviewRunId === runId,
-            )
-          : readEvaluationCriterionResults(
-              durableCore,
-              /** @type {string} */ (row.evaluation_id),
-              runId,
-            ),
+      criterion_results: result
+        ? result.criterion_results.filter(
+            ({ review_run_id: reviewRunId }) => reviewRunId === runId,
+          )
+        : readEvaluationCriterionResults(
+            durableCore,
+            /** @type {string} */ (row.evaluation_id),
+            runId,
+          ),
       ...(error === undefined ? {} : { error }),
       evaluation_id: row.evaluation_id,
       execution_status: executionStatus,
-      findings: evidencePending
-        ? []
-        : result
-          ? result.findings.filter(
-              ({ review_run_id: reviewRunId }) => reviewRunId === runId,
-            )
-          : readEvaluationFindings(
-              durableCore,
-              /** @type {string} */ (row.evaluation_id),
-              runId,
-            ),
+      findings: result
+        ? result.findings.filter(
+            ({ review_run_id: reviewRunId }) => reviewRunId === runId,
+          )
+        : readEvaluationFindings(
+            durableCore,
+            /** @type {string} */ (row.evaluation_id),
+            runId,
+          ),
       id: runId,
       measurements: {
         codex_cli_version: row.codex_cli_version,
@@ -144,12 +117,6 @@ export function createEvaluationResultResourceReader(durableCore) {
 
   /** @param {string} id */
   function readResult(id) {
-    if (terminalEvidencePending(id)) {
-      failEvaluation(
-        "evaluation_result_not_ready",
-        "Evaluation Result is not ready",
-      );
-    }
     const result = readCompletedEvaluationResult(durableCore, id);
     if (!result) {
       if (!durableCore.get("SELECT id FROM evaluations WHERE id = ?", id)) {

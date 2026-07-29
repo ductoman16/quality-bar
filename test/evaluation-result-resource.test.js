@@ -110,7 +110,7 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
     {
       completed_at: null,
       effective_outcome: "pending",
-      execution_status: "running",
+      execution_status: "queued",
     },
   );
   assert.deepEqual(
@@ -121,10 +121,16 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
       findings,
     }))(reader.readReviewRun("evaluation-1", firstClaim.workId)),
     {
-      completed_at: null,
-      criterion_results: [],
-      execution_status: "running",
-      findings: [],
+      completed_at: "1970-01-01T00:00:00.030Z",
+      criterion_results: [
+        {
+          criterion_id: criterionId,
+          outcome: "triggered",
+          review_run_id: firstClaim.workId,
+        },
+      ],
+      execution_status: "completed",
+      findings: [reader.readFinding("evaluation-1", "finding-1")],
     },
   );
   const evidence = createReviewRunEvidenceService(core);
@@ -194,15 +200,6 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
     },
     [],
   );
-  evidence.complete(secondClaim, {
-    exitCode: 0,
-    signal: null,
-    tokenCounters: {
-      cached_input_tokens: null,
-      input_tokens: null,
-      output_tokens: null,
-    },
-  });
 
   const result = reader.readResult("evaluation-1");
   assert.deepEqual(
@@ -220,5 +217,28 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
   assert.deepEqual(
     result.review_runs.find(({ id }) => id === firstClaim.workId),
     completedSibling,
+  );
+  const secondSibling = result.review_runs.find(
+    ({ id }) => id === secondClaim.workId,
+  );
+  assert.ok(secondSibling);
+  assert.deepEqual(
+    (({ execution_status, measurements }) => ({
+      execution_status,
+      measurements,
+    }))(secondSibling),
+    {
+      execution_status: "completed",
+      measurements: {
+        codex_cli_version: "0.145.0",
+        duration_ms: 20,
+        process: { kind: "unavailable" },
+        token_counters: {
+          cached_input_tokens: null,
+          input_tokens: null,
+          output_tokens: null,
+        },
+      },
+    },
   );
 });

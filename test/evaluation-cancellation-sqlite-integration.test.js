@@ -11,7 +11,6 @@ import {
 } from "../src/evaluation-cancellation.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
@@ -84,7 +83,6 @@ test("durable cancellation wins before signaling and preserves completed child f
   const results = createReviewRunResultService(core, {
     now: () => observedAt,
   });
-  const evidence = createReviewRunEvidenceService(core);
   const completedClaim = claims.claimNext();
   assert.ok(completedClaim);
   claims.start(completedClaim, "0.145.0");
@@ -101,15 +99,6 @@ test("durable cancellation wins before signaling and preserves completed child f
     },
     [],
   );
-  evidence.complete(completedClaim, {
-    exitCode: 0,
-    signal: null,
-    tokenCounters: {
-      cached_input_tokens: null,
-      input_tokens: null,
-      output_tokens: null,
-    },
-  });
   observedAt = 30;
   const runningClaim = claims.claimNext();
   assert.ok(runningClaim);
@@ -139,9 +128,9 @@ test("durable cancellation wins before signaling and preserves completed child f
       execution_status,
     }))(cancelled),
     {
-      completed_at: null,
-      effective_outcome: "pending",
-      execution_status: "running",
+      completed_at: "1970-01-01T00:00:00.040Z",
+      effective_outcome: "error",
+      execution_status: "cancelled",
     },
   );
   assert.deepEqual(
@@ -195,16 +184,6 @@ test("durable cancellation wins before signaling and preserves completed child f
       error instanceof ReviewRunExecutionError &&
       error.code === "submission_channel_closed",
   );
-  evidence.complete(runningClaim, {
-    exitCode: null,
-    signal: "SIGTERM",
-    tokenCounters: {
-      cached_input_tokens: null,
-      input_tokens: null,
-      output_tokens: null,
-    },
-  });
-
   assert.deepEqual(
     (({ completed_at, effective_outcome, execution_status }) => ({
       completed_at,

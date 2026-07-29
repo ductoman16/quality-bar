@@ -50,13 +50,10 @@ function readEvaluation(row) {
   ) {
     throw new TypeError("Evaluation row is invalid");
   }
-  const terminalEvidencePending = row.terminal_evidence_pending === 1;
   const completedAt =
-    terminalEvidencePending || row.completed_at === null
-      ? null
-      : /** @type {number} */ (row.completed_at);
+    row.completed_at === null ? null : /** @type {number} */ (row.completed_at);
   const outcome =
-    terminalEvidencePending || row.result_outcome === null
+    row.result_outcome === null
       ? "pending"
       : /** @type {string} */ (row.result_outcome);
   return {
@@ -68,9 +65,7 @@ function readEvaluation(row) {
     completed_at: completedAt === null ? null : timestamp(completedAt),
     created_at: timestamp(/** @type {number} */ (row.created_at)),
     effective_outcome: outcome,
-    execution_status: terminalEvidencePending
-      ? "running"
-      : row.execution_status,
+    execution_status: row.execution_status,
     head_commit: row.head_commit,
     head_selector: {
       type: row.head_selector_type,
@@ -87,16 +82,7 @@ function readEvaluation(row) {
 }
 
 const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
-  evaluation_results.outcome AS result_outcome,
-  EXISTS (
-    SELECT 1
-    FROM review_runs
-    WHERE review_runs.evaluation_id = evaluations.id
-      AND review_runs.started_at IS NOT NULL
-      AND review_runs.execution_status IN ('completed', 'failed', 'cancelled')
-      AND review_runs.execution_evidence_recorded = 0
-  ) AS terminal_evidence_pending
-  FROM evaluations
+  evaluation_results.outcome AS result_outcome FROM evaluations
   JOIN repositories ON repositories.id = evaluations.repository_id
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
 
