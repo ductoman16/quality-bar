@@ -68,7 +68,7 @@ test("the operator browser surfaces an exact Codex authentication failure withou
           id: "review-run-authentication",
           review_id: "review-1",
           review_version_id: "review-version-1",
-          status: "failed",
+          execution_status: "failed",
         },
       ],
     },
