@@ -8,7 +8,11 @@ export function migrateSchema(
   statements,
   schemaVersion = CURRENT_SCHEMA_VERSION,
 ) {
-  const reviewRunEvidenceStatements = reviewRunEvidenceMigration(database);
+  const reviewRunEvidenceStatements = statements.includes(
+    "DROP TABLE review_runs",
+  )
+    ? ""
+    : reviewRunEvidenceMigration(database);
   const repositoryHasUsageMarker = database
     .prepare("PRAGMA table_info(repositories)")
     .all()
@@ -50,6 +54,14 @@ import {
   REVIEW_DELETION_INTEGRITY,
 } from "./review-deletion-schema.js";
 import { reviewRunEvidenceMigration } from "./review-run-evidence.js";
+
+export const REVIEW_RUN_REBUILD_CLEANUP = `
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_update;
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_delete;
+  DROP TRIGGER IF EXISTS review_run_transcript_chunk_requires_started_run;
+  DROP TABLE IF EXISTS review_run_transcript_chunks;
+  DROP TRIGGER IF EXISTS criterion_result_requires_running_review_run;
+`;
 
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (

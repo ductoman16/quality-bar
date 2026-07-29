@@ -93,6 +93,16 @@ function owningExecutionFailure(error) {
   if (error instanceof ReviewRunExecutionError) {
     return error;
   }
+  if (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^[a-z][a-z0-9_]*$/.test(error.code)
+  ) {
+    return new ReviewRunExecutionError(error.code, error.message, {
+      cause: error,
+    });
+  }
   return new ReviewRunExecutionError(
     "unexpected_execution_failure",
     "Unexpected Review Run execution failure",
@@ -223,7 +233,8 @@ function readRun(durableCore, workId) {
  *   reportDiagnostic?: (failure: Error) => unknown,
  *   resultService: {
  *     fail(claim: any, failure: ReviewRunExecutionError): unknown,
- *     submit(claim: any, candidate: unknown, fileChanges: any[]): unknown
+ *     prepare(claim: any, candidate: unknown, fileChanges: any[]): unknown,
+ *     submitPrepared(claim: any, submission: unknown): unknown
  *   },
  *   runCodex?: typeof runReviewRunCodex,
  *   spawnProcess?: (
@@ -291,22 +302,25 @@ export async function executeReviewRun(
         ...reviewRunWithoutPrompt,
         prompt: createReviewRunPrompt(reviewRunWithoutPrompt),
       };
-      claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
-      started = true;
       const codexExecution = await runCodex({
         checkoutPath: checkout.path,
         claim,
         evidenceService,
         resultService: {
-          submit(submissionClaim, candidate) {
-            return resultService.submit(
+          prepare(submissionClaim, candidate) {
+            return resultService.prepare(
               submissionClaim,
               candidate,
               fileChanges,
             );
           },
+          submitPrepared: resultService.submitPrepared,
         },
         run: reviewRun,
+        startRun() {
+          claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
+          started = true;
+        },
         ...codexOptions,
       });
       diagnosticFailures = codexExecution?.diagnosticFailures ?? [];

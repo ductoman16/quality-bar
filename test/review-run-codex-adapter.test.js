@@ -6,9 +6,9 @@ import { test } from "node:test";
 import {
   reviewRunCodexEnvironment,
   reviewRunCodexArguments,
-  runReviewRunCodex,
 } from "../src/review-run-codex-adapter.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -43,7 +43,7 @@ function processThatExits(code, signal = null) {
     stderr: new PassThrough(),
     stdout: new PassThrough(),
   });
-  queueMicrotask(() => child.emit("exit", code, signal));
+  queueMicrotask(() => child.emit("close", code, signal));
   return process;
 }
 
@@ -56,7 +56,7 @@ function processThatFailsWithJsonl() {
   queueMicrotask(() => {
     process.stdout.end('{"type":"turn.failed","error":"model failure"}\n');
     process.stderr.end("pinned Codex diagnostic\n");
-    child.emit("exit", 1, null);
+    child.emit("close", 1, null);
   });
   return process;
 }
@@ -89,6 +89,7 @@ function channel({
     },
     failure: () => failure,
     lastValidationFailure: () => lastValidationFailure,
+    submission: () => ({ prepared: true }),
     waitForResult: () =>
       accepted ? Promise.resolve("accepted") : new Promise(() => {}),
   };
@@ -97,12 +98,17 @@ function channel({
 test("constructs the pinned Codex invocation and accepts only the submission channel Result", async () => {
   /** @type {unknown[]} */
   const spawnCalls = [];
+  /** @type {string[]} */
+  const launchEvents = [];
   await runReviewRunCodex({
     checkoutPath: "/checkout",
     claim,
     codexCommand: "pinned-codex",
     codexPrefixArguments: ["adapter.mjs"],
-    openSubmissionChannel: async () => channel({ accepted: true }),
+    openSubmissionChannel: async () => {
+      launchEvents.push("submission-channel");
+      return channel({ accepted: true });
+    },
     processEnvironment: {
       CODEX_HOME: "/var/lib/quality-bar/codex",
       HOME: "/var/lib/quality-bar",
@@ -116,9 +122,13 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
       QUALITY_BAR_CSRF_SECRET: ownedSecrets.csrf,
     },
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
+    startRun() {
+      launchEvents.push("start");
+    },
     spawnProcess(command, arguments_, options) {
+      launchEvents.push("spawn");
       spawnCalls.push([command, arguments_, options]);
       return /** @type {any} */ (processThatExits(0));
     },
@@ -132,6 +142,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
     },
   });
 
+  assert.deepEqual(launchEvents, ["submission-channel", "start", "spawn"]);
   assert.deepEqual(spawnCalls, [
     [
       "pinned-codex",
@@ -174,14 +185,14 @@ test("accepted submission closes before terminating the still-running Codex proc
         return "accepted";
       },
     }),
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
     killProcessGroup(pid, signal) {
       assert.equal(pid, -73);
       if (signal === "SIGTERM") {
         events.push("process-terminated");
-        queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
+        queueMicrotask(() => child.emit("close", null, "SIGTERM"));
         return;
       }
       assert.equal(signal, 0);
@@ -265,7 +276,7 @@ test("maps process completion without an accepted Result to exact owning failure
           checkoutPath: "/checkout",
           claim,
           openSubmissionChannel: async () => channel(),
-          resultService: { submit() {} },
+          resultService: { prepare() {}, submitPrepared() {} },
           run,
           spawnProcess: () => /** @type {any} */ (processThatExits(code)),
         }),
@@ -308,7 +319,7 @@ test("every exit without acceptance preserves the last exact correction error", 
           claim,
           openSubmissionChannel: async () =>
             channel({ lastValidationFailure: validationFailure }),
-          resultService: { submit() {} },
+          resultService: { prepare() {}, submitPrepared() {} },
           run,
           spawnProcess: () => /** @type {any} */ (processThatExits(exitCode)),
         }),
@@ -332,7 +343,7 @@ test("preserves raw JSONL stdout and stderr when the pinned Codex process fails"
         checkoutPath: "/checkout",
         claim,
         openSubmissionChannel: async () => channel(),
-        resultService: { submit() {} },
+        resultService: { prepare() {}, submitPrepared() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatFailsWithJsonl()),
       }),
@@ -360,7 +371,7 @@ test("preserves an unexpected submission storage failure", async () => {
         checkoutPath: "/checkout",
         claim,
         openSubmissionChannel: async () => channel({ failure: storageFailure }),
-        resultService: { submit() {} },
+        resultService: { prepare() {}, submitPrepared() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(1)),
       }),
@@ -377,7 +388,7 @@ test("channel cleanup cannot replace the exact owning process failure", async ()
         claim,
         openSubmissionChannel: async () =>
           channel({ closeFailure: cleanupFailure }),
-        resultService: { submit() {} },
+        resultService: { prepare() {}, submitPrepared() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(2)),
       }),
@@ -401,7 +412,7 @@ test("channel cleanup failure remains visible without overturning an accepted Re
       claim,
       openSubmissionChannel: async () =>
         channel({ accepted: true, closeFailure: cleanupFailure }),
-      resultService: { submit() {} },
+      resultService: { prepare() {}, submitPrepared() {} },
       run,
       spawnProcess: () => /** @type {any} */ (processThatExits(0)),
       killProcessGroup(pid, signal) {

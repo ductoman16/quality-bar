@@ -79,7 +79,7 @@
     if (
       !diagnostics ||
       diagnostics.review_run_id !== run.id ||
-      typeof diagnostics.codex_cli_version !== "string" ||
+      !nullableString(diagnostics.codex_cli_version) ||
       typeof diagnostics.duration_ms !== "number" ||
       !diagnostics.process ||
       typeof diagnostics.process.kind !== "string" ||
@@ -111,7 +111,7 @@
     const measurements = document.createElement("p");
     measurements.textContent =
       "Codex CLI " +
-      diagnostics.codex_cli_version +
+      (diagnostics.codex_cli_version ?? "unavailable") +
       " — " +
       diagnostics.duration_ms +
       " ms — input " +
@@ -300,15 +300,7 @@
       target.append(criterionDetails);
     }
     for (const run of result.review_runs) {
-      try {
-        target.append(await loadReviewRunDiagnostics(evaluation.id, run));
-      } catch (error) {
-        const failure = document.createElement("p");
-        failure.textContent =
-          "Diagnostics failed: " +
-          (error instanceof Error ? error.message : "unknown failure");
-        target.append(failure);
-      }
+      target.append(await loadReviewRunDiagnostics(evaluation.id, run));
     }
   }
 

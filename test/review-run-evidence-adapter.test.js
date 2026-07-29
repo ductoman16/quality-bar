@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { runReviewRunCodex } from "../src/review-run-codex-adapter.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -34,7 +34,7 @@ function processThatCompletesWithUsage() {
       '{"type":"turn.completed","usage":{"input_tokens":120,"cached_input_tokens":45,"output_tokens":30}}\n',
     );
     process.stderr.end("pinned diagnostic\n");
-    child.emit("exit", 0, null);
+    child.emit("close", 0, null);
   });
   return process;
 }
@@ -65,9 +65,10 @@ test("streams exact transcript chunks and retains supplied terminal counters and
           },
           failure: () => null,
           lastValidationFailure: () => null,
+          submission: () => undefined,
           waitForResult: () => new Promise(() => {}),
         }),
-        resultService: { submit() {} },
+        resultService: { prepare() {}, submitPrepared() {} },
         run,
         spawnProcess: () =>
           /** @type {any} */ (processThatCompletesWithUsage()),
@@ -100,4 +101,66 @@ test("streams exact transcript chunks and retains supplied terminal counters and
       },
     ],
   ]);
+});
+
+test("terminal evidence failure prevents the prepared Result from committing", async () => {
+  const storageFailure = Object.assign(
+    new Error("SQLite durable write failed"),
+    {
+      code: "storage_unavailable",
+    },
+  );
+  const child = Object.assign(new EventEmitter(), {
+    pid: 78,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  let resultCommitted = false;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {},
+          complete() {
+            throw storageFailure;
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -78);
+          if (signal === "SIGTERM") {
+            queueMicrotask(() => {
+              child.stdout.end();
+              child.stderr.end();
+              child.emit("close", null, "SIGTERM");
+            });
+            return;
+          }
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => true,
+          async close() {},
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          submission: () => ({ prepared: true }),
+          waitForResult: async () => "accepted",
+        }),
+        resultService: {
+          prepare() {},
+          submitPrepared() {
+            resultCommitted = true;
+          },
+        },
+        run,
+        spawnProcess: () => /** @type {any} */ (child),
+      }),
+    (error) => error === storageFailure,
+  );
+  assert.equal(resultCommitted, false);
 });

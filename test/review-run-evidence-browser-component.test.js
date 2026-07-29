@@ -99,3 +99,84 @@ test("the operator browser renders raw Review Run diagnostics without configurat
   );
   assert.doesNotMatch(target.textContent, /effective|attest|configuration/i);
 });
+
+test("historical CLI evidence is explicitly unavailable and diagnostics failures stay hard", async () => {
+  const target = browserElement();
+  let unavailable = false;
+  const context = /** @type {any} */ ({
+    document: {
+      createElement() {
+        return browserElement();
+      },
+    },
+    async fetch() {
+      if (unavailable) {
+        return {
+          ok: false,
+          async json() {
+            return { error: { message: "Diagnostics storage unavailable" } };
+          },
+        };
+      }
+      return {
+        ok: true,
+        async json() {
+          return {
+            codex_cli_version: null,
+            completed_at: "2026-07-28T12:00:00.000Z",
+            duration_ms: 1,
+            process: { kind: "unavailable" },
+            review_run_id: "review-run-1",
+            started_at: "2026-07-28T11:59:59.999Z",
+            token_counters: {
+              cached_input_tokens: null,
+              input_tokens: null,
+              output_tokens: null,
+            },
+            transcript_chunks: [],
+          };
+        },
+      };
+    },
+    window: {},
+  });
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-result.js",
+    readBrowserAsset("/assets/evaluation-result.js"),
+    context,
+  );
+  const evaluation = { id: "evaluation-1" };
+  const result = {
+    criterion_results: [],
+    file_changes: [],
+    findings: [],
+    outcome: "clear",
+    review_runs: [
+      {
+        id: "review-run-1",
+        review_id: "review-1",
+        review_version_id: "review-version-1",
+        status: "completed",
+      },
+    ],
+  };
+  await context.window.qualityBarEvaluationResult.render(
+    target,
+    evaluation,
+    result,
+    "",
+  );
+  assert.match(target.options[0].options[1].textContent, /CLI unavailable/);
+  unavailable = true;
+  await assert.rejects(
+    () =>
+      context.window.qualityBarEvaluationResult.render(
+        browserElement(),
+        evaluation,
+        result,
+        "",
+      ),
+    /Diagnostics storage unavailable/,
+  );
+});

@@ -43,7 +43,7 @@ test("returns exact recognized submission failures without accepting a Result", 
     "Criterion Results are incomplete",
   );
   const channel = await openReviewRunSubmissionChannel(claim, {
-    submit() {
+    prepare() {
       throw failure;
     },
   });
@@ -73,8 +73,9 @@ test("returns exact recognized submission failures without accepting a Result", 
 test("the first valid submission closes the channel before reporting acceptance", async () => {
   let submissions = 0;
   const channel = await openReviewRunSubmissionChannel(claim, {
-    submit() {
+    prepare() {
       submissions += 1;
+      return { candidate: "prepared" };
     },
   });
   const idleSocket = connect(channel.environment.QUALITY_BAR_SUBMIT_SOCKET);
@@ -91,6 +92,7 @@ test("the first valid submission closes the channel before reporting acceptance"
       "accepted",
     );
     assert.equal(channel.accepted(), true);
+    assert.deepEqual(channel.submission(), { candidate: "prepared" });
     assert.equal(submissions, 1);
     assert.equal(idleSocket.destroyed, true);
     assert.equal(
@@ -106,7 +108,7 @@ test("the first valid submission closes the channel before reporting acceptance"
 test("preserves unexpected storage failures for the owning execution", async () => {
   const failure = new Error("sqlite write failed");
   const channel = await openReviewRunSubmissionChannel(claim, {
-    submit() {
+    prepare() {
       throw failure;
     },
   });
@@ -127,7 +129,7 @@ test("removes the trusted command directory when channel setup fails", async () 
     () =>
       openReviewRunSubmissionChannel(
         claim,
-        { submit() {} },
+        { prepare() {} },
         {
           writeCommand(path) {
             commandPath = String(path);

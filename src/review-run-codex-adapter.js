@@ -217,9 +217,14 @@ export function reviewRunCodexEnvironment(
  *     environment: Record<string, string>,
  *     failure(): Error | null,
  *     lastValidationFailure(): ReviewRunExecutionError | null,
+ *     submission(): unknown,
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
- *   resultService: {submit(claim: any, candidate: unknown): unknown},
+ *   resultService: {
+ *     prepare(claim: any, candidate: unknown): unknown,
+ *     submitPrepared(claim: any, submission: unknown): unknown
+ *   },
+ *   startRun: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearTerminationTimer?: (timer: any) => void,
@@ -253,6 +258,7 @@ export async function runReviewRunCodex({
   run,
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
+  startRun,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
@@ -265,6 +271,7 @@ export async function runReviewRunCodex({
     ];
     let child;
     try {
+      startRun();
       child = spawnProcess(codexCommand, arguments_, {
         cwd: checkoutPath,
         detached: true,
@@ -301,12 +308,10 @@ export async function runReviewRunCodex({
         transcriptFailure = error;
       }
     });
-    let latestProcessResult;
     const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
-      child.once("exit", (code, signal) => {
-        latestProcessResult = { code, signal, stderr, stdout };
-        resolve(latestProcessResult);
+      child.once("close", (code, signal) => {
+        resolve({ code, signal, stderr, stdout });
       });
     });
     const terminal = await Promise.race([
@@ -348,7 +353,7 @@ export async function runReviewRunCodex({
       throw transcriptFailure;
     }
     const terminalProcess =
-      terminal.kind === "process" ? terminal.result : latestProcessResult;
+      terminal.kind === "process" ? terminal.result : await processResult;
     evidenceService.complete(claim, {
       exitCode: terminalProcess?.code ?? null,
       signal: terminalProcess?.signal ?? null,
@@ -360,6 +365,9 @@ export async function runReviewRunCodex({
     }
     if (terminal.kind === "submission" && terminal.result === "failed") {
       throw new TypeError("Review Run submission failed");
+    }
+    if (accepted) {
+      resultService.submitPrepared(claim, channel.submission());
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

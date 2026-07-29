@@ -27,7 +27,7 @@ function preserveCleanupFailure(failure, cleanupFailure) {
 
 /**
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
- * @param {{submit(claim: any, candidate: unknown): unknown}} resultService
+ * @param {{prepare(claim: any, candidate: unknown): unknown}} resultService
  * @param {{
  *   removeDirectory?: (path: string, options: {force: boolean, recursive: boolean}) => void,
  *   writeCommand?: typeof writeFileSync
@@ -49,6 +49,8 @@ export async function openReviewRunSubmissionChannel(
     const socketPath = join(directory, "submit.sock");
     const token = randomUUID();
     let accepted = false;
+    /** @type {unknown} */
+    let preparedSubmission;
     /** @type {ReviewRunExecutionError | null} */
     let lastValidationFailure = null;
     /** @type {Error | null} */
@@ -81,7 +83,7 @@ export async function openReviewRunSubmissionChannel(
               "Review Run submission channel is unavailable",
             );
           }
-          resultService.submit(claim, envelope.candidate);
+          preparedSubmission = resultService.prepare(claim, envelope.candidate);
           accepted = true;
           socket.end('{"ok":true}\n');
           stopAccepting(socket).catch((error) => {
@@ -139,6 +141,7 @@ export async function openReviewRunSubmissionChannel(
       },
       failure: () => unexpectedFailure,
       lastValidationFailure: () => lastValidationFailure,
+      submission: () => preparedSubmission,
       waitForResult: () => result,
       async close() {
         let closeFailure;

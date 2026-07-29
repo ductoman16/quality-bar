@@ -63,7 +63,7 @@ test("migrates the existing operator-password schema atomically before serving s
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "30",
+    "31",
   );
   migrated.run(
     "INSERT INTO browser_sessions (session_hash, csrf_hash, created_at, last_authenticated_at) VALUES (?, ?, ?, ?)",
@@ -105,7 +105,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   migrated.close();
 });
 
-test("migrates v4 to v30 without losing existing authority facts", () => {
+test("migrates v4 to v31 without losing existing authority facts", () => {
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
   core.transaction((transaction) => {
@@ -134,7 +134,7 @@ test("migrates v4 to v30 without losing existing authority facts", () => {
     migrated.get(
       "SELECT value FROM quality_bar_metadata WHERE key = 'schema_version'",
     )?.value,
-    "30",
+    "31",
   );
   assert.deepEqual(
     migrated.get(
@@ -281,7 +281,7 @@ test("rejects a corrupt database with the exact owning error", () => {
 test("rejects an incompatible schema with the exact owning error", () => {
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 31");
+  current.run("PRAGMA user_version = 32");
   current.close();
 
   assert.throws(
@@ -291,7 +291,7 @@ test("rejects an incompatible schema with the exact owning error", () => {
       assert.equal(failure.code, "schema_invalid");
       assert.equal(
         failure.message,
-        "SQLite schema version 31 is not supported",
+        "SQLite schema version 32 is not supported",
       );
       return true;
     },

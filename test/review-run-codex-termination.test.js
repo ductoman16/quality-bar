@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { runReviewRunCodex } from "../src/review-run-codex-adapter.js";
+import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -31,6 +31,7 @@ function acceptedChannel() {
     },
     failure: () => null,
     lastValidationFailure: () => null,
+    submission: () => ({ prepared: true }),
     waitForResult: () =>
       Promise.resolve(/** @type {"accepted"} */ ("accepted")),
   };
@@ -57,11 +58,11 @@ test("accepted submission force-kills a Codex process group after five seconds",
       assert.equal(pid, -74);
       signals.push(signal);
       if (signal === "SIGKILL") {
-        queueMicrotask(() => child.emit("exit", null, "SIGKILL"));
+        queueMicrotask(() => child.emit("close", null, "SIGKILL"));
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -89,11 +90,11 @@ test("a direct child exit does not spare a surviving process-group descendant", 
       assert.equal(pid, -75);
       signals.push(signal);
       if (signal === "SIGTERM") {
-        queueMicrotask(() => child.emit("exit", 0, null));
+        queueMicrotask(() => child.emit("close", 0, null));
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -124,7 +125,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
           setImmediate(() => resolve("accepted"));
         }),
     }),
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -132,7 +133,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
       return { unref() {} };
     },
     spawnProcess() {
-      queueMicrotask(() => child.emit("exit", 0, null));
+      queueMicrotask(() => child.emit("close", 0, null));
       return /** @type {any} */ (child);
     },
   });
@@ -145,13 +146,13 @@ test("an already-exited process group cannot overturn an accepted Result", async
     checkoutPath: "/checkout",
     claim,
     killProcessGroup() {
-      queueMicrotask(() => child.emit("exit", 0, null));
+      queueMicrotask(() => child.emit("close", 0, null));
       throw Object.assign(new Error("process already exited"), {
         code: "ESRCH",
       });
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {}, submitPrepared() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
   });
@@ -167,10 +168,11 @@ test("termination failure stays diagnostic after an accepted Result", async () =
       checkoutPath: "/checkout",
       claim,
       killProcessGroup() {
+        queueMicrotask(() => child.emit("close", null, "SIGTERM"));
         throw terminationFailure;
       },
       openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { submit() {} },
+      resultService: { prepare() {}, submitPrepared() {} },
       run,
       spawnProcess: () => /** @type {any} */ (child),
     }),
@@ -194,13 +196,13 @@ test("permission-denied liveness still attempts the survivor force-kill", async 
         assert.equal(pid, -79);
         signals.push(signal);
         if (signal === "SIGTERM") {
-          queueMicrotask(() => child.emit("exit", 0, null));
+          queueMicrotask(() => child.emit("close", 0, null));
         } else {
           throw permissionFailure;
         }
       },
       openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { submit() {} },
+      resultService: { prepare() {}, submitPrepared() {} },
       run,
       setTerminationTimer(callback) {
         setImmediate(callback);

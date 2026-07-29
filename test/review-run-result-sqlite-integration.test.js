@@ -271,7 +271,8 @@ test("an exact Review Run boundary failure creates no partial or fallback Result
         }),
         readFileChanges: () => [],
         resultService: createReviewRunResultService(core, { now: () => 30 }),
-        async runCodex() {
+        async runCodex(input) {
+          input.startRun?.();
           throw failure;
         },
       }),

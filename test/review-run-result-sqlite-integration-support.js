@@ -127,7 +127,8 @@ export async function executeUnexpectedReviewRun(core, underlyingFailure) {
     }),
     readFileChanges: () => [],
     resultService: createReviewRunResultService(core, { now: () => 30 }),
-    async runCodex() {
+    async runCodex(input) {
+      input.startRun?.();
       throw underlyingFailure;
     },
   });

@@ -196,7 +196,9 @@ export function canonicalEvaluationSchemas() {
     ),
     ReviewRunDiagnostics: closedObject(
       {
-        codex_cli_version: { minLength: 1, type: "string" },
+        codex_cli_version: {
+          oneOf: [{ minLength: 1, type: "string" }, { type: "null" }],
+        },
         completed_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
         },
