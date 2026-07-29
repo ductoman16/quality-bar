@@ -48,13 +48,18 @@
  *     hasCodexCapabilityModels?: boolean,
  *     hasNavigation?: boolean,
  *     loginStatus?: number,
+ *     mcpStatus?: number,
+ *     mcpTools?: string[],
  *     openapiStatus?: number,
  *     openapiVersion?: string,
+ *     repositoryCount?: number,
+ *     repositoryListStatus?: number,
  *     storage?: {
  *       filesystems?: {available_bytes?: number, filesystem?: string, path?: string, status?: string}[],
  *       reserve_bytes?: number,
  *       status?: string
  *     },
+ *     tokenStatus?: number,
  *   },
  *   database?: {
  *     databaseVersion?: string,
@@ -240,6 +245,18 @@ export function validatePackageFacts(facts, applicationVersion) {
           true &&
         packageFacts?.authenticatedHttpSmoke?.hasNavigation === true &&
         packageFacts?.authenticatedHttpSmoke?.loginStatus === 204 &&
+        packageFacts?.authenticatedHttpSmoke?.tokenStatus === 201 &&
+        packageFacts?.authenticatedHttpSmoke?.repositoryListStatus === 200 &&
+        packageFacts?.authenticatedHttpSmoke?.repositoryCount === 0 &&
+        packageFacts?.authenticatedHttpSmoke?.mcpStatus === 200 &&
+        JSON.stringify(packageFacts?.authenticatedHttpSmoke?.mcpTools) ===
+          JSON.stringify([
+            "quality_bar.list_repositories",
+            "quality_bar.get_repository_guidance",
+            "quality_bar.request_evaluation",
+            "quality_bar.get_evaluation",
+            "quality_bar.get_evaluation_result",
+          ]) &&
         packageFacts?.authenticatedHttpSmoke?.openapiStatus === 200 &&
         packageFacts?.authenticatedHttpSmoke?.openapiVersion === "3.1.0" &&
         packageFacts?.authenticatedHttpSmoke?.storage?.reserve_bytes ===
@@ -247,7 +264,7 @@ export function validatePackageFacts(facts, applicationVersion) {
         packageFacts?.authenticatedHttpSmoke?.storage?.status === "available" &&
         packageFacts?.authenticatedHttpSmoke?.storage?.filesystems?.length ===
           2,
-      "authenticatedHttpSmoke must prove the packaged authenticated HTTP, OpenAPI, and Codex capability catalog contract",
+      "authenticatedHttpSmoke must prove the packaged authenticated HTTP, MCP, OpenAPI, and Codex capability catalog contract",
     ],
     [
       typeof packageFacts?.database?.databaseVersion === "string" &&

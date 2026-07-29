@@ -99,7 +99,7 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
   }
 });
 
-test("MCP exposes only the fixed Repository tools and addressable resource templates", async () => {
+test("MCP exposes only the fixed Repository and Evaluation tools and resource templates", async () => {
   const { application, origin } = await startApplication();
   const token = application.implementerTokens.create(
     "a correct operator password",
@@ -117,17 +117,20 @@ test("MCP exposes only the fixed Repository tools and addressable resource templ
   const toolBody = /** @type {any} */ (await toolResponse.json());
   assert.deepEqual(
     toolBody.result.tools.map((/** @type {{name: string}} */ { name }) => name),
-    ["quality_bar.list_repositories", "quality_bar.get_repository_guidance"],
+    [
+      "quality_bar.list_repositories",
+      "quality_bar.get_repository_guidance",
+      "quality_bar.request_evaluation",
+      "quality_bar.get_evaluation",
+      "quality_bar.get_evaluation_result",
+    ],
   );
   assert.deepEqual(
     toolBody.result.tools.map(
       (/** @type {{inputSchema: {$schema: string}}} */ { inputSchema }) =>
         inputSchema.$schema,
     ),
-    [
-      "https://json-schema.org/draft/2020-12/schema",
-      "https://json-schema.org/draft/2020-12/schema",
-    ],
+    Array(5).fill("https://json-schema.org/draft/2020-12/schema"),
   );
   assert.deepEqual(
     toolBody.result.tools.map(
@@ -137,7 +140,7 @@ test("MCP exposes only the fixed Repository tools and addressable resource templ
         },
       ) => inputSchema.additionalProperties,
     ),
-    [false, false],
+    Array(5).fill(false),
   );
 
   const templatesResponse = await fetch(`${origin}/mcp/v1`, {
@@ -164,6 +167,35 @@ test("MCP exposes only the fixed Repository tools and addressable resource templ
       {
         mimeType: "application/json",
         uriTemplate: "quality-bar://v1/repositories/{repository_id}/guidance",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/evaluations/{evaluation_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/evaluations/{evaluation_id}/result",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/review-runs/{review_run_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/findings/{finding_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/waiver-requests/{waiver_request_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate:
+          "quality-bar://v1/waiver-adjudications/{waiver_adjudication_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/waiver-decisions/{waiver_decision_id}",
       },
     ],
   );

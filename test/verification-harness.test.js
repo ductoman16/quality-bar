@@ -208,6 +208,7 @@ test("the canonical verifier starts with six named static-quality gates", () => 
   assert.ok(mcpIntegration);
   assert.deepEqual(mcpIntegration.arguments, [
     "--test",
+    "test/mcp-evaluation-integration.test.js",
     "test/mcp-http-integration.test.js",
     "test/mcp-security-integration.test.js",
   ]);

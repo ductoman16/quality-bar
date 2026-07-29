@@ -26,13 +26,18 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   hasCodexCapabilityModels: boolean,
  *   hasNavigation: boolean,
  *   loginStatus: number,
+ *   mcpStatus: number,
+ *   mcpTools: string[],
  *   openapiStatus: number,
  *   openapiVersion: string,
+ *   repositoryCount: number,
+ *   repositoryListStatus: number,
  *   storage: {
  *     filesystems: {available_bytes: number, filesystem: string, path: string, status: string}[],
  *     reserve_bytes: number,
  *     status: string
  *   },
+ *   tokenStatus: number,
  * }} AuthenticatedHttpSmoke
  */
 
@@ -120,7 +125,7 @@ export function provePackageOfflineRestore({
     jsonPackageProbe(
       fixture,
       "authenticated-http-smoke.mjs",
-      [environment.QUALITY_BAR_HTTP_PORT],
+      [environment.QUALITY_BAR_HTTP_PORT, "machine"],
       restorePassword,
     )
   );
