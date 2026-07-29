@@ -273,7 +273,9 @@ export async function runReviewRunCodex({
           diagnosticFailures.push(
             error instanceof Error
               ? error
-              : new TypeError("Review Run submission channel cleanup failed"),
+              : new TypeError("Review Run submission channel cleanup failed", {
+                  cause: error,
+                }),
           );
         }
       }
@@ -306,7 +308,9 @@ export async function runReviewRunCodex({
         const failure =
           error instanceof Error
             ? error
-            : new TypeError("Codex process-group termination failed");
+            : new TypeError("Codex process-group termination failed", {
+                cause: error,
+              });
         if (processClosed && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
         } else {
