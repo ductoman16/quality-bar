@@ -23,12 +23,15 @@ test("GitHub polling lower layers reject incomplete dependencies at construction
   );
   assert.throws(
     () =>
-      createGitHubPollingRunner(core, {
-        cipher: { decrypt: () => ({}) },
-        storageReserve: availableStorageReserve,
-        timestamp: () => 0,
-        verifier: { listPullRequests: async () => [] },
-      }),
+      createGitHubPollingRunner(
+        core,
+        /** @type {any} */ ({
+          cipher: { decrypt: () => ({}) },
+          storageReserve: availableStorageReserve,
+          timestamp: () => 0,
+          verifier: { listPullRequests: async () => [] },
+        }),
+      ),
     /GitHub polling runner dependencies are invalid/,
   );
 });

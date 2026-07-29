@@ -11,7 +11,7 @@ import { fail, failUnavailable } from "./repository-validation.js";
  *     normalizedUrl: string,
  *     credential: {token: string, username: string} | undefined,
  *     request: unknown,
- *     options: {objectDatabaseRoot: string}
+ *     options: {objectDatabaseRoot: string, useMergeBase?: boolean}
  *   ) => Promise<import("./repository-git.js").ResolvedPushedCommitSelectors>
  * }} dependencies
  */
@@ -23,8 +23,12 @@ export function createRepositorySelectorResolver({
   resolveForgeCredential,
   resolveSelectors,
 }) {
-  /** @param {string} id @param {unknown} request */
-  return async function resolvePushedSelectors(id, request) {
+  /**
+   * @param {string} id
+   * @param {unknown} request
+   * @param {{useMergeBase?: boolean}} [options]
+   */
+  return async function resolvePushedSelectors(id, request, options = {}) {
     const row = find(id);
     const repository = requireAcceptsNewWork(id);
     let credential =
@@ -61,6 +65,9 @@ export function createRepositorySelectorResolver({
     }
     return resolveSelectors(repository.url, credential, request, {
       objectDatabaseRoot,
+      ...("useMergeBase" in options
+        ? { useMergeBase: options.useMergeBase }
+        : {}),
     });
   };
 }

@@ -127,6 +127,7 @@ export function createApplication({
   let waiverAdjudicatorConfiguration = null;
   let systemResource = null;
   let storageReserve = null;
+  /** @type {ReturnType<typeof createEvaluationService> | null} */
   let evaluations = null;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
@@ -162,6 +163,29 @@ export function createApplication({
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       githubConnections = createGitHubConnections(durableCore, {
+        acquirePullRequestChangeset: (
+          /** @type {{pullRequest: any, repositoryId: string}} */ {
+            pullRequest,
+            repositoryId,
+          },
+        ) => {
+          if (!repositories) {
+            throw new TypeError("Repository service is unavailable");
+          }
+          return repositories.resolvePullRequestChangeset(repositoryId, {
+            baseSha: pullRequest.base.sha,
+            headSha: pullRequest.head.sha,
+          });
+        },
+        admitAutomaticEvaluation: (
+          /** @type {any} */ transaction,
+          /** @type {any} */ input,
+        ) => {
+          if (!evaluations) {
+            throw new TypeError("Evaluation service is unavailable");
+          }
+          return evaluations.admitAutomatic(transaction, input);
+        },
         externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,

@@ -1,11 +1,13 @@
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  createAvailableGitHubConnectionService as createGitHubConnectionService,
+} from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubConnectionService } from "../src/github-connection.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";

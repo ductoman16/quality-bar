@@ -1,14 +1,14 @@
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  createAvailableGitHubConnectionService as createGitHubConnectionService,
+} from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import {
-  GitHubConnectionError,
-  createGitHubConnectionService,
-} from "../src/github-connection.js";
+import { GitHubConnectionError } from "../src/github-connection.js";
 import { openDurableCore } from "../src/durable-core.js";
 
 /** @type {any} */
@@ -49,7 +49,7 @@ test("SQLite atomically stores one encrypted GitHub Connection and immutable sec
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 34);
+  assert.equal(core.facts.schemaVersion, 35);
   const service = createGitHubConnectionService(core, {
     storageReserve: availableStorageReserve,
     createId: (() => {

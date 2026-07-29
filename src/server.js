@@ -75,7 +75,7 @@ const TOKEN_METHODS = [
  *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
- *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors">,
+ *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,

@@ -60,6 +60,14 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.head_selector.value !== "string" ||
     typeof evaluation.base_commit !== "string" ||
     typeof evaluation.head_commit !== "string" ||
+    !["automatic", "explicit"].includes(evaluation.provenance) ||
+    !(
+      (evaluation.provenance === "explicit" &&
+        evaluation.pull_request === undefined) ||
+      (evaluation.provenance === "automatic" &&
+        Number.isSafeInteger(evaluation.pull_request?.number) &&
+        evaluation.pull_request.number > 0)
+    ) ||
     typeof evaluation.execution_status !== "string" ||
     typeof evaluation.effective_outcome !== "string" ||
     !nullableString(evaluation.next_attempt_at ?? null)
@@ -72,7 +80,12 @@ async function renderEvaluation(evaluation) {
   renderedEvaluationIds.add(evaluation.id);
   const summary =
     evaluation.repository.url +
-    " — explicit " +
+    " — " +
+    evaluation.provenance +
+    (evaluation.provenance === "automatic"
+      ? " pull request #" + evaluation.pull_request.number
+      : "") +
+    " " +
     evaluation.base_selector.type +
     " " +
     evaluation.base_selector.value +
