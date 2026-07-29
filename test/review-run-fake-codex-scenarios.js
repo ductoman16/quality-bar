@@ -192,6 +192,28 @@ function verifyAuthenticationFailure({ core, claim }) {
     0,
   );
   assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  const transcript = core.all(
+    `SELECT stream, content
+     FROM review_run_transcript_chunks
+     WHERE review_run_id = ?
+     ORDER BY sequence`,
+    claim.workId,
+  );
+  assert.ok(
+    transcript.some(
+      (/** @type {any} */ chunk) =>
+        chunk.stream === "stdout" &&
+        chunk.content ===
+          '{"error":{"message":"You must be logged in to use Codex. Run codex login."},"type":"turn.failed"}\n',
+    ),
+  );
+  assert.ok(
+    transcript.some(
+      (/** @type {any} */ chunk) =>
+        chunk.stream === "stderr" &&
+        chunk.content === "fake Codex authentication diagnostic\n",
+    ),
+  );
   assert.deepEqual(
     core.get(
       `SELECT evaluations.execution_status, evaluation_results.outcome
