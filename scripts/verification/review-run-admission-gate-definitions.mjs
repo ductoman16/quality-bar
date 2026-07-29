@@ -9,6 +9,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
     arguments: [
       "--test",
       "test/review-run-codex-adapter.test.js",
+      "test/review-run-codex-termination.test.js",
       "test/review-run-execution.test.js",
       "test/review-run-submission-channel.test.js",
     ],

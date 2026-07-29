@@ -39,6 +39,7 @@ const ownedSecrets = Object.freeze({
 function processThatExits(code, signal = null) {
   const child = new EventEmitter();
   const process = Object.assign(child, {
+    pid: 76,
     stderr: new PassThrough(),
     stdout: new PassThrough(),
   });
@@ -121,7 +122,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       spawnCalls.push([command, arguments_, options]);
       return /** @type {any} */ (processThatExits(0));
     },
-    terminateProcessGroup() {},
+    killProcessGroup() {},
   });
 
   assert.deepEqual(spawnCalls, [
@@ -169,8 +170,9 @@ test("accepted submission closes before terminating the still-running Codex proc
     resultService: { submit() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
-    terminateProcessGroup(process) {
-      assert.equal(process, child);
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -73);
+      assert.equal(signal, "SIGTERM");
       events.push("process-terminated");
       queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
     },
@@ -282,32 +284,34 @@ test("maps process completion without an accepted Result to exact owning failure
   }
 });
 
-test("result-not-submitted preserves the last exact correction error", async () => {
+test("every exit without acceptance preserves the last exact correction error", async () => {
   const validationFailure = new ReviewRunExecutionError(
     "criterion_result_coverage_invalid",
     "Criterion Results must cover every frozen Criterion exactly once and in order",
   );
-  await assert.rejects(
-    () =>
-      runReviewRunCodex({
-        checkoutPath: "/checkout",
-        claim,
-        openSubmissionChannel: async () =>
-          channel({ lastValidationFailure: validationFailure }),
-        resultService: { submit() {} },
-        run,
-        spawnProcess: () => /** @type {any} */ (processThatExits(0)),
-      }),
-    (error) => {
-      assert.ok(error instanceof ReviewRunExecutionError);
-      assert.equal(error.code, "result_not_submitted");
-      assert.equal(
-        error.message,
-        "Codex Review Run exited without an accepted Result; last validation error criterion_result_coverage_invalid: Criterion Results must cover every frozen Criterion exactly once and in order",
-      );
-      return true;
-    },
-  );
+  for (const exitCode of [0, 2]) {
+    await assert.rejects(
+      () =>
+        runReviewRunCodex({
+          checkoutPath: "/checkout",
+          claim,
+          openSubmissionChannel: async () =>
+            channel({ lastValidationFailure: validationFailure }),
+          resultService: { submit() {} },
+          run,
+          spawnProcess: () => /** @type {any} */ (processThatExits(exitCode)),
+        }),
+      (error) => {
+        assert.ok(error instanceof ReviewRunExecutionError);
+        assert.equal(error.code, "result_not_submitted");
+        assert.equal(
+          error.message,
+          "Codex Review Run exited without an accepted Result; last validation error criterion_result_coverage_invalid: Criterion Results must cover every frozen Criterion exactly once and in order",
+        );
+        return true;
+      },
+    );
+  }
 });
 
 test("preserves raw JSONL stdout and stderr when the pinned Codex process fails", async () => {
@@ -390,7 +394,7 @@ test("channel cleanup failure after an accepted Result remains a hard failure", 
         resultService: { submit() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(0)),
-        terminateProcessGroup() {},
+        killProcessGroup() {},
       }),
     (error) => error === cleanupFailure,
   );

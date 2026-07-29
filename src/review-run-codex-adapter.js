@@ -51,15 +51,62 @@ function fail(code, message, cause) {
   );
 }
 
-/** @param {import("node:child_process").ChildProcess} child */
-function terminateCodexProcessGroup(child) {
+/** @param {unknown} error */
+function isMissingProcess(error) {
+  return error instanceof Error && "code" in error && error.code === "ESRCH";
+}
+
+/**
+ * @param {import("node:child_process").ChildProcess} child
+ * @param {Promise<unknown>} processResult
+ * @param {(pid: number, signal: NodeJS.Signals) => void} killProcessGroup
+ * @param {(callback: () => void, milliseconds: number) => any} setTerminationTimer
+ * @param {(timer: any) => void} clearTerminationTimer
+ */
+async function terminateCodexProcessGroup(
+  child,
+  processResult,
+  killProcessGroup,
+  setTerminationTimer,
+  clearTerminationTimer,
+) {
   if (
     !Number.isSafeInteger(child.pid) ||
     /** @type {number} */ (child.pid) < 1
   ) {
     throw new TypeError("Codex Review Run process identity is unavailable");
   }
-  process.kill(-(/** @type {number} */ (child.pid)), "SIGTERM");
+  const processGroupId = -(/** @type {number} */ (child.pid));
+  try {
+    killProcessGroup(processGroupId, "SIGTERM");
+  } catch (error) {
+    if (isMissingProcess(error)) {
+      return;
+    }
+    throw error;
+  }
+  /** @type {any} */
+  let terminationTimer;
+  const forceKill = new Promise((resolve, reject) => {
+    terminationTimer = setTerminationTimer(() => {
+      try {
+        killProcessGroup(processGroupId, "SIGKILL");
+        resolve(undefined);
+      } catch (error) {
+        if (isMissingProcess(error)) {
+          resolve(undefined);
+        } else {
+          reject(error);
+        }
+      }
+    }, 5_000);
+    terminationTimer.unref?.();
+  });
+  try {
+    await Promise.race([processResult, forceKill]);
+  } finally {
+    clearTerminationTimer(terminationTimer);
+  }
 }
 
 /** @param {unknown} candidate */
@@ -153,14 +200,14 @@ export function reviewRunCodexEnvironment(
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
+ *   clearTerminationTimer?: (timer: any) => void,
+ *   killProcessGroup?: (pid: number, signal: NodeJS.Signals) => void,
+ *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
  *   spawnProcess?: (
  *     command: string,
  *     arguments_: string[],
  *     options: import("node:child_process").SpawnOptions
- *   ) => import("node:child_process").ChildProcess,
- *   terminateProcessGroup?: (
- *     child: import("node:child_process").ChildProcess
- *   ) => void
+ *   ) => import("node:child_process").ChildProcess
  * }} options
  */
 export async function runReviewRunCodex({
@@ -168,12 +215,14 @@ export async function runReviewRunCodex({
   claim,
   codexCommand = "codex",
   codexPrefixArguments = [],
+  clearTerminationTimer = clearTimeout,
+  killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
   resultService,
   run,
+  setTerminationTimer = setTimeout,
   spawnProcess = spawn,
-  terminateProcessGroup = terminateCodexProcessGroup,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
@@ -229,7 +278,13 @@ export async function runReviewRunCodex({
       ),
     );
     if (terminal.kind === "submission" && terminal.result === "accepted") {
-      terminateProcessGroup(child);
+      await terminateCodexProcessGroup(
+        child,
+        processResult,
+        killProcessGroup,
+        setTerminationTimer,
+        clearTerminationTimer,
+      );
       await processResult;
     }
     const submissionFailure = channel.failure();
@@ -241,8 +296,8 @@ export async function runReviewRunCodex({
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);
-      if (exit.code === 0 && exit.signal === null) {
-        const validationFailure = channel.lastValidationFailure();
+      const validationFailure = channel.lastValidationFailure();
+      if (validationFailure || (exit.code === 0 && exit.signal === null)) {
         fail(
           "result_not_submitted",
           validationFailure

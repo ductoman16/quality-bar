@@ -60,7 +60,10 @@ export async function openReviewRunSubmissionChannel(
     const result = new Promise((resolve) => {
       resolveResult = resolve;
     });
+    const sockets = new Set();
     const server = createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
       let request = "";
       socket.setEncoding("utf8");
       socket.on("data", (chunk) => {
@@ -81,16 +84,15 @@ export async function openReviewRunSubmissionChannel(
           resultService.submit(claim, envelope.candidate);
           accepted = true;
           socket.end('{"ok":true}\n');
-          stopAccepting().then(
-            () => resolveResult("accepted"),
-            (error) => {
+          stopAccepting(socket).catch((error) => {
+            if (!unexpectedFailure) {
               unexpectedFailure =
                 error instanceof Error
                   ? error
                   : new TypeError("Review Run submission channel failed");
-              resolveResult("failed");
-            },
-          );
+            }
+          });
+          resolveResult("accepted");
         } catch (error) {
           if (!(error instanceof ReviewRunExecutionError)) {
             unexpectedFailure =
@@ -98,10 +100,8 @@ export async function openReviewRunSubmissionChannel(
                 ? error
                 : new TypeError("Review Run submission failed");
             socket.destroy();
-            stopAccepting().then(
-              () => resolveResult("failed"),
-              () => resolveResult("failed"),
-            );
+            stopAccepting().catch(() => {});
+            resolveResult("failed");
             return;
           }
           lastValidationFailure = error;
@@ -118,7 +118,13 @@ export async function openReviewRunSubmissionChannel(
       server.once("error", reject);
       server.listen(socketPath, () => resolve(undefined));
     });
-    function stopAccepting() {
+    /** @param {import("node:net").Socket} [respondingSocket] */
+    function stopAccepting(respondingSocket) {
+      for (const socket of sockets) {
+        if (socket !== respondingSocket) {
+          socket.destroy();
+        }
+      }
       serverClose ??= new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve(undefined)));
       });

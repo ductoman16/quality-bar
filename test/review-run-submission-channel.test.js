@@ -77,16 +77,28 @@ test("the first valid submission closes the channel before reporting acceptance"
       submissions += 1;
     },
   });
+  const idleSocket = connect(channel.environment.QUALITY_BAR_SUBMIT_SOCKET);
+  await new Promise((resolve) => idleSocket.once("connect", resolve));
   try {
     assert.deepEqual(JSON.parse(await submit(channel, {})), { ok: true });
-    assert.equal(await channel.waitForResult(), "accepted");
+    assert.equal(
+      await Promise.race([
+        channel.waitForResult(),
+        new Promise((resolve) =>
+          setImmediate(() => resolve("acceptance_stalled")),
+        ),
+      ]),
+      "accepted",
+    );
     assert.equal(channel.accepted(), true);
     assert.equal(submissions, 1);
+    assert.equal(idleSocket.destroyed, true);
     assert.equal(
       existsSync(channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
       false,
     );
   } finally {
+    idleSocket.destroy();
     await channel.close();
   }
 });
