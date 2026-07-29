@@ -382,6 +382,7 @@ export async function resolvePushedCommitSelectors(
   const gitEnvironment = {
     GIT_CONFIG_GLOBAL: "/dev/null",
     GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
     LC_ALL: "C",
   };
   frozen.matches_path = createGitPathMatcher(

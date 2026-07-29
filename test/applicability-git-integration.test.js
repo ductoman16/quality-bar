@@ -263,6 +263,23 @@ test("real Git acquisition reads complete text while absent and binary sides sta
   execFileSync("git", ["clone", "--bare", source, repository], {
     stdio: "ignore",
   });
+  const originalBlob = execFileSync(
+    "git",
+    ["-C", repository, "rev-parse", `${head}:modified.txt`],
+    { encoding: "utf8" },
+  ).trim();
+  const replacementBlob = execFileSync(
+    "git",
+    ["-C", repository, "hash-object", "-w", "--stdin"],
+    { encoding: "utf8", input: "replacement text\n" },
+  ).trim();
+  execFileSync("git", [
+    "-C",
+    repository,
+    "replace",
+    originalBlob,
+    replacementBlob,
+  ]);
 
   const frozen = await resolvePushedCommitSelectors(
     pathToFileURL(repository).href,
@@ -296,6 +313,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
       'file_changes.exists(file, file.after_path.matches(":(glob)nul.bin") && !file.after_content.matches("text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)invalid-utf8.bin") && !file.after_content.matches("text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)bom.txt") && file.after_content.matches("^a"))',
+      'file_changes.exists(file, file.after_path.matches(":(glob)modified.txt") && file.after_content.matches("replacement text"))',
     ]) {
       assert.equal(
         evaluateApplicabilityRule(rule, frozen, {
