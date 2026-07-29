@@ -48,6 +48,39 @@ test("a clear Review Run submission covers every frozen Criterion exactly once",
   );
 });
 
+test("not-applicable and error Criterion Results preserve distinct complete meanings", () => {
+  assert.deepEqual(
+    validateReviewRunSubmission(
+      {
+        criterion_results: [
+          { criterion_id: "criterion-1", outcome: "not_applicable" },
+          {
+            criterion_id: "criterion-2",
+            error: {
+              code: "required_evidence_unavailable",
+              detail: "The required generated file is not present at head.",
+            },
+            outcome: "error",
+          },
+        ],
+      },
+      criteria,
+      [],
+    ),
+    [
+      { criterion_id: "criterion-1", outcome: "not_applicable" },
+      {
+        criterion_id: "criterion-2",
+        error: {
+          code: "required_evidence_unavailable",
+          detail: "The required generated file is not present at head.",
+        },
+        outcome: "error",
+      },
+    ],
+  );
+});
+
 test("a triggered Criterion accepts complete Findings at honest frozen locations", () => {
   assert.deepEqual(
     validateReviewRunSubmission(
@@ -216,6 +249,58 @@ test("unsupported or incomplete submissions fail with their exact owning error",
       {
         criterion_results: [
           { criterion_id: "criterion-1", outcome: "triggered" },
+          { criterion_id: "criterion-2", outcome: "clear" },
+        ],
+      },
+      "criterion_result_invalid",
+    ],
+    [
+      {
+        criterion_results: [
+          {
+            criterion_id: "criterion-1",
+            findings: [],
+            outcome: "not_applicable",
+          },
+          { criterion_id: "criterion-2", outcome: "clear" },
+        ],
+      },
+      "criterion_result_invalid",
+    ],
+    [
+      {
+        criterion_results: [
+          {
+            criterion_id: "criterion-1",
+            error: {
+              code: "required_evidence_unavailable",
+              detail: " ",
+            },
+            outcome: "error",
+          },
+          { criterion_id: "criterion-2", outcome: "clear" },
+        ],
+      },
+      "criterion_result_invalid",
+    ],
+    [
+      {
+        criterion_results: [
+          {
+            criterion_id: "criterion-1",
+            error: {
+              code: "required_evidence_unavailable",
+              detail: "The required generated file is not present.",
+            },
+            findings: [
+              {
+                evidence: "Invented concern.",
+                location: { kind: "changeset" },
+                remediation: "Do not invent a Finding.",
+              },
+            ],
+            outcome: "error",
+          },
           { criterion_id: "criterion-2", outcome: "clear" },
         ],
       },

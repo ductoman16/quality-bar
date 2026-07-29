@@ -9,7 +9,10 @@ import {
   createHttpConformanceAssertion,
   validateOpenApi31Document,
 } from "../scripts/openapi-conformance.mjs";
-import { TRIGGERED_EVALUATION_RESULT } from "./openapi-triggered-evaluation-result.js";
+import {
+  FAILED_REVIEW_RUN_EVALUATION_RESULT,
+  TRIGGERED_EVALUATION_RESULT,
+} from "./openapi-triggered-evaluation-result.js";
 
 function documentedExchange(overrides = {}) {
   return {
@@ -168,6 +171,22 @@ test("runtime conformance accepts a triggered Finding Result", async () => {
         url: "http://127.0.0.1/api/v1/evaluations/evaluation-1/result",
       },
       response: Response.json(TRIGGERED_EVALUATION_RESULT),
+    }),
+  );
+  assert.equal(assertion.facts().responseDocuments, 1);
+});
+
+test("runtime conformance accepts an exact failed Review Run without Criterion Results or Findings", async () => {
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
+  await assertion.assertExchange(
+    documentedExchange({
+      request: {
+        method: "GET",
+        url: "http://127.0.0.1/api/v1/evaluations/evaluation-run-failed/result",
+      },
+      response: Response.json(FAILED_REVIEW_RUN_EVALUATION_RESULT),
     }),
   );
   assert.equal(assertion.facts().responseDocuments, 1);

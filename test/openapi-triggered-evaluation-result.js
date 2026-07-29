@@ -7,6 +7,20 @@ export const TRIGGERED_EVALUATION_RESULT = {
       outcome: "triggered",
       review_run_id: "review-run-1",
     },
+    {
+      criterion_id: "criterion-2",
+      outcome: "not_applicable",
+      review_run_id: "review-run-1",
+    },
+    {
+      criterion_id: "criterion-3",
+      error: {
+        code: "required_evidence_unavailable",
+        detail: "The required generated file is absent from the head.",
+      },
+      outcome: "error",
+      review_run_id: "review-run-1",
+    },
   ],
   evaluation_id: "evaluation-1",
   file_changes: [
@@ -36,7 +50,7 @@ export const TRIGGERED_EVALUATION_RESULT = {
       review_run_id: "review-run-1",
     },
   ],
-  outcome: "blocking",
+  outcome: "error",
   review_runs: [
     {
       completed_at: "2026-07-28T12:00:00.000Z",
@@ -45,6 +59,30 @@ export const TRIGGERED_EVALUATION_RESULT = {
       review_version_id: "review-version-1",
       started_at: "2026-07-28T11:59:00.000Z",
       status: "completed",
+    },
+  ],
+};
+
+export const FAILED_REVIEW_RUN_EVALUATION_RESULT = {
+  applicability_results: [],
+  completed_at: "2026-07-28T12:00:00.000Z",
+  criterion_results: [],
+  evaluation_id: "evaluation-run-failed",
+  file_changes: [],
+  findings: [],
+  outcome: "error",
+  review_runs: [
+    {
+      completed_at: "2026-07-28T12:00:00.000Z",
+      error: {
+        code: "configuration_unavailable",
+        detail: "Network-disabled Codex launch could not be constructed.",
+      },
+      id: "review-run-failed",
+      review_id: "review-1",
+      review_version_id: "review-version-1",
+      started_at: "2026-07-28T11:59:00.000Z",
+      status: "failed",
     },
   ],
 };

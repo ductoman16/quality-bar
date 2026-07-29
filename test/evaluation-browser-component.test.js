@@ -5,53 +5,15 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
-import { TRIGGERED_EVALUATION_RESULT } from "./openapi-triggered-evaluation-result.js";
+import {
+  FAILED_REVIEW_RUN_EVALUATION_RESULT,
+  TRIGGERED_EVALUATION_RESULT,
+} from "./openapi-triggered-evaluation-result.js";
+import {
+  evaluation,
+  evaluationElements,
+} from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
-
-/** @param {string} digit */
-const oid = (digit) => digit.repeat(40);
-/** @param {Record<string, unknown>} [overrides] */
-const evaluation = (overrides = {}) => ({
-  base_commit: oid("1"),
-  base_selector: { type: "branch", value: "main" },
-  completed_at: "2026-07-28T12:00:00.000Z",
-  created_at: "2026-07-28T12:00:00.000Z",
-  effective_outcome: "clear",
-  execution_status: "completed",
-  head_commit: oid("2"),
-  head_selector: { type: "branch", value: "topic" },
-  id: "evaluation-complete",
-  next_attempt_at: null,
-  provenance: "explicit",
-  repository: {
-    id: "repository-1",
-    url: "https://example.invalid/repository.git",
-  },
-  ...overrides,
-});
-
-function elements() {
-  return /** @type {any} */ (
-    new Map(
-      [
-        "evaluation-create-form",
-        "evaluation-repository",
-        "evaluation-base-type",
-        "evaluation-base-value",
-        "evaluation-head-type",
-        "evaluation-head-value",
-        "evaluation-loading",
-        "evaluation-empty",
-        "evaluation-state",
-        "evaluation-active",
-        "evaluation-recent",
-        "evaluation-attention",
-        "evaluation-more",
-        "evaluation-create-status",
-      ].map((id) => [id, browserElement({ hidden: true })]),
-    )
-  );
-}
 
 test("Evaluations is the default workspace and renders frozen work, distinct states, and the complete Result", async () => {
   const page = operatorPage({ view: "evaluations" });
@@ -61,13 +23,17 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.match(page, /id="evaluation-recent"/);
   assert.match(page, /id="evaluation-attention"/);
   assert.match(page, /id="evaluation-more"/);
+  assert.match(
+    page,
+    /<script src="\/assets\/evaluation-result\.js"><\/script>/,
+  );
   assert.match(page, /<script src="\/assets\/evaluation\.js"><\/script>/);
   assert.equal(
     operatorPage({ view: "evaluations" }),
     operatorPage({ view: "evaluations" }),
   );
 
-  const controls = elements();
+  const controls = evaluationElements();
   controls.get("evaluation-base-type").value = "branch";
   controls.get("evaluation-base-value").value = "main";
   controls.get("evaluation-head-type").value = "branch";
@@ -111,6 +77,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
                   execution_status: "failed",
                   id: "evaluation-failed",
                 }),
+                evaluation({
+                  effective_outcome: "error",
+                  id: "evaluation-run-failed",
+                }),
               ],
               next_cursor: "cursor-2",
             };
@@ -122,7 +92,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
           ok: true,
           async json() {
             return evaluation({
-              effective_outcome: "blocking",
+              effective_outcome: "error",
               id: "evaluation-triggered",
             });
           },
@@ -150,6 +120,14 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
           ok: true,
           async json() {
             return TRIGGERED_EVALUATION_RESULT;
+          },
+        };
+      }
+      if (path === "/api/v1/evaluations/evaluation-run-failed/result") {
+        return {
+          ok: true,
+          async json() {
+            return FAILED_REVIEW_RUN_EVALUATION_RESULT;
           },
         };
       }
@@ -195,12 +173,17 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
       },
     },
   };
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/evaluation.js",
-    readBrowserAsset("/assets/evaluation.js"),
-    context,
-  );
+  for (const [sourcePath, route] of [
+    ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+    ["src/browser/evaluation.js", "/assets/evaluation.js"],
+  ]) {
+    executeServedBrowserAsset(
+      resolve("."),
+      sourcePath,
+      readBrowserAsset(route),
+      context,
+    );
+  }
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
 
   assert.equal(controls.get("evaluation-loading").hidden, true);
@@ -229,13 +212,24 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     controls.get("evaluation-active").options[1].options[0].textContent,
     "Result not ready",
   );
-  assert.match(
-    controls.get("evaluation-attention").options[1].textContent,
-    /completed — blocking/,
-  );
-  const resultDetails = controls.get("evaluation-attention").options[1]
+  const failedRunResult = controls.get("evaluation-attention").options[1]
     .options[0];
-  assert.equal(resultDetails.textContent, "Result blocking");
+  assert.equal(failedRunResult.textContent, "Result error");
+  assert.equal(
+    failedRunResult.options[0].options[0].textContent,
+    "Review review-1 review-version-1 — failed",
+  );
+  assert.equal(
+    failedRunResult.options[0].options[1].textContent,
+    "Error configuration_unavailable: Network-disabled Codex launch could not be constructed.",
+  );
+  assert.match(
+    controls.get("evaluation-attention").options[2].textContent,
+    /completed — error/,
+  );
+  const resultDetails = controls.get("evaluation-attention").options[2]
+    .options[0];
+  assert.equal(resultDetails.textContent, "Result error");
   const criterionDetails = resultDetails.options[0];
   assert.equal(
     criterionDetails.options[0].textContent,
@@ -273,6 +267,18 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     "Frozen diff — head src/current.js:2-3",
   );
   assert.match(frozenDiff.options[1].textContent, /-old state\n\+new state/);
+  assert.equal(
+    resultDetails.options[1].options[0].textContent,
+    "Criterion criterion-2 — not applicable — Review review-1 review-version-1",
+  );
+  assert.equal(
+    resultDetails.options[2].options[0].textContent,
+    "Criterion criterion-3 — error — Review review-1 review-version-1",
+  );
+  assert.equal(
+    resultDetails.options[2].options[1].textContent,
+    "Error required_evidence_unavailable: The required generated file is absent from the head.",
+  );
   assert.match(
     controls.get("evaluation-attention").options[0].textContent,
     /failed — error/,
@@ -281,7 +287,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   await controls.get("evaluation-more").listener("click")();
   assert.equal(controls.get("evaluation-more").hidden, true);
   assert.match(
-    controls.get("evaluation-attention").options[2].textContent,
+    controls.get("evaluation-attention").options[3].textContent,
     /cancelled — error/,
   );
   assert.ok(
@@ -330,7 +336,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
 
 test("Evaluations distinguishes an empty workspace from a hard dependency gate", async () => {
   for (const scenario of ["empty", "gated"]) {
-    const controls = elements();
+    const controls = evaluationElements();
     const context = {
       document: {
         createElement() {
@@ -372,12 +378,17 @@ test("Evaluations distinguishes an empty workspace from a hard dependency gate",
         },
       },
     };
-    executeServedBrowserAsset(
-      resolve("."),
-      "src/browser/evaluation.js",
-      readBrowserAsset("/assets/evaluation.js"),
-      context,
-    );
+    for (const [sourcePath, route] of [
+      ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+      ["src/browser/evaluation.js", "/assets/evaluation.js"],
+    ]) {
+      executeServedBrowserAsset(
+        resolve("."),
+        sourcePath,
+        readBrowserAsset(route),
+        context,
+      );
+    }
     await new Promise((resolvePromise) => setImmediate(resolvePromise));
     if (scenario === "empty") {
       assert.equal(controls.get("evaluation-empty").hidden, false);

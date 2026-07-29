@@ -253,7 +253,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       error: "codex_authentication_unavailable",
       status: "unavailable",
     },
-    durable_core: { schema_version: 27, status: "ready" },
+    durable_core: { schema_version: 28, status: "ready" },
     implementer_token: {
       status: "revoked",
     },

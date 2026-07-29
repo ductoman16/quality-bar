@@ -16,7 +16,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered"} outcome */
+/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -93,7 +93,11 @@ async function proveFakeCodexResult(context, outcome) {
     codexPrefixArguments:
       outcome === "triggered"
         ? [fakeCodexPath, "--fake-triggered"]
-        : [fakeCodexPath],
+        : outcome === "not_applicable"
+          ? [fakeCodexPath, "--fake-not-applicable"]
+          : outcome === "error"
+            ? [fakeCodexPath, "--fake-error"]
+            : [fakeCodexPath],
     processEnvironment: {
       CODEX_HOME: "/var/lib/quality-bar/codex",
       HOME: "/var/lib/quality-bar",
@@ -121,12 +125,24 @@ async function proveFakeCodexResult(context, outcome) {
     ),
     {
       execution_status: "completed",
-      outcome: outcome === "triggered" ? "blocking" : "clear",
+      outcome:
+        outcome === "error"
+          ? "error"
+          : outcome === "triggered"
+            ? "blocking"
+            : "clear",
     },
   );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-    1,
+  assert.deepEqual(
+    core.get(`SELECT outcome, error_code, error_detail FROM criterion_results`),
+    {
+      error_code: outcome === "error" ? "required_evidence_unavailable" : null,
+      error_detail:
+        outcome === "error"
+          ? "The required generated file is absent from the head."
+          : null,
+      outcome,
+    },
   );
   const persistedFinding = core.get(
     `SELECT id, evidence, remediation, location_kind, side
@@ -151,4 +167,12 @@ test("one pinned fake Codex run reaches a clear Result only through quality-bar-
 
 test("one pinned fake Codex run submits an honest triggered Finding only through quality-bar-submit", async (context) => {
   await proveFakeCodexResult(context, "triggered");
+});
+
+test("one pinned fake Codex run preserves a successful not-applicable fact", async (context) => {
+  await proveFakeCodexResult(context, "not_applicable");
+});
+
+test("one pinned fake Codex run preserves an exact Criterion error without a Finding", async (context) => {
+  await proveFakeCodexResult(context, "error");
 });
