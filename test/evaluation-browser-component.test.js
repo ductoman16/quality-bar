@@ -98,7 +98,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
               items: [
                 evaluation({
                   effective_outcome: "error",
-                  execution_status: "cancelled",
+                  execution_status: "failed",
                   id: "evaluation-older",
                 }),
               ],
@@ -287,7 +287,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
   assert.equal(controls.get("evaluation-more").hidden, true);
   assert.match(
     controls.get("evaluation-attention").options[3].textContent,
-    /cancelled — error/,
+    /failed — error/,
   );
   assert.ok(
     requests.some(({ path }) => path === "/api/v1/evaluations?cursor=cursor-2"),

@@ -21,6 +21,11 @@ function deadlineEvidence({ deadlineEvidence: service }) {
 }
 
 /** @param {any} options */
+function cancellationEvidence({ cancellationEvidence: service }) {
+  return service;
+}
+
+/** @param {any} options */
 function deadlineTimers({ setForceKill, setSignalDeadline }) {
   return {
     clearDeadlineTimer() {},
@@ -31,6 +36,19 @@ function deadlineTimers({ setForceKill, setSignalDeadline }) {
       setSignalDeadline(callback);
       return {};
     },
+    /** @param {() => void} callback @param {number} milliseconds */
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      setForceKill(callback);
+      return {};
+    },
+  };
+}
+
+/** @param {any} options */
+function cancellationTimers({ setForceKill }) {
+  return {
+    clearTerminationTimer() {},
     /** @param {() => void} callback @param {number} milliseconds */
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -85,6 +103,41 @@ function verifyDeadline({ core, claim, deadlineSubmissionOutcome }) {
     .join("");
   assert.match(transcript, /"type":"fake\.deadline_submission_rejected"/);
   assert.doesNotMatch(transcript, /fake\.deadline_submission_accepted/);
+}
+
+/** @param {any} options */
+function verifyCancellation({ core, claim, cancellationSubmissionOutcome }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT evaluations.execution_status,
+              evaluations.cancellation_requested_at,
+              evaluation_results.outcome,
+              review_runs.execution_status AS review_run_status,
+              review_runs.process_signal,
+              review_runs.execution_evidence_recorded
+       FROM evaluations
+       JOIN evaluation_results
+         ON evaluation_results.evaluation_id = evaluations.id
+       JOIN review_runs
+         ON review_runs.evaluation_id = evaluations.id
+       WHERE review_runs.id = ?`,
+      claim.workId,
+    ),
+    {
+      cancellation_requested_at: 25,
+      execution_evidence_recorded: 1,
+      execution_status: "cancelled",
+      outcome: "error",
+      process_signal: "SIGKILL",
+      review_run_status: "cancelled",
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  assert.equal(cancellationSubmissionOutcome, "rejected");
 }
 
 /** @param {any} options */
@@ -155,6 +208,13 @@ const common = {
 };
 
 export const fakeCodexScenarios = Object.freeze({
+  cancellation: {
+    ...common,
+    arguments: ["--fake-cancellation"],
+    createEvidenceService: cancellationEvidence,
+    createTimerOptions: cancellationTimers,
+    verifySpecialResult: verifyCancellation,
+  },
   clear: {
     ...common,
     arguments: ["--fake-correction"],

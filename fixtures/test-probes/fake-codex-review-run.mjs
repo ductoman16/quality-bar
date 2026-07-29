@@ -9,6 +9,7 @@ const criterionError = arguments_.includes("--fake-error");
 const correctionProof = arguments_.includes("--fake-correction");
 const processFailure = arguments_.includes("--fake-process-failure");
 const deadline = arguments_.includes("--fake-deadline");
+const cancellation = arguments_.includes("--fake-cancellation");
 const inspectOnDemand = arguments_.includes("--fake-inspect-on-demand");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
@@ -73,8 +74,9 @@ if (inspectOnDemand) {
     throw new Error("fake_codex_inspect_on_demand_failed");
   }
 }
-if (deadline) {
+if (deadline || cancellation) {
   process.on("SIGTERM", () => {
+    const terminal = deadline ? "deadline" : "cancellation";
     try {
       execFileSync("quality-bar-submit", {
         input: JSON.stringify({
@@ -82,9 +84,9 @@ if (deadline) {
         }),
         stdio: ["pipe", "pipe", "pipe"],
       });
-      process.stdout.write('{"type":"fake.deadline_submission_accepted"}\n');
+      process.stdout.write(`{"type":"fake.${terminal}_submission_accepted"}\n`);
     } catch {
-      process.stdout.write('{"type":"fake.deadline_submission_rejected"}\n');
+      process.stdout.write(`{"type":"fake.${terminal}_submission_rejected"}\n`);
     }
   });
 }
@@ -115,6 +117,11 @@ if (processFailure) {
 }
 if (deadline) {
   process.stdout.write('{"type":"fake.deadline_ready"}\n');
+  setInterval(() => {}, 1_000);
+  await new Promise(() => {});
+}
+if (cancellation) {
+  process.stdout.write('{"type":"fake.cancellation_ready"}\n');
   setInterval(() => {}, 1_000);
   await new Promise(() => {});
 }

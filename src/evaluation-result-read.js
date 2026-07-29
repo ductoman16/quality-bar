@@ -10,8 +10,14 @@ const timestamp = (/** @type {number} */ value) =>
  */
 export function readCompletedEvaluationResult(durableCore, id) {
   const row = durableCore.get(
-    `SELECT evaluation_id, outcome, completed_at
-     FROM evaluation_results WHERE evaluation_id = ?`,
+    `SELECT evaluation_results.evaluation_id, evaluation_results.outcome,
+            evaluation_results.completed_at,
+            evaluations.cancellation_requested_at,
+            evaluations.cancellation_code,
+            evaluations.cancellation_detail
+     FROM evaluation_results
+     JOIN evaluations ON evaluations.id = evaluation_results.evaluation_id
+     WHERE evaluation_results.evaluation_id = ?`,
     id,
   );
   if (!row) {
@@ -28,8 +34,21 @@ export function readCompletedEvaluationResult(durableCore, id) {
     )
     .map((run) => {
       const status = run?.execution_status;
+      const cancellationRequestedAt = row.cancellation_requested_at;
+      if (
+        status === "cancelled" &&
+        (!Number.isSafeInteger(cancellationRequestedAt) ||
+          typeof row.cancellation_code !== "string" ||
+          typeof row.cancellation_detail !== "string")
+      ) {
+        throw new TypeError("Cancelled Evaluation facts are invalid");
+      }
       return {
-        completed_at: timestamp(/** @type {number} */ (run?.completed_at)),
+        completed_at: timestamp(
+          /** @type {number} */ (
+            status === "cancelled" ? cancellationRequestedAt : run?.completed_at
+          ),
+        ),
         ...(status === "failed"
           ? {
               error: {
@@ -37,11 +56,21 @@ export function readCompletedEvaluationResult(durableCore, id) {
                 detail: run?.error_detail,
               },
             }
-          : {}),
+          : status === "cancelled"
+            ? {
+                error: {
+                  code: row.cancellation_code,
+                  detail: row.cancellation_detail,
+                },
+              }
+            : {}),
         id: run?.id,
         review_id: run?.review_id,
         review_version_id: run?.review_version_id,
-        started_at: timestamp(/** @type {number} */ (run?.started_at)),
+        started_at:
+          run?.started_at === null
+            ? null
+            : timestamp(/** @type {number} */ (run?.started_at)),
         status,
       };
     });

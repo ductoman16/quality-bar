@@ -1,45 +1,22 @@
 import { spawn } from "node:child_process";
-import { delimiter, isAbsolute } from "node:path";
 
-import { validateCodexConfiguration } from "./codex-capabilities.js";
+import {
+  cancelledReviewRunResult,
+  closesSubmissionForCancellationOrDeadline,
+  NO_REVIEW_RUN_CANCELLATION,
+} from "./evaluation-cancellation.js";
+import {
+  buildReviewRunCodexEnvironment,
+  CodexProcessExitError,
+  reviewRunCodexArguments,
+} from "./review-run-codex-command.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
-const CODEX_HOST_ENVIRONMENT = Object.freeze([
-  "CODEX_HOME",
-  "HOME",
-  "LANG",
-  "LC_ALL",
-  "NODE_EXTRA_CA_CERTS",
-  "PATH",
-  "SSL_CERT_DIR",
-  "SSL_CERT_FILE",
-  "TMPDIR",
-  "XDG_CONFIG_HOME",
-]);
 const REVIEW_RUN_DEADLINE_MILLISECONDS = 15 * 60 * 1_000;
-
-class CodexProcessExitError extends Error {
-  /**
-   * @param {{
-   *   code: number | null,
-   *   signal: NodeJS.Signals | null,
-   *   stderr: string,
-   *   stdout: string
-   * }} result
-   */
-  constructor(result) {
-    super("Codex Review Run process exited unsuccessfully");
-    this.name = "CodexProcessExitError";
-    this.code = result.code;
-    this.signal = result.signal;
-    this.stderr = result.stderr;
-    this.stdout = result.stdout;
-  }
-}
 
 /**
  * @param {string} code
@@ -55,44 +32,7 @@ function fail(code, message, cause) {
   );
 }
 
-/** @param {unknown} candidate */
-export function reviewRunCodexArguments(candidate) {
-  const input = /** @type {any} */ (candidate);
-  const configuration = validateCodexConfiguration(input?.configuration);
-  if (
-    typeof input?.prompt !== "string" ||
-    input.prompt.length === 0 ||
-    !Array.isArray(input.criteria) ||
-    input.criteria.length === 0
-  ) {
-    throw new TypeError("Review Run Codex input is invalid");
-  }
-  return [
-    "--model",
-    configuration.model,
-    "--config",
-    `model_reasoning_effort="${configuration.reasoning_effort}"`,
-    "--config",
-    `service_tier="${configuration.service_tier}"`,
-    "--config",
-    "project_doc_max_bytes=0",
-    "exec",
-    "--ignore-user-config",
-    "--ignore-rules",
-    "--json",
-    "--sandbox",
-    "workspace-write",
-    "--config",
-    'approval_policy="never"',
-    "--config",
-    "sandbox_workspace_write.network_access=false",
-    "--config",
-    "shell_environment_policy.ignore_default_excludes=true",
-    "--config",
-    "allow_login_shell=false",
-    input.prompt,
-  ];
-}
+export { reviewRunCodexArguments };
 
 /**
  * @param {Record<string, string>} submissionEnvironment
@@ -104,29 +44,16 @@ export function reviewRunCodexEnvironment(
   commandDirectory,
   processEnvironment = process.env,
 ) {
-  if (
-    typeof commandDirectory !== "string" ||
-    !isAbsolute(commandDirectory) ||
-    commandDirectory.includes("\0")
-  ) {
-    throw new TypeError("Review Run submission command directory is invalid");
-  }
-  /** @type {Record<string, string>} */
-  const environment = {};
-  for (const name of CODEX_HOST_ENVIRONMENT) {
-    const value = processEnvironment[name];
-    if (typeof value === "string" && value.length > 0) {
-      environment[name] = value;
-    }
-  }
-  environment.PATH = environment.PATH
-    ? `${commandDirectory}${delimiter}${environment.PATH}`
-    : commandDirectory;
-  return { ...environment, ...submissionEnvironment };
+  return buildReviewRunCodexEnvironment(
+    submissionEnvironment,
+    commandDirectory,
+    processEnvironment,
+  );
 }
 
 /**
  * @param {{
+ *   cancellationSignal?: Promise<void>,
  *   checkoutPath: string,
  *   claim: {fencingToken: number, workerId: string, workId: string},
  *   codexCommand?: string,
@@ -165,6 +92,7 @@ export function reviewRunCodexEnvironment(
  * }} options
  */
 export async function runReviewRunCodex({
+  cancellationSignal = NO_REVIEW_RUN_CANCELLATION,
   checkoutPath,
   claim,
   codexCommand = "codex",
@@ -304,10 +232,13 @@ export async function runReviewRunCodex({
         stopAfterTranscriptFailure(error);
       }
     });
-    /** @type {{ kind: "deadline" } | { kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
+    /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     let terminal;
     try {
       terminal = await Promise.race([
+        cancellationSignal.then(() => ({
+          kind: /** @type {const} */ ("cancellation"),
+        })),
         processResult.then((result) => ({
           kind: /** @type {const} */ ("process"),
           result,
@@ -332,12 +263,21 @@ export async function runReviewRunCodex({
     } finally {
       clearDeadlineTimer(deadlineTimer);
     }
-    if (terminal.kind === "deadline") {
+    if (closesSubmissionForCancellationOrDeadline(terminal.kind)) {
       try {
         await closeSubmissionChannel();
-      } catch {
-        // The deadline remains authoritative; final cleanup preserves the
-        // exact submission-channel failure on that owning error.
+      } catch (error) {
+        // The durable terminal transition remains authoritative. Final cleanup
+        // preserves its exact submission-channel failure where applicable.
+        if (terminal.kind === "cancellation") {
+          diagnosticFailures.push(
+            error instanceof Error
+              ? error
+              : new TypeError("Review Run submission channel cleanup failed", {
+                  cause: error,
+                }),
+          );
+        }
       }
     }
     let accepted =
@@ -358,14 +298,19 @@ export async function runReviewRunCodex({
     );
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
-    if ((accepted || terminal.kind === "deadline") && !transcriptTermination) {
+    if (
+      (accepted || closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
+      !transcriptTermination
+    ) {
       try {
         await terminateProcessGroup();
       } catch (error) {
         const failure =
           error instanceof Error
             ? error
-            : new TypeError("Codex process-group termination failed");
+            : new TypeError("Codex process-group termination failed", {
+                cause: error,
+              });
         if (processClosed && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
         } else {
@@ -409,6 +354,15 @@ export async function runReviewRunCodex({
       stdout,
     );
     const submissionFailure = channel.failure();
+    const cancellationResult = cancelledReviewRunResult(
+      terminal.kind,
+      evidenceCompletionFailure,
+      submissionFailure,
+      diagnosticFailures,
+    );
+    if (cancellationResult) {
+      return cancellationResult;
+    }
     if (deadlineFailure) {
       throw deadline.attachDeadlineCleanupFailures(
         deadlineFailure,
