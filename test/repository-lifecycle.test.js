@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { GitHubConnectionError } from "../src/github-connection-error.js";
+import { prepareGitHubRepositoryEnablement } from "../src/repository-provider-verification.js";
 import {
   assertRepositoryAcceptsNewWork,
   normalizeRepositoryLifecycleChange,
   RepositoryError,
 } from "../src/repository-validation.js";
 
-test("Repository lifecycle changes accept only the operator-owned enabled and disabled transitions", () => {
+test("Repository lifecycle changes accept the operator-owned enabled, disabled, and retired transitions", () => {
   assert.deepEqual(
     normalizeRepositoryLifecycleChange({ lifecycle: "enabled" }),
     {
@@ -18,10 +20,14 @@ test("Repository lifecycle changes accept only the operator-owned enabled and di
     normalizeRepositoryLifecycleChange({ lifecycle: "disabled" }),
     { lifecycle: "disabled" },
   );
+  assert.deepEqual(
+    normalizeRepositoryLifecycleChange({ lifecycle: "retired" }),
+    { lifecycle: "retired" },
+  );
 
   for (const [request, code] of [
     [{}, "repository_lifecycle_required"],
-    [{ lifecycle: "retired" }, "repository_retirement_unsupported"],
+    [{ lifecycle: "deleted" }, "repository_lifecycle_invalid"],
     [
       { lifecycle: "disabled", unexpected: true },
       "repository_lifecycle_request_invalid",
@@ -81,5 +87,40 @@ test("new work distinguishes operator lifecycle from the exact observed-health f
       error instanceof RepositoryError &&
       error.code === "repository_git_read_failed" &&
       error.message === "Repository Git read verification failed",
+  );
+});
+
+test("GitHub enablement attributes only the target Repository verification failure", async () => {
+  const commit = () => {};
+  const connections = {
+    async selectRepositories() {
+      throw new GitHubConnectionError(
+        "github_private_git_read_failed",
+        "GitHub private Repository read verification failed",
+        { commit, repositoryId: 202 },
+      );
+    },
+  };
+  await assert.rejects(
+    prepareGitHubRepositoryEnablement(connections, 101),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      !(error instanceof RepositoryError) &&
+      error.repositoryId === undefined &&
+      error.commit === commit,
+  );
+
+  connections.selectRepositories = async () => {
+    throw new GitHubConnectionError(
+      "github_private_git_read_failed",
+      "GitHub private Repository read verification failed",
+      { commit, repositoryId: 101 },
+    );
+  };
+  await assert.rejects(
+    prepareGitHubRepositoryEnablement(connections, 101),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "github_private_git_read_failed",
   );
 });

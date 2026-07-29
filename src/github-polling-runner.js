@@ -55,6 +55,7 @@ export function createGitHubPollingRunner(
     recordOwningFailure,
   });
   const preparedBaselines = new WeakMap();
+  const preparedBaselineFailures = new WeakMap();
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
   let running = false;
@@ -179,11 +180,20 @@ export function createGitHubPollingRunner(
           const prepared = await polling.prepare(input, {
             baseline: row.baseline_status !== "complete",
           });
-          pollingCore.transaction((transaction) => {
-            polling.commitSuccess(transaction, row.connection_id, prepared);
-          });
+          const committed = pollingCore.transaction((transaction) =>
+            polling.commitSuccess(transaction, row.connection_id, prepared),
+          );
+          if (!committed) {
+            throw new GitHubConnectionError(
+              "github_polling_conflict",
+              "GitHub polling changed during reconciliation",
+            );
+          }
         } catch (error) {
           if (!(error instanceof GitHubConnectionError)) {
+            throw error;
+          }
+          if (error.code === "github_polling_conflict") {
             throw error;
           }
           if (error.nextAttemptAt !== undefined) {
@@ -205,8 +215,24 @@ export function createGitHubPollingRunner(
         throw new TypeError("GitHub polling baseline is unavailable");
       }
       storageReserve.assertPollingObservationAdvanceAvailable();
-      polling.commitSuccess(transaction, connectionId, prepared);
+      if (!polling.commitSuccess(transaction, connectionId, prepared)) {
+        throw new GitHubConnectionError(
+          "github_repository_enablement_conflict",
+          "GitHub polling changed during Repository enablement",
+        );
+      }
       preparedBaselines.delete(verification);
+    },
+    /** @param {GitHubConnectionError} error @param {any} transaction */
+    commitPollingFailure(error, transaction) {
+      const commit = preparedBaselineFailures.get(error);
+      if (commit && !commit(transaction)) {
+        throw new GitHubConnectionError(
+          "github_repository_enablement_conflict",
+          "GitHub polling changed during Repository enablement",
+        );
+      }
+      preparedBaselineFailures.delete(error);
     },
     /** @param {any} credential @param {number} installationId @param {number[]} repositoryIds */
     async verifyRepositories(credential, installationId, repositoryIds) {
@@ -241,7 +267,12 @@ export function createGitHubPollingRunner(
     }
     return polling.prepare(
       { connection, credential, repositories: verification.repositories },
-      { baseline: true },
+      {
+        baseline: true,
+        onFailure: (failure, commit) =>
+          preparedBaselineFailures.set(failure, commit),
+        recordFailure: false,
+      },
     );
   }
 
@@ -280,7 +311,12 @@ export function createGitHubPollingRunner(
       throw new TypeError("GitHub polling baseline is unavailable");
     }
     storageReserve.assertPollingObservationAdvanceAvailable();
-    polling.commitSuccess(transaction, connectionId, prepared);
+    if (!polling.commitSuccess(transaction, connectionId, prepared)) {
+      throw new GitHubConnectionError(
+        "github_repository_enablement_conflict",
+        "GitHub polling changed during Connection enablement",
+      );
+    }
   }
 
   async function pollScheduled() {

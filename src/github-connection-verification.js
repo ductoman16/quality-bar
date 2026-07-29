@@ -18,8 +18,13 @@
  *   timestamp: () => number,
  *   trigger: "enablement" | "repository_selection"
  * }} input
+ * @param {{defer?: boolean}} [options]
  */
-export function recordGitHubConnectionVerification(durableCore, input) {
+export function recordGitHubConnectionVerification(
+  durableCore,
+  input,
+  { defer = false } = {},
+) {
   const verificationId = input.createId();
   const verifiedAt = input.timestamp();
   const affectedIds = new Set(input.affectedRepositoryIds);
@@ -91,7 +96,8 @@ export function recordGitHubConnectionVerification(durableCore, input) {
           : "not_completed",
     repository_id: repositoryId,
   }));
-  durableCore.transaction((transaction) => {
+  /** @param {{run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges}} transaction */
+  const commit = (transaction) => {
     if (!input.error) {
       transaction.run(
         `UPDATE github_connections
@@ -210,6 +216,9 @@ export function recordGitHubConnectionVerification(durableCore, input) {
       JSON.stringify(input.evidence),
       verifiedAt,
     );
-  });
-  return { id: verificationId, verifiedAt };
+  };
+  if (!defer) {
+    durableCore.transaction(commit);
+  }
+  return { commit, id: verificationId, verifiedAt };
 }

@@ -91,6 +91,7 @@ test("Repository listing exposes lifecycle and health without credential values"
           ? [
               {
                 encrypted_credential: "encrypted-value",
+                has_been_used: 0,
                 health: "healthy",
                 health_error_code: null,
                 health_error_message: null,
@@ -111,6 +112,7 @@ test("Repository listing exposes lifecycle and health without credential values"
   assert.deepEqual(repositories.list(), [
     {
       credential_type: "username_token",
+      deletion_eligible: true,
       health: "healthy",
       health_error: null,
       id: "repository-private",

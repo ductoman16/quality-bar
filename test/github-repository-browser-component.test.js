@@ -30,6 +30,14 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
       throw new Error("unexpected request");
     },
     window: {
+      /** @param {string} message */
+      confirm(message) {
+        assert.equal(
+          message,
+          "Retire GitHub Repository 101 on Connection connection-1? Repository-bound credentials will be destroyed.",
+        );
+        return false;
+      },
       qualityBarOperator: {
         csrfToken: () => "csrf-token",
         async displayMutationFailure() {},
@@ -40,8 +48,9 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
             items: [
               {
                 api_url: "https://api.github.com/repos/operator/private",
-                assignment_count: 2,
+                assignment_count: 0,
                 credential_type: "forge_connection",
+                deletion_eligible: true,
                 forge_connection_id: "connection-1",
                 forge_repository_id: 101,
                 health: "healthy",
@@ -69,7 +78,42 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
     readBrowserAsset("/assets/repository.js"),
     browserContext,
   );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository-delete.js",
+    readBrowserAsset("/assets/repository-delete.js"),
+    browserContext,
+  );
   await new Promise((resolve) => setImmediate(resolve));
+  const repositoryResources = /** @type {any} */ (
+    Reflect.get(browserContext.window, "qualityBarRepositories")
+  );
+  assert.equal(
+    repositoryResources.confirmationIdentity("repository-1"),
+    "GitHub Repository 101 on Connection connection-1",
+  );
+  const lifecycleRepository = /** @type {any} */ (
+    elements.get("repository-lifecycle-repository")
+  );
+  const lifecycleState = /** @type {any} */ (
+    elements.get("repository-lifecycle-state")
+  );
+  const lifecycleForm = /** @type {any} */ (
+    elements.get("repository-lifecycle-form")
+  );
+  lifecycleRepository.value = "repository-1";
+  lifecycleState.value = "retired";
+  await lifecycleForm.listener("submit")({
+    preventDefault() {},
+  });
+  await lifecycleRepository.listener("change")({});
+  await /** @type {any} */ (elements.get("repository-delete")).listener(
+    "click",
+  )({});
+  assert.equal(
+    elements.get("repository-delete-confirmation-message")?.textContent,
+    "Delete GitHub Repository 101 on Connection connection-1 permanently. This cannot be undone.",
+  );
   const cells = /** @type {any[]} */ (inventory.options[0].options);
   assert.deepEqual(
     cells.map(({ "data-label": label, textContent }) => ({
@@ -88,7 +132,7 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
       },
       { label: "Lifecycle", textContent: "disabled" },
       { label: "Health", textContent: "healthy" },
-      { label: "Assignments", textContent: "2" },
+      { label: "Assignments", textContent: "0" },
       {
         label: "Latest verification",
         textContent: "1970-01-01T00:00:01.000Z",

@@ -2,7 +2,7 @@ export class GitHubConnectionError extends Error {
   /**
    * @param {string} code
    * @param {string} message
-   * @param {ErrorOptions & {affectedRepositoryIds?: number[], completedRepositoryIds?: number[], nextAttemptAt?: number, repositoryEvidence?: unknown[], repositoryId?: number}} [options]
+   * @param {ErrorOptions & {affectedRepositoryIds?: number[], commit?: (transaction: any) => void, completedRepositoryIds?: number[], nextAttemptAt?: number, repositoryEvidence?: unknown[], repositoryId?: number}} [options]
    */
   constructor(code, message, options) {
     super(message, options);
@@ -13,6 +13,9 @@ export class GitHubConnectionError extends Error {
     }
     if (Array.isArray(options?.completedRepositoryIds)) {
       this.completedRepositoryIds = options.completedRepositoryIds;
+    }
+    if (typeof options?.commit === "function") {
+      this.commit = options.commit;
     }
     if (Array.isArray(options?.repositoryEvidence)) {
       this.repositoryEvidence = options.repositoryEvidence;

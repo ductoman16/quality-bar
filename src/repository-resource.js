@@ -2,6 +2,8 @@ export const REPOSITORY_SELECTION = `SELECT
   repositories.id,
   repositories.normalized_url,
   repositories.lifecycle,
+  repositories.lifecycle_revision,
+  repositories.has_been_used,
   repositories.health,
   repositories.health_error_code,
   repositories.health_error_message,
@@ -58,6 +60,7 @@ export function readRepositoryResource(row) {
     !row ||
     typeof row.id !== "string" ||
     typeof row.normalized_url !== "string" ||
+    ![0, 1].includes(/** @type {number} */ (row.has_been_used)) ||
     !["enabled", "disabled", "retired"].includes(
       /** @type {string} */ (row.lifecycle),
     ) ||
@@ -86,6 +89,7 @@ export function readRepositoryResource(row) {
         : typeof row.encrypted_credential === "string"
           ? "username_token"
           : "none",
+    deletion_eligible: row.has_been_used === 0,
     health: /** @type {"healthy" | "error"} */ (row.health),
     health_error: healthError,
     id: row.id,

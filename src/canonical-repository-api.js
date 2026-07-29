@@ -1,6 +1,51 @@
 /** @param {object[]} mutationParameters @param {object} errorResponse */
 export function canonicalRepositoryPath(mutationParameters, errorResponse) {
   return {
+    "/api/v1/repositories/{repository_id}": {
+      delete: {
+        operationId: "deleteNeverUsedRepository",
+        parameters: [
+          {
+            in: "path",
+            name: "repository_id",
+            required: true,
+            schema: { minLength: 1, type: "string" },
+          },
+          ...mutationParameters,
+        ],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                additionalProperties: false,
+                properties: {},
+                type: "object",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { type: "null" },
+              },
+            },
+            description: "Never-used unreferenced Repository deleted",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/repositories": {
       get: {
         operationId: "listGenericRepositories",

@@ -8,12 +8,17 @@ export function migrateSchema(
   statements,
   schemaVersion = CURRENT_SCHEMA_VERSION,
 ) {
+  const repositoryHasUsageMarker = database
+    .prepare("PRAGMA table_info(repositories)")
+    .all()
+    .some((column) => column.name === "has_been_used");
+  const migrationCreatesUsageMarker = statements.includes("has_been_used");
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -23,11 +28,15 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 24;
+export const CURRENT_SCHEMA_VERSION = 25;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
 import { EVALUATION_SCHEMA } from "./evaluation-schema.js";
+import {
+  REPOSITORY_USAGE_INTEGRITY,
+  REPOSITORY_USAGE_MIGRATION,
+} from "./repository-schema.js";
 
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (

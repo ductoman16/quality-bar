@@ -283,10 +283,21 @@ export function createForgejoV16Verifier({
         enumerated.find((candidate) => candidate.id === id),
       );
       if (selected.some((candidate) => !candidate)) {
+        const missingRepositoryIds = selected.flatMap((candidate, index) =>
+          candidate ? [] : [repositoryIds[index]],
+        );
         try {
-          fail(
-            "forgejo_repository_selection_unavailable",
-            "Selected Forgejo Repository is not accessible to the Connection",
+          throw Object.assign(
+            new Error(
+              "Selected Forgejo Repository is not accessible to the Connection",
+            ),
+            {
+              code: "forgejo_repository_selection_unavailable",
+              repositoryId:
+                missingRepositoryIds.length === 1
+                  ? missingRepositoryIds[0]
+                  : undefined,
+            },
           );
         } catch (error) {
           throwWithForgejoEvidence(error, verificationEvidence);

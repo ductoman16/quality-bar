@@ -142,7 +142,7 @@ test("a corrected Forgejo baseline fences an older in-flight poll", async (conte
   await oldPollStarted;
   await forgejo.rotate({ token: "replacement-pat" });
   releaseOldPoll();
-  await stalePoll;
+  await assert.rejects(stalePoll, { code: "forgejo_polling_conflict" });
 
   assert.deepEqual(
     core.get(
@@ -358,6 +358,7 @@ test("PAT rotation fences an older Repository re-enablement", async (context) =>
         "connection-1",
         "verification-1",
         "repository-1",
+        "enablement-verification-1",
         "rotation-verification-1",
       ];
       return () => ids.shift();

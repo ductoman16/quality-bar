@@ -110,6 +110,9 @@ function applicationServerOptions() {
       async register() {
         throw new Error("unused Repository service operation");
       },
+      remove() {
+        throw new Error("unused Repository service operation");
+      },
       requireAcceptsNewWork() {
         throw new Error("unused Repository service operation");
       },

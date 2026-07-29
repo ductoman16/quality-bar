@@ -17,6 +17,11 @@ test("the Repository component displays lifecycle separately from health and sur
   const lifecycleState = browserElement({ value: "enabled" });
   const lifecycleResult = browserElement();
   const lifecycleSubmit = browserElement();
+  const repositoryDelete = browserElement();
+  const repositoryDeleteConfirmation = browserElement();
+  const repositoryDeleteConfirmationForm = browserElement();
+  const repositoryDeleteConfirmationInput = browserElement();
+  const repositoryDeleteConfirmationMessage = browserElement();
   const inventory = browserElement();
   const error = browserElement({ hidden: true });
   const elements = repositoryBrowserElements([
@@ -27,9 +32,22 @@ test("the Repository component displays lifecycle separately from health and sur
     ["repository-lifecycle-state", lifecycleState],
     ["repository-lifecycle-result", lifecycleResult],
     ["repository-lifecycle-submit", lifecycleSubmit],
+    ["repository-delete", repositoryDelete],
+    ["repository-delete-confirmation", repositoryDeleteConfirmation],
+    ["repository-delete-confirmation-form", repositoryDeleteConfirmationForm],
+    ["repository-delete-confirmation-input", repositoryDeleteConfirmationInput],
+    [
+      "repository-delete-confirmation-message",
+      repositoryDeleteConfirmationMessage,
+    ],
   ]);
+  const credentialRepository = elements.get(
+    "repository-credential-rotate-repository",
+  );
+  const credentialSubmit = elements.get("repository-credential-rotate-submit");
   let lifecycleAttempt = 0;
   let listAttempt = 0;
+  let deletedRepository = false;
   const lifecycleRequest = Promise.withResolvers();
   /** @type {string[]} */
   const confirmations = [];
@@ -71,6 +89,7 @@ test("the Repository component displays lifecycle separately from health and sur
               items: [
                 {
                   credential_type: "none",
+                  deletion_eligible: false,
                   health: listAttempt === 1 ? "healthy" : "error",
                   health_error:
                     listAttempt === 1
@@ -85,6 +104,7 @@ test("the Repository component displays lifecycle separately from health and sur
                 },
                 {
                   credential_type: "username_token",
+                  deletion_eligible: false,
                   health: "error",
                   health_error: {
                     code: "repository_git_read_failed",
@@ -94,8 +114,20 @@ test("the Repository component displays lifecycle separately from health and sur
                   lifecycle: "enabled",
                   url: "https://example.com/error.git",
                 },
-              ],
-              next_cursor: listAttempt === 3 ? "failing-page" : null,
+                {
+                  credential_type: "none",
+                  deletion_eligible: true,
+                  health: "healthy",
+                  health_error: null,
+                  id: "repository-unused",
+                  lifecycle: "enabled",
+                  url: "https://example.com/unused.git",
+                },
+              ].filter(
+                (repository) =>
+                  !deletedRepository || repository.id !== "repository-unused",
+              ),
+              next_cursor: listAttempt === 4 ? "failing-page" : null,
             };
           },
         };
@@ -119,9 +151,41 @@ test("the Repository component displays lifecycle separately from health and sur
           };
         }
         if (lifecycleAttempt === 3) {
+          return {
+            ok: true,
+            async json() {
+              return {
+                credential_type: "none",
+                deletion_eligible: false,
+                health: "error",
+                health_error: {
+                  code: "repository_git_read_failed",
+                  message: "Repository Git read verification failed",
+                },
+                id: "repository-error",
+                lifecycle: "retired",
+                url: "https://example.com/error.git",
+              };
+            },
+          };
+        }
+        if (lifecycleAttempt === 4) {
           throw new Error("response lost after lifecycle request");
         }
         return lifecycleRequest.promise;
+      }
+      if (
+        path === "/api/v1/repositories/repository-unused" &&
+        /** @type {{method?: string} | undefined} */ (options)?.method ===
+          "DELETE"
+      ) {
+        deletedRepository = true;
+        return {
+          ok: true,
+          async json() {
+            return null;
+          },
+        };
       }
       throw new Error(`unexpected request: ${path}`);
     },
@@ -143,6 +207,12 @@ test("the Repository component displays lifecycle separately from health and sur
     repositoryRoot,
     "src/browser/repository.js",
     readBrowserAsset("/assets/repository.js"),
+    browserContext,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository-delete.js",
+    readBrowserAsset("/assets/repository-delete.js"),
     browserContext,
   );
   await new Promise((resolve) => setImmediate(resolve));
@@ -170,9 +240,17 @@ test("the Repository component displays lifecycle separately from health and sur
         "Unavailable",
         "Unavailable",
       ],
+      [
+        "Generic HTTPS Git",
+        "https://example.com/unused.git",
+        "enabled",
+        "healthy",
+        "Unavailable",
+        "Unavailable",
+      ],
     ],
   );
-  assert.equal(lifecycleRepository.options.length, 2);
+  assert.equal(lifecycleRepository.options.length, 3);
 
   lifecycleRepository.value = "repository-disabled";
   lifecycleState.value = "enabled";
@@ -207,6 +285,7 @@ test("the Repository component displays lifecycle separately from health and sur
     async json() {
       return {
         credential_type: "username_token",
+        deletion_eligible: false,
         health: "error",
         health_error: {
           code: "repository_git_read_failed",
@@ -242,13 +321,63 @@ test("the Repository component displays lifecycle separately from health and sur
     ],
   );
 
+  lifecycleRepository.value = "repository-error";
+  lifecycleState.value = "retired";
+  await lifecycleForm.listener("submit")({ preventDefault() {} });
+  assert.equal(
+    confirmations.at(-1),
+    "Retire https://example.com/error.git? Repository-bound credentials will be destroyed.",
+  );
+  assert.equal(
+    lifecycleResult.textContent,
+    "https://example.com/error.git is retired.",
+  );
+  assert.equal(credentialRepository?.options.length, 0);
+  assert.equal(credentialRepository?.disabled, true);
+  assert.equal(credentialSubmit?.disabled, true);
+  assert.equal(repositoryDelete.disabled, true);
+
+  lifecycleRepository.value = "repository-error";
+  await repositoryDelete.listener("click")({});
+  assert.equal(repositoryDeleteConfirmation.open, false);
+
+  lifecycleRepository.value = "repository-unused";
+  await lifecycleRepository.listener("change")({});
+  assert.equal(repositoryDelete.disabled, false);
+  await repositoryDelete.listener("click")({});
+  assert.equal(
+    repositoryDeleteConfirmationMessage.textContent,
+    "Delete https://example.com/unused.git permanently. This cannot be undone.",
+  );
+  assert.equal(repositoryDeleteConfirmation.open, true);
+  repositoryDeleteConfirmationInput.value = "unused";
+  await repositoryDeleteConfirmationForm.listener("submit")({
+    preventDefault() {},
+  });
+  assert.equal(
+    error.textContent,
+    "Type the Repository identity to confirm permanent deletion",
+  );
+  assert.equal(deletedRepository, false);
+  repositoryDeleteConfirmationInput.value = "https://example.com/unused.git";
+  await repositoryDeleteConfirmationForm.listener("submit")({
+    preventDefault() {},
+  });
+  assert.equal(repositoryDeleteConfirmation.open, false);
+  assert.equal(
+    lifecycleResult.textContent,
+    "https://example.com/unused.git deleted.",
+  );
+  assert.equal(lifecycleResult.focused, true);
+  assert.equal(inventory.options.length, 2);
+
   lifecycleRepository.value = "repository-disabled";
   lifecycleState.value = "enabled";
   await lifecycleForm.listener("submit")({ preventDefault() {} });
   assert.equal(error.textContent, "Repository listing failed");
   assert.equal(error.hidden, false);
   assert.equal(lifecycleResult.textContent, "");
-  assert.equal(listAttempt, 3);
+  assert.equal(listAttempt, 4);
   assert.equal(inventory.options.length, 0);
   assert.equal(lifecycleRepository.options.length, 0);
   assert.equal(lifecycleSubmit.disabled, true);

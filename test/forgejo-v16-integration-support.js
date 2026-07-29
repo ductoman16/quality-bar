@@ -1,5 +1,22 @@
 import assert from "node:assert/strict";
 
+/** @param {any} verifier @param {string} baseUrl */
+export async function assertForgejoMissingRepositoryId(verifier, baseUrl) {
+  await assert.rejects(
+    verifier.verify({
+      baseUrl,
+      repositoryIds: [11, 99],
+      token: "operator-created-pat",
+    }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "forgejo_repository_selection_unavailable" &&
+      "repositoryId" in error &&
+      error.repositoryId === 99,
+  );
+}
+
 export const incompleteForgejoCapabilities = {
   aggregate_feedback: "not_completed",
   branch_access: "error",

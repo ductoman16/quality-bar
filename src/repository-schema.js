@@ -34,10 +34,14 @@ export const REPOSITORY_SCHEMA = `
     verified_at INTEGER NOT NULL,
     lifecycle TEXT NOT NULL DEFAULT 'enabled'
       CHECK (lifecycle IN ('enabled', 'disabled', 'retired')),
+    lifecycle_revision INTEGER NOT NULL DEFAULT 0
+      CHECK (lifecycle_revision >= 0),
     health TEXT NOT NULL DEFAULT 'healthy'
       CHECK (health IN ('healthy', 'error')),
     health_error_code TEXT,
     health_error_message TEXT,
+    has_been_used INTEGER NOT NULL DEFAULT 0
+      CHECK (has_been_used IN (0, 1)),
     CHECK (
       (health = 'healthy' AND health_error_code IS NULL AND health_error_message IS NULL)
       OR
@@ -45,6 +49,33 @@ export const REPOSITORY_SCHEMA = `
     )
   ) STRICT;
   ${REPOSITORY_HEALTH_INTEGRITY}
+`;
+
+export const REPOSITORY_USAGE_MIGRATION = `
+  ALTER TABLE repositories ADD COLUMN has_been_used INTEGER NOT NULL DEFAULT 0
+    CHECK (has_been_used IN (0, 1));
+  ALTER TABLE repositories ADD COLUMN lifecycle_revision INTEGER NOT NULL DEFAULT 0
+    CHECK (lifecycle_revision >= 0);
+  UPDATE repositories SET has_been_used = 1;
+`;
+
+export const REPOSITORY_USAGE_INTEGRITY = `
+  CREATE TRIGGER IF NOT EXISTS repository_usage_immutable
+    BEFORE UPDATE OF has_been_used ON repositories
+    WHEN OLD.has_been_used = 1 AND NEW.has_been_used != 1
+    BEGIN SELECT RAISE(ABORT, 'repository_usage_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS repository_used_by_assignment
+    AFTER INSERT ON review_assignment_repositories
+    BEGIN
+      UPDATE repositories SET has_been_used = 1
+      WHERE id = NEW.repository_id;
+    END;
+  CREATE TRIGGER IF NOT EXISTS repository_used_by_evaluation
+    AFTER INSERT ON evaluations
+    BEGIN
+      UPDATE repositories SET has_been_used = 1
+      WHERE id = NEW.repository_id;
+    END;
 `;
 
 export const REPOSITORY_LIFECYCLE_MIGRATION = `

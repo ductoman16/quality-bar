@@ -30,8 +30,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 45,
-    responseStatuses: 310,
+    operations: 46,
+    responseStatuses: 319,
     version: "3.1.0",
   });
   assert.equal(
@@ -137,6 +137,7 @@ test("runtime conformance accepts a documented request and empty success", async
       },
       response: Response.json({
         credential_type: "username_token",
+        deletion_eligible: true,
         health: "healthy",
         health_error: null,
         id: "repository-1",
@@ -145,14 +146,42 @@ test("runtime conformance accepts a documented request and empty success", async
       }),
     }),
   );
+  await assertion.assertExchange(
+    documentedExchange({
+      request: {
+        body: JSON.stringify({ lifecycle: "retired" }),
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+        url: "http://127.0.0.1/api/v1/repositories/repository-2/lifecycle",
+      },
+      response: Response.json({
+        api_url: "https://forgejo.example/api/v1/repos/operator/private",
+        assignment_count: 1,
+        credential_type: "forge_connection",
+        deletion_eligible: false,
+        forge_connection_id: "forgejo-connection-1",
+        forge_repository_id: 11,
+        health: "healthy",
+        health_error: null,
+        id: "repository-2",
+        lifecycle: "retired",
+        name: "operator/private",
+        provider: "forgejo",
+        url: "https://forgejo.example/operator/private.git",
+        verification_id: "verification-2",
+        verified_at: 2_000,
+        web_url: "https://forgejo.example/operator/private",
+      }),
+    }),
+  );
 
   assert.deepEqual(assertion.facts(), {
     canonicalErrors: 0,
-    exchanges: 2,
-    operations: 2,
-    requestDocuments: 2,
-    responseDocuments: 1,
-    statuses: 2,
+    exchanges: 3,
+    operations: 3,
+    requestDocuments: 3,
+    responseDocuments: 2,
+    statuses: 3,
   });
 });
 
@@ -216,6 +245,7 @@ test("runtime conformance rejects invalid request, response, status, content typ
             repositories: [
               {
                 credential_type: "none",
+                deletion_eligible: true,
                 health: "healthy",
                 health_error: {
                   code: "stale_error",

@@ -18,6 +18,7 @@ import { REPOSITORY_CREDENTIAL_SCHEMA } from "./repository-credential-schema.js"
 import {
   REPOSITORY_LIFECYCLE_MIGRATION,
   REPOSITORY_SCHEMA,
+  REPOSITORY_USAGE_INTEGRITY,
 } from "./repository-schema.js";
 import {
   FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
@@ -146,6 +147,7 @@ export function initializeOrValidateSchema(
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
       ${EVALUATION_SCHEMA}
+      ${REPOSITORY_USAGE_INTEGRITY}
       INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
       COMMIT;
@@ -322,7 +324,7 @@ export function initializeOrValidateSchema(
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version === 20) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
-  } else if (version === 21 || version === 22 || version === 23) {
+  } else if ([21, 22, 23, 24].includes(version)) {
     schemaMigration.migrateSchema(database, "");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
