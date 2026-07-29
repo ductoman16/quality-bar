@@ -65,6 +65,34 @@ function sideLineCount(checkoutPath, commit, path) {
  * @param {string} checkoutPath
  * @param {string} baseCommit
  * @param {string} headCommit
+ * @param {(string | null)[]} paths
+ */
+function frozenPatch(checkoutPath, baseCommit, headCommit, paths) {
+  return execFileSync(
+    "git",
+    [
+      "-C",
+      checkoutPath,
+      "diff",
+      "--no-ext-diff",
+      "--no-textconv",
+      baseCommit,
+      headCommit,
+      "--",
+      ...new Set(
+        paths
+          .filter((path) => path !== null)
+          .map((path) => `:(literal)${path}`),
+      ),
+    ],
+    { encoding: "utf8" },
+  );
+}
+
+/**
+ * @param {string} checkoutPath
+ * @param {string} baseCommit
+ * @param {string} headCommit
  */
 export function readReviewRunFileChanges(checkoutPath, baseCommit, headCommit) {
   try {
@@ -118,6 +146,10 @@ export function readReviewRunFileChanges(checkoutPath, baseCommit, headCommit) {
           afterPath,
         ),
         id: `file-change-${changes.length + 1}`,
+        patch: frozenPatch(checkoutPath, baseCommit, headCommit, [
+          beforePath,
+          afterPath,
+        ]),
       });
     }
     return changes;

@@ -78,12 +78,43 @@ function findingLocation(evaluationId, finding) {
   return link;
 }
 
+/** @param {any} result @param {any} location */
+function frozenDiff(result, location) {
+  const fileChange = result.file_changes.find(
+    /** @param {any} candidate */
+    (candidate) => candidate.id === location.file_change_id,
+  );
+  if (
+    !fileChange ||
+    typeof fileChange.patch !== "string" ||
+    !(
+      fileChange.before_path === null ||
+      typeof fileChange.before_path === "string"
+    ) ||
+    !(
+      fileChange.after_path === null ||
+      typeof fileChange.after_path === "string"
+    )
+  ) {
+    throw new Error("evaluation_result_invalid");
+  }
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "Frozen diff — " + locationText(location);
+  details.append(summary);
+  const patch = document.createElement("pre");
+  patch.textContent = fileChange.patch;
+  details.append(patch);
+  return details;
+}
+
 /** @param {any} target @param {any} evaluation @param {any} result */
 function renderResult(target, evaluation, result) {
   if (
     !result ||
     typeof result.outcome !== "string" ||
     !Array.isArray(result.criterion_results) ||
+    !Array.isArray(result.file_changes) ||
     !Array.isArray(result.findings) ||
     !Array.isArray(result.review_runs)
   ) {
@@ -155,6 +186,9 @@ function renderResult(target, evaluation, result) {
       ) {
         criterionDetails.open = true;
         findingDetails.open = true;
+        const diff = frozenDiff(result, location);
+        diff.open = true;
+        findingDetails.append(diff);
       }
       criterionDetails.append(findingDetails);
     }
@@ -245,12 +279,14 @@ async function renderEvaluation(evaluation) {
     }
     return;
   }
+  let result;
   try {
-    const result = await resultResponse.json();
-    renderResult(resultState, evaluation, result);
+    result = await resultResponse.json();
   } catch {
     resultState.textContent = "Result failed to load";
+    return;
   }
+  renderResult(resultState, evaluation, result);
 }
 
 /** @param {string | undefined} cursor */

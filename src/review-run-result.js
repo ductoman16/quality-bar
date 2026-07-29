@@ -22,8 +22,8 @@ function fail(code, message) {
 
 /**
  * @param {unknown} candidate
- * @param {(string | {criterion_id: string, impact: string})[]} criteria
- * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} fileChanges
+ * @param {{criterion_id: string, impact: string}[]} criteria
+ * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null, patch?: string}[]} fileChanges
  */
 export function validateReviewRunSubmission(candidate, criteria, fileChanges) {
   if (!Array.isArray(fileChanges)) {
@@ -45,8 +45,8 @@ export function validateReviewRunSubmission(candidate, criteria, fileChanges) {
       "Review Run submission must contain only criterion_results",
     );
   }
-  const criterionIds = criteria.map((criterion) =>
-    typeof criterion === "string" ? criterion : criterion.criterion_id,
+  const criterionIds = criteria.map(
+    ({ criterion_id: criterionId }) => criterionId,
   );
   const results = /** @type {any[]} */ (
     /** @type {{criterion_results: unknown[]}} */ (candidate).criterion_results
@@ -221,7 +221,7 @@ export function createReviewRunResultService(
     /**
      * @param {{fencingToken: number, workerId: string, workId: string}} claim
      * @param {unknown} candidate
-     * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[]} fileChanges
+     * @param {{id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null, patch?: string}[]} fileChanges
      */
     submit(claim, candidate, fileChanges) {
       if (!Array.isArray(fileChanges)) {
@@ -300,17 +300,21 @@ export function createReviewRunResultService(
           throw new TypeError("Frozen File Change identity is invalid");
         }
         for (const fileChange of fileChanges) {
+          if (typeof fileChange.patch !== "string") {
+            throw new TypeError("Frozen File Change patch is invalid");
+          }
           transaction.run(
             `INSERT INTO evaluation_file_changes (
                evaluation_id, id, before_path, after_path,
-               base_line_count, head_line_count
-             ) VALUES (?, ?, ?, ?, ?, ?)`,
+               base_line_count, head_line_count, patch
+             ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             run.evaluation_id,
             fileChange.id,
             fileChange.before_path,
             fileChange.after_path,
             fileChange.base_line_count,
             fileChange.head_line_count,
+            fileChange.patch,
           );
         }
         for (const result of results) {

@@ -68,6 +68,7 @@ test("zero assigned Reviews complete clear without launching or depending on Cod
       completed_at: "1970-01-01T00:00:01.000Z",
       criterion_results: [],
       evaluation_id: "zero-review-evaluation",
+      file_changes: [],
       findings: [],
       outcome: "clear",
       review_runs: [],

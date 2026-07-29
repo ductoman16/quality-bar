@@ -68,6 +68,7 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
     completed_at: "1970-01-01T00:00:00.010Z",
     criterion_results: [],
     evaluation_id: "evaluation-1",
+    file_changes: [],
     findings: [],
     outcome: "clear",
     review_runs: [],

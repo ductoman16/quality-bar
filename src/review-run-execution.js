@@ -21,7 +21,7 @@ function fail(code, message, cause) {
  * @param {{
  *   baseCommit: string,
  *   criteria: {criterionId: string, impact: string, instruction: string}[],
- *   fileChanges: {id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null}[],
+ *   fileChanges: {id: string, before_path: string | null, after_path: string | null, base_line_count: number | null, head_line_count: number | null, patch?: string}[],
  *   headCommit: string,
  *   reviewName: string
  * }} run
@@ -51,7 +51,15 @@ export function createReviewRunPrompt(run) {
         instruction: criterion.instruction,
       })),
     })}`,
-    `file_changes: ${JSON.stringify(run.fileChanges)}`,
+    `file_changes: ${JSON.stringify(
+      run.fileChanges.map((fileChange) => ({
+        after_path: fileChange.after_path,
+        base_line_count: fileChange.base_line_count,
+        before_path: fileChange.before_path,
+        head_line_count: fileChange.head_line_count,
+        id: fileChange.id,
+      })),
+    )}`,
     'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
     'submission: {"command":"quality-bar-submit","input":"JSON by standard input or one JSON file"}',
     'evidence_boundaries: {"include":"frozen base/head Changeset and surrounding Repository material inspected on demand","exclude":["Repository instructions","pull-request discussion","prior runs","other Reviews","Forge metadata"]}',

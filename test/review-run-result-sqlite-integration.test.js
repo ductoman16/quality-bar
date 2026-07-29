@@ -84,6 +84,7 @@ test("the first valid fenced submission atomically creates triggered Findings wi
       before_path: "src/previous.js",
       head_line_count: 3,
       id: "file-change-1",
+      patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
     },
   ];
 
@@ -190,6 +191,14 @@ test("the first valid fenced submission atomically creates triggered Findings wi
         },
       ],
       evaluation_id: "evaluation-1",
+      file_changes: [
+        {
+          after_path: "src/current.js",
+          before_path: "src/previous.js",
+          id: "file-change-1",
+          patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+        },
+      ],
       findings: [
         {
           criterion_id: review.active_version.criteria[0].id,

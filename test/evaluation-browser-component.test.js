@@ -259,6 +259,13 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
       textContent: "head src/current.js:2-3",
     },
   );
+  const frozenDiff = findingDetails.options[4];
+  assert.equal(frozenDiff.open, true);
+  assert.equal(
+    frozenDiff.options[0].textContent,
+    "Frozen diff — head src/current.js:2-3",
+  );
+  assert.match(frozenDiff.options[1].textContent, /-old state\n\+new state/);
   assert.match(
     controls.get("evaluation-attention").options[1].textContent,
     /failed — error/,

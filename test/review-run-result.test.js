@@ -29,7 +29,7 @@ test("a clear Review Run submission covers every frozen Criterion exactly once",
           { criterion_id: "criterion-2", outcome: "clear" },
         ],
       },
-      ["criterion-1", "criterion-2"],
+      criteria,
       [],
     ),
     [

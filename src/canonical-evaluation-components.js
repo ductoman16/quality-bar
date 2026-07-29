@@ -153,6 +153,15 @@ export function canonicalEvaluationSchemas() {
         "location",
       ],
     ),
+    EvaluationFileChange: closedObject(
+      {
+        after_path: { type: ["string", "null"] },
+        before_path: { type: ["string", "null"] },
+        id: { minLength: 1, type: "string" },
+        patch: { type: "string" },
+      },
+      ["id", "before_path", "after_path", "patch"],
+    ),
     CompletedReviewRun: closedObject(
       {
         completed_at: { format: "date-time", type: "string" },
@@ -180,6 +189,10 @@ export function canonicalEvaluationSchemas() {
           type: "array",
         },
         evaluation_id: { minLength: 1, type: "string" },
+        file_changes: {
+          items: { $ref: "#/components/schemas/EvaluationFileChange" },
+          type: "array",
+        },
         findings: {
           items: { $ref: "#/components/schemas/Finding" },
           type: "array",
@@ -200,6 +213,7 @@ export function canonicalEvaluationSchemas() {
         "applicability_results",
         "review_runs",
         "criterion_results",
+        "file_changes",
         "findings",
       ],
     ),

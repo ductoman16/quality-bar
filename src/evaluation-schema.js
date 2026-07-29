@@ -71,6 +71,7 @@ export const EVALUATION_SCHEMA = `
     after_path TEXT,
     base_line_count INTEGER CHECK (base_line_count IS NULL OR base_line_count >= 0),
     head_line_count INTEGER CHECK (head_line_count IS NULL OR head_line_count >= 0),
+    patch TEXT NOT NULL,
     PRIMARY KEY (evaluation_id, id),
     CHECK (before_path IS NOT NULL OR after_path IS NOT NULL)
   ) STRICT;

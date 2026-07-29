@@ -49,6 +49,11 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
   const changes = readReviewRunFileChanges(repository, base, head);
   assert.equal(changes.length, 4);
   assert.equal(new Set(changes.map(({ id }) => id)).size, 4);
+  assert.ok(changes.every(({ patch }) => patch.length > 0));
+  assert.match(
+    changes.find(({ after_path: path }) => path === ":(glob)*")?.patch ?? "",
+    /literal pathspec filename/,
+  );
   assert.deepEqual(
     changes
       .map((change) => ({

@@ -9,6 +9,15 @@ export const TRIGGERED_EVALUATION_RESULT = {
     },
   ],
   evaluation_id: "evaluation-1",
+  file_changes: [
+    {
+      after_path: "src/current.js",
+      before_path: "src/previous.js",
+      id: "file-change-1",
+      patch:
+        "@@ -1,3 +1,3 @@\n unchanged\n-old state\n+new state\n unchanged\n",
+    },
+  ],
   findings: [
     {
       criterion_id: "criterion-1",

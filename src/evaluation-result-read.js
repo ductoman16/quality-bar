@@ -44,6 +44,13 @@ export function readCompletedEvaluationResult(durableCore, id) {
      ORDER BY review_runs.id, criterion_results.rowid`,
     id,
   );
+  const fileChanges = durableCore.all(
+    `SELECT id, before_path, after_path, patch
+     FROM evaluation_file_changes
+     WHERE evaluation_id = ?
+     ORDER BY id`,
+    id,
+  );
   const findings = durableCore
     .all(
       `SELECT findings.id, findings.review_run_id, findings.criterion_id,
@@ -100,6 +107,7 @@ export function readCompletedEvaluationResult(durableCore, id) {
     completed_at: timestamp(/** @type {number} */ (row.completed_at)),
     criterion_results: criterionResults,
     evaluation_id: row.evaluation_id,
+    file_changes: fileChanges,
     findings,
     outcome: row.outcome,
     review_runs: reviewRuns,
