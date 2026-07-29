@@ -145,6 +145,39 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
   );
 });
 
+test("diagnostic sink failure cannot overturn accepted Result authority", async () => {
+  const diagnosticFailure = new Error("submission cleanup failed");
+  const reportingFailure = new Error("diagnostic sink failed");
+  const execution = await executeReviewRun(durableCore(), claim, {
+    claimService: {
+      start() {},
+      startRenewal() {
+        return () => {};
+      },
+    },
+    async prepareCheckout() {
+      return { path: "/checkout", remove() {} };
+    },
+    readFileChanges: () => [],
+    reportDiagnostic(failure) {
+      assert.equal(failure, diagnosticFailure);
+      throw reportingFailure;
+    },
+    resultService: {
+      fail() {
+        assert.fail("accepted Result was converted to failure");
+      },
+      submit() {},
+    },
+    async runCodex() {
+      return { diagnosticFailures: [diagnosticFailure] };
+    },
+  });
+  assert.deepEqual(execution, {
+    unreportedDiagnostics: [{ diagnosticFailure, reportingFailure }],
+  });
+});
+
 test("checkout failure remains pre-start and does not launch Codex", async () => {
   const failure = new ReviewRunCheckoutError(
     "review_run_checkout_failed",

@@ -177,3 +177,38 @@ test("termination failure stays diagnostic after an accepted Result", async () =
     { diagnosticFailures: [terminationFailure] },
   );
 });
+
+test("permission-denied liveness still attempts the survivor force-kill", async () => {
+  /** @type {(string | number)[]} */
+  const signals = [];
+  const permissionFailure = Object.assign(new Error("kill not permitted"), {
+    code: "EPERM",
+  });
+  const child = runningProcess(79);
+  assert.deepEqual(
+    await runReviewRunCodex({
+      checkoutPath: "/checkout",
+      claim,
+      clearTerminationTimer() {},
+      killProcessGroup(pid, signal) {
+        assert.equal(pid, -79);
+        signals.push(signal);
+        if (signal === "SIGTERM") {
+          queueMicrotask(() => child.emit("exit", 0, null));
+        } else {
+          throw permissionFailure;
+        }
+      },
+      openSubmissionChannel: async () => acceptedChannel(),
+      resultService: { submit() {} },
+      run,
+      setTerminationTimer(callback) {
+        setImmediate(callback);
+        return {};
+      },
+      spawnProcess: () => /** @type {any} */ (child),
+    }),
+    { diagnosticFailures: [permissionFailure] },
+  );
+  assert.deepEqual(signals, ["SIGTERM", 0, "SIGKILL"]);
+});

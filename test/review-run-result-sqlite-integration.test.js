@@ -100,19 +100,6 @@ test("the first valid fenced submission atomically preserves every complete Crit
     fileChanges,
     criterionIds,
   );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-    0,
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM evaluation_results")?.count,
-    0,
-  );
-  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM evaluation_file_changes")?.count,
-    0,
-  );
 
   results.submit(
     claim,

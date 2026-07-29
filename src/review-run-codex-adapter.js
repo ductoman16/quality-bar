@@ -57,12 +57,8 @@ function isMissingProcess(error) {
 }
 
 /** @param {unknown} error */
-function isUnavailableOwnedProcessGroup(error) {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "ESRCH" || error.code === "EPERM")
-  );
+function isPermissionDenied(error) {
+  return error instanceof Error && "code" in error && error.code === "EPERM";
 }
 
 /**
@@ -119,8 +115,11 @@ async function terminateCodexProcessGroup(
       try {
         killProcessGroup(processGroupId, 0);
       } catch (error) {
-        if (isUnavailableOwnedProcessGroup(error)) {
+        if (isMissingProcess(error)) {
           return;
+        }
+        if (isPermissionDenied(error)) {
+          await forceKill;
         }
         throw error;
       }
