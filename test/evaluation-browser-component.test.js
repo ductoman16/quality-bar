@@ -90,10 +90,6 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
             return {
               items: [
                 evaluation({
-                  effective_outcome: "blocking",
-                  id: "evaluation-triggered",
-                }),
-                evaluation({
                   base_selector: { type: "branch", value: "failure" },
                   id: "evaluation-result-failure",
                 }),
@@ -118,6 +114,17 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
               ],
               next_cursor: "cursor-2",
             };
+          },
+        };
+      }
+      if (path === "/api/v1/evaluations/evaluation-triggered") {
+        return {
+          ok: true,
+          async json() {
+            return evaluation({
+              effective_outcome: "blocking",
+              id: "evaluation-triggered",
+            });
           },
         };
       }
@@ -223,10 +230,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     "Result not ready",
   );
   assert.match(
-    controls.get("evaluation-attention").options[0].textContent,
+    controls.get("evaluation-attention").options[1].textContent,
     /completed — blocking/,
   );
-  const resultDetails = controls.get("evaluation-attention").options[0]
+  const resultDetails = controls.get("evaluation-attention").options[1]
     .options[0];
   assert.equal(resultDetails.textContent, "Result blocking");
   const criterionDetails = resultDetails.options[0];
@@ -267,7 +274,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   );
   assert.match(frozenDiff.options[1].textContent, /-old state\n\+new state/);
   assert.match(
-    controls.get("evaluation-attention").options[1].textContent,
+    controls.get("evaluation-attention").options[0].textContent,
     /failed — error/,
   );
   assert.equal(controls.get("evaluation-more").hidden, false);
@@ -279,6 +286,11 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   );
   assert.ok(
     requests.some(({ path }) => path === "/api/v1/evaluations?cursor=cursor-2"),
+  );
+  assert.ok(
+    requests.some(
+      ({ path }) => path === "/api/v1/evaluations/evaluation-triggered",
+    ),
   );
 
   controls.get("evaluation-repository").value = "repository-1";
