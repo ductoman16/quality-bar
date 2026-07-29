@@ -210,6 +210,48 @@ test("real Git proves the stored pull-request merge-base and current head pair",
   assert.equal(changeset.head_commit, head);
   changeset.release?.();
 
+  execFileSync("git", [
+    "-C",
+    repository,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "force-pushed head",
+  ]);
+  const changedHead = execFileSync(
+    "git",
+    ["-C", repository, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  ).trim();
+  const changed = await resolvePushedCommitSelectors(
+    `file://${repository}`,
+    undefined,
+    {
+      base: { type: "commit", value: target },
+      head: { type: "commit", value: changedHead },
+    },
+    { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+  );
+  assert.equal(changed.base_commit, common);
+  assert.equal(changed.head_commit, changedHead);
+  changed.release?.();
+
+  execFileSync("git", ["-C", repository, "reset", "--hard", head], {
+    stdio: "ignore",
+  });
+  const returned = await resolvePushedCommitSelectors(
+    `file://${repository}`,
+    undefined,
+    {
+      base: { type: "commit", value: target },
+      head: { type: "commit", value: head },
+    },
+    { objectDatabaseRoot: objectDatabases, useMergeBase: true },
+  );
+  assert.equal(returned.base_commit, common);
+  assert.equal(returned.head_commit, head);
+  returned.release?.();
+
   await assert.rejects(
     () =>
       resolvePushedCommitSelectors(

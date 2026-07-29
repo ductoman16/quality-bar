@@ -102,6 +102,63 @@ test("GitHub fixture observes a draft becoming ready as newly eligible", async (
   );
 });
 
+test("GitHub fixture preserves lifecycle transitions and exact changed pairs", async () => {
+  let observed = pullRequest(1);
+  const verifier = createGitHubVerifier({
+    async fetch(url) {
+      const requestUrl = new URL(url);
+      if (requestUrl.pathname.endsWith("/access_tokens")) {
+        return Response.json({ permissions, token: "installation-token" });
+      }
+      return Response.json([observed]);
+    },
+  });
+  const read = () =>
+    verifier.listPullRequests(credential(), 73, {
+      full_name: "operator/private",
+    });
+  let previous = await read();
+  /** @param {any} next */
+  const transition = async (next) => {
+    observed = next;
+    const current = await read();
+    const eligible = newlyEligibleGitHubPullRequests(previous, current);
+    previous = current;
+    return eligible;
+  };
+
+  assert.equal(
+    (
+      await transition({
+        ...observed,
+        head: { sha: "c".repeat(40) },
+      })
+    ).length,
+    1,
+  );
+  assert.deepEqual(await transition({ ...observed, draft: true }), []);
+  assert.equal((await transition({ ...observed, draft: false })).length, 1);
+  assert.deepEqual(await transition({ ...observed, state: "closed" }), []);
+  assert.equal((await transition({ ...observed, state: "open" })).length, 1);
+  assert.equal(
+    (
+      await transition({
+        ...observed,
+        base: { sha: "d".repeat(40) },
+      })
+    ).length,
+    1,
+  );
+  assert.deepEqual(
+    await transition({
+      ...observed,
+      merged_at: "2026-07-29T12:00:00Z",
+      state: "closed",
+    }),
+    [],
+  );
+});
+
 test("GitHub polling fixture rejects truncated pagination and incomplete state", async () => {
   let page = 0;
   const verifier = createGitHubVerifier({
