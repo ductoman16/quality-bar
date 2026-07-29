@@ -74,6 +74,16 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
   return createGitHubService(durableCore, {
     ...githubAutomaticEvaluationTestDependencies,
     ...options,
+    ...(options.verifier
+      ? {
+          verifier: {
+            ...options.verifier,
+            publishCommitStatus:
+              options.verifier.publishCommitStatus ??
+              async function publishCommitStatus() {},
+          },
+        }
+      : {}),
     storageReserve: availableStorageReserve,
   });
 }

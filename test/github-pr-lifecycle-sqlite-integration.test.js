@@ -265,6 +265,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
     DROP TRIGGER github_automatic_evaluation_matches_evaluation;
     DROP TRIGGER applicability_selection_closed_insert;
     DROP TRIGGER applicability_result_closed_insert;
+    DROP TRIGGER waiver_adjudication_evaluation_insert;
     ${LEGACY_EVALUATION_SCHEMA}
     INSERT INTO evaluations_v35 SELECT * FROM evaluations;
     DROP TABLE evaluations;
@@ -332,7 +333,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 37);
+  assert.equal(migrated.facts.schemaVersion, 38);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

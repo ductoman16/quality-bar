@@ -14,6 +14,22 @@ test("queue admission seals one nonempty Waiver Adjudication Request set", () =>
   const core = openDurableCore(join(directory, "quality-bar.sqlite"));
   try {
     seedCompletedEvaluation(core);
+    assert.throws(
+      () =>
+        core.run(
+          "INSERT INTO waiver_requests (id, evaluation_id, finding_id, rationale, requester_channel, created_at) VALUES ('blocking-request', 'evaluation-1', 'finding-blocking', 'Contradictory', 'browser_session', 3)",
+        ),
+      /waiver_request_finding_ineligible/,
+    );
+    assert.throws(
+      () =>
+        core.run(
+          "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at) VALUES ('mismatched-adjudication', 'evaluation-1', ?, ?, 'gpt-5.6-terra', 'high', 'standard', 'queued', 3)",
+          "c".repeat(40),
+          "d".repeat(40),
+        ),
+      /waiver_adjudication_evaluation_invalid/,
+    );
     for (const [id, findingId] of [
       ["selected-request", "finding-1"],
       ["late-request", "finding-2"],

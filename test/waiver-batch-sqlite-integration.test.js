@@ -167,6 +167,19 @@ test("durable waiver identities cannot cross Evaluations and one Request may be 
       () => core.run("DELETE FROM review_runs WHERE id = 'guarded-run'"),
       /codex_execution_queue_reference_in_use/,
     );
+    assert.throws(
+      () =>
+        core.run(
+          "UPDATE review_runs SET id = 'orphaned-run' WHERE id = 'guarded-run'",
+        ),
+      /review_run_identity_immutable/,
+    );
+    assert.deepEqual(
+      core.get(
+        "SELECT work_id, work_kind FROM codex_execution_queue WHERE work_id = 'guarded-run'",
+      ),
+      { work_id: "guarded-run", work_kind: "review_run" },
+    );
   } finally {
     core.close();
     rmSync(directory, { force: true, recursive: true });

@@ -59,6 +59,21 @@ export const WAIVER_BATCH_SCHEMA = `
         AND findings.evaluation_id = NEW.evaluation_id
     )
     BEGIN SELECT RAISE(ABORT, 'waiver_request_evaluation_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_request_advisory_insert
+    BEFORE INSERT ON waiver_requests
+    WHEN NOT EXISTS (
+      SELECT 1
+      FROM findings
+      JOIN review_runs
+        ON review_runs.id = findings.review_run_id
+      JOIN review_version_criteria
+        ON review_version_criteria.review_version_id =
+             review_runs.review_version_id
+       AND review_version_criteria.criterion_id = findings.criterion_id
+      WHERE findings.id = NEW.finding_id
+        AND review_version_criteria.impact = 'advisory'
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_finding_ineligible'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_request_immutable_delete
     BEFORE DELETE ON waiver_requests
     BEGIN SELECT RAISE(ABORT, 'waiver_request_immutable'); END;
@@ -67,6 +82,15 @@ export const WAIVER_BATCH_SCHEMA = `
       reasoning_effort, service_tier, created_at
     ON waiver_adjudications
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_evaluation_insert
+    BEFORE INSERT ON waiver_adjudications
+    WHEN NOT EXISTS (
+      SELECT 1 FROM evaluations
+      WHERE id = NEW.evaluation_id
+        AND base_commit = NEW.base_commit
+        AND head_commit = NEW.head_commit
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_evaluation_invalid'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_seal_update
     BEFORE UPDATE OF requests_sealed_at ON waiver_adjudications
     WHEN OLD.requests_sealed_at IS NOT NULL

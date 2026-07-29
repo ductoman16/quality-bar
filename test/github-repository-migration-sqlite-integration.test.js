@@ -82,6 +82,9 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
     ]),
     1_000,
   );
+  prior.run("DROP TRIGGER github_commit_status_admit");
+  prior.run("DROP TRIGGER github_commit_status_complete");
+  prior.run("DROP TABLE github_commit_statuses");
   prior.run("DROP TABLE github_repositories");
   prior.run("DROP TRIGGER github_connection_verification_immutable_update");
   prior.run("DROP TRIGGER github_connection_verification_immutable_delete");
@@ -141,7 +144,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 37);
+  assert.equal(migrated.facts.schemaVersion, 38);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",

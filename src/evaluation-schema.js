@@ -12,6 +12,7 @@ import {
 } from "./evaluation-cancellation-schema.js";
 import { CODEX_EXECUTION_QUEUE_TRIGGERS } from "./codex-execution-queue-schema.js";
 import { GITHUB_AUTOMATIC_EVALUATION_SCHEMA } from "./github-automatic-evaluation-schema.js";
+import { GITHUB_COMMIT_STATUS_SCHEMA } from "./github-commit-status-schema.js";
 
 export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
 export { evaluationCancellationMigration } from "./evaluation-cancellation-schema.js";
@@ -54,6 +55,7 @@ export const EVALUATION_SCHEMA = `
       CHECK (outcome IN ('clear', 'advisory', 'blocking', 'error')),
     completed_at INTEGER NOT NULL
   ) STRICT;
+  ${GITHUB_COMMIT_STATUS_SCHEMA}
   CREATE UNIQUE INDEX IF NOT EXISTS review_versions_applicability_identity
     ON review_versions (id, review_id);
   ${APPLICABILITY_RESULT_SCHEMA}
@@ -212,6 +214,7 @@ export const EVALUATION_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'review_run_version_mismatch'); END;
   CREATE TRIGGER IF NOT EXISTS review_run_frozen_identity_update
     BEFORE UPDATE OF
+      id,
       evaluation_id,
       review_id,
       review_version_id,

@@ -55,7 +55,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 37);
+    assert.equal(migrated.facts.schemaVersion, 38);
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -85,13 +85,63 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
   }
 });
 
-for (const version of [28, 36]) {
+for (const version of [28, 36, 37]) {
   test(`schema v${version} widens the fixed queue before accepting Waiver Adjudications`, () => {
     const directory = mkdtempSync(
       join(tmpdir(), "quality-bar-waiver-migrate-"),
     );
     const databasePath = join(directory, "quality-bar.sqlite");
     const prior = openDurableCore(databasePath);
+    if (version === 37) {
+      seedCompletedEvaluation(prior);
+      prior.run(
+        `INSERT INTO github_connections (
+           id, app_id, app_slug, installation_id,
+           principal_id, principal_login, api_profile,
+           permissions, capabilities, repository_count,
+           created_at, verified_at
+         ) VALUES (
+           'connection-1', 47, 'quality-bar', 73,
+           91, 'operator', 'github-rest:2026-03-10',
+           '{}', '{}', 1, 1, 1
+         )`,
+      );
+      prior.run(
+        `INSERT INTO github_connection_verifications (
+           id, connection_id, trigger, outcome, api_profile,
+           principal_id, principal_login, permissions, capabilities,
+           affected_repository_ids, repository_checks, repositories,
+           verified_at
+         ) VALUES (
+           'verification-1', 'connection-1', 'onboarding', 'success',
+           'github-rest:2026-03-10', 91, 'operator', '{}', '{}',
+           '[101]', '[{"repository_id":101,"outcome":"success"}]',
+           '[{"api_url":"https://api.github.com/repos/operator/repository","clone_url":"https://github.com/operator/repository.git","full_name":"operator/repository","html_url":"https://github.com/operator/repository","id":101,"private":true}]',
+           1
+         )`,
+      );
+      prior.run(
+        `INSERT INTO github_repositories (
+           repository_id, connection_id, verification_id,
+           forge_repository_id, name, api_url, web_url
+         ) VALUES (
+           'repository-1', 'connection-1', 'verification-1',
+           101, 'operator/repository',
+           'https://api.github.com/repos/operator/repository',
+           'https://github.com/operator/repository'
+         )`,
+      );
+      prior.run(
+        `INSERT INTO github_commit_statuses (
+           repository_id, head_commit, evaluation_id,
+           desired_state, publication_status, published_state, published_at
+         ) VALUES (
+           'repository-1', ?, 'evaluation-1',
+           'failure', 'succeeded', 'failure', 3
+         )`,
+        "b".repeat(40),
+      );
+    }
     prior.transaction((transaction) => {
       transaction.run("DROP INDEX codex_execution_queue_ready");
       transaction.run("DROP INDEX codex_execution_queue_worker");
@@ -147,7 +197,7 @@ for (const version of [28, 36]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 37);
+      assert.equal(migrated.facts.schemaVersion, 38);
       assert.match(
         String(
           migrated.get(
@@ -156,7 +206,25 @@ for (const version of [28, 36]) {
         ),
         /waiver_adjudication/,
       );
-      seedCompletedEvaluation(migrated);
+      if (version === 37) {
+        assert.deepEqual(
+          migrated.get(
+            `SELECT evaluation_id, desired_state, publication_status,
+                    published_state, published_at
+             FROM github_commit_statuses
+             WHERE repository_id = 'repository-1'`,
+          ),
+          {
+            desired_state: "failure",
+            evaluation_id: "evaluation-1",
+            publication_status: "succeeded",
+            published_at: 3,
+            published_state: "failure",
+          },
+        );
+      } else {
+        seedCompletedEvaluation(migrated);
+      }
       const accepted = createWaiverBatchService(migrated, {
         createAdjudicationId: () => "migrated-adjudication",
         createRequestId: () => "migrated-request",

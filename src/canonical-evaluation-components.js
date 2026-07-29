@@ -51,6 +51,52 @@ export function canonicalEvaluationSchemas() {
         completed_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
         },
+        commit_status: closedObject(
+          {
+            context: { const: "Quality Bar", type: "string" },
+            error: {
+              oneOf: [
+                closedObject(
+                  {
+                    code: {
+                      pattern: "^[a-z][a-z0-9_]*$",
+                      type: "string",
+                    },
+                    detail: { minLength: 1, type: "string" },
+                  },
+                  ["code", "detail"],
+                ),
+                { type: "null" },
+              ],
+            },
+            head_commit: {
+              pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+              type: "string",
+            },
+            publication_status: {
+              enum: ["waiting", "succeeded", "unavailable"],
+              type: "string",
+            },
+            published_at: {
+              oneOf: [
+                { format: "date-time", type: "string" },
+                { type: "null" },
+              ],
+            },
+            state: {
+              enum: ["pending", "success", "failure", "error"],
+              type: "string",
+            },
+          },
+          [
+            "context",
+            "head_commit",
+            "state",
+            "publication_status",
+            "published_at",
+            "error",
+          ],
+        ),
         created_at: { format: "date-time", type: "string" },
         effective_outcome: {
           enum: ["pending", "clear", "advisory", "blocking", "error"],
