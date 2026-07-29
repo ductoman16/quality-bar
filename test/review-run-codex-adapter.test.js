@@ -100,8 +100,28 @@ test("maps process completion without an accepted Result to exact owning failure
           run,
           spawnProcess: () => /** @type {any} */ (processThatExits(code)),
         }),
-      (error) =>
-        error instanceof ReviewRunExecutionError && error.code === expected,
+      (error) => {
+        assert.ok(error instanceof ReviewRunExecutionError);
+        assert.equal(error.code, expected);
+        if (code !== 0) {
+          const cause = /** @type {any} */ (error.cause);
+          assert.deepEqual(
+            {
+              code: cause?.code,
+              signal: cause?.signal,
+              stderr: cause?.stderr,
+              stdout: cause?.stdout,
+            },
+            {
+              code,
+              signal: null,
+              stderr: "",
+              stdout: "",
+            },
+          );
+        }
+        return true;
+      },
     );
   }
 });

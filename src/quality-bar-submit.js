@@ -14,7 +14,7 @@ if (
   socketPath.length === 0 ||
   typeof token !== "string" ||
   token.length === 0 ||
-  process.argv.length !== 2
+  process.argv.length > 3
 ) {
   fail(
     "submission_channel_unavailable: Review Run submission channel is unavailable",
@@ -23,7 +23,9 @@ if (
   /** @type {unknown} */
   let candidate;
   try {
-    candidate = JSON.parse(readFileSync(0, { encoding: "utf8" }));
+    candidate = JSON.parse(
+      readFileSync(process.argv[2] ?? 0, { encoding: "utf8" }),
+    );
   } catch {
     fail(
       "review_run_submission_invalid: Review Run submission is not valid JSON",

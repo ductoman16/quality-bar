@@ -4,6 +4,25 @@ import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
+class CodexProcessExitError extends Error {
+  /**
+   * @param {{
+   *   code: number | null,
+   *   signal: NodeJS.Signals | null,
+   *   stderr: string,
+   *   stdout: string
+   * }} result
+   */
+  constructor(result) {
+    super("Codex Review Run process exited unsuccessfully");
+    this.name = "CodexProcessExitError";
+    this.code = result.code;
+    this.signal = result.signal;
+    this.stderr = result.stderr;
+    this.stdout = result.stdout;
+  }
+}
+
 /**
  * @param {string} code
  * @param {string} message
@@ -101,11 +120,17 @@ export async function runReviewRunCodex({
         reject(error);
         return;
       }
-      child.stdout?.resume();
-      child.stderr?.resume();
+      let stdout = "";
+      let stderr = "";
+      child.stdout?.setEncoding("utf8").on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr?.setEncoding("utf8").on("data", (chunk) => {
+        stderr += chunk;
+      });
       child.once("error", reject);
       child.once("exit", (code, signal) => {
-        resolve({ code, signal });
+        resolve({ code, signal, stderr, stdout });
       });
     }).catch((cause) =>
       fail(
@@ -126,7 +151,11 @@ export async function runReviewRunCodex({
           "Codex Review Run exited without an accepted Result",
         );
       }
-      fail("codex_process_failed", "Codex Review Run process failed");
+      fail(
+        "codex_process_failed",
+        "Codex Review Run process failed",
+        new CodexProcessExitError(processResult),
+      );
     }
   } finally {
     await channel.close();

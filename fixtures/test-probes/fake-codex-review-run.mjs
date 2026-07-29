@@ -37,9 +37,13 @@ try {
 if (!invalidFailure.includes("criterion_result_coverage_invalid")) {
   throw new Error("fake_codex_invalid_submission_was_not_rejected");
 }
-execFileSync(process.execPath, [submitPath], {
-  input: JSON.stringify({
+const resultPath = "candidate-result.json";
+writeFileSync(
+  resultPath,
+  JSON.stringify({
     criterion_results: [{ criterion_id: criterion, outcome: "clear" }],
   }),
+);
+execFileSync(process.execPath, [submitPath, resultPath], {
   stdio: ["pipe", "pipe", "pipe"],
 });
