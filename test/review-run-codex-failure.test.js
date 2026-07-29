@@ -41,8 +41,8 @@ function processThatExitsWithStderr(stderr) {
   return process;
 }
 
-/** @param {{failure?: Error | null}} [options] */
-function channel({ failure = null } = {}) {
+/** @param {{failure?: Error | null, result?: "failed"}} [options] */
+function channel({ failure = null, result } = {}) {
   return {
     accepted: () => false,
     async close() {},
@@ -53,7 +53,8 @@ function channel({ failure = null } = {}) {
     },
     failure: () => failure,
     lastValidationFailure: () => null,
-    waitForResult: () => new Promise(() => {}),
+    waitForResult: () =>
+      result === "failed" ? Promise.resolve(result) : new Promise(() => {}),
   };
 }
 
@@ -244,6 +245,26 @@ test("maps an uncoded submission-channel failure without exposing its detail", a
       assert.equal(error.message, "Review Run submission failed");
       assert.equal(error.cause, submissionFailure);
       assert.doesNotMatch(error.message, /secret/);
+      return true;
+    },
+  );
+});
+
+test("maps a failed submission terminal without a channel failure", async () => {
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () => channel({ result: "failed" }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (processThatExitsWithStderr("")),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "submission_failed");
+      assert.equal(error.message, "Review Run submission failed");
       return true;
     },
   );

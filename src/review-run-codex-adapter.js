@@ -380,7 +380,9 @@ export async function runReviewRunCodex({
       throw createSubmissionFailure(submissionFailure);
     }
     if (terminal.kind === "submission" && terminal.result === "failed") {
-      throw new TypeError("Review Run submission failed");
+      throw createSubmissionFailure(
+        new TypeError("Review Run submission failed"),
+      );
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

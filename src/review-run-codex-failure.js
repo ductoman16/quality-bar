@@ -1,4 +1,5 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
+import { CodexProcessExitError } from "./review-run-codex-command.js";
 
 export const REVIEW_RUN_TERMINAL_FAILURE_CODES = Object.freeze([
   "authentication_failed",
@@ -54,18 +55,6 @@ function isRecord(value) {
     typeof value === "object" &&
     Object.getPrototypeOf(value) === Object.prototype
   );
-}
-
-class CodexProcessExitError extends Error {
-  /** @param {{code: number | null, signal: NodeJS.Signals | null, stderr: string, stdout: string}} result */
-  constructor(result) {
-    super("Codex Review Run process exited unsuccessfully");
-    this.name = "CodexProcessExitError";
-    this.code = result.code;
-    this.signal = result.signal;
-    this.stderr = result.stderr;
-    this.stdout = result.stdout;
-  }
 }
 
 /** @param {string} detail */
