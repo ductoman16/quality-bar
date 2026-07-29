@@ -177,6 +177,8 @@ test("Repository discovery surfaces its exact owning unavailability without a pa
 });
 
 test("an authenticated operator rotates a Generic credential through the secret-free canonical Repository resource", async () => {
+  /** @type {string[]} */
+  const logs = [];
   /** @type {object[]} */
   const verifications = [];
   const { request } = await startApplication({
@@ -193,6 +195,9 @@ test("an authenticated operator rotates a Generic credential through the secret-
           }
         },
       });
+    },
+    writeLog(line) {
+      logs.push(line);
     },
   });
   const headers = await authenticatedOperatorHeaders(request);
@@ -295,7 +300,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
     "Repository credential rotation failed",
   );
   assert.doesNotMatch(
-    JSON.stringify(unexpectedBody),
-    /unexpected-sensitive-token|unexpected-sensitive-operator/,
+    JSON.stringify({ logs, response: unexpectedBody }),
+    /original-private-token|original-operator|replacement-private-token|replacement-operator|unexpected-sensitive-token|unexpected-sensitive-operator/,
   );
 });

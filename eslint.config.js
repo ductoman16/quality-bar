@@ -138,6 +138,7 @@ export default [
       "src/operator-password-bootstrap.js",
       "src/quality-bar-submit.js",
       "src/recover-operator-authority.js",
+      "src/review-run-codex-adapter.js",
       "src/restore-backup.js",
       "fixtures/test-probes/fake-codex-review-run.mjs",
       "test/operator-browser-smoke.test.js",

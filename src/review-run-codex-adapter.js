@@ -1,8 +1,22 @@
 import { spawn } from "node:child_process";
+import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
+
+const CODEX_HOST_ENVIRONMENT = Object.freeze([
+  "CODEX_HOME",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "NODE_EXTRA_CA_CERTS",
+  "PATH",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
+  "TMPDIR",
+  "XDG_CONFIG_HOME",
+]);
 
 class CodexProcessExitError extends Error {
   /**
@@ -50,22 +64,61 @@ export function reviewRunCodexArguments(candidate) {
     throw new TypeError("Review Run Codex input is invalid");
   }
   return [
-    "--ignore-user-config",
     "--model",
     configuration.model,
     "--config",
     `model_reasoning_effort="${configuration.reasoning_effort}"`,
     "--config",
     `service_tier="${configuration.service_tier}"`,
+    "--config",
+    "project_doc_max_bytes=0",
     "exec",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--json",
     "--sandbox",
     "workspace-write",
     "--config",
     'approval_policy="never"',
     "--config",
     "sandbox_workspace_write.network_access=false",
+    "--config",
+    "shell_environment_policy.ignore_default_excludes=true",
+    "--config",
+    "allow_login_shell=false",
     input.prompt,
   ];
+}
+
+/**
+ * @param {Record<string, string>} submissionEnvironment
+ * @param {string} commandDirectory
+ * @param {NodeJS.ProcessEnv} [processEnvironment]
+ */
+export function reviewRunCodexEnvironment(
+  submissionEnvironment,
+  commandDirectory,
+  processEnvironment = process.env,
+) {
+  if (
+    typeof commandDirectory !== "string" ||
+    !isAbsolute(commandDirectory) ||
+    commandDirectory.includes("\0")
+  ) {
+    throw new TypeError("Review Run submission command directory is invalid");
+  }
+  /** @type {Record<string, string>} */
+  const environment = {};
+  for (const name of CODEX_HOST_ENVIRONMENT) {
+    const value = processEnvironment[name];
+    if (typeof value === "string" && value.length > 0) {
+      environment[name] = value;
+    }
+  }
+  environment.PATH = environment.PATH
+    ? `${commandDirectory}${delimiter}${environment.PATH}`
+    : commandDirectory;
+  return { ...environment, ...submissionEnvironment };
 }
 
 /**
@@ -80,11 +133,13 @@ export function reviewRunCodexArguments(candidate) {
  *   ) => Promise<{
  *     accepted(): boolean,
  *     close(): Promise<void>,
+ *     commandDirectory: string,
  *     environment: Record<string, string>,
  *     failure(): Error | null
  *   }>,
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
  *   run: unknown,
+ *   processEnvironment?: NodeJS.ProcessEnv,
  *   spawnProcess?: (
  *     command: string,
  *     arguments_: string[],
@@ -98,11 +153,13 @@ export async function runReviewRunCodex({
   codexCommand = "codex",
   codexPrefixArguments = [],
   openSubmissionChannel = openReviewRunSubmissionChannel,
+  processEnvironment = process.env,
   resultService,
   run,
   spawnProcess = spawn,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
+  let executionFailure;
   try {
     const arguments_ = [
       ...codexPrefixArguments,
@@ -113,7 +170,11 @@ export async function runReviewRunCodex({
       try {
         child = spawnProcess(codexCommand, arguments_, {
           cwd: checkoutPath,
-          env: channel.environment,
+          env: reviewRunCodexEnvironment(
+            channel.environment,
+            channel.commandDirectory,
+            processEnvironment,
+          ),
           stdio: ["ignore", "pipe", "pipe"],
         });
       } catch (error) {
@@ -157,7 +218,30 @@ export async function runReviewRunCodex({
         new CodexProcessExitError(processResult),
       );
     }
-  } finally {
+  } catch (error) {
+    executionFailure = error;
+  }
+  let cleanupFailure;
+  try {
     await channel.close();
+  } catch (error) {
+    cleanupFailure = error;
+  }
+  if (executionFailure instanceof Error) {
+    if (cleanupFailure) {
+      Object.defineProperty(
+        executionFailure,
+        "submissionChannelCleanupFailure",
+        {
+          configurable: true,
+          enumerable: false,
+          value: cleanupFailure,
+        },
+      );
+    }
+    throw executionFailure;
+  }
+  if (cleanupFailure) {
+    throw cleanupFailure;
   }
 }

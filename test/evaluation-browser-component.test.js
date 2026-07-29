@@ -180,7 +180,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     },
     window: {
       qualityBarOperator: {
-        csrfToken: () => "csrf-token",
+        csrfToken: () => "browser-csrf-owned-secret",
         async displayMutationFailure() {},
         async readRepositoryCollection() {
           return {
@@ -283,7 +283,7 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
       headers: {
         "content-type": "application/json",
         "idempotency-key": "browser-idempotency-key",
-        "x-quality-bar-csrf": "csrf-token",
+        "x-quality-bar-csrf": "browser-csrf-owned-secret",
       },
       method: "POST",
     },
@@ -292,6 +292,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.equal(
     controls.get("evaluation-create-status").textContent,
     "Evaluation evaluation-created completed.",
+  );
+  assert.doesNotMatch(
+    JSON.stringify([...controls.values()]),
+    /browser-csrf-owned-secret|authorization|cookie/i,
   );
 });
 

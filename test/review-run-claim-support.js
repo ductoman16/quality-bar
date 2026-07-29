@@ -3,14 +3,22 @@ import { createReviewService } from "../src/review.js";
 
 /**
  * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
+ * @param {{baseCommit?: string, headCommit?: string, repositoryUrl?: string}} [options]
  */
-export async function createQueuedReviewRun(core) {
+export async function createQueuedReviewRun(
+  core,
+  {
+    baseCommit = "1".repeat(40),
+    headCommit = "2".repeat(40),
+    repositoryUrl = "https://example.invalid/evaluation-1.git",
+  } = {},
+) {
   const evaluationId = "evaluation-1";
   const reviewRunId = "review-run-1";
   core.run(
     "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
     `repository-${evaluationId}`,
-    `https://example.invalid/${evaluationId}.git`,
+    repositoryUrl,
     1,
     1,
   );
@@ -31,8 +39,8 @@ export async function createQueuedReviewRun(core) {
   });
   await createEvaluationService(core, {
     acquireChangeset: async () => ({
-      base_commit: "1".repeat(40),
-      head_commit: "2".repeat(40),
+      base_commit: baseCommit,
+      head_commit: headCommit,
     }),
     createId: () => evaluationId,
     createReviewRunId: () => reviewRunId,

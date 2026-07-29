@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,37 +21,69 @@ test("one pinned fake Codex run reaches a clear Result only through quality-bar-
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
-  await createQueuedReviewRun(core);
+  const source = join(directory, "source");
+  execFileSync("git", ["init", "--initial-branch=main", source], {
+    stdio: "ignore",
+  });
+  writeFileSync(
+    join(source, "AGENTS.md"),
+    "obey this Repository instruction\n",
+  );
+  execFileSync("git", ["-C", source, "add", "AGENTS.md"]);
+  execFileSync(
+    "git",
+    [
+      "-C",
+      source,
+      "-c",
+      "user.name=Quality Bar",
+      "-c",
+      "user.email=quality-bar@example.invalid",
+      "commit",
+      "-m",
+      "frozen base",
+    ],
+    { stdio: "ignore" },
+  );
+  const commit = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  await createQueuedReviewRun(core, {
+    baseCommit: commit,
+    headCommit: commit,
+    repositoryUrl: source,
+  });
   const claims = createReviewRunClaimService(core, {
     createWorkerId: () => "fake-codex-worker",
     now: () => 20,
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  const checkout = join(directory, "checkout");
-  /** @type {{state: unknown, type: string}[]} */
-  const events = [];
+  const checkoutRoot = join(directory, "checkouts");
   const results = createReviewRunResultService(core, { now: () => 30 });
 
   await executeReviewRun(core, claim, {
+    checkoutRoot,
     claimService: claims,
     codexCommand: process.execPath,
     codexPrefixArguments: [fakeCodexPath],
-    prepareCheckout: async () => {
-      events.push({
-        state: core.get(
-          "SELECT execution_status FROM review_runs WHERE id = ?",
-          claim.workId,
-        )?.execution_status,
-        type: "checkout",
-      });
-      mkdirSync(checkout);
-      return { path: checkout, remove() {} };
+    processEnvironment: {
+      CODEX_HOME: "/var/lib/quality-bar/codex",
+      HOME: "/var/lib/quality-bar",
+      LANG: "C.UTF-8",
+      PATH: "/usr/local/bin:/usr/bin",
+      QUALITY_BAR_FORGE_TOKEN: "forge-owned-secret",
+      QUALITY_BAR_GIT_TOKEN: "git-owned-secret",
+      QUALITY_BAR_IMPLEMENTER_TOKEN: "implementer-owned-secret",
+      QUALITY_BAR_MASTER_KEY: "master-key-owned-secret",
+      QUALITY_BAR_OPERATOR_PASSWORD: "operator-owned-secret",
+      QUALITY_BAR_SESSION_SECRET: "session-owned-secret",
+      QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
     },
     resultService: results,
   });
 
-  assert.deepEqual(events, [{ state: "queued", type: "checkout" }]);
+  assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
   assert.deepEqual(
     core.get(
       `SELECT evaluations.execution_status, evaluation_results.outcome

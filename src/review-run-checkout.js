@@ -2,6 +2,12 @@ import { spawn } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
+import {
+  gitCredentialIsValid,
+  runGitCommand,
+  secureGitConfiguration,
+} from "./secure-git-command.js";
+
 export class ReviewRunCheckoutError extends Error {
   /**
    * @param {string} code
@@ -28,44 +34,29 @@ function checkoutFailed(cause) {
  * @param {string[]} arguments_
  * @param {string} cwd
  * @param {typeof spawn} spawnProcess
+ * @param {{token: string, username: string} | undefined} credential
  */
-function runGit(arguments_, cwd, spawnProcess) {
-  return new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawnProcess("git", arguments_, {
+async function runGit(arguments_, cwd, spawnProcess, credential) {
+  const result =
+    /** @type {{code: number | null, signal: NodeJS.Signals | null, stderr: string}} */ (
+      await runGitCommand({
+        arguments_,
+        captureStdout: false,
+        credential,
         cwd,
-        stdio: ["ignore", "ignore", "pipe"],
-      });
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    let stderr = "";
-    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-      stderr = `${stderr}${chunk}`.slice(-2_048);
-    });
-    child.once("error", reject);
-    child.once("exit", (code, signal) => {
-      if (code === 0 && signal === null) {
-        resolve(undefined);
-        return;
-      }
-      reject(
-        Object.assign(new Error("Git checkout command failed"), {
-          code,
-          signal,
-          stderr,
-        }),
-      );
-    });
-  });
+        spawnProcess,
+      })
+    );
+  if (result.code !== 0 || result.signal !== null) {
+    throw Object.assign(new Error("Git checkout command failed"), result);
+  }
 }
 
 /**
  * @param {{
  *   baseCommit: string,
  *   checkoutRoot: string,
+ *   credential?: {token: string, username: string},
  *   fencingToken: number,
  *   headCommit: string,
  *   repositoryUrl: string,
@@ -76,6 +67,7 @@ function runGit(arguments_, cwd, spawnProcess) {
 export async function prepareReviewRunCheckout({
   baseCommit,
   checkoutRoot,
+  credential,
   fencingToken,
   headCommit,
   repositoryUrl,
@@ -90,6 +82,7 @@ export async function prepareReviewRunCheckout({
     !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(baseCommit) ||
     !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(headCommit) ||
     baseCommit.length !== headCommit.length ||
+    !gitCredentialIsValid(credential) ||
     typeof repositoryUrl !== "string" ||
     repositoryUrl.length === 0
   ) {
@@ -102,6 +95,7 @@ export async function prepareReviewRunCheckout({
     mkdirSync(claimRoot, { recursive: false });
     await runGit(
       [
+        ...secureGitConfiguration(credential, undefined, false),
         "-c",
         "core.hooksPath=/dev/null",
         "-c",
@@ -116,21 +110,31 @@ export async function prepareReviewRunCheckout({
       ],
       claimRoot,
       spawnProcess,
+      credential,
     );
     await runGit(
       ["-C", checkoutPath, "cat-file", "-e", `${baseCommit}^{commit}`],
       claimRoot,
       spawnProcess,
+      undefined,
     );
     await runGit(
       ["-C", checkoutPath, "cat-file", "-e", `${headCommit}^{commit}`],
       claimRoot,
       spawnProcess,
+      undefined,
     );
     await runGit(
       ["-C", checkoutPath, "checkout", "--quiet", "--detach", headCommit],
       claimRoot,
       spawnProcess,
+      undefined,
+    );
+    await runGit(
+      ["-C", checkoutPath, "remote", "remove", "origin"],
+      claimRoot,
+      spawnProcess,
+      undefined,
     );
   } catch (cause) {
     try {

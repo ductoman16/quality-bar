@@ -3,7 +3,8 @@ import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-defin
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   {
     name: "review-run-execution-unit",
-    testGroup: "review-run-pre-start-and-codex-submission-boundaries",
+    testGroup:
+      "review-run-pre-start-prompt-credential-exclusion-and-codex-submission-boundaries",
     failureCode: "review_run_execution_unit_tests_failed",
     arguments: [
       "--test",
@@ -20,13 +21,15 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   },
   {
     name: "review-run-checkout-git-integration",
-    testGroup: "fresh-disposable-frozen-commit-checkout-boundary",
+    testGroup:
+      "fresh-writable-disposable-frozen-commit-and-credential-free-checkout-boundary",
     failureCode: "review_run_checkout_git_integration_tests_failed",
     arguments: ["--test", "test/review-run-checkout-git-integration.test.js"],
   },
   {
     name: "review-run-result-sqlite-integration",
-    testGroup: "first-valid-fenced-clear-result-and-v25-migration-boundary",
+    testGroup:
+      "first-valid-fenced-clear-result-no-fallback-boundary-failure-and-v25-migration-boundary",
     failureCode: "review_run_result_sqlite_integration_tests_failed",
     arguments: [
       "--test",

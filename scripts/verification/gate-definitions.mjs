@@ -253,7 +253,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-storage-reserve-review-assignment-version-repository-guidance-lifecycle-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-ordinary-result-response-storage-reserve-review-assignment-version-repository-guidance-lifecycle-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -349,7 +349,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-machine-repository-guidance-repository-lifecycle-and-forgejo-connection-lifecycle-http-resource-boundary",
+        "review-assignment-version-machine-repository-guidance-repository-lifecycle-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
