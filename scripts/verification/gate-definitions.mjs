@@ -9,7 +9,11 @@ import {
 } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
-import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
+import {
+  NODE_OWNERSHIP_LINT_PROOF_GATE,
+  PRODUCTION_TYPE_CHECK_PROOF_GATE,
+  PROOF_CODE_TYPE_CHECK_PROOF_GATE,
+} from "./proof-gate-definitions.mjs";
 import { createOpenApiRuntimeConformanceGate } from "./openapi-runtime-conformance-gate.mjs";
 import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
@@ -232,6 +236,7 @@ export function createGateDefinitions(metadata) {
         "test/repository-collection.test.js",
         "test/repository-selector.test.js",
         "test/review-archival.test.js",
+        "test/review-deletion.test.js",
         "test/review-selection.test.js",
         "test/repository-guidance.test.js",
         "test/mcp-contract.test.js",
@@ -266,6 +271,7 @@ export function createGateDefinitions(metadata) {
         "test/review-create-browser-component.test.js",
         "test/review-criterion-retirement-browser-component.test.js",
         "test/review-archival-browser-component.test.js",
+        "test/review-delete-browser-component.test.js",
         "test/review-applicability-rule-browser-component.test.js",
         "test/review-assignment-browser-component.test.js",
         "test/repository-guidance-browser-component.test.js",
@@ -324,6 +330,7 @@ export function createGateDefinitions(metadata) {
         "--test",
         "test/review-criterion-identity.test.js",
         "test/review-archival-sqlite-integration.test.js",
+        "test/review-removal-sqlite-integration.test.js",
         "test/review-applicability-rule-sqlite-integration.test.js",
         "test/review-assignment-sqlite-integration.test.js",
         "test/repository-guidance-sqlite-integration.test.js",
@@ -356,6 +363,7 @@ export function createGateDefinitions(metadata) {
         ...repositoryGateTests.http,
         "test/review-authorization-http-integration.test.js",
         "test/review-archival-http-integration.test.js",
+        "test/review-removal-http-integration.test.js",
         "test/review-applicability-rule-http-integration.test.js",
         "test/review-assignment-http-integration.test.js",
         "test/review-criterion-retirement-http-integration.test.js",
@@ -413,18 +421,8 @@ export function createGateDefinitions(metadata) {
       arguments: ["--test", "test/core-js-lint-gate.test.js"],
     },
     NODE_OWNERSHIP_LINT_PROOF_GATE,
-    {
-      name: "production-type-check-proof",
-      testGroup: "production-node-and-served-browser-javascript",
-      failureCode: "production_type_check_proof_failed",
-      arguments: ["--test", "test/javascript-type-check-gate.test.js"],
-    },
-    {
-      name: "proof-code-type-check-proof",
-      testGroup: "maintained-test-verification-and-proof-javascript",
-      failureCode: "proof_code_type_check_proof_failed",
-      arguments: ["--test", "test/test-verification-type-check-gate.test.js"],
-    },
+    PRODUCTION_TYPE_CHECK_PROOF_GATE,
+    PROOF_CODE_TYPE_CHECK_PROOF_GATE,
     APPLICATION_COVERAGE_PROOF_GATE,
   ];
 }

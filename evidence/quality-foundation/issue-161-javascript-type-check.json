@@ -24,6 +24,7 @@
     "review-version.js",
     "review-reactivation.js",
     "review-archival.js",
+    "review-delete.js",
     "review-assignment.js"
   ],
   "initial_production_diagnostics": [

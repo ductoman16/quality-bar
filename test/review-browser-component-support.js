@@ -7,6 +7,7 @@ export function browserElement(properties = {}) {
     disabled: false,
     focused: false,
     hidden: false,
+    open: false,
     textContent: "",
     value: "",
     ...properties,
@@ -16,6 +17,9 @@ export function browserElement(properties = {}) {
     },
     focus() {
       this.focused = true;
+    },
+    close() {
+      this.open = false;
     },
     /** @param {...unknown} children */
     replaceChildren(...children) {
@@ -28,6 +32,9 @@ export function browserElement(properties = {}) {
         value,
         writable: true,
       });
+    },
+    showModal() {
+      this.open = true;
     },
     /** @param {string} name */
     listener(name) {
@@ -75,6 +82,7 @@ export function reviewResource(metadata) {
     active_version: activeVersion,
     archived: false,
     assignment: { scope: "installation_wide" },
+    deletion_eligible: true,
     ...metadata,
     versions: [activeVersion],
   };

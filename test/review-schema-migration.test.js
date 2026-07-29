@@ -41,7 +41,7 @@ test("migrates a genuine pre-Review v5 database to Repository-scoped Assignments
     legacy.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 29);
+    assert.equal(migrated.facts.schemaVersion, 30);
     migrated.run(
       "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
       "repository-1",
@@ -137,6 +137,7 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
         1,
       );
       for (const trigger of [
+        "review_hard_delete_lineage",
         "review_version_criteria_immutable_update",
         "review_version_criteria_immutable_delete",
         "review_version_criteria_immutable_insert",
@@ -194,7 +195,7 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 29);
+    assert.equal(migrated.facts.schemaVersion, 30);
     assert.deepEqual(
       migrated.get("SELECT archived_at FROM reviews WHERE id = ?", "review-1"),
       { archived_at: null },

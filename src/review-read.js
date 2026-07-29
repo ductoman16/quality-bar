@@ -81,6 +81,7 @@ export function readReview(transaction, reviewId) {
        reviews.description,
        reviews.active_version_id,
        reviews.archived_at,
+       reviews.hard_delete_pending,
        review_assignments.scope
      FROM reviews
      JOIN review_assignments ON review_assignments.review_id = reviews.id
@@ -146,6 +147,16 @@ export function readReview(transaction, reviewId) {
     active_version: activeVersion,
     archived: review.archived_at !== null,
     assignment,
+    deletion_eligible:
+      transaction.get(
+        `SELECT 1 AS used
+         FROM review_runs
+         JOIN review_versions
+           ON review_versions.id = review_runs.review_version_id
+         WHERE review_versions.review_id = ?
+         LIMIT 1`,
+        reviewId,
+      ) === undefined,
     description: review.description,
     id: review.id,
     name: review.name,

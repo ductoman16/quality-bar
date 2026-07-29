@@ -13,12 +13,19 @@ export function migrateSchema(
     .all()
     .some((column) => column.name === "has_been_used");
   const migrationCreatesUsageMarker = statements.includes("has_been_used");
+  const reviewHasDeletionMarker = database
+    .prepare("PRAGMA table_info(reviews)")
+    .all()
+    .some((column) => column.name === "hard_delete_pending");
+  const migrationCreatesDeletionMarker = statements.includes(
+    "hard_delete_pending",
+  );
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${EVALUATION_SCHEMA}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -28,7 +35,7 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 29;
+export const CURRENT_SCHEMA_VERSION = 30;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -37,6 +44,10 @@ import {
   REPOSITORY_USAGE_INTEGRITY,
   REPOSITORY_USAGE_MIGRATION,
 } from "./repository-schema.js";
+import {
+  REVIEW_DELETION_COLUMN_MIGRATION,
+  REVIEW_DELETION_INTEGRITY,
+} from "./review-deletion-schema.js";
 
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (

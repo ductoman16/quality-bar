@@ -1,7 +1,10 @@
 import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { assertApiQueryParameters } from "./api-query.js";
-import { apiResourceMatches } from "./api-resource-matches.js";
+import {
+  apiResourceMatches,
+  isOperatorOnlyApiRoute,
+} from "./api-resource-matches.js";
 import { canonicalOpenApiDocument } from "./canonical-api.js";
 import {
   browserMutationFailureStatus,
@@ -19,6 +22,7 @@ import { writeRepositoryList } from "./repository-list-route.js";
 import { writeRepositoryDeletion } from "./repository-delete-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
 import { writeReviewList } from "./review-list-route.js";
+import { writeReviewDeletion } from "./review-delete-route.js";
 import { writeError, writeJson } from "./http-response.js";
 
 /** @param {import("./api-route-contract.js").ApiRouteDependencies} dependencies */
@@ -56,32 +60,22 @@ export function createApiRoute({
     if (path !== "/api/v1" && !path.startsWith("/api/v1/")) {
       return false;
     }
+    const matches = apiResourceMatches(path);
     const {
       repositoryMatch,
       repositoryCredentialRotationMatch,
       repositoryGuidanceMatch,
       repositoryLifecycleMatch,
+      reviewMatch,
       reviewActiveVersionMatch,
       reviewArchivalMatch,
       reviewAssignmentId,
       reviewMetadataMatch,
       reviewVersionsMatch,
-    } = apiResourceMatches(path);
+    } = matches;
     if (
       authority === "machine" &&
-      ((method === "GET" && path === "/api/v1/reviews") ||
-        (method === "POST" && path === "/api/v1/reviews") ||
-        (method === "PATCH" && reviewMetadataMatch) ||
-        (method === "PATCH" && reviewArchivalMatch) ||
-        (method === "PATCH" && reviewAssignmentId) ||
-        (method === "PATCH" && reviewActiveVersionMatch) ||
-        (method === "POST" && reviewVersionsMatch) ||
-        (method === "POST" && path === "/api/v1/repositories") ||
-        (method === "DELETE" && repositoryMatch) ||
-        (method === "POST" && repositoryCredentialRotationMatch) ||
-        (method === "PATCH" && repositoryLifecycleMatch) ||
-        path.startsWith("/api/v1/github-connections") ||
-        path.startsWith("/api/v1/forgejo-connections"))
+      isOperatorOnlyApiRoute(method, path, matches)
     ) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
@@ -94,12 +88,13 @@ export function createApiRoute({
       return true;
     }
     if (
-      await handleGitHubConnection(request, response, requestUrl, authority)
-    ) {
-      return true;
-    }
-    if (
-      await handleForgejoConnection(request, response, requestUrl, authority)
+      (await handleGitHubConnection(
+        request,
+        response,
+        requestUrl,
+        authority,
+      )) ||
+      (await handleForgejoConnection(request, response, requestUrl, authority))
     ) {
       return true;
     }
@@ -234,6 +229,16 @@ export function createApiRoute({
               ? 503
               : 422,
         unexpectedMessage: "Repository registration failed",
+      });
+      return true;
+    }
+    if (method === "DELETE" && reviewMatch) {
+      await writeReviewDeletion(request, response, {
+        browserOrigin,
+        browserSessions,
+        reviews,
+        encodedReviewId: reviewMatch[1],
+        requestUrl,
       });
       return true;
     }

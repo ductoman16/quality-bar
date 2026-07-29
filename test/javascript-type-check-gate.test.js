@@ -5,9 +5,21 @@ import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import { test } from "node:test";
 
+import { createGateDefinitions } from "../scripts/verification/gate-definitions.mjs";
 import { BROWSER_ASSET_SOURCE_PATHS } from "../src/browser-assets.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
+const verificationMetadata = Object.freeze({
+  applicationVersion: "1.2.3",
+  coverageToolVersion: "12.0.0",
+  eslintPluginNodeVersion: "18.2.2",
+  eslintVersion: "9.39.1",
+  formatterVersion: "3.7.4",
+  jsonSchemaFormatsVersion: "3.0.1",
+  jsonSchemaValidatorVersion: "8.20.0",
+  openApiValidatorVersion: "2.9.0",
+  typeCheckerVersion: "7.0.2",
+});
 
 /** @param {string[]} arguments_ */
 function runTypeScript(arguments_) {
@@ -147,15 +159,21 @@ test("the focused Node and browser JavaScript type checks pass", () => {
 });
 
 test("the canonical verifier owns the production type-check gate and its proof", () => {
-  const definitions = readFileSync(
-    resolve(repositoryRoot, "scripts/verification/gate-definitions.mjs"),
-    "utf8",
+  const definitions = createGateDefinitions(verificationMetadata);
+  const production = definitions.find(
+    ({ name }) => name === "production-type-check",
+  );
+  const proof = definitions.find(
+    ({ name }) => name === "production-type-check-proof",
   );
 
-  assert.match(definitions, /name: "production-type-check"/);
-  assert.match(definitions, /arguments: \["run", "typecheck:production"\]/);
-  assert.match(definitions, /name: "production-type-check-proof"/);
-  assert.match(definitions, /test\/javascript-type-check-gate\.test\.js/);
+  assert.deepEqual(production?.arguments, ["run", "typecheck:production"]);
+  assert.deepEqual(proof, {
+    name: "production-type-check-proof",
+    testGroup: "production-node-and-served-browser-javascript",
+    failureCode: "production_type_check_proof_failed",
+    arguments: ["--test", "test/javascript-type-check-gate.test.js"],
+  });
 });
 
 test("the JavaScript type-check evidence records the complete cleanup", () => {

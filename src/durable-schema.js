@@ -33,6 +33,7 @@ import {
   FINDING_RESULT_MIGRATION,
 } from "./evaluation-schema.js";
 import { reviewRunResultColumnMigration } from "./review-run-result-schema-migration.js";
+import * as reviewDeletionSchema from "./review-deletion-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 const REVIEW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS reviews (
@@ -41,6 +42,8 @@ const REVIEW_SCHEMA = `
     description TEXT NOT NULL CHECK (length(trim(description)) > 0),
     active_version_id TEXT NOT NULL REFERENCES review_versions(id) DEFERRABLE INITIALLY DEFERRED,
     archived_at INTEGER,
+    hard_delete_pending INTEGER NOT NULL DEFAULT 0
+      CHECK (hard_delete_pending IN (0, 1)),
     created_at INTEGER NOT NULL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS review_versions (
@@ -76,20 +79,12 @@ const REVIEW_SCHEMA = `
     BEFORE UPDATE ON review_versions
     WHEN OLD.sealed_at IS NOT NULL OR NEW.sealed_at IS NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS review_versions_immutable_delete
-    BEFORE DELETE ON review_versions
-    BEGIN SELECT RAISE(ABORT, 'review_version_immutable'); END;
+  ${reviewDeletionSchema.REVIEW_DELETION_IMMUTABILITY}
   CREATE TRIGGER IF NOT EXISTS criteria_immutable_update
     BEFORE UPDATE ON criteria
     BEGIN SELECT RAISE(ABORT, 'criterion_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS criteria_immutable_delete
-    BEFORE DELETE ON criteria
-    BEGIN SELECT RAISE(ABORT, 'criterion_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_update
     BEFORE UPDATE ON review_version_criteria
-    BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_delete
-    BEFORE DELETE ON review_version_criteria
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS review_version_criteria_immutable_insert
     BEFORE INSERT ON review_version_criteria
@@ -149,6 +144,7 @@ export function initializeOrValidateSchema(
       ${FORGEJO_POLLING_SCHEMA}
       ${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}
       ${EVALUATION_SCHEMA}
+      ${reviewDeletionSchema.REVIEW_DELETION_LINEAGE_INTEGRITY}
       ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
       INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
       PRAGMA user_version = ${SCHEMA_VERSION};
@@ -360,6 +356,8 @@ export function initializeOrValidateSchema(
       `${reviewRunResultColumnMigration(database)}${CRITERION_RESULT_MEANING_MIGRATION}`,
     );
   } else if (version === 28) {
+    schemaMigration.migrateSchema(database, "");
+  } else if (version === 29) {
     schemaMigration.migrateSchema(database, "");
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
