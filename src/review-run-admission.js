@@ -39,6 +39,7 @@ export function assertReviewRunCapacity(queuedCount, requestedCount) {
  * @param {() => (Error & {code: string}) | null} readCodexCapabilityFailure
  * @param {{file_changes?: unknown}} changeset
  * @param {(pathspec: string, path: string) => boolean} matchesPath
+ * @param {((fileChange: any, side: "before" | "after") => any) | undefined} readContent
  */
 export function selectReviewRunsForAdmission(
   transaction,
@@ -47,6 +48,7 @@ export function selectReviewRunsForAdmission(
   readCodexCapabilityFailure,
   changeset,
   matchesPath,
+  readContent,
 ) {
   const selectedReviews = transaction.all(
     `SELECT reviews.id AS review_id, reviews.active_version_id,
@@ -92,7 +94,10 @@ export function selectReviewRunsForAdmission(
             profile: null,
             source: null,
           }
-        : evaluateApplicabilityRule(rule, changeset, { matchesPath });
+        : evaluateApplicabilityRule(rule, changeset, {
+            matchesPath,
+            readContent,
+          });
     return {
       assignmentScope: /** @type {string} */ (scope),
       ...evaluated,
