@@ -16,6 +16,16 @@ import {
   secureGitConfiguration,
 } from "./secure-git-command.js";
 
+/**
+ * @typedef {{
+ *   base_commit: string,
+ *   head_commit: string,
+ *   file_changes?: ReturnType<typeof fileChangesFromGitNameStatus>,
+ *   matches_path?: (pathspec: string, path: string) => boolean,
+ *   release?: () => void
+ * }} ResolvedPushedCommitSelectors
+ */
+
 /** @param {unknown} cause */
 function unavailable(cause) {
   return new RepositoryError(
@@ -357,9 +367,7 @@ export async function resolvePushedCommitSelectors(
       acquisitionFailure,
     );
   }
-  const frozen = /** @type {{
-   *   base_commit: string,
-   *   head_commit: string,
+  const frozen = /** @type {ResolvedPushedCommitSelectors & {
    *   file_changes: ReturnType<typeof fileChangesFromGitNameStatus>,
    *   matches_path: (pathspec: string, path: string) => boolean,
    *   release: () => void

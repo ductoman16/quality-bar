@@ -220,7 +220,20 @@ test("schema v31 preserves exact File Change kinds while adding durable facts", 
       "src/renamed.js",
       1,
       1,
-      "similarity index 100%\nrename from src/original.js\nrename to src/renamed.js\n",
+      "diff --git a/src/original.js b/src/renamed.js\nsimilarity index 100%\nrename from src/original.js\nrename to src/renamed.js\n",
+    );
+    transaction.run(
+      `INSERT INTO evaluation_file_changes (
+         evaluation_id, id, before_path, after_path,
+         base_line_count, head_line_count, patch
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      "evaluation-1",
+      "file-change-2",
+      "src/old.js",
+      "src/new.js",
+      1,
+      2,
+      "diff --git a/src/old.js b/src/new.js\nsimilarity index 90%\nrename from src/old.js\nrename to src/new.js\n@@ -1 +1,2 @@\n+similarity index 100%\n",
     );
     transaction.run(
       "UPDATE quality_bar_metadata SET value = '31' WHERE key = 'schema_version'",
@@ -233,19 +246,30 @@ test("schema v31 preserves exact File Change kinds while adding durable facts", 
   context.after(() => migrated.close());
   assert.equal(migrated.facts.schemaVersion, 32);
   assert.deepEqual(
-    migrated.get(
+    migrated.all(
       `SELECT added, deleted, modified, renamed,
               before_path, after_path
-       FROM evaluation_file_changes`,
+       FROM evaluation_file_changes
+       ORDER BY id`,
     ),
-    {
-      added: 0,
-      after_path: "src/renamed.js",
-      before_path: "src/original.js",
-      deleted: 0,
-      modified: 0,
-      renamed: 1,
-    },
+    [
+      {
+        added: 0,
+        after_path: "src/renamed.js",
+        before_path: "src/original.js",
+        deleted: 0,
+        modified: 0,
+        renamed: 1,
+      },
+      {
+        added: 0,
+        after_path: "src/new.js",
+        before_path: "src/old.js",
+        deleted: 0,
+        modified: 1,
+        renamed: 1,
+      },
+    ],
   );
   assert.throws(
     () =>

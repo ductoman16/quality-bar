@@ -105,6 +105,7 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
       exec(statements) {
         migration = statements;
       },
+      function() {},
       /** @param {string} sql */
       prepare(sql) {
         return {

@@ -33,6 +33,11 @@ export function migrateSchema(
       .prepare("PRAGMA table_info(evaluation_file_changes)")
       .all()
       .some((column) => column.name === "added");
+  database.function(
+    "quality_bar_legacy_file_change_modified",
+    { deterministic: true },
+    legacyFileChangeModified,
+  );
   database.exec(`
     BEGIN IMMEDIATE;
     ${statements}
@@ -79,6 +84,7 @@ import {
   EVALUATION_FILE_CHANGE_KIND_MIGRATION,
   EVALUATION_SCHEMA,
 } from "./evaluation-schema.js";
+import { legacyFileChangeModified } from "./evaluation-file-change-schema.js";
 import {
   REPOSITORY_USAGE_INTEGRITY,
   REPOSITORY_USAGE_MIGRATION,

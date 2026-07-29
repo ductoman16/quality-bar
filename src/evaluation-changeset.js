@@ -2,7 +2,7 @@
  * @param {(repositoryId: string, request: any) => Promise<any>} acquire
  * @param {string} repositoryId
  * @param {any} request
- * @param {(changeset: any) => any} use
+ * @param {(changeset: any, release: () => void) => any} use
  */
 export async function withAcquiredChangeset(
   acquire,
@@ -11,6 +11,20 @@ export async function withAcquiredChangeset(
   use,
 ) {
   const changeset = await acquire(repositoryId, request);
+  let releaseAttempted = false;
+  const release = () => {
+    if (releaseAttempted) {
+      throw new TypeError("Acquired Changeset release was already attempted");
+    }
+    releaseAttempted = true;
+    if (
+      changeset &&
+      "release" in changeset &&
+      typeof changeset.release === "function"
+    ) {
+      changeset.release();
+    }
+  };
   try {
     if (
       !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(changeset?.base_commit) ||
@@ -19,14 +33,10 @@ export async function withAcquiredChangeset(
     ) {
       throw new TypeError("Acquired Evaluation commits are invalid");
     }
-    return use(changeset);
+    return use(changeset, release);
   } finally {
-    if (
-      changeset &&
-      "release" in changeset &&
-      typeof changeset.release === "function"
-    ) {
-      changeset.release();
+    if (!releaseAttempted) {
+      release();
     }
   }
 }

@@ -1,3 +1,36 @@
+/**
+ * @param {unknown} beforePath
+ * @param {unknown} afterPath
+ * @param {unknown} patch
+ */
+export function legacyFileChangeModified(beforePath, afterPath, patch) {
+  if (
+    !(beforePath === null || typeof beforePath === "string") ||
+    !(afterPath === null || typeof afterPath === "string") ||
+    typeof patch !== "string"
+  ) {
+    throw new TypeError("Legacy File Change facts are invalid");
+  }
+  if (beforePath === null || afterPath === null) {
+    return 0;
+  }
+  if (beforePath === afterPath) {
+    return 1;
+  }
+  const similarityLines = patch
+    .split("\n")
+    .filter((line) => line.startsWith("similarity index "));
+  if (
+    similarityLines.length !== 1 ||
+    !/^similarity index (?:100|[0-9]{1,2})%$/.test(similarityLines[0])
+  ) {
+    throw new TypeError(
+      "Legacy renamed File Change similarity metadata is invalid",
+    );
+  }
+  return similarityLines[0] === "similarity index 100%" ? 0 : 1;
+}
+
 export const EVALUATION_FILE_CHANGE_KIND_MIGRATION = `
   DROP TRIGGER IF EXISTS evaluation_file_change_immutable_update;
   DROP TRIGGER IF EXISTS evaluation_file_change_immutable_delete;
@@ -15,12 +48,11 @@ export const EVALUATION_FILE_CHANGE_KIND_MIGRATION = `
       renamed = before_path IS NOT NULL
         AND after_path IS NOT NULL
         AND before_path <> after_path,
-      modified = before_path IS NOT NULL
-        AND after_path IS NOT NULL
-        AND (
-          before_path = after_path
-          OR instr(patch, 'similarity index 100%') = 0
-        );
+      modified = quality_bar_legacy_file_change_modified(
+        before_path,
+        after_path,
+        patch
+      );
 `;
 
 export const EVALUATION_FILE_CHANGE_SCHEMA = `

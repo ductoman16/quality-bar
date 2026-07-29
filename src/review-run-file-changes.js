@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 
+import { EvaluationError } from "./evaluation-validation.js";
 import { fileChangesFromGitNameStatus } from "./file-change.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
@@ -130,6 +131,15 @@ export function readReviewRunFileChanges(checkoutPath, baseCommit, headCommit) {
       ]),
     }));
   } catch (cause) {
+    if (
+      cause instanceof EvaluationError &&
+      [
+        "evaluation_file_change_invalid",
+        "evaluation_file_change_kind_unsupported",
+      ].includes(cause.code)
+    ) {
+      throw new ReviewRunExecutionError(cause.code, cause.message, { cause });
+    }
     throw new ReviewRunExecutionError(
       "finding_location_changeset_unavailable",
       "Frozen File Changes could not be inspected",

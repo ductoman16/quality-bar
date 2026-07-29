@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-
 import { createEvaluationCollection } from "./evaluation-collection.js";
 import { withAcquiredChangeset } from "./evaluation-changeset.js";
+import { readIdempotentReplay } from "./evaluation-idempotency.js";
 import {
   canonicalExplicitEvaluationRequest,
   EvaluationError,
@@ -79,37 +79,6 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
   evaluation_results.outcome AS result_outcome FROM evaluations
   JOIN repositories ON repositories.id = evaluations.repository_id
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
-
-/**
- * @param {{get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined}} access
- * @param {string} channel
- * @param {string} route
- * @param {string} key
- * @param {string} requestHash
- */
-function readIdempotentReplay(access, channel, route, key, requestHash) {
-  const replay = access.get(
-    `SELECT request_hash, response_status, response_body
-     FROM evaluation_idempotency
-     WHERE channel = ? AND route = ? AND idempotency_key = ?`,
-    channel,
-    route,
-    key,
-  );
-  if (!replay) {
-    return null;
-  }
-  if (replay.request_hash !== requestHash) {
-    failEvaluation(
-      "idempotency_conflict",
-      "Idempotency key was already used with different input",
-    );
-  }
-  return {
-    resource: JSON.parse(/** @type {string} */ (replay.response_body)),
-    status: replay.response_status,
-  };
-}
 
 /**
  * @param {{
@@ -253,7 +222,7 @@ export function createEvaluationService(
         acquireChangeset,
         repositoryId,
         canonicalRequest,
-        (commits) => {
+        (commits, releaseChangeset) => {
           const evaluationId = createId();
           const createdAt = now();
           if (
@@ -384,6 +353,7 @@ export function createEvaluationService(
                 evaluationId,
                 createdAt,
               );
+              releaseChangeset();
               return { resource, status: 201 };
             });
           } catch (error) {

@@ -6,6 +6,7 @@ import {
   evaluateApplicabilityRule,
 } from "../src/applicability-evaluation.js";
 import { EvaluationError } from "../src/evaluation-validation.js";
+import { legacyFileChangeModified } from "../src/evaluation-file-change-schema.js";
 import { fileChangesFromGitNameStatus } from "../src/file-change.js";
 
 /** @param {any} fileChange */
@@ -103,5 +104,17 @@ test("unsupported Git File Change states retain their exact owning error", () =>
       error instanceof EvaluationError &&
       error.code === "evaluation_file_change_kind_unsupported" &&
       error.message === "Git File Change status T is unsupported",
+  );
+});
+
+test("legacy rename migration requires exact Git similarity metadata", () => {
+  assert.throws(
+    () =>
+      legacyFileChangeModified(
+        "src/old.js",
+        "src/new.js",
+        "diff --git a/src/old.js b/src/new.js\n+similarity index 100%\n",
+      ),
+    /Legacy renamed File Change similarity metadata is invalid/,
   );
 });
