@@ -14,6 +14,7 @@ import { test } from "node:test";
 
 import { executeReviewRun } from "../src/review-run-execution.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
@@ -24,7 +25,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"authentication_failure" | "clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "inspect_on_demand"} outcome */
+/** @param {import("node:test").TestContext} context @param {"authentication_failure" | "clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "cancellation" | "inspect_on_demand"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const scenario = fakeCodexScenarios[outcome];
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
@@ -131,6 +132,7 @@ async function proveFakeCodexResult(context, outcome) {
   /** @type {() => void} */
   let forceKill = () => assert.fail("termination timer was not installed");
   let deadlineSubmissionOutcome = "missing";
+  let cancellationSubmissionOutcome = "missing";
   const deadlineEvidence = {
     /** @param {any} evidenceClaim @param {"stdout" | "stderr"} stream @param {string} content */
     appendTranscriptChunk(evidenceClaim, stream, content) {
@@ -149,6 +151,33 @@ async function proveFakeCodexResult(context, outcome) {
     },
     complete: durableEvidence.complete.bind(durableEvidence),
   };
+  const cancellationService = createEvaluationService(core, {
+    acquireChangeset: async () => {
+      throw new Error("unused cancellation acquisition");
+    },
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 25,
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  const cancellationEvidence = {
+    /** @param {any} evidenceClaim @param {"stdout" | "stderr"} stream @param {string} content */
+    appendTranscriptChunk(evidenceClaim, stream, content) {
+      durableEvidence.appendTranscriptChunk(evidenceClaim, stream, content);
+      if (content.includes('"type":"fake.cancellation_ready"')) {
+        queueMicrotask(() => cancellationService.cancel("evaluation-1"));
+      }
+      if (content.includes('"type":"fake.cancellation_submission_rejected"')) {
+        cancellationSubmissionOutcome = "rejected";
+        queueMicrotask(forceKill);
+      }
+      if (content.includes('"type":"fake.cancellation_submission_accepted"')) {
+        cancellationSubmissionOutcome = "accepted";
+        queueMicrotask(forceKill);
+      }
+    },
+    complete: durableEvidence.complete.bind(durableEvidence),
+  };
 
   const execution = () =>
     executeReviewRun(core, claim, {
@@ -157,6 +186,7 @@ async function proveFakeCodexResult(context, outcome) {
       codexCommand: process.execPath,
       codexPrefixArguments: [fakeCodexPath, ...scenario.arguments],
       evidenceService: scenario.createEvidenceService({
+        cancellationEvidence,
         deadlineEvidence,
         durableEvidence,
         evidenceFailure,
@@ -193,6 +223,7 @@ async function proveFakeCodexResult(context, outcome) {
     scenario.verifySpecialResult({
       claim,
       core,
+      cancellationSubmissionOutcome,
       deadlineSubmissionOutcome,
     });
     return;
@@ -316,5 +347,13 @@ test(
   { timeout: 10_000 },
   async (context) => {
     await proveFakeCodexResult(context, "deadline");
+  },
+);
+
+test(
+  "operator cancellation commits before signaling fake Codex and rejects its in-flight submission",
+  { timeout: 10_000 },
+  async (context) => {
+    await proveFakeCodexResult(context, "cancellation");
   },
 );

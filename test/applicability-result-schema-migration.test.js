@@ -49,7 +49,7 @@ test("schema v30 adds Applicability Results without inventing historical facts",
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 33);
+  assert.equal(migrated.facts.schemaVersion, 34);
   assert.deepEqual(
     migrated.get("SELECT count(*) AS count FROM applicability_results"),
     { count: 0 },

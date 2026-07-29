@@ -5,8 +5,14 @@ import {
   EVALUATION_FILE_CHANGE_SCHEMA,
   EVALUATION_FILE_CHANGE_TRIGGERS,
 } from "./evaluation-file-change-schema.js";
+import {
+  EVALUATION_CANCELLATION_CHECK,
+  EVALUATION_CANCELLATION_COLUMNS,
+  EVALUATION_CANCELLATION_TRIGGERS,
+} from "./evaluation-cancellation-schema.js";
 
 export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
+export { evaluationCancellationMigration } from "./evaluation-cancellation-schema.js";
 
 export const EVALUATION_SCHEMA = `
   CREATE TABLE IF NOT EXISTS evaluations (
@@ -28,12 +34,14 @@ export const EVALUATION_SCHEMA = `
     execution_status TEXT NOT NULL
       CHECK (execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
     applicability_sealed_at INTEGER,
+    ${EVALUATION_CANCELLATION_COLUMNS}
     next_attempt_at INTEGER,
     created_at INTEGER NOT NULL,
     completed_at INTEGER,
     CHECK (length(base_commit) = length(head_commit)),
     CHECK (next_attempt_at IS NULL OR execution_status = 'queued'),
-    CHECK (applicability_sealed_at IS NULL OR applicability_sealed_at >= created_at)
+    CHECK (applicability_sealed_at IS NULL OR applicability_sealed_at >= created_at),
+    ${EVALUATION_CANCELLATION_CHECK}
   ) STRICT;
   CREATE INDEX IF NOT EXISTS evaluations_newest
     ON evaluations (created_at DESC, id DESC);
@@ -179,6 +187,7 @@ export const EVALUATION_SCHEMA = `
       created_at
     ON evaluations
     BEGIN SELECT RAISE(ABORT, 'evaluation_identity_immutable'); END;
+  ${EVALUATION_CANCELLATION_TRIGGERS}
   ${APPLICABILITY_SEAL_SCHEMA}
   CREATE TRIGGER IF NOT EXISTS evaluation_result_immutable_update
     BEFORE UPDATE ON evaluation_results

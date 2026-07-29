@@ -87,6 +87,22 @@ export function canonicalEvaluationPaths(errorResponse) {
         security: authenticated,
       },
     },
+    "/api/v1/evaluations/{evaluation_id}/cancel": {
+      post: {
+        operationId: "cancelEvaluation",
+        parameters: [identityParameter],
+        responses: {
+          200: evaluationResponse,
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}/diagnostics":
       {
         get: {

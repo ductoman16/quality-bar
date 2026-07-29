@@ -1,5 +1,6 @@
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
+import { subscribeReviewRunCancellation } from "./evaluation-cancellation.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { createReviewRunEvidenceService } from "./review-run-evidence.js";
 import { readReviewRunFileChanges } from "./review-run-file-changes.js";
@@ -302,30 +303,48 @@ export async function executeReviewRun(
         ...reviewRunWithoutPrompt,
         prompt: createReviewRunPrompt(reviewRunWithoutPrompt),
       };
-      const codexExecution = await runCodex({
-        checkoutPath: checkout.path,
-        claim,
-        evidenceService,
-        resultService: {
-          prepare(submissionClaim, candidate) {
-            return resultService.prepare(
-              submissionClaim,
-              candidate,
-              fileChanges,
-            );
-          },
-        },
-        run: reviewRun,
-        startRun() {
-          claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
-          started = true;
-        },
-        ...codexOptions,
-        recordDeadline(failure) {
-          resultService.fail(claim, failure);
-          deadlineRecorded = true;
-        },
+      /** @type {(value?: void) => void} */
+      let signalCancellation = () => {};
+      const cancellationSignal = new Promise((resolve) => {
+        signalCancellation = resolve;
       });
+      const unsubscribeCancellation = subscribeReviewRunCancellation(
+        claim.workId,
+        signalCancellation,
+      );
+      let codexExecution;
+      try {
+        codexExecution = await runCodex({
+          cancellationSignal,
+          checkoutPath: checkout.path,
+          claim,
+          evidenceService,
+          resultService: {
+            prepare(submissionClaim, candidate) {
+              return resultService.prepare(
+                submissionClaim,
+                candidate,
+                fileChanges,
+              );
+            },
+          },
+          run: reviewRun,
+          startRun() {
+            claimService.start(
+              claim,
+              CODEX_CAPABILITY_CATALOG.codex_cli_version,
+            );
+            started = true;
+          },
+          ...codexOptions,
+          recordDeadline(failure) {
+            resultService.fail(claim, failure);
+            deadlineRecorded = true;
+          },
+        });
+      } finally {
+        unsubscribeCancellation();
+      }
       diagnosticFailures = codexExecution?.diagnosticFailures ?? [];
       unreportedDiagnostics = reportAcceptedDiagnostics(
         reportDiagnostic,

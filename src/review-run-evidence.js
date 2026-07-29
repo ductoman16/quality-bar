@@ -150,7 +150,11 @@ export function captureEvidenceCompletionFailure(
       tokenCounters: readTerminalTokenCounters(stdout),
     });
   } catch (error) {
-    return error;
+    return error instanceof Error
+      ? error
+      : new TypeError("Review Run evidence completion failed", {
+          cause: error,
+        });
   }
 }
 

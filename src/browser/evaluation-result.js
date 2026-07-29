@@ -265,7 +265,7 @@
     }
     for (const run of result.review_runs.filter(
       /** @param {any} candidate */
-      (candidate) => candidate.status === "failed",
+      (candidate) => ["cancelled", "failed"].includes(candidate.status),
     )) {
       if (
         typeof run.review_id !== "string" ||
@@ -278,7 +278,12 @@
       const failure = document.createElement("details");
       const summary = document.createElement("summary");
       summary.textContent =
-        "Review " + run.review_id + " " + run.review_version_id + " — failed";
+        "Review " +
+        run.review_id +
+        " " +
+        run.review_version_id +
+        " — " +
+        run.status;
       failure.append(summary);
       const error = document.createElement("p");
       error.textContent = "Error " + run.error.code + ": " + run.error.detail;
@@ -379,7 +384,10 @@
       }
       target.append(criterionDetails);
     }
-    for (const run of result.review_runs) {
+    for (const run of result.review_runs.filter(
+      /** @param {any} candidate */
+      (candidate) => candidate.started_at !== null,
+    )) {
       target.append(await loadReviewRunDiagnostics(evaluation.id, run));
     }
   }
