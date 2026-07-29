@@ -2,6 +2,7 @@ import { validatePackageFacts } from "./package-facts.mjs";
 import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
+import { formattingGateDefinition } from "./format-gate-definition.mjs";
 import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
 import {
   FORGEJO_SQLITE_TESTS,
@@ -84,16 +85,7 @@ export function createGateDefinitions(metadata) {
     "typescript",
   );
   return [
-    {
-      name: "formatting",
-      failureCode: "formatting_failed",
-      command: "npm",
-      arguments: ["run", "format:check"],
-      checkGroups: [
-        { name: "repository-format", count: 1, unit: "repository" },
-      ],
-      tools: { node, prettier },
-    },
+    formattingGateDefinition({ node, prettier }),
     {
       name: "structural-lint",
       failureCode: "structural_lint_failed",
@@ -265,7 +257,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-deadline-failure-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-evaluation-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -296,6 +288,7 @@ export function createGateDefinitions(metadata) {
         "test/evaluation-browser-component.test.js",
         "test/evaluation-cancellation-browser-component.test.js",
         "test/review-run-evidence-browser-component.test.js",
+        "test/review-run-failure-browser-component.test.js",
       ],
     },
     FAKE_CODEX_GATE_DEFINITION,

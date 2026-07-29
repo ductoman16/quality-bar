@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createTranscriptFailureController } from "../src/review-run-codex-process.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   acceptedChannel,
@@ -10,7 +11,31 @@ import {
   runReviewRunCodex,
 } from "./review-run-codex-adapter-support.js";
 
+test("transcript failure controller normalizes a non-Error exactly once", async () => {
+  let closes = 0;
+  let terminations = 0;
+  const controller = createTranscriptFailureController({
+    async closeSubmissionChannel() {
+      closes += 1;
+    },
+    diagnosticFailures: [],
+    async terminateProcessGroup() {
+      terminations += 1;
+    },
+  });
+  controller.stop(undefined);
+  controller.stop(null);
+  await controller.termination();
+  const failure = controller.failure();
+  assert.ok(failure instanceof TypeError);
+  assert.equal(failure.message, "Review Run transcript persistence failed");
+  assert.equal(failure.cause, undefined);
+  assert.equal(closes, 1);
+  assert.equal(terminations, 1);
+});
+
 test("durably committed operator cancellation closes submission before process-group termination", async () => {
+  /** @type {(string | number)[]} */
   /** @type {(string | number)[]} */
   const events = [];
   const child = runningProcess(83);
@@ -149,4 +174,65 @@ test("operator cancellation preserves non-Error process termination cause", asyn
     assert.equal(error.cause.cause, terminationFailure);
     return true;
   });
+});
+
+test("cancellation retains ownership when termination reveals transcript failure", async () => {
+  const storageFailure = Object.assign(new Error("transcript write failed"), {
+    code: "storage_unavailable",
+  });
+  const child = runningProcess(86);
+  /** @type {(value?: void) => void} */
+  let signalCancellation = () =>
+    assert.fail("cancellation signal was not installed");
+  const cancellationSignal = new Promise((resolve) => {
+    signalCancellation = resolve;
+  });
+  /** @type {(string | number)[]} */
+  const events = [];
+  const execution = runReviewRunCodex({
+    cancellationSignal,
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    evidenceService: {
+      appendTranscriptChunk() {
+        events.push("transcript-failed");
+        throw storageFailure;
+      },
+      complete() {},
+    },
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -86);
+      events.push(signal);
+      if (signal === "SIGTERM") {
+        child.stdout.write("late transcript\n");
+        queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+        return;
+      }
+      throw Object.assign(new Error("process group exited"), { code: "ESRCH" });
+    },
+    openSubmissionChannel: async () => ({
+      ...acceptedChannel(),
+      accepted: () => false,
+      async close() {
+        events.push("submission-closed");
+      },
+      waitForResult: () => new Promise(() => {}),
+    }),
+    resultService: { prepare() {} },
+    run,
+    spawnProcess: () => /** @type {any} */ (child),
+  });
+  signalCancellation();
+  const result = await execution;
+  assert.deepEqual(result, {
+    cancelled: true,
+    diagnosticFailures: [storageFailure],
+  });
+  assert.deepEqual(events, [
+    "submission-closed",
+    "SIGTERM",
+    "transcript-failed",
+    0,
+  ]);
 });

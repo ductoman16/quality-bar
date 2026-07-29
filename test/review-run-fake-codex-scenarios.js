@@ -169,6 +169,65 @@ function verifyProcessFailure({ core, claim }) {
 }
 
 /** @param {any} options */
+function verifyAuthenticationFailure({ core, claim }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, error_code, error_detail,
+              process_exit_code, process_signal,
+              execution_evidence_recorded
+       FROM review_runs WHERE id = ?`,
+      claim.workId,
+    ),
+    {
+      error_code: "authentication_failed",
+      error_detail: "You must be logged in to use Codex. Run codex login.",
+      execution_evidence_recorded: 1,
+      execution_status: "failed",
+      process_exit_code: 1,
+      process_signal: null,
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  const transcript = core.all(
+    `SELECT stream, content
+     FROM review_run_transcript_chunks
+     WHERE review_run_id = ?
+     ORDER BY sequence`,
+    claim.workId,
+  );
+  const stdout = transcript
+    .filter((/** @type {any} */ chunk) => chunk.stream === "stdout")
+    .map((/** @type {any} */ chunk) => chunk.content)
+    .join("");
+  const stderr = transcript
+    .filter((/** @type {any} */ chunk) => chunk.stream === "stderr")
+    .map((/** @type {any} */ chunk) => chunk.content)
+    .join("");
+  assert.equal(
+    stdout,
+    '{"error":{"message":"You must be logged in to use Codex. Run codex login."},"type":"turn.failed"}\n',
+  );
+  assert.equal(
+    stderr.slice(0, "fake Codex authentication diagnostic\n".length),
+    "fake Codex authentication diagnostic\n",
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT evaluations.execution_status, evaluation_results.outcome
+       FROM evaluations
+       JOIN evaluation_results
+         ON evaluation_results.evaluation_id = evaluations.id
+       WHERE evaluations.id = 'evaluation-1'`,
+    ),
+    { execution_status: "completed", outcome: "error" },
+  );
+}
+
+/** @param {any} options */
 function verifyEvidenceFailure({ core, claim }) {
   assert.deepEqual(
     core.get(
@@ -208,6 +267,12 @@ const common = {
 };
 
 export const fakeCodexScenarios = Object.freeze({
+  authentication_failure: {
+    ...common,
+    arguments: ["--fake-authentication-failure"],
+    execute: failedExecution("authentication_failed"),
+    verifySpecialResult: verifyAuthenticationFailure,
+  },
   cancellation: {
     ...common,
     arguments: ["--fake-cancellation"],

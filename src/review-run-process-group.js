@@ -8,6 +8,18 @@ function isPermissionDenied(error) {
   return error instanceof Error && "code" in error && error.code === "EPERM";
 }
 
+/** @param {Parameters<typeof terminateReviewRunProcessGroup>[0]} options */
+export function createReviewRunProcessGroupTermination(options) {
+  /** @type {Promise<void> | undefined} */
+  let termination;
+  return () => {
+    termination ??= Promise.resolve().then(() =>
+      terminateReviewRunProcessGroup(options),
+    );
+    return termination;
+  };
+}
+
 /**
  * @param {{
  *   child: import("node:child_process").ChildProcess,

@@ -110,7 +110,7 @@ export function assertRejectedCandidatesStoreNothing(
  * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
  * @param {Error} underlyingFailure
  */
-export async function executeUnexpectedReviewRun(core, underlyingFailure) {
+export async function executeFailedReviewRun(core, underlyingFailure) {
   const claims = createReviewRunClaimService(core, {
     createWorkerId: () => "unexpected-worker",
     now: () => 20,

@@ -25,7 +25,7 @@ const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
 );
 
-/** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "cancellation" | "inspect_on_demand"} outcome */
+/** @param {import("node:test").TestContext} context @param {"authentication_failure" | "clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline" | "cancellation" | "inspect_on_demand"} outcome */
 async function proveFakeCodexResult(context, outcome) {
   const scenario = fakeCodexScenarios[outcome];
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
@@ -332,6 +332,10 @@ test("one pinned fake Codex run preserves an exact Criterion error without a Fin
 
 test("one failed fake Codex run durably retains transcript and process evidence", async (context) => {
   await proveFakeCodexResult(context, "process_failure");
+});
+
+test("one fake Codex authentication failure maps exactly without retry or partial Result", async (context) => {
+  await proveFakeCodexResult(context, "authentication_failure");
 });
 
 test("post-acceptance evidence failure cannot overturn the complete Result", async (context) => {

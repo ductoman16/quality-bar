@@ -103,6 +103,70 @@ test("streams exact transcript chunks and retains supplied terminal counters and
   ]);
 });
 
+test("transcript failure closes submission before terminating Codex", async () => {
+  const storageFailure = Object.assign(new Error("transcript write failed"), {
+    code: "storage_unavailable",
+  });
+  const child = Object.assign(new EventEmitter(), {
+    pid: 82,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  /** @type {(string | number)[]} */
+  const events = [];
+  let accepted = false;
+  let closed = false;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        clearTerminationTimer() {},
+        evidenceService: {
+          appendTranscriptChunk() {
+            throw storageFailure;
+          },
+          complete() {
+            assert.fail("terminal evidence followed transcript failure");
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -82);
+          events.push(signal);
+          if (signal === "SIGTERM") {
+            accepted = !closed;
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => accepted,
+          async close() {
+            closed = true;
+            events.push("submission-closed");
+          },
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => Promise.resolve("accepted"),
+        }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess() {
+          queueMicrotask(() => child.stdout.write("raw JSONL\n"));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) => error === storageFailure,
+  );
+  assert.equal(accepted, false);
+  assert.deepEqual(events, ["submission-closed", "SIGTERM", 0]);
+});
+
 test("terminal evidence failure remains exact after Result acceptance", async () => {
   const storageFailure = Object.assign(
     new Error("SQLite durable write failed"),
