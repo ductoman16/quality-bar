@@ -8,8 +8,14 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createEvaluationResultResourceReader } from "../src/evaluation-result-resource.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
-import { createReviewRunResultService } from "../src/review-run-result.js";
+import {
+  createReviewRunEvidenceService,
+  readReviewRunDiagnostics,
+} from "../src/review-run-evidence.js";
+import {
+  createReviewRunResultService,
+  ReviewRunExecutionError,
+} from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("Review Runs are complete canonical resources throughout their lifecycle", async (context) => {
@@ -156,15 +162,21 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
   assert.equal(completedSibling.execution_status, "completed");
   assert.equal(completedSibling.measurements.codex_cli_version, "0.145.0");
   assert.deepEqual(completedSibling.measurements.process, {
-    code: 0,
-    kind: "exit",
+    kind: "unavailable",
   });
   assert.deepEqual(completedSibling.measurements.token_counters, {
-    cached_input_tokens: 3,
-    input_tokens: 11,
-    output_tokens: 5,
+    cached_input_tokens: null,
+    input_tokens: null,
+    output_tokens: null,
   });
   assert.equal("transcript_chunks" in completedSibling.measurements, false);
+  assert.deepEqual(
+    readReviewRunDiagnostics(core, "evaluation-1", firstClaim.workId)?.process,
+    {
+      code: 0,
+      kind: "exit",
+    },
+  );
   assert.deepEqual(completedSibling.criterion_results, [
     {
       criterion_id: criterionId,
@@ -240,5 +252,161 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
         },
       },
     },
+  );
+  const directSecondSibling = reader.readReviewRun(
+    "evaluation-1",
+    secondClaim.workId,
+  );
+  assert.deepEqual(secondSibling, directSecondSibling);
+  evidence.complete(secondClaim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: 2,
+      input_tokens: 7,
+      output_tokens: 3,
+    },
+  });
+  assert.deepEqual(reader.readResult("evaluation-1"), result);
+  assert.deepEqual(
+    reader.readReviewRun("evaluation-1", secondClaim.workId),
+    directSecondSibling,
+  );
+  assert.deepEqual(
+    readReviewRunDiagnostics(core, "evaluation-1", secondClaim.workId)
+      ?.token_counters,
+    {
+      cached_input_tokens: 2,
+      input_tokens: 7,
+      output_tokens: 3,
+    },
+  );
+});
+
+test("terminal-kind measurement snapshots remain immutable on schema v34", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-snapshot-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core, { reviewCount: 3 });
+
+  let observedAt = 20;
+  let worker = 0;
+  const claims = createReviewRunClaimService(core, {
+    createWorkerId: () => `snapshot-worker-${++worker}`,
+    now: () => observedAt,
+  });
+  const evidence = createReviewRunEvidenceService(core);
+  const results = createReviewRunResultService(core, {
+    now: () => observedAt,
+  });
+
+  const evidencedFailure = claims.claimNext();
+  assert.ok(evidencedFailure);
+  claims.start(evidencedFailure, "0.145.0");
+  evidence.complete(evidencedFailure, {
+    exitCode: 1,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: 4,
+      input_tokens: 13,
+      output_tokens: 6,
+    },
+  });
+  observedAt = 30;
+  results.fail(
+    evidencedFailure,
+    new ReviewRunExecutionError("codex_process_failed", "Codex process failed"),
+  );
+
+  const unevidencedFailure = claims.claimNext();
+  assert.ok(unevidencedFailure);
+  claims.start(unevidencedFailure, "0.145.0");
+  observedAt = 40;
+  results.fail(
+    unevidencedFailure,
+    new ReviewRunExecutionError(
+      "codex_process_failed",
+      "Codex process failed before evidence",
+    ),
+  );
+  assert.throws(
+    () =>
+      evidence.complete(unevidencedFailure, {
+        exitCode: 2,
+        signal: null,
+        tokenCounters: {
+          cached_input_tokens: null,
+          input_tokens: null,
+          output_tokens: null,
+        },
+      }),
+    /terminal evidence must precede failure authority/,
+  );
+
+  const deadlineFailure = claims.claimNext();
+  assert.ok(deadlineFailure);
+  claims.start(deadlineFailure, "0.145.0");
+  observedAt = 50;
+  results.fail(
+    deadlineFailure,
+    new ReviewRunExecutionError(
+      "deadline_exceeded",
+      "Codex Review Run exceeded its deadline",
+    ),
+  );
+
+  const reader = createEvaluationResultResourceReader(core);
+  const result = reader.readResult("evaluation-1");
+  for (const reviewRun of result.review_runs) {
+    assert.deepEqual(
+      reader.readReviewRun("evaluation-1", reviewRun.id),
+      reviewRun,
+    );
+  }
+  assert.deepEqual(
+    result.review_runs.find(({ id }) => id === evidencedFailure.workId)
+      ?.measurements,
+    {
+      codex_cli_version: "0.145.0",
+      duration_ms: 10,
+      process: { code: 1, kind: "exit" },
+      token_counters: {
+        cached_input_tokens: 4,
+        input_tokens: 13,
+        output_tokens: 6,
+      },
+    },
+  );
+  for (const claim of [unevidencedFailure, deadlineFailure]) {
+    assert.deepEqual(
+      result.review_runs.find(({ id }) => id === claim.workId)?.measurements,
+      {
+        codex_cli_version: "0.145.0",
+        duration_ms: 10,
+        process: { kind: "unavailable" },
+        token_counters: {
+          cached_input_tokens: null,
+          input_tokens: null,
+          output_tokens: null,
+        },
+      },
+    );
+  }
+
+  evidence.complete(deadlineFailure, {
+    exitCode: null,
+    signal: "SIGKILL",
+    tokenCounters: {
+      cached_input_tokens: 1,
+      input_tokens: 8,
+      output_tokens: 2,
+    },
+  });
+  assert.deepEqual(reader.readResult("evaluation-1"), result);
+  assert.deepEqual(
+    readReviewRunDiagnostics(core, "evaluation-1", deadlineFailure.workId)
+      ?.process,
+    { kind: "signal", signal: "SIGKILL" },
   );
 });

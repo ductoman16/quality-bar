@@ -178,7 +178,7 @@ export function createReviewRunEvidenceService(durableCore) {
   /** @param {any} transaction @param {any} claim */
   function assertAuthoritativeStartedRun(transaction, claim) {
     const run = transaction.get(
-      `SELECT review_runs.execution_status,
+      `SELECT review_runs.execution_status, review_runs.error_code,
               codex_execution_queue.worker_id,
               codex_execution_queue.fencing_token
        FROM review_runs
@@ -197,6 +197,7 @@ export function createReviewRunEvidenceService(durableCore) {
     ) {
       throw new TypeError("Review Run evidence claim is not authoritative");
     }
+    return run;
   }
 
   return {
@@ -254,7 +255,15 @@ export function createReviewRunEvidenceService(durableCore) {
         throw new TypeError("Review Run terminal evidence is invalid");
       }
       return durableCore.transaction((/** @type {any} */ transaction) => {
-        assertAuthoritativeStartedRun(transaction, claim);
+        const run = assertAuthoritativeStartedRun(transaction, claim);
+        if (
+          run.execution_status === "failed" &&
+          run.error_code !== "deadline_exceeded"
+        ) {
+          throw new TypeError(
+            "Review Run terminal evidence must precede failure authority",
+          );
+        }
         const updated = transaction.run(
           `UPDATE review_runs
            SET process_exit_code = ?, process_signal = ?,

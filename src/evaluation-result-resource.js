@@ -9,6 +9,33 @@ const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
 
 /**
+ * Process and token evidence arrives after accepted, cancelled, and deadline
+ * terminal authority. It remains operator diagnostics and cannot mutate their
+ * canonical Review Run document. Other failures record evidence before their
+ * terminal transition, so that already-immutable evidence is canonical.
+ *
+ * @param {Record<string, import("node:sqlite").SQLInputValue>} row
+ * @param {string} executionStatus
+ */
+function canonicalTerminalEvidence(row, executionStatus) {
+  const recordedBeforeTerminal =
+    executionStatus === "failed" &&
+    row.error_code !== "deadline_exceeded" &&
+    row.execution_evidence_recorded === 1;
+  return {
+    exitCode: recordedBeforeTerminal ? row.process_exit_code : null,
+    signal: recordedBeforeTerminal ? row.process_signal : null,
+    tokenCounters: {
+      cached_input_tokens: recordedBeforeTerminal
+        ? row.cached_input_tokens
+        : null,
+      input_tokens: recordedBeforeTerminal ? row.input_tokens : null,
+      output_tokens: recordedBeforeTerminal ? row.output_tokens : null,
+    },
+  };
+}
+
+/**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined
@@ -50,8 +77,15 @@ export function createEvaluationResultResourceReader(durableCore) {
       executionStatus === "cancelled"
         ? /** @type {number | null} */ (row.cancellation_requested_at)
         : storedCompletedAt;
-    const exitCode = row.process_exit_code;
-    const signal = row.process_signal;
+    const {
+      exitCode,
+      signal,
+      tokenCounters: {
+        cached_input_tokens: cachedInputTokens,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+      },
+    } = canonicalTerminalEvidence(row, executionStatus);
     const process =
       typeof exitCode === "number"
         ? { code: exitCode, kind: "exit" }
@@ -104,9 +138,9 @@ export function createEvaluationResultResourceReader(durableCore) {
             : completedAt - startedAt,
         process,
         token_counters: {
-          cached_input_tokens: row.cached_input_tokens,
-          input_tokens: row.input_tokens,
-          output_tokens: row.output_tokens,
+          cached_input_tokens: cachedInputTokens,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
         },
       },
       review_id: row.review_id,

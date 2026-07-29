@@ -186,13 +186,6 @@ test("independent sibling Review Runs publish one Result only after every run is
     )?.count,
     0,
   );
-  results.fail(
-    secondClaim,
-    new ReviewRunExecutionError(
-      "configuration_unavailable",
-      "The failing Review owns this exact configuration error.",
-    ),
-  );
   evidence.complete(secondClaim, {
     exitCode: 1,
     signal: null,
@@ -202,6 +195,13 @@ test("independent sibling Review Runs publish one Result only after every run is
       output_tokens: null,
     },
   });
+  results.fail(
+    secondClaim,
+    new ReviewRunExecutionError(
+      "configuration_unavailable",
+      "The failing Review owns this exact configuration error.",
+    ),
+  );
 
   const result = createEvaluationService(core, {
     acquireChangeset: async () => {

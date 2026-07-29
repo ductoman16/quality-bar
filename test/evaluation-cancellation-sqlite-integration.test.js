@@ -9,8 +9,13 @@ import {
   signalReviewRunCancellations,
   subscribeReviewRunCancellation,
 } from "../src/evaluation-cancellation.js";
+import { createEvaluationResultResourceReader } from "../src/evaluation-result-resource.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import {
+  createReviewRunEvidenceService,
+  readReviewRunDiagnostics,
+} from "../src/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
@@ -237,6 +242,45 @@ test("durable cancellation wins before signaling and preserves completed child f
     },
   ]);
   assert.deepEqual(result.findings, []);
+  const resourceReader = createEvaluationResultResourceReader(core);
+  const canonicalResult = resourceReader.readResult("evaluation-cancellation");
+  const canonicalRunningChild = resourceReader.readReviewRun(
+    "evaluation-cancellation",
+    runningClaim.workId,
+  );
+  assert.deepEqual(
+    canonicalResult.review_runs.find(({ id }) => id === runningClaim.workId),
+    canonicalRunningChild,
+  );
+  const evidence = createReviewRunEvidenceService(core);
+  evidence.complete(runningClaim, {
+    exitCode: null,
+    signal: "SIGTERM",
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
+  assert.deepEqual(
+    resourceReader.readResult("evaluation-cancellation"),
+    canonicalResult,
+  );
+  assert.deepEqual(
+    resourceReader.readReviewRun(
+      "evaluation-cancellation",
+      runningClaim.workId,
+    ),
+    canonicalRunningChild,
+  );
+  assert.deepEqual(
+    readReviewRunDiagnostics(
+      core,
+      "evaluation-cancellation",
+      runningClaim.workId,
+    )?.process,
+    { kind: "signal", signal: "SIGTERM" },
+  );
   assert.throws(
     () =>
       core.run(
