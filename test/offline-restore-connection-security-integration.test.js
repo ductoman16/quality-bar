@@ -91,6 +91,7 @@ test("missing enabled Connection credentials leave the stopped database unchange
         databasePath: input.databasePath,
         manifestPath: backup.manifestPath,
         masterKey: input.masterKey,
+        operatorPassword: "a replacement operator password",
       }),
       (error) =>
         error instanceof Error &&
@@ -141,6 +142,7 @@ test("undecryptable GitHub and Forgejo credentials leave the stopped database un
         databasePath: input.databasePath,
         manifestPath: backup.manifestPath,
         masterKey: input.masterKey,
+        operatorPassword: "a replacement operator password",
       }),
       (error) =>
         error instanceof Error &&

@@ -78,6 +78,7 @@ test("failed publication restores absence and retains the validated candidate", 
       databasePath,
       manifestPath: backup.manifestPath,
       masterKey,
+      operatorPassword: "a replacement operator password",
     }),
     (error) => {
       if (

@@ -15,4 +15,5 @@ await restoreOfflineBackup({
   databasePath,
   manifestPath,
   masterKey: Buffer.from(masterKeyHex, "hex"),
+  operatorPassword: "a replacement operator password",
 });

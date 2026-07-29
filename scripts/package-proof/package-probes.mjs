@@ -41,3 +41,13 @@ export function runPackageProbe(fixture, name, arguments_ = [], input) {
     input,
   );
 }
+
+/**
+ * @param {import("./package-fixture.mjs").PackageFixture} fixture
+ * @param {string} name
+ * @param {string[]} [arguments_]
+ * @param {string} [input]
+ */
+export function jsonPackageProbe(fixture, name, arguments_, input) {
+  return JSON.parse(runPackageProbe(fixture, name, arguments_, input));
+}

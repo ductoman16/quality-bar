@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 
+import { provePackageOfflineRestore } from "./offline-restore.mjs";
 import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
-import { runPackageProbe } from "./package-probes.mjs";
+import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
 const serviceFixtureImage =
   "node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc";
@@ -24,39 +25,8 @@ const serviceFixtureImage =
  *   forwardedSystem: {errorCode: string, status: number},
  * }} HttpFacts
  */
-/**
- * @typedef {{
- *   activeBrowserSessions: number,
- *   activeImplementerToken: boolean,
- *   databaseVersion: string,
- *   failedLoginAttempts: string | null,
- *   failedLoginUntil: string | null,
- *   foreignKeys: boolean,
- *   installationKeyVerifier: string,
- *   integrity: string,
- *   journalMode: string,
- *   operatorPasswordVerifier: string | null,
- *   persistedMarker: string | null,
- *   schemaVersion: number,
- *   synchronous: string,
- * }} DatabaseFacts
- */
-/**
- * @typedef {{
- *   browserStatus: number,
- *   codexCapabilityCatalogVersion: string,
- *   hasCodexCapabilityModels: boolean,
- *   hasNavigation: boolean,
- *   loginStatus: number,
- *   openapiStatus: number,
- *   openapiVersion: string,
- *   storage: {
- *     filesystems: {available_bytes: number, filesystem: string, path: string, status: string}[],
- *     reserve_bytes: number,
- *     status: string
- *   },
- * }} AuthenticatedHttpSmoke
- */
+/** @typedef {ReturnType<typeof provePackageOfflineRestore>["restoredDatabaseFacts"]} DatabaseFacts */
+/** @typedef {ReturnType<typeof provePackageOfflineRestore>["authenticatedHttpSmoke"]} AuthenticatedHttpSmoke */
 /**
  * @typedef {{
  *   applicationVersion: string,
@@ -68,17 +38,6 @@ const serviceFixtureImage =
  *   schemaVersion: number,
  * }} BackupFacts
  */
-
-/**
- * @param {PackageFixture} fixture
- * @param {string} name
- * @param {string[]} [arguments_]
- * @param {string} [input]
- * @returns {unknown}
- */
-function jsonProbe(fixture, name, arguments_, input) {
-  return JSON.parse(runPackageProbe(fixture, name, arguments_, input));
-}
 
 /** @param {FilesystemFacts} filesystemFacts */
 function assertFilesystemFacts(filesystemFacts) {
@@ -113,7 +72,11 @@ function assertFilesystemFacts(filesystemFacts) {
  *     originalAuthenticated: boolean,
  *     replacementAuthenticated: boolean,
  *   },
- *   recreatedDatabaseFacts: DatabaseFacts,
+ *   restoredDatabaseFacts: DatabaseFacts,
+ *   restorePasswordStatus: {
+ *     newAuthenticated: boolean,
+ *     snapshotAuthenticated: boolean,
+ *   },
  *   toolVersions: {codex: string, git: string},
  *   uid: number,
  * }} facts
@@ -129,11 +92,12 @@ function packageFacts({
   processArguments,
   recoveryDatabaseFacts,
   recoveryPasswordStatus,
-  recreatedDatabaseFacts,
+  restoredDatabaseFacts,
+  restorePasswordStatus,
   toolVersions,
   uid,
 }) {
-  if (recreatedDatabaseFacts.operatorPasswordVerifier === null) {
+  if (restoredDatabaseFacts.operatorPasswordVerifier === null) {
     throw new Error("package_operator_password_verifier_missing");
   }
   const serviceVolumes = configuration.services[fixture.serviceName].volumes;
@@ -182,13 +146,13 @@ function packageFacts({
     configuration: {
       configPath: "/etc/quality-bar/config.env",
       encryptedVerifier: /^v1\./.test(
-        recreatedDatabaseFacts.installationKeyVerifier,
+        restoredDatabaseFacts.installationKeyVerifier,
       ),
       masterKeyPath: "/run/secrets/quality-bar-master-key",
     },
     authority: {
-      operatorPasswordBootstrap: /^scrypt-v1\./.test(
-        recreatedDatabaseFacts.operatorPasswordVerifier,
+      bootstrapVerifierProtected: /^scrypt-v1\./.test(
+        restoredDatabaseFacts.operatorPasswordVerifier,
       ),
       operatorAuthorityRecovery: {
         browserSessionsRevoked:
@@ -207,16 +171,22 @@ function packageFacts({
     },
     authenticatedHttpSmoke,
     restore: {
+      browserSessionsRevoked: restoredDatabaseFacts.activeBrowserSessions === 0,
+      implementerTokenRevoked:
+        restoredDatabaseFacts.activeImplementerToken === false,
+      machineAccessDisabled:
+        restoredDatabaseFacts.activeImplementerToken === false,
+      newPasswordAuthenticated: restorePasswordStatus.newAuthenticated,
       postBackupFactsAbsent:
-        recreatedDatabaseFacts.persistedMarker === "survived",
-      snapshotPasswordAuthenticated: authenticatedHttpSmoke.loginStatus === 204,
+        restoredDatabaseFacts.persistedMarker === "survived",
+      snapshotPasswordRejected: !restorePasswordStatus.snapshotAuthenticated,
       snapshotEraFactsPreserved:
-        recreatedDatabaseFacts.persistedMarker === "survived",
+        restoredDatabaseFacts.persistedMarker === "survived",
       status: "restored",
     },
     backup: backupFacts,
     database: {
-      ...recreatedDatabaseFacts,
+      ...restoredDatabaseFacts,
       installationKeyVerifier: undefined,
       operatorPasswordVerifier: undefined,
       persistedMarker: undefined,
@@ -274,11 +244,13 @@ export function proveComposeService({ configuration, fixture }) {
   assert.equal(processArguments.at(-1), "src/main.js");
 
   const filesystemFacts = /** @type {FilesystemFacts} */ (
-    jsonProbe(fixture, "filesystem-facts.mjs")
+    jsonPackageProbe(fixture, "filesystem-facts.mjs")
   );
   assertFilesystemFacts(filesystemFacts);
   const httpFacts = /** @type {HttpFacts} */ (
-    jsonProbe(fixture, "http-facts.mjs", [environment.QUALITY_BAR_HTTP_PORT])
+    jsonPackageProbe(fixture, "http-facts.mjs", [
+      environment.QUALITY_BAR_HTTP_PORT,
+    ])
   );
   assert.deepEqual(httpFacts.liveness, {
     body: { status: "live" },
@@ -308,7 +280,7 @@ export function proveComposeService({ configuration, fixture }) {
   assert.equal(toolVersions.codex, "0.145.0");
 
   const initialDatabaseFacts = /** @type {DatabaseFacts} */ (
-    jsonProbe(fixture, "database-facts.mjs")
+    jsonPackageProbe(fixture, "database-facts.mjs")
   );
   assert.equal(initialDatabaseFacts.persistedMarker, null);
   assert.match(initialDatabaseFacts.installationKeyVerifier, /^v1\./);
@@ -351,10 +323,10 @@ export function proveComposeService({ configuration, fixture }) {
   fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
 
   const recreatedDatabaseFacts = /** @type {DatabaseFacts} */ (
-    jsonProbe(fixture, "database-facts.mjs")
+    jsonPackageProbe(fixture, "database-facts.mjs")
   );
   const backupFacts = /** @type {BackupFacts} */ (
-    jsonProbe(fixture, "backup-facts.mjs", [fixture.masterKey])
+    jsonPackageProbe(fixture, "backup-facts.mjs", [fixture.masterKey])
   );
   assert.equal(recreatedDatabaseFacts.persistedMarker, "survived");
   if (recreatedDatabaseFacts.operatorPasswordVerifier === null) {
@@ -366,7 +338,7 @@ export function proveComposeService({ configuration, fixture }) {
     new RegExp(bootstrapPassword),
   );
   const initialAuthenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "authenticated-http-smoke.mjs",
       [environment.QUALITY_BAR_HTTP_PORT],
@@ -416,45 +388,16 @@ export function proveComposeService({ configuration, fixture }) {
       port: environment.QUALITY_BAR_HTTP_PORT,
       serviceName,
     });
-  const restoreSnapshot = /** @type {{manifestPath: string}} */ (
-    jsonProbe(fixture, "create-restore-snapshot.mjs", [
-      fixture.applicationVersion,
-      fixture.masterKey,
-    ])
-  );
-  assert.match(
-    restoreSnapshot.manifestPath,
-    /^\/var\/backups\/quality-bar\/quality-bar-daily-.+\.json$/,
-  );
-  runPackageProbe(fixture, "write-post-backup-marker.mjs");
-  fixture.runCompose(["stop", serviceName]);
-  assert.equal(
-    fixture.runCompose([
-      "run",
-      "--rm",
-      "--no-deps",
-      "-T",
-      serviceName,
-      "node",
-      "src/restore-backup.js",
-      restoreSnapshot.manifestPath,
-    ]),
-    `{"applicationVersion":"${fixture.applicationVersion}","schemaVersion":${recreatedDatabaseFacts.schemaVersion},"status":"restored"}`,
-  );
-  fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
-  const restoredDatabaseFacts = /** @type {DatabaseFacts} */ (
-    jsonProbe(fixture, "database-facts.mjs")
-  );
-  assert.equal(restoredDatabaseFacts.persistedMarker, "survived");
-  const authenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
-    jsonProbe(
-      fixture,
-      "authenticated-http-smoke.mjs",
-      [environment.QUALITY_BAR_HTTP_PORT],
-      recoveryPassword,
-    )
-  );
-  assert.equal(authenticatedHttpSmoke.loginStatus, 204);
+  const {
+    authenticatedHttpSmoke,
+    restoredDatabaseFacts,
+    restorePassword,
+    restorePasswordStatus,
+  } = provePackageOfflineRestore({
+    fixture,
+    recoveryPassword,
+    schemaVersion: recreatedDatabaseFacts.schemaVersion,
+  });
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
@@ -467,12 +410,16 @@ export function proveComposeService({ configuration, fixture }) {
     processArguments,
     recoveryDatabaseFacts: /** @type {DatabaseFacts} */ (recoveryDatabaseFacts),
     recoveryPasswordStatus,
-    recreatedDatabaseFacts: restoredDatabaseFacts,
+    restoredDatabaseFacts,
+    restorePasswordStatus,
     toolVersions,
     uid,
   });
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(fixture.masterKey));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(bootstrapPassword));
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(recoveryPassword));
+  assert.doesNotMatch(JSON.stringify(facts), new RegExp(restorePassword));
+  // The allowlisted evidence was checked against every package-proof secret.
+  // codeql[js/clear-text-logging]
   console.log(`QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify(facts)}`);
 }

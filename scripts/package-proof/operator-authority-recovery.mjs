@@ -1,16 +1,6 @@
 import assert from "node:assert/strict";
 
-import { runPackageProbe } from "./package-probes.mjs";
-
-/**
- * @param {import("./package-fixture.mjs").PackageFixture} fixture
- * @param {string} name
- * @param {string[]} [arguments_]
- * @param {string} [input]
- */
-function jsonProbe(fixture, name, arguments_, input) {
-  return JSON.parse(runPackageProbe(fixture, name, arguments_, input));
-}
+import { jsonPackageProbe } from "./package-probes.mjs";
 
 /**
  * @param {{
@@ -31,7 +21,7 @@ export function proveOperatorAuthorityRecovery({
    *   loginStatus: number,
    *   tokenStatus: number,
    * }} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "prepare-authority-recovery.mjs",
       [port],
@@ -66,13 +56,13 @@ export function proveOperatorAuthorityRecovery({
    *   activeImplementerToken: boolean,
    *   failedLoginAttempts: string | null,
    *   failedLoginUntil: string | null,
-   * }} */ (jsonProbe(fixture, "database-facts.mjs"));
+   * }} */ (jsonPackageProbe(fixture, "database-facts.mjs"));
   assert.equal(recoveryDatabaseFacts.activeBrowserSessions, 0);
   assert.equal(recoveryDatabaseFacts.activeImplementerToken, false);
   assert.equal(recoveryDatabaseFacts.failedLoginAttempts, null);
   assert.equal(recoveryDatabaseFacts.failedLoginUntil, null);
   const originalPasswordStatus = /** @type {{authenticated: boolean}} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "operator-password-status.mjs",
       undefined,
@@ -80,7 +70,7 @@ export function proveOperatorAuthorityRecovery({
     )
   );
   const replacementPasswordStatus = /** @type {{authenticated: boolean}} */ (
-    jsonProbe(
+    jsonPackageProbe(
       fixture,
       "operator-password-status.mjs",
       undefined,
