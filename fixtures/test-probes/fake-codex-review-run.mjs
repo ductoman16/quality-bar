@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 const arguments_ = process.argv.slice(2);
 const prompt = arguments_.at(-1) ?? "";
 const triggered = arguments_.includes("--fake-triggered");
+const notApplicable = arguments_.includes("--fake-not-applicable");
+const criterionError = arguments_.includes("--fake-error");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
   /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
@@ -93,7 +95,19 @@ writeFileSync(
             ],
             outcome: "triggered",
           }
-        : { criterion_id: criterion, outcome: "clear" },
+        : criterionError
+          ? {
+              criterion_id: criterion,
+              error: {
+                code: "required_evidence_unavailable",
+                detail: "The required generated file is absent from the head.",
+              },
+              outcome: "error",
+            }
+          : {
+              criterion_id: criterion,
+              outcome: notApplicable ? "not_applicable" : "clear",
+            },
     ],
   }),
 );

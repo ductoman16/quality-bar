@@ -20,30 +20,57 @@ export function readCompletedEvaluationResult(durableCore, id) {
   const reviewRuns = durableCore
     .all(
       `SELECT id, review_id, review_version_id, execution_status,
-              started_at, completed_at
+              started_at, completed_at, error_code, error_detail
        FROM review_runs
        WHERE evaluation_id = ?
        ORDER BY id`,
       id,
     )
-    .map((run) => ({
-      completed_at: timestamp(/** @type {number} */ (run?.completed_at)),
-      id: run?.id,
-      review_id: run?.review_id,
-      review_version_id: run?.review_version_id,
-      started_at: timestamp(/** @type {number} */ (run?.started_at)),
-      status: run?.execution_status,
-    }));
-  const criterionResults = durableCore.all(
-    `SELECT criterion_results.review_run_id,
+    .map((run) => {
+      const status = run?.execution_status;
+      return {
+        completed_at: timestamp(/** @type {number} */ (run?.completed_at)),
+        ...(status === "failed"
+          ? {
+              error: {
+                code: run?.error_code,
+                detail: run?.error_detail,
+              },
+            }
+          : {}),
+        id: run?.id,
+        review_id: run?.review_id,
+        review_version_id: run?.review_version_id,
+        started_at: timestamp(/** @type {number} */ (run?.started_at)),
+        status,
+      };
+    });
+  const criterionResults = durableCore
+    .all(
+      `SELECT criterion_results.review_run_id,
             criterion_results.criterion_id,
-            criterion_results.outcome
+            criterion_results.outcome,
+            criterion_results.error_code,
+            criterion_results.error_detail
      FROM criterion_results
      JOIN review_runs ON review_runs.id = criterion_results.review_run_id
      WHERE review_runs.evaluation_id = ?
      ORDER BY review_runs.id, criterion_results.rowid`,
-    id,
-  );
+      id,
+    )
+    .map((result) => ({
+      criterion_id: result?.criterion_id,
+      ...(result?.outcome === "error"
+        ? {
+            error: {
+              code: result.error_code,
+              detail: result.error_detail,
+            },
+          }
+        : {}),
+      outcome: result?.outcome,
+      review_run_id: result?.review_run_id,
+    }));
   const fileChanges = durableCore.all(
     `SELECT id, before_path, after_path, patch
      FROM evaluation_file_changes

@@ -48,7 +48,7 @@ test("migrates v22 authority attribution provenance without losing existing fact
     core.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 27);
+    assert.equal(migrated.facts.schemaVersion, 28);
     assert.deepEqual(
       migrated.get(
         "SELECT id, channel, action, outcome, error_code, occurred_at FROM authority_attributions WHERE id = 'attribution-1'",

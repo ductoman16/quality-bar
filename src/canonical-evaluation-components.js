@@ -98,14 +98,38 @@ export function canonicalEvaluationSchemas() {
       },
       ["items", "next_cursor"],
     ),
-    CriterionResult: closedObject(
-      {
-        criterion_id: { minLength: 1, type: "string" },
-        outcome: { enum: ["clear", "triggered"], type: "string" },
-        review_run_id: { minLength: 1, type: "string" },
-      },
-      ["review_run_id", "criterion_id", "outcome"],
-    ),
+    CriterionResult: {
+      oneOf: [
+        ...["clear", "triggered", "not_applicable"].map((outcome) =>
+          closedObject(
+            {
+              criterion_id: { minLength: 1, type: "string" },
+              outcome: { const: outcome, type: "string" },
+              review_run_id: { minLength: 1, type: "string" },
+            },
+            ["review_run_id", "criterion_id", "outcome"],
+          ),
+        ),
+        closedObject(
+          {
+            criterion_id: { minLength: 1, type: "string" },
+            error: closedObject(
+              {
+                code: {
+                  pattern: "^[a-z][a-z0-9_]*$",
+                  type: "string",
+                },
+                detail: { minLength: 1, type: "string" },
+              },
+              ["code", "detail"],
+            ),
+            outcome: { const: "error", type: "string" },
+            review_run_id: { minLength: 1, type: "string" },
+          },
+          ["review_run_id", "criterion_id", "outcome", "error"],
+        ),
+      ],
+    },
     FindingLocation: {
       oneOf: [
         closedObject(
@@ -180,6 +204,38 @@ export function canonicalEvaluationSchemas() {
         "completed_at",
       ],
     ),
+    FailedReviewRun: closedObject(
+      {
+        completed_at: { format: "date-time", type: "string" },
+        error: closedObject(
+          {
+            code: { pattern: "^[a-z][a-z0-9_]*$", type: "string" },
+            detail: { minLength: 1, type: "string" },
+          },
+          ["code", "detail"],
+        ),
+        id: { minLength: 1, type: "string" },
+        review_id: { minLength: 1, type: "string" },
+        review_version_id: { minLength: 1, type: "string" },
+        started_at: { format: "date-time", type: "string" },
+        status: { const: "failed", type: "string" },
+      },
+      [
+        "id",
+        "review_id",
+        "review_version_id",
+        "status",
+        "started_at",
+        "completed_at",
+        "error",
+      ],
+    ),
+    TerminalReviewRun: {
+      oneOf: [
+        { $ref: "#/components/schemas/CompletedReviewRun" },
+        { $ref: "#/components/schemas/FailedReviewRun" },
+      ],
+    },
     EvaluationResult: closedObject(
       {
         applicability_results: emptyCollection,
@@ -202,7 +258,7 @@ export function canonicalEvaluationSchemas() {
           type: "string",
         },
         review_runs: {
-          items: { $ref: "#/components/schemas/CompletedReviewRun" },
+          items: { $ref: "#/components/schemas/TerminalReviewRun" },
           type: "array",
         },
       },

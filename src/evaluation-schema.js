@@ -53,15 +53,38 @@ export const EVALUATION_SCHEMA = `
     ),
     started_at INTEGER,
     completed_at INTEGER,
+    error_code TEXT,
+    error_detail TEXT,
     created_at INTEGER NOT NULL,
     CHECK (started_at IS NULL OR started_at >= created_at),
     CHECK (completed_at IS NULL OR (started_at IS NOT NULL AND completed_at >= started_at)),
+    CHECK (
+      (execution_status = 'failed'
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+      OR
+      (execution_status <> 'failed' AND error_code IS NULL AND error_detail IS NULL)
+    ),
     UNIQUE (evaluation_id, review_id)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS criterion_results (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),
     criterion_id TEXT NOT NULL REFERENCES criteria(id),
-    outcome TEXT NOT NULL CHECK (outcome IN ('clear', 'triggered')),
+    outcome TEXT NOT NULL
+      CHECK (outcome IN ('clear', 'triggered', 'not_applicable', 'error')),
+    error_code TEXT,
+    error_detail TEXT,
+    CHECK (
+      (outcome = 'error'
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+      OR
+      (outcome <> 'error' AND error_code IS NULL AND error_detail IS NULL)
+    ),
     PRIMARY KEY (review_run_id, criterion_id)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS evaluation_file_changes (
@@ -167,6 +190,26 @@ export const EVALUATION_SCHEMA = `
       created_at
     ON review_runs
     BEGIN SELECT RAISE(ABORT, 'review_run_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS review_run_failure_update
+    BEFORE UPDATE OF execution_status, error_code, error_detail
+    ON review_runs
+    WHEN (
+      (NEW.execution_status = 'failed'
+        AND (
+          NEW.error_code IS NULL OR length(NEW.error_code) = 0
+          OR NEW.error_code GLOB '*[^a-z0-9_]*'
+          OR substr(NEW.error_code, 1, 1) NOT GLOB '[a-z]'
+          OR NEW.error_detail IS NULL OR length(trim(NEW.error_detail)) = 0
+          OR EXISTS (
+            SELECT 1 FROM criterion_results
+            WHERE review_run_id = NEW.id
+          )
+        ))
+      OR
+      (NEW.execution_status <> 'failed'
+        AND (NEW.error_code IS NOT NULL OR NEW.error_detail IS NOT NULL))
+    )
+    BEGIN SELECT RAISE(ABORT, 'review_run_failure_invalid'); END;
   CREATE TRIGGER IF NOT EXISTS criterion_result_immutable_update
     BEFORE UPDATE ON criterion_results
     BEGIN SELECT RAISE(ABORT, 'criterion_result_immutable'); END;
@@ -185,6 +228,14 @@ export const EVALUATION_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS finding_immutable_delete
     BEFORE DELETE ON findings
     BEGIN SELECT RAISE(ABORT, 'finding_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS finding_requires_triggered_criterion
+    BEFORE INSERT ON findings
+    WHEN (
+      SELECT outcome FROM criterion_results
+      WHERE review_run_id = NEW.review_run_id
+        AND criterion_id = NEW.criterion_id
+    ) <> 'triggered'
+    BEGIN SELECT RAISE(ABORT, 'finding_result_mismatch'); END;
   CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
     BEFORE UPDATE OF work_id, work_kind, accepted_at
     ON codex_execution_queue
@@ -213,17 +264,110 @@ export const EVALUATION_SCHEMA = `
 `;
 
 export const FINDING_RESULT_MIGRATION = `
+  DROP TRIGGER IF EXISTS review_run_failure_update;
+  DROP TRIGGER IF EXISTS finding_requires_triggered_criterion;
   DROP TRIGGER criterion_result_immutable_update;
   DROP TRIGGER criterion_result_immutable_delete;
   ALTER TABLE criterion_results RENAME TO criterion_results_v27;
   CREATE TABLE criterion_results (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),
     criterion_id TEXT NOT NULL REFERENCES criteria(id),
-    outcome TEXT NOT NULL CHECK (outcome IN ('clear', 'triggered')),
+    outcome TEXT NOT NULL
+      CHECK (outcome IN ('clear', 'triggered', 'not_applicable', 'error')),
+    error_code TEXT,
+    error_detail TEXT,
+    CHECK (
+      (outcome = 'error'
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+      OR
+      (outcome <> 'error' AND error_code IS NULL AND error_detail IS NULL)
+    ),
     PRIMARY KEY (review_run_id, criterion_id)
   ) STRICT;
-  INSERT INTO criterion_results (review_run_id, criterion_id, outcome)
-  SELECT review_run_id, criterion_id, outcome
+  INSERT INTO criterion_results (
+    review_run_id, criterion_id, outcome, error_code, error_detail
+  )
+  SELECT review_run_id, criterion_id, outcome, NULL, NULL
   FROM criterion_results_v27;
   DROP TABLE criterion_results_v27;
+`;
+
+export const CRITERION_RESULT_MEANING_MIGRATION = `
+  DROP TRIGGER IF EXISTS review_run_failure_update;
+  DROP TRIGGER IF EXISTS finding_requires_triggered_criterion;
+  DROP TRIGGER finding_immutable_update;
+  DROP TRIGGER finding_immutable_delete;
+  ALTER TABLE findings RENAME TO findings_v28;
+  DROP TRIGGER criterion_result_immutable_update;
+  DROP TRIGGER criterion_result_immutable_delete;
+  ALTER TABLE criterion_results RENAME TO criterion_results_v28;
+  CREATE TABLE criterion_results (
+    review_run_id TEXT NOT NULL REFERENCES review_runs(id),
+    criterion_id TEXT NOT NULL REFERENCES criteria(id),
+    outcome TEXT NOT NULL
+      CHECK (outcome IN ('clear', 'triggered', 'not_applicable', 'error')),
+    error_code TEXT,
+    error_detail TEXT,
+    CHECK (
+      (outcome = 'error'
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+      OR
+      (outcome <> 'error' AND error_code IS NULL AND error_detail IS NULL)
+    ),
+    PRIMARY KEY (review_run_id, criterion_id)
+  ) STRICT;
+  INSERT INTO criterion_results (
+    review_run_id, criterion_id, outcome, error_code, error_detail
+  )
+  SELECT review_run_id, criterion_id, outcome, NULL, NULL
+  FROM criterion_results_v28;
+  CREATE TABLE findings (
+    id TEXT PRIMARY KEY,
+    evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+    review_run_id TEXT NOT NULL,
+    criterion_id TEXT NOT NULL,
+    evidence TEXT NOT NULL CHECK (length(trim(evidence)) > 0),
+    remediation TEXT NOT NULL CHECK (length(trim(remediation)) > 0),
+    location_kind TEXT NOT NULL
+      CHECK (location_kind IN ('line_range', 'whole_side', 'changeset')),
+    file_change_id TEXT,
+    side TEXT CHECK (side IN ('base', 'head')),
+    start_line INTEGER CHECK (start_line IS NULL OR start_line > 0),
+    end_line INTEGER CHECK (end_line IS NULL OR end_line >= start_line),
+    FOREIGN KEY (review_run_id, criterion_id)
+      REFERENCES criterion_results(review_run_id, criterion_id),
+    FOREIGN KEY (evaluation_id, file_change_id)
+      REFERENCES evaluation_file_changes(evaluation_id, id),
+    CHECK (
+      (location_kind = 'changeset'
+        AND file_change_id IS NULL AND side IS NULL
+        AND start_line IS NULL AND end_line IS NULL)
+      OR
+      (location_kind = 'whole_side'
+        AND file_change_id IS NOT NULL AND side IS NOT NULL
+        AND start_line IS NULL AND end_line IS NULL)
+      OR
+      (location_kind = 'line_range'
+        AND file_change_id IS NOT NULL AND side IS NOT NULL
+        AND start_line IS NOT NULL AND end_line IS NOT NULL)
+    )
+  ) STRICT;
+  INSERT INTO findings (
+    id, evaluation_id, review_run_id, criterion_id,
+    evidence, remediation, location_kind, file_change_id,
+    side, start_line, end_line
+  )
+  SELECT
+    id, evaluation_id, review_run_id, criterion_id,
+    evidence, remediation, location_kind, file_change_id,
+    side, start_line, end_line
+  FROM findings_v28;
+  DROP TABLE findings_v28;
+  DROP TABLE criterion_results_v28;
 `;

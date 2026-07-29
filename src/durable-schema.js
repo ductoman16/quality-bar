@@ -31,6 +31,7 @@ import {
 import { normalizedForgejoBaseUrl } from "./forgejo-v16.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
 import {
+  CRITERION_RESULT_MEANING_MIGRATION,
   EVALUATION_SCHEMA,
   FINDING_RESULT_MIGRATION,
 } from "./evaluation-schema.js";
@@ -350,7 +351,15 @@ export function initializeOrValidateSchema(
       reviewRunResultColumnMigration(database),
     );
   } else if (version === 26) {
-    schemaMigration.migrateSchema(database, FINDING_RESULT_MIGRATION);
+    schemaMigration.migrateSchema(
+      database,
+      `${reviewRunResultColumnMigration(database)}${FINDING_RESULT_MIGRATION}`,
+    );
+  } else if (version === 27) {
+    schemaMigration.migrateSchema(
+      database,
+      `${reviewRunResultColumnMigration(database)}${CRITERION_RESULT_MEANING_MIGRATION}`,
+    );
   } else if (version !== SCHEMA_VERSION) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }

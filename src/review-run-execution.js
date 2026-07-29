@@ -60,7 +60,7 @@ export function createReviewRunPrompt(run) {
         id: fileChange.id,
       })),
     )}`,
-    'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
+    'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered OR not_applicable OR error","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location","error":"required only when error; stable nonblank code and exact nonblank detail"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
     'submission: {"command":"quality-bar-submit","input":"JSON by standard input or one JSON file"}',
     'evidence_boundaries: {"include":"frozen base/head Changeset and surrounding Repository material inspected on demand","exclude":["Repository instructions","pull-request discussion","prior runs","other Reviews","Forge metadata"]}',
   ].join("\n");
@@ -84,6 +84,20 @@ function removeCheckout(checkout, executionFailure) {
     }
     throw cleanupFailure;
   }
+}
+
+/** @param {unknown} error */
+function owningExecutionFailure(error) {
+  if (error instanceof ReviewRunExecutionError) {
+    return error;
+  }
+  return new ReviewRunExecutionError(
+    "unexpected_execution_failure",
+    error instanceof Error
+      ? error.message
+      : "Unexpected Review Run execution failure",
+    error instanceof Error ? { cause: error } : undefined,
+  );
 }
 
 /**
@@ -182,7 +196,10 @@ function readRun(durableCore, workId) {
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
- *   resultService: {submit(claim: any, candidate: unknown, fileChanges: any[]): unknown},
+ *   resultService: {
+ *     fail(claim: any, failure: ReviewRunExecutionError): unknown,
+ *     submit(claim: any, candidate: unknown, fileChanges: any[]): unknown
+ *   },
  *   runCodex?: typeof runReviewRunCodex,
  *   spawnProcess?: (
  *     command: string,
@@ -225,6 +242,7 @@ export async function executeReviewRun(
       workId: claim.workId,
     });
     let executionFailure;
+    let started = false;
     try {
       if (claimFailure) {
         throw claimFailure;
@@ -243,6 +261,7 @@ export async function executeReviewRun(
         prompt: createReviewRunPrompt(reviewRunWithoutPrompt),
       };
       claimService.start(claim);
+      started = true;
       await runCodex({
         checkoutPath: checkout.path,
         claim,
@@ -259,8 +278,20 @@ export async function executeReviewRun(
         ...codexOptions,
       });
     } catch (error) {
-      executionFailure = error;
-      throw error;
+      const failure = owningExecutionFailure(error);
+      executionFailure = failure;
+      if (started) {
+        try {
+          resultService.fail(claim, failure);
+        } catch (persistenceFailure) {
+          Object.defineProperty(failure, "failurePersistenceFailure", {
+            configurable: true,
+            enumerable: false,
+            value: persistenceFailure,
+          });
+        }
+      }
+      throw failure;
     } finally {
       removeCheckout(checkout, executionFailure);
     }

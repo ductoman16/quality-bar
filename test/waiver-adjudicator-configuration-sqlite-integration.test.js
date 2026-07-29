@@ -77,7 +77,7 @@ test("SQLite migrates schema v19 to the singleton Waiver Adjudicator Configurati
     core.close();
 
     core = openDurableCore(databasePath);
-    assert.equal(core.facts.schemaVersion, 27);
+    assert.equal(core.facts.schemaVersion, 28);
     assert.deepEqual(createWaiverAdjudicatorConfigurationService(core).read(), {
       configured: false,
     });

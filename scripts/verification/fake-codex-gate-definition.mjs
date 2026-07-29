@@ -1,7 +1,7 @@
 export const FAKE_CODEX_GATE_DEFINITION = {
   name: "fake-codex-integration",
   testGroup:
-    "waiver-adjudication-configuration-and-exact-secret-excluding-clear-and-triggered-finding-review-run-fake-codex-boundary",
+    "waiver-adjudication-configuration-and-exact-secret-excluding-four-meaning-criterion-result-review-run-fake-codex-boundary",
   failureCode: "fake_codex_integration_tests_failed",
   arguments: [
     "--test",

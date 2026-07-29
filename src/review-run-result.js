@@ -65,21 +65,41 @@ export function validateReviewRunSubmission(candidate, criteria, fileChanges) {
         "Criterion Result must contain its exact outcome fields",
       );
     }
-    if (!["clear", "triggered"].includes(result.outcome)) {
+    if (
+      !["clear", "triggered", "not_applicable", "error"].includes(
+        result.outcome,
+      )
+    ) {
       fail(
         "criterion_result_outcome_unsupported",
-        "Only clear and triggered Criterion Results are supported by this Review Run",
+        "Criterion Result outcome is not supported by this Review Run",
       );
     }
+    const errorIsComplete =
+      result.error &&
+      !Array.isArray(result.error) &&
+      typeof result.error === "object" &&
+      Object.getPrototypeOf(result.error) === Object.prototype &&
+      Object.keys(result.error).length === 2 &&
+      typeof result.error.code === "string" &&
+      /^[a-z][a-z0-9_]*$/.test(result.error.code) &&
+      typeof result.error.detail === "string" &&
+      result.error.detail.trim().length > 0;
     if (
       !(
-        (result.outcome === "clear" &&
+        (["clear", "not_applicable"].includes(result.outcome) &&
           Object.keys(result).length === 2 &&
-          result.findings === undefined) ||
+          result.findings === undefined &&
+          result.error === undefined) ||
         (result.outcome === "triggered" &&
           Object.keys(result).length === 3 &&
           Array.isArray(result.findings) &&
-          result.findings.length > 0)
+          result.findings.length > 0 &&
+          result.error === undefined) ||
+        (result.outcome === "error" &&
+          Object.keys(result).length === 3 &&
+          result.findings === undefined &&
+          errorIsComplete)
       )
     ) {
       fail(
@@ -106,11 +126,14 @@ export function validateReviewRunSubmission(candidate, criteria, fileChanges) {
       "Criterion Results must cover every frozen Criterion exactly once and in order",
     );
   }
-  return results.map(({ criterion_id: criterionId, findings, outcome }) => ({
-    criterion_id: criterionId,
-    ...(findings === undefined ? {} : { findings }),
-    outcome,
-  }));
+  return results.map(
+    ({ criterion_id: criterionId, error, findings, outcome }) => ({
+      criterion_id: criterionId,
+      ...(error === undefined ? {} : { error }),
+      ...(findings === undefined ? {} : { findings }),
+      outcome,
+    }),
+  );
 }
 
 /** @param {any} finding @param {any[]} fileChanges */
@@ -218,6 +241,7 @@ export function createReviewRunResultService(
   { createFindingId = randomUUID, now = () => Date.now() } = {},
 ) {
   return {
+    fail: createReviewRunFailureService(durableCore, now, fail),
     /**
      * @param {{fencingToken: number, workerId: string, workId: string}} claim
      * @param {unknown} candidate
@@ -320,11 +344,13 @@ export function createReviewRunResultService(
         for (const result of results) {
           transaction.run(
             `INSERT INTO criterion_results (
-               review_run_id, criterion_id, outcome
-             ) VALUES (?, ?, ?)`,
+               review_run_id, criterion_id, outcome, error_code, error_detail
+             ) VALUES (?, ?, ?, ?, ?)`,
             claim.workId,
             result.criterion_id,
             result.outcome,
+            result.error?.code ?? null,
+            result.error?.detail ?? null,
           );
           for (const finding of result.findings ?? []) {
             const location = finding.location;
@@ -370,11 +396,13 @@ export function createReviewRunResultService(
                 ({ criterion_id: frozenId }) => frozenId === criterionId,
               )?.impact,
           );
-        const outcome = triggeredImpacts.includes("blocking")
-          ? "blocking"
-          : triggeredImpacts.includes("advisory")
-            ? "advisory"
-            : "clear";
+        const outcome = results.some(({ outcome }) => outcome === "error")
+          ? "error"
+          : triggeredImpacts.includes("blocking")
+            ? "blocking"
+            : triggeredImpacts.includes("advisory")
+              ? "advisory"
+              : "clear";
         transaction.run(
           `INSERT INTO evaluation_results (
              evaluation_id, outcome, completed_at
@@ -395,3 +423,5 @@ export function createReviewRunResultService(
   };
 }
 import { randomUUID } from "node:crypto";
+
+import { createReviewRunFailureService } from "./review-run-failure.js";

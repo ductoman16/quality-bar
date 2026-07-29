@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { readReviewRunFileChanges } from "../src/review-run-file-changes.js";
+import { validateReviewRunSubmission } from "../src/review-run-result.js";
 
 /** @param {string} repository @param {string} message */
 function commit(repository, message) {
@@ -91,6 +92,39 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
         base_line_count: 2,
         before_path: "deleted.txt",
         head_line_count: null,
+      },
+    ],
+  );
+  assert.deepEqual(
+    validateReviewRunSubmission(
+      {
+        criterion_results: [
+          { criterion_id: "criterion-1", outcome: "not_applicable" },
+          {
+            criterion_id: "criterion-2",
+            error: {
+              code: "required_evidence_unavailable",
+              detail: "The binary side cannot be judged as text.",
+            },
+            outcome: "error",
+          },
+        ],
+      },
+      [
+        { criterion_id: "criterion-1", impact: "blocking" },
+        { criterion_id: "criterion-2", impact: "advisory" },
+      ],
+      changes,
+    ),
+    [
+      { criterion_id: "criterion-1", outcome: "not_applicable" },
+      {
+        criterion_id: "criterion-2",
+        error: {
+          code: "required_evidence_unavailable",
+          detail: "The binary side cannot be judged as text.",
+        },
+        outcome: "error",
       },
     ],
   );
