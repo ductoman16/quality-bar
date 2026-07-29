@@ -8,7 +8,7 @@ test("Evaluation related reads publish complete canonical resource schemas", () 
   assert.equal(
     paths["/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}"].get
       .responses[200].content["application/json"].schema.$ref,
-    "#/components/schemas/TerminalReviewRun",
+    "#/components/schemas/ReviewRun",
   );
   assert.equal(
     paths["/api/v1/evaluations/{evaluation_id}/findings/{finding_id}"].get

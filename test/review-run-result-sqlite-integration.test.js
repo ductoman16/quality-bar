@@ -157,97 +157,86 @@ test("the first valid fenced submission atomically preserves every complete Crit
     ),
     { completed_at: 30, execution_status: "completed" },
   );
-  assert.deepEqual(
-    createEvaluationService(core, {
-      acquireChangeset: async () => {
-        throw new Error("not used");
-      },
-      masterKey: Buffer.alloc(32, 7),
-      readCodexCapabilityFailure: () => null,
-      storageReserve: { assertWorkAdmissionAvailable() {} },
-    }).readResult("evaluation-1"),
-    {
-      applicability_results: [
-        {
-          assignment: { scope: "installation_wide" },
-          evidence: { kind: "unconditional" },
-          outcome: "applicable",
-          review_id: review.id,
-          review_version_id: review.active_version.id,
-          rule: null,
-        },
-      ],
-      completed_at: "1970-01-01T00:00:00.030Z",
-      criterion_results: [
-        {
-          criterion_id: review.active_version.criteria[0].id,
-          outcome: "triggered",
-          review_run_id: "review-run-1",
-        },
-        {
-          criterion_id: review.active_version.criteria[1].id,
-          outcome: "clear",
-          review_run_id: "review-run-1",
-        },
-        {
-          criterion_id: review.active_version.criteria[2].id,
-          outcome: "not_applicable",
-          review_run_id: "review-run-1",
-        },
-        {
-          criterion_id: review.active_version.criteria[3].id,
-          error: {
-            code: "required_evidence_unavailable",
-            detail: "The required generated file is absent from the head.",
-          },
-          outcome: "error",
-          review_run_id: "review-run-1",
-        },
-      ],
-      evaluation_id: "evaluation-1",
-      file_changes: [
-        {
-          added: false,
-          after_path: "src/current.js",
-          before_path: "src/previous.js",
-          deleted: false,
-          id: "file-change-1",
-          modified: true,
-          patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
-          renamed: true,
-        },
-      ],
-      findings: [
-        {
-          criterion_id: review.active_version.criteria[0].id,
-          evidence: "The changed branch returns stale state.",
-          id: "finding-1",
-          impact: "blocking",
-          location: {
-            end_line: 3,
-            file_change_id: "file-change-1",
-            kind: "line_range",
-            path: "src/current.js",
-            side: "head",
-            start_line: 2,
-          },
-          remediation: "Return the newly computed state.",
-          review_run_id: "review-run-1",
-        },
-      ],
-      outcome: "error",
-      review_runs: [
-        {
-          completed_at: "1970-01-01T00:00:00.030Z",
-          id: "review-run-1",
-          review_id: review.id,
-          review_version_id: review.active_version.id,
-          started_at: "1970-01-01T00:00:00.020Z",
-          status: "completed",
-        },
-      ],
+  const result = createEvaluationService(core, {
+    acquireChangeset: async () => {
+      throw new Error("not used");
     },
-  );
+    masterKey: Buffer.alloc(32, 7),
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  }).readResult("evaluation-1");
+  assert.deepEqual(result, {
+    applicability_results: [
+      {
+        assignment: { scope: "installation_wide" },
+        evidence: { kind: "unconditional" },
+        outcome: "applicable",
+        review_id: review.id,
+        review_version_id: review.active_version.id,
+        rule: null,
+      },
+    ],
+    completed_at: "1970-01-01T00:00:00.030Z",
+    criterion_results: [
+      {
+        criterion_id: review.active_version.criteria[0].id,
+        outcome: "triggered",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[1].id,
+        outcome: "clear",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[2].id,
+        outcome: "not_applicable",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[3].id,
+        error: {
+          code: "required_evidence_unavailable",
+          detail: "The required generated file is absent from the head.",
+        },
+        outcome: "error",
+        review_run_id: "review-run-1",
+      },
+    ],
+    evaluation_id: "evaluation-1",
+    file_changes: [
+      {
+        added: false,
+        after_path: "src/current.js",
+        before_path: "src/previous.js",
+        deleted: false,
+        id: "file-change-1",
+        modified: true,
+        patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+        renamed: true,
+      },
+    ],
+    findings: [
+      {
+        criterion_id: review.active_version.criteria[0].id,
+        evidence: "The changed branch returns stale state.",
+        id: "finding-1",
+        impact: "blocking",
+        location: {
+          end_line: 3,
+          file_change_id: "file-change-1",
+          kind: "line_range",
+          path: "src/current.js",
+          side: "head",
+          start_line: 2,
+        },
+        remediation: "Return the newly computed state.",
+        review_run_id: "review-run-1",
+      },
+    ],
+    outcome: "error",
+    review_runs: result.review_runs,
+  });
   assert.throws(
     () =>
       results.prepare(

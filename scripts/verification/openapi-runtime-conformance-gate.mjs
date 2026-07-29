@@ -2,6 +2,10 @@ export const EVALUATION_HTTP_TESTS = [
   "test/evaluation-http-integration.test.js",
   "test/evaluation-machine-http-integration.test.js",
 ];
+export const EVALUATION_UNIT_TESTS = [
+  "test/evaluation-machine-authorization.test.js",
+  "test/evaluation-result-resource.test.js",
+];
 
 /**
  * @param {{

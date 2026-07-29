@@ -197,7 +197,7 @@ test("independent sibling Review Runs publish one Result only after every run is
     result.review_runs.map((run) => ({
       error: run.error,
       id: run.id,
-      status: run.status,
+      status: run.execution_status,
     })),
     [
       {

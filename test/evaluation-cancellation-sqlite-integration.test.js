@@ -182,7 +182,7 @@ test("durable cancellation wins before signaling and preserves completed child f
     result.review_runs.map((run) => ({
       error: run.error,
       id: run.id,
-      status: run.status,
+      status: run.execution_status,
     })),
     [
       {

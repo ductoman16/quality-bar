@@ -232,7 +232,7 @@ export function createGateDefinitions(metadata) {
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
         "test/evaluation-validation.test.js",
-        "test/evaluation-machine-authorization.test.js",
+        ...evaluationGate.EVALUATION_UNIT_TESTS,
         "test/review-run-admission.test.js",
         "test/repository-collection.test.js",
         "test/repository-selector.test.js",

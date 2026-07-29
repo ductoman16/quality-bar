@@ -9,17 +9,49 @@ import {
 import { writeError, writeJson } from "./http-response.js";
 
 /** @param {string | undefined} method @param {string} path */
-export function machineMayAccessEvaluationRoute(method, path) {
-  return (
-    (method === "GET" &&
-      (path === "/api/v1/evaluations" ||
-        /^\/api\/v1\/evaluations\/[^/]+$/.test(path) ||
-        /^\/api\/v1\/evaluations\/[^/]+\/result$/.test(path) ||
-        /^\/api\/v1\/evaluations\/[^/]+\/review-runs\/[^/]+$/.test(path) ||
-        /^\/api\/v1\/evaluations\/[^/]+\/findings\/[^/]+$/.test(path))) ||
-    (method === "POST" &&
-      /^\/api\/v1\/repositories\/[^/]+\/evaluations$/.test(path))
+export function matchEvaluationRoute(method, path) {
+  const createMatch = path.match(
+    /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
   );
+  const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
+  const cancellationMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
+  );
+  const diagnosticsMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
+  );
+  const reviewRunMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)$/,
+  );
+  const findingMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/findings\/([^/]+)$/,
+  );
+  const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
+  const collection = method === "GET" && path === "/api/v1/evaluations";
+  const readable =
+    method === "GET" &&
+    (evaluationMatch !== null ||
+      resultMatch !== null ||
+      reviewRunMatch !== null ||
+      findingMatch !== null);
+  return {
+    cancellationMatch,
+    collection,
+    createMatch,
+    diagnosticsMatch,
+    evaluationMatch,
+    findingMatch,
+    machineAccessible:
+      collection || readable || (method === "POST" && Boolean(createMatch)),
+    recognized:
+      collection ||
+      readable ||
+      (method === "POST" &&
+        (createMatch !== null || cancellationMatch !== null)) ||
+      (method === "GET" && diagnosticsMatch !== null),
+    resultMatch,
+    reviewRunMatch,
+  };
 }
 
 /** @param {Error & {code: string, unavailable?: boolean}} failure */
@@ -112,52 +144,30 @@ export function createEvaluationRoute({
   ) {
     const { method } = request;
     const path = requestUrl.pathname;
-    const createMatch = path.match(
-      /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
-    );
-    const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
-    const cancellationMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
-    );
-    const diagnosticsMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
-    );
-    const reviewRunMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)$/,
-    );
-    const findingMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/findings\/([^/]+)$/,
-    );
-    const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
-    if (
-      !(
-        (method === "GET" && path === "/api/v1/evaluations") ||
-        (method === "POST" && createMatch) ||
-        (method === "POST" && cancellationMatch) ||
-        (method === "GET" && evaluationMatch) ||
-        (method === "GET" && resultMatch) ||
-        (method === "GET" && reviewRunMatch) ||
-        (method === "GET" && findingMatch) ||
-        (method === "GET" && diagnosticsMatch)
-      )
-    ) {
+    const matches = matchEvaluationRoute(method, path);
+    const {
+      cancellationMatch,
+      collection,
+      createMatch,
+      diagnosticsMatch,
+      evaluationMatch,
+      findingMatch,
+      resultMatch,
+      reviewRunMatch,
+    } = matches;
+    if (!matches.recognized) {
       return false;
     }
-    if (
-      authority === "machine" &&
-      !machineMayAccessEvaluationRoute(method, path)
-    ) {
+    if (authority === "machine" && !matches.machineAccessible) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     try {
       assertAllowedQueryParameters(
         requestUrl,
-        method === "GET" && path === "/api/v1/evaluations"
-          ? new Set(["cursor", "limit"])
-          : new Set(),
+        collection ? new Set(["cursor", "limit"]) : new Set(),
       );
-      if (method === "GET" && path === "/api/v1/evaluations") {
+      if (collection) {
         writeJson(
           response,
           200,

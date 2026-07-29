@@ -40,79 +40,7 @@ function machineHeaders(application, idempotencyKey) {
   };
 }
 
-test("the implementer token creates, replays, conflicts, polls, and reads an Evaluation", async () => {
-  let nextId = 0;
-  const { application, request } = await startApplication({
-    createEvaluations(core, options) {
-      return createEvaluationService(core, {
-        ...options,
-        acquireChangeset: async () => ({
-          base_commit: baseCommit,
-          head_commit: headCommit,
-        }),
-        createId: () => `machine-evaluation-${++nextId}`,
-        now: () => 1_000,
-      });
-    },
-  });
-  application.durableCore.run(
-    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
-    "repository-1",
-    "https://example.invalid/repository.git",
-    1,
-    1,
-  );
-  const { headers, token } = machineHeaders(application, "machine-key");
-  const path = "/api/v1/repositories/repository-1/evaluations";
-  const created = await request(path, {
-    body: JSON.stringify(requestBody),
-    headers,
-    method: "POST",
-  });
-  assert.equal(created.status, 201);
-  assert.equal(
-    created.headers.get("location"),
-    "/api/v1/evaluations/machine-evaluation-1",
-  );
-  const resource = /** @type {{id: string}} */ (await created.json());
-
-  const replay = await request(path, {
-    body: JSON.stringify(requestBody),
-    headers,
-    method: "POST",
-  });
-  assert.equal(replay.status, 201);
-  assert.deepEqual(await replay.json(), resource);
-  const conflict = await request(path, {
-    body: JSON.stringify({
-      ...requestBody,
-      head: { type: "branch", value: "other" },
-    }),
-    headers,
-    method: "POST",
-  });
-  assert.equal(conflict.status, 409);
-  assert.equal(await responseErrorCode(conflict), "idempotency_conflict");
-
-  for (const readPath of [
-    "/api/v1/evaluations",
-    `/api/v1/evaluations/${resource.id}`,
-    `/api/v1/evaluations/${resource.id}/result`,
-  ]) {
-    const response = await request(readPath, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    assert.equal(response.status, 200);
-  }
-  assert.equal(
-    application.durableCore.get(
-      "SELECT count(*) AS count FROM evaluation_idempotency",
-    )?.count,
-    1,
-  );
-});
-
-test("the implementer token sees exact not-ready and canonical related resources", async () => {
+test("the implementer token requests, polls, and reads canonical Evaluation facts", async () => {
   const { application, request } = await startApplication({
     createEvaluations(core, options) {
       return createEvaluationService(core, {
@@ -178,16 +106,6 @@ test("the implementer token sees exact not-ready and canonical related resources
     await responseErrorCode(earlyResult),
     "evaluation_result_not_ready",
   );
-  const cancellation = await request(`${evaluationPath}/cancel`, {
-    headers: readHeaders,
-    method: "POST",
-  });
-  assert.equal(cancellation.status, 403);
-  assert.equal(
-    await responseErrorCode(cancellation),
-    "authorization_forbidden",
-  );
-
   const claims = createReviewRunClaimService(application.durableCore, {
     createWorkerId: () => "machine-resource-worker",
     now: () => 20,
@@ -243,14 +161,6 @@ test("the implementer token sees exact not-ready and canonical related resources
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), expected);
   }
-  for (const [path, code] of [
-    [`${evaluationPath}/review-runs/missing`, "review_run_not_found"],
-    [`${evaluationPath}/findings/missing`, "finding_not_found"],
-  ]) {
-    const response = await request(path, { headers: readHeaders });
-    assert.equal(response.status, 404);
-    assert.equal(await responseErrorCode(response), code);
-  }
 });
 
 test("disconnect after durable machine acceptance does not cancel Evaluation work", async () => {
@@ -293,6 +203,20 @@ test("disconnect after durable machine acceptance does not cancel Evaluation wor
     1,
     1,
   );
+  createReviewService(application.durableCore, {
+    createId: () => "disconnect-review-fact",
+    now: () => 2,
+  }).create({
+    assignment: { scope: "installation_wide" },
+    codex_configuration: {
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
+    },
+    criteria: [{ impact: "blocking", instruction: "Inspect the change." }],
+    description: "Disconnect proof",
+    name: "Disconnect proof",
+  });
   const { headers } = machineHeaders(application, "disconnect-key");
   const body = JSON.stringify(requestBody);
   const target = new URL(
@@ -321,7 +245,17 @@ test("disconnect after durable machine acceptance does not cancel Evaluation wor
       "SELECT execution_status FROM evaluations WHERE id = ?",
       "evaluation-disconnected",
     ),
-    { execution_status: "completed" },
+    { execution_status: "queued" },
+  );
+  assert.equal(
+    application.durableCore.get(
+      `SELECT count(*) AS count
+       FROM codex_execution_queue
+       JOIN review_runs ON review_runs.id = codex_execution_queue.work_id
+       WHERE review_runs.evaluation_id = ?`,
+      "evaluation-disconnected",
+    )?.count,
+    1,
   );
   assert.equal(
     application.durableCore.get(

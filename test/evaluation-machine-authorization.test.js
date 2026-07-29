@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { machineMayAccessEvaluationRoute } from "../src/evaluation-route.js";
+import { matchEvaluationRoute } from "../src/evaluation-route.js";
 
 test("implementer-token Evaluation authority is narrow and resource-based", () => {
   for (const [method, path] of [
@@ -12,7 +12,7 @@ test("implementer-token Evaluation authority is narrow and resource-based", () =
     ["GET", "/api/v1/evaluations/evaluation-1/findings/finding-1"],
     ["POST", "/api/v1/repositories/repository-1/evaluations"],
   ]) {
-    assert.equal(machineMayAccessEvaluationRoute(method, path), true);
+    assert.equal(matchEvaluationRoute(method, path).machineAccessible, true);
   }
 
   for (const [method, path] of [
@@ -24,6 +24,6 @@ test("implementer-token Evaluation authority is narrow and resource-based", () =
     ["POST", "/api/v1/evaluations/evaluation-1/retry"],
     ["POST", "/api/v1/evaluations/evaluation-1/review-runs"],
   ]) {
-    assert.equal(machineMayAccessEvaluationRoute(method, path), false);
+    assert.equal(matchEvaluationRoute(method, path).machineAccessible, false);
   }
 });

@@ -125,7 +125,7 @@ export function canonicalEvaluationPaths(errorResponse) {
     "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}":
       relatedRead(
         "getEvaluationReviewRun",
-        "TerminalReviewRun",
+        "ReviewRun",
         "Complete canonical Review Run",
         "review_run_id",
       ),
