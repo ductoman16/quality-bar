@@ -55,7 +55,12 @@ export { RepositoryError };
  *   ) => Promise<void>
  *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
  *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
- *   resolveSelectors?: typeof resolvePushedCommitSelectors
+ *   resolveSelectors?: (
+ *     normalizedUrl: string,
+ *     credential: {token: string, username: string} | undefined,
+ *     request: unknown,
+ *     options: {objectDatabaseRoot: string}
+ *   ) => Promise<import("./repository-git.js").ResolvedPushedCommitSelectors>
  * }} options
  */
 export function createRepositoryService(

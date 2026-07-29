@@ -34,6 +34,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/request-security.test.js",
   "test/applicability-rule.test.js",
   "test/applicability-evaluation.test.js",
+  "test/file-change.test.js",
   "test/applicability-result-schema-migration.test.js",
   "test/applicability-result-authority-sqlite-integration.test.js",
   "test/applicability-result-sqlite-integration.test.js",

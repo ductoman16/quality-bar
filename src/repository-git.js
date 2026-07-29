@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,12 +8,24 @@ import {
   EvaluationError,
   failEvaluation,
 } from "./evaluation-validation.js";
+import { fileChangesFromGitNameStatus, gitPathFields } from "./file-change.js";
 import { RepositoryError } from "./repository-validation.js";
 import {
   gitCredentialIsValid,
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { createGitPathMatcher } from "./git-path-matcher.js";
+
+/**
+ * @typedef {{
+ *   base_commit: string,
+ *   head_commit: string,
+ *   file_changes?: ReturnType<typeof fileChangesFromGitNameStatus>,
+ *   matches_path?: (pathspec: string, path: string) => boolean,
+ *   release?: () => void
+ * }} ResolvedPushedCommitSelectors
+ */
 
 /** @param {unknown} cause */
 function unavailable(cause) {
@@ -206,7 +218,8 @@ export async function resolvePushedCommitSelectors(
        *   code: number | null,
        *   signal: NodeJS.Signals | null,
        *   stderr: string,
-       *   stdout: string
+       *   stdout: string,
+       *   stdoutBuffer: Buffer
        * }} */ (result);
       if (command.code === 0 && command.signal === null) {
         return command;
@@ -288,20 +301,35 @@ export async function resolvePushedCommitSelectors(
     acquired = {
       base_commit: resolved[0].toLowerCase(),
       head_commit: resolved[1].toLowerCase(),
+      file_changes: fileChangesFromGitNameStatus(
+        /** @type {{stdoutBuffer: Buffer}} */ (
+          await runGit(
+            [
+              "diff",
+              "--find-renames",
+              "--name-status",
+              "-z",
+              resolved[0],
+              resolved[1],
+            ],
+            false,
+          )
+        ).stdoutBuffer,
+      ),
     };
   } catch (error) {
     acquisitionFailure = error;
   }
-  try {
-    removeDirectory(objectDatabase);
-  } catch (cause) {
-    failEvaluation(
-      "evaluation_git_acquisition_unavailable",
-      "Evaluation Git acquisition cleanup failed",
-      cause,
-    );
-  }
   if (acquisitionFailure) {
+    try {
+      removeDirectory(objectDatabase);
+    } catch (cause) {
+      failEvaluation(
+        "evaluation_git_acquisition_unavailable",
+        "Evaluation Git acquisition cleanup failed",
+        cause,
+      );
+    }
     if (acquisitionFailure instanceof EvaluationError) {
       failEvaluation(
         acquisitionFailure.code,
@@ -341,5 +369,60 @@ export async function resolvePushedCommitSelectors(
       acquisitionFailure,
     );
   }
-  return /** @type {{base_commit: string, head_commit: string}} */ (acquired);
+  const frozen = /** @type {ResolvedPushedCommitSelectors & {
+   *   file_changes: ReturnType<typeof fileChangesFromGitNameStatus>,
+   *   matches_path: (pathspec: string, path: string) => boolean,
+   *   release: () => void
+   * }} */ (acquired);
+  frozen.matches_path = createGitPathMatcher(
+    [frozen.base_commit, frozen.head_commit],
+    (commit, pathspec) => {
+      try {
+        return gitPathFields(
+          execFileSync(
+            "git",
+            [
+              "-C",
+              objectDatabase,
+              "ls-files",
+              "-z",
+              `--with-tree=${commit}`,
+              "--",
+              pathspec,
+            ],
+            {
+              env: {
+                GIT_CONFIG_GLOBAL: "/dev/null",
+                GIT_CONFIG_NOSYSTEM: "1",
+                LC_ALL: "C",
+              },
+              maxBuffer: Number.MAX_SAFE_INTEGER,
+            },
+          ),
+        );
+      } catch (cause) {
+        throw Object.assign(new Error("Frozen Git path matching failed"), {
+          cause,
+          code: "applicability_git_match_failed",
+        });
+      }
+    },
+  );
+  let released = false;
+  frozen.release = () => {
+    if (released) {
+      throw new TypeError("Frozen Changeset is already released");
+    }
+    released = true;
+    try {
+      removeDirectory(objectDatabase);
+    } catch (cause) {
+      failEvaluation(
+        "evaluation_git_acquisition_unavailable",
+        "Evaluation Git acquisition cleanup failed",
+        cause,
+      );
+    }
+  };
+  return frozen;
 }

@@ -352,3 +352,56 @@ test("Evaluation reads expose only a persisted exact delay time", (context) => {
   );
   core.close();
 });
+
+test("Changeset cleanup failure rolls back Evaluation admission", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-cleanup-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  const service = createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: oid("1"),
+      head_commit: oid("2"),
+      release() {
+        throw Object.assign(
+          new Error("Evaluation Git acquisition cleanup failed"),
+          {
+            code: "evaluation_git_acquisition_unavailable",
+          },
+        );
+      },
+    }),
+    createId: () => "evaluation-rejected",
+    readCodexCapabilityFailure: () => null,
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 10,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  await assert.rejects(
+    () =>
+      service.createExplicit({
+        channel: "implementer_token",
+        idempotencyKey: "cleanup-failure",
+        repositoryId: "repository-1",
+        request: {
+          base: { type: "branch", value: "main" },
+          head: { type: "branch", value: "topic" },
+        },
+      }),
+    (error) =>
+      error instanceof EvaluationError &&
+      error.code === "evaluation_git_acquisition_unavailable",
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM evaluations")?.count, 0);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM evaluation_idempotency")?.count,
+    0,
+  );
+  core.close();
+});

@@ -345,3 +345,62 @@ test("an unexpected started failure has one stable safe owning detail", async ()
     "Unexpected Review Run execution failure",
   );
 });
+
+test("a contradictory File Change authority failure remains exact through execution", async () => {
+  const authorityFailure = Object.assign(
+    new Error("Frozen File Changes do not match the Evaluation authority"),
+    { code: "evaluation_file_change_authority_mismatch" },
+  );
+  /** @type {ReviewRunExecutionError | undefined} */
+  let persistedFailure;
+  await assert.rejects(
+    () =>
+      executeReviewRun(durableCore(), claim, {
+        claimService: {
+          start() {},
+          startRenewal() {
+            return () => {};
+          },
+        },
+        async prepareCheckout() {
+          return {
+            path: "/checkout",
+            remove() {},
+          };
+        },
+        readFileChanges: () => [],
+        resultService: {
+          fail(submissionClaim, failure) {
+            assert.equal(submissionClaim, claim);
+            persistedFailure = failure;
+          },
+          prepare() {
+            throw authorityFailure;
+          },
+        },
+        async runCodex(input) {
+          input.startRun?.();
+          input.resultService.prepare(claim, {});
+          throw new Error("unreachable");
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "evaluation_file_change_authority_mismatch");
+      assert.equal(
+        error.message,
+        "Frozen File Changes do not match the Evaluation authority",
+      );
+      assert.equal(error.cause, authorityFailure);
+      return true;
+    },
+  );
+  assert.equal(
+    persistedFailure?.code,
+    "evaluation_file_change_authority_mismatch",
+  );
+  assert.equal(
+    persistedFailure?.message,
+    "Frozen File Changes do not match the Evaluation authority",
+  );
+});

@@ -52,7 +52,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -140,7 +140,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
@@ -182,4 +182,181 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
     migrated.get("SELECT count(*) AS count FROM findings")?.count,
     0,
   );
+});
+
+test("schema v32 preserves exact File Change kinds while adding durable facts", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-kind-migrate-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  await createQueuedReviewRun(prior);
+  prior.transaction((transaction) => {
+    transaction.run("DROP TRIGGER finding_immutable_update");
+    transaction.run("DROP TRIGGER finding_immutable_delete");
+    transaction.run("DROP TABLE findings");
+    transaction.run("DROP TRIGGER evaluation_file_change_immutable_update");
+    transaction.run("DROP TRIGGER evaluation_file_change_immutable_delete");
+    transaction.run("DROP TRIGGER evaluation_file_change_kind_insert");
+    transaction.run("DROP TABLE evaluation_file_changes");
+    transaction.run(
+      `CREATE TABLE evaluation_file_changes (
+         evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+         id TEXT NOT NULL,
+         before_path TEXT,
+         after_path TEXT,
+         base_line_count INTEGER,
+         head_line_count INTEGER,
+         patch TEXT NOT NULL,
+         PRIMARY KEY (evaluation_id, id)
+       ) STRICT`,
+    );
+    transaction.run(
+      `INSERT INTO evaluation_file_changes (
+         evaluation_id, id, before_path, after_path,
+         base_line_count, head_line_count, patch
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      "evaluation-1",
+      "file-change-1",
+      "src/original.js",
+      "src/renamed.js",
+      1,
+      1,
+      "diff --git a/src/original.js b/src/renamed.js\nsimilarity index 100%\nrename from src/original.js\nrename to src/renamed.js\n",
+    );
+    transaction.run(
+      `INSERT INTO evaluation_file_changes (
+         evaluation_id, id, before_path, after_path,
+         base_line_count, head_line_count, patch
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      "evaluation-1",
+      "file-change-2",
+      "src/old.js",
+      "src/new.js",
+      1,
+      2,
+      "diff --git a/src/old.js b/src/new.js\nsimilarity index 90%\nrename from src/old.js\nrename to src/new.js\n@@ -1 +1,2 @@\n+similarity index 100%\n",
+    );
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
+    );
+    transaction.run("PRAGMA user_version = 32");
+  });
+  prior.close();
+
+  const migrated = openDurableCore(databasePath);
+  context.after(() => migrated.close());
+  assert.equal(migrated.facts.schemaVersion, 33);
+  assert.deepEqual(
+    migrated.all(
+      `SELECT added, deleted, modified, renamed,
+              before_path, after_path
+       FROM evaluation_file_changes
+       ORDER BY id`,
+    ),
+    [
+      {
+        added: 0,
+        after_path: "src/renamed.js",
+        before_path: "src/original.js",
+        deleted: 0,
+        modified: 0,
+        renamed: 1,
+      },
+      {
+        added: 0,
+        after_path: "src/new.js",
+        before_path: "src/old.js",
+        deleted: 0,
+        modified: 1,
+        renamed: 1,
+      },
+    ],
+  );
+  assert.throws(
+    () =>
+      migrated.run(
+        `INSERT INTO evaluation_file_changes (
+           evaluation_id, id, before_path, after_path,
+           base_line_count, head_line_count, patch
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        "evaluation-1",
+        "file-change-invalid",
+        null,
+        "src/added.js",
+        null,
+        1,
+        "added",
+      ),
+    /evaluation_file_change_kind_invalid/,
+  );
+});
+
+test("schema v32 rejects impossible legacy File Changes", async (context) => {
+  for (const [name, path, patch] of [
+    [
+      "type-change",
+      "src/entry",
+      "diff --git a/src/entry b/src/entry\nold mode 100644\nnew mode 120000\n",
+    ],
+    [
+      "invalid-path",
+      "src\\entry.js",
+      "diff --git a/src/entry.js b/src/entry.js\n",
+    ],
+  ]) {
+    const directory = mkdtempSync(
+      join(tmpdir(), `quality-bar-${name}-reject-`),
+    );
+    context.after(() => rmSync(directory, { force: true, recursive: true }));
+    const databasePath = join(directory, "quality-bar.sqlite3");
+    const prior = openDurableCore(databasePath);
+    await createQueuedReviewRun(prior);
+    prior.transaction((transaction) => {
+      transaction.run("DROP TRIGGER finding_immutable_update");
+      transaction.run("DROP TRIGGER finding_immutable_delete");
+      transaction.run("DROP TABLE findings");
+      transaction.run("DROP TRIGGER evaluation_file_change_immutable_update");
+      transaction.run("DROP TRIGGER evaluation_file_change_immutable_delete");
+      transaction.run("DROP TRIGGER evaluation_file_change_kind_insert");
+      transaction.run("DROP TABLE evaluation_file_changes");
+      transaction.run(
+        `CREATE TABLE evaluation_file_changes (
+           evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
+           id TEXT NOT NULL,
+           before_path TEXT,
+           after_path TEXT,
+           base_line_count INTEGER,
+           head_line_count INTEGER,
+           patch TEXT NOT NULL,
+           PRIMARY KEY (evaluation_id, id)
+         ) STRICT`,
+      );
+      transaction.run(
+        `INSERT INTO evaluation_file_changes (
+           evaluation_id, id, before_path, after_path,
+           base_line_count, head_line_count, patch
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        "evaluation-1",
+        "file-change-1",
+        path,
+        path,
+        1,
+        1,
+        patch,
+      );
+      transaction.run(
+        "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
+      );
+      transaction.run("PRAGMA user_version = 32");
+    });
+    prior.close();
+
+    assert.throws(
+      () => openDurableCore(databasePath),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "schema_invalid",
+    );
+  }
 });

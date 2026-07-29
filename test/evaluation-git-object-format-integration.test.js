@@ -22,24 +22,25 @@ test("Evaluation acquisition freezes native SHA-256 commit object IDs", async (c
   ).trim();
   let acquisitionDirectory = "";
   assert.equal(expectedCommit.length, 64);
-  assert.deepEqual(
-    await resolvePushedCommitSelectors(
-      pathToFileURL(repository).href,
-      undefined,
-      {
-        base: { type: "branch", value: "main" },
-        head: { type: "commit", value: expectedCommit },
+  const frozen = await resolvePushedCommitSelectors(
+    pathToFileURL(repository).href,
+    undefined,
+    {
+      base: { type: "branch", value: "main" },
+      head: { type: "commit", value: expectedCommit },
+    },
+    {
+      objectDatabaseRoot: directory,
+      removeDirectory(path) {
+        acquisitionDirectory = path;
+        rmSync(path, { force: true, recursive: true });
       },
-      {
-        objectDatabaseRoot: directory,
-        removeDirectory(path) {
-          acquisitionDirectory = path;
-          rmSync(path, { force: true, recursive: true });
-        },
-      },
-    ),
-    { base_commit: expectedCommit, head_commit: expectedCommit },
+    },
   );
+  assert.equal(frozen.base_commit, expectedCommit);
+  assert.equal(frozen.head_commit, expectedCommit);
+  assert.deepEqual(frozen.file_changes, []);
+  frozen.release();
   assert.ok(acquisitionDirectory.startsWith(`${directory}/`));
   await assert.rejects(
     () =>

@@ -43,7 +43,13 @@ if (
   readFileSync(".git/config", "utf8").includes("[remote ") ||
   typeof criterion !== "string" ||
   !Array.isArray(fileChanges) ||
-  fileChanges.length !== 1
+  fileChanges.length !== 1 ||
+  fileChanges[0].added !== true ||
+  fileChanges[0].deleted !== false ||
+  fileChanges[0].modified !== false ||
+  fileChanges[0].renamed !== false ||
+  fileChanges[0].before_path !== null ||
+  fileChanges[0].after_path !== "reviewed.txt"
 ) {
   throw new Error("fake_codex_review_run_arguments_invalid");
 }

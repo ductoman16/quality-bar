@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-
 import { createEvaluationCollection } from "./evaluation-collection.js";
+import { withAcquiredChangeset } from "./evaluation-changeset.js";
+import { readIdempotentReplay } from "./evaluation-idempotency.js";
 import {
   canonicalExplicitEvaluationRequest,
   EvaluationError,
@@ -19,7 +20,6 @@ import {
 } from "./review-run-admission.js";
 
 export { EvaluationError };
-const ROUTE_PREFIX = "/api/v1/repositories/";
 
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
@@ -80,37 +80,6 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
   evaluation_results.outcome AS result_outcome FROM evaluations
   JOIN repositories ON repositories.id = evaluations.repository_id
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id`;
-
-/**
- * @param {{get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined}} access
- * @param {string} channel
- * @param {string} route
- * @param {string} key
- * @param {string} requestHash
- */
-function readIdempotentReplay(access, channel, route, key, requestHash) {
-  const replay = access.get(
-    `SELECT request_hash, response_status, response_body
-     FROM evaluation_idempotency
-     WHERE channel = ? AND route = ? AND idempotency_key = ?`,
-    channel,
-    route,
-    key,
-  );
-  if (!replay) {
-    return null;
-  }
-  if (replay.request_hash !== requestHash) {
-    failEvaluation(
-      "idempotency_conflict",
-      "Idempotency key was already used with different input",
-    );
-  }
-  return {
-    resource: JSON.parse(/** @type {string} */ (replay.response_body)),
-    status: replay.response_status,
-  };
-}
 
 /**
  * @param {{
@@ -236,7 +205,7 @@ export function createEvaluationService(
       }
       const key = requireIdempotencyKey(idempotencyKey);
       const canonicalRequest = canonicalExplicitEvaluationRequest(request);
-      const route = `${ROUTE_PREFIX}${repositoryId}/evaluations`;
+      const route = `/api/v1/repositories/${repositoryId}/evaluations`;
       const requestHash = createHash("sha256")
         .update(JSON.stringify(canonicalRequest))
         .digest("hex");
@@ -252,170 +221,178 @@ export function createEvaluationService(
       }
 
       storageReserve.assertWorkAdmissionAvailable();
-      const commits = await acquireChangeset(repositoryId, canonicalRequest);
-      if (
-        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.base_commit) ||
-        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commits?.head_commit) ||
-        commits.base_commit.length !== commits.head_commit.length
-      ) {
-        throw new TypeError("Acquired Evaluation commits are invalid");
-      }
-      const evaluationId = createId();
-      const createdAt = now();
-      if (
-        typeof evaluationId !== "string" ||
-        evaluationId.length === 0 ||
-        !Number.isSafeInteger(createdAt)
-      ) {
-        throw new TypeError("Evaluation identity or timestamp is invalid");
-      }
-      try {
-        return durableCore.transaction((transaction) => {
-          const racedReplay = readIdempotentReplay(
-            transaction,
-            channel,
-            route,
-            key,
-            requestHash,
-          );
-          if (racedReplay) {
-            return racedReplay;
+      return withAcquiredChangeset(
+        acquireChangeset,
+        repositoryId,
+        canonicalRequest,
+        (commits, releaseChangeset) => {
+          const evaluationId = createId();
+          const createdAt = now();
+          if (
+            typeof evaluationId !== "string" ||
+            evaluationId.length === 0 ||
+            !Number.isSafeInteger(createdAt)
+          ) {
+            throw new TypeError("Evaluation identity or timestamp is invalid");
           }
-          const repository = transaction.get(
-            `SELECT lifecycle, health, health_error_code, health_error_message
+          try {
+            return durableCore.transaction((transaction) => {
+              const racedReplay = readIdempotentReplay(
+                transaction,
+                channel,
+                route,
+                key,
+                requestHash,
+              );
+              if (racedReplay) {
+                return racedReplay;
+              }
+              const repository = transaction.get(
+                `SELECT lifecycle, health, health_error_code, health_error_message
              FROM repositories WHERE id = ?`,
-            repositoryId,
-          );
-          if (!repository) {
-            failEvaluation("repository_not_found", "Repository was not found");
-          }
-          if (repository.lifecycle !== "enabled") {
-            failEvaluation(
-              "repository_not_enabled",
-              "Repository does not accept new work",
-            );
-          }
-          if (repository.health !== "healthy") {
-            failEvaluationUnavailable(
-              /** @type {string} */ (repository.health_error_code),
-              /** @type {string} */ (repository.health_error_message),
-            );
-          }
-          const { applicabilityResults, reviewRuns } =
-            selectReviewRunsForAdmission(
-              transaction,
-              repositoryId,
-              createReviewRunId,
-              readCodexCapabilityFailure,
-              commits,
-              typeof commits.matches_path === "function"
-                ? commits.matches_path
-                : () => {
-                    throw Object.assign(
-                      new Error("Frozen Git path matching is unavailable"),
-                      { code: "applicability_path_matching_unavailable" },
-                    );
-                  },
-            );
-          const executionStatus =
-            reviewRuns.length === 0 ? "completed" : "queued";
-          const completedAt = reviewRuns.length === 0 ? createdAt : null;
-          transaction.run(
-            `INSERT INTO evaluations (
+                repositoryId,
+              );
+              if (!repository) {
+                failEvaluation(
+                  "repository_not_found",
+                  "Repository was not found",
+                );
+              }
+              if (repository.lifecycle !== "enabled") {
+                failEvaluation(
+                  "repository_not_enabled",
+                  "Repository does not accept new work",
+                );
+              }
+              if (repository.health !== "healthy") {
+                failEvaluationUnavailable(
+                  /** @type {string} */ (repository.health_error_code),
+                  /** @type {string} */ (repository.health_error_message),
+                );
+              }
+              const { applicabilityResults, reviewRuns } =
+                selectReviewRunsForAdmission(
+                  transaction,
+                  repositoryId,
+                  createReviewRunId,
+                  readCodexCapabilityFailure,
+                  commits,
+                  typeof commits.matches_path === "function"
+                    ? commits.matches_path
+                    : () => {
+                        throw Object.assign(
+                          new Error("Frozen Git path matching is unavailable"),
+                          { code: "applicability_path_matching_unavailable" },
+                        );
+                      },
+                );
+              const executionStatus =
+                reviewRuns.length === 0 ? "completed" : "queued";
+              const completedAt = reviewRuns.length === 0 ? createdAt : null;
+              transaction.run(
+                `INSERT INTO evaluations (
                id, repository_id, provenance,
                base_selector_type, base_selector_value,
                head_selector_type, head_selector_value,
                base_commit, head_commit, execution_status, next_attempt_at,
                created_at, completed_at
              ) VALUES (?, ?, 'explicit', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-            evaluationId,
-            repositoryId,
-            canonicalRequest.base.type,
-            canonicalRequest.base.value,
-            canonicalRequest.head.type,
-            canonicalRequest.head.value,
-            commits.base_commit,
-            commits.head_commit,
-            executionStatus,
-            createdAt,
-            completedAt,
-          );
-          insertApplicabilityResults(
-            transaction,
-            evaluationId,
-            applicabilityResults,
-          );
-          sealApplicabilityResults(transaction, evaluationId, createdAt);
-          if (reviewRuns.length === 0) {
-            const outcome = applicabilityResults.some(
-              (result) => result.outcome === "error",
-            )
-              ? "error"
-              : "clear";
-            transaction.run(
-              `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
+                evaluationId,
+                repositoryId,
+                canonicalRequest.base.type,
+                canonicalRequest.base.value,
+                canonicalRequest.head.type,
+                canonicalRequest.head.value,
+                commits.base_commit,
+                commits.head_commit,
+                executionStatus,
+                createdAt,
+                completedAt,
+              );
+              insertApplicabilityResults(
+                transaction,
+                evaluationId,
+                applicabilityResults,
+              );
+              sealApplicabilityResults(transaction, evaluationId, createdAt);
+              if (reviewRuns.length === 0) {
+                const outcome = applicabilityResults.some(
+                  (result) => result.outcome === "error",
+                )
+                  ? "error"
+                  : "clear";
+                transaction.run(
+                  `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
                VALUES (?, ?, ?)`,
-              evaluationId,
-              outcome,
-              createdAt,
-            );
-          } else {
-            enqueueReviewRuns(transaction, evaluationId, reviewRuns, createdAt);
-          }
-          const resource = readEvaluation(
-            transaction.get(
-              `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
-              evaluationId,
-            ),
-          );
-          const responseBody = JSON.stringify(resource);
-          transaction.run(
-            `INSERT INTO evaluation_idempotency (
+                  evaluationId,
+                  outcome,
+                  createdAt,
+                );
+              } else {
+                enqueueReviewRuns(
+                  transaction,
+                  evaluationId,
+                  reviewRuns,
+                  createdAt,
+                );
+              }
+              const resource = readEvaluation(
+                transaction.get(
+                  `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
+                  evaluationId,
+                ),
+              );
+              const responseBody = JSON.stringify(resource);
+              transaction.run(
+                `INSERT INTO evaluation_idempotency (
                channel, route, idempotency_key, request_hash,
                response_status, response_body, evaluation_id, created_at
              ) VALUES (?, ?, ?, ?, 201, ?, ?, ?)`,
-            channel,
-            route,
-            key,
-            requestHash,
-            responseBody,
-            evaluationId,
-            createdAt,
-          );
-          return { resource, status: 201 };
-        });
-      } catch (error) {
-        if (error instanceof EvaluationError) {
-          throw error;
-        }
-        if (
-          isUniqueConstraintFailure(
-            error,
-            "evaluation_idempotency.channel, evaluation_idempotency.route, evaluation_idempotency.idempotency_key",
-          )
-        ) {
-          const raced = readIdempotentReplay(
-            durableCore,
-            channel,
-            route,
-            key,
-            requestHash,
-          );
-          if (raced) {
-            return raced;
+                channel,
+                route,
+                key,
+                requestHash,
+                responseBody,
+                evaluationId,
+                createdAt,
+              );
+              releaseChangeset();
+              return { resource, status: 201 };
+            });
+          } catch (error) {
+            if (error instanceof EvaluationError) {
+              throw error;
+            }
+            if (
+              isUniqueConstraintFailure(
+                error,
+                "evaluation_idempotency.channel, evaluation_idempotency.route, evaluation_idempotency.idempotency_key",
+              )
+            ) {
+              const raced = readIdempotentReplay(
+                durableCore,
+                channel,
+                route,
+                key,
+                requestHash,
+              );
+              if (raced) {
+                return raced;
+              }
+            }
+            if (
+              error instanceof Error &&
+              "code" in error &&
+              typeof error.code === "string"
+            ) {
+              failEvaluation(error.code, error.message, error);
+            }
+            throw new Error("Evaluation persistence failed", {
+              cause: error,
+            });
           }
-        }
-        if (
-          error instanceof Error &&
-          "code" in error &&
-          typeof error.code === "string"
-        ) {
-          failEvaluation(error.code, error.message, error);
-        }
-        throw new Error("Evaluation persistence failed", {
-          cause: error,
-        });
-      }
+        },
+      );
     },
   };
 }
