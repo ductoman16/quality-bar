@@ -109,7 +109,8 @@ export function createReviewRunClaimService(
         const queued = transaction.get(
           `SELECT work_id, fencing_token
            FROM codex_execution_queue
-           WHERE started_at IS NULL
+           WHERE work_kind = 'review_run'
+             AND started_at IS NULL
              AND ready_at <= ?
              AND (worker_id IS NULL OR lease_expires_at <= ?)
            ORDER BY ready_at, work_id
@@ -126,6 +127,7 @@ export function createReviewRunClaimService(
           `UPDATE codex_execution_queue
            SET worker_id = ?, fencing_token = ?, lease_expires_at = ?
            WHERE work_id = ?
+             AND work_kind = 'review_run'
              AND fencing_token = ?
              AND started_at IS NULL
              AND (worker_id IS NULL OR lease_expires_at <= ?)`,
@@ -157,6 +159,7 @@ export function createReviewRunClaimService(
           `UPDATE codex_execution_queue
            SET lease_expires_at = ?
            WHERE work_id = ?
+             AND work_kind = 'review_run'
              AND worker_id = ?
              AND fencing_token = ?
              AND lease_expires_at > ?`,
@@ -191,6 +194,7 @@ export function createReviewRunClaimService(
           `UPDATE codex_execution_queue
            SET started_at = ?
            WHERE work_id = ?
+             AND work_kind = 'review_run'
              AND worker_id = ?
              AND fencing_token = ?
              AND started_at IS NULL

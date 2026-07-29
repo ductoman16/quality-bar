@@ -122,6 +122,51 @@ export function canonicalEvaluationPaths(errorResponse) {
         security: authenticated,
       },
     },
+    "/api/v1/evaluations/{evaluation_id}/waiver-adjudications": {
+      post: {
+        operationId: "submitWaiverBatch",
+        parameters: [
+          identityParameter,
+          {
+            in: "header",
+            name: "Idempotency-Key",
+            required: true,
+            schema: {
+              maxLength: 255,
+              minLength: 1,
+              pattern: "^[!-~]+$",
+              type: "string",
+            },
+          },
+        ],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/WaiverBatchRequest" },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          201: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/WaiverBatch" },
+              },
+            },
+            description: "Atomic Waiver Request batch and queued Adjudication",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          503: errorResponse,
+        },
+        security: authenticated,
+      },
+    },
     "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}":
       relatedRead(
         "getEvaluationReviewRun",

@@ -9,6 +9,8 @@ export const WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA = `
     updated_at INTEGER NOT NULL
   ) STRICT;
 `;
+const SELECT_CONFIGURATION =
+  "SELECT model, reasoning_effort, service_tier, updated_at FROM waiver_adjudicator_configuration WHERE singleton = 1";
 
 export class WaiverAdjudicatorConfigurationError extends Error {
   /**
@@ -36,6 +38,34 @@ function configurationFromRow(row) {
 
 /**
  * @param {{
+ *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined
+ * }} reader
+ */
+export function freezeWaiverAdjudicatorConfiguration(reader) {
+  let configuration;
+  try {
+    configuration = configurationFromRow(reader.get(SELECT_CONFIGURATION));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      /** @type {Error & {unavailable?: boolean}} */ (error).unavailable = true;
+    }
+    throw error;
+  }
+  if (!configuration) {
+    throw new WaiverAdjudicatorConfigurationError(
+      "waiver_adjudicator_configuration_required",
+      "Waiver Adjudicator Configuration is required",
+    );
+  }
+  return { ...configuration };
+}
+
+/**
+ * @param {{
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
  *   transaction<Result>(callback: (transaction: {
  *     get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
@@ -48,11 +78,8 @@ export function createWaiverAdjudicatorConfigurationService(
   durableCore,
   { now = () => Date.now() } = {},
 ) {
-  const selectConfiguration =
-    "SELECT model, reasoning_effort, service_tier, updated_at FROM waiver_adjudicator_configuration WHERE singleton = 1";
-
   function readConfiguration() {
-    return configurationFromRow(durableCore.get(selectConfiguration));
+    return configurationFromRow(durableCore.get(SELECT_CONFIGURATION));
   }
 
   return {
@@ -63,21 +90,14 @@ export function createWaiverAdjudicatorConfigurationService(
         : { configured: false };
     },
     freezeForAdjudication() {
-      const configuration = readConfiguration();
-      if (!configuration) {
-        throw new WaiverAdjudicatorConfigurationError(
-          "waiver_adjudicator_configuration_required",
-          "Waiver Adjudicator Configuration is required",
-        );
-      }
-      return { ...configuration };
+      return freezeWaiverAdjudicatorConfiguration(durableCore);
     },
     /** @param {unknown} candidate */
     update(candidate) {
       const configuration = validateCodexConfiguration(candidate);
       return durableCore.transaction((transaction) => {
         const current = configurationFromRow(
-          transaction.get(selectConfiguration),
+          transaction.get(SELECT_CONFIGURATION),
         );
         if (
           current &&

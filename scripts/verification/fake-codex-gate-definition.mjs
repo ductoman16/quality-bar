@@ -6,6 +6,7 @@ export const FAKE_CODEX_GATE_DEFINITION = {
   arguments: [
     "--test",
     "test/waiver-adjudicator-configuration-fake-codex-integration.test.js",
+    "test/waiver-batch-fake-codex-integration.test.js",
     "test/evaluation-aggregation-fake-codex-integration.test.js",
     "test/evaluation-fake-codex-integration.test.js",
     "test/review-run-fake-codex-integration.test.js",

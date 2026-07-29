@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createEvaluationCollection } from "./evaluation-collection.js";
+import { createEvaluationCollectionReader } from "./evaluation-collection-reader.js";
 import {
   cancelEvaluation,
   signalReviewRunCancellations,
@@ -29,6 +29,7 @@ import {
   sealApplicabilityResults,
   selectReviewRunsForAdmission,
 } from "./review-run-admission.js";
+import { createWaiverBatchService } from "./waiver-batch.js";
 
 export { EvaluationError };
 export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
@@ -48,6 +49,8 @@ export { createUnavailableEvaluationService } from "./evaluation-unavailable.js"
  *   readCodexCapabilityFailure: () => (Error & {code: string}) | null,
  *   createId?: () => string,
  *   createReviewRunId?: () => string,
+ *   createWaiverAdjudicationId?: () => string,
+ *   createWaiverRequestId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
  *   signalCancellations?: (workIds: string[]) => void,
@@ -61,6 +64,8 @@ export function createEvaluationService(
     readCodexCapabilityFailure,
     createId = randomUUID,
     createReviewRunId = randomUUID,
+    createWaiverAdjudicationId = () => randomUUID(),
+    createWaiverRequestId = () => randomUUID(),
     masterKey,
     now = () => Date.now(),
     signalCancellations = signalReviewRunCancellations,
@@ -81,39 +86,19 @@ export function createEvaluationService(
   ) {
     throw new TypeError("Evaluation dependencies are invalid");
   }
-  const collection = createEvaluationCollection(masterKey, ({ after, limit }) =>
-    durableCore.all(
-      `${EVALUATION_SELECTION}
-         ${
-           after
-             ? `WHERE evaluations.created_at < ?
-                  OR (
-                    evaluations.created_at = ?
-                    AND evaluations.id < ?
-                  )`
-             : ""
-         }
-         ORDER BY evaluations.created_at DESC, evaluations.id DESC
-         LIMIT ?`,
-      ...(after
-        ? [after.created_at, after.created_at, after.id, limit]
-        : [limit]),
-    ),
+  const { collection, read } = createEvaluationCollectionReader(
+    durableCore,
+    masterKey,
   );
 
-  /** @param {string} id */
-  function read(id) {
-    const row = durableCore.get(
-      `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
-      id,
-    );
-    if (!row) {
-      failEvaluation("evaluation_not_found", "Evaluation was not found");
-    }
-    return readEvaluation(row);
-  }
-
   const resultResources = createEvaluationResultResourceReader(durableCore);
+  const waiverBatches = createWaiverBatchService(durableCore, {
+    createAdjudicationId: createWaiverAdjudicationId,
+    createRequestId: createWaiverRequestId,
+    now,
+    readCodexCapabilityFailure,
+    storageReserve,
+  });
 
   /**
    * @param {any} transaction
@@ -325,6 +310,7 @@ export function createEvaluationService(
       };
     },
     read,
+    submitWaiverBatch: waiverBatches.submit,
     ...resultResources,
     readReviewRunDiagnostics:
       createEvaluationReviewRunDiagnosticsReader(durableCore),

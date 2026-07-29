@@ -52,6 +52,8 @@ test("the implementer token requests, polls, and reads canonical Evaluation fact
         }),
         createId: () => "evaluation-1",
         createReviewRunId: () => "review-run-1",
+        createWaiverAdjudicationId: () => "waiver-adjudication-1",
+        createWaiverRequestId: () => "waiver-request-1",
         now: () => 10,
       });
     },
@@ -74,7 +76,7 @@ test("the implementer token requests, polls, and reads canonical Evaluation fact
       reasoning_effort: "high",
       service_tier: "standard",
     },
-    criteria: [{ impact: "blocking", instruction: "Prove the claim." }],
+    criteria: [{ impact: "advisory", instruction: "Prove the claim." }],
     description: "Machine Evaluation Review",
     name: "Machine Evaluation",
   });
@@ -171,6 +173,84 @@ test("the implementer token requests, polls, and reads canonical Evaluation fact
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), expected);
   }
+  application.durableCore.run(
+    `INSERT INTO waiver_adjudicator_configuration (
+       singleton, model, reasoning_effort, service_tier, updated_at
+     ) VALUES (1, 'gpt-5.6-terra', 'high', 'standard', 30)`,
+  );
+  const waiverBody = JSON.stringify({
+    requests: [
+      {
+        finding_id: "finding-1",
+        rationale: "This exact deployment must retain the flagged behavior.",
+      },
+    ],
+  });
+  const waiverPath = `${evaluationPath}/waiver-adjudications`;
+  const waiver = await request(waiverPath, {
+    body: waiverBody,
+    headers: {
+      ...readHeaders,
+      "content-type": "application/json",
+      "idempotency-key": "waiver-key",
+    },
+    method: "POST",
+  });
+  assert.equal(waiver.status, 201);
+  assert.equal(
+    waiver.headers.get("location"),
+    "/api/v1/waiver-adjudications/waiver-adjudication-1",
+  );
+  const waiverResource = /** @type {any} */ (await waiver.json());
+  assert.equal(waiverResource.adjudication.execution_status, "queued");
+  assert.deepEqual(
+    await (
+      await request(waiverPath, {
+        body: waiverBody,
+        headers: {
+          ...readHeaders,
+          "content-type": "application/json",
+          "idempotency-key": "waiver-key",
+        },
+        method: "POST",
+      })
+    ).json(),
+    waiverResource,
+  );
+  const conflict = await request(waiverPath, {
+    body: JSON.stringify({
+      requests: [{ finding_id: "finding-1", rationale: "Different input" }],
+    }),
+    headers: {
+      ...readHeaders,
+      "content-type": "application/json",
+      "idempotency-key": "waiver-key",
+    },
+    method: "POST",
+  });
+  assert.equal(conflict.status, 409);
+  assert.equal(await responseErrorCode(conflict), "idempotency_conflict");
+  const active = await request(waiverPath, {
+    body: JSON.stringify({
+      requests: [{ finding_id: "finding-1", rationale: "Another rationale" }],
+    }),
+    headers: {
+      ...readHeaders,
+      "content-type": "application/json",
+      "idempotency-key": "active-waiver-key",
+    },
+    method: "POST",
+  });
+  assert.equal(active.status, 409);
+  const activeError = /** @type {{
+   * error: {code: string, message: string, request_id: string}
+   * }} */ (await active.json()).error;
+  assert.equal(activeError.code, "waiver_adjudication_active");
+  assert.equal(
+    activeError.message,
+    "Waiver Adjudication waiver-adjudication-1 is queued",
+  );
+  assert.equal(typeof activeError.request_id, "string");
   const malformed = await request("/api/v1/evaluations/%ZZ/result", {
     headers: readHeaders,
   });

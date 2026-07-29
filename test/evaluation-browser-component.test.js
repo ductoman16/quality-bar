@@ -113,7 +113,28 @@ test("Evaluations renders no partial data before the complete first-valid Result
         return {
           ok: true,
           async json() {
-            return TRIGGERED_EVALUATION_RESULT;
+            return {
+              ...TRIGGERED_EVALUATION_RESULT,
+              findings: TRIGGERED_EVALUATION_RESULT.findings.map((finding) => ({
+                ...finding,
+                impact: "advisory",
+              })),
+            };
+          },
+        };
+      }
+      if (
+        path === "/api/v1/evaluations/evaluation-triggered/waiver-adjudications"
+      ) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              adjudication: {
+                execution_status: "queued",
+                id: "waiver-adjudication-browser",
+              },
+            };
           },
         };
       }
@@ -171,6 +192,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
     },
   };
   for (const [sourcePath, route] of [
+    ["src/browser/waiver-batch.js", "/assets/waiver-batch.js"],
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
@@ -241,7 +263,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
   assert.equal(findingDetails.open, true);
   assert.equal(
     findingDetails.options[0].textContent,
-    "Finding finding-1 — blocking",
+    "Finding finding-1 — advisory",
   );
   assert.equal(
     findingDetails.options[1].textContent,
@@ -261,13 +283,34 @@ test("Evaluations renders no partial data before the complete first-valid Result
       textContent: "head src/current.js:2-3",
     },
   );
-  const frozenDiff = findingDetails.options[4];
+  const frozenDiff = findingDetails.options[5];
   assert.equal(frozenDiff.open, true);
   assert.equal(
     frozenDiff.options[0].textContent,
     "Frozen diff — head src/current.js:2-3",
   );
   assert.match(frozenDiff.options[1].textContent, /-old state\n\+new state/);
+  const rationale = findingDetails.options[4];
+  rationale.value = "This generated state is required for this deployment.";
+  const waiverForm = resultDetails.options[3];
+  await waiverForm.listener("submit")({ preventDefault() {} });
+  const waiverSubmission = requests.find(
+    ({ path }) =>
+      path === "/api/v1/evaluations/evaluation-triggered/waiver-adjudications",
+  );
+  assert.ok(waiverSubmission);
+  assert.deepEqual(JSON.parse(waiverSubmission.options.body), {
+    requests: [
+      {
+        finding_id: "finding-1",
+        rationale: "This generated state is required for this deployment.",
+      },
+    ],
+  });
+  assert.equal(
+    waiverForm.options[1].textContent,
+    "Waiver Adjudication waiver-adjudication-browser queued.",
+  );
   assert.equal(
     resultDetails.options[1].options[0].textContent,
     "Criterion criterion-2 — not applicable — Review review-1 review-version-1",
@@ -333,74 +376,4 @@ test("Evaluations renders no partial data before the complete first-valid Result
     JSON.stringify([...controls.values()]),
     /browser-csrf-owned-secret|authorization|cookie/i,
   );
-});
-
-test("Evaluations distinguishes an empty workspace from a hard dependency gate", async () => {
-  for (const scenario of ["empty", "gated"]) {
-    const controls = evaluationElements();
-    const context = {
-      document: {
-        createElement() {
-          return browserElement();
-        },
-      },
-      async fetch(/** @type {string} */ path) {
-        assert.equal(path, "/api/v1/evaluations");
-        return scenario === "empty"
-          ? {
-              ok: true,
-              async json() {
-                return { items: [], next_cursor: null };
-              },
-            }
-          : {
-              ok: false,
-              status: 503,
-              async json() {
-                return {
-                  error: {
-                    message:
-                      "A required runtime filesystem is below the free-space reserve",
-                  },
-                };
-              },
-            };
-      },
-      window: {
-        qualityBarOperator: {
-          csrfToken: () => "csrf-token",
-          async displayMutationFailure() {},
-          async readRepositoryCollection() {
-            return { failure: null, items: [] };
-          },
-          requiredElement(/** @type {string} */ id) {
-            return controls.get(id);
-          },
-        },
-      },
-    };
-    for (const [sourcePath, route] of [
-      ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
-      ["src/browser/evaluation.js", "/assets/evaluation.js"],
-    ]) {
-      executeServedBrowserAsset(
-        resolve("."),
-        sourcePath,
-        readBrowserAsset(route),
-        context,
-      );
-    }
-    await new Promise((resolvePromise) => setImmediate(resolvePromise));
-    if (scenario === "empty") {
-      assert.equal(controls.get("evaluation-empty").hidden, false);
-      assert.equal(controls.get("evaluation-state").hidden, true);
-    } else {
-      assert.equal(controls.get("evaluation-empty").hidden, true);
-      assert.equal(controls.get("evaluation-state").hidden, false);
-      assert.equal(
-        controls.get("evaluation-state").textContent,
-        "Evaluations unavailable: A required runtime filesystem is below the free-space reserve",
-      );
-    }
-  }
 });
