@@ -11,6 +11,12 @@ import { writeError, writeJson } from "./http-response.js";
 /** @param {Error & {code: string, unavailable?: boolean}} failure */
 function failureStatus(failure) {
   const { code } = failure;
+  if (code === "authentication_required") {
+    return 401;
+  }
+  if (["csrf_invalid", "origin_invalid"].includes(code)) {
+    return 403;
+  }
   if (
     [
       "cursor_invalid",
@@ -33,6 +39,7 @@ function failureStatus(failure) {
   if (
     [
       "evaluation_result_not_ready",
+      "evaluation_not_cancellable",
       "idempotency_conflict",
       "repository_disabled",
       "repository_not_enabled",
@@ -94,6 +101,9 @@ export function createEvaluationRoute({
       /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
     );
     const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
+    const cancellationMatch = path.match(
+      /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
+    );
     const diagnosticsMatch = path.match(
       /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
     );
@@ -102,6 +112,7 @@ export function createEvaluationRoute({
       !(
         (method === "GET" && path === "/api/v1/evaluations") ||
         (method === "POST" && createMatch) ||
+        (method === "POST" && cancellationMatch) ||
         (method === "GET" && evaluationMatch) ||
         (method === "GET" && resultMatch) ||
         (method === "GET" && diagnosticsMatch)
@@ -165,6 +176,14 @@ export function createEvaluationRoute({
           browserOrigin,
           requestUrl,
         );
+      }
+      if (cancellationMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.cancel(decodeURIComponent(cancellationMatch[1])),
+        );
+        return true;
       }
       const idempotencyKey = request.headers["idempotency-key"];
       const created = await evaluations.createExplicit({

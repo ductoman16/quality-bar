@@ -109,6 +109,53 @@ test(
   },
 );
 
+test("durably committed operator cancellation closes submission before process-group termination", async () => {
+  /** @type {(string | number)[]} */
+  const events = [];
+  const child = runningProcess(83);
+  /** @type {(value?: void) => void} */
+  let signalCancellation = () =>
+    assert.fail("cancellation signal was not installed");
+  const cancellationSignal = new Promise((resolve) => {
+    signalCancellation = resolve;
+  });
+  const execution = runReviewRunCodex({
+    cancellationSignal,
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -83);
+      events.push(signal);
+      if (signal === "SIGKILL") {
+        queueMicrotask(() => child.emit("close", null, "SIGKILL"));
+      }
+    },
+    openSubmissionChannel: async () => ({
+      ...acceptedChannel(),
+      accepted: () => false,
+      async close() {
+        events.push("submission-closed");
+      },
+      waitForResult: () => new Promise(() => {}),
+    }),
+    resultService: { prepare() {} },
+    run,
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      queueMicrotask(callback);
+      return {};
+    },
+    spawnProcess: () => /** @type {any} */ (child),
+  });
+  signalCancellation();
+  assert.deepEqual(await execution, {
+    cancelled: true,
+    diagnosticFailures: [],
+  });
+  assert.deepEqual(events, ["submission-closed", "SIGTERM", "SIGKILL"]);
+});
+
 test("parallel Review Runs own independent deadline timers", async () => {
   /** @type {(() => void)[]} */
   const deadlines = [];

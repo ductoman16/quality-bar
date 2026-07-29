@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createEvaluationCollection } from "./evaluation-collection.js";
+import {
+  cancelEvaluation,
+  signalReviewRunCancellations,
+} from "./evaluation-cancellation.js";
 import { withAcquiredChangeset } from "./evaluation-changeset.js";
 import { readIdempotentReplay } from "./evaluation-idempotency.js";
 import {
@@ -20,6 +24,7 @@ import {
 } from "./review-run-admission.js";
 
 export { EvaluationError };
+export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
 
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
@@ -98,6 +103,7 @@ const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
  *   createReviewRunId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
+ *   signalCancellations?: (workIds: string[]) => void,
  *   storageReserve: {assertWorkAdmissionAvailable: () => unknown}
  * }} options
  */
@@ -110,6 +116,7 @@ export function createEvaluationService(
     createReviewRunId = randomUUID,
     masterKey,
     now = () => Date.now(),
+    signalCancellations = signalReviewRunCancellations,
     storageReserve,
   },
 ) {
@@ -122,6 +129,7 @@ export function createEvaluationService(
     !Buffer.isBuffer(masterKey) ||
     masterKey.length !== 32 ||
     typeof now !== "function" ||
+    typeof signalCancellations !== "function" ||
     typeof storageReserve?.assertWorkAdmissionAvailable !== "function"
   ) {
     throw new TypeError("Evaluation dependencies are invalid");
@@ -159,6 +167,17 @@ export function createEvaluationService(
   }
 
   return {
+    /** @param {string} id */
+    cancel(id) {
+      cancelEvaluation(
+        durableCore,
+        id,
+        now,
+        signalCancellations,
+        failEvaluation,
+      );
+      return read(id);
+    },
     destroy() {
       collection.destroy();
     },
@@ -393,35 +412,6 @@ export function createEvaluationService(
           }
         },
       );
-    },
-  };
-}
-
-/** @param {unknown} error */
-export function createUnavailableEvaluationService(error) {
-  const failure =
-    error instanceof Error && "code" in error && typeof error.code === "string"
-      ? { code: error.code, message: error.message }
-      : {
-          code: "evaluation_capability_unavailable",
-          message: "Evaluation capability is unavailable",
-        };
-  return {
-    destroy() {},
-    async createExplicit() {
-      failEvaluation(failure.code, failure.message, error);
-    },
-    list() {
-      failEvaluation(failure.code, failure.message, error);
-    },
-    read() {
-      failEvaluation(failure.code, failure.message, error);
-    },
-    readResult() {
-      failEvaluation(failure.code, failure.message, error);
-    },
-    readReviewRunDiagnostics() {
-      failEvaluation(failure.code, failure.message, error);
     },
   };
 }

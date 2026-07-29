@@ -103,10 +103,29 @@ async function renderEvaluation(evaluation) {
   const resultState = document.createElement("div");
   row.append(resultState);
   target.append(row);
-  if (evaluation.execution_status !== "completed") {
-    if (["queued", "running"].includes(evaluation.execution_status)) {
-      resultState.textContent = "Result not ready";
-    }
+  if (["queued", "running"].includes(evaluation.execution_status)) {
+    resultState.textContent = "Result not ready";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel " + evaluation.id;
+    cancel.addEventListener("click", async () => {
+      const response = await fetch(
+        "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/cancel",
+        {
+          headers: { "x-quality-bar-csrf": operator.csrfToken() },
+          method: "POST",
+        },
+      );
+      if (!response.ok) {
+        await operator.displayMutationFailure(response);
+        return;
+      }
+      await loadEvaluations();
+    });
+    row.append(cancel);
+    return;
+  }
+  if (!["completed", "cancelled"].includes(evaluation.execution_status)) {
     return;
   }
   let resultResponse;
