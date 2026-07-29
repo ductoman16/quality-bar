@@ -12,6 +12,7 @@ import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { fakeCodexScenarios } from "./review-run-fake-codex-scenarios.js";
 
 const fakeCodexPath = fileURLToPath(
   new URL("../fixtures/test-probes/fake-codex-review-run.mjs", import.meta.url),
@@ -19,6 +20,7 @@ const fakeCodexPath = fileURLToPath(
 
 /** @param {import("node:test").TestContext} context @param {"clear" | "triggered" | "not_applicable" | "error" | "process_failure" | "evidence_failure" | "deadline"} outcome */
 async function proveFakeCodexResult(context, outcome) {
+  const scenario = fakeCodexScenarios[outcome];
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-fake-codex-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -120,22 +122,11 @@ async function proveFakeCodexResult(context, outcome) {
       checkoutRoot,
       claimService: claims,
       codexCommand: process.execPath,
-      codexPrefixArguments:
-        outcome === "deadline"
-          ? [fakeCodexPath, "--fake-deadline"]
-          : outcome === "process_failure"
-            ? [fakeCodexPath, "--fake-process-failure"]
-            : outcome === "triggered"
-              ? [fakeCodexPath, "--fake-triggered"]
-              : outcome === "not_applicable"
-                ? [fakeCodexPath, "--fake-not-applicable"]
-                : outcome === "error"
-                  ? [fakeCodexPath, "--fake-error"]
-                  : [fakeCodexPath, "--fake-correction"],
+      codexPrefixArguments: [fakeCodexPath, ...scenario.arguments],
       evidenceService:
-        outcome === "deadline"
+        scenario.specialResult === "deadline"
           ? deadlineEvidence
-          : outcome === "evidence_failure"
+          : scenario.evidenceFailure
             ? {
                 appendTranscriptChunk:
                   durableEvidence.appendTranscriptChunk.bind(durableEvidence),
@@ -158,7 +149,7 @@ async function proveFakeCodexResult(context, outcome) {
         QUALITY_BAR_CSRF_SECRET: "csrf-owned-secret",
       },
       resultService: results,
-      ...(outcome === "deadline"
+      ...(scenario.specialResult === "deadline"
         ? {
             clearDeadlineTimer() {},
             clearTerminationTimer() {},
@@ -177,29 +168,20 @@ async function proveFakeCodexResult(context, outcome) {
           }
         : {}),
     });
-  if (
-    outcome === "process_failure" ||
-    outcome === "evidence_failure" ||
-    outcome === "deadline"
-  ) {
+  if (scenario.executionErrorCode) {
     await assert.rejects(
       execution,
       (error) =>
         error instanceof Error &&
         "code" in error &&
-        error.code ===
-          (outcome === "process_failure"
-            ? "codex_process_failed"
-            : outcome === "deadline"
-              ? "deadline_exceeded"
-              : "storage_unavailable"),
+        error.code === scenario.executionErrorCode,
     );
   } else {
     await execution();
   }
 
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
-  if (outcome === "deadline") {
+  if (scenario.specialResult === "deadline") {
     assert.deepEqual(
       core.get(
         `SELECT execution_status, error_code, error_detail,
@@ -235,7 +217,7 @@ async function proveFakeCodexResult(context, outcome) {
     assert.doesNotMatch(transcript, /fake\.deadline_submission_accepted/);
     return;
   }
-  if (outcome === "process_failure") {
+  if (scenario.specialResult === "process_failure") {
     assert.deepEqual(
       core.get(
         `SELECT execution_status, process_exit_code, process_signal,
@@ -262,7 +244,7 @@ async function proveFakeCodexResult(context, outcome) {
     );
     return;
   }
-  if (outcome === "evidence_failure") {
+  if (scenario.specialResult === "evidence_failure") {
     assert.deepEqual(
       core.get(
         `SELECT review_runs.execution_status,
@@ -343,22 +325,14 @@ async function proveFakeCodexResult(context, outcome) {
     ),
     {
       execution_status: "completed",
-      outcome:
-        outcome === "error"
-          ? "error"
-          : outcome === "triggered"
-            ? "blocking"
-            : "clear",
+      outcome: scenario.evaluationOutcome,
     },
   );
   assert.deepEqual(
     core.get(`SELECT outcome, error_code, error_detail FROM criterion_results`),
     {
-      error_code: outcome === "error" ? "required_evidence_unavailable" : null,
-      error_detail:
-        outcome === "error"
-          ? "The required generated file is absent from the head."
-          : null,
+      error_code: scenario.criterionErrorCode,
+      error_detail: scenario.criterionErrorDetail,
       outcome,
     },
   );
@@ -366,7 +340,7 @@ async function proveFakeCodexResult(context, outcome) {
     `SELECT id, evidence, remediation, location_kind, side
      FROM findings`,
   );
-  if (outcome === "triggered") {
+  if (scenario.finding) {
     assert.deepEqual(persistedFinding, {
       evidence: "The changed file contains the triggered proof.",
       id: "finding-fake-codex",
