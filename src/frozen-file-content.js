@@ -56,9 +56,10 @@ function readTreeEntry(objectDatabase, commit, path, side) {
   try {
     entryPath =
       terminator > separator
-        ? new TextDecoder("utf-8", { fatal: true }).decode(
-            output.subarray(separator + 1, terminator),
-          )
+        ? new TextDecoder("utf-8", {
+            fatal: true,
+            ignoreBOM: true,
+          }).decode(output.subarray(separator + 1, terminator))
         : "";
   } catch {
     entryPath = "";

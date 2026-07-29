@@ -174,3 +174,41 @@ test("an invalid content reader fails before evaluating even an irrelevant rule"
       error.message === "Applicability content reader is invalid",
   );
 });
+
+test("an earlier content match cannot conceal a later required-side failure", () => {
+  const source =
+    'file_changes.exists(file, file.after_content.matches("current"))';
+  const earlierMatch = {
+    added: true,
+    after_path: "src/earlier.js",
+    before_path: null,
+    deleted: false,
+    id: "file-change-1",
+    modified: false,
+    renamed: false,
+  };
+  const result = evaluateApplicabilityRule(
+    source,
+    { file_changes: [earlierMatch, textChange] },
+    {
+      matchesPath,
+      readContent(fileChange) {
+        if (fileChange.id === "file-change-1") {
+          return { state: "text", value: "current" };
+        }
+        throw Object.assign(
+          new Error("The frozen head side could not be read."),
+          { code: "applicability_file_side_unreadable" },
+        );
+      },
+    },
+  );
+  assert.equal(result.outcome, "error");
+  assert.deepEqual(result.error, {
+    code: "applicability_file_side_unreadable",
+    detail: "The frozen head side could not be read.",
+    file_change_id: "file-change-2",
+    predicate_id: "predicate-2",
+    side: "after",
+  });
+});

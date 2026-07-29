@@ -186,3 +186,52 @@ test("text selects one Review Run while binary negation and unreadable content p
     1,
   );
 });
+
+test("a malformed acquired content reader fails before durable Evaluation work", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-content-reader-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  let fact = 0;
+  const reviews = createReviewService(core, {
+    createId: () => `fact-${++fact}`,
+    now: () => fact,
+  });
+  createAssignedReview(reviews, "irrelevant reader", "true");
+  const evaluations = createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: "1".repeat(40),
+      head_commit: "2".repeat(40),
+      read_content: /** @type {any} */ ("invalid"),
+    }),
+    createId: () => "evaluation-invalid-reader",
+    createReviewRunId: () => "review-run-invalid-reader",
+    readCodexCapabilityFailure: () => null,
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 100,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  await assert.rejects(
+    () =>
+      evaluations.createExplicit({
+        channel: "implementer_token",
+        idempotencyKey: "invalid-reader",
+        repositoryId: "repository-1",
+        request: {
+          base: { type: "branch", value: "main" },
+          head: { type: "branch", value: "topic" },
+        },
+      }),
+    (error) =>
+      error instanceof TypeError &&
+      error.message === "Frozen Changeset content reader is invalid",
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM evaluations")?.count, 0);
+});

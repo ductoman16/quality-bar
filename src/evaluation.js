@@ -226,6 +226,12 @@ export function createEvaluationService(
         repositoryId,
         canonicalRequest,
         (commits, releaseChangeset) => {
+          if (
+            commits.read_content !== undefined &&
+            typeof commits.read_content !== "function"
+          ) {
+            throw new TypeError("Frozen Changeset content reader is invalid");
+          }
           const evaluationId = createId();
           const createdAt = now();
           if (
@@ -285,9 +291,7 @@ export function createEvaluationService(
                           { code: "applicability_path_matching_unavailable" },
                         );
                       },
-                  typeof commits.read_content === "function"
-                    ? commits.read_content
-                    : undefined,
+                  commits.read_content,
                 );
               const executionStatus =
                 reviewRuns.length === 0 ? "completed" : "queued";

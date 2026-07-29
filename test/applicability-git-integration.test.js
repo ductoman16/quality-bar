@@ -240,6 +240,8 @@ test("real Git acquisition reads complete text while absent and binary sides sta
   );
   writeFileSync(join(source, "generated.js"), "generated text marker\n");
   writeFileSync(join(source, "bom.txt"), Buffer.from([0xef, 0xbb, 0xbf, 0x61]));
+  const bomPath = "\uFEFFfile.txt";
+  writeFileSync(join(source, bomPath), "BOM path content\n");
   writeFileSync(join(source, "nul.bin"), Buffer.from([116, 101, 120, 116, 0]));
   writeFileSync(join(source, "invalid-utf8.bin"), Buffer.from([0xc3, 0x28]));
   execFileSync("git", ["-C", source, "add", "--all"]);
@@ -277,6 +279,7 @@ test("real Git acquisition reads complete text while absent and binary sides sta
       'file_changes.exists(file, file.after_path.matches(":(glob)modified.txt") && file.after_content.matches("complete 雪だるま text"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)generated.js") && file.after_content.matches("generated text marker"))',
       'file_changes.exists(file, file.after_path.matches(":(glob)bom.txt") && file.after_content.matches("^\\\\x{FEFF}a"))',
+      `file_changes.exists(file, file.after_path.matches(":(glob)${bomPath}") && file.after_content.matches("BOM path content"))`,
     ]) {
       assert.equal(
         evaluateApplicabilityRule(rule, frozen, {
