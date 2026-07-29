@@ -216,6 +216,13 @@ export const EVALUATION_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS criterion_result_immutable_delete
     BEFORE DELETE ON criterion_results
     BEGIN SELECT RAISE(ABORT, 'criterion_result_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS criterion_result_requires_running_review_run
+    BEFORE INSERT ON criterion_results
+    WHEN (
+      SELECT execution_status FROM review_runs
+      WHERE id = NEW.review_run_id
+    ) <> 'running'
+    BEGIN SELECT RAISE(ABORT, 'criterion_result_review_run_not_running'); END;
   CREATE TRIGGER IF NOT EXISTS evaluation_file_change_immutable_update
     BEFORE UPDATE ON evaluation_file_changes
     BEGIN SELECT RAISE(ABORT, 'evaluation_file_change_immutable'); END;

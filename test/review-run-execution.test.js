@@ -243,3 +243,51 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
     (error) => error === cleanupFailure,
   );
 });
+
+test("an unexpected started failure has one stable safe owning detail", async () => {
+  const underlyingFailure = new Error(
+    "sensitive implementation path /private/runtime/review-run",
+  );
+  /** @type {ReviewRunExecutionError | undefined} */
+  let persistedFailure;
+  await assert.rejects(
+    () =>
+      executeReviewRun(durableCore(), claim, {
+        claimService: {
+          start() {},
+          startRenewal() {
+            return () => {};
+          },
+        },
+        async prepareCheckout() {
+          return {
+            path: "/checkout",
+            remove() {},
+          };
+        },
+        readFileChanges: () => [],
+        resultService: {
+          fail(submissionClaim, failure) {
+            assert.equal(submissionClaim, claim);
+            persistedFailure = failure;
+          },
+          submit() {},
+        },
+        async runCodex() {
+          throw underlyingFailure;
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "unexpected_execution_failure");
+      assert.equal(error.message, "Unexpected Review Run execution failure");
+      assert.equal(error.cause, underlyingFailure);
+      return true;
+    },
+  );
+  assert.equal(persistedFailure?.code, "unexpected_execution_failure");
+  assert.equal(
+    persistedFailure?.message,
+    "Unexpected Review Run execution failure",
+  );
+});

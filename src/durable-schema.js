@@ -324,12 +324,13 @@ export function initializeOrValidateSchema(
       database,
       FORGEJO_CONNECTION_LIFECYCLE_MIGRATION,
     );
-  } else if (version === 19) {
-    schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
-  } else if (version === 20) {
+  } else if (version === 19 || version === 20) {
     schemaMigration.migrateSchema(database, FORGEJO_POLLING_MIGRATION);
   } else if (version === 21 || version === 22 || version === 23) {
-    schemaMigration.migrateSchema(database, "");
+    schemaMigration.migrateSchema(
+      database,
+      "DROP TRIGGER IF EXISTS criterion_result_requires_running_review_run;",
+    );
   } else if (version === 24) {
     schemaMigration.migrateSchema(
       database,

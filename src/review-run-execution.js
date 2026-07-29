@@ -93,9 +93,7 @@ function owningExecutionFailure(error) {
   }
   return new ReviewRunExecutionError(
     "unexpected_execution_failure",
-    error instanceof Error
-      ? error.message
-      : "Unexpected Review Run execution failure",
+    "Unexpected Review Run execution failure",
     error instanceof Error ? { cause: error } : undefined,
   );
 }

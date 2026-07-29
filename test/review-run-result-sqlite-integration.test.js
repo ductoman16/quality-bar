@@ -14,6 +14,7 @@ import {
 } from "../src/review-run-result.js";
 import { createReviewService } from "../src/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { executeUnexpectedReviewRun } from "./review-run-result-sqlite-integration-support.js";
 
 test("the first valid fenced submission atomically preserves every complete Criterion Result meaning", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-"));
@@ -332,6 +333,65 @@ test("an exact Review Run boundary failure creates no partial or fallback Result
     {
       error_code: "configuration_unavailable",
       error_detail: "Network-disabled Codex launch could not be constructed",
+      execution_status: "failed",
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  const criterion = core.get(
+    "SELECT criterion_id FROM review_version_criteria LIMIT 1",
+  );
+  assert.ok(criterion);
+  assert.throws(
+    () =>
+      core.run(
+        `INSERT INTO criterion_results (
+           review_run_id, criterion_id, outcome
+         ) VALUES (?, ?, 'clear')`,
+        "review-run-1",
+        criterion.criterion_id,
+      ),
+    /criterion_result_review_run_not_running/,
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+});
+
+test("an unexpected started failure persists one stable safe terminal error", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-unexpected-failure-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const underlyingFailure = new Error(
+    "sensitive implementation path /private/runtime/review-run",
+  );
+
+  await assert.rejects(
+    () => executeUnexpectedReviewRun(core, underlyingFailure),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "unexpected_execution_failure");
+      assert.equal(error.message, "Unexpected Review Run execution failure");
+      assert.equal(error.cause, underlyingFailure);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, error_code, error_detail
+       FROM review_runs`,
+    ),
+    {
+      error_code: "unexpected_execution_failure",
+      error_detail: "Unexpected Review Run execution failure",
       execution_status: "failed",
     },
   );
