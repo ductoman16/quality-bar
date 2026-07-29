@@ -65,7 +65,8 @@ export function createReviewRunFailureService(durableCore, now, fail) {
       }
       const failed = transaction.run(
         `UPDATE review_runs
-         SET execution_status = 'failed', completed_at = ?,
+         SET execution_status = 'failed',
+             completed_at = COALESCE(completed_at, ?),
              error_code = ?, error_detail = ?
          WHERE id = ? AND execution_status = 'running'`,
         completedAt,

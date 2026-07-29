@@ -92,7 +92,6 @@ test("the first valid submission closes the channel before reporting acceptance"
       "accepted",
     );
     assert.equal(channel.accepted(), true);
-    assert.deepEqual(channel.submission(), { candidate: "prepared" });
     assert.equal(submissions, 1);
     assert.equal(idleSocket.destroyed, true);
     assert.equal(

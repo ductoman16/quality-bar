@@ -49,8 +49,6 @@ export async function openReviewRunSubmissionChannel(
     const socketPath = join(directory, "submit.sock");
     const token = randomUUID();
     let accepted = false;
-    /** @type {unknown} */
-    let preparedSubmission;
     /** @type {ReviewRunExecutionError | null} */
     let lastValidationFailure = null;
     /** @type {Error | null} */
@@ -83,7 +81,7 @@ export async function openReviewRunSubmissionChannel(
               "Review Run submission channel is unavailable",
             );
           }
-          preparedSubmission = resultService.prepare(claim, envelope.candidate);
+          resultService.prepare(claim, envelope.candidate);
           accepted = true;
           socket.end('{"ok":true}\n');
           stopAccepting(socket).catch((error) => {
@@ -141,7 +139,6 @@ export async function openReviewRunSubmissionChannel(
       },
       failure: () => unexpectedFailure,
       lastValidationFailure: () => lastValidationFailure,
-      submission: () => preparedSubmission,
       waitForResult: () => result,
       async close() {
         let closeFailure;

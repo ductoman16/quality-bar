@@ -5,6 +5,10 @@ import {
   ReviewRunExecutionError,
   validateReviewRunSubmission,
 } from "./review-run-result.js";
+import {
+  decodeReviewRunSubmission,
+  encodeReviewRunSubmission,
+} from "./review-run-accepted-submission.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -161,12 +165,12 @@ export function createReviewRunResultService(
       if (!Array.isArray(fileChanges)) {
         throw new TypeError("Frozen File Changes are required");
       }
-      const observedAt = now();
-      if (!Number.isSafeInteger(observedAt) || observedAt < 0) {
+      const checkedAt = now();
+      if (!Number.isSafeInteger(checkedAt) || checkedAt < 0) {
         throw new TypeError("Review Run submission time is invalid");
       }
       return durableCore.transaction((/** @type {any} */ transaction) => {
-        const run = readAuthoritativeRun(transaction, claim, observedAt);
+        const run = readAuthoritativeRun(transaction, claim, checkedAt);
         const criteria = readCriteria(transaction, run);
         assertSupportedSelection(transaction, run);
         const results = validateReviewRunSubmission(
@@ -185,34 +189,74 @@ export function createReviewRunResultService(
           }
           return { ...fileChange };
         });
-        return {
+        const submission = {
           criteria,
           evaluationId: run.evaluation_id,
           fileChanges: frozenFileChanges,
           results,
           reviewVersionId: run.review_version_id,
         };
+        const acceptedAt = now();
+        if (
+          !Number.isSafeInteger(acceptedAt) ||
+          acceptedAt < checkedAt ||
+          run.lease_expires_at <= acceptedAt
+        ) {
+          fail(
+            "submission_channel_closed",
+            "Review Run submission channel is closed",
+          );
+        }
+        transaction.run(
+          `INSERT INTO review_run_accepted_submissions (
+             review_run_id, submission_json, accepted_at
+           ) VALUES (?, ?, ?)`,
+          claim.workId,
+          encodeReviewRunSubmission(submission),
+          acceptedAt,
+        );
+        if (
+          transaction.run(
+            `UPDATE review_runs
+             SET completed_at = ?
+             WHERE id = ? AND execution_status = 'running'
+               AND completed_at IS NULL`,
+            acceptedAt,
+            claim.workId,
+          ).changes !== 1
+        ) {
+          fail(
+            "submission_channel_closed",
+            "Review Run submission channel is closed",
+          );
+        }
       });
     },
-    /** @param {any} claim @param {any} submission */
-    submitPrepared(claim, submission) {
+    /** @param {any} claim */
+    submitPrepared(claim) {
       const completedAt = now();
       if (!Number.isSafeInteger(completedAt) || completedAt < 0) {
         throw new TypeError("Review Run completion time is invalid");
       }
-      if (
-        !submission ||
-        !Array.isArray(submission.criteria) ||
-        !Array.isArray(submission.fileChanges) ||
-        !Array.isArray(submission.results) ||
-        typeof submission.evaluationId !== "string" ||
-        typeof submission.reviewVersionId !== "string"
-      ) {
-        throw new TypeError("Prepared Review Run submission is invalid");
-      }
       return durableCore.transaction((/** @type {any} */ transaction) => {
         const run = readAuthoritativeRun(transaction, claim, completedAt);
         assertSupportedSelection(transaction, run);
+        const acceptedSubmission = transaction.get(
+          `SELECT submission_json, accepted_at
+           FROM review_run_accepted_submissions
+           WHERE review_run_id = ?`,
+          claim.workId,
+        );
+        const submission = decodeReviewRunSubmission(
+          acceptedSubmission?.submission_json,
+        );
+        if (
+          !Number.isSafeInteger(acceptedSubmission?.accepted_at) ||
+          acceptedSubmission.accepted_at < 0
+        ) {
+          throw new TypeError("Accepted Review Run time is invalid");
+        }
+        const acceptedAt = acceptedSubmission.accepted_at;
         if (
           run.evaluation_id !== submission.evaluationId ||
           run.review_version_id !== submission.reviewVersionId
@@ -228,12 +272,17 @@ export function createReviewRunResultService(
           workId: claim.workId,
         };
         storeResultFacts(transaction, run, prepared);
+        transaction.run(
+          `DELETE FROM review_run_accepted_submissions
+           WHERE review_run_id = ?`,
+          claim.workId,
+        );
         if (
           transaction.run(
             `UPDATE review_runs
              SET execution_status = 'completed', completed_at = ?
              WHERE id = ? AND execution_status = 'running'`,
-            completedAt,
+            acceptedAt,
             claim.workId,
           ).changes !== 1
         ) {
@@ -249,23 +298,21 @@ export function createReviewRunResultService(
            ) VALUES (?, ?, ?)`,
           run.evaluation_id,
           outcome,
-          completedAt,
+          acceptedAt,
         );
         transaction.run(
           `UPDATE evaluations
            SET execution_status = 'completed', completed_at = ?
            WHERE id = ? AND execution_status IN ('queued', 'running')`,
-          completedAt,
+          acceptedAt,
           run.evaluation_id,
         );
       });
     },
     /** @param {any} claim @param {unknown} candidate @param {any[]} fileChanges */
     submit(claim, candidate, fileChanges) {
-      return service.submitPrepared(
-        claim,
-        service.prepare(claim, candidate, fileChanges),
-      );
+      service.prepare(claim, candidate, fileChanges);
+      return service.submitPrepared(claim);
     },
   };
   return service;

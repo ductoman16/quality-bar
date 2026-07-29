@@ -33,6 +33,8 @@ test("schema v30 history migrates without invented Review Run evidence", async (
     [],
   );
   prior.transaction((transaction) => {
+    transaction.run("DROP TRIGGER review_run_accepted_submission_immutable");
+    transaction.run("DROP TABLE review_run_accepted_submissions");
     transaction.run("DROP TRIGGER review_run_cli_version_immutable");
     transaction.run("DROP TRIGGER review_run_execution_evidence_immutable");
     transaction.run(

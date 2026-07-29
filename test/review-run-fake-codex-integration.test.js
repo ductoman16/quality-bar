@@ -81,9 +81,14 @@ async function proveFakeCodexResult(context, outcome) {
   const claim = claims.claimNext();
   assert.ok(claim);
   const checkoutRoot = join(directory, "checkouts");
+  let resultClockReads = 0;
+  const acceptanceClockReads = outcome === "clear" ? 3 : 2;
   const results = createReviewRunResultService(core, {
     createFindingId: () => "finding-fake-codex",
-    now: () => 30,
+    now() {
+      resultClockReads += 1;
+      return resultClockReads <= acceptanceClockReads ? 30 : 5_030;
+    },
   });
 
   await executeReviewRun(core, claim, {

@@ -56,6 +56,8 @@ import {
 import { reviewRunEvidenceMigration } from "./review-run-evidence.js";
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `
+  DROP TRIGGER IF EXISTS review_run_accepted_submission_immutable;
+  DROP TABLE IF EXISTS review_run_accepted_submissions;
   DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_update;
   DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_delete;
   DROP TRIGGER IF EXISTS review_run_transcript_chunk_requires_started_run;

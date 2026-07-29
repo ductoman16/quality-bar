@@ -101,7 +101,7 @@ test("the first valid fenced submission atomically preserves every complete Crit
     criterionIds,
   );
 
-  results.submit(
+  results.prepare(
     claim,
     {
       criterion_results: [
@@ -141,6 +141,32 @@ test("the first valid fenced submission atomically preserves every complete Crit
       ],
     },
     fileChanges,
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT accepted_at
+       FROM review_run_accepted_submissions
+       WHERE review_run_id = ?`,
+      claim.workId,
+    ),
+    { accepted_at: 30 },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.deepEqual(
+    core.get(
+      "SELECT execution_status, completed_at FROM review_runs WHERE id = ?",
+      claim.workId,
+    ),
+    { completed_at: 30, execution_status: "running" },
+  );
+  results.submitPrepared(claim);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM review_run_accepted_submissions")
+      ?.count,
+    0,
   );
   assert.deepEqual(
     createEvaluationService(core, {

@@ -164,3 +164,97 @@ test("terminal evidence failure prevents the prepared Result from committing", a
   );
   assert.equal(resultCommitted, false);
 });
+
+test("a transcript write failure immediately terminates Codex with its owning error", async () => {
+  const storageFailure = Object.assign(
+    new Error("SQLite durable write failed"),
+    {
+      code: "storage_unavailable",
+    },
+  );
+  const child = Object.assign(new EventEmitter(), {
+    pid: 79,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  /** @type {(string | number)[]} */
+  const signals = [];
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {
+            throw storageFailure;
+          },
+          complete() {
+            assert.fail("terminal evidence followed transcript failure");
+          },
+        },
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -79);
+          signals.push(signal);
+          if (signal === "SIGTERM") {
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => false,
+          async close() {},
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        resultService: { prepare() {}, submitPrepared() {} },
+        run,
+        spawnProcess() {
+          queueMicrotask(() => child.stdout.write("raw JSONL\n"));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) => error === storageFailure,
+  );
+  assert.deepEqual(signals, ["SIGTERM", 0]);
+});
+
+test("claim start failures remain exact and prevent process spawn", async () => {
+  const claimFailure = new ReviewRunExecutionError(
+    "review_run_claim_lost",
+    "Review Run claim is no longer authoritative",
+  );
+  let spawned = false;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () => ({
+          accepted: () => false,
+          async close() {},
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        resultService: { prepare() {}, submitPrepared() {} },
+        run,
+        spawnProcess() {
+          spawned = true;
+          return /** @type {never} */ (undefined);
+        },
+        startRun() {
+          throw claimFailure;
+        },
+      }),
+    (error) => error === claimFailure,
+  );
+  assert.equal(spawned, false);
+});
