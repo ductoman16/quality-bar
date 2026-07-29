@@ -35,7 +35,30 @@ export function migrateSchema(
     COMMIT;
   `);
 }
-export const CURRENT_SCHEMA_VERSION = 30;
+export function finalizeSchemaMigration(
+  /** @type {import("node:sqlite").DatabaseSync} */ database,
+  /** @type {number} */ version,
+) {
+  if (![29, 30].includes(version)) {
+    fail("schema_invalid", `SQLite schema version ${version} is not supported`);
+  }
+  const hasApplicabilitySeal = database
+    .prepare("PRAGMA table_info(evaluations)")
+    .all()
+    .some((column) => column.name === "applicability_sealed_at");
+  migrateSchema(
+    database,
+    `${
+      hasApplicabilitySeal
+        ? ""
+        : "ALTER TABLE evaluations ADD COLUMN applicability_sealed_at INTEGER;"
+    }
+    UPDATE evaluations
+    SET applicability_sealed_at = created_at
+    WHERE applicability_sealed_at IS NULL;`,
+  );
+}
+export const CURRENT_SCHEMA_VERSION = 31;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -94,3 +117,4 @@ export const HOST_ATTRIBUTION_MIGRATION = `
   CREATE INDEX authority_attributions_keyset
     ON authority_attributions (occurred_at DESC, id DESC);
 `;
+import { fail } from "./durable-error.js";

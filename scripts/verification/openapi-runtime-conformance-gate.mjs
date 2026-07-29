@@ -18,6 +18,7 @@ export function createOpenApiRuntimeConformanceGate({
     failureCode: "openapi_runtime_conformance_failed",
     arguments: [
       "--test",
+      "test/applicability-result-openapi-conformance.test.js",
       "test/openapi-conformance.test.js",
       "test/repository-lifecycle-openapi-conformance.test.js",
     ],
