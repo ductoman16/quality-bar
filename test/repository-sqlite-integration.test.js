@@ -10,6 +10,7 @@ import { createRepositoryService, RepositoryError } from "../src/repository.js";
 /** @param {ReturnType<typeof openDurableCore>} core */
 function dropReviewAssignmentSchema(core) {
   for (const trigger of [
+    "evaluation_applicability_seal_complete_update",
     "review_hard_delete_lineage",
     "review_assignment_repository_scope_insert",
     "review_assignment_repository_scope_update",

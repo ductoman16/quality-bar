@@ -10,11 +10,13 @@ import {
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import { readCompletedEvaluationResult } from "./evaluation-result-read.js";
+import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
 import {
   enqueueReviewRuns,
+  insertApplicabilityResults,
+  sealApplicabilityResults,
   selectReviewRunsForAdmission,
 } from "./review-run-admission.js";
-import { readReviewRunDiagnostics } from "./review-run-evidence.js";
 
 export { EvaluationError };
 const ROUTE_PREFIX = "/api/v1/repositories/";
@@ -121,7 +123,7 @@ function readIdempotentReplay(access, channel, route, key, requestHash) {
  *   }) => Result): Result
  * }} durableCore
  * @param {{
- *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string}>,
+ *   acquireChangeset: (repositoryId: string, request: ReturnType<typeof canonicalExplicitEvaluationRequest>) => Promise<{base_commit: string, head_commit: string, file_changes?: unknown, matches_path?: (pathspec: string, path: string) => boolean}>,
  *   readCodexCapabilityFailure: () => (Error & {code: string}) | null,
  *   createId?: () => string,
  *   createReviewRunId?: () => string,
@@ -214,26 +216,8 @@ export function createEvaluationService(
       }
       return result;
     },
-    /** @param {string} evaluationId @param {string} reviewRunId */
-    readReviewRunDiagnostics(evaluationId, reviewRunId) {
-      const diagnostics = readReviewRunDiagnostics(
-        durableCore,
-        evaluationId,
-        reviewRunId,
-      );
-      if (!diagnostics) {
-        if (
-          !durableCore.get(
-            "SELECT id FROM evaluations WHERE id = ?",
-            evaluationId,
-          )
-        ) {
-          failEvaluation("evaluation_not_found", "Evaluation was not found");
-        }
-        failEvaluation("review_run_not_found", "Review Run was not found");
-      }
-      return diagnostics;
-    },
+    readReviewRunDiagnostics:
+      createEvaluationReviewRunDiagnosticsReader(durableCore),
     /**
      * @param {{
      *   channel: "browser_session" | "implementer_token" | "mcp",
@@ -317,12 +301,22 @@ export function createEvaluationService(
               /** @type {string} */ (repository.health_error_message),
             );
           }
-          const reviewRuns = selectReviewRunsForAdmission(
-            transaction,
-            repositoryId,
-            createReviewRunId,
-            readCodexCapabilityFailure,
-          );
+          const { applicabilityResults, reviewRuns } =
+            selectReviewRunsForAdmission(
+              transaction,
+              repositoryId,
+              createReviewRunId,
+              readCodexCapabilityFailure,
+              commits,
+              typeof commits.matches_path === "function"
+                ? commits.matches_path
+                : () => {
+                    throw Object.assign(
+                      new Error("Frozen Git path matching is unavailable"),
+                      { code: "applicability_path_matching_unavailable" },
+                    );
+                  },
+            );
           const executionStatus =
             reviewRuns.length === 0 ? "completed" : "queued";
           const completedAt = reviewRuns.length === 0 ? createdAt : null;
@@ -346,11 +340,23 @@ export function createEvaluationService(
             createdAt,
             completedAt,
           );
+          insertApplicabilityResults(
+            transaction,
+            evaluationId,
+            applicabilityResults,
+          );
+          sealApplicabilityResults(transaction, evaluationId, createdAt);
           if (reviewRuns.length === 0) {
+            const outcome = applicabilityResults.some(
+              (result) => result.outcome === "error",
+            )
+              ? "error"
+              : "clear";
             transaction.run(
               `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
-               VALUES (?, 'clear', ?)`,
+               VALUES (?, ?, ?)`,
               evaluationId,
+              outcome,
               createdAt,
             );
           } else {

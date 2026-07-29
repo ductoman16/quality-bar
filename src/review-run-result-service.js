@@ -129,8 +129,8 @@ function storeResultFacts(transaction, run, submission) {
   }
 }
 
-/** @param {any[]} criteria @param {any[]} results */
-function resultOutcome(criteria, results) {
+/** @param {any} transaction @param {string} evaluationId @param {any[]} criteria @param {any[]} results */
+function resultOutcome(transaction, evaluationId, criteria, results) {
   const triggeredImpacts = results
     .filter((/** @type {any} */ result) => result.outcome === "triggered")
     .map(
@@ -140,7 +140,15 @@ function resultOutcome(criteria, results) {
             criterion.criterion_id === result.criterion_id,
         )?.impact,
     );
-  return results.some((/** @type {any} */ result) => result.outcome === "error")
+  const applicabilityFailed =
+    transaction.get(
+      `SELECT count(*) AS count
+       FROM applicability_results
+       WHERE evaluation_id = ? AND outcome = 'error'`,
+      evaluationId,
+    )?.count !== 0;
+  return applicabilityFailed ||
+    results.some((/** @type {any} */ result) => result.outcome === "error")
     ? "error"
     : triggeredImpacts.includes("blocking")
       ? "blocking"
@@ -223,7 +231,12 @@ export function createReviewRunResultService(
             "Review Run submission channel is closed",
           );
         }
-        const outcome = resultOutcome(submission.criteria, submission.results);
+        const outcome = resultOutcome(
+          transaction,
+          run.evaluation_id,
+          submission.criteria,
+          submission.results,
+        );
         transaction.run(
           `INSERT INTO evaluation_results (
              evaluation_id, outcome, completed_at

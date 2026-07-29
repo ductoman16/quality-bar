@@ -355,10 +355,12 @@ export function initializeOrValidateSchema(
       database,
       `${reviewRunResultColumnMigration(database)}${CRITERION_RESULT_MEANING_MIGRATION}`,
     );
-  } else if ([28, 29, 30].includes(version)) {
+  } else if (version === 28) {
     schemaMigration.migrateSchema(database, "");
+  } else if ([29, 30].includes(version)) {
+    schemaMigration.finalizeSchemaMigration(database, version);
   } else if (version !== SCHEMA_VERSION) {
-    fail("schema_invalid", `SQLite schema version ${version} is not supported`);
+    schemaMigration.finalizeSchemaMigration(database, version);
   }
   try {
     const storedVersion = database

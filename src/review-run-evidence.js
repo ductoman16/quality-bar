@@ -59,6 +59,11 @@ export const REVIEW_RUN_EVIDENCE_INTEGRITY = `
     BEGIN SELECT RAISE(ABORT, 'review_run_execution_evidence_invalid'); END;
 `;
 
+export const REVIEW_RUN_EVIDENCE_SCHEMA = `
+  ${REVIEW_RUN_TRANSCRIPT_SCHEMA}
+  ${REVIEW_RUN_EVIDENCE_INTEGRITY}
+`;
+
 /** @param {import("node:sqlite").DatabaseSync} database */
 export function reviewRunEvidenceMigration(database) {
   const columns = new Set(
@@ -78,8 +83,7 @@ export function reviewRunEvidenceMigration(database) {
     ${columns.has("cached_input_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN cached_input_tokens INTEGER;"}
     ${columns.has("output_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN output_tokens INTEGER;"}
     ${columns.has("execution_evidence_recorded") ? "" : "ALTER TABLE review_runs ADD COLUMN execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1));"}
-    ${REVIEW_RUN_TRANSCRIPT_SCHEMA}
-    ${REVIEW_RUN_EVIDENCE_INTEGRITY}
+    ${REVIEW_RUN_EVIDENCE_SCHEMA}
   `;
 }
 

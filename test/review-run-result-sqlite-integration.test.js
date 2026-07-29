@@ -163,7 +163,16 @@ test("the first valid fenced submission atomically preserves every complete Crit
       storageReserve: { assertWorkAdmissionAvailable() {} },
     }).readResult("evaluation-1"),
     {
-      applicability_results: [],
+      applicability_results: [
+        {
+          assignment: { scope: "installation_wide" },
+          evidence: { kind: "unconditional" },
+          outcome: "applicable",
+          review_id: review.id,
+          review_version_id: review.active_version.id,
+          rule: null,
+        },
+      ],
       completed_at: "1970-01-01T00:00:00.030Z",
       criterion_results: [
         {

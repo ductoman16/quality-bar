@@ -1,8 +1,9 @@
 import { closedObject } from "./canonical-schema.js";
+import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
 
 export function canonicalEvaluationSchemas() {
-  const emptyCollection = { maxItems: 0, type: "array" };
   return {
+    ...canonicalApplicabilitySchemas(),
     EvaluationSelector: {
       oneOf: [
         closedObject(
@@ -312,7 +313,10 @@ export function canonicalEvaluationSchemas() {
     },
     EvaluationResult: closedObject(
       {
-        applicability_results: emptyCollection,
+        applicability_results: {
+          items: { $ref: "#/components/schemas/ApplicabilityResult" },
+          type: "array",
+        },
         completed_at: { format: "date-time", type: "string" },
         criterion_results: {
           items: { $ref: "#/components/schemas/CriterionResult" },

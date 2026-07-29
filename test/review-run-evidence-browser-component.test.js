@@ -62,6 +62,7 @@ test("the operator browser renders raw Review Run diagnostics without configurat
     target,
     { id: "evaluation-1" },
     {
+      applicability_results: [],
       criterion_results: [],
       file_changes: [],
       findings: [],
@@ -148,6 +149,7 @@ test("historical CLI evidence is explicitly unavailable and diagnostics failures
   );
   const evaluation = { id: "evaluation-1" };
   const result = {
+    applicability_results: [],
     criterion_results: [],
     file_changes: [],
     findings: [],

@@ -159,12 +159,6 @@ function readRun(durableCore, workId) {
   if (!run || run.execution_status !== "queued") {
     fail("review_run_state_invalid", "Review Run is not queued for execution");
   }
-  if (run.applicability_rule !== null) {
-    fail(
-      "review_run_applicability_unsupported",
-      "Only unconditional Reviews are supported by this Review Run",
-    );
-  }
   const criteria = durableCore
     .all(
       `SELECT criterion_id, impact, instruction

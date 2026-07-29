@@ -175,6 +175,7 @@
     if (
       !result ||
       typeof result.outcome !== "string" ||
+      !Array.isArray(result.applicability_results) ||
       !Array.isArray(result.criterion_results) ||
       !Array.isArray(result.file_changes) ||
       !Array.isArray(result.findings) ||
@@ -183,6 +184,54 @@
       throw new Error("evaluation_result_invalid");
     }
     target.textContent = "Result " + result.outcome;
+    for (const applicability of result.applicability_results) {
+      if (
+        typeof applicability.review_id !== "string" ||
+        typeof applicability.review_version_id !== "string" ||
+        typeof applicability.assignment?.scope !== "string" ||
+        typeof applicability.outcome !== "string"
+      ) {
+        throw new Error("evaluation_result_invalid");
+      }
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      const outcome =
+        applicability.outcome === "not_applicable"
+          ? "not applicable"
+          : applicability.outcome;
+      summary.textContent =
+        "Applicability " +
+        applicability.review_id +
+        " " +
+        applicability.review_version_id +
+        " — " +
+        outcome;
+      details.append(summary);
+      const scope = document.createElement("p");
+      scope.textContent = "Assignment " + applicability.assignment.scope;
+      details.append(scope);
+      if (applicability.outcome === "error") {
+        if (
+          typeof applicability.error?.code !== "string" ||
+          typeof applicability.error.detail !== "string"
+        ) {
+          throw new Error("evaluation_result_invalid");
+        }
+        const error = document.createElement("p");
+        error.textContent =
+          "Error " +
+          applicability.error.code +
+          ": " +
+          applicability.error.detail;
+        details.append(error);
+      } else if (
+        !applicability.evidence ||
+        typeof applicability.evidence.kind !== "string"
+      ) {
+        throw new Error("evaluation_result_invalid");
+      }
+      target.append(details);
+    }
     for (const run of result.review_runs.filter(
       /** @param {any} candidate */
       (candidate) => candidate.status === "failed",

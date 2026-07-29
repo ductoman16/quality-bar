@@ -137,6 +137,8 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
         1,
       );
       for (const trigger of [
+        "evaluation_applicability_seal_complete_update",
+        "applicability_selection_rule_insert",
         "review_hard_delete_lineage",
         "review_version_criteria_immutable_update",
         "review_version_criteria_immutable_delete",
