@@ -64,13 +64,15 @@ function processThatFailsWithJsonl() {
  * @param {{
  *   accepted?: boolean,
  *   closeFailure?: Error | null,
- *   failure?: Error | null
+ *   failure?: Error | null,
+ *   lastValidationFailure?: ReviewRunExecutionError | null
  * }} [options]
  */
 function channel({
   accepted = false,
   closeFailure = null,
   failure = null,
+  lastValidationFailure = null,
 } = {}) {
   return {
     accepted: () => accepted,
@@ -85,6 +87,9 @@ function channel({
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
     failure: () => failure,
+    lastValidationFailure: () => lastValidationFailure,
+    waitForResult: () =>
+      accepted ? Promise.resolve("accepted") : new Promise(() => {}),
   };
 }
 
@@ -116,6 +121,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       spawnCalls.push([command, arguments_, options]);
       return /** @type {any} */ (processThatExits(0));
     },
+    terminateProcessGroup() {},
   });
 
   assert.deepEqual(spawnCalls, [
@@ -124,6 +130,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       ["adapter.mjs", ...reviewRunCodexArguments(run)],
       {
         cwd: "/checkout",
+        detached: true,
         env: {
           CODEX_HOME: "/var/lib/quality-bar/codex",
           HOME: "/var/lib/quality-bar",
@@ -139,6 +146,36 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
   for (const secret of Object.values(ownedSecrets)) {
     assert.doesNotMatch(JSON.stringify(spawnCalls), new RegExp(secret));
   }
+});
+
+test("accepted submission closes before terminating the still-running Codex process group", async () => {
+  /** @type {string[]} */
+  const events = [];
+  const child = Object.assign(new EventEmitter(), {
+    pid: 73,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  await runReviewRunCodex({
+    checkoutPath: "/checkout",
+    claim,
+    openSubmissionChannel: async () => ({
+      ...channel({ accepted: true }),
+      waitForResult: async () => {
+        events.push("submission-closed");
+        return "accepted";
+      },
+    }),
+    resultService: { submit() {} },
+    run,
+    spawnProcess: () => /** @type {any} */ (child),
+    terminateProcessGroup(process) {
+      assert.equal(process, child);
+      events.push("process-terminated");
+      queueMicrotask(() => child.emit("exit", null, "SIGTERM"));
+    },
+  });
+  assert.deepEqual(events, ["submission-closed", "process-terminated"]);
 });
 
 test("constructs a fixed host-login-safe environment instead of inheriting application secrets", () => {
@@ -245,6 +282,34 @@ test("maps process completion without an accepted Result to exact owning failure
   }
 });
 
+test("result-not-submitted preserves the last exact correction error", async () => {
+  const validationFailure = new ReviewRunExecutionError(
+    "criterion_result_coverage_invalid",
+    "Criterion Results must cover every frozen Criterion exactly once and in order",
+  );
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        openSubmissionChannel: async () =>
+          channel({ lastValidationFailure: validationFailure }),
+        resultService: { submit() {} },
+        run,
+        spawnProcess: () => /** @type {any} */ (processThatExits(0)),
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "result_not_submitted");
+      assert.equal(
+        error.message,
+        "Codex Review Run exited without an accepted Result; last validation error criterion_result_coverage_invalid: Criterion Results must cover every frozen Criterion exactly once and in order",
+      );
+      return true;
+    },
+  );
+});
+
 test("preserves raw JSONL stdout and stderr when the pinned Codex process fails", async () => {
   await assert.rejects(
     () =>
@@ -325,6 +390,7 @@ test("channel cleanup failure after an accepted Result remains a hard failure", 
         resultService: { submit() {} },
         run,
         spawnProcess: () => /** @type {any} */ (processThatExits(0)),
+        terminateProcessGroup() {},
       }),
     (error) => error === cleanupFailure,
   );

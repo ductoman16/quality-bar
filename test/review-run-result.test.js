@@ -228,13 +228,19 @@ test("dishonest Finding locations and invented Finding fields fail exactly", () 
   }
 });
 
-test("unsupported or incomplete submissions fail with their exact owning error", () => {
-  for (const [candidate, code] of [
+test("missing, duplicate, malformed, extra, incomplete, and finding-less submissions fail exactly", () => {
+  for (const [candidate, code, message] of [
+    [
+      null,
+      "review_run_submission_invalid",
+      "Review Run submission must contain only criterion_results",
+    ],
     [
       {
         criterion_results: [{ criterion_id: "criterion-1", outcome: "clear" }],
       },
       "criterion_result_coverage_invalid",
+      "Criterion Results must cover every frozen Criterion exactly once and in order",
     ],
     [
       {
@@ -244,6 +250,17 @@ test("unsupported or incomplete submissions fail with their exact owning error",
         ],
       },
       "criterion_result_coverage_invalid",
+      "Criterion Results must cover every frozen Criterion exactly once and in order",
+    ],
+    [
+      {
+        criterion_results: [
+          { criterion_id: "criterion-1", outcome: "clear" },
+          { criterion_id: "criterion-extra", outcome: "clear" },
+        ],
+      },
+      "criterion_result_coverage_invalid",
+      "Criterion Results must cover every frozen Criterion exactly once and in order",
     ],
     [
       {
@@ -253,6 +270,7 @@ test("unsupported or incomplete submissions fail with their exact owning error",
         ],
       },
       "criterion_result_invalid",
+      "Criterion Result must contain its exact outcome fields",
     ],
     [
       {
@@ -266,6 +284,7 @@ test("unsupported or incomplete submissions fail with their exact owning error",
         ],
       },
       "criterion_result_invalid",
+      "Criterion Result must contain its exact outcome fields",
     ],
     [
       {
@@ -282,6 +301,7 @@ test("unsupported or incomplete submissions fail with their exact owning error",
         ],
       },
       "criterion_result_invalid",
+      "Criterion Result must contain its exact outcome fields",
     ],
     [
       {
@@ -305,12 +325,17 @@ test("unsupported or incomplete submissions fail with their exact owning error",
         ],
       },
       "criterion_result_invalid",
+      "Criterion Result must contain its exact outcome fields",
     ],
   ]) {
     assert.throws(
       () => validateReviewRunSubmission(candidate, criteria, fileChanges),
-      (error) =>
-        error instanceof ReviewRunExecutionError && error.code === code,
+      (error) => {
+        assert.ok(error instanceof ReviewRunExecutionError);
+        assert.equal(error.code, code);
+        assert.equal(error.message, message);
+        return true;
+      },
     );
   }
 });

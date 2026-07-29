@@ -49,8 +49,17 @@ export async function openReviewRunSubmissionChannel(
     const socketPath = join(directory, "submit.sock");
     const token = randomUUID();
     let accepted = false;
+    /** @type {ReviewRunExecutionError | null} */
+    let lastValidationFailure = null;
     /** @type {Error | null} */
     let unexpectedFailure = null;
+    /** @type {Promise<void> | null} */
+    let serverClose = null;
+    /** @type {(result: "accepted" | "failed") => void} */
+    let resolveResult;
+    const result = new Promise((resolve) => {
+      resolveResult = resolve;
+    });
     const server = createServer((socket) => {
       let request = "";
       socket.setEncoding("utf8");
@@ -72,6 +81,16 @@ export async function openReviewRunSubmissionChannel(
           resultService.submit(claim, envelope.candidate);
           accepted = true;
           socket.end('{"ok":true}\n');
+          stopAccepting().then(
+            () => resolveResult("accepted"),
+            (error) => {
+              unexpectedFailure =
+                error instanceof Error
+                  ? error
+                  : new TypeError("Review Run submission channel failed");
+              resolveResult("failed");
+            },
+          );
         } catch (error) {
           if (!(error instanceof ReviewRunExecutionError)) {
             unexpectedFailure =
@@ -79,8 +98,13 @@ export async function openReviewRunSubmissionChannel(
                 ? error
                 : new TypeError("Review Run submission failed");
             socket.destroy();
+            stopAccepting().then(
+              () => resolveResult("failed"),
+              () => resolveResult("failed"),
+            );
             return;
           }
+          lastValidationFailure = error;
           socket.end(
             `${JSON.stringify({
               error: { code: error.code, message: error.message },
@@ -94,6 +118,12 @@ export async function openReviewRunSubmissionChannel(
       server.once("error", reject);
       server.listen(socketPath, () => resolve(undefined));
     });
+    function stopAccepting() {
+      serverClose ??= new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve(undefined)));
+      });
+      return serverClose;
+    }
     return {
       accepted: () => accepted,
       commandDirectory: directory,
@@ -102,14 +132,12 @@ export async function openReviewRunSubmissionChannel(
         QUALITY_BAR_SUBMIT_TOKEN: token,
       },
       failure: () => unexpectedFailure,
+      lastValidationFailure: () => lastValidationFailure,
+      waitForResult: () => result,
       async close() {
         let closeFailure;
         try {
-          await new Promise((resolve, reject) => {
-            server.close((error) =>
-              error ? reject(error) : resolve(undefined),
-            );
-          });
+          await stopAccepting();
         } catch (error) {
           closeFailure = error;
         }

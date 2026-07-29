@@ -51,6 +51,17 @@ function fail(code, message, cause) {
   );
 }
 
+/** @param {import("node:child_process").ChildProcess} child */
+function terminateCodexProcessGroup(child) {
+  if (
+    !Number.isSafeInteger(child.pid) ||
+    /** @type {number} */ (child.pid) < 1
+  ) {
+    throw new TypeError("Codex Review Run process identity is unavailable");
+  }
+  process.kill(-(/** @type {number} */ (child.pid)), "SIGTERM");
+}
+
 /** @param {unknown} candidate */
 export function reviewRunCodexArguments(candidate) {
   const input = /** @type {any} */ (candidate);
@@ -135,7 +146,9 @@ export function reviewRunCodexEnvironment(
  *     close(): Promise<void>,
  *     commandDirectory: string,
  *     environment: Record<string, string>,
- *     failure(): Error | null
+ *     failure(): Error | null,
+ *     lastValidationFailure(): ReviewRunExecutionError | null,
+ *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
  *   run: unknown,
@@ -144,7 +157,10 @@ export function reviewRunCodexEnvironment(
  *     command: string,
  *     arguments_: string[],
  *     options: import("node:child_process").SpawnOptions
- *   ) => import("node:child_process").ChildProcess
+ *   ) => import("node:child_process").ChildProcess,
+ *   terminateProcessGroup?: (
+ *     child: import("node:child_process").ChildProcess
+ *   ) => void
  * }} options
  */
 export async function runReviewRunCodex({
@@ -157,6 +173,7 @@ export async function runReviewRunCodex({
   resultService,
   run,
   spawnProcess = spawn,
+  terminateProcessGroup = terminateCodexProcessGroup,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
@@ -165,58 +182,81 @@ export async function runReviewRunCodex({
       ...codexPrefixArguments,
       ...reviewRunCodexArguments(run),
     ];
-    const result = await new Promise((resolve, reject) => {
-      let child;
-      try {
-        child = spawnProcess(codexCommand, arguments_, {
-          cwd: checkoutPath,
-          env: reviewRunCodexEnvironment(
-            channel.environment,
-            channel.commandDirectory,
-            processEnvironment,
-          ),
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-      } catch (error) {
-        reject(error);
-        return;
-      }
-      let stdout = "";
-      let stderr = "";
-      child.stdout?.setEncoding("utf8").on("data", (chunk) => {
-        stdout += chunk;
+    let child;
+    try {
+      child = spawnProcess(codexCommand, arguments_, {
+        cwd: checkoutPath,
+        detached: true,
+        env: reviewRunCodexEnvironment(
+          channel.environment,
+          channel.commandDirectory,
+          processEnvironment,
+        ),
+        stdio: ["ignore", "pipe", "pipe"],
       });
-      child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-        stderr += chunk;
-      });
+    } catch (cause) {
+      fail(
+        "codex_process_failed",
+        "Codex Review Run process could not start",
+        cause,
+      );
+    }
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8").on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
       child.once("exit", (code, signal) => {
         resolve({ code, signal, stderr, stdout });
       });
-    }).catch((cause) =>
+    });
+    const terminal = await Promise.race([
+      processResult.then((result) => ({ kind: "process", result })),
+      channel.waitForResult().then((result) => ({
+        kind: "submission",
+        result,
+      })),
+    ]).catch((cause) =>
       fail(
         "codex_process_failed",
         "Codex Review Run process could not start",
         cause,
       ),
     );
+    if (terminal.kind === "submission" && terminal.result === "accepted") {
+      terminateProcessGroup(child);
+      await processResult;
+    }
     const submissionFailure = channel.failure();
     if (submissionFailure) {
       throw submissionFailure;
     }
-    if (!channel.accepted()) {
-      const processResult = /** @type {any} */ (result);
-      if (processResult.code === 0 && processResult.signal === null) {
+    if (terminal.kind === "submission" && terminal.result === "failed") {
+      throw new TypeError("Review Run submission failed");
+    }
+    if (terminal.kind === "process" && !channel.accepted()) {
+      const exit = /** @type {any} */ (terminal.result);
+      if (exit.code === 0 && exit.signal === null) {
+        const validationFailure = channel.lastValidationFailure();
         fail(
           "result_not_submitted",
-          "Codex Review Run exited without an accepted Result",
+          validationFailure
+            ? `Codex Review Run exited without an accepted Result; last validation error ${validationFailure.code}: ${validationFailure.message}`
+            : "Codex Review Run exited without an accepted Result",
         );
       }
       fail(
         "codex_process_failed",
         "Codex Review Run process failed",
-        new CodexProcessExitError(processResult),
+        new CodexProcessExitError(exit),
       );
+    } else if (terminal.kind === "process") {
+      await channel.waitForResult();
     }
   } catch (error) {
     executionFailure = error;
