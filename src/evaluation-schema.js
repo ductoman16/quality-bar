@@ -51,8 +51,18 @@ export const EVALUATION_SCHEMA = `
     execution_status TEXT NOT NULL CHECK (
       execution_status IN ('queued', 'running', 'completed', 'failed', 'cancelled')
     ),
+    started_at INTEGER,
+    completed_at INTEGER,
     created_at INTEGER NOT NULL,
+    CHECK (started_at IS NULL OR started_at >= created_at),
+    CHECK (completed_at IS NULL OR (started_at IS NOT NULL AND completed_at >= started_at)),
     UNIQUE (evaluation_id, review_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS criterion_results (
+    review_run_id TEXT NOT NULL REFERENCES review_runs(id),
+    criterion_id TEXT NOT NULL REFERENCES criteria(id),
+    outcome TEXT NOT NULL CHECK (outcome = 'clear'),
+    PRIMARY KEY (review_run_id, criterion_id)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS codex_execution_queue (
     work_id TEXT PRIMARY KEY REFERENCES review_runs(id),
@@ -115,6 +125,12 @@ export const EVALUATION_SCHEMA = `
       created_at
     ON review_runs
     BEGIN SELECT RAISE(ABORT, 'review_run_identity_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS criterion_result_immutable_update
+    BEFORE UPDATE ON criterion_results
+    BEGIN SELECT RAISE(ABORT, 'criterion_result_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS criterion_result_immutable_delete
+    BEFORE DELETE ON criterion_results
+    BEGIN SELECT RAISE(ABORT, 'criterion_result_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
     BEFORE UPDATE OF work_id, work_kind, accepted_at
     ON codex_execution_queue

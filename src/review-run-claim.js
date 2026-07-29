@@ -199,8 +199,9 @@ export function createReviewRunClaimService(
         }
         const startedReviewRun = transaction.run(
           `UPDATE review_runs
-           SET execution_status = 'running'
+           SET execution_status = 'running', started_at = ?
            WHERE id = ? AND execution_status = 'queued'`,
+          startedAt,
           claim.workId,
         );
         if (startedReviewRun.changes !== 1) {

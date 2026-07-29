@@ -141,11 +141,26 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
             return {
               applicability_results: [],
               completed_at: "2026-07-28T12:00:00.000Z",
-              criterion_results: [],
+              criterion_results: [
+                {
+                  criterion_id: "criterion-clear",
+                  outcome: "clear",
+                  review_run_id: "review-run-clear",
+                },
+              ],
               evaluation_id: "evaluation-complete",
               findings: [],
               outcome: "clear",
-              review_runs: [],
+              review_runs: [
+                {
+                  completed_at: "2026-07-28T12:00:00.000Z",
+                  id: "review-run-clear",
+                  review_id: "review-clear",
+                  review_version_id: "review-version-clear",
+                  started_at: "2026-07-28T11:59:00.000Z",
+                  status: "completed",
+                },
+              ],
             };
           },
         };
@@ -205,6 +220,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
   assert.match(
     controls.get("evaluation-recent").options[0].options[0].textContent,
     /"evaluation_id":"evaluation-complete".*"outcome":"clear"/,
+  );
+  assert.match(
+    controls.get("evaluation-recent").options[0].options[0].textContent,
+    /"criterion_id":"criterion-clear".*"outcome":"clear"/,
   );
   assert.match(
     controls.get("evaluation-recent").options[1].textContent,
