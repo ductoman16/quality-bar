@@ -72,7 +72,6 @@ test("maps uncoded and generic coded submission failures safely", async () => {
 });
 
 test("a failed submission closes and terminates a running Codex process", async () => {
-  /** @type {string[]} */
   /** @type {(string | number)[]} */
   const events = [];
   /** @type {unknown[]} */
