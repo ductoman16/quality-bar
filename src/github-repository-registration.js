@@ -4,6 +4,12 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 import { recordGitHubConnectionVerification } from "./github-connection-verification.js";
 import { normalizeGitHubRepositorySelection } from "./github-repository-selection.js";
 import {
+  createGitHubRepositorySelectionCommit,
+  requireCurrentGitHubRepositoryConnection,
+  requireCurrentGitHubRepositories,
+} from "./github-repository-selection-commit.js";
+import { readGitHubRepositorySelectionSnapshot } from "./github-repository-selection-snapshot.js";
+import {
   validGitHubRepositoryEvidence,
   verifiedGitHubRepositoryEvidence,
 } from "./github-verification-error.js";
@@ -31,7 +37,7 @@ function fail(code, message) {
  *   createId: () => string | undefined,
  *   createVerificationId?: () => string | undefined,
  *   timestamp: () => number,
- *   verifier: {commitPollingBaseline: (verification: any, transaction: any, connectionId: string) => void, verifyRepositories?: (...parameters: any[]) => Promise<any>}
+ *   verifier: {commitPollingBaseline: (verification: any, transaction: any, connectionId: string) => void, commitPollingFailure: (error: GitHubConnectionError, transaction: any, connectionId: string) => void, verifyRepositories?: (...parameters: any[]) => Promise<any>}
  * }} dependencies
  */
 export function createGitHubRepositorySelector(
@@ -41,10 +47,18 @@ export function createGitHubRepositorySelector(
   if (typeof verifier.commitPollingBaseline !== "function") {
     throw new TypeError("GitHub polling baseline dependency is unavailable");
   }
-  /** @param {unknown} request */
+  if (typeof verifier.commitPollingFailure !== "function") {
+    throw new TypeError("GitHub polling failure dependency is unavailable");
+  }
+  /**
+   * @param {unknown} request
+   * @param {"enablement" | "repository_selection"} [trigger]
+   * @param {{deferCommit?: boolean}} [options]
+   */
   return async function selectRepositories(
     request,
     trigger = "repository_selection",
+    { deferCommit = false } = {},
   ) {
     if (!["enablement", "repository_selection"].includes(trigger)) {
       throw new TypeError("GitHub Repository verification trigger is invalid");
@@ -60,41 +74,8 @@ export function createGitHubRepositorySelector(
     }
     const createAttemptId =
       requestId === undefined ? createVerificationId : () => requestId;
-    const [connection] = durableCore.all(
-      `SELECT
-         github_connections.id,
-         github_connections.app_id,
-         github_connections.app_slug,
-         github_connections.installation_id,
-         github_connections.principal_id,
-         github_connections.principal_login,
-         github_connections.api_profile,
-         github_connections.permissions,
-         github_connections.capabilities,
-         github_connection_credentials.encrypted_credential
-       FROM github_connections
-       JOIN github_connection_credentials
-         ON github_connection_credentials.connection_id = github_connections.id
-       LIMIT 1`,
-    );
-    if (
-      !connection ||
-      typeof connection.id !== "string" ||
-      !Number.isSafeInteger(connection.app_id) ||
-      typeof connection.app_slug !== "string" ||
-      !Number.isSafeInteger(connection.installation_id) ||
-      !Number.isSafeInteger(connection.principal_id) ||
-      typeof connection.principal_login !== "string" ||
-      typeof connection.api_profile !== "string" ||
-      typeof connection.permissions !== "string" ||
-      typeof connection.capabilities !== "string" ||
-      typeof connection.encrypted_credential !== "string"
-    ) {
-      fail(
-        "github_connection_not_found",
-        "GitHub Connection is not configured",
-      );
-    }
+    const { connection, existing } =
+      readGitHubRepositorySelectionSnapshot(durableCore);
     const connectionId = connection.id;
     const credential = cipher.decrypt(
       {
@@ -121,6 +102,8 @@ export function createGitHubRepositorySelector(
         repositoryIds,
       );
     } catch (error) {
+      /** @type {((transaction: any) => void) | undefined} */
+      let failureCommit;
       if (error instanceof GitHubConnectionError) {
         const scope = githubVerificationErrorScope(error.code);
         if (scope) {
@@ -129,42 +112,70 @@ export function createGitHubRepositorySelector(
             connection.principal_login,
           );
           const completedEnumeration = evidence.length > 0;
-          recordGitHubConnectionVerification(durableCore, {
-            affectedRepositoryIds: error.affectedRepositoryIds ?? repositoryIds,
-            capabilities: completedEnumeration
-              ? JSON.parse(connection.capabilities)
-              : null,
-            completedRepositoryIds: error.completedRepositoryIds,
-            createId: createAttemptId,
-            error: {
-              code: error.code,
-              message: error.message,
-              repositoryId: error.repositoryId,
-              scope,
+          const failure = recordGitHubConnectionVerification(
+            durableCore,
+            {
+              affectedRepositoryIds:
+                error.affectedRepositoryIds ?? repositoryIds,
+              capabilities: completedEnumeration
+                ? JSON.parse(connection.capabilities)
+                : null,
+              completedRepositoryIds: error.completedRepositoryIds,
+              createId: createAttemptId,
+              error: {
+                code: error.code,
+                message: error.message,
+                repositoryId: error.repositoryId,
+                scope,
+              },
+              evidence,
+              id: connection.id,
+              permissions: completedEnumeration
+                ? JSON.parse(connection.permissions)
+                : null,
+              principal: completedEnumeration
+                ? {
+                    id: /** @type {number} */ (connection.principal_id),
+                    login: connection.principal_login,
+                  }
+                : null,
+              profile: completedEnumeration ? connection.api_profile : null,
+              timestamp,
+              trigger: /** @type {"enablement" | "repository_selection"} */ (
+                trigger
+              ),
             },
-            evidence,
-            id: connection.id,
-            permissions: completedEnumeration
-              ? JSON.parse(connection.permissions)
-              : null,
-            principal: completedEnumeration
-              ? {
-                  id: /** @type {number} */ (connection.principal_id),
-                  login: connection.principal_login,
-                }
-              : null,
-            profile: completedEnumeration ? connection.api_profile : null,
-            timestamp,
-            trigger: /** @type {"enablement" | "repository_selection"} */ (
-              trigger
-            ),
-          });
+            { defer: true },
+          );
+          failureCommit = (transaction) => {
+            requireCurrentGitHubRepositoryConnection(
+              transaction,
+              connection,
+              connectionId,
+            );
+            requireCurrentGitHubRepositories(
+              transaction,
+              connectionId,
+              existing,
+              [
+                ...(error.affectedRepositoryIds ?? repositoryIds),
+                ...(error.completedRepositoryIds ?? []),
+              ],
+            );
+            verifier.commitPollingFailure(error, transaction, connectionId);
+            failure.commit(transaction);
+          };
+          if (!deferCommit) {
+            durableCore.transaction(failureCommit);
+            failureCommit = undefined;
+          }
         }
       }
       if (error instanceof GitHubConnectionError) {
         throw new GitHubConnectionError(error.code, error.message, {
           affectedRepositoryIds: error.affectedRepositoryIds,
           cause: error,
+          commit: failureCommit,
           completedRepositoryIds: error.completedRepositoryIds,
           repositoryEvidence: error.repositoryEvidence,
           repositoryId: error.repositoryId,
@@ -224,67 +235,55 @@ export function createGitHubRepositorySelector(
         "GitHub Repository verification result is invalid",
       );
     }
-    const verified = recordGitHubConnectionVerification(durableCore, {
-      affectedRepositoryIds,
-      capabilities: verification.capabilities,
-      createId: createAttemptId,
-      evidence: repositoryEvidence,
-      id: connection.id,
-      permissions: verification.permissions,
-      principal: verification.principal,
-      profile: connection.api_profile,
-      timestamp,
-      trigger: /** @type {"enablement" | "repository_selection"} */ (trigger),
-    });
-    const existing = new Map(
-      durableCore
-        .all(
-          `SELECT repository_id, forge_repository_id
-           FROM github_repositories
-           WHERE connection_id = ?`,
-          connection.id,
-        )
-        .map((row) => {
-          if (
-            !row ||
-            typeof row.repository_id !== "string" ||
-            !Number.isSafeInteger(row.forge_repository_id)
-          ) {
-            throw new TypeError("GitHub Repository identity row is invalid");
-          }
-          return /** @type {[number, string]} */ ([
-            row.forge_repository_id,
-            row.repository_id,
-          ]);
-        }),
+    const verified = recordGitHubConnectionVerification(
+      durableCore,
+      {
+        affectedRepositoryIds,
+        capabilities: verification.capabilities,
+        createId: createAttemptId,
+        evidence: repositoryEvidence,
+        id: connection.id,
+        permissions: verification.permissions,
+        principal: verification.principal,
+        profile: connection.api_profile,
+        timestamp,
+        trigger,
+      },
+      { defer: true },
     );
     const selectedRepositoryIds = new Set(repositoryIds);
     const currentRepositoryIds = new Set(
       repositoryEvidence.map((repository) => repository.id),
     );
+    /** @type {ReturnType<typeof recordGitHubConnectionVerification>[]} */
+    const removedVerifications = [];
     for (const forgeRepositoryId of existing.keys()) {
       if (!currentRepositoryIds.has(forgeRepositoryId)) {
-        recordGitHubConnectionVerification(durableCore, {
-          affectedRepositoryIds: [forgeRepositoryId],
-          capabilities: verification.capabilities,
-          createId: createVerificationId,
-          error: {
-            code: "github_repository_selection_unavailable",
-            message:
-              "GitHub Repository is no longer accessible to the Connection",
-            repositoryId: forgeRepositoryId,
-            scope: "repository",
-          },
-          evidence: repositoryEvidence,
-          id: connection.id,
-          permissions: verification.permissions,
-          principal: verification.principal,
-          profile: connection.api_profile,
-          timestamp,
-          trigger: /** @type {"enablement" | "repository_selection"} */ (
-            trigger
+        removedVerifications.push(
+          recordGitHubConnectionVerification(
+            durableCore,
+            {
+              affectedRepositoryIds: [forgeRepositoryId],
+              capabilities: verification.capabilities,
+              createId: createVerificationId,
+              error: {
+                code: "github_repository_selection_unavailable",
+                message:
+                  "GitHub Repository is no longer accessible to the Connection",
+                repositoryId: forgeRepositoryId,
+                scope: "repository",
+              },
+              evidence: repositoryEvidence,
+              id: connection.id,
+              permissions: verification.permissions,
+              principal: verification.principal,
+              profile: connection.api_profile,
+              timestamp,
+              trigger,
+            },
+            { defer: true },
           ),
-        });
+        );
       }
     }
     const records = repositoryEvidence
@@ -294,79 +293,30 @@ export function createGitHubRepositorySelector(
           existing.has(repository.id),
       )
       .map((repository) => {
-        const id = existing.get(repository.id) ?? createId();
+        const existingRepository = existing.get(repository.id);
+        const id = existingRepository?.id ?? createId();
         if (typeof id !== "string" || id.length === 0) {
           throw new TypeError("createId must return nonempty strings");
         }
-        return { id, repository };
+        return { existingRepository, id, repository };
       });
+    const commitSelection = createGitHubRepositorySelectionCommit({
+      affectedRepositoryIds,
+      connection,
+      connectionId,
+      deferCommit,
+      existing,
+      records,
+      removedVerifications,
+      verification,
+      verified,
+      verifier,
+    });
+    if (deferCommit) {
+      return { commit: commitSelection };
+    }
     try {
-      durableCore.transaction((transaction) => {
-        verifier.commitPollingBaseline(verification, transaction, connectionId);
-        for (const { id, repository } of records) {
-          if (existing.has(repository.id)) {
-            if (affectedRepositoryIds.includes(repository.id)) {
-              transaction.run(
-                `UPDATE repositories
-                 SET normalized_url = ?,
-                     verified_at = ?,
-                     health = 'healthy',
-                     health_error_code = NULL,
-                     health_error_message = NULL
-                 WHERE id = ?`,
-                repository.clone_url,
-                verified.verifiedAt,
-                id,
-              );
-            } else {
-              transaction.run(
-                "UPDATE repositories SET normalized_url = ? WHERE id = ?",
-                repository.clone_url,
-                id,
-              );
-            }
-            transaction.run(
-              `UPDATE github_repositories
-               SET name = ?, api_url = ?, web_url = ?${
-                 affectedRepositoryIds.includes(repository.id)
-                   ? ", verification_id = ?"
-                   : ""
-               }
-               WHERE repository_id = ?`,
-              repository.full_name,
-              repository.api_url,
-              repository.html_url,
-              ...(affectedRepositoryIds.includes(repository.id)
-                ? [verified.id]
-                : []),
-              id,
-            );
-          } else {
-            transaction.run(
-              `INSERT INTO repositories (
-                 id, normalized_url, created_at, verified_at
-               ) VALUES (?, ?, ?, ?)`,
-              id,
-              repository.clone_url,
-              verified.verifiedAt,
-              verified.verifiedAt,
-            );
-            transaction.run(
-              `INSERT INTO github_repositories (
-               repository_id, connection_id, forge_repository_id,
-                 name, api_url, web_url, verification_id
-               ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              id,
-              connection.id,
-              repository.id,
-              repository.full_name,
-              repository.api_url,
-              repository.html_url,
-              verified.id,
-            );
-          }
-        }
-      });
+      durableCore.transaction(commitSelection);
     } catch (error) {
       if (
         isUniqueConstraintFailure(error, "repositories.normalized_url") ||

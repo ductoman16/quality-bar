@@ -19,3 +19,14 @@ export const forgejoGateDefinitions = [
     arguments: ["--test", "test/forgejo-v16-service-integration.test.js"],
   },
 ];
+
+export const FORGEJO_SQLITE_TESTS = [
+  "test/forgejo-connection-rotation-sqlite-integration.test.js",
+  "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
+  "test/forgejo-connection-schema-migration.test.js",
+  "test/forgejo-connection-concurrency-sqlite-integration.test.js",
+  "test/forgejo-connection-sqlite-integration.test.js",
+  "test/forgejo-polling-sqlite-integration.test.js",
+  "test/forgejo-repository-reactivation-sqlite-integration.test.js",
+  "test/forgejo-repository-enablement-race-sqlite-integration.test.js",
+];

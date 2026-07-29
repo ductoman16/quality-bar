@@ -15,6 +15,7 @@
     "forgejo-connection-lifecycle-confirmation.js",
     "forgejo-connection.js",
     "repository.js",
+    "repository-delete.js",
     "repository-guidance.js",
     "review-metadata.js",
     "review-create.js",

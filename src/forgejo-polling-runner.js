@@ -4,6 +4,8 @@ import {
   isDefinitiveForgejoPollingFailure,
   isRepositoryOwnedDefinitiveForgejoPollingFailure,
 } from "./forgejo-polling.js";
+import { requireForgejoPollingCommit } from "./forgejo-polling-conflict.js";
+import { nextForgejoPollingDelay } from "./forgejo-polling-delay.js";
 import { readForgejoPollingGeneration } from "./forgejo-polling-generation.js";
 import {
   StorageReserveError,
@@ -259,10 +261,12 @@ export function createForgejoPollingRunner(
               );
             },
           );
-          if (committed) {
-            currentGenerations.set(row.connection_id, generation + 1);
-          }
-          if (committed && baseline) {
+          requireForgejoPollingCommit(
+            committed,
+            "Forgejo polling changed during reconciliation",
+          );
+          currentGenerations.set(row.connection_id, generation + 1);
+          if (baseline) {
             completedBaselines.add(row.connection_id);
           }
         } catch (error) {
@@ -274,6 +278,9 @@ export function createForgejoPollingRunner(
             !("code" in error) ||
             typeof error.code !== "string"
           ) {
+            throw error;
+          }
+          if (error.code === "forgejo_polling_conflict") {
             throw error;
           }
           if (
@@ -295,21 +302,21 @@ export function createForgejoPollingRunner(
                 );
               },
             );
-            if (committed) {
-              currentGenerations.set(row.connection_id, generation + 1);
-              if (
-                baseline ||
-                (isDefinitiveForgejoPollingFailure(
-                  /** @type {{code: string}} */ (error),
-                ) &&
-                  !isRepositoryOwnedDefinitiveForgejoPollingFailure(
-                    /** @type {{code: string, repositoryId?: number}} */ (
-                      error
-                    ),
-                  ))
-              ) {
-                gatedConnections.add(row.connection_id);
-              }
+            requireForgejoPollingCommit(
+              committed,
+              "Forgejo polling changed while recording failure",
+            );
+            currentGenerations.set(row.connection_id, generation + 1);
+            if (
+              baseline ||
+              (isDefinitiveForgejoPollingFailure(
+                /** @type {{code: string}} */ (error),
+              ) &&
+                !isRepositoryOwnedDefinitiveForgejoPollingFailure(
+                  /** @type {{code: string, repositoryId?: number}} */ (error),
+                ))
+            ) {
+              gatedConnections.add(row.connection_id);
             }
           }
           if (
@@ -347,33 +354,11 @@ export function createForgejoPollingRunner(
     );
   }
 
-  function nextDelay() {
-    const [next] = durableCore.all(
-      `SELECT MIN(forgejo_repository_polls.next_attempt_at) AS due_at
-         FROM forgejo_repository_polls
-         JOIN forgejo_connections
-           ON forgejo_connections.id = forgejo_repository_polls.connection_id
-         JOIN forgejo_repositories
-           ON forgejo_repositories.connection_id = forgejo_repository_polls.connection_id
-          AND forgejo_repositories.forge_repository_id =
-              forgejo_repository_polls.forge_repository_id
-         JOIN repositories
-           ON repositories.id = forgejo_repositories.repository_id
-        WHERE forgejo_connections.lifecycle = 'enabled'
-          AND forgejo_connections.health = 'healthy'
-          AND repositories.lifecycle = 'enabled'
-          AND repositories.health = 'healthy'`,
-    );
-    return Number.isSafeInteger(next?.due_at)
-      ? Math.max(0, Number(next.due_at) - timestamp())
-      : FORGEJO_POLL_INTERVAL_MS;
-  }
-
   async function runScheduled() {
     let delay = FORGEJO_POLL_INTERVAL_MS;
     try {
       await runDue();
-      delay = nextDelay();
+      delay = nextForgejoPollingDelay(durableCore, timestamp);
     } catch (error) {
       requireStorageReservePause(error);
     }
@@ -385,6 +370,7 @@ export function createForgejoPollingRunner(
   }
 
   return {
+    commitFailure: polling.commitFailure,
     /** @param {any} transaction @param {string} connectionId @param {any} prepared @param {number} [generation] */
     commitBaseline(transaction, connectionId, prepared, generation) {
       storageReserve.assertPollingObservationAdvanceAvailable();

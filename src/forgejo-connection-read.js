@@ -103,15 +103,20 @@ export function readForgejoConnection(durableCore) {
     throw new TypeError("Forgejo Connection row is invalid");
   }
   const pollingGate = readForgejoPollingGate(durableCore, row.id);
+  const connectionVerificationError =
+    row.health_error_code !== null &&
+    forgejoVerificationErrorScope(
+      /** @type {string} */ (row.health_error_code),
+      undefined,
+    ) === "connection"
+      ? { code: row.health_error_code, message: row.health_error_message }
+      : null;
   const healthError =
     row.health === "error"
-      ? row.health_error_code === null
-        ? pollingGate?.error
-        : { code: row.health_error_code, message: row.health_error_message }
+      ? (connectionVerificationError ?? pollingGate?.error)
       : null;
   if (
-    (row.health === "healthy" &&
-      (row.health_error_code !== null || row.health_error_message !== null)) ||
+    (row.health === "healthy" && connectionVerificationError !== null) ||
     (row.health === "error" &&
       (typeof healthError?.code !== "string" ||
         healthError.code.length === 0 ||
@@ -162,3 +167,4 @@ import {
   readForgejoPollingGate,
   readForgejoPollingStates,
 } from "./forgejo-polling-read.js";
+import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";

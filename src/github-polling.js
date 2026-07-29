@@ -1,50 +1,20 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
+import {
+  claimGitHubPollingGeneration,
+  readGitHubPollingGeneration,
+} from "./github-polling-generation.js";
+import {
+  githubPollingFailure,
+  nextGitHubAttemptAt,
+} from "./github-polling-failure.js";
 import { pullRequestSnapshot } from "./github-pull-request-snapshot.js";
 export { pullRequestSnapshot } from "./github-pull-request-snapshot.js";
+export {
+  isDefinitiveGitHubPollingFailure,
+  nextGitHubAttemptAt,
+} from "./github-polling-failure.js";
 
 export const GITHUB_POLL_INTERVAL_MS = 60_000;
-
-const DEFINITIVE_FAILURES = new Set([
-  "github_api_request_failed",
-  "github_app_profile_mismatch",
-  "github_connection_credential_invalid",
-  "github_connection_credential_undecryptable",
-  "github_installation_scope_invalid",
-  "github_permissions_mismatch",
-  "github_principal_mismatch",
-  "github_repository_api_access_failed",
-]);
-
-/** @param {{code?: string}} failure */
-export function isDefinitiveGitHubPollingFailure(failure) {
-  return (
-    typeof failure.code === "string" && DEFINITIVE_FAILURES.has(failure.code)
-  );
-}
-
-/** @param {number} attemptedAt @param {{code?: string, nextAttemptAt?: number}} failure */
-export function nextGitHubAttemptAt(attemptedAt, failure) {
-  if (!Number.isSafeInteger(attemptedAt) || attemptedAt < 0) {
-    throw new TypeError("GitHub polling attempt time is invalid");
-  }
-  if (isDefinitiveGitHubPollingFailure(failure)) {
-    return null;
-  }
-  return failure.nextAttemptAt && failure.nextAttemptAt > attemptedAt
-    ? failure.nextAttemptAt
-    : attemptedAt + GITHUB_POLL_INTERVAL_MS;
-}
-
-/** @param {unknown} error */
-function pollingFailure(error) {
-  if (error instanceof GitHubConnectionError) {
-    return error;
-  }
-  if (error instanceof Error) {
-    throw error;
-  }
-  throw new TypeError("GitHub polling failed with a non-Error value");
-}
 
 /**
  * Durable GitHub pull-request snapshot reconciliation. This narrow slice only
@@ -79,9 +49,12 @@ export function createGitHubPollingService(
 
   /**
    * @param {{connection: any, credential: any, repositories: any[]}} input
-   * @param {{baseline?: boolean}} [options]
+   * @param {{baseline?: boolean, recordFailure?: boolean, onFailure?: (failure: GitHubConnectionError, commit: (transaction: any) => boolean) => void}} [options]
    */
-  async function prepare(input, { baseline = false } = {}) {
+  async function prepare(
+    input,
+    { baseline = false, recordFailure = true, onFailure } = {},
+  ) {
     if (
       !input ||
       typeof input.connection?.id !== "string" ||
@@ -89,6 +62,15 @@ export function createGitHubPollingService(
     ) {
       throw new TypeError("GitHub polling input is invalid");
     }
+    if (!recordFailure && typeof onFailure !== "function") {
+      throw new TypeError(
+        "GitHub deferred polling failure owner is unavailable",
+      );
+    }
+    const expectedGeneration = readGitHubPollingGeneration(
+      durableCore,
+      input.connection.id,
+    );
     for (const repository of input.repositories) {
       if (!Number.isSafeInteger(repository?.id) || repository.id <= 0) {
         throw new TypeError("GitHub polling repository is invalid");
@@ -146,12 +128,6 @@ export function createGitHubPollingService(
             : { repositoryId: gate.forgeRepositoryId }),
         });
       }
-      durableCore.transaction((/** @type {any} */ transaction) => {
-        transaction.run(
-          "DELETE FROM quality_bar_metadata WHERE key = ?",
-          metadataKey,
-        );
-      });
     }
     const [repositoryGate] = durableCore.all(
       `SELECT forge_repository_id, error_code, error_message, rate_gate_until
@@ -187,13 +163,23 @@ export function createGitHubPollingService(
         });
       }
     } catch (error) {
-      const failure = pollingFailure(error);
+      const failure = githubPollingFailure(error);
       const nextAttemptAt = nextGitHubAttemptAt(attemptedAt, failure);
       const hasUnrepresentedFailureOwner =
         failure.repositoryId === undefined
           ? true
           : !registeredIds.has(failure.repositoryId);
-      durableCore.transaction((/** @type {any} */ transaction) => {
+      /** @param {any} transaction */
+      const commitFailure = (transaction) => {
+        if (
+          !claimGitHubPollingGeneration(
+            transaction,
+            input.connection.id,
+            expectedGeneration,
+          )
+        ) {
+          return false;
+        }
         for (const repository of input.repositories) {
           if (failure.repositoryId === undefined) {
             transaction.run(
@@ -281,18 +267,39 @@ export function createGitHubPollingService(
           failure,
           attemptedAt,
         );
-      });
+        return true;
+      };
+      if (recordFailure) {
+        const committed = durableCore.transaction(commitFailure);
+        if (!committed) {
+          throw new GitHubConnectionError(
+            "github_polling_conflict",
+            "GitHub polling changed while recording failure",
+          );
+        }
+      } else {
+        onFailure?.(failure, commitFailure);
+      }
       throw failure;
     }
-    return { completedAt: timestamp(), snapshots };
+    return { completedAt: timestamp(), expectedGeneration, snapshots };
   }
 
   /**
    * @param {any} transaction
    * @param {string} connectionId
-   * @param {{completedAt: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
+   * @param {{completedAt: number, expectedGeneration: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
    */
   function commitSuccess(transaction, connectionId, prepared) {
+    if (
+      !claimGitHubPollingGeneration(
+        transaction,
+        connectionId,
+        prepared.expectedGeneration,
+      )
+    ) {
+      return false;
+    }
     transaction.run(
       "DELETE FROM quality_bar_metadata WHERE key = ?",
       `github_poll_gate:${connectionId}`,
@@ -315,23 +322,38 @@ export function createGitHubPollingService(
         JSON.stringify(snapshot),
       );
     }
+    return true;
   }
 
   /** @param {{connection: any, credential: any, repositories: any[]}} input */
   async function reconcile(input) {
     const prepared = await prepare(input);
-    durableCore.transaction((/** @type {any} */ transaction) => {
-      commitSuccess(transaction, input.connection.id, prepared);
-    });
+    const committed = durableCore.transaction(
+      (/** @type {any} */ transaction) =>
+        commitSuccess(transaction, input.connection.id, prepared),
+    );
+    if (!committed) {
+      throw new GitHubConnectionError(
+        "github_polling_conflict",
+        "GitHub polling changed during reconciliation",
+      );
+    }
     return prepared.snapshots.map(({ forgeRepositoryId }) => forgeRepositoryId);
   }
 
   /** @param {{connection: any, credential: any, repositories: any[]}} input */
   async function baseline(input) {
     const prepared = await prepare(input, { baseline: true });
-    durableCore.transaction((/** @type {any} */ transaction) => {
-      commitSuccess(transaction, input.connection.id, prepared);
-    });
+    const committed = durableCore.transaction(
+      (/** @type {any} */ transaction) =>
+        commitSuccess(transaction, input.connection.id, prepared),
+    );
+    if (!committed) {
+      throw new GitHubConnectionError(
+        "github_polling_conflict",
+        "GitHub polling changed during baseline verification",
+      );
+    }
     return prepared.snapshots.map(({ forgeRepositoryId }) => forgeRepositoryId);
   }
 
@@ -340,6 +362,7 @@ export function createGitHubPollingService(
     const attemptedAt = timestamp();
     const nextAttemptAt = nextGitHubAttemptAt(attemptedAt, error);
     durableCore.transaction((/** @type {any} */ transaction) => {
+      claimGitHubPollingGeneration(transaction, connectionId, undefined);
       if (error.repositoryId === undefined) {
         transaction.run(
           `UPDATE github_repository_polls

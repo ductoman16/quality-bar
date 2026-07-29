@@ -19,6 +19,7 @@ test("Forge Repository selector acquisition uses its owning Connection credentia
       api_url: "https://api.github.com/repos/operator/private",
       assignment_count: 0,
       credential_type: "forge_connection",
+      deletion_eligible: false,
       forge_connection_id: "connection-1",
       forge_repository_id: 101,
       health: "healthy",

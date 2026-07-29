@@ -108,6 +108,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
           async json() {
             return {
               credential_type: "username_token",
+              deletion_eligible: true,
               health: "healthy",
               health_error: null,
               id: "repository-1",
@@ -123,6 +124,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
           async json() {
             return {
               credential_type: "none",
+              deletion_eligible: true,
               health: "healthy",
               health_error: null,
               id: "repository-public",
@@ -138,6 +140,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
           async json() {
             return {
               credential_type: "username_token",
+              deletion_eligible: true,
               health: "healthy",
               health_error: null,
               id: "repository/private",
@@ -202,9 +205,17 @@ test("the Repository component rotates write-only credentials and surfaces the e
   );
   assert.equal(rotationRepository.disabled, false);
   assert.equal(rotationSubmit.disabled, false);
+  const sharedRepositoryResources = Reflect.get(
+    browserContext.window,
+    "qualityBarRepositories",
+  );
+  assert.throws(
+    () => sharedRepositoryResources.subscribe(null),
+    new TypeError("Repository subscriber must be a function"),
+  );
   /** @type {any} */
   let sharedRepositories;
-  Reflect.get(browserContext.window, "qualityBarRepositories").subscribe(
+  sharedRepositoryResources.subscribe(
     /** @param {unknown} repositories */ (repositories) => {
       sharedRepositories = repositories;
     },
@@ -212,6 +223,7 @@ test("the Repository component rotates write-only credentials and surfaces the e
   assert.deepEqual(JSON.parse(JSON.stringify(sharedRepositories)), [
     {
       credential_type: "username_token",
+      deletion_eligible: true,
       health: "healthy",
       health_error: null,
       id: "repository-1",

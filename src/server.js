@@ -174,6 +174,7 @@ export function createApplicationServer({
     typeof repositories?.list !== "function" ||
     typeof repositories.listPage !== "function" ||
     typeof repositories.register !== "function" ||
+    typeof repositories.remove !== "function" ||
     typeof repositories.requireAcceptsNewWork !== "function" ||
     typeof repositories.rotateCredential !== "function" ||
     typeof repositories.setLifecycle !== "function"

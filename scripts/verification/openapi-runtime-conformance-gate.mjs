@@ -16,7 +16,11 @@ export function createOpenApiRuntimeConformanceGate({
     name: "openapi-runtime-conformance",
     testGroup: "shared-http-request-and-response-conformance",
     failureCode: "openapi_runtime_conformance_failed",
-    arguments: ["--test", "test/openapi-conformance.test.js"],
+    arguments: [
+      "--test",
+      "test/openapi-conformance.test.js",
+      "test/repository-lifecycle-openapi-conformance.test.js",
+    ],
     tools: {
       ajv,
       "ajv-formats": ajvFormats,

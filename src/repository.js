@@ -4,6 +4,10 @@ import { CHECKOUTS_PATH } from "./installation-environment.js";
 import { createRepositoryCollection } from "./repository-collection.js";
 import { createRepositoryCredentialCipher } from "./repository-credential.js";
 import {
+  commitRepositoryEnablement,
+  recordPreparedRepositoryVerificationFailure,
+} from "./repository-enablement.js";
+import {
   resolvePushedCommitSelectors,
   verifyRepositoryRead,
 } from "./repository-git.js";
@@ -12,16 +16,19 @@ import {
   REPOSITORY_SELECTION,
 } from "./repository-resource.js";
 import {
+  removeNeverUsedRepository,
+  retireUsedRepository,
+} from "./repository-removal.js";
+import { createRepositoryRegistration } from "./repository-registration.js";
+import {
   assertRepositoryAcceptsNewWork,
   fail,
   failUnavailable,
   normalizeRepositoryCredentialRotation,
   normalizeRepositoryLifecycleChange,
   normalizePublicRepositoryUrl,
-  normalizeRepositoryRegistration,
   RepositoryError,
 } from "./repository-validation.js";
-import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import { createRepositorySelectorResolver } from "./repository-selector.js";
 
 export { RepositoryError };
@@ -181,6 +188,14 @@ export function createRepositoryService(
     resolveForgeCredential,
     resolveSelectors,
   });
+  const registerRepository = createRepositoryRegistration({
+    credentialCipher,
+    createId,
+    durableCore,
+    find,
+    now,
+    verifyRead,
+  });
 
   return {
     list() {
@@ -230,50 +245,7 @@ export function createRepositoryService(
         exactCollection.destroy();
       }
     },
-    /** @param {unknown} request */
-    async register(request) {
-      const { credential, url } = normalizeRepositoryRegistration(request);
-      await verifyRead(url, credential);
-      const id = createId();
-      const timestamp = now();
-      if (typeof id !== "string" || id.length === 0) {
-        throw new TypeError("createId must return a nonempty string");
-      }
-      if (!Number.isSafeInteger(timestamp)) {
-        throw new TypeError("now must return a safe integer timestamp");
-      }
-      const encryptedCredential = credential
-        ? credentialCipher.encrypt({ id, url }, credential)
-        : undefined;
-      try {
-        durableCore.transaction((transaction) => {
-          transaction.run(
-            "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
-            id,
-            url,
-            timestamp,
-            timestamp,
-          );
-          if (encryptedCredential) {
-            transaction.run(
-              "INSERT INTO repository_credentials (repository_id, encrypted_credential, created_at) VALUES (?, ?, ?)",
-              id,
-              encryptedCredential,
-              timestamp,
-            );
-          }
-        });
-      } catch (error) {
-        if (isUniqueConstraintFailure(error, "repositories.normalized_url")) {
-          fail(
-            "repository_identity_conflict",
-            "Repository identity is already registered",
-          );
-        }
-        throw error;
-      }
-      return readRepositoryResource(find(id));
-    },
+    register: registerRepository,
     /**
      * @param {string} id
      * @param {unknown} request
@@ -327,6 +299,10 @@ export function createRepositoryService(
       return readRepositoryResource(find(id));
     },
     requireAcceptsNewWork,
+    /** @param {string} id */
+    remove(id) {
+      removeNeverUsedRepository(/** @type {any} */ (durableCore), id);
+    },
     resolvePushedSelectors,
     /**
      * @param {string} id
@@ -336,18 +312,51 @@ export function createRepositoryService(
       const { lifecycle } = normalizeRepositoryLifecycleChange(request);
       const row = find(id);
       const repository = readRepositoryResource(row);
+      const lifecycleRevision = /** @type {number} */ (row?.lifecycle_revision);
+      if (!Number.isSafeInteger(lifecycleRevision) || lifecycleRevision < 0) {
+        throw new TypeError("Repository lifecycle revision is invalid");
+      }
       if (repository.lifecycle === "retired") {
-        fail(
-          "repository_retired",
-          "Repository retirement must be reversed through reactivation",
-        );
+        if (lifecycle === "retired") {
+          return repository;
+        }
+        if (lifecycle === "disabled") {
+          fail(
+            "repository_retired",
+            "Repository retirement must be reversed through reactivation",
+          );
+        }
+        if (!("forge_repository_id" in repository)) {
+          fail(
+            "repository_reactivation_requires_registration",
+            "Retired Generic HTTPS Repository must be re-registered",
+          );
+        }
+      }
+      if (lifecycle === "retired") {
+        retireUsedRepository(/** @type {any} */ (durableCore), id, {
+          lifecycle: repository.lifecycle,
+          lifecycleRevision,
+        });
+        return readRepositoryResource(find(id));
       }
       if (lifecycle === "disabled") {
         durableCore.transaction((transaction) => {
-          transaction.run(
-            "UPDATE repositories SET lifecycle = 'disabled' WHERE id = ?",
+          const disabled = transaction.run(
+            `UPDATE repositories
+             SET lifecycle = 'disabled',
+                 lifecycle_revision = lifecycle_revision + 1
+             WHERE id = ? AND lifecycle = ? AND lifecycle_revision = ?`,
             id,
+            repository.lifecycle,
+            lifecycleRevision,
           );
+          if (disabled.changes !== 1) {
+            fail(
+              "repository_lifecycle_conflict",
+              "Repository changed during lifecycle update",
+            );
+          }
         });
         return readRepositoryResource(find(id));
       }
@@ -360,7 +369,7 @@ export function createRepositoryService(
             )
           : undefined;
       /** @type {{commit?: (transaction: any) => void} | void} */
-      let preparedEnablement;
+      let preparedEnablement = undefined;
       try {
         if ("forge_repository_id" in repository) {
           if (typeof verifyForgeRepository !== "function") {
@@ -376,39 +385,22 @@ export function createRepositoryService(
           await verifyRead(repository.url, credential);
         }
       } catch (error) {
-        if (error instanceof RepositoryError) {
-          durableCore.transaction((transaction) => {
-            transaction.run(
-              `UPDATE repositories
-               SET health = 'error',
-                   health_error_code = ?,
-                   health_error_message = ?
-               WHERE id = ?`,
-              error.code,
-              error.message,
-              id,
-            );
-          });
-        }
+        recordPreparedRepositoryVerificationFailure(durableCore, error, {
+          id: repository.id,
+          lifecycle: repository.lifecycle,
+          lifecycleRevision,
+        });
         throw error;
       }
       const timestamp = now();
       if (!Number.isSafeInteger(timestamp)) {
         throw new TypeError("now must return a safe integer timestamp");
       }
-      durableCore.transaction((transaction) => {
-        preparedEnablement?.commit?.(transaction);
-        transaction.run(
-          `UPDATE repositories
-           SET lifecycle = 'enabled',
-               health = 'healthy',
-               health_error_code = NULL,
-               health_error_message = NULL,
-               verified_at = ?
-           WHERE id = ?`,
-          timestamp,
-          id,
-        );
+      commitRepositoryEnablement(durableCore, preparedEnablement, {
+        id,
+        lifecycle: repository.lifecycle,
+        lifecycleRevision,
+        timestamp,
       });
       return readRepositoryResource(find(id));
     },
@@ -435,6 +427,9 @@ export function createUnavailableRepositoryService(error) {
       throw error;
     },
     requireAcceptsNewWork() {
+      throw error;
+    },
+    remove() {
       throw error;
     },
     async resolvePushedSelectors() {

@@ -65,11 +65,15 @@ function codedFailure(error) {
 }
 
 /** @param {any} transaction @param {string} connectionId */
-function pollingGeneration(transaction, connectionId) {
-  const row = transaction.get(
+export function readForgejoPollingGeneration(transaction, connectionId) {
+  const parameters = [
     "SELECT value FROM quality_bar_metadata WHERE key = ?",
     `forgejo_poll_generation:${connectionId}`,
-  );
+  ];
+  const row =
+    typeof transaction.get === "function"
+      ? transaction.get(...parameters)
+      : transaction.all(...parameters)[0];
   if (!row) {
     return 0;
   }
@@ -88,8 +92,12 @@ function pollingGeneration(transaction, connectionId) {
  * @param {string} connectionId
  * @param {number | undefined} expectedGeneration
  */
-function claimPollingGeneration(transaction, connectionId, expectedGeneration) {
-  const current = pollingGeneration(transaction, connectionId);
+export function claimForgejoPollingGeneration(
+  transaction,
+  connectionId,
+  expectedGeneration,
+) {
+  const current = readForgejoPollingGeneration(transaction, connectionId);
   if (expectedGeneration !== undefined && current !== expectedGeneration) {
     return false;
   }
@@ -193,6 +201,10 @@ export function createForgejoPollingService(
       throw new TypeError("Forgejo polling input is invalid");
     }
     const attemptedAt = timestamp();
+    const expectedGeneration = readForgejoPollingGeneration(
+      durableCore,
+      input.connection.id,
+    );
     if (!ignoreGate) {
       requirePermittedAttempt(input.connection.id, attemptedAt);
     }
@@ -222,17 +234,24 @@ export function createForgejoPollingService(
       const failure = codedFailure(error);
       Object.assign(failure, { attemptedAt });
       if (recordFailure) {
-        recordFailureState(
+        const committed = recordFailureState(
           input.connection.id,
           input.repositories.map(({ id }) => id),
           failure,
           attemptedAt,
           baseline,
+          expectedGeneration,
         );
+        if (!committed) {
+          throw Object.assign(
+            new Error("Forgejo polling changed while recording failure"),
+            { code: "forgejo_polling_conflict" },
+          );
+        }
       }
       throw failure;
     }
-    return { completedAt: timestamp(), snapshots };
+    return { completedAt: timestamp(), expectedGeneration, snapshots };
   }
 
   /**
@@ -241,6 +260,7 @@ export function createForgejoPollingService(
    * @param {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} failure
    * @param {number} attemptedAt
    * @param {boolean} baseline
+   * @param {number} [expectedGeneration]
    */
   function recordFailureState(
     connectionId,
@@ -248,15 +268,17 @@ export function createForgejoPollingService(
     failure,
     attemptedAt,
     baseline,
+    expectedGeneration,
   ) {
-    durableCore.transaction((/** @type {any} */ transaction) => {
-      commitFailure(
+    return durableCore.transaction((/** @type {any} */ transaction) => {
+      return commitFailure(
         transaction,
         connectionId,
         forgeRepositoryIds,
         failure,
         attemptedAt,
         baseline,
+        expectedGeneration,
       );
     });
   }
@@ -280,7 +302,11 @@ export function createForgejoPollingService(
     expectedGeneration,
   ) {
     if (
-      !claimPollingGeneration(transaction, connectionId, expectedGeneration)
+      !claimForgejoPollingGeneration(
+        transaction,
+        connectionId,
+        expectedGeneration,
+      )
     ) {
       return false;
     }
@@ -356,7 +382,7 @@ export function createForgejoPollingService(
   /**
    * @param {any} transaction
    * @param {string} connectionId
-   * @param {{completedAt: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
+   * @param {{completedAt: number, expectedGeneration?: number, snapshots: {forgeRepositoryId: number, snapshot: unknown[]}[]}} prepared
    * @param {number} [expectedGeneration]
    */
   function commitSuccess(
@@ -365,9 +391,8 @@ export function createForgejoPollingService(
     prepared,
     expectedGeneration,
   ) {
-    if (
-      !claimPollingGeneration(transaction, connectionId, expectedGeneration)
-    ) {
+    const generation = expectedGeneration ?? prepared.expectedGeneration;
+    if (!claimForgejoPollingGeneration(transaction, connectionId, generation)) {
       return false;
     }
     transaction.run(
@@ -400,9 +425,16 @@ export function createForgejoPollingService(
   /** @param {{connection: any, credential: any, repositories: any[]}} input */
   async function reconcile(input) {
     const prepared = await prepare(input);
-    durableCore.transaction((/** @type {any} */ transaction) => {
-      commitSuccess(transaction, input.connection.id, prepared);
-    });
+    const committed = durableCore.transaction(
+      (/** @type {any} */ transaction) =>
+        commitSuccess(transaction, input.connection.id, prepared),
+    );
+    if (!committed) {
+      throw Object.assign(
+        new Error("Forgejo polling changed during reconciliation"),
+        { code: "forgejo_polling_conflict" },
+      );
+    }
     return prepared.snapshots.map(({ forgeRepositoryId }) => forgeRepositoryId);
   }
 

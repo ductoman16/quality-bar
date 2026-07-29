@@ -11,6 +11,7 @@ import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 import {
   assertForgejoFailedReactivationHistory,
+  assertForgejoMissingRepositoryId,
   assertForgejoPartialFailure,
   assertForgejoVerificationRows,
 } from "./forgejo-v16-integration-support.js";
@@ -194,6 +195,10 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       username: "oauth2",
     },
   ]);
+  await assertForgejoMissingRepositoryId(
+    verifier,
+    `http://127.0.0.1:${address.port}`,
+  );
   const emptySelectionRequestIndex = requests.length;
   const emptySelection = await verifier.verify({
     baseUrl: `http://127.0.0.1:${address.port}`,

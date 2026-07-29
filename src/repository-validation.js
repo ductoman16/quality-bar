@@ -169,20 +169,16 @@ export function normalizeRepositoryLifecycleChange(request) {
       "Repository lifecycle request is invalid",
     );
   }
-  if (request.lifecycle === "retired") {
-    fail(
-      "repository_retirement_unsupported",
-      "Repository retirement is not supported by this operation",
-    );
-  }
-  if (!["enabled", "disabled"].includes(request.lifecycle)) {
+  if (!["enabled", "disabled", "retired"].includes(request.lifecycle)) {
     fail(
       "repository_lifecycle_invalid",
-      "Repository lifecycle must be enabled or disabled",
+      "Repository lifecycle must be enabled, disabled, or retired",
     );
   }
   return {
-    lifecycle: /** @type {"enabled" | "disabled"} */ (request.lifecycle),
+    lifecycle: /** @type {"enabled" | "disabled" | "retired"} */ (
+      request.lifecycle
+    ),
   };
 }
 

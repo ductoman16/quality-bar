@@ -14,7 +14,9 @@ import { requireCodedError } from "./coded-error.js";
 import { createGitHubConnectionRoute } from "./github-connection-route.js";
 import { createForgejoConnectionRoute } from "./forgejo-connection-route.js";
 import { writeRepositoryGuidance } from "./repository-guidance-route.js";
+import { writeRepositoryLifecycleChange } from "./repository-lifecycle-route.js";
 import { writeRepositoryList } from "./repository-list-route.js";
+import { writeRepositoryDeletion } from "./repository-delete-route.js";
 import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
 import { writeReviewList } from "./review-list-route.js";
 import { writeError, writeJson } from "./http-response.js";
@@ -55,6 +57,7 @@ export function createApiRoute({
       return false;
     }
     const {
+      repositoryMatch,
       repositoryCredentialRotationMatch,
       repositoryGuidanceMatch,
       repositoryLifecycleMatch,
@@ -74,6 +77,7 @@ export function createApiRoute({
         (method === "PATCH" && reviewActiveVersionMatch) ||
         (method === "POST" && reviewVersionsMatch) ||
         (method === "POST" && path === "/api/v1/repositories") ||
+        (method === "DELETE" && repositoryMatch) ||
         (method === "POST" && repositoryCredentialRotationMatch) ||
         (method === "PATCH" && repositoryLifecycleMatch) ||
         path.startsWith("/api/v1/github-connections") ||
@@ -233,6 +237,16 @@ export function createApiRoute({
       });
       return true;
     }
+    if (method === "DELETE" && repositoryMatch) {
+      await writeRepositoryDeletion(request, response, {
+        browserOrigin,
+        browserSessions,
+        repositories,
+        encodedRepositoryId: repositoryMatch[1],
+        requestUrl,
+      });
+      return true;
+    }
     if (method === "POST" && repositoryCredentialRotationMatch) {
       await writeBrowserJsonMutation(request, response, {
         browserOrigin,
@@ -261,29 +275,12 @@ export function createApiRoute({
       return true;
     }
     if (method === "PATCH" && repositoryLifecycleMatch) {
-      await writeBrowserJsonMutation(request, response, {
+      await writeRepositoryLifecycleChange(request, response, {
         browserOrigin,
         browserSessions,
-        failureCode: "repository_lifecycle_change_failed",
-        mutate: (body) =>
-          repositories.setLifecycle(
-            decodeURIComponent(repositoryLifecycleMatch[1]),
-            body,
-          ),
+        repositories,
+        encodedRepositoryId: repositoryLifecycleMatch[1],
         requestUrl,
-        statusFor: (code, error) =>
-          code === "repository_not_found"
-            ? 404
-            : [
-                  "repository_retired",
-                  "repository_retirement_unsupported",
-                ].includes(code)
-              ? 409
-              : isUnavailableError(error) ||
-                  code === "repository_git_verification_unavailable"
-                ? 503
-                : 422,
-        unexpectedMessage: "Repository lifecycle change failed",
       });
       return true;
     }

@@ -120,6 +120,7 @@ test("the machine Repository collection uses validated opaque keyset pagination"
   assert.deepEqual(secondPage.items, [
     {
       credential_type: "none",
+      deletion_eligible: true,
       health: "healthy",
       health_error: null,
       id: "repository-50",
@@ -219,6 +220,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
     items: [
       {
         credential_type: "username_token",
+        deletion_eligible: true,
         health: "healthy",
         health_error: null,
         id: "repository/private",
@@ -230,6 +232,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
     repositories: [
       {
         credential_type: "username_token",
+        deletion_eligible: true,
         health: "healthy",
         health_error: null,
         id: "repository/private",
@@ -253,6 +256,7 @@ test("an authenticated operator rotates a Generic credential through the secret-
   assert.equal(rotated.status, 200);
   assert.deepEqual(await rotated.json(), {
     credential_type: "username_token",
+    deletion_eligible: true,
     health: "healthy",
     health_error: null,
     id: "repository/private",

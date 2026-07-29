@@ -4,7 +4,7 @@ import {
   readJsonRequest,
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
-import { writeError, writeJson } from "./http-response.js";
+import { createErrorDocument, writeError, writeJson } from "./http-response.js";
 
 /**
  * @param {import("node:http").IncomingMessage} request
@@ -13,6 +13,7 @@ import { writeError, writeJson } from "./http-response.js";
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   failureCode: string,
+ *   failureDetails?: (code: string, error: unknown) => Record<string, unknown> | undefined,
  *   mutate: (body: unknown) => unknown,
  *   requestUrl: URL,
  *   statusFor: (code: string, error: unknown) => number,
@@ -27,6 +28,7 @@ export async function writeBrowserJsonMutation(
     browserOrigin,
     browserSessions,
     failureCode,
+    failureDetails,
     mutate,
     requestUrl,
     statusFor,
@@ -77,11 +79,15 @@ export async function writeBrowserJsonMutation(
       );
       return;
     }
-    writeError(
-      response,
-      statusFor(failure.code, error),
-      failure.code,
-      failure.message,
-    );
+    const status = statusFor(failure.code, error);
+    const details = failureDetails?.(failure.code, error);
+    if (details) {
+      writeJson(response, status, {
+        ...createErrorDocument(failure.code, failure.message),
+        ...details,
+      });
+      return;
+    }
+    writeError(response, status, failure.code, failure.message);
   }
 }

@@ -3,7 +3,10 @@ import { validateApplicationCoverageFacts } from "../application-coverage-report
 import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
 import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
 import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
-import { forgejoGateDefinitions } from "./forgejo-gate-definition.mjs";
+import {
+  FORGEJO_SQLITE_TESTS,
+  forgejoGateDefinitions,
+} from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { FAKE_CODEX_GATE_DEFINITION } from "./fake-codex-gate-definition.mjs";
 import { NODE_OWNERSHIP_LINT_PROOF_GATE } from "./proof-gate-definitions.mjs";
@@ -11,6 +14,7 @@ import { createOpenApiRuntimeConformanceGate } from "./openapi-runtime-conforman
 import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
 import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
+import { repositoryGateTests } from "./repository-gate-definition.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -253,7 +257,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-incomplete-result-rejection-four-meaning-criterion-result-exact-review-run-failure-response-storage-reserve-review-assignment-version-repository-guidance-lifecycle-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-authority-request-security-incomplete-result-rejection-four-meaning-criterion-result-exact-review-run-failure-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -268,6 +272,7 @@ export function createGateDefinitions(metadata) {
         "test/review-version-reactivation-browser-component.test.js",
         "test/review-version-browser-component.test.js",
         "test/repository-browser-component.test.js",
+        "test/repository-delete-browser-component.test.js",
         "test/repository-lifecycle-browser-component.test.js",
         "test/operator-password-browser-component.test.js",
         "test/browser-session-authentication-browser-component.test.js",
@@ -300,7 +305,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "git-integration",
       testGroup:
-        "generic-and-github-app-https-repository-read-guidance-assignment-lifecycle-and-polling-object-identity-boundary",
+        "generic-and-github-app-https-repository-read-guidance-assignment-retirement-reactivation-deletion-and-polling-object-identity-boundary",
       failureCode: "git_integration_tests_failed",
       arguments: [
         "--test",
@@ -313,7 +318,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "durable-resources-including-storage-gated-forgejo-polling-and-waivers",
+        "durable-resources-including-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -327,19 +332,14 @@ export function createGateDefinitions(metadata) {
         "test/review-version-change-detection.test.js",
         "test/review-version-reactivation-sqlite-integration.test.js",
         "test/review.test.js",
-        "test/repository-credential-rotation-sqlite-integration.test.js",
-        "test/repository-sqlite-integration.test.js",
+        ...repositoryGateTests.sqlite,
         "test/github-connection-sqlite-integration.test.js",
         "test/github-connection-verification-sqlite-integration.test.js",
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",
+        ...repositoryGateTests.githubSqliteRaces,
         "test/github-polling.test.js",
-        "test/forgejo-connection-rotation-sqlite-integration.test.js",
-        "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
-        "test/forgejo-connection-schema-migration.test.js",
-        "test/forgejo-connection-concurrency-sqlite-integration.test.js",
-        "test/forgejo-connection-sqlite-integration.test.js",
-        "test/forgejo-polling-sqlite-integration.test.js",
+        ...FORGEJO_SQLITE_TESTS,
         "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
         "test/evaluation-sqlite-integration.test.js",
       ],
@@ -349,13 +349,11 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-machine-repository-guidance-repository-lifecycle-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
+        "review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
-        "test/repository-http-integration.test.js",
-        "test/repository-guidance-http-integration.test.js",
-        "test/repository-lifecycle-http-integration.test.js",
+        ...repositoryGateTests.http,
         "test/review-authorization-http-integration.test.js",
         "test/review-archival-http-integration.test.js",
         "test/review-applicability-rule-http-integration.test.js",

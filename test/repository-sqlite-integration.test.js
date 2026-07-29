@@ -32,7 +32,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 28);
+  assert.equal(core.facts.schemaVersion, 29);
   /** @type {string[]} */
   const verifiedUrls = [];
   const repositories = createRepositoryService(core, {
@@ -71,6 +71,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
   });
   assert.deepEqual(created, {
     credential_type: "none",
+    deletion_eligible: true,
     health: "healthy",
     health_error: null,
     id: "repository-1",
@@ -134,7 +135,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 28);
+  assert.equal(core.facts.schemaVersion, 29);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -181,6 +182,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
   });
   assert.deepEqual(created, {
     credential_type: "username_token",
+    deletion_eligible: true,
     health: "healthy",
     health_error: null,
     id: "repository-private",
@@ -272,7 +274,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   prior.close();
 
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 28);
+  assert.equal(core.facts.schemaVersion, 29);
   let verificationFails = false;
   const repositories = createRepositoryService(core, {
     createId: () => "repository-lifecycle",
@@ -301,6 +303,7 @@ test("Repository lifecycle persists separately from observed health and preserve
     }),
     {
       credential_type: "none",
+      deletion_eligible: true,
       health: "healthy",
       health_error: null,
       id: "repository-lifecycle",
@@ -328,6 +331,7 @@ test("Repository lifecycle persists separately from observed health and preserve
   assert.deepEqual(repositories.list(), [
     {
       credential_type: "none",
+      deletion_eligible: true,
       health: "error",
       health_error: {
         code: "repository_git_read_failed",
@@ -368,4 +372,45 @@ test("Repository lifecycle persists separately from observed health and preserve
   );
   reopened.close();
   rmSync(directory, { force: true, recursive: true });
+});
+
+test("a stale disable cannot reverse concurrent Repository retirement", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-repository-disable-race-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  core.run(
+    `INSERT INTO repositories
+       (id, normalized_url, has_been_used, created_at, verified_at)
+     VALUES ('repository-1', 'https://example.com/repository.git', 1, 1, 1)`,
+  );
+  let retireBeforeTransaction = true;
+  const repositories = createRepositoryService(
+    {
+      all: core.all.bind(core),
+      transaction(callback) {
+        if (retireBeforeTransaction) {
+          retireBeforeTransaction = false;
+          core.run(
+            "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
+          );
+        }
+        return core.transaction(callback);
+      },
+    },
+    { masterKey: Buffer.alloc(32, 29) },
+  );
+
+  await assert.rejects(
+    repositories.setLifecycle("repository-1", { lifecycle: "disabled" }),
+    { code: "repository_lifecycle_conflict" },
+  );
+  assert.equal(
+    core.get("SELECT lifecycle FROM repositories WHERE id = 'repository-1'")
+      ?.lifecycle,
+    "retired",
+  );
+  repositories.destroy();
+  core.close();
 });

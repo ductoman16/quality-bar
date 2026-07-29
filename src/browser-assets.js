@@ -86,6 +86,11 @@ const browserAssets = [
     url: new URL("./browser/repository.js", import.meta.url),
   },
   {
+    route: "/assets/repository-delete.js",
+    sourcePath: "src/browser/repository-delete.js",
+    url: new URL("./browser/repository-delete.js", import.meta.url),
+  },
+  {
     route: "/assets/repository-guidance.js",
     sourcePath: "src/browser/repository-guidance.js",
     url: new URL("./browser/repository-guidance.js", import.meta.url),

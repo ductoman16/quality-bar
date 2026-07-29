@@ -36,6 +36,7 @@ test("application coverage has one positive maintained-code boundary", () => {
       "src/browser/forgejo-connection-lifecycle-confirmation.js",
       "src/browser/forgejo-connection.js",
       "src/browser/repository.js",
+      "src/browser/repository-delete.js",
       "src/browser/repository-guidance.js",
       "src/browser/review-metadata.js",
       "src/browser/review-create.js",

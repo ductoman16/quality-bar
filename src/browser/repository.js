@@ -70,6 +70,7 @@ async function submitRepositoryMutation(
  *   api_url?: string,
  *   assignment_count?: number,
  *   credential_type: "forge_connection" | "none" | "username_token",
+ *   deletion_eligible: boolean,
  *   forge_connection_id?: string,
  *   forge_repository_id?: number,
  *   health: "healthy" | "error",
@@ -93,9 +94,8 @@ const repositoryResources = new Map();
 const repositorySubscribers = new Set();
 
 function publishRepositoryResources() {
-  const repositories = [...repositoryResources.values()];
   for (const subscriber of repositorySubscribers) {
-    subscriber(repositories);
+    subscriber([...repositoryResources.values()]);
   }
 }
 
@@ -103,6 +103,13 @@ Reflect.set(
   window,
   "qualityBarRepositories",
   Object.freeze({
+    /** @param {string} id */
+    find: (id) => repositoryResources.get(id),
+    /** @param {string} id */
+    confirmationIdentity(id) {
+      const repository = repositoryResources.get(id);
+      return repository && repositoryConfirmationIdentity(repository);
+    },
     /** @param {number[]} ids @param {string} verificationId */
     hasVerifiedForgeRepositoryIds(ids, verificationId) {
       return ids.every((id) =>
@@ -114,6 +121,8 @@ Reflect.set(
       );
     },
     refresh: loadRepositoryOptions,
+    ready: () => repositoryOptionsLoaded,
+    syncDeleteAvailability: syncRepositoryDeleteAvailability,
     /** @param {(repositories: RepositoryResource[]) => unknown} subscriber */
     subscribe(subscriber) {
       if (typeof subscriber !== "function") {
@@ -127,6 +136,9 @@ Reflect.set(
 
 /** @param {RepositoryResource} repository */
 function renderRepository(repository) {
+  if (typeof repository.deletion_eligible !== "boolean") {
+    throw new Error("repository_deletion_eligibility_invalid");
+  }
   let observedHealth;
   if (repository.health === "healthy") {
     observedHealth = "healthy";
@@ -193,17 +205,25 @@ function renderRepository(repository) {
 }
 
 /** @param {RepositoryResource} repository */
-function addLifecycleOption(repository) {
-  if (repository.lifecycle === "retired") {
-    return;
+function repositoryConfirmationIdentity(repository) {
+  if (
+    !["github", "forgejo"].includes(repository.provider ?? "") ||
+    typeof repository.forge_connection_id !== "string" ||
+    !Number.isSafeInteger(repository.forge_repository_id)
+  ) {
+    return repository.url;
   }
+  const provider = repository.provider === "github" ? "GitHub" : "Forgejo";
+  return `${provider} Repository ${repository.forge_repository_id} on Connection ${repository.forge_connection_id}`;
+}
+
+/** @param {RepositoryResource} repository */
+function addLifecycleOption(repository) {
   const select = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-repository")
   );
-  for (const option of select.options) {
-    if (option.value === repository.id) {
-      return;
-    }
+  if ([...select.options].some(({ value }) => value === repository.id)) {
+    return;
   }
   const option = document.createElement("option");
   option.textContent = repository.url;
@@ -213,29 +233,37 @@ function addLifecycleOption(repository) {
   /** @type {HTMLButtonElement} */ (
     requiredRepositoryElement("repository-lifecycle-submit")
   ).disabled = false;
+  syncRepositoryDeleteAvailability();
 }
 
-/** @param {RepositoryResource} repository */
-function addRepositoryOption(repository) {
-  if (repository.credential_type !== "username_token") {
-    return;
-  }
+function syncRepositoryDeleteAvailability() {
+  const repositoryId = /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  ).value;
+  /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-delete")
+  ).disabled =
+    repositoryResources.get(repositoryId)?.deletion_eligible !== true;
+}
+
+function rebuildRepositoryCredentialOptions() {
   const select = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-credential-rotate-repository")
   );
-  for (const option of select.options) {
-    if (option.value === repository.id) {
-      return;
-    }
+  select.replaceChildren();
+  const repositories = [...repositoryResources.values()].filter(
+    (repository) => repository.credential_type === "username_token",
+  );
+  for (const repository of repositories) {
+    const option = document.createElement("option");
+    option.textContent = repository.url;
+    option.value = repository.id;
+    select.append(option);
   }
-  const option = document.createElement("option");
-  option.textContent = repository.url;
-  option.value = repository.id;
-  select.append(option);
-  select.disabled = false;
+  select.disabled = repositories.length === 0;
   /** @type {HTMLButtonElement} */ (
     requiredRepositoryElement("repository-credential-rotate-submit")
-  ).disabled = false;
+  ).disabled = repositories.length === 0;
 }
 
 function clearRepositoryOptions() {
@@ -251,14 +279,10 @@ function clearRepositoryOptions() {
   /** @type {HTMLButtonElement} */ (
     requiredRepositoryElement("repository-lifecycle-submit")
   ).disabled = true;
-  const credentialSelect = /** @type {HTMLSelectElement} */ (
-    requiredRepositoryElement("repository-credential-rotate-repository")
-  );
-  credentialSelect.replaceChildren();
-  credentialSelect.disabled = true;
   /** @type {HTMLButtonElement} */ (
-    requiredRepositoryElement("repository-credential-rotate-submit")
+    requiredRepositoryElement("repository-delete")
   ).disabled = true;
+  rebuildRepositoryCredentialOptions();
 }
 
 async function loadRepositoryOptions() {
@@ -280,9 +304,9 @@ async function loadRepositoryOptions() {
   )) {
     renderRepository(repository);
     addLifecycleOption(repository);
-    addRepositoryOption(repository);
   }
   publishRepositoryResources();
+  rebuildRepositoryCredentialOptions();
   return true;
 }
 
@@ -319,8 +343,8 @@ repositoryCreateForm.addEventListener("submit", async (event) => {
       if (await repositoryOptionsLoaded) {
         renderRepository(repository);
         addLifecycleOption(repository);
-        addRepositoryOption(repository);
         publishRepositoryResources();
+        rebuildRepositoryCredentialOptions();
       }
       return `${repository.url} registered as ${repository.id}.`;
     },
@@ -330,6 +354,10 @@ repositoryCreateForm.addEventListener("submit", async (event) => {
 
 const repositoryLifecycleForm = /** @type {HTMLFormElement} */ (
   requiredRepositoryElement("repository-lifecycle-form")
+);
+requiredRepositoryElement("repository-lifecycle-repository").addEventListener(
+  "change",
+  syncRepositoryDeleteAvailability,
 );
 repositoryLifecycleForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -342,20 +370,27 @@ repositoryLifecycleForm.addEventListener("submit", async (event) => {
   const lifecycle = /** @type {HTMLSelectElement} */ (
     requiredRepositoryElement("repository-lifecycle-state")
   ).value;
-  if (!["enabled", "disabled"].includes(lifecycle)) {
+  if (!["enabled", "disabled", "retired"].includes(lifecycle)) {
     throw new Error("repository_lifecycle_invalid");
   }
   const repository = repositoryResources.get(repositoryId);
   if (!repository) {
     throw new Error("repository_lifecycle_target_missing");
   }
-  const consequence =
-    lifecycle === "disabled"
-      ? "New work will be rejected; already-created work may finish."
-      : "Complete current verification must succeed before new work is accepted.";
+  const consequence = {
+    disabled: "New work will be rejected; already-created work may finish.",
+    enabled:
+      "Complete current verification must succeed before new work is accepted.",
+    retired: "Repository-bound credentials will be destroyed.",
+  }[lifecycle];
+  const action = {
+    disabled: "Disable",
+    enabled: "Enable",
+    retired: "Retire",
+  }[lifecycle];
   if (
     !window.confirm(
-      `${lifecycle === "disabled" ? "Disable" : "Enable"} ${repository.url}? ${consequence}`,
+      `${action} ${repositoryConfirmationIdentity(repository)}? ${consequence}`,
     )
   ) {
     return;
@@ -372,6 +407,9 @@ repositoryLifecycleForm.addEventListener("submit", async (event) => {
       { lifecycle },
       (repository) => {
         renderRepository(repository);
+        publishRepositoryResources();
+        rebuildRepositoryCredentialOptions();
+        syncRepositoryDeleteAvailability();
         return `${repository.url} is ${repository.lifecycle}.`;
       },
       "Repository lifecycle change failed",

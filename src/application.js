@@ -24,7 +24,6 @@ import {
   createGitHubConnectionService,
   createUnavailableGitHubConnectionService,
 } from "./github-connection.js";
-import { GitHubConnectionError } from "./github-connection-error.js";
 import {
   createForgejoConnectionService,
   unavailableForgejoConnectionService,
@@ -42,7 +41,10 @@ import {
   createRepositoryService,
   createUnavailableRepositoryService,
 } from "./repository.js";
-import { fail as failRepository } from "./repository-validation.js";
+import {
+  prepareForgejoRepositoryEnablement,
+  prepareGitHubRepositoryEnablement,
+} from "./repository-provider-verification.js";
 import {
   createRepositoryGuidanceService,
   createUnavailableRepositoryGuidanceService,
@@ -63,14 +65,6 @@ import {
 } from "./evaluation.js";
 
 /** @typedef {ReturnType<typeof requireCodedError>} CodedError */
-
-const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
-  "github_private_git_read_failed",
-  "github_repository_api_access_failed",
-  "github_repository_git_read_failed",
-  "github_repository_selection_unavailable",
-]);
-
 /**
  * @param {{
  *   databasePath: string,
@@ -195,33 +189,15 @@ export function createApplication({
           /** @type {"github" | "forgejo"} */ provider,
         ) {
           if (provider === "forgejo") {
-            return forgejoConnections.prepareRepositoryEnablement(
+            return prepareForgejoRepositoryEnablement(
+              forgejoConnections,
               forgeRepositoryId,
             );
           }
-          try {
-            await githubConnections.selectRepositories(
-              {
-                repository_ids: [forgeRepositoryId],
-              },
-              "enablement",
-            );
-          } catch (error) {
-            if (
-              error instanceof GitHubConnectionError &&
-              REPOSITORY_SCOPED_GITHUB_ERRORS.has(error.code)
-            ) {
-              failRepository(error.code, error.message, error);
-            }
-            if (error instanceof GitHubConnectionError) {
-              throw new GitHubConnectionError(error.code, error.message, {
-                cause: error,
-              });
-            }
-            throw new TypeError("Forge Repository verification failed", {
-              cause: error,
-            });
-          }
+          return prepareGitHubRepositoryEnablement(
+            githubConnections,
+            forgeRepositoryId,
+          );
         },
       });
       evaluations = createEvaluations(durableCore, {

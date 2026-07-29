@@ -34,8 +34,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 45,
-    responseStatuses: 310,
+    operations: 46,
+    responseStatuses: 319,
     version: "3.1.0",
   });
   assert.equal(
@@ -141,6 +141,7 @@ test("runtime conformance accepts a documented request and empty success", async
       },
       response: Response.json({
         credential_type: "username_token",
+        deletion_eligible: true,
         health: "healthy",
         health_error: null,
         id: "repository-1",
@@ -149,7 +150,6 @@ test("runtime conformance accepts a documented request and empty success", async
       }),
     }),
   );
-
   assert.deepEqual(assertion.facts(), {
     canonicalErrors: 0,
     exchanges: 2,
@@ -252,6 +252,7 @@ test("runtime conformance rejects invalid request, response, status, content typ
             repositories: [
               {
                 credential_type: "none",
+                deletion_eligible: true,
                 health: "healthy",
                 health_error: {
                   code: "stale_error",

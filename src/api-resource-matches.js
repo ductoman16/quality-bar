@@ -3,6 +3,7 @@ import { reviewAssignmentPathIdentity } from "./review-assignment-route.js";
 /** @param {string} path */
 export function apiResourceMatches(path) {
   return {
+    repositoryMatch: path.match(/^\/api\/v1\/repositories\/([^/]+)$/),
     repositoryCredentialRotationMatch: path.match(
       /^\/api\/v1\/repositories\/([^/]+)\/credential\/rotate$/,
     ),

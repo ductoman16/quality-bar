@@ -28,7 +28,15 @@ export function pullRequest(number) {
 /** @param {any[]} repositories */
 export function forgejoVerification(repositories) {
   return {
-    capabilities: { private_git_read: "verified" },
+    capabilities: {
+      aggregate_feedback: "verified",
+      branch_access: "verified",
+      commit_status: "verified",
+      enumeration: "verified",
+      inline_feedback: "verified",
+      private_git_read: "verified",
+      pull_request_access: "verified",
+    },
     principal: { id: 7, login: "operator" },
     profile: "forgejo-v16",
     reported_version: "16.0.4",

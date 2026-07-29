@@ -4,7 +4,9 @@ export function browserElement(properties = {}) {
   const listeners = new Map();
   return {
     disabled: false,
+    focused: false,
     hidden: false,
+    open: false,
     options: /** @type {any[]} */ ([]),
     resetCalled: false,
     textContent: "",
@@ -17,6 +19,12 @@ export function browserElement(properties = {}) {
     /** @param {any} child */
     append(child) {
       this.options.push(child);
+    },
+    close() {
+      this.open = false;
+    },
+    focus() {
+      this.focused = true;
     },
     /** @param {string} name */
     listener(name) {
@@ -38,6 +46,9 @@ export function browserElement(properties = {}) {
     /** @param {string} name @param {unknown} value */
     setAttribute(name, value) {
       Reflect.set(this, name, value);
+    },
+    showModal() {
+      this.open = true;
     },
   };
 }
@@ -65,6 +76,13 @@ export function repositoryBrowserElements(overrides) {
     "repository-lifecycle-state",
     "repository-lifecycle-result",
     "repository-lifecycle-submit",
+    "repository-delete",
+    "repository-delete-confirmation",
+    "repository-delete-confirmation-form",
+    "repository-delete-confirmation-input",
+    "repository-delete-confirmation-message",
+    "repository-delete-confirmation-cancel",
+    "repository-delete-confirmation-submit",
     "repository-create-form",
     "repository-token",
     "repository-url",

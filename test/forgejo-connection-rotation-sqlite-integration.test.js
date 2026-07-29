@@ -125,6 +125,7 @@ test("a corrected Repository failure never strands its healthy Forgejo sibling",
         "verification-1",
         "repository-1",
         "repository-2",
+        "verification-2",
       ];
       return () => ids.shift();
     })(),

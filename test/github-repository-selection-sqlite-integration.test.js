@@ -9,11 +9,8 @@ import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import {
-  fail as failRepository,
-  RepositoryError,
-} from "../src/repository-validation.js";
-import {
   availableRepositories,
+  assertGitHubLifecycleVerification,
   assertCorrelatedSelection,
   assertRemovedVerificationState,
   capabilities,
@@ -24,6 +21,7 @@ import {
   removedRepositoryState,
   renamePrivateRepository,
 } from "./github-repository-selection-fixtures.js";
+import { prepareStaleGitHubRepositoryEnablement } from "./github-repository-selection-race-support.js";
 
 test("SQLite registers a verified GitHub Repository set atomically by Connection and stable Forge identity", async (context) => {
   const directory = mkdtempSync(
@@ -33,6 +31,10 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   const selection = createSelectionRequests();
   let failSelection = true;
+  let retireOnConnectionFailure = false;
+  let retireOnSelectionFailure = false;
+  let retireSiblingAfterPreparation = false;
+  let staleEnablement = false;
   /** @type {GitHubConnectionError | undefined} */
   let connectionFailure;
   /** @type {any} */
@@ -49,6 +51,10 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
         "repository-failed-beta",
         "repository-alpha",
         "repository-beta",
+        "connection-reactivation-verification",
+        "connection-reactivation-verification-2",
+        "connection-reactivation-verification-3",
+        "connection-reactivation-verification-4",
       ];
       return () => ids.shift();
     })(),
@@ -81,9 +87,15 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
           repositoryIds,
         });
         if (connectionFailure) {
+          if (retireOnConnectionFailure) {
+            service.retire({ lifecycle: "retired" });
+          }
           throw connectionFailure;
         }
         if (failSelection) {
+          if (retireOnSelectionFailure) {
+            service.retire({ lifecycle: "retired" });
+          }
           throw new GitHubConnectionError(
             "github_repository_git_read_failed",
             "GitHub private Repository read verification failed",
@@ -206,8 +218,8 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       error instanceof GitHubConnectionError &&
       error.code === "github_repository_identity_conflict",
   );
-  assert.equal(service.read()?.health, "healthy");
-  assert.equal(service.read()?.verified_at, 2_000);
+  assert.equal(service.read()?.health, "error");
+  assert.equal(service.read()?.verified_at, 1_500);
   assert.equal(
     core.get("SELECT count(*) AS count FROM repositories")?.count,
     1,
@@ -226,6 +238,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       api_url: "https://api.github.com/repos/operator/alpha",
       assignment_count: 0,
       credential_type: "forge_connection",
+      deletion_eligible: true,
       forge_connection_id: "connection-1",
       forge_repository_id: 101,
       health: "healthy",
@@ -243,6 +256,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       api_url: "https://api.github.com/repos/operator/beta",
       assignment_count: 0,
       credential_type: "forge_connection",
+      deletion_eligible: true,
       forge_connection_id: "connection-1",
       forge_repository_id: 202,
       health: "healthy",
@@ -302,6 +316,7 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
       api_url: "https://api.github.com/repos/operator/alpha-renamed",
       assignment_count: 0,
       credential_type: "forge_connection",
+      deletion_eligible: true,
       forge_connection_id: "connection-1",
       forge_repository_id: 101,
       health: "healthy",
@@ -322,40 +337,20 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
   const repositoryInventory = createRepositoryService(core, {
     masterKey: Buffer.alloc(32, 7),
     now: () => timestamp,
-    async verifyForgeRepository(forgeRepositoryId) {
-      try {
-        await service.selectRepositories(
-          {
-            repository_ids: [forgeRepositoryId],
-          },
-          "enablement",
-        );
-      } catch (error) {
-        if (
-          error instanceof GitHubConnectionError &&
-          [
-            "github_repository_git_read_failed",
-            "github_repository_api_access_failed",
-            "github_repository_selection_unavailable",
-          ].includes(error.code)
-        ) {
-          failRepository(error.code, error.message, error);
-        }
-        if (error instanceof GitHubConnectionError) {
-          throw new GitHubConnectionError(error.code, error.message, {
-            cause: error,
-          });
-        }
-        throw new TypeError("Forge Repository verification failed", {
-          cause: error,
-        });
-      }
-    },
+    verifyForgeRepository: (forgeRepositoryId) =>
+      prepareStaleGitHubRepositoryEnablement(
+        core,
+        service,
+        forgeRepositoryId,
+        staleEnablement,
+        retireSiblingAfterPreparation,
+      ),
   });
   assert.deepEqual(repositoryInventory.list()[0], {
     api_url: "https://api.github.com/repos/operator/alpha-renamed",
     assignment_count: 0,
     credential_type: "forge_connection",
+    deletion_eligible: true,
     forge_connection_id: "connection-1",
     forge_repository_id: 101,
     health: "healthy",
@@ -370,34 +365,35 @@ test("SQLite registers a verified GitHub Repository set atomically by Connection
     web_url: "https://github.com/operator/alpha-renamed",
   });
   timestamp = 4_000;
-  const enabled = await repositoryInventory.setLifecycle("repository-alpha", {
-    lifecycle: "enabled",
-  });
-  assert.equal(enabled.lifecycle, "enabled");
-  if (!("verified_at" in enabled)) {
-    throw new Error("GitHub Repository verification timestamp is missing");
-  }
-  assert.equal(enabled.verified_at, 4_000);
-  assert.equal(verificationCalls.at(-1).repositoryIds[0], 101);
-  await repositoryInventory.setLifecycle("repository-alpha", {
-    lifecycle: "disabled",
-  });
-  failSelection = true;
-  await assert.rejects(
-    () =>
-      repositoryInventory.setLifecycle("repository-alpha", {
-        lifecycle: "enabled",
-      }),
-    (error) =>
-      error instanceof RepositoryError &&
-      error.code === "github_repository_git_read_failed",
-  );
-  const failedEnablement = repositoryInventory.list()[0];
-  assert.equal(failedEnablement.lifecycle, "disabled");
-  assert.equal(failedEnablement.health, "error");
-  assert.deepEqual(failedEnablement.health_error, {
-    code: "github_repository_git_read_failed",
-    message: "GitHub private Repository read verification failed",
+  await assertGitHubLifecycleVerification({
+    core,
+    repositories: repositoryInventory,
+    service,
+    /** @param {GitHubConnectionError | undefined} failure */
+    setConnectionFailure(failure) {
+      connectionFailure = failure;
+    },
+    /** @param {boolean} retires */
+    setRetireOnConnectionFailure(retires) {
+      retireOnConnectionFailure = retires;
+    },
+    /** @param {boolean} fails */
+    setSelectionFailure(fails) {
+      failSelection = fails;
+    },
+    /** @param {boolean} retires */
+    setRetireOnSelectionFailure(retires) {
+      retireOnSelectionFailure = retires;
+    },
+    /** @param {boolean} retires */
+    setRetireSiblingOnVerification(retires) {
+      retireSiblingAfterPreparation = retires;
+    },
+    /** @param {boolean} stale */
+    setStale(stale) {
+      staleEnablement = stale;
+    },
+    verificationCalls,
   });
   repositoryInventory.destroy();
   service.destroy();

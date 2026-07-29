@@ -9,6 +9,7 @@ function closedObject(properties, required) {
 export function canonicalRepositorySchemas() {
   const credentialString = { minLength: 1, type: "string" };
   const repositoryBaseProperties = {
+    deletion_eligible: { type: "boolean" },
     health: { enum: ["healthy", "error"], type: "string" },
     health_error: {
       oneOf: [
@@ -25,6 +26,7 @@ export function canonicalRepositorySchemas() {
   };
   const repositoryBaseRequired = [
     "credential_type",
+    "deletion_eligible",
     "health",
     "health_error",
     "id",
@@ -177,7 +179,12 @@ export function canonicalRepositorySchemas() {
       ["token", "username"],
     ),
     RepositoryLifecycleRequest: closedObject(
-      { lifecycle: { enum: ["enabled", "disabled"], type: "string" } },
+      {
+        lifecycle: {
+          enum: ["enabled", "disabled", "retired"],
+          type: "string",
+        },
+      },
       ["lifecycle"],
     ),
     RepositoryHealthError: closedObject(
@@ -211,7 +218,7 @@ export function canonicalRepositorySchemas() {
             forge_connection_id: { minLength: 1, type: "string" },
             forge_repository_id: { minimum: 1, type: "integer" },
             name: { minLength: 1, type: "string" },
-            provider: { const: "github", type: "string" },
+            provider: { enum: ["github", "forgejo"], type: "string" },
             verification_id: { minLength: 1, type: "string" },
             verified_at: { minimum: 0, type: "integer" },
             web_url: { format: "uri", type: "string" },

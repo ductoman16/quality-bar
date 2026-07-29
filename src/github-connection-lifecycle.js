@@ -43,7 +43,7 @@ export function retireGitHubConnection(durableCore, request) {
     );
   }
   durableCore.transaction((/** @type {any} */ transaction) => {
-    transaction.run(
+    const credential = transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,
     );
@@ -51,10 +51,27 @@ export function retireGitHubConnection(durableCore, request) {
       "DELETE FROM quality_bar_metadata WHERE key = ?",
       `github_poll_gate:${connection.id}`,
     );
-    transaction.run(
-      "UPDATE github_connections SET lifecycle = 'retired' WHERE id = ?",
+    const retired = transaction.run(
+      `UPDATE github_connections
+       SET lifecycle = 'retired'
+       WHERE id = ? AND lifecycle = 'enabled'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM github_repositories
+           JOIN repositories
+             ON repositories.id = github_repositories.repository_id
+           WHERE github_repositories.connection_id = ?
+             AND repositories.lifecycle != 'retired'
+         )`,
+      connection.id,
       connection.id,
     );
+    if (credential.changes !== 1 || retired.changes !== 1) {
+      fail(
+        "github_connection_lifecycle_conflict",
+        "GitHub Connection changed during retirement",
+      );
+    }
   });
   return readGitHubConnection(durableCore);
 }

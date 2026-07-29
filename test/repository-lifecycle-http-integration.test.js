@@ -8,6 +8,7 @@ import {
   responseErrorCode,
   startApplication,
 } from "./http-integration-support.js";
+import { assertRepositoryConflict } from "./repository-lifecycle-http-integration-support.js";
 
 test("an authenticated operator changes Repository lifecycle through the canonical HTTP resource", async () => {
   let verificationFails = false;
@@ -37,6 +38,25 @@ test("an authenticated operator changes Repository lifecycle through the canonic
   });
   assert.equal(registered.status, 200);
 
+  for (const [method, suffix, body] of [
+    ["DELETE", "", "{}"],
+    ["PATCH", "/lifecycle", JSON.stringify({ lifecycle: "disabled" })],
+  ]) {
+    const malformedIdentity = await request(
+      `/api/v1/repositories/repository%ZZ${suffix}`,
+      {
+        body,
+        headers,
+        method,
+      },
+    );
+    assert.equal(malformedIdentity.status, 400);
+    assert.equal(
+      await responseErrorCode(malformedIdentity),
+      "request_malformed",
+    );
+  }
+
   const disabled = await request(
     "/api/v1/repositories/repository%2Fpublic/lifecycle",
     {
@@ -48,6 +68,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
   assert.equal(disabled.status, 200);
   assert.deepEqual(await disabled.json(), {
     credential_type: "none",
+    deletion_eligible: true,
     health: "healthy",
     health_error: null,
     id: "repository/public",
@@ -76,6 +97,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
     items: [
       {
         credential_type: "none",
+        deletion_eligible: true,
         health: "error",
         health_error: {
           code: "repository_git_read_failed",
@@ -90,6 +112,7 @@ test("an authenticated operator changes Repository lifecycle through the canonic
     repositories: [
       {
         credential_type: "none",
+        deletion_eligible: true,
         health: "error",
         health_error: {
           code: "repository_git_read_failed",
@@ -114,12 +137,75 @@ test("an authenticated operator changes Repository lifecycle through the canonic
   assert.equal(enabled.status, 200);
   assert.deepEqual(await enabled.json(), {
     credential_type: "none",
+    deletion_eligible: true,
     health: "healthy",
     health_error: null,
     id: "repository/public",
     lifecycle: "enabled",
     url: "https://example.com/public.git",
   });
+});
+
+test("Repository lifecycle conflicts return exact present and absent current state", async () => {
+  let attempt = 0;
+  const { request } = await startApplication({
+    createRepositories(core, options) {
+      const repositories = createRepositoryService(core, {
+        ...options,
+        createId: () => "repository-conflict",
+        async verifyRead() {},
+      });
+      return {
+        ...repositories,
+        /** @param {string} repositoryId */
+        async setLifecycle(repositoryId) {
+          attempt += 1;
+          if (attempt === 1) {
+            throw Object.assign(
+              new Error("Repository changed during lifecycle update"),
+              { code: "repository_lifecycle_conflict" },
+            );
+          }
+          repositories.remove(repositoryId);
+          throw Object.assign(
+            new Error("GitHub Repository changed during reactivation"),
+            { code: "github_repository_enablement_conflict" },
+          );
+        },
+      };
+    },
+  });
+  const headers = await authenticatedOperatorHeaders(request);
+  const registered = await request("/api/v1/repositories", {
+    body: JSON.stringify({ url: "https://example.com/conflict.git" }),
+    headers,
+    method: "POST",
+  });
+  const current = await registered.json();
+
+  const presentConflict = await request(
+    "/api/v1/repositories/repository-conflict/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "disabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  await assertRepositoryConflict(presentConflict, {
+    code: "repository_lifecycle_conflict",
+    current,
+    message: "Repository changed during lifecycle update",
+  });
+
+  const absentConflict = await request(
+    "/api/v1/repositories/repository-conflict/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  await assertRepositoryConflict(absentConflict, { current: null });
 });
 
 test("failed GitHub lifecycle verification returns its exact error and records Repository health", async () => {
@@ -252,6 +338,7 @@ test("failed GitHub lifecycle verification returns its exact error and records R
   verificationError = new GitHubConnectionError(
     "github_private_git_read_failed",
     "GitHub private Repository read verification failed",
+    { repositoryId: 101 },
   );
   const repositoryFailure = await request(
     "/api/v1/repositories/github-repository/lifecycle",
@@ -276,4 +363,18 @@ test("failed GitHub lifecycle verification returns its exact error and records R
   });
   assert.equal(body.items[0].health, "error");
   assert.equal(body.items[0].lifecycle, "disabled");
+
+  verificationError = new GitHubConnectionError(
+    "github_repository_enablement_conflict",
+    "GitHub Repository changed during reactivation",
+  );
+  const conflict = await request(
+    "/api/v1/repositories/github-repository/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "enabled" }),
+      headers,
+      method: "PATCH",
+    },
+  );
+  await assertRepositoryConflict(conflict, { current: body.items[0] });
 });
