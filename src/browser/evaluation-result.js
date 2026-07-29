@@ -265,7 +265,8 @@
     }
     for (const run of result.review_runs.filter(
       /** @param {any} candidate */
-      (candidate) => ["cancelled", "failed"].includes(candidate.status),
+      (candidate) =>
+        ["cancelled", "failed"].includes(candidate.execution_status),
     )) {
       if (
         typeof run.review_id !== "string" ||
@@ -283,7 +284,7 @@
         " " +
         run.review_version_id +
         " — " +
-        run.status;
+        run.execution_status;
       failure.append(summary);
       const error = document.createElement("p");
       error.textContent = "Error " + run.error.code + ": " + run.error.detail;

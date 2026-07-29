@@ -80,7 +80,7 @@ test("the operator cancels active work and reads one complete cancelled Result",
                   review_id: "review-cancelled",
                   review_version_id: "review-version-cancelled",
                   started_at: null,
-                  status: "cancelled",
+                  execution_status: "cancelled",
                 },
               ],
             };

@@ -8,6 +8,61 @@ import {
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
+/** @param {string} segment */
+export function decodeEvaluationPathSegment(segment) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    throw new Error("request_malformed");
+  }
+}
+
+/** @param {string | undefined} method @param {string} path */
+export function matchEvaluationRoute(method, path) {
+  const createMatch = path.match(
+    /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
+  );
+  const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
+  const cancellationMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
+  );
+  const diagnosticsMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
+  );
+  const reviewRunMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)$/,
+  );
+  const findingMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/findings\/([^/]+)$/,
+  );
+  const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
+  const collection = method === "GET" && path === "/api/v1/evaluations";
+  const readable =
+    method === "GET" &&
+    (evaluationMatch !== null ||
+      resultMatch !== null ||
+      reviewRunMatch !== null ||
+      findingMatch !== null);
+  return {
+    cancellationMatch,
+    collection,
+    createMatch,
+    diagnosticsMatch,
+    evaluationMatch,
+    findingMatch,
+    machineAccessible:
+      collection || readable || (method === "POST" && Boolean(createMatch)),
+    recognized:
+      collection ||
+      readable ||
+      (method === "POST" &&
+        (createMatch !== null || cancellationMatch !== null)) ||
+      (method === "GET" && diagnosticsMatch !== null),
+    resultMatch,
+    reviewRunMatch,
+  };
+}
+
 /** @param {Error & {code: string, unavailable?: boolean}} failure */
 function failureStatus(failure) {
   const { code } = failure;
@@ -30,6 +85,7 @@ function failureStatus(failure) {
   if (
     [
       "evaluation_not_found",
+      "finding_not_found",
       "repository_not_found",
       "review_run_not_found",
     ].includes(code)
@@ -97,41 +153,30 @@ export function createEvaluationRoute({
   ) {
     const { method } = request;
     const path = requestUrl.pathname;
-    const createMatch = path.match(
-      /^\/api\/v1\/repositories\/([^/]+)\/evaluations$/,
-    );
-    const resultMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)\/result$/);
-    const cancellationMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
-    );
-    const diagnosticsMatch = path.match(
-      /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
-    );
-    const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
-    if (
-      !(
-        (method === "GET" && path === "/api/v1/evaluations") ||
-        (method === "POST" && createMatch) ||
-        (method === "POST" && cancellationMatch) ||
-        (method === "GET" && evaluationMatch) ||
-        (method === "GET" && resultMatch) ||
-        (method === "GET" && diagnosticsMatch)
-      )
-    ) {
+    const matches = matchEvaluationRoute(method, path);
+    const {
+      cancellationMatch,
+      collection,
+      createMatch,
+      diagnosticsMatch,
+      evaluationMatch,
+      findingMatch,
+      resultMatch,
+      reviewRunMatch,
+    } = matches;
+    if (!matches.recognized) {
       return false;
     }
-    if (authority === "machine") {
+    if (authority === "machine" && !matches.machineAccessible) {
       forbidMachineOperatorAccess(response, recordAuthorityAttribution);
       return true;
     }
     try {
       assertAllowedQueryParameters(
         requestUrl,
-        method === "GET" && path === "/api/v1/evaluations"
-          ? new Set(["cursor", "limit"])
-          : new Set(),
+        collection ? new Set(["cursor", "limit"]) : new Set(),
       );
-      if (method === "GET" && path === "/api/v1/evaluations") {
+      if (collection) {
         writeJson(
           response,
           200,
@@ -146,7 +191,7 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.readResult(decodeURIComponent(resultMatch[1])),
+          evaluations.readResult(decodeEvaluationPathSegment(resultMatch[1])),
         );
         return true;
       }
@@ -155,8 +200,30 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readReviewRunDiagnostics(
-            decodeURIComponent(diagnosticsMatch[1]),
-            decodeURIComponent(diagnosticsMatch[2]),
+            decodeEvaluationPathSegment(diagnosticsMatch[1]),
+            decodeEvaluationPathSegment(diagnosticsMatch[2]),
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && reviewRunMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readReviewRun(
+            decodeEvaluationPathSegment(reviewRunMatch[1]),
+            decodeEvaluationPathSegment(reviewRunMatch[2]),
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && findingMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readFinding(
+            decodeEvaluationPathSegment(findingMatch[1]),
+            decodeEvaluationPathSegment(findingMatch[2]),
           ),
         );
         return true;
@@ -165,7 +232,7 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.read(decodeURIComponent(evaluationMatch[1])),
+          evaluations.read(decodeEvaluationPathSegment(evaluationMatch[1])),
         );
         return true;
       }
@@ -181,15 +248,16 @@ export function createEvaluationRoute({
         writeJson(
           response,
           200,
-          evaluations.cancel(decodeURIComponent(cancellationMatch[1])),
+          evaluations.cancel(decodeEvaluationPathSegment(cancellationMatch[1])),
         );
         return true;
       }
       const idempotencyKey = request.headers["idempotency-key"];
       const created = await evaluations.createExplicit({
-        channel: "browser_session",
+        channel:
+          authority === "machine" ? "implementer_token" : "browser_session",
         idempotencyKey,
-        repositoryId: decodeURIComponent(
+        repositoryId: decodeEvaluationPathSegment(
           /** @type {RegExpMatchArray} */ (createMatch)[1],
         ),
         request: await readJsonRequest(request),

@@ -49,7 +49,7 @@ test("only the operator browser can cancel an active Evaluation", async () => {
   assert.equal(result.status, 200);
   assert.deepEqual(
     /** @type {{review_runs: any[]}} */ (await result.json()).review_runs.map(
-      ({ error, status }) => ({ error, status }),
+      ({ error, execution_status: status }) => ({ error, status }),
     ),
     [
       {

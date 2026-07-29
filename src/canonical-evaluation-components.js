@@ -1,9 +1,11 @@
 import { closedObject } from "./canonical-schema.js";
 import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
+import { canonicalReviewRunSchemas } from "./canonical-review-run-components.js";
 
 export function canonicalEvaluationSchemas() {
   return {
     ...canonicalApplicabilitySchemas(),
+    ...canonicalReviewRunSchemas(),
     EvaluationSelector: {
       oneOf: [
         closedObject(
@@ -274,85 +276,6 @@ export function canonicalEvaluationSchemas() {
         "transcript_chunks",
       ],
     ),
-    CompletedReviewRun: closedObject(
-      {
-        completed_at: { format: "date-time", type: "string" },
-        id: { minLength: 1, type: "string" },
-        review_id: { minLength: 1, type: "string" },
-        review_version_id: { minLength: 1, type: "string" },
-        started_at: { format: "date-time", type: "string" },
-        status: { const: "completed", type: "string" },
-      },
-      [
-        "id",
-        "review_id",
-        "review_version_id",
-        "status",
-        "started_at",
-        "completed_at",
-      ],
-    ),
-    FailedReviewRun: closedObject(
-      {
-        completed_at: { format: "date-time", type: "string" },
-        error: closedObject(
-          {
-            code: { pattern: "^[a-z][a-z0-9_]*$", type: "string" },
-            detail: { minLength: 1, type: "string" },
-          },
-          ["code", "detail"],
-        ),
-        id: { minLength: 1, type: "string" },
-        review_id: { minLength: 1, type: "string" },
-        review_version_id: { minLength: 1, type: "string" },
-        started_at: { format: "date-time", type: "string" },
-        status: { const: "failed", type: "string" },
-      },
-      [
-        "id",
-        "review_id",
-        "review_version_id",
-        "status",
-        "started_at",
-        "completed_at",
-        "error",
-      ],
-    ),
-    CancelledReviewRun: closedObject(
-      {
-        completed_at: { format: "date-time", type: "string" },
-        error: closedObject(
-          {
-            code: { const: "cancelled_by_operator", type: "string" },
-            detail: { minLength: 1, type: "string" },
-          },
-          ["code", "detail"],
-        ),
-        id: { minLength: 1, type: "string" },
-        review_id: { minLength: 1, type: "string" },
-        review_version_id: { minLength: 1, type: "string" },
-        started_at: {
-          oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
-        },
-        status: { const: "cancelled", type: "string" },
-      },
-      [
-        "id",
-        "review_id",
-        "review_version_id",
-        "status",
-        "started_at",
-        "completed_at",
-        "error",
-      ],
-    ),
-    TerminalReviewRun: {
-      oneOf: [
-        { $ref: "#/components/schemas/CompletedReviewRun" },
-        { $ref: "#/components/schemas/FailedReviewRun" },
-        { $ref: "#/components/schemas/CancelledReviewRun" },
-      ],
-    },
     EvaluationResult: closedObject(
       {
         applicability_results: {

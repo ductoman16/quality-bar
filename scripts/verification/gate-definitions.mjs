@@ -14,7 +14,7 @@ import {
   PRODUCTION_TYPE_CHECK_PROOF_GATE,
   PROOF_CODE_TYPE_CHECK_PROOF_GATE,
 } from "./proof-gate-definitions.mjs";
-import { createOpenApiRuntimeConformanceGate } from "./openapi-runtime-conformance-gate.mjs";
+import * as evaluationGate from "./openapi-runtime-conformance-gate.mjs";
 import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
 import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
@@ -199,7 +199,7 @@ export function createGateDefinitions(metadata) {
         "openapi-schema-validator": openApiValidator,
       },
     },
-    createOpenApiRuntimeConformanceGate({
+    evaluationGate.createOpenApiRuntimeConformanceGate({
       ajv,
       ajvFormats,
       node,
@@ -232,6 +232,7 @@ export function createGateDefinitions(metadata) {
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
         "test/evaluation-validation.test.js",
+        ...evaluationGate.EVALUATION_UNIT_TESTS,
         "test/review-run-admission.test.js",
         "test/repository-collection.test.js",
         "test/repository-selector.test.js",
@@ -375,7 +376,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-http-integration.test.js",
         "test/waiver-adjudicator-configuration-http-integration.test.js",
         "test/storage-reserve-application-integration.test.js",
-        "test/evaluation-http-integration.test.js",
+        ...evaluationGate.EVALUATION_HTTP_TESTS,
         "test/evaluation-cancellation-http-integration.test.js",
       ],
     },
