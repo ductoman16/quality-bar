@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createEvaluationService } from "../src/evaluation.js";
 import { createEvaluationResultResourceReader } from "../src/evaluation-result-resource.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
@@ -19,6 +20,14 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
   await createQueuedReviewRun(core, { reviewCount: 2 });
 
   const reader = createEvaluationResultResourceReader(core);
+  const evaluations = createEvaluationService(core, {
+    acquireChangeset: async () => {
+      throw new Error("not used");
+    },
+    masterKey: Buffer.alloc(32, 7),
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
   let worker = 0;
   const claims = createReviewRunClaimService(core, {
     createWorkerId: () => `resource-worker-${++worker}`,
@@ -91,6 +100,18 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
     (error) =>
       /** @type {{code?: string}} */ (error).code ===
       "evaluation_result_not_ready",
+  );
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(evaluations.read("evaluation-1")),
+    {
+      completed_at: null,
+      effective_outcome: "pending",
+      execution_status: "running",
+    },
   );
   assert.deepEqual(
     (({ completed_at, criterion_results, execution_status, findings }) => ({
@@ -184,6 +205,18 @@ test("Review Runs are complete canonical resources throughout their lifecycle", 
   });
 
   const result = reader.readResult("evaluation-1");
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(evaluations.read("evaluation-1")),
+    {
+      completed_at: "1970-01-01T00:00:00.040Z",
+      effective_outcome: "blocking",
+      execution_status: "completed",
+    },
+  );
   assert.deepEqual(
     result.review_runs.find(({ id }) => id === firstClaim.workId),
     completedSibling,

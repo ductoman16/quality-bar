@@ -132,8 +132,18 @@ test("durable cancellation wins before signaling and preserves completed child f
     cancellation_requested_at: 40,
     execution_status: "cancelled",
   });
-  assert.equal(cancelled.execution_status, "cancelled");
-  assert.equal(cancelled.effective_outcome, "error");
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(cancelled),
+    {
+      completed_at: null,
+      effective_outcome: "pending",
+      execution_status: "running",
+    },
+  );
   assert.deepEqual(
     core.all(
       `SELECT id, execution_status, started_at, completed_at
@@ -195,6 +205,18 @@ test("durable cancellation wins before signaling and preserves completed child f
     },
   });
 
+  assert.deepEqual(
+    (({ completed_at, effective_outcome, execution_status }) => ({
+      completed_at,
+      effective_outcome,
+      execution_status,
+    }))(evaluations.read("evaluation-cancellation")),
+    {
+      completed_at: "1970-01-01T00:00:00.040Z",
+      effective_outcome: "error",
+      execution_status: "cancelled",
+    },
+  );
   const result = evaluations.readResult("evaluation-cancellation");
   assert.equal(result.outcome, "error");
   assert.equal(result.completed_at, "1970-01-01T00:00:00.040Z");
