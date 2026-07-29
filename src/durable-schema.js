@@ -357,7 +357,7 @@ export function initializeOrValidateSchema(
     );
   } else if (version === 28) {
     schemaMigration.migrateSchema(database, "");
-  } else if ([29, 30].includes(version)) {
+  } else if ([29, 30, 31].includes(version)) {
     schemaMigration.finalizeSchemaMigration(database, version);
   } else if (version !== SCHEMA_VERSION) {
     schemaMigration.finalizeSchemaMigration(database, version);

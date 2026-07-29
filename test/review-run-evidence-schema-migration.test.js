@@ -9,14 +9,14 @@ import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
-test("schema v30 history migrates without invented Review Run evidence", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-v30-evidence-"));
+test("schema v31 Applicability history migrates without invented Review Run evidence", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-v31-evidence-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
   await createQueuedReviewRun(prior);
   const claims = createReviewRunClaimService(prior, {
-    createWorkerId: () => "v30-worker",
+    createWorkerId: () => "v31-worker",
     now: () => 20,
   });
   const claim = claims.claimNext();
@@ -33,6 +33,12 @@ test("schema v30 history migrates without invented Review Run evidence", async (
     },
     [],
   );
+  const applicabilityBefore = prior.all(
+    `SELECT review_id, review_version_id, assignment_scope, outcome
+     FROM applicability_results
+    ORDER BY review_id`,
+  );
+  assert.equal(applicabilityBefore.length, 1);
   prior.transaction((transaction) => {
     transaction.run("DROP TRIGGER review_run_cli_version_immutable");
     transaction.run("DROP TRIGGER review_run_execution_evidence_immutable");
@@ -58,15 +64,23 @@ test("schema v30 history migrates without invented Review Run evidence", async (
       transaction.run(`ALTER TABLE review_runs DROP COLUMN ${column}`);
     }
     transaction.run(
-      "UPDATE quality_bar_metadata SET value = '30' WHERE key = 'schema_version'",
+      "UPDATE quality_bar_metadata SET value = '31' WHERE key = 'schema_version'",
     );
-    transaction.run("PRAGMA user_version = 30");
+    transaction.run("PRAGMA user_version = 31");
   });
   prior.close();
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 31);
+  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.deepEqual(
+    migrated.all(
+      `SELECT review_id, review_version_id, assignment_scope, outcome
+       FROM applicability_results
+       ORDER BY review_id`,
+    ),
+    applicabilityBefore,
+  );
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at,
