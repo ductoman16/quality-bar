@@ -266,9 +266,16 @@ export async function runReviewRunCodex({
     if (closesSubmissionForCancellationOrDeadline(terminal.kind)) {
       try {
         await closeSubmissionChannel();
-      } catch {
+      } catch (error) {
         // The durable terminal transition remains authoritative. Final cleanup
         // preserves its exact submission-channel failure where applicable.
+        if (terminal.kind === "cancellation") {
+          diagnosticFailures.push(
+            error instanceof Error
+              ? error
+              : new TypeError("Review Run submission channel cleanup failed"),
+          );
+        }
       }
     }
     let accepted =

@@ -156,6 +156,48 @@ test("durably committed operator cancellation closes submission before process-g
   assert.deepEqual(events, ["submission-closed", "SIGTERM", "SIGKILL"]);
 });
 
+test("operator cancellation surfaces submission-channel cleanup failure", async () => {
+  const cleanupFailure = new Error("submission directory removal failed");
+  const child = runningProcess(84);
+  /** @type {(value?: void) => void} */
+  let signalCancellation = () =>
+    assert.fail("cancellation signal was not installed");
+  const cancellationSignal = new Promise((resolve) => {
+    signalCancellation = resolve;
+  });
+  const execution = runReviewRunCodex({
+    cancellationSignal,
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -84);
+      if (signal === "SIGTERM") {
+        queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+        return;
+      }
+      assert.equal(signal, 0);
+      throw Object.assign(new Error("process group exited"), { code: "ESRCH" });
+    },
+    openSubmissionChannel: async () => ({
+      ...acceptedChannel(),
+      accepted: () => false,
+      async close() {
+        throw cleanupFailure;
+      },
+      waitForResult: () => new Promise(() => {}),
+    }),
+    resultService: { prepare() {} },
+    run,
+    spawnProcess: () => /** @type {any} */ (child),
+  });
+  signalCancellation();
+  assert.deepEqual(await execution, {
+    cancelled: true,
+    diagnosticFailures: [cleanupFailure],
+  });
+});
+
 test("parallel Review Runs own independent deadline timers", async () => {
   /** @type {(() => void)[]} */
   const deadlines = [];

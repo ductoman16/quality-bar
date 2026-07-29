@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
+import { EVALUATION_CANCELLATION_TRIGGERS } from "../src/evaluation-cancellation-schema.js";
 import { evaluationCancellationMigration } from "../src/evaluation-schema.js";
 
 test("schema v33 Evaluation work gains nullable cancellation facts without invention", () => {
@@ -9,10 +10,11 @@ test("schema v33 Evaluation work gains nullable cancellation facts without inven
   database.exec(`
     CREATE TABLE evaluations (
       id TEXT PRIMARY KEY,
-      execution_status TEXT NOT NULL
+      execution_status TEXT NOT NULL,
+      created_at INTEGER NOT NULL
     ) STRICT;
-    INSERT INTO evaluations (id, execution_status)
-    VALUES ('evaluation-v33', 'queued');
+    INSERT INTO evaluations (id, execution_status, created_at)
+    VALUES ('evaluation-v33', 'queued', 1);
   `);
   database.exec(evaluationCancellationMigration(database));
   assert.deepEqual(
@@ -33,5 +35,53 @@ test("schema v33 Evaluation work gains nullable cancellation facts without inven
     },
   );
   assert.equal(evaluationCancellationMigration(database), "");
+  database.exec(EVALUATION_CANCELLATION_TRIGGERS);
+  assert.throws(
+    () =>
+      database.exec(`
+        INSERT INTO evaluations (
+          id, execution_status, created_at, cancellation_requested_at,
+          cancellation_detail
+        ) VALUES (
+          'evaluation-invalid-cancellation', 'cancelled', 2, 3,
+          'Evaluation was cancelled by the operator'
+        );
+      `),
+    /evaluation_cancellation_invalid/,
+  );
+  database.exec(`
+    INSERT INTO evaluations (
+      id, execution_status, created_at, cancellation_requested_at,
+      cancellation_code, cancellation_detail
+    ) VALUES (
+      'evaluation-valid-cancellation', 'cancelled', 2, 3,
+      'cancelled_by_operator', 'Evaluation was cancelled by the operator'
+    );
+  `);
+  database.close();
+});
+
+test("schema v33 rejects cancelled Evaluation rows whose exact facts never existed", () => {
+  const database = new DatabaseSync(":memory:");
+  database.exec(`
+    CREATE TABLE evaluations (
+      id TEXT PRIMARY KEY,
+      execution_status TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    ) STRICT;
+    INSERT INTO evaluations (id, execution_status, created_at)
+    VALUES ('evaluation-v33-cancelled', 'cancelled', 1);
+  `);
+  assert.throws(
+    () => evaluationCancellationMigration(database),
+    /Legacy cancelled Evaluation lacks exact cancellation facts/,
+  );
+  assert.deepEqual(
+    database
+      .prepare("PRAGMA table_info(evaluations)")
+      .all()
+      .map((column) => column.name),
+    ["id", "execution_status", "created_at"],
+  );
   database.close();
 });

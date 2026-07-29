@@ -35,6 +35,14 @@ export function readCompletedEvaluationResult(durableCore, id) {
     .map((run) => {
       const status = run?.execution_status;
       const cancellationRequestedAt = row.cancellation_requested_at;
+      if (
+        status === "cancelled" &&
+        (!Number.isSafeInteger(cancellationRequestedAt) ||
+          typeof row.cancellation_code !== "string" ||
+          typeof row.cancellation_detail !== "string")
+      ) {
+        throw new TypeError("Cancelled Evaluation facts are invalid");
+      }
       return {
         completed_at: timestamp(
           /** @type {number} */ (
