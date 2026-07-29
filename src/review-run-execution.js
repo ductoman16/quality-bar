@@ -1,18 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { validateCodexConfiguration } from "./codex-capabilities.js";
+import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
-
-const submitPath = fileURLToPath(
-  new URL("./quality-bar-submit.js", import.meta.url),
-);
 
 /**
  * @param {string} code
@@ -26,37 +14,6 @@ function fail(code, message, cause) {
     message,
     cause === undefined ? undefined : { cause },
   );
-}
-
-/** @param {unknown} candidate */
-export function reviewRunCodexArguments(candidate) {
-  const input = /** @type {any} */ (candidate);
-  const configuration = validateCodexConfiguration(input?.configuration);
-  if (
-    typeof input?.prompt !== "string" ||
-    input.prompt.length === 0 ||
-    !Array.isArray(input.criteria) ||
-    input.criteria.length === 0
-  ) {
-    throw new TypeError("Review Run Codex input is invalid");
-  }
-  return [
-    "--ignore-user-config",
-    "--model",
-    configuration.model,
-    "--config",
-    `model_reasoning_effort="${configuration.reasoning_effort}"`,
-    "--config",
-    `service_tier="${configuration.service_tier}"`,
-    "exec",
-    "--sandbox",
-    "workspace-write",
-    "--config",
-    'approval_policy="never"',
-    "--config",
-    "sandbox_workspace_write.network_access=false",
-    input.prompt,
-  ];
 }
 
 /**
@@ -152,79 +109,6 @@ function readRun(durableCore, workId) {
 }
 
 /**
- * @param {{
- *   fencingToken: number,
- *   workerId: string,
- *   workId: string
- * }} claim
- * @param {{submit(claim: any, candidate: unknown): unknown}} resultService
- */
-async function openSubmissionChannel(claim, resultService) {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
-  const socketPath = join(directory, "submit.sock");
-  const token = randomUUID();
-  let accepted = false;
-  const server = createServer((socket) => {
-    let request = "";
-    socket.setEncoding("utf8");
-    socket.on("data", (chunk) => {
-      request += chunk;
-      if (request.length > 1024 * 1024) {
-        socket.destroy();
-      }
-    });
-    socket.once("end", () => {
-      try {
-        const envelope = JSON.parse(request);
-        if (envelope.token !== token) {
-          fail(
-            "submission_channel_unavailable",
-            "Review Run submission channel is unavailable",
-          );
-        }
-        resultService.submit(claim, envelope.candidate);
-        accepted = true;
-        socket.end('{"ok":true}\n');
-      } catch (error) {
-        const failure =
-          error instanceof Error &&
-          "code" in error &&
-          typeof error.code === "string"
-            ? error
-            : new ReviewRunExecutionError(
-                "review_run_submission_invalid",
-                "Review Run submission is invalid",
-              );
-        socket.end(
-          `${JSON.stringify({
-            error: { code: failure.code, message: failure.message },
-            ok: false,
-          })}\n`,
-        );
-      }
-    });
-  });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(socketPath, () => resolve(undefined));
-  });
-  return {
-    accepted: () => accepted,
-    environment: {
-      QUALITY_BAR_SUBMIT_PATH: submitPath,
-      QUALITY_BAR_SUBMIT_SOCKET: socketPath,
-      QUALITY_BAR_SUBMIT_TOKEN: token,
-    },
-    async close() {
-      await new Promise((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve(undefined)));
-      });
-      rmSync(directory, { force: true, recursive: true });
-    },
-  };
-}
-
-/**
  * @param {any} durableCore
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {{
@@ -237,7 +121,12 @@ async function openSubmissionChannel(claim, resultService) {
  *   codexPrefixArguments?: string[],
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
- *   spawnProcess?: typeof spawn
+ *   runCodex?: typeof runReviewRunCodex,
+ *   spawnProcess?: (
+ *     command: string,
+ *     arguments_: string[],
+ *     options: import("node:child_process").SpawnOptions
+ *   ) => import("node:child_process").ChildProcess
  * }} options
  */
 export async function executeReviewRun(
@@ -246,11 +135,10 @@ export async function executeReviewRun(
   {
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
-    codexCommand = "codex",
-    codexPrefixArguments = [],
     prepareCheckout = prepareReviewRunCheckout,
     resultService,
-    spawnProcess = spawn,
+    runCodex = runReviewRunCodex,
+    ...codexOptions
   },
 ) {
   const run = readRun(durableCore, claim.workId);
@@ -271,62 +159,19 @@ export async function executeReviewRun(
       repositoryUrl: run.repositoryUrl,
       workId: claim.workId,
     });
-    /** @type {Awaited<ReturnType<typeof openSubmissionChannel>> | undefined} */
-    let channel;
     try {
       if (claimFailure) {
         throw claimFailure;
       }
       claimService.start(claim);
-      channel = await openSubmissionChannel(claim, resultService);
-      const openedChannel = channel;
-      const arguments_ = [
-        ...codexPrefixArguments,
-        ...reviewRunCodexArguments(run),
-      ];
-      const result = await new Promise((resolve, reject) => {
-        let child;
-        try {
-          child = spawnProcess(codexCommand, arguments_, {
-            cwd: checkout.path,
-            env: openedChannel.environment,
-            stdio: ["ignore", "pipe", "pipe"],
-          });
-        } catch (error) {
-          reject(error);
-          return;
-        }
-        let stdout = "";
-        let stderr = "";
-        child.stdout?.setEncoding("utf8").on("data", (chunk) => {
-          stdout += chunk;
-        });
-        child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-          stderr += chunk;
-        });
-        child.once("error", reject);
-        child.once("exit", (code, signal) => {
-          resolve({ code, signal, stderr, stdout });
-        });
-      }).catch((cause) =>
-        fail(
-          "codex_process_failed",
-          "Codex Review Run process could not start",
-          cause,
-        ),
-      );
-      if (!openedChannel.accepted()) {
-        const processResult = /** @type {any} */ (result);
-        if (processResult.code === 0 && processResult.signal === null) {
-          fail(
-            "result_not_submitted",
-            "Codex Review Run exited without an accepted Result",
-          );
-        }
-        fail("codex_process_failed", "Codex Review Run process failed");
-      }
+      await runCodex({
+        checkoutPath: checkout.path,
+        claim,
+        resultService,
+        run,
+        ...codexOptions,
+      });
     } finally {
-      await channel?.close();
       checkout.remove();
     }
   } finally {
