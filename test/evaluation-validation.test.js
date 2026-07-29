@@ -10,6 +10,7 @@ import {
   createEvaluationService,
   createUnavailableEvaluationService,
 } from "../src/evaluation.js";
+import { readIdempotentReplay } from "../src/evaluation-idempotency.js";
 import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 
 test("explicit Evaluation accepts exactly typed pushed branch and commit selectors", () => {
@@ -133,6 +134,62 @@ test("Evaluation idempotency requires one bounded visible ASCII key", () => {
         error.code === "idempotency_key_required",
     );
   }
+});
+
+test("explicit Evaluation idempotency replays only an already accepted key", () => {
+  const route = "/api/v1/repositories/repository-1/evaluations";
+  const access = {
+    /**
+     * @param {string} sql
+     * @param {import("node:sqlite").SQLInputValue} channel
+     * @param {import("node:sqlite").SQLInputValue} requestedRoute
+     * @param {import("node:sqlite").SQLInputValue} key
+     */
+    get(sql, channel, requestedRoute, key) {
+      assert.match(sql, /FROM evaluation_idempotency/);
+      assert.equal(channel, "implementer_token");
+      assert.equal(requestedRoute, route);
+      return key === "accepted-key"
+        ? {
+            request_hash: "same-request",
+            response_body: JSON.stringify({ id: "evaluation-1" }),
+            response_status: 201,
+          }
+        : undefined;
+    },
+  };
+  assert.deepEqual(
+    readIdempotentReplay(
+      access,
+      "implementer_token",
+      route,
+      "accepted-key",
+      "same-request",
+    ),
+    { resource: { id: "evaluation-1" }, status: 201 },
+  );
+  assert.equal(
+    readIdempotentReplay(
+      access,
+      "implementer_token",
+      route,
+      "intentional-rerun-key",
+      "same-request",
+    ),
+    null,
+  );
+  assert.throws(
+    () =>
+      readIdempotentReplay(
+        access,
+        "implementer_token",
+        route,
+        "accepted-key",
+        "different-request",
+      ),
+    (error) =>
+      error instanceof EvaluationError && error.code === "idempotency_conflict",
+  );
 });
 
 test("Evaluation construction and creation identities fail before durable work", async () => {

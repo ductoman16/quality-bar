@@ -136,3 +136,98 @@ test("Review Runs, queue rows, Evaluation, and idempotency commit atomically wit
     count: 25,
   });
 });
+
+test("a new key admits a distinct same-Changeset Evaluation from current Review facts", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-rerun-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  let reviewFact = 0;
+  const reviews = createReviewService(core, {
+    createId: () => `rerun-review-fact-${++reviewFact}`,
+    now: () => reviewFact,
+  });
+  const review = reviews.create(reviewDefinition("intentional rerun"));
+  let evaluationId = 0;
+  let reviewRunId = 0;
+  const evaluations = createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: "1".repeat(40),
+      head_commit: "2".repeat(40),
+    }),
+    createId: () => `rerun-evaluation-${++evaluationId}`,
+    createReviewRunId: () => `rerun-review-run-${++reviewRunId}`,
+    readCodexCapabilityFailure: () => null,
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 10,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  });
+  const input = {
+    channel: /** @type {"implementer_token"} */ ("implementer_token"),
+    repositoryId: "repository-1",
+    request,
+  };
+  const first = await evaluations.createExplicit({
+    ...input,
+    idempotencyKey: "first-key",
+  });
+  reviews.setAssignment(review.id, {
+    repository_ids: ["repository-1"],
+    scope: "repository_set",
+  });
+  const current = reviews.saveVersion(review.id, {
+    applicability_rule: null,
+    codex_configuration: review.active_version.codex_configuration,
+    criteria: review.active_version.criteria.map((criterion) => ({
+      id: criterion.id,
+      impact: criterion.impact,
+      instruction: "Review this Changeset with the current version.",
+    })),
+  }).review;
+  const second = await evaluations.createExplicit({
+    ...input,
+    idempotencyKey: "intentional-rerun-key",
+  });
+
+  assert.notEqual(first.resource.id, second.resource.id);
+  assert.deepEqual(
+    [first.resource, second.resource].map(({ base_commit, head_commit }) => ({
+      base_commit,
+      head_commit,
+    })),
+    [
+      { base_commit: "1".repeat(40), head_commit: "2".repeat(40) },
+      { base_commit: "1".repeat(40), head_commit: "2".repeat(40) },
+    ],
+  );
+  assert.deepEqual(
+    core.all(
+      `SELECT evaluation_id, review_version_id, assignment_scope
+       FROM applicability_selections
+       ORDER BY evaluation_id`,
+    ),
+    [
+      {
+        assignment_scope: "installation_wide",
+        evaluation_id: "rerun-evaluation-1",
+        review_version_id: review.active_version.id,
+      },
+      {
+        assignment_scope: "repository_specific",
+        evaluation_id: "rerun-evaluation-2",
+        review_version_id: current.active_version.id,
+      },
+    ],
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM evaluation_idempotency")?.count,
+    2,
+  );
+});
