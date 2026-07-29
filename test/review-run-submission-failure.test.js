@@ -73,6 +73,7 @@ test("maps uncoded and generic coded submission failures safely", async () => {
 
 test("a failed submission closes and terminates a running Codex process", async () => {
   /** @type {string[]} */
+  /** @type {(string | number)[]} */
   const events = [];
   /** @type {unknown[]} */
   const evidence = [];
@@ -317,4 +318,59 @@ test("preserves a coded submission storage failure", async () => {
       }),
     (error) => error === storageFailure,
   );
+});
+
+test("a direct child exit closes submission and terminates surviving descendants", async () => {
+  const child = Object.assign(new EventEmitter(), {
+    pid: 87,
+    stderr: new PassThrough(),
+    stdout: new PassThrough(),
+  });
+  /** @type {(string | number)[]} */
+  const events = [];
+  let closed = false;
+  let lateAcceptance = false;
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        clearTerminationTimer() {},
+        killProcessGroup(pid, signal) {
+          assert.equal(pid, -87);
+          events.push(signal);
+          if (signal === "SIGTERM") {
+            lateAcceptance = !closed;
+          }
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => lateAcceptance,
+          async close() {
+            closed = true;
+            events.push("submission-closed");
+          },
+          commandDirectory: "/submit-bin",
+          environment: {},
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        resultService: { prepare() {} },
+        run,
+        setTerminationTimer(callback, milliseconds) {
+          assert.equal(milliseconds, 5_000);
+          setImmediate(callback);
+          return {};
+        },
+        spawnProcess() {
+          queueMicrotask(() => child.emit("close", 0, null));
+          return /** @type {any} */ (child);
+        },
+      }),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "result_not_submitted",
+  );
+  assert.equal(lateAcceptance, false);
+  assert.deepEqual(events, ["submission-closed", "SIGTERM", 0, "SIGKILL"]);
 });

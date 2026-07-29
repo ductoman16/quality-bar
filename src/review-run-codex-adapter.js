@@ -246,6 +246,7 @@ export async function runReviewRunCodex({
       closesSubmissionForCancellationOrDeadline(terminal.kind) ||
       failedSubmission ||
       processError ||
+      terminal.kind === "process" ||
       terminal.kind === "transcript"
     ) {
       try {
@@ -288,6 +289,7 @@ export async function runReviewRunCodex({
       (accepted ||
         failedSubmission ||
         processError ||
+        terminal.kind === "process" ||
         closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
       !transcript.termination()
     ) {
