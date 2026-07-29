@@ -6,6 +6,7 @@ const prompt = arguments_.at(-1) ?? "";
 const triggered = arguments_.includes("--fake-triggered");
 const notApplicable = arguments_.includes("--fake-not-applicable");
 const criterionError = arguments_.includes("--fake-error");
+const correctionProof = arguments_.includes("--fake-correction");
 const criterion = /"criterion_id":"([^"]+)"/.exec(prompt)?.[1];
 const fileChanges = JSON.parse(
   /^file_changes: (.+)$/m.exec(prompt)?.[1] ?? "null",
@@ -56,23 +57,25 @@ process.stdout.write(
     type: "item.completed",
   })}\n`,
 );
-let invalidFailure = "";
-try {
-  execFileSync("quality-bar-submit", {
-    encoding: "utf8",
-    input: JSON.stringify({ criterion_results: [] }),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-} catch (error) {
-  invalidFailure =
-    error instanceof Error &&
-    "stderr" in error &&
-    (typeof error.stderr === "string" || Buffer.isBuffer(error.stderr))
-      ? String(error.stderr)
-      : "";
-}
-if (!invalidFailure.includes("criterion_result_coverage_invalid")) {
-  throw new Error("fake_codex_invalid_submission_was_not_rejected");
+if (correctionProof) {
+  let correction = "";
+  try {
+    execFileSync("quality-bar-submit", {
+      encoding: "utf8",
+      input: JSON.stringify({ criterion_results: [] }),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (error) {
+    correction =
+      error instanceof Error &&
+      "stderr" in error &&
+      (typeof error.stderr === "string" || Buffer.isBuffer(error.stderr))
+        ? String(error.stderr)
+        : "";
+  }
+  if (!correction.includes("criterion_result_coverage_invalid")) {
+    throw new Error("fake_codex_invalid_submission_was_not_rejected");
+  }
 }
 const resultPath = "candidate-result.json";
 writeFileSync(
@@ -114,3 +117,4 @@ writeFileSync(
 execFileSync("quality-bar-submit", [resultPath], {
   stdio: ["pipe", "pipe", "pipe"],
 });
+setInterval(() => {}, 1_000);

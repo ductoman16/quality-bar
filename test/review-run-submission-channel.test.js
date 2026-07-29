@@ -64,7 +64,41 @@ test("returns exact recognized submission failures without accepting a Result", 
     });
     assert.equal(channel.accepted(), false);
     assert.equal(channel.failure(), null);
+    assert.equal(channel.lastValidationFailure(), failure);
   } finally {
+    await channel.close();
+  }
+});
+
+test("the first valid submission closes the channel before reporting acceptance", async () => {
+  let submissions = 0;
+  const channel = await openReviewRunSubmissionChannel(claim, {
+    submit() {
+      submissions += 1;
+    },
+  });
+  const idleSocket = connect(channel.environment.QUALITY_BAR_SUBMIT_SOCKET);
+  await new Promise((resolve) => idleSocket.once("connect", resolve));
+  try {
+    assert.deepEqual(JSON.parse(await submit(channel, {})), { ok: true });
+    assert.equal(
+      await Promise.race([
+        channel.waitForResult(),
+        new Promise((resolve) =>
+          setImmediate(() => resolve("acceptance_stalled")),
+        ),
+      ]),
+      "accepted",
+    );
+    assert.equal(channel.accepted(), true);
+    assert.equal(submissions, 1);
+    assert.equal(idleSocket.destroyed, true);
+    assert.equal(
+      existsSync(channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
+      false,
+    );
+  } finally {
+    idleSocket.destroy();
     await channel.close();
   }
 });
@@ -78,6 +112,7 @@ test("preserves unexpected storage failures for the owning execution", async () 
   });
   try {
     assert.equal(await submit(channel, {}), "");
+    assert.equal(await channel.waitForResult(), "failed");
     assert.equal(channel.accepted(), false);
     assert.equal(channel.failure(), failure);
   } finally {

@@ -46,6 +46,7 @@ function durableCore() {
 test("prepares checkout before starting the Review Run timer", async () => {
   /** @type {string[]} */
   const events = [];
+  const cleanupDiagnostic = new Error("submission cleanup failed");
   const checkoutCredential = {
     token: "repository-token",
     username: "repository-user",
@@ -74,6 +75,10 @@ test("prepares checkout before starting the Review Run timer", async () => {
       events.push("file-changes");
       return [];
     },
+    reportDiagnostic(failure) {
+      assert.equal(failure, cleanupDiagnostic);
+      events.push("diagnostic");
+    },
     resultService: { fail() {}, submit() {} },
     async runCodex(input) {
       events.push("codex");
@@ -81,6 +86,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
         JSON.stringify(input),
         /repository-token|repository-user/,
       );
+      return { diagnosticFailures: [cleanupDiagnostic] };
     },
   });
 
@@ -89,6 +95,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
     "file-changes",
     "start",
     "codex",
+    "diagnostic",
     "remove-checkout",
     "stop-renewal",
   ]);
@@ -138,6 +145,39 @@ test("builds only the fixed Review Run contract and frozen evidence boundaries i
   );
 });
 
+test("diagnostic sink failure cannot overturn accepted Result authority", async () => {
+  const diagnosticFailure = new Error("submission cleanup failed");
+  const reportingFailure = new Error("diagnostic sink failed");
+  const execution = await executeReviewRun(durableCore(), claim, {
+    claimService: {
+      start() {},
+      startRenewal() {
+        return () => {};
+      },
+    },
+    async prepareCheckout() {
+      return { path: "/checkout", remove() {} };
+    },
+    readFileChanges: () => [],
+    reportDiagnostic(failure) {
+      assert.equal(failure, diagnosticFailure);
+      throw reportingFailure;
+    },
+    resultService: {
+      fail() {
+        assert.fail("accepted Result was converted to failure");
+      },
+      submit() {},
+    },
+    async runCodex() {
+      return { diagnosticFailures: [diagnosticFailure] };
+    },
+  });
+  assert.deepEqual(execution, {
+    unreportedDiagnostics: [{ diagnosticFailure, reportingFailure }],
+  });
+});
+
 test("checkout failure remains pre-start and does not launch Codex", async () => {
   const failure = new ReviewRunCheckoutError(
     "review_run_checkout_failed",
@@ -163,6 +203,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
         resultService: { fail() {}, submit() {} },
         async runCodex() {
           launched = true;
+          return { diagnosticFailures: [] };
         },
       }),
     (error) => error === failure,
@@ -238,7 +279,9 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
         },
         readFileChanges: () => [],
         resultService: { fail() {}, submit() {} },
-        async runCodex() {},
+        async runCodex() {
+          return { diagnosticFailures: [] };
+        },
       }),
     (error) => error === cleanupFailure,
   );

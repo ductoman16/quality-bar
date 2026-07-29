@@ -51,6 +51,85 @@ function fail(code, message, cause) {
   );
 }
 
+/** @param {unknown} error */
+function isMissingProcess(error) {
+  return error instanceof Error && "code" in error && error.code === "ESRCH";
+}
+
+/** @param {unknown} error */
+function isPermissionDenied(error) {
+  return error instanceof Error && "code" in error && error.code === "EPERM";
+}
+
+/**
+ * @param {import("node:child_process").ChildProcess} child
+ * @param {Promise<unknown>} processResult
+ * @param {(pid: number, signal: NodeJS.Signals | 0) => void} killProcessGroup
+ * @param {(callback: () => void, milliseconds: number) => any} setTerminationTimer
+ * @param {(timer: any) => void} clearTerminationTimer
+ */
+async function terminateCodexProcessGroup(
+  child,
+  processResult,
+  killProcessGroup,
+  setTerminationTimer,
+  clearTerminationTimer,
+) {
+  if (
+    !Number.isSafeInteger(child.pid) ||
+    /** @type {number} */ (child.pid) < 1
+  ) {
+    throw new TypeError("Codex Review Run process identity is unavailable");
+  }
+  const processGroupId = -(/** @type {number} */ (child.pid));
+  try {
+    killProcessGroup(processGroupId, "SIGTERM");
+  } catch (error) {
+    if (isMissingProcess(error)) {
+      return;
+    }
+    throw error;
+  }
+  /** @type {any} */
+  let terminationTimer;
+  const forceKill = new Promise((resolve, reject) => {
+    terminationTimer = setTerminationTimer(() => {
+      try {
+        killProcessGroup(processGroupId, "SIGKILL");
+        resolve(undefined);
+      } catch (error) {
+        if (isMissingProcess(error)) {
+          resolve(undefined);
+        } else {
+          reject(error);
+        }
+      }
+    }, 5_000);
+  });
+  try {
+    const first = await Promise.race([
+      processResult.then(() => "process"),
+      forceKill.then(() => "force-kill"),
+    ]);
+    if (first === "process") {
+      try {
+        killProcessGroup(processGroupId, 0);
+      } catch (error) {
+        if (isMissingProcess(error)) {
+          return;
+        }
+        if (isPermissionDenied(error)) {
+          await forceKill;
+        }
+        throw error;
+      }
+      await forceKill;
+    }
+  } finally {
+    clearTerminationTimer(terminationTimer);
+  }
+}
+
 /** @param {unknown} candidate */
 export function reviewRunCodexArguments(candidate) {
   const input = /** @type {any} */ (candidate);
@@ -135,11 +214,16 @@ export function reviewRunCodexEnvironment(
  *     close(): Promise<void>,
  *     commandDirectory: string,
  *     environment: Record<string, string>,
- *     failure(): Error | null
+ *     failure(): Error | null,
+ *     lastValidationFailure(): ReviewRunExecutionError | null,
+ *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
+ *   clearTerminationTimer?: (timer: any) => void,
+ *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
+ *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
  *   spawnProcess?: (
  *     command: string,
  *     arguments_: string[],
@@ -152,70 +236,114 @@ export async function runReviewRunCodex({
   claim,
   codexCommand = "codex",
   codexPrefixArguments = [],
+  clearTerminationTimer = clearTimeout,
+  killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
   resultService,
   run,
+  setTerminationTimer = setTimeout,
   spawnProcess = spawn,
 }) {
   const channel = await openSubmissionChannel(claim, resultService);
   let executionFailure;
+  /** @type {Error[]} */
+  const diagnosticFailures = [];
   try {
     const arguments_ = [
       ...codexPrefixArguments,
       ...reviewRunCodexArguments(run),
     ];
-    const result = await new Promise((resolve, reject) => {
-      let child;
-      try {
-        child = spawnProcess(codexCommand, arguments_, {
-          cwd: checkoutPath,
-          env: reviewRunCodexEnvironment(
-            channel.environment,
-            channel.commandDirectory,
-            processEnvironment,
-          ),
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-      } catch (error) {
-        reject(error);
-        return;
-      }
-      let stdout = "";
-      let stderr = "";
-      child.stdout?.setEncoding("utf8").on("data", (chunk) => {
-        stdout += chunk;
+    let child;
+    try {
+      child = spawnProcess(codexCommand, arguments_, {
+        cwd: checkoutPath,
+        detached: true,
+        env: reviewRunCodexEnvironment(
+          channel.environment,
+          channel.commandDirectory,
+          processEnvironment,
+        ),
+        stdio: ["ignore", "pipe", "pipe"],
       });
-      child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-        stderr += chunk;
-      });
+    } catch (cause) {
+      fail(
+        "codex_process_failed",
+        "Codex Review Run process could not start",
+        cause,
+      );
+    }
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8").on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const processResult = new Promise((resolve, reject) => {
       child.once("error", reject);
       child.once("exit", (code, signal) => {
         resolve({ code, signal, stderr, stdout });
       });
-    }).catch((cause) =>
+    });
+    const terminal = await Promise.race([
+      processResult.then((result) => ({ kind: "process", result })),
+      channel.waitForResult().then((result) => ({
+        kind: "submission",
+        result,
+      })),
+    ]).catch((cause) =>
       fail(
         "codex_process_failed",
         "Codex Review Run process could not start",
         cause,
       ),
     );
+    let accepted =
+      terminal.kind === "submission" && terminal.result === "accepted";
+    if (terminal.kind === "process" && channel.accepted()) {
+      accepted = (await channel.waitForResult()) === "accepted";
+    }
+    if (accepted) {
+      try {
+        await terminateCodexProcessGroup(
+          child,
+          processResult,
+          killProcessGroup,
+          setTerminationTimer,
+          clearTerminationTimer,
+        );
+      } catch (error) {
+        diagnosticFailures.push(
+          error instanceof Error
+            ? error
+            : new TypeError("Codex process-group termination failed"),
+        );
+      }
+    }
     const submissionFailure = channel.failure();
     if (submissionFailure) {
       throw submissionFailure;
     }
-    if (!channel.accepted()) {
-      const processResult = /** @type {any} */ (result);
-      if (processResult.code === 0 && processResult.signal === null) {
+    if (terminal.kind === "submission" && terminal.result === "failed") {
+      throw new TypeError("Review Run submission failed");
+    }
+    if (terminal.kind === "process" && !channel.accepted()) {
+      const exit = /** @type {any} */ (terminal.result);
+      const validationFailure = channel.lastValidationFailure();
+      if (validationFailure || (exit.code === 0 && exit.signal === null)) {
         fail(
           "result_not_submitted",
-          "Codex Review Run exited without an accepted Result",
+          validationFailure
+            ? `Codex Review Run exited without an accepted Result; last validation error ${validationFailure.code}: ${validationFailure.message}`
+            : "Codex Review Run exited without an accepted Result",
         );
       }
       fail(
         "codex_process_failed",
         "Codex Review Run process failed",
-        new CodexProcessExitError(processResult),
+        new CodexProcessExitError(exit),
       );
     }
   } catch (error) {
@@ -242,6 +370,11 @@ export async function runReviewRunCodex({
     throw executionFailure;
   }
   if (cleanupFailure) {
-    throw cleanupFailure;
+    diagnosticFailures.push(
+      cleanupFailure instanceof Error
+        ? cleanupFailure
+        : new TypeError("Review Run submission channel cleanup failed"),
+    );
   }
+  return { diagnosticFailures };
 }

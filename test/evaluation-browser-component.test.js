@@ -15,7 +15,7 @@ import {
 } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
-test("Evaluations is the default workspace and renders frozen work, distinct states, and the complete Result", async () => {
+test("Evaluations renders no partial data before the complete first-valid Result", async () => {
   const page = operatorPage({ view: "evaluations" });
   assert.match(page, /<h1>Evaluations<\/h1>/);
   assert.match(page, /id="evaluation-create-form"/);
