@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createTranscriptFailureController } from "../src/review-run-codex-process.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   acceptedChannel,
@@ -9,6 +10,29 @@ import {
   runningProcess,
   runReviewRunCodex,
 } from "./review-run-codex-adapter-support.js";
+
+test("transcript failure controller normalizes a non-Error exactly once", async () => {
+  let closes = 0;
+  let terminations = 0;
+  const controller = createTranscriptFailureController({
+    async closeSubmissionChannel() {
+      closes += 1;
+    },
+    diagnosticFailures: [],
+    async terminateProcessGroup() {
+      terminations += 1;
+    },
+  });
+  controller.stop(undefined);
+  controller.stop(null);
+  await controller.termination();
+  const failure = controller.failure();
+  assert.ok(failure instanceof TypeError);
+  assert.equal(failure.message, "Review Run transcript persistence failed");
+  assert.equal(failure.cause, undefined);
+  assert.equal(closes, 1);
+  assert.equal(terminations, 1);
+});
 
 test("durably committed operator cancellation closes submission before process-group termination", async () => {
   /** @type {(string | number)[]} */

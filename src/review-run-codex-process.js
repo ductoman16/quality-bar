@@ -58,6 +58,7 @@ export function createTranscriptFailureController({
   diagnosticFailures,
   terminateProcessGroup,
 }) {
+  let stopped = false;
   /** @type {unknown} */
   let failure;
   /** @type {Promise<void> | undefined} */
@@ -72,10 +73,16 @@ export function createTranscriptFailureController({
     signal,
     /** @param {unknown} error */
     stop(error) {
-      if (failure) {
+      if (stopped) {
         return;
       }
-      failure = error;
+      stopped = true;
+      failure =
+        error instanceof Error
+          ? error
+          : new TypeError("Review Run transcript persistence failed", {
+              cause: error,
+            });
       signalFailure(undefined);
       termination = (async () => {
         try {
