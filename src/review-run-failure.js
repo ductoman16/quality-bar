@@ -1,7 +1,10 @@
+import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
+
 /**
  * @param {{
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
  *   transaction<Result>(callback: (transaction: {
+ *     all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *     get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined,
  *     run(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): import("node:sqlite").StatementResultingChanges
  *   }) => Result): Result
@@ -51,18 +54,6 @@ export function createReviewRunFailureService(durableCore, now, fail) {
           "Review Run submission channel is closed",
         );
       }
-      if (
-        transaction.get(
-          `SELECT count(*) AS count
-           FROM review_runs WHERE evaluation_id = ?`,
-          run.evaluation_id,
-        )?.count !== 1
-      ) {
-        fail(
-          "review_run_selection_unsupported",
-          "Only one selected Review Run is supported",
-        );
-      }
       const failed = transaction.run(
         `UPDATE review_runs
          SET execution_status = 'failed', completed_at = ?,
@@ -79,19 +70,10 @@ export function createReviewRunFailureService(durableCore, now, fail) {
           "Review Run submission channel is closed",
         );
       }
-      transaction.run(
-        `INSERT INTO evaluation_results (
-           evaluation_id, outcome, completed_at
-         ) VALUES (?, 'error', ?)`,
-        run.evaluation_id,
+      completeEvaluationIfTerminal(
+        transaction,
+        /** @type {string} */ (run.evaluation_id),
         completedAt,
-      );
-      transaction.run(
-        `UPDATE evaluations
-         SET execution_status = 'completed', completed_at = ?
-         WHERE id = ? AND execution_status IN ('queued', 'running')`,
-        completedAt,
-        run.evaluation_id,
       );
     });
   };

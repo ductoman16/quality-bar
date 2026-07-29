@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
 import { createReviewRunFailureService } from "./review-run-failure.js";
 import {
   ReviewRunExecutionError,
@@ -62,37 +63,67 @@ function readCriteria(transaction, run) {
     });
 }
 
-/** @param {any} transaction @param {any} run */
-function assertSupportedSelection(transaction, run) {
-  if (
-    transaction.get(
-      "SELECT count(*) AS count FROM review_runs WHERE evaluation_id = ?",
-      run.evaluation_id,
-    )?.count !== 1
-  ) {
-    fail(
-      "review_run_selection_unsupported",
-      "Only one selected Review Run is supported",
-    );
-  }
-}
-
 /** @param {any} transaction @param {any} run @param {any} submission */
 function storeResultFacts(transaction, run, submission) {
-  for (const fileChange of submission.fileChanges) {
-    transaction.run(
-      `INSERT INTO evaluation_file_changes (
-         evaluation_id, id, before_path, after_path,
-         base_line_count, head_line_count, patch
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  const storedFileChanges = transaction.all(
+    `SELECT id, before_path, after_path, base_line_count, head_line_count, patch
+     FROM evaluation_file_changes
+     WHERE evaluation_id = ?
+     ORDER BY id`,
+    run.evaluation_id,
+  );
+  if (storedFileChanges.length === 0) {
+    const completedSiblingCount = transaction.get(
+      `SELECT count(*) AS count FROM review_runs
+       WHERE evaluation_id = ? AND id <> ? AND execution_status = 'completed'`,
       run.evaluation_id,
-      fileChange.id,
-      fileChange.before_path,
-      fileChange.after_path,
-      fileChange.base_line_count,
-      fileChange.head_line_count,
-      fileChange.patch,
-    );
+      submission.workId,
+    )?.count;
+    if (completedSiblingCount !== 0 && submission.fileChanges.length !== 0) {
+      throw new TypeError(
+        "Frozen File Changes do not match the Evaluation authority",
+      );
+    }
+    for (const fileChange of submission.fileChanges) {
+      transaction.run(
+        `INSERT INTO evaluation_file_changes (
+           evaluation_id, id, before_path, after_path,
+           base_line_count, head_line_count, patch
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        run.evaluation_id,
+        fileChange.id,
+        fileChange.before_path,
+        fileChange.after_path,
+        fileChange.base_line_count,
+        fileChange.head_line_count,
+        fileChange.patch,
+      );
+    }
+  } else {
+    const canonicalFileChange = (
+      /** @type {Record<string, any>} */ fileChange,
+    ) => ({
+      after_path: fileChange.after_path,
+      base_line_count: fileChange.base_line_count,
+      before_path: fileChange.before_path,
+      head_line_count: fileChange.head_line_count,
+      id: fileChange.id,
+      patch: fileChange.patch,
+    });
+    const expected = submission.fileChanges
+      .map(canonicalFileChange)
+      .sort(
+        (
+          /** @type {Record<string, any>} */ left,
+          /** @type {Record<string, any>} */ right,
+        ) => left.id.localeCompare(right.id),
+      );
+    const actual = storedFileChanges.map(canonicalFileChange);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new TypeError(
+        "Frozen File Changes do not match the Evaluation authority",
+      );
+    }
   }
   for (const result of submission.results) {
     transaction.run(
@@ -129,34 +160,6 @@ function storeResultFacts(transaction, run, submission) {
   }
 }
 
-/** @param {any} transaction @param {string} evaluationId @param {any[]} criteria @param {any[]} results */
-function resultOutcome(transaction, evaluationId, criteria, results) {
-  const triggeredImpacts = results
-    .filter((/** @type {any} */ result) => result.outcome === "triggered")
-    .map(
-      (/** @type {any} */ result) =>
-        criteria.find(
-          (/** @type {any} */ criterion) =>
-            criterion.criterion_id === result.criterion_id,
-        )?.impact,
-    );
-  const applicabilityFailed =
-    transaction.get(
-      `SELECT count(*) AS count
-       FROM applicability_results
-       WHERE evaluation_id = ? AND outcome = 'error'`,
-      evaluationId,
-    )?.count !== 0;
-  return applicabilityFailed ||
-    results.some((/** @type {any} */ result) => result.outcome === "error")
-    ? "error"
-    : triggeredImpacts.includes("blocking")
-      ? "blocking"
-      : triggeredImpacts.includes("advisory")
-        ? "advisory"
-        : "clear";
-}
-
 /** @param {any} durableCore @param {{createFindingId?: () => string, now?: () => number}} [options] */
 export function createReviewRunResultService(
   durableCore,
@@ -176,7 +179,6 @@ export function createReviewRunResultService(
       return durableCore.transaction((/** @type {any} */ transaction) => {
         const run = readAuthoritativeRun(transaction, claim, checkedAt);
         const criteria = readCriteria(transaction, run);
-        assertSupportedSelection(transaction, run);
         const results = validateReviewRunSubmission(
           candidate,
           criteria,
@@ -231,26 +233,10 @@ export function createReviewRunResultService(
             "Review Run submission channel is closed",
           );
         }
-        const outcome = resultOutcome(
+        completeEvaluationIfTerminal(
           transaction,
           run.evaluation_id,
-          submission.criteria,
-          submission.results,
-        );
-        transaction.run(
-          `INSERT INTO evaluation_results (
-             evaluation_id, outcome, completed_at
-           ) VALUES (?, ?, ?)`,
-          run.evaluation_id,
-          outcome,
           acceptedAt,
-        );
-        transaction.run(
-          `UPDATE evaluations
-           SET execution_status = 'completed', completed_at = ?
-           WHERE id = ? AND execution_status IN ('queued', 'running')`,
-          acceptedAt,
-          run.evaluation_id,
         );
       });
     },

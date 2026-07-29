@@ -66,12 +66,26 @@ export const TRIGGERED_EVALUATION_RESULT = {
 export const FAILED_REVIEW_RUN_EVALUATION_RESULT = {
   applicability_results: [],
   completed_at: "2026-07-28T12:00:00.000Z",
-  criterion_results: [],
+  criterion_results: [
+    {
+      criterion_id: "criterion-completed-sibling",
+      outcome: "clear",
+      review_run_id: "review-run-completed-sibling",
+    },
+  ],
   evaluation_id: "evaluation-run-failed",
   file_changes: [],
   findings: [],
   outcome: "error",
   review_runs: [
+    {
+      completed_at: "2026-07-28T11:59:30.000Z",
+      id: "review-run-completed-sibling",
+      review_id: "review-completed",
+      review_version_id: "review-version-completed",
+      started_at: "2026-07-28T11:58:30.000Z",
+      status: "completed",
+    },
     {
       completed_at: "2026-07-28T12:00:00.000Z",
       error: {
