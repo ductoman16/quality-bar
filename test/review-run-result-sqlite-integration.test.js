@@ -6,7 +6,6 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import {
   createReviewRunResultService,
@@ -15,7 +14,7 @@ import {
 import { createReviewService } from "../src/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 import { assertRejectedCandidatesStoreNothing } from "./review-run-result-sqlite-integration-support.js";
-import { executeUnexpectedReviewRun } from "./review-run-result-sqlite-integration-support.js";
+import { executeFailedReviewRun } from "./review-run-result-sqlite-integration-support.js";
 
 test("the first valid fenced submission atomically preserves every complete Criterion Result meaning", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-"));
@@ -270,86 +269,79 @@ test("the first valid fenced submission atomically preserves every complete Crit
   );
 });
 
-test("an exact Review Run boundary failure creates no partial or fallback Result", async (context) => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-boundary-failure-"),
-  );
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  context.after(() => core.close());
-  await createQueuedReviewRun(core);
-  const claims = createReviewRunClaimService(core, {
-    createWorkerId: () => "boundary-worker",
-    now: () => 20,
-  });
-  const claim = claims.claimNext();
-  assert.ok(claim);
-  const failure = new ReviewRunExecutionError(
-    "configuration_unavailable",
-    "Network-disabled Codex launch could not be constructed",
-  );
+test("exact started Review Run failures create no partial or fallback Result", async (context) => {
+  const cases = [
+    [
+      "configuration_unavailable",
+      "Network-disabled Codex launch could not be constructed",
+    ],
+    [
+      "authentication_failed",
+      "You must be logged in to use Codex. Run codex login.",
+    ],
+  ];
+  for (const [code, detail] of cases) {
+    await context.test(code, async (caseContext) => {
+      const directory = mkdtempSync(
+        join(tmpdir(), "quality-bar-boundary-failure-"),
+      );
+      caseContext.after(() =>
+        rmSync(directory, { force: true, recursive: true }),
+      );
+      const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+      caseContext.after(() => core.close());
+      await createQueuedReviewRun(core);
+      const failure = new ReviewRunExecutionError(code, detail);
 
-  await assert.rejects(
-    () =>
-      executeReviewRun(core, claim, {
-        claimService: claims,
-        prepareCheckout: async () => ({
-          path: "/discarded-checkout",
-          remove() {},
-        }),
-        readFileChanges: () => [],
-        resultService: createReviewRunResultService(core, { now: () => 30 }),
-        async runCodex(input) {
-          input.startRun?.();
-          throw failure;
+      await assert.rejects(
+        () => executeFailedReviewRun(core, failure),
+        (error) => error === failure,
+      );
+      assert.deepEqual(
+        core.get(
+          `SELECT evaluations.execution_status, evaluation_results.outcome
+           FROM evaluations
+           JOIN evaluation_results
+             ON evaluation_results.evaluation_id = evaluations.id`,
+        ),
+        { execution_status: "completed", outcome: "error" },
+      );
+      assert.deepEqual(
+        core.get(
+          `SELECT execution_status, error_code, error_detail
+           FROM review_runs`,
+        ),
+        {
+          error_code: code,
+          error_detail: detail,
+          execution_status: "failed",
         },
-      }),
-    (error) => error === failure,
-  );
-  assert.deepEqual(
-    core.get(
-      `SELECT evaluations.execution_status, evaluation_results.outcome
-       FROM evaluations
-       JOIN evaluation_results
-         ON evaluation_results.evaluation_id = evaluations.id`,
-    ),
-    { execution_status: "completed", outcome: "error" },
-  );
-  assert.deepEqual(
-    core.get(
-      `SELECT execution_status, error_code, error_detail
-       FROM review_runs`,
-    ),
-    {
-      error_code: "configuration_unavailable",
-      error_detail: "Network-disabled Codex launch could not be constructed",
-      execution_status: "failed",
-    },
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-    0,
-  );
-  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
-  const criterion = core.get(
-    "SELECT criterion_id FROM review_version_criteria LIMIT 1",
-  );
-  assert.ok(criterion);
-  assert.throws(
-    () =>
-      core.run(
-        `INSERT INTO criterion_results (
-           review_run_id, criterion_id, outcome
-         ) VALUES (?, ?, 'clear')`,
-        "review-run-1",
-        criterion.criterion_id,
-      ),
-    /criterion_result_review_run_not_running/,
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-    0,
-  );
+      );
+      assert.equal(
+        core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+        0,
+      );
+      assert.equal(
+        core.get("SELECT count(*) AS count FROM findings")?.count,
+        0,
+      );
+      const criterion = core.get(
+        "SELECT criterion_id FROM review_version_criteria LIMIT 1",
+      );
+      assert.ok(criterion);
+      assert.throws(
+        () =>
+          core.run(
+            `INSERT INTO criterion_results (
+               review_run_id, criterion_id, outcome
+             ) VALUES (?, ?, 'clear')`,
+            "review-run-1",
+            criterion.criterion_id,
+          ),
+        /criterion_result_review_run_not_running/,
+      );
+    });
+  }
 });
 
 test("an unexpected started failure persists one stable safe terminal error", async (context) => {
@@ -365,7 +357,7 @@ test("an unexpected started failure persists one stable safe terminal error", as
   );
 
   await assert.rejects(
-    () => executeUnexpectedReviewRun(core, underlyingFailure),
+    () => executeFailedReviewRun(core, underlyingFailure),
     (error) => {
       assert.ok(error instanceof ReviewRunExecutionError);
       assert.equal(error.code, "unexpected_execution_failure");

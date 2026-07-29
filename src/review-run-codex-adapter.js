@@ -2,6 +2,10 @@ import { spawn } from "node:child_process";
 import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
+import {
+  createCodexProcessFailure,
+  createSubmissionFailure,
+} from "./review-run-codex-failure.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
@@ -21,25 +25,6 @@ const CODEX_HOST_ENVIRONMENT = Object.freeze([
   "XDG_CONFIG_HOME",
 ]);
 const REVIEW_RUN_DEADLINE_MILLISECONDS = 15 * 60 * 1_000;
-
-class CodexProcessExitError extends Error {
-  /**
-   * @param {{
-   *   code: number | null,
-   *   signal: NodeJS.Signals | null,
-   *   stderr: string,
-   *   stdout: string
-   * }} result
-   */
-  constructor(result) {
-    super("Codex Review Run process exited unsuccessfully");
-    this.name = "CodexProcessExitError";
-    this.code = result.code;
-    this.signal = result.signal;
-    this.stderr = result.stderr;
-    this.stdout = result.stdout;
-  }
-}
 
 /**
  * @param {string} code
@@ -420,7 +405,7 @@ export async function runReviewRunCodex({
       throw evidenceCompletionFailure;
     }
     if (submissionFailure) {
-      throw submissionFailure;
+      throw createSubmissionFailure(submissionFailure);
     }
     if (terminal.kind === "submission" && terminal.result === "failed") {
       throw new TypeError("Review Run submission failed");
@@ -436,11 +421,7 @@ export async function runReviewRunCodex({
             : "Codex Review Run exited without an accepted Result",
         );
       }
-      fail(
-        "codex_process_failed",
-        "Codex Review Run process failed",
-        new CodexProcessExitError(exit),
-      );
+      throw createCodexProcessFailure(exit, channel.environment);
     }
   } catch (error) {
     executionFailure = error;
