@@ -20,10 +20,7 @@ import { browserElement } from "./repository-browser-component-support.js";
 test("Evaluations renders no partial data before the complete first-valid Result", async () => {
   const page = operatorPage({ view: "evaluations" });
   assertEvaluationPage(page);
-  assert.equal(
-    operatorPage({ view: "evaluations" }),
-    operatorPage({ view: "evaluations" }),
-  );
+  assert.equal(page, operatorPage({ view: "evaluations" }));
 
   const controls = evaluationElements();
   controls.get("evaluation-base-type").value = "branch";
@@ -194,6 +191,7 @@ test("Evaluations renders no partial data before the complete first-valid Result
   for (const [sourcePath, route] of [
     ["src/browser/waiver-batch.js", "/assets/waiver-batch.js"],
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
+    ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
     executeServedBrowserAsset(

@@ -57,6 +57,40 @@ export function retireGitHubConnection(durableCore, request) {
          )`,
       connection.id,
     );
+    transaction.run(
+      `UPDATE github_feedback_bundles
+       SET publication_status = 'unavailable',
+           error_code = 'github_connection_retired',
+           error_detail =
+             'GitHub feedback publication is unavailable because the GitHub Connection is retired'
+       WHERE publication_status = 'waiting'
+         AND evaluation_id IN (
+           SELECT github_automatic_evaluations.evaluation_id
+           FROM github_automatic_evaluations
+           JOIN github_repositories
+             ON github_repositories.repository_id =
+                  github_automatic_evaluations.repository_id
+           WHERE github_repositories.connection_id = ?
+         )`,
+      connection.id,
+    );
+    transaction.run(
+      `UPDATE github_finding_feedback
+       SET publication_status = 'unavailable',
+           error_code = 'github_connection_retired',
+           error_detail =
+             'GitHub inline feedback publication is unavailable because the GitHub Connection is retired'
+       WHERE publication_status = 'waiting'
+         AND evaluation_id IN (
+           SELECT github_automatic_evaluations.evaluation_id
+           FROM github_automatic_evaluations
+           JOIN github_repositories
+             ON github_repositories.repository_id =
+                  github_automatic_evaluations.repository_id
+           WHERE github_repositories.connection_id = ?
+         )`,
+      connection.id,
+    );
     const credential = transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,

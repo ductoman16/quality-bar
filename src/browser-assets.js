@@ -22,6 +22,11 @@ const browserAssets = [
     url: new URL("./browser/evaluation-result.js", import.meta.url),
   },
   {
+    route: "/assets/evaluation-feedback.js",
+    sourcePath: "src/browser/evaluation-feedback.js",
+    url: new URL("./browser/evaluation-feedback.js", import.meta.url),
+  },
+  {
     route: "/assets/evaluation.js",
     sourcePath: "src/browser/evaluation.js",
     url: new URL("./browser/evaluation.js", import.meta.url),

@@ -55,7 +55,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 38);
+    assert.equal(migrated.facts.schemaVersion, 39);
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -197,7 +197,7 @@ for (const version of [28, 36, 37]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 38);
+      assert.equal(migrated.facts.schemaVersion, 39);
       assert.match(
         String(
           migrated.get(

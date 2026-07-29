@@ -266,6 +266,17 @@ test("GitHub Connection retirement makes every waiting status exactly unavailabl
       publication_status: "unavailable",
     },
   );
+  assert.deepEqual(
+    core.get(
+      "SELECT publication_status, error_code, error_detail FROM github_feedback_bundles",
+    ),
+    {
+      error_code: "github_connection_retired",
+      error_detail:
+        "GitHub feedback publication is unavailable because the GitHub Connection is retired",
+      publication_status: "unavailable",
+    },
+  );
   assert.equal(
     core.get("SELECT count(*) AS count FROM github_connection_credentials")
       ?.count,

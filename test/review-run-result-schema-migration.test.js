@@ -66,7 +66,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -155,7 +155,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
@@ -261,7 +261,7 @@ test("schema v32 preserves exact File Change kinds while adding durable facts", 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 38);
+  assert.equal(migrated.facts.schemaVersion, 39);
   assert.deepEqual(
     migrated.all(
       `SELECT added, deleted, modified, renamed,

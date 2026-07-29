@@ -28,9 +28,9 @@ import {
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
-import { createGitHubCommitStatusService } from "./github-commit-status-service.js";
+import { createGitHubPublicationServices } from "./github-publication-services.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishCommitStatus?: (...parameters: any[]) => Promise<void>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<void>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -63,11 +63,12 @@ export function createGitHubConnectionService(
     typeof verifier.verifyInstallation !== "function" ||
     typeof verifier.verifyRepositories !== "function" ||
     typeof verifier.listPullRequests !== "function" ||
+    typeof verifier.publishAggregateFeedback !== "function" ||
+    typeof verifier.publishInlineFeedback !== "function" ||
     typeof verifier.publishCommitStatus !== "function"
   ) {
     throw new TypeError("GitHub Connection dependencies are invalid");
   }
-  const publishCommitStatus = verifier.publishCommitStatus;
   const cipher = createGitHubConnectionCredentialCipher(masterKey);
   validatePersistedGitHubCredentials(durableCore, cipher);
   const pending = new Map();
@@ -85,11 +86,11 @@ export function createGitHubConnectionService(
     timestamp,
     verifier,
   });
-  const commitStatuses = createGitHubCommitStatusService(durableCore, {
+  const publications = createGitHubPublicationServices(durableCore, {
     cipher,
     externalOrigin,
     now,
-    verifier: { publishCommitStatus },
+    verifier: /** @type {any} */ (verifier),
   });
   const selectRepositories = createGitHubRepositorySelector(durableCore, {
     cipher,
@@ -107,7 +108,7 @@ export function createGitHubConnectionService(
     acquireRepositoryGitCredential,
     startPolling() {
       polling.start();
-      commitStatuses.start();
+      publications.start();
     },
     start: () =>
       startGitHubConnection({
@@ -117,14 +118,10 @@ export function createGitHubConnectionService(
         timestamp,
         transientToken,
       }),
-    /** @param {Error & {code: string}} error */
-    recordCallbackFailure(error) {
-      return callbackFailures.record(error);
-    },
-    /** @param {string} receipt */
-    consumeCallbackFailure(receipt) {
-      return callbackFailures.consume(receipt);
-    },
+    recordCallbackFailure: (/** @type {Error & {code: string}} */ error) =>
+      callbackFailures.record(error),
+    consumeCallbackFailure: (/** @type {string} */ receipt) =>
+      callbackFailures.consume(receipt),
     /** @param {{code: string, state: string}} input */
     async completeManifest({ code, state }) {
       if (
@@ -397,7 +394,7 @@ export function createGitHubConnectionService(
     selectRepositories,
     destroy() {
       polling.destroy();
-      commitStatuses.destroy();
+      publications.destroy();
       pending.clear();
       callbackFailures.destroy();
       cipher.destroy();

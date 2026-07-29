@@ -30,7 +30,9 @@ export function createOpenApiRuntimeConformanceGate({
       "--test",
       "test/applicability-result-openapi-conformance.test.js",
       "test/evaluation-machine-openapi-conformance.test.js",
+      "test/github-feedback-openapi-conformance.test.js",
       "test/openapi-conformance.test.js",
+      "test/openapi-conformance-evidence.test.js",
       "test/repository-lifecycle-openapi-conformance.test.js",
     ],
     tools: {
