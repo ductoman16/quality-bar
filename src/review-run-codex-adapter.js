@@ -143,6 +143,7 @@ export function reviewRunCodexEnvironment(
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},
+ *   recordDeadline?: (failure: ReviewRunExecutionError) => unknown,
  *   startRun: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
@@ -176,6 +177,7 @@ export async function runReviewRunCodex({
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
+  recordDeadline = () => {},
   resultService,
   run,
   setDeadlineTimer = setTimeout,
@@ -255,13 +257,13 @@ export async function runReviewRunCodex({
       }
       transcriptFailure = error;
       resolveTranscriptFailure(undefined);
-      transcriptTermination = terminateReviewRunProcessGroup(
+      transcriptTermination = terminateReviewRunProcessGroup({
         child,
         processResult,
         killProcessGroup,
         setTerminationTimer,
         clearTerminationTimer,
-      ).catch((terminationFailure) => {
+      }).catch((terminationFailure) => {
         const failure =
           terminationFailure instanceof Error
             ? terminationFailure
@@ -340,17 +342,33 @@ export async function runReviewRunCodex({
     if (terminal.kind === "deadline" && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
+    const deadlineFailure =
+      terminal.kind === "deadline" && !accepted
+        ? new ReviewRunExecutionError(
+            "deadline_exceeded",
+            "Codex Review Run exceeded its 15-minute deadline",
+          )
+        : undefined;
+    /** @type {unknown} */
+    let deadlineRecordingFailure;
+    if (deadlineFailure) {
+      try {
+        recordDeadline(deadlineFailure);
+      } catch (error) {
+        deadlineRecordingFailure = error;
+      }
+    }
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
     if ((accepted || terminal.kind === "deadline") && !transcriptTermination) {
       try {
-        await terminateReviewRunProcessGroup(
+        await terminateReviewRunProcessGroup({
           child,
           processResult,
           killProcessGroup,
           setTerminationTimer,
           clearTerminationTimer,
-        );
+        });
       } catch (error) {
         const failure =
           error instanceof Error
@@ -368,6 +386,22 @@ export async function runReviewRunCodex({
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
+      if (deadlineFailure) {
+        const failure =
+          acceptedTerminationFailure instanceof Error
+            ? acceptedTerminationFailure
+            : new TypeError("Codex process-group termination failed");
+        const owningFailure =
+          deadlineRecordingFailure instanceof Error
+            ? deadlineRecordingFailure
+            : deadlineFailure;
+        Object.defineProperty(owningFailure, "processTerminationFailure", {
+          configurable: true,
+          enumerable: false,
+          value: failure,
+        });
+        throw owningFailure;
+      }
       fail(
         "codex_process_failed",
         "Codex Review Run process-group termination failed",
@@ -388,11 +422,11 @@ export async function runReviewRunCodex({
     if (terminal.kind === "submission" && terminal.result === "failed") {
       throw new TypeError("Review Run submission failed");
     }
-    if (terminal.kind === "deadline" && !accepted) {
-      fail(
-        "deadline_exceeded",
-        "Codex Review Run exceeded its 15-minute deadline",
-      );
+    if (deadlineFailure) {
+      if (deadlineRecordingFailure) {
+        throw deadlineRecordingFailure;
+      }
+      throw deadlineFailure;
     }
     if (terminal.kind === "process" && !channel.accepted()) {
       const exit = /** @type {any} */ (terminal.result);

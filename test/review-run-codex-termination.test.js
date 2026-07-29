@@ -108,6 +108,10 @@ test(
             },
             waitForResult: () => new Promise(() => {}),
           }),
+          recordDeadline(failure) {
+            assert.equal(failure.code, "deadline_exceeded");
+            events.push("deadline-recorded");
+          },
           resultService: { prepare() {} },
           run,
           setDeadlineTimer(callback, milliseconds) {
@@ -135,6 +139,7 @@ test(
       "deadline-started",
       "spawn",
       "submission-closed",
+      "deadline-recorded",
       "SIGTERM",
       "SIGKILL",
     ]);

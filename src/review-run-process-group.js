@@ -9,19 +9,21 @@ function isPermissionDenied(error) {
 }
 
 /**
- * @param {import("node:child_process").ChildProcess} child
- * @param {Promise<unknown>} processResult
- * @param {(pid: number, signal: NodeJS.Signals | 0) => void} killProcessGroup
- * @param {(callback: () => void, milliseconds: number) => any} setTerminationTimer
- * @param {(timer: any) => void} clearTerminationTimer
+ * @param {{
+ *   child: import("node:child_process").ChildProcess,
+ *   processResult: Promise<unknown>,
+ *   killProcessGroup: (pid: number, signal: NodeJS.Signals | 0) => void,
+ *   setTerminationTimer: (callback: () => void, milliseconds: number) => any,
+ *   clearTerminationTimer: (timer: any) => void
+ * }} options
  */
-export async function terminateReviewRunProcessGroup(
+export async function terminateReviewRunProcessGroup({
   child,
   processResult,
   killProcessGroup,
   setTerminationTimer,
   clearTerminationTimer,
-) {
+}) {
   if (
     !Number.isSafeInteger(child.pid) ||
     /** @type {number} */ (child.pid) < 1

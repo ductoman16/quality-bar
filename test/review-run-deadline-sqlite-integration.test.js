@@ -42,6 +42,18 @@ test("the Review Run deadline persists one exact terminal failure and no partial
         resultService: createReviewRunResultService(core, { now: () => 30 }),
         async runCodex(input) {
           input.startRun?.();
+          input.recordDeadline?.(failure);
+          assert.deepEqual(
+            core.get(
+              `SELECT execution_status, error_code FROM review_runs
+               WHERE id = ?`,
+              claim.workId,
+            ),
+            {
+              error_code: "deadline_exceeded",
+              execution_status: "failed",
+            },
+          );
           throw failure;
         },
       }),

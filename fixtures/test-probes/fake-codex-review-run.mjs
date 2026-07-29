@@ -48,6 +48,21 @@ if (
 ) {
   throw new Error("fake_codex_review_run_arguments_invalid");
 }
+if (deadline) {
+  process.on("SIGTERM", () => {
+    try {
+      execFileSync("quality-bar-submit", {
+        input: JSON.stringify({
+          criterion_results: [{ criterion_id: criterion, outcome: "clear" }],
+        }),
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      process.stdout.write('{"type":"fake.deadline_submission_accepted"}\n');
+    } catch {
+      process.stdout.write('{"type":"fake.deadline_submission_rejected"}\n');
+    }
+  });
+}
 writeFileSync("codex-scratch.txt", "not a Result\n");
 process.stdout.write(
   `${JSON.stringify({
@@ -74,7 +89,7 @@ if (processFailure) {
   throw new Error("fake_codex_process_failure");
 }
 if (deadline) {
-  process.on("SIGTERM", () => {});
+  process.stdout.write('{"type":"fake.deadline_ready"}\n');
   setInterval(() => {}, 1_000);
   await new Promise(() => {});
 }

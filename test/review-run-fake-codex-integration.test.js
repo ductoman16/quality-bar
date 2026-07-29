@@ -91,6 +91,23 @@ async function proveFakeCodexResult(context, outcome) {
     new Error("SQLite durable evidence write failed"),
     { code: "storage_unavailable" },
   );
+  /** @type {() => void} */
+  let signalDeadline = () => assert.fail("deadline timer was not installed");
+  /** @type {() => void} */
+  let forceKill = () => assert.fail("termination timer was not installed");
+  const deadlineEvidence = {
+    /** @param {any} evidenceClaim @param {"stdout" | "stderr"} stream @param {string} content */
+    appendTranscriptChunk(evidenceClaim, stream, content) {
+      durableEvidence.appendTranscriptChunk(evidenceClaim, stream, content);
+      if (content.includes('"type":"fake.deadline_ready"')) {
+        queueMicrotask(signalDeadline);
+      }
+      if (content.includes('"type":"fake.deadline_submission_rejected"')) {
+        queueMicrotask(forceKill);
+      }
+    },
+    complete: durableEvidence.complete.bind(durableEvidence),
+  };
 
   const execution = () =>
     executeReviewRun(core, claim, {
@@ -110,15 +127,17 @@ async function proveFakeCodexResult(context, outcome) {
                   ? [fakeCodexPath, "--fake-error"]
                   : [fakeCodexPath, "--fake-correction"],
       evidenceService:
-        outcome === "evidence_failure"
-          ? {
-              appendTranscriptChunk:
-                durableEvidence.appendTranscriptChunk.bind(durableEvidence),
-              complete() {
-                throw evidenceFailure;
-              },
-            }
-          : durableEvidence,
+        outcome === "deadline"
+          ? deadlineEvidence
+          : outcome === "evidence_failure"
+            ? {
+                appendTranscriptChunk:
+                  durableEvidence.appendTranscriptChunk.bind(durableEvidence),
+                complete() {
+                  throw evidenceFailure;
+                },
+              }
+            : durableEvidence,
       processEnvironment: {
         CODEX_HOME: "/var/lib/quality-bar/codex",
         HOME: "/var/lib/quality-bar",
@@ -135,15 +154,19 @@ async function proveFakeCodexResult(context, outcome) {
       resultService: results,
       ...(outcome === "deadline"
         ? {
+            clearDeadlineTimer() {},
+            clearTerminationTimer() {},
             /** @param {() => void} callback @param {number} milliseconds */
             setDeadlineTimer(callback, milliseconds) {
               assert.equal(milliseconds, 15 * 60 * 1_000);
-              return setTimeout(callback, 100);
+              signalDeadline = callback;
+              return {};
             },
             /** @param {() => void} callback @param {number} milliseconds */
             setTerminationTimer(callback, milliseconds) {
               assert.equal(milliseconds, 5_000);
-              return setTimeout(callback, 20);
+              forceKill = callback;
+              return {};
             },
           }
         : {}),
@@ -193,6 +216,16 @@ async function proveFakeCodexResult(context, outcome) {
       0,
     );
     assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+    const transcript = core
+      .all(
+        `SELECT content FROM review_run_transcript_chunks
+         WHERE review_run_id = ? ORDER BY sequence`,
+        claim.workId,
+      )
+      .map((chunk) => chunk?.content)
+      .join("");
+    assert.match(transcript, /"type":"fake\.deadline_submission_rejected"/);
+    assert.doesNotMatch(transcript, /fake\.deadline_submission_accepted/);
     return;
   }
   if (outcome === "process_failure") {

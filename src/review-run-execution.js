@@ -278,6 +278,7 @@ export async function executeReviewRun(
     /** @type {{diagnosticFailure: Error, reportingFailure: Error}[]} */
     let unreportedDiagnostics = [];
     let started = false;
+    let deadlineRecorded = false;
     try {
       if (claimFailure) {
         throw claimFailure;
@@ -314,6 +315,10 @@ export async function executeReviewRun(
           started = true;
         },
         ...codexOptions,
+        recordDeadline(failure) {
+          resultService.fail(claim, failure);
+          deadlineRecorded = true;
+        },
       });
       diagnosticFailures = codexExecution?.diagnosticFailures ?? [];
       unreportedDiagnostics = reportAcceptedDiagnostics(
@@ -323,7 +328,7 @@ export async function executeReviewRun(
     } catch (error) {
       const failure = owningExecutionFailure(error);
       executionFailure = failure;
-      if (started) {
+      if (started && !deadlineRecorded) {
         try {
           resultService.fail(claim, failure);
         } catch (persistenceFailure) {
