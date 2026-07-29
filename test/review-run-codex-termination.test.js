@@ -158,6 +158,7 @@ test("durably committed operator cancellation closes submission before process-g
 
 test("operator cancellation surfaces submission-channel cleanup failure", async () => {
   const cleanupFailure = new Error("submission directory removal failed");
+  const evidenceFailure = { owner: "evidence completion" };
   const child = runningProcess(84);
   /** @type {(value?: void) => void} */
   let signalCancellation = () =>
@@ -187,15 +188,26 @@ test("operator cancellation surfaces submission-channel cleanup failure", async 
       },
       waitForResult: () => new Promise(() => {}),
     }),
+    evidenceService: {
+      appendTranscriptChunk() {},
+      complete() {
+        throw evidenceFailure;
+      },
+    },
     resultService: { prepare() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
   });
   signalCancellation();
-  assert.deepEqual(await execution, {
-    cancelled: true,
-    diagnosticFailures: [cleanupFailure],
-  });
+  const result = await execution;
+  assert.ok("cancelled" in result);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.diagnosticFailures[0], cleanupFailure);
+  assert.equal(
+    result.diagnosticFailures[1]?.message,
+    "Review Run evidence completion failed",
+  );
+  assert.equal(result.diagnosticFailures[1]?.cause, evidenceFailure);
 });
 
 test("parallel Review Runs own independent deadline timers", async () => {

@@ -216,6 +216,17 @@ test("durable cancellation wins before signaling and preserves completed child f
     },
   ]);
   assert.deepEqual(result.findings, []);
+  assert.throws(
+    () =>
+      core.run(
+        `UPDATE evaluations
+         SET cancellation_detail = ?
+         WHERE id = 'evaluation-cancellation'`,
+        "rewritten cancellation detail",
+      ),
+    /evaluation_cancellation_immutable/,
+  );
+  assert.deepEqual(evaluations.readResult("evaluation-cancellation"), result);
 });
 
 test("accepted submission wins when its durable transaction commits before cancellation", async (context) => {

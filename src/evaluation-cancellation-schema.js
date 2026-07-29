@@ -9,6 +9,7 @@ export const EVALUATION_CANCELLATION_CHECK = `
     (execution_status = 'cancelled'
       AND cancellation_requested_at IS NOT NULL
       AND cancellation_requested_at >= created_at
+      AND completed_at = cancellation_requested_at
       AND cancellation_code IS NOT NULL
       AND cancellation_code = 'cancelled_by_operator'
       AND cancellation_detail IS NOT NULL
@@ -29,6 +30,8 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
         AND (
           NEW.cancellation_requested_at IS NULL
           OR NEW.cancellation_requested_at < NEW.created_at
+          OR NEW.completed_at IS NULL
+          OR NEW.completed_at <> NEW.cancellation_requested_at
           OR NEW.cancellation_code IS NULL
           OR NEW.cancellation_code <> 'cancelled_by_operator'
           OR NEW.cancellation_detail IS NULL
@@ -46,6 +49,7 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
   CREATE TRIGGER IF NOT EXISTS evaluation_cancellation_update
     BEFORE UPDATE OF
       execution_status,
+      completed_at,
       cancellation_requested_at,
       cancellation_code,
       cancellation_detail
@@ -55,6 +59,8 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
         AND (
           NEW.cancellation_requested_at IS NULL
           OR NEW.cancellation_requested_at < NEW.created_at
+          OR NEW.completed_at IS NULL
+          OR NEW.completed_at <> NEW.cancellation_requested_at
           OR NEW.cancellation_code IS NULL
           OR NEW.cancellation_code <> 'cancelled_by_operator'
           OR NEW.cancellation_detail IS NULL
@@ -69,6 +75,16 @@ export const EVALUATION_CANCELLATION_TRIGGERS = `
         ))
     )
     BEGIN SELECT RAISE(ABORT, 'evaluation_cancellation_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS evaluation_cancellation_immutable
+    BEFORE UPDATE OF
+      execution_status,
+      completed_at,
+      cancellation_requested_at,
+      cancellation_code,
+      cancellation_detail
+    ON evaluations
+    WHEN OLD.execution_status = 'cancelled'
+    BEGIN SELECT RAISE(ABORT, 'evaluation_cancellation_immutable'); END;
 `;
 
 /** @param {import("node:sqlite").DatabaseSync} database */
@@ -105,6 +121,8 @@ export function evaluationCancellationMigration(database) {
            AND (
              cancellation_requested_at IS NULL
              OR cancellation_requested_at < created_at
+             OR completed_at IS NULL
+             OR completed_at <> cancellation_requested_at
              OR cancellation_code IS NULL
              OR cancellation_code <> 'cancelled_by_operator'
              OR cancellation_detail IS NULL

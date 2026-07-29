@@ -11,7 +11,8 @@ test("schema v33 Evaluation work gains nullable cancellation facts without inven
     CREATE TABLE evaluations (
       id TEXT PRIMARY KEY,
       execution_status TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER
     ) STRICT;
     INSERT INTO evaluations (id, execution_status, created_at)
     VALUES ('evaluation-v33', 'queued', 1);
@@ -41,9 +42,9 @@ test("schema v33 Evaluation work gains nullable cancellation facts without inven
       database.exec(`
         INSERT INTO evaluations (
           id, execution_status, created_at, cancellation_requested_at,
-          cancellation_detail
+          completed_at, cancellation_detail
         ) VALUES (
-          'evaluation-invalid-cancellation', 'cancelled', 2, 3,
+          'evaluation-invalid-cancellation', 'cancelled', 2, 3, 3,
           'Evaluation was cancelled by the operator'
         );
       `),
@@ -52,12 +53,21 @@ test("schema v33 Evaluation work gains nullable cancellation facts without inven
   database.exec(`
     INSERT INTO evaluations (
       id, execution_status, created_at, cancellation_requested_at,
-      cancellation_code, cancellation_detail
+      completed_at, cancellation_code, cancellation_detail
     ) VALUES (
-      'evaluation-valid-cancellation', 'cancelled', 2, 3,
+      'evaluation-valid-cancellation', 'cancelled', 2, 3, 3,
       'cancelled_by_operator', 'Evaluation was cancelled by the operator'
     );
   `);
+  assert.throws(
+    () =>
+      database.exec(`
+        UPDATE evaluations
+        SET cancellation_detail = 'rewritten'
+        WHERE id = 'evaluation-valid-cancellation';
+      `),
+    /evaluation_cancellation_immutable/,
+  );
   database.close();
 });
 
