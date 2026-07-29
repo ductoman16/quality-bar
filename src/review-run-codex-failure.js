@@ -30,7 +30,7 @@ const FAILURE_PATTERNS = Object.freeze([
   Object.freeze({
     code: "context_exhausted",
     pattern:
-      /(?:\b(?:context window|session budget)\b.*\b(?:exhausted|room)\b|\b(?:exhausted|room)\b.*\b(?:context window|session budget)\b)/i,
+      /(?:\b(?:context window|session budget)\b.*\b(?:exceeded|exhausted|room)\b|\b(?:exceeded|exhausted|room)\b.*\b(?:context window|session budget)\b)/i,
   }),
   Object.freeze({
     code: "resource_exhausted",
