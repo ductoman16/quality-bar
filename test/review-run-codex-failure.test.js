@@ -3,7 +3,10 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { REVIEW_RUN_TERMINAL_FAILURE_CODES } from "../src/review-run-codex-failure.js";
+import {
+  createCodexProcessFailure,
+  REVIEW_RUN_TERMINAL_FAILURE_CODES,
+} from "../src/review-run-codex-failure.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   claim,
@@ -187,6 +190,23 @@ test("maps pinned Codex startup stderr before the JSONL stream exists", async ()
       "authentication_failed",
       "Failed to load ChatGPT credentials while enforcing workspace restrictions: unavailable. Logging out.\n",
     ],
+    [
+      "authentication_failed",
+      "API key login is required, but ChatGPT is currently being used. Logging out.\n",
+    ],
+    [
+      "authentication_failed",
+      "Login is restricted to workspace ws-1, but the current credentials belong to ws-2. Logging out.\n",
+    ],
+    [
+      "authentication_failed",
+      "Login is restricted to workspace ws-1, but the current credentials lack a workspace id. Logging out.\n",
+    ],
+    ["authentication_failed", "API key auth is missing a key\n"],
+    [
+      "authentication_failed",
+      "failed to deserialize CLI auth: invalid stored value\n",
+    ],
   ];
   for (const [expectedCode, stderr] of cases) {
     await assert.rejects(
@@ -242,7 +262,7 @@ test("redacts the submission credential from exact Codex failure detail", async 
   );
 });
 
-test("a post-spawn process error records unavailable process facts", async () => {
+test("a post-spawn process error waits for close, transcript, and process facts", async () => {
   const processFailure = Object.assign(new Error("spawn transport failed"), {
     code: "ENOENT",
   });
@@ -253,6 +273,8 @@ test("a post-spawn process error records unavailable process facts", async () =>
   });
   /** @type {unknown[]} */
   const evidence = [];
+  /** @type {string[]} */
+  const transcript = [];
   let terminationSignals = 0;
   await assert.rejects(
     () =>
@@ -260,7 +282,10 @@ test("a post-spawn process error records unavailable process facts", async () =>
         checkoutPath: "/checkout",
         claim,
         evidenceService: {
-          appendTranscriptChunk() {},
+          appendTranscriptChunk(evidenceClaim, stream, content) {
+            assert.deepEqual(evidenceClaim, claim);
+            transcript.push(`${stream}:${content}`);
+          },
           complete(evidenceClaim, facts) {
             assert.deepEqual(evidenceClaim, claim);
             evidence.push(facts);
@@ -281,13 +306,26 @@ test("a post-spawn process error records unavailable process facts", async () =>
         resultService: { prepare() {} },
         run,
         spawnProcess: () => {
-          queueMicrotask(() => child.emit("error", processFailure));
+          queueMicrotask(() => {
+            child.emit("error", processFailure);
+            queueMicrotask(() => {
+              child.stdout.end(
+                '{"type":"turn.failed","error":{"message":"You must be logged in to use Codex. Run codex login."}}\n',
+              );
+              child.stderr.end("pinned post-error diagnostic\n");
+              child.emit("close", 127, null);
+            });
+          });
           return /** @type {any} */ (child);
         },
       }),
     (error) => {
       assert.ok(error instanceof ReviewRunExecutionError);
-      assert.equal(error.code, "codex_process_failed");
+      assert.equal(error.code, "authentication_failed");
+      assert.equal(
+        error.message,
+        "You must be logged in to use Codex. Run codex login.",
+      );
       assert.equal(
         /** @type {any} */ (error.cause).processError,
         processFailure,
@@ -298,7 +336,7 @@ test("a post-spawn process error records unavailable process facts", async () =>
   assert.equal(terminationSignals, 1);
   assert.deepEqual(evidence, [
     {
-      exitCode: null,
+      exitCode: 127,
       signal: null,
       tokenCounters: {
         cached_input_tokens: null,
@@ -307,4 +345,19 @@ test("a post-spawn process error records unavailable process facts", async () =>
       },
     },
   ]);
+  assert.deepEqual(transcript, [
+    'stdout:{"type":"turn.failed","error":{"message":"You must be logged in to use Codex. Run codex login."}}\n',
+    "stderr:pinned post-error diagnostic\n",
+  ]);
+});
+
+test("a process error without transcript preserves secret-safe detail", () => {
+  const processError = new Error("spawn failed for secret");
+  const failure = createCodexProcessFailure(
+    { code: 127, error: processError, signal: null, stderr: "", stdout: "" },
+    { QUALITY_BAR_SUBMIT_TOKEN: "secret" },
+  );
+  assert.equal(failure.code, "codex_process_failed");
+  assert.equal(failure.message, "spawn failed for [REDACTED]");
+  assert.equal(/** @type {any} */ (failure.cause).processError, processError);
 });

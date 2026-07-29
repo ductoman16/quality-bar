@@ -14,6 +14,7 @@ import {
   createCodexProcessFailure,
   createSubmissionFailure,
 } from "./review-run-codex-failure.js";
+import { observeCodexProcess } from "./review-run-codex-process.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
 import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
@@ -166,16 +167,11 @@ export async function runReviewRunCodex({
       );
     }
     let [stdout, stderr] = ["", ""];
-    let processClosed = false;
-    const processResult = new Promise((resolve) => {
-      child.once("error", (error) => {
-        resolve({ code: null, error, signal: null, stderr, stdout });
-      });
-      child.once("close", (code, signal) => {
-        processClosed = true;
-        resolve({ code, signal, stderr, stdout });
-      });
-    });
+    const {
+      error: processErrorSignal,
+      result: processResult,
+      wasClosed,
+    } = observeCodexProcess(child, () => ({ stderr, stdout }));
     const terminateProcessGroup = createReviewRunProcessGroupTermination({
       child,
       processResult,
@@ -232,7 +228,7 @@ export async function runReviewRunCodex({
         stopAfterTranscriptFailure(error);
       }
     });
-    /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
+    /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "process-error" } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     let terminal;
     try {
       terminal = await Promise.race([
@@ -242,6 +238,9 @@ export async function runReviewRunCodex({
         processResult.then((result) => ({
           kind: /** @type {const} */ ("process"),
           result,
+        })),
+        processErrorSignal.then(() => ({
+          kind: /** @type {const} */ ("process-error"),
         })),
         channel.waitForResult().then((result) => ({
           kind: /** @type {const} */ ("submission"),
@@ -265,7 +264,7 @@ export async function runReviewRunCodex({
     }
     const failedSubmission =
       terminal.kind === "submission" && terminal.result === "failed";
-    const processError = terminal.kind === "process" && terminal.result.error;
+    const processError = terminal.kind === "process-error";
     if (
       closesSubmissionForCancellationOrDeadline(terminal.kind) ||
       failedSubmission
@@ -286,7 +285,7 @@ export async function runReviewRunCodex({
     }
     let accepted =
       terminal.kind === "submission" && terminal.result === "accepted";
-    if (terminal.kind === "process" && channel.accepted()) {
+    if ((terminal.kind === "process" || processError) && channel.accepted()) {
       accepted = (await channel.waitForResult()) === "accepted";
     }
     if (terminal.kind === "deadline" && channel.accepted()) {
@@ -324,9 +323,9 @@ export async function runReviewRunCodex({
               });
         if (processError) {
           processErrorTerminationFailure = failure;
-        } else if (failedSubmission && processClosed) {
+        } else if (failedSubmission && wasClosed()) {
           submissionTerminationFailure = failure;
-        } else if (processClosed && terminal.kind !== "deadline") {
+        } else if (wasClosed() && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
         } else {
           acceptedTerminationFailure = failure;
@@ -418,8 +417,8 @@ export async function runReviewRunCodex({
     if (evidenceCompletionFailure) {
       throw evidenceCompletionFailure;
     }
-    if (terminal.kind === "process" && !channel.accepted()) {
-      const exit = /** @type {any} */ (terminal.result);
+    if ((terminal.kind === "process" || processError) && !channel.accepted()) {
+      const exit = /** @type {any} */ (terminalProcess);
       const validationFailure = channel.lastValidationFailure();
       if (validationFailure || (exit.code === 0 && exit.signal === null)) {
         fail(

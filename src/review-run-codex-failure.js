@@ -29,7 +29,7 @@ const FAILURE_PATTERNS = Object.freeze([
   Object.freeze({
     code: "authentication_failed",
     pattern:
-      /\b(?:401|authentication|log(?:ged)? in|refresh token|unauthorized|access token could not be refreshed|ChatGPT (?:login|credentials))\b/i,
+      /\b(?:401|authentication|log(?:ged)? in|refresh token|unauthorized|access token could not be refreshed|(?:ChatGPT|API key) (?:login|credentials|auth)|login is restricted to workspace|CLI auth)\b/i,
   }),
   Object.freeze({
     code: "subscription_exhausted",
@@ -169,16 +169,20 @@ function secretSafeCodexDetail(detail, environment) {
 }
 
 /**
- * @param {{code: number | null, signal: NodeJS.Signals | null, stderr: string, stdout: string}} process
+ * @param {{code: number | null, error?: Error, signal: NodeJS.Signals | null, stderr: string, stdout: string}} process
  * @param {Record<string, string>} environment
  */
 export function createCodexProcessFailure(process, environment) {
   const mapped = mapCodexTerminalFailure(process.stdout, process.stderr);
+  const processError =
+    process.error instanceof Error ? process.error : undefined;
   return new ReviewRunExecutionError(
     mapped?.code ?? "codex_process_failed",
     mapped
       ? secretSafeCodexDetail(mapped.detail, environment)
-      : "Codex Review Run process failed",
+      : processError
+        ? secretSafeCodexDetail(processError.message, environment)
+        : "Codex Review Run process failed",
     { cause: new CodexProcessExitError(process) },
   );
 }
