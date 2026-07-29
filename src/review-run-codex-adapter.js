@@ -7,12 +7,21 @@ import {
 } from "./evaluation-cancellation.js";
 import {
   buildReviewRunCodexEnvironment,
-  CodexProcessExitError,
   reviewRunCodexArguments,
 } from "./review-run-codex-command.js";
+import {
+  attachFailureDiagnostic as attachDiagnostic,
+  createCodexProcessFailure,
+  createSubmissionFailure,
+} from "./review-run-codex-failure.js";
+import {
+  createCodexLaunchFailure,
+  createTranscriptFailureController,
+  observeCodexProcess,
+} from "./review-run-codex-process.js";
 import * as deadline from "./review-run-deadline.js";
 import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
-import { terminateReviewRunProcessGroup } from "./review-run-process-group.js";
+import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
@@ -155,73 +164,37 @@ export async function runReviewRunCodex({
       });
     } catch (cause) {
       clearDeadlineTimer(deadlineTimer);
-      fail(
-        "codex_process_failed",
-        "Codex Review Run process could not start",
+      throw createCodexLaunchFailure({
         cause,
-      );
-    }
-    let stdout = "";
-    let stderr = "";
-    let processClosed = false;
-    const processResult = new Promise((resolve, reject) => {
-      child.once("error", reject);
-      child.once("close", (code, signal) => {
-        processClosed = true;
-        resolve({ code, signal, stderr, stdout });
+        claim,
+        environment: channel.environment,
+        evidenceService,
       });
-    });
-    const terminateProcessGroup = () =>
-      terminateReviewRunProcessGroup({
-        child,
-        processResult,
-        killProcessGroup,
-        setTerminationTimer,
-        clearTerminationTimer,
-      });
-    /** @type {unknown} */
-    let transcriptFailure;
-    /** @type {Promise<void> | undefined} */
-    let transcriptTermination;
-    /** @type {(value: void | PromiseLike<void>) => void} */
-    let resolveTranscriptFailure;
-    const transcriptFailureSignal = new Promise((resolve) => {
-      resolveTranscriptFailure = resolve;
-    });
-    /** @param {unknown} error */
-    function stopAfterTranscriptFailure(error) {
-      if (transcriptFailure) {
-        return;
-      }
-      transcriptFailure = error;
-      resolveTranscriptFailure(undefined);
-      transcriptTermination = terminateProcessGroup().catch(
-        (terminationFailure) => {
-          const failure =
-            terminationFailure instanceof Error
-              ? terminationFailure
-              : new TypeError("Codex process-group termination failed");
-          diagnosticFailures.push(failure);
-          if (transcriptFailure instanceof Error) {
-            Object.defineProperty(
-              transcriptFailure,
-              "processTerminationFailure",
-              {
-                configurable: true,
-                enumerable: false,
-                value: failure,
-              },
-            );
-          }
-        },
-      );
     }
+    let [stdout, stderr] = ["", ""];
+    const {
+      error: processErrorSignal,
+      result: processResult,
+      wasClosed,
+    } = observeCodexProcess(child, () => ({ stderr, stdout }));
+    const terminateProcessGroup = createReviewRunProcessGroupTermination({
+      child,
+      processResult,
+      killProcessGroup,
+      setTerminationTimer,
+      clearTerminationTimer,
+    });
+    const transcript = createTranscriptFailureController({
+      closeSubmissionChannel,
+      diagnosticFailures,
+      terminateProcessGroup,
+    });
     child.stdout?.setEncoding("utf8").on("data", (chunk) => {
       stdout += chunk;
       try {
         evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
       } catch (error) {
-        stopAfterTranscriptFailure(error);
+        transcript.stop(error);
       }
     });
     child.stderr?.setEncoding("utf8").on("data", (chunk) => {
@@ -229,10 +202,10 @@ export async function runReviewRunCodex({
       try {
         evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
       } catch (error) {
-        stopAfterTranscriptFailure(error);
+        transcript.stop(error);
       }
     });
-    /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
+    /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "process-error" } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     let terminal;
     try {
       terminal = await Promise.race([
@@ -243,11 +216,14 @@ export async function runReviewRunCodex({
           kind: /** @type {const} */ ("process"),
           result,
         })),
+        processErrorSignal.then(() => ({
+          kind: /** @type {const} */ ("process-error"),
+        })),
         channel.waitForResult().then((result) => ({
           kind: /** @type {const} */ ("submission"),
           result,
         })),
-        transcriptFailureSignal.then(() => ({
+        transcript.signal.then(() => ({
           kind: /** @type {const} */ ("transcript"),
         })),
         deadlineSignal.then(() => ({
@@ -263,12 +239,19 @@ export async function runReviewRunCodex({
     } finally {
       clearDeadlineTimer(deadlineTimer);
     }
-    if (closesSubmissionForCancellationOrDeadline(terminal.kind)) {
+    const failedSubmission =
+      terminal.kind === "submission" && terminal.result === "failed";
+    const processError = terminal.kind === "process-error";
+    if (
+      closesSubmissionForCancellationOrDeadline(terminal.kind) ||
+      failedSubmission ||
+      processError ||
+      terminal.kind === "process" ||
+      terminal.kind === "transcript"
+    ) {
       try {
         await closeSubmissionChannel();
       } catch (error) {
-        // The durable terminal transition remains authoritative. Final cleanup
-        // preserves its exact submission-channel failure where applicable.
         if (terminal.kind === "cancellation") {
           diagnosticFailures.push(
             error instanceof Error
@@ -298,9 +281,17 @@ export async function runReviewRunCodex({
     );
     /** @type {Error | undefined} */
     let acceptedTerminationFailure;
+    /** @type {Error | undefined} */
+    let submissionTerminationFailure;
+    /** @type {Error | undefined} */
+    let processErrorTerminationFailure;
     if (
-      (accepted || closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
-      !transcriptTermination
+      (accepted ||
+        failedSubmission ||
+        processError ||
+        terminal.kind === "process" ||
+        closesSubmissionForCancellationOrDeadline(terminal.kind)) &&
+      !transcript.termination()
     ) {
       try {
         await terminateProcessGroup();
@@ -311,32 +302,52 @@ export async function runReviewRunCodex({
             : new TypeError("Codex process-group termination failed", {
                 cause: error,
               });
-        if (processClosed && terminal.kind !== "deadline") {
+        if (processError) {
+          processErrorTerminationFailure = failure;
+        } else if (failedSubmission && wasClosed()) {
+          submissionTerminationFailure = failure;
+        } else if (wasClosed() && terminal.kind !== "deadline") {
           diagnosticFailures.push(failure);
         } else {
           acceptedTerminationFailure = failure;
         }
       }
     }
-    await transcriptTermination;
-    if (transcriptFailure && !deadlineFailure) {
+    await transcript.termination();
+    const transcriptFailure = transcript.failure();
+    if (transcriptFailure && terminal.kind === "cancellation") {
+      diagnosticFailures.push(
+        transcriptFailure instanceof Error
+          ? transcriptFailure
+          : new TypeError("Review Run transcript persistence failed", {
+              cause: transcriptFailure,
+            }),
+      );
+    } else if (transcriptFailure && !deadlineFailure && !failedSubmission) {
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
+      if (failedSubmission) {
+        const owningFailure = createSubmissionFailure(
+          channel.failure() ?? new TypeError("Review Run submission failed"),
+        );
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          acceptedTerminationFailure,
+        );
+        throw owningFailure;
+      }
       if (deadlineFailure) {
-        const failure =
-          acceptedTerminationFailure instanceof Error
-            ? acceptedTerminationFailure
-            : new TypeError("Codex process-group termination failed");
         const owningFailure =
           deadlineRecordingFailure instanceof Error
             ? deadlineRecordingFailure
             : deadlineFailure;
-        Object.defineProperty(owningFailure, "processTerminationFailure", {
-          configurable: true,
-          enumerable: false,
-          value: failure,
-        });
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          acceptedTerminationFailure,
+        );
         throw owningFailure;
       }
       fail(
@@ -370,17 +381,34 @@ export async function runReviewRunCodex({
         { evidenceCompletionFailure, submissionFailure, transcriptFailure },
       );
     }
+    if (submissionFailure || failedSubmission) {
+      const owningFailure = createSubmissionFailure(
+        submissionFailure ?? new TypeError("Review Run submission failed"),
+      );
+      if (evidenceCompletionFailure) {
+        attachDiagnostic(
+          owningFailure,
+          "evidenceCompletionFailure",
+          evidenceCompletionFailure,
+        );
+      }
+      if (transcriptFailure) {
+        attachDiagnostic(owningFailure, "transcriptFailure", transcriptFailure);
+      }
+      if (submissionTerminationFailure) {
+        attachDiagnostic(
+          owningFailure,
+          "processTerminationFailure",
+          submissionTerminationFailure,
+        );
+      }
+      throw owningFailure;
+    }
     if (evidenceCompletionFailure) {
       throw evidenceCompletionFailure;
     }
-    if (submissionFailure) {
-      throw submissionFailure;
-    }
-    if (terminal.kind === "submission" && terminal.result === "failed") {
-      throw new TypeError("Review Run submission failed");
-    }
-    if (terminal.kind === "process" && !channel.accepted()) {
-      const exit = /** @type {any} */ (terminal.result);
+    if ((terminal.kind === "process" || processError) && !channel.accepted()) {
+      const exit = /** @type {any} */ (terminalProcess);
       const validationFailure = channel.lastValidationFailure();
       if (validationFailure || (exit.code === 0 && exit.signal === null)) {
         fail(
@@ -390,11 +418,15 @@ export async function runReviewRunCodex({
             : "Codex Review Run exited without an accepted Result",
         );
       }
-      fail(
-        "codex_process_failed",
-        "Codex Review Run process failed",
-        new CodexProcessExitError(exit),
-      );
+      const failure = createCodexProcessFailure(exit, channel.environment);
+      if (processErrorTerminationFailure) {
+        attachDiagnostic(
+          failure,
+          "processTerminationFailure",
+          processErrorTerminationFailure,
+        );
+      }
+      throw failure;
     }
   } catch (error) {
     executionFailure = error;
@@ -407,14 +439,10 @@ export async function runReviewRunCodex({
   }
   if (executionFailure instanceof Error) {
     if (cleanupFailure) {
-      Object.defineProperty(
+      attachDiagnostic(
         executionFailure,
         "submissionChannelCleanupFailure",
-        {
-          configurable: true,
-          enumerable: false,
-          value: cleanupFailure,
-        },
+        cleanupFailure,
       );
     }
     throw executionFailure;

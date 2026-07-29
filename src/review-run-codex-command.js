@@ -19,6 +19,7 @@ export class CodexProcessExitError extends Error {
   /**
    * @param {{
    *   code: number | null,
+   *   error?: Error,
    *   signal: NodeJS.Signals | null,
    *   stderr: string,
    *   stdout: string
@@ -28,6 +29,7 @@ export class CodexProcessExitError extends Error {
     super("Codex Review Run process exited unsuccessfully");
     this.name = "CodexProcessExitError";
     this.code = result.code;
+    this.processError = result.error;
     this.signal = result.signal;
     this.stderr = result.stderr;
     this.stdout = result.stdout;

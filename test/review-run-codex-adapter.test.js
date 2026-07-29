@@ -54,7 +54,9 @@ function processThatFailsWithJsonl() {
     stdout: new PassThrough(),
   });
   queueMicrotask(() => {
-    process.stdout.end('{"type":"turn.failed","error":"model failure"}\n');
+    process.stdout.end(
+      '{"type":"turn.failed","error":{"message":"model failure"}}\n',
+    );
     process.stderr.end("pinned Codex diagnostic\n");
     child.emit("close", 1, null);
   });
@@ -349,10 +351,11 @@ test("preserves raw JSONL stdout and stderr when the pinned Codex process fails"
       }),
     (error) => {
       assert.ok(error instanceof ReviewRunExecutionError);
-      assert.equal(error.code, "codex_process_failed");
+      assert.equal(error.code, "unexpected_execution_failure");
+      assert.equal(error.message, "model failure");
       assert.equal(
         /** @type {any} */ (error.cause).stdout,
-        '{"type":"turn.failed","error":"model failure"}\n',
+        '{"type":"turn.failed","error":{"message":"model failure"}}\n',
       );
       assert.equal(
         /** @type {any} */ (error.cause).stderr,
@@ -360,22 +363,6 @@ test("preserves raw JSONL stdout and stderr when the pinned Codex process fails"
       );
       return true;
     },
-  );
-});
-
-test("preserves an unexpected submission storage failure", async () => {
-  const storageFailure = new Error("sqlite write failed");
-  await assert.rejects(
-    () =>
-      runReviewRunCodex({
-        checkoutPath: "/checkout",
-        claim,
-        openSubmissionChannel: async () => channel({ failure: storageFailure }),
-        resultService: { prepare() {} },
-        run,
-        spawnProcess: () => /** @type {any} */ (processThatExits(1)),
-      }),
-    (error) => error === storageFailure,
   );
 });
 

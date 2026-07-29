@@ -8,6 +8,9 @@ const notApplicable = arguments_.includes("--fake-not-applicable");
 const criterionError = arguments_.includes("--fake-error");
 const correctionProof = arguments_.includes("--fake-correction");
 const processFailure = arguments_.includes("--fake-process-failure");
+const authenticationFailure = arguments_.includes(
+  "--fake-authentication-failure",
+);
 const deadline = arguments_.includes("--fake-deadline");
 const cancellation = arguments_.includes("--fake-cancellation");
 const inspectOnDemand = arguments_.includes("--fake-inspect-on-demand");
@@ -73,6 +76,18 @@ if (inspectOnDemand) {
   ) {
     throw new Error("fake_codex_inspect_on_demand_failed");
   }
+}
+if (authenticationFailure) {
+  process.stdout.write(
+    `${JSON.stringify({
+      error: {
+        message: "You must be logged in to use Codex. Run codex login.",
+      },
+      type: "turn.failed",
+    })}\n`,
+  );
+  process.stderr.write("fake Codex authentication diagnostic\n");
+  throw new Error("fake_codex_authentication_failure");
 }
 if (deadline || cancellation) {
   process.on("SIGTERM", () => {

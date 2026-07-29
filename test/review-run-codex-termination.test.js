@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createCodexProcessFailure } from "../src/review-run-codex-failure.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   acceptedChannel,
@@ -9,6 +10,71 @@ import {
   runningProcess,
   runReviewRunCodex,
 } from "./review-run-codex-adapter-support.js";
+
+test("a process error without transcript preserves secret-safe detail", () => {
+  const processError = new Error("spawn failed for secret");
+  const failure = createCodexProcessFailure(
+    { code: 127, error: processError, signal: null, stderr: "", stdout: "" },
+    { QUALITY_BAR_SUBMIT_TOKEN: "secret" },
+  );
+  assert.equal(failure.code, "codex_process_failed");
+  assert.equal(failure.message, "spawn failed for [REDACTED]");
+  assert.equal(/** @type {any} */ (failure.cause).processError, processError);
+});
+
+test("a synchronous post-start launch failure retains exact evidence", async () => {
+  const processError = new Error("spawn failed for secret");
+  /** @type {any[]} */
+  const evidence = [];
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim,
+        evidenceService: {
+          appendTranscriptChunk() {
+            assert.fail("a synchronous launch has no transcript");
+          },
+          complete(evidenceClaim, facts) {
+            assert.deepEqual(evidenceClaim, claim);
+            evidence.push(facts);
+          },
+        },
+        openSubmissionChannel: async () => ({
+          accepted: () => false,
+          async close() {},
+          commandDirectory: "/submit-bin",
+          environment: { QUALITY_BAR_SUBMIT_TOKEN: "secret" },
+          failure: () => null,
+          lastValidationFailure: () => null,
+          waitForResult: () => new Promise(() => {}),
+        }),
+        resultService: { prepare() {} },
+        run,
+        spawnProcess() {
+          throw processError;
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "codex_process_failed");
+      assert.equal(error.message, "spawn failed for [REDACTED]");
+      assert.equal(/** @type {any} */ (error.cause).processError, processError);
+      return true;
+    },
+  );
+  assert.deepEqual(evidence, [
+    {
+      exitCode: null,
+      signal: null,
+      tokenCounters: {
+        cached_input_tokens: null,
+        input_tokens: null,
+        output_tokens: null,
+      },
+    },
+  ]);
+});
 
 test("accepted submission force-kills a Codex process group after five seconds", async () => {
   /** @type {(string | number)[]} */
