@@ -138,7 +138,7 @@ async function renderEvaluation(evaluation) {
     resultState.textContent = "Result failed to load";
     return;
   }
-  resultRenderer.render(resultState, evaluation, result, focusSearch);
+  await resultRenderer.render(resultState, evaluation, result, focusSearch);
 }
 
 async function loadFocusedEvaluation() {

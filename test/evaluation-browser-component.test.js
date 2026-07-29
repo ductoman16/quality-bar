@@ -10,24 +10,16 @@ import {
   TRIGGERED_EVALUATION_RESULT,
 } from "./openapi-triggered-evaluation-result.js";
 import {
+  assertEvaluationPage,
   evaluation,
   evaluationElements,
+  reviewRunDiagnosticsResponse,
 } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
 test("Evaluations renders no partial data before the complete first-valid Result", async () => {
   const page = operatorPage({ view: "evaluations" });
-  assert.match(page, /<h1>Evaluations<\/h1>/);
-  assert.match(page, /id="evaluation-create-form"/);
-  assert.match(page, /id="evaluation-active"/);
-  assert.match(page, /id="evaluation-recent"/);
-  assert.match(page, /id="evaluation-attention"/);
-  assert.match(page, /id="evaluation-more"/);
-  assert.match(
-    page,
-    /<script src="\/assets\/evaluation-result\.js"><\/script>/,
-  );
-  assert.match(page, /<script src="\/assets\/evaluation\.js"><\/script>/);
+  assertEvaluationPage(page);
   assert.equal(
     operatorPage({ view: "evaluations" }),
     operatorPage({ view: "evaluations" }),
@@ -133,6 +125,9 @@ test("Evaluations renders no partial data before the complete first-valid Result
       }
       if (path === "/api/v1/evaluations/evaluation-result-failure/result") {
         throw new Error("simulated Result transport failure");
+      }
+      if (path.endsWith("/diagnostics")) {
+        return reviewRunDiagnosticsResponse(path);
       }
       if (path === "/api/v1/repositories/repository-1/evaluations") {
         return {

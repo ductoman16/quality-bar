@@ -323,7 +323,7 @@ export function initializeOrValidateSchema(
   } else if (version === 21 || version === 22 || version === 23) {
     schemaMigration.migrateSchema(
       database,
-      "DROP TRIGGER IF EXISTS criterion_result_requires_running_review_run;",
+      schemaMigration.REVIEW_RUN_REBUILD_CLEANUP,
     );
   } else if (version === 24) {
     schemaMigration.migrateSchema(
@@ -357,7 +357,7 @@ export function initializeOrValidateSchema(
     );
   } else if (version === 28) {
     schemaMigration.migrateSchema(database, "");
-  } else if (version === 29) {
+  } else if ([29, 30, 31].includes(version)) {
     schemaMigration.finalizeSchemaMigration(database, version);
   } else if (version !== SCHEMA_VERSION) {
     schemaMigration.finalizeSchemaMigration(database, version);
@@ -393,7 +393,7 @@ export function initializeOrValidateSchema(
   if (foreignKeyViolation) {
     fail(
       "foreign_key_check_failed",
-      "SQLite foreign-key integrity check found a violation",
+      "SQLite foreign-key check found violation",
     );
   }
 }

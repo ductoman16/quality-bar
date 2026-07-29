@@ -1,3 +1,4 @@
+import { REVIEW_RUN_EVIDENCE_SCHEMA } from "./review-run-evidence.js";
 import { APPLICABILITY_RESULT_SCHEMA } from "./applicability-result-schema.js";
 import { APPLICABILITY_SEAL_SCHEMA } from "./applicability-seal-schema.js";
 import {
@@ -69,6 +70,15 @@ export const EVALUATION_SCHEMA = `
     completed_at INTEGER,
     error_code TEXT,
     error_detail TEXT,
+    codex_cli_version TEXT,
+    process_exit_code INTEGER,
+    process_signal TEXT,
+    input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
+    cached_input_tokens INTEGER
+      CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
+    output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
+    execution_evidence_recorded INTEGER NOT NULL DEFAULT 0
+      CHECK (execution_evidence_recorded IN (0, 1)),
     created_at INTEGER NOT NULL,
     CHECK (started_at IS NULL OR started_at >= created_at),
     CHECK (completed_at IS NULL OR (started_at IS NOT NULL AND completed_at >= started_at)),
@@ -83,6 +93,7 @@ export const EVALUATION_SCHEMA = `
     ),
     UNIQUE (evaluation_id, review_id)
   ) STRICT;
+  ${REVIEW_RUN_EVIDENCE_SCHEMA}
   CREATE TABLE IF NOT EXISTS criterion_results (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),
     criterion_id TEXT NOT NULL REFERENCES criteria(id),

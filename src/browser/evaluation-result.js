@@ -78,8 +78,104 @@
     return details;
   }
 
+  /** @param {any} run @param {any} diagnostics */
+  function reviewRunDiagnostics(run, diagnostics) {
+    if (
+      !diagnostics ||
+      diagnostics.review_run_id !== run.id ||
+      !nullableString(diagnostics.codex_cli_version) ||
+      typeof diagnostics.duration_ms !== "number" ||
+      !diagnostics.process ||
+      typeof diagnostics.process.kind !== "string" ||
+      !diagnostics.token_counters ||
+      !Array.isArray(diagnostics.transcript_chunks)
+    ) {
+      throw new Error("review_run_diagnostics_invalid");
+    }
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent =
+      "Review " +
+      run.review_id +
+      " " +
+      run.review_version_id +
+      " — diagnostics";
+    details.append(summary);
+    const counters = diagnostics.token_counters;
+    const counterText = (/** @type {unknown} */ value) =>
+      Number.isSafeInteger(value) ? String(value) : "unavailable";
+    const processText =
+      diagnostics.process.kind === "exit" &&
+      Number.isSafeInteger(diagnostics.process.code)
+        ? "exit " + diagnostics.process.code
+        : diagnostics.process.kind === "signal" &&
+            typeof diagnostics.process.signal === "string"
+          ? "signal " + diagnostics.process.signal
+          : "process unavailable";
+    const measurements = document.createElement("p");
+    measurements.textContent =
+      "Codex CLI " +
+      (diagnostics.codex_cli_version ?? "unavailable") +
+      " — " +
+      diagnostics.duration_ms +
+      " ms — input " +
+      counterText(counters.input_tokens) +
+      ", cached input " +
+      counterText(counters.cached_input_tokens) +
+      ", output " +
+      counterText(counters.output_tokens) +
+      " — " +
+      processText;
+    details.append(measurements);
+    for (const stream of ["stdout", "stderr"]) {
+      const chunks = diagnostics.transcript_chunks.filter(
+        /** @param {any} chunk */
+        (chunk) => {
+          if (
+            !Number.isSafeInteger(chunk?.sequence) ||
+            !["stdout", "stderr"].includes(chunk?.stream) ||
+            typeof chunk?.content !== "string"
+          ) {
+            throw new Error("review_run_diagnostics_invalid");
+          }
+          return chunk.stream === stream;
+        },
+      );
+      if (chunks.length === 0) {
+        continue;
+      }
+      const transcript = document.createElement("details");
+      const transcriptSummary = document.createElement("summary");
+      transcriptSummary.textContent = stream === "stdout" ? "Stdout" : "Stderr";
+      transcript.append(transcriptSummary);
+      const content = document.createElement("pre");
+      content.textContent = chunks
+        .map((/** @type {any} */ chunk) => chunk.content)
+        .join("");
+      transcript.append(content);
+      details.append(transcript);
+    }
+    return details;
+  }
+
+  /** @param {string} evaluationId @param {any} run */
+  async function loadReviewRunDiagnostics(evaluationId, run) {
+    const response = await fetch(
+      "/api/v1/evaluations/" +
+        encodeURIComponent(evaluationId) +
+        "/review-runs/" +
+        encodeURIComponent(run.id) +
+        "/diagnostics",
+    );
+    if (!response.ok) {
+      const failure = await response.json();
+      throw new Error(failure.error.message);
+    }
+    return reviewRunDiagnostics(run, await response.json());
+  }
+
   /** @param {any} target @param {any} evaluation @param {any} result @param {string} focusSearch */
-  function renderResult(target, evaluation, result, focusSearch) {
+  async function renderResult(target, evaluation, result, focusSearch) {
     if (
       !result ||
       typeof result.outcome !== "string" ||
@@ -282,6 +378,9 @@
         criterionDetails.append(findingDetails);
       }
       target.append(criterionDetails);
+    }
+    for (const run of result.review_runs) {
+      target.append(await loadReviewRunDiagnostics(evaluation.id, run));
     }
   }
 

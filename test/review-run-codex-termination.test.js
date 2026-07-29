@@ -3,7 +3,8 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { runReviewRunCodex } from "../src/review-run-codex-adapter.js";
+import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -31,6 +32,7 @@ function acceptedChannel() {
     },
     failure: () => null,
     lastValidationFailure: () => null,
+    submission: () => ({ prepared: true }),
     waitForResult: () =>
       Promise.resolve(/** @type {"accepted"} */ ("accepted")),
   };
@@ -57,11 +59,11 @@ test("accepted submission force-kills a Codex process group after five seconds",
       assert.equal(pid, -74);
       signals.push(signal);
       if (signal === "SIGKILL") {
-        queueMicrotask(() => child.emit("exit", null, "SIGKILL"));
+        queueMicrotask(() => child.emit("close", null, "SIGKILL"));
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -89,11 +91,11 @@ test("a direct child exit does not spare a surviving process-group descendant", 
       assert.equal(pid, -75);
       signals.push(signal);
       if (signal === "SIGTERM") {
-        queueMicrotask(() => child.emit("exit", 0, null));
+        queueMicrotask(() => child.emit("close", 0, null));
       }
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -124,7 +126,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
           setImmediate(() => resolve("accepted"));
         }),
     }),
-    resultService: { submit() {} },
+    resultService: { prepare() {} },
     run,
     setTerminationTimer(callback, milliseconds) {
       assert.equal(milliseconds, 5_000);
@@ -132,7 +134,7 @@ test("process-first acceptance still terminates a surviving group descendant", a
       return { unref() {} };
     },
     spawnProcess() {
-      queueMicrotask(() => child.emit("exit", 0, null));
+      queueMicrotask(() => child.emit("close", 0, null));
       return /** @type {any} */ (child);
     },
   });
@@ -145,38 +147,46 @@ test("an already-exited process group cannot overturn an accepted Result", async
     checkoutPath: "/checkout",
     claim,
     killProcessGroup() {
-      queueMicrotask(() => child.emit("exit", 0, null));
+      queueMicrotask(() => child.emit("close", 0, null));
       throw Object.assign(new Error("process already exited"), {
         code: "ESRCH",
       });
     },
     openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { submit() {} },
+    resultService: { prepare() {} },
     run,
     spawnProcess: () => /** @type {any} */ (child),
   });
 });
 
-test("termination failure stays diagnostic after an accepted Result", async () => {
-  const terminationFailure = Object.assign(new Error("kill not permitted"), {
-    code: "EPERM",
-  });
-  const child = runningProcess(78);
-  assert.deepEqual(
-    await runReviewRunCodex({
-      checkoutPath: "/checkout",
-      claim,
-      killProcessGroup() {
-        throw terminationFailure;
-      },
-      openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { submit() {} },
-      run,
-      spawnProcess: () => /** @type {any} */ (child),
-    }),
-    { diagnosticFailures: [terminationFailure] },
-  );
-});
+test(
+  "termination failure surfaces without waiting for process close after an accepted Result",
+  { timeout: 1_000 },
+  async () => {
+    const terminationFailure = Object.assign(new Error("kill not permitted"), {
+      code: "EPERM",
+    });
+    const child = runningProcess(78);
+    await assert.rejects(
+      () =>
+        runReviewRunCodex({
+          checkoutPath: "/checkout",
+          claim,
+          killProcessGroup() {
+            throw terminationFailure;
+          },
+          openSubmissionChannel: async () => acceptedChannel(),
+          resultService: { prepare() {} },
+          run,
+          spawnProcess: () => /** @type {any} */ (child),
+        }),
+      (error) =>
+        error instanceof ReviewRunExecutionError &&
+        error.code === "codex_process_failed" &&
+        error.cause === terminationFailure,
+    );
+  },
+);
 
 test("permission-denied liveness still attempts the survivor force-kill", async () => {
   /** @type {(string | number)[]} */
@@ -194,13 +204,13 @@ test("permission-denied liveness still attempts the survivor force-kill", async 
         assert.equal(pid, -79);
         signals.push(signal);
         if (signal === "SIGTERM") {
-          queueMicrotask(() => child.emit("exit", 0, null));
+          queueMicrotask(() => child.emit("close", 0, null));
         } else {
           throw permissionFailure;
         }
       },
       openSubmissionChannel: async () => acceptedChannel(),
-      resultService: { submit() {} },
+      resultService: { prepare() {} },
       run,
       setTerminationTimer(callback) {
         setImmediate(callback);

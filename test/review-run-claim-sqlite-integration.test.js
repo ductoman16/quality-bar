@@ -69,14 +69,14 @@ test("oldest queued Review Run is claimed once and replacement increments its fe
     workId: "review-run-1",
   });
   assert.throws(
-    () => firstWorker.start(firstClaim),
+    () => firstWorker.start(firstClaim, "0.145.0"),
     (error) =>
       error instanceof Error &&
       "code" in error &&
       error.code === "review_run_claim_lost" &&
       error.message === "Review Run claim is no longer authoritative",
   );
-  replacementWorker.start(replacement);
+  replacementWorker.start(replacement, "0.145.0");
   assert.equal(replacementWorker.claimNext(), undefined);
   now = 300_000;
   assert.deepEqual(

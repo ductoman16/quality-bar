@@ -52,7 +52,7 @@ test("schema v26 migrates queued Review Runs without inventing a partial Result"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   assert.deepEqual(
     migrated.get(
       `SELECT execution_status, started_at, completed_at
@@ -140,18 +140,19 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   const claims = createReviewRunClaimService(migrated, {
     createWorkerId: () => "migration-worker",
     now: () => 20,
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim);
+  claims.start(claim, "0.145.0");
   const criterionId = migrated.get(
     "SELECT criterion_id FROM review_version_criteria",
   )?.criterion_id;
-  createReviewRunResultService(migrated, { now: () => 30 }).submit(
+  const results = createReviewRunResultService(migrated, { now: () => 30 });
+  results.prepare(
     claim,
     {
       criterion_results: [
@@ -183,7 +184,7 @@ test("schema v27 accepts exact not-applicable and error facts without inventing 
   );
 });
 
-test("schema v31 preserves exact File Change kinds while adding durable facts", async (context) => {
+test("schema v32 preserves exact File Change kinds while adding durable facts", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-kind-migrate-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
@@ -236,15 +237,15 @@ test("schema v31 preserves exact File Change kinds while adding durable facts", 
       "diff --git a/src/old.js b/src/new.js\nsimilarity index 90%\nrename from src/old.js\nrename to src/new.js\n@@ -1 +1,2 @@\n+similarity index 100%\n",
     );
     transaction.run(
-      "UPDATE quality_bar_metadata SET value = '31' WHERE key = 'schema_version'",
+      "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
     );
-    transaction.run("PRAGMA user_version = 31");
+    transaction.run("PRAGMA user_version = 32");
   });
   prior.close();
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 32);
+  assert.equal(migrated.facts.schemaVersion, 33);
   assert.deepEqual(
     migrated.all(
       `SELECT added, deleted, modified, renamed,
@@ -290,7 +291,7 @@ test("schema v31 preserves exact File Change kinds while adding durable facts", 
   );
 });
 
-test("schema v31 rejects a legacy Git type-change instead of inferring modification", async (context) => {
+test("schema v32 rejects a legacy Git type-change instead of inferring modification", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-kind-reject-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
@@ -330,9 +331,9 @@ test("schema v31 rejects a legacy Git type-change instead of inferring modificat
       "diff --git a/src/entry b/src/entry\nold mode 100644\nnew mode 120000\n",
     );
     transaction.run(
-      "UPDATE quality_bar_metadata SET value = '31' WHERE key = 'schema_version'",
+      "UPDATE quality_bar_metadata SET value = '32' WHERE key = 'schema_version'",
     );
-    transaction.run("PRAGMA user_version = 31");
+    transaction.run("PRAGMA user_version = 32");
   });
   prior.close();
 

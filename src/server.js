@@ -204,7 +204,8 @@ export function createApplicationServer({
     typeof evaluations?.createExplicit !== "function" ||
     typeof evaluations.list !== "function" ||
     typeof evaluations.read !== "function" ||
-    typeof evaluations.readResult !== "function"
+    typeof evaluations.readResult !== "function" ||
+    typeof evaluations.readReviewRunDiagnostics !== "function"
   ) {
     throw new TypeError("evaluations must provide the Evaluation resource");
   }

@@ -1,7 +1,25 @@
+import assert from "node:assert/strict";
+
 import { browserElement } from "./repository-browser-component-support.js";
 
 /** @param {string} digit */
 const oid = (digit) => digit.repeat(40);
+
+/** @param {string} page */
+export function assertEvaluationPage(page) {
+  for (const pattern of [
+    /<h1>Evaluations<\/h1>/,
+    /id="evaluation-create-form"/,
+    /id="evaluation-active"/,
+    /id="evaluation-recent"/,
+    /id="evaluation-attention"/,
+    /id="evaluation-more"/,
+    /<script src="\/assets\/evaluation-result\.js"><\/script>/,
+    /<script src="\/assets\/evaluation\.js"><\/script>/,
+  ]) {
+    assert.match(page, pattern);
+  }
+}
 
 /** @param {Record<string, unknown>} [overrides] */
 export const evaluation = (overrides = {}) => ({
@@ -44,4 +62,27 @@ export function evaluationElements() {
       ].map((id) => [id, browserElement({ hidden: true })]),
     )
   );
+}
+
+/** @param {string} path */
+export function reviewRunDiagnosticsResponse(path) {
+  return {
+    ok: true,
+    async json() {
+      return {
+        codex_cli_version: "0.145.0",
+        completed_at: "2026-07-28T12:00:01.000Z",
+        duration_ms: 1_000,
+        process: { code: 0, kind: "exit" },
+        review_run_id: path.split("/").at(-2),
+        started_at: "2026-07-28T12:00:00.000Z",
+        token_counters: {
+          cached_input_tokens: null,
+          input_tokens: null,
+          output_tokens: null,
+        },
+        transcript_chunks: [],
+      };
+    },
+  };
 }

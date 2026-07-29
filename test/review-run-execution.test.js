@@ -79,8 +79,9 @@ test("prepares checkout before starting the Review Run timer", async () => {
       assert.equal(failure, cleanupDiagnostic);
       events.push("diagnostic");
     },
-    resultService: { fail() {}, submit() {} },
+    resultService: { fail() {}, prepare() {} },
     async runCodex(input) {
+      input.startRun?.();
       events.push("codex");
       assert.doesNotMatch(
         JSON.stringify(input),
@@ -167,9 +168,10 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
       fail() {
         assert.fail("accepted Result was converted to failure");
       },
-      submit() {},
+      prepare() {},
     },
-    async runCodex() {
+    async runCodex(input) {
+      input.startRun?.();
       return { diagnosticFailures: [diagnosticFailure] };
     },
   });
@@ -200,7 +202,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
           throw failure;
         },
         readFileChanges: () => [],
-        resultService: { fail() {}, submit() {} },
+        resultService: { fail() {}, prepare() {} },
         async runCodex() {
           launched = true;
           return { diagnosticFailures: [] };
@@ -239,8 +241,12 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
           };
         },
         readFileChanges: () => [],
-        resultService: { fail() {}, submit() {} },
-        async runCodex() {
+        resultService: {
+          fail() {},
+          prepare() {},
+        },
+        async runCodex(input) {
+          input.startRun?.();
           throw executionFailure;
         },
       }),
@@ -278,8 +284,12 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
           };
         },
         readFileChanges: () => [],
-        resultService: { fail() {}, submit() {} },
-        async runCodex() {
+        resultService: {
+          fail() {},
+          prepare() {},
+        },
+        async runCodex(input) {
+          input.startRun?.();
           return { diagnosticFailures: [] };
         },
       }),
@@ -314,9 +324,10 @@ test("an unexpected started failure has one stable safe owning detail", async ()
             assert.equal(submissionClaim, claim);
             persistedFailure = failure;
           },
-          submit() {},
+          prepare() {},
         },
-        async runCodex() {
+        async runCodex(input) {
+          input.startRun?.();
           throw underlyingFailure;
         },
       }),

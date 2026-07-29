@@ -108,6 +108,10 @@ test("coverage executes the deterministic application proof pyramid without smok
     "test/review-removal-sqlite-integration.test.js",
     "test/review-archival-http-integration.test.js",
     "test/review-removal-http-integration.test.js",
+    "test/review-run-evidence.test.js",
+    "test/review-run-evidence-adapter.test.js",
+    "test/review-run-evidence-browser-component.test.js",
+    "test/review-run-evidence-schema-migration.test.js",
   ]) {
     assert.ok(APPLICATION_COVERAGE_TEST_PATHS.includes(path));
   }
