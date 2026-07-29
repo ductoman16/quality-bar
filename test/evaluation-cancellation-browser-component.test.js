@@ -139,3 +139,115 @@ test("the operator cancels active work and reads one complete cancelled Result",
     "Error cancelled_by_operator: Evaluation was cancelled by the operator",
   );
 });
+
+test("each explicit browser rerun of one Changeset owns a fresh key", async () => {
+  const controls = evaluationElements();
+  controls.get("evaluation-repository").value = "repository-1";
+  controls.get("evaluation-base-type").value = "branch";
+  controls.get("evaluation-base-value").value = "main";
+  controls.get("evaluation-head-type").value = "branch";
+  controls.get("evaluation-head-value").value = "topic";
+  /** @type {Array<{options: any, path: string}>} */
+  const requests = [];
+  let key = 0;
+  const context = {
+    crypto: {
+      randomUUID: () => `intentional-rerun-key-${++key}`,
+    },
+    document: {
+      createElement() {
+        return browserElement();
+      },
+    },
+    async fetch(/** @type {string} */ path, /** @type {any} */ options) {
+      requests.push({ options, path });
+      if (path === "/api/v1/evaluations") {
+        return {
+          ok: true,
+          async json() {
+            return { items: [], next_cursor: null };
+          },
+        };
+      }
+      if (path === "/api/v1/repositories/repository-1/evaluations") {
+        return {
+          ok: true,
+          async json() {
+            return { id: `evaluation-${key}` };
+          },
+        };
+      }
+      throw new Error(`unexpected fetch: ${path}`);
+    },
+    window: {
+      location: { search: "" },
+      qualityBarEvaluationResult: {
+        async render() {
+          throw new Error("an empty collection must not render a Result");
+        },
+      },
+      qualityBarOperator: {
+        csrfToken: () => "csrf-owned-secret",
+        async displayMutationFailure() {
+          throw new Error("successful reruns must not display a failure");
+        },
+        async readRepositoryCollection() {
+          return {
+            failure: null,
+            items: [
+              {
+                id: "repository-1",
+                url: "https://example.invalid/repository.git",
+              },
+            ],
+          };
+        },
+        requiredElement(/** @type {string} */ id) {
+          const element = controls.get(id);
+          assert.ok(element);
+          return element;
+        },
+      },
+    },
+  };
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation.js",
+    readBrowserAsset("/assets/evaluation.js"),
+    context,
+  );
+  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  for (let index = 0; index < 2; index += 1) {
+    await controls.get("evaluation-create-form").listener("submit")({
+      preventDefault() {},
+    });
+  }
+  assert.deepEqual(
+    requests
+      .filter(({ path }) => path.endsWith("/repository-1/evaluations"))
+      .map(({ options }) => ({
+        body: JSON.parse(options.body),
+        key: options.headers["idempotency-key"],
+      })),
+    [
+      {
+        body: {
+          base: { type: "branch", value: "main" },
+          head: { type: "branch", value: "topic" },
+        },
+        key: "intentional-rerun-key-1",
+      },
+      {
+        body: {
+          base: { type: "branch", value: "main" },
+          head: { type: "branch", value: "topic" },
+        },
+        key: "intentional-rerun-key-2",
+      },
+    ],
+  );
+  assert.equal(
+    controls.get("evaluation-create-status").textContent,
+    "Evaluation evaluation-2 completed.",
+  );
+});
