@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync, statSync } from "node:fs";
 import { connect } from "node:net";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
@@ -46,6 +48,13 @@ test("returns exact recognized submission failures without accepting a Result", 
     },
   });
   try {
+    const commandPath = join(channel.commandDirectory, "quality-bar-submit");
+    assert.equal(statSync(commandPath).mode & 0o777, 0o700);
+    assert.match(
+      readFileSync(commandPath, "utf8"),
+      /^#!\/usr\/bin\/env node\n/,
+    );
+    assert.equal("QUALITY_BAR_SUBMIT_PATH" in channel.environment, false);
     assert.deepEqual(JSON.parse(await submit(channel, {})), {
       error: {
         code: failure.code,

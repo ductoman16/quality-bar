@@ -26,20 +26,12 @@ if (
   environmentNames.some(
     (name) =>
       name.startsWith("QUALITY_BAR_") &&
-      ![
-        "QUALITY_BAR_SUBMIT_PATH",
-        "QUALITY_BAR_SUBMIT_SOCKET",
-        "QUALITY_BAR_SUBMIT_TOKEN",
-      ].includes(name),
+      !["QUALITY_BAR_SUBMIT_SOCKET", "QUALITY_BAR_SUBMIT_TOKEN"].includes(name),
   ) ||
   readFileSync(".git/config", "utf8").includes("[remote ") ||
   typeof criterion !== "string"
 ) {
   throw new Error("fake_codex_review_run_arguments_invalid");
-}
-const submitPath = process.env.QUALITY_BAR_SUBMIT_PATH;
-if (typeof submitPath !== "string" || submitPath.length === 0) {
-  throw new Error("fake_codex_review_run_submission_path_missing");
 }
 writeFileSync("codex-scratch.txt", "not a Result\n");
 process.stdout.write(
@@ -54,7 +46,7 @@ process.stdout.write(
 );
 let invalidFailure = "";
 try {
-  execFileSync(process.execPath, [submitPath], {
+  execFileSync("quality-bar-submit", {
     encoding: "utf8",
     input: JSON.stringify({ criterion_results: [] }),
     stdio: ["pipe", "pipe", "pipe"],
@@ -77,6 +69,6 @@ writeFileSync(
     criterion_results: [{ criterion_id: criterion, outcome: "clear" }],
   }),
 );
-execFileSync(process.execPath, [submitPath, resultPath], {
+execFileSync("quality-bar-submit", [resultPath], {
   stdio: ["pipe", "pipe", "pipe"],
 });

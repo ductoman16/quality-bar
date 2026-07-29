@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { delimiter, isAbsolute } from "node:path";
 
 import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
@@ -87,12 +88,21 @@ export function reviewRunCodexArguments(candidate) {
 
 /**
  * @param {Record<string, string>} submissionEnvironment
+ * @param {string} commandDirectory
  * @param {NodeJS.ProcessEnv} [processEnvironment]
  */
 export function reviewRunCodexEnvironment(
   submissionEnvironment,
+  commandDirectory,
   processEnvironment = process.env,
 ) {
+  if (
+    typeof commandDirectory !== "string" ||
+    !isAbsolute(commandDirectory) ||
+    commandDirectory.includes("\0")
+  ) {
+    throw new TypeError("Review Run submission command directory is invalid");
+  }
   /** @type {Record<string, string>} */
   const environment = {};
   for (const name of CODEX_HOST_ENVIRONMENT) {
@@ -101,6 +111,9 @@ export function reviewRunCodexEnvironment(
       environment[name] = value;
     }
   }
+  environment.PATH = environment.PATH
+    ? `${commandDirectory}${delimiter}${environment.PATH}`
+    : commandDirectory;
   return { ...environment, ...submissionEnvironment };
 }
 
@@ -116,6 +129,7 @@ export function reviewRunCodexEnvironment(
  *   ) => Promise<{
  *     accepted(): boolean,
  *     close(): Promise<void>,
+ *     commandDirectory: string,
  *     environment: Record<string, string>,
  *     failure(): Error | null
  *   }>,
@@ -153,6 +167,7 @@ export async function runReviewRunCodex({
           cwd: checkoutPath,
           env: reviewRunCodexEnvironment(
             channel.environment,
+            channel.commandDirectory,
             processEnvironment,
           ),
           stdio: ["ignore", "pipe", "pipe"],

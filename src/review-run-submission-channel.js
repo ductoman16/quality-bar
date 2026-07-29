@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +17,12 @@ const submitPath = fileURLToPath(
  */
 export async function openReviewRunSubmissionChannel(claim, resultService) {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
+  const commandPath = join(directory, "quality-bar-submit");
+  writeFileSync(
+    commandPath,
+    `#!/usr/bin/env node\n${readFileSync(submitPath, "utf8")}`,
+    { mode: 0o700 },
+  );
   const socketPath = join(directory, "submit.sock");
   const token = randomUUID();
   let accepted = false;
@@ -67,8 +73,8 @@ export async function openReviewRunSubmissionChannel(claim, resultService) {
   });
   return {
     accepted: () => accepted,
+    commandDirectory: directory,
     environment: {
-      QUALITY_BAR_SUBMIT_PATH: submitPath,
       QUALITY_BAR_SUBMIT_SOCKET: socketPath,
       QUALITY_BAR_SUBMIT_TOKEN: token,
     },

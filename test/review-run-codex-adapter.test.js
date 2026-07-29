@@ -65,8 +65,8 @@ function channel({ accepted = false, failure = null } = {}) {
   return {
     accepted: () => accepted,
     async close() {},
+    commandDirectory: "/submit-bin",
     environment: {
-      QUALITY_BAR_SUBMIT_PATH: "/submit",
       QUALITY_BAR_SUBMIT_SOCKET: "/socket",
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
@@ -114,8 +114,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
           CODEX_HOME: "/var/lib/quality-bar/codex",
           HOME: "/var/lib/quality-bar",
           LANG: "en_US.UTF-8",
-          PATH: "/usr/local/bin:/usr/bin",
-          QUALITY_BAR_SUBMIT_PATH: "/submit",
+          PATH: "/submit-bin:/usr/local/bin:/usr/bin",
           QUALITY_BAR_SUBMIT_SOCKET: "/socket",
           QUALITY_BAR_SUBMIT_TOKEN: "secret",
         },
@@ -132,6 +131,7 @@ test("constructs a fixed host-login-safe environment instead of inheriting appli
   assert.deepEqual(
     reviewRunCodexEnvironment(
       { QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token" },
+      "/submit-bin",
       {
         CODEX_HOME: "/codex-home",
         HOME: "/home/quality-bar",
@@ -150,7 +150,7 @@ test("constructs a fixed host-login-safe environment instead of inheriting appli
       HOME: "/home/quality-bar",
       LANG: "C.UTF-8",
       LC_ALL: "C.UTF-8",
-      PATH: "/bin",
+      PATH: "/submit-bin:/bin",
       QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token",
       SSL_CERT_FILE: "/etc/ssl/cert.pem",
       TMPDIR: "/tmp",
