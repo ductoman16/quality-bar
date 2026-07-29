@@ -94,6 +94,7 @@ test("maps pinned Codex terminal messages once to the fixed catalog", async () =
       "Codex ran out of room in the model's context window.",
     ],
     ["context_exhausted", "context window exceeded"],
+    ["context_exhausted", "shared rollout token budget exhausted"],
     [
       "resource_exhausted",
       "Selected model is at capacity. Please try a different model.",
