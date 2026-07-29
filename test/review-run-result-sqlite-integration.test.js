@@ -6,12 +6,14 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
+import { executeReviewRun } from "../src/review-run-execution.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
 } from "../src/review-run-result.js";
 import { createReviewService } from "../src/review.js";
+import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("the first valid fenced submission creates the sole clear Evaluation Result", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-"));
@@ -148,5 +150,49 @@ test("the first valid fenced submission creates the sole clear Evaluation Result
   assert.equal(
     core.get("SELECT count(*) AS count FROM criterion_results")?.count,
     2,
+  );
+});
+
+test("an exact Review Run boundary failure creates no partial or fallback Result", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-boundary-failure-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const claims = createReviewRunClaimService(core, {
+    createWorkerId: () => "boundary-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  const failure = new ReviewRunExecutionError(
+    "configuration_unavailable",
+    "Network-disabled Codex launch could not be constructed",
+  );
+
+  await assert.rejects(
+    () =>
+      executeReviewRun(core, claim, {
+        claimService: claims,
+        prepareCheckout: async () => ({
+          path: "/discarded-checkout",
+          remove() {},
+        }),
+        resultService: createReviewRunResultService(core, { now: () => 30 }),
+        async runCodex() {
+          throw failure;
+        },
+      }),
+    (error) => error === failure,
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM evaluation_results")?.count,
+    0,
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
   );
 });

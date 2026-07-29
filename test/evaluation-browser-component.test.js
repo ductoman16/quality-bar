@@ -293,6 +293,10 @@ test("Evaluations is the default workspace and renders frozen work, distinct sta
     controls.get("evaluation-create-status").textContent,
     "Evaluation evaluation-created completed.",
   );
+  assert.doesNotMatch(
+    JSON.stringify([...controls.values()]),
+    /csrf-token|authorization|cookie/i,
+  );
 });
 
 test("Evaluations distinguishes an empty workspace from a hard dependency gate", async () => {

@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import {
+  reviewRunCodexEnvironment,
   reviewRunCodexArguments,
   runReviewRunCodex,
 } from "../src/review-run-codex-adapter.js";
@@ -22,6 +23,16 @@ const run = Object.freeze({
   },
   criteria: [{ criterionId: "criterion-1" }],
   prompt: "Review the frozen Changeset",
+});
+
+const ownedSecrets = Object.freeze({
+  forge: "forge-token-value",
+  git: "git-token-value",
+  implementer: "implementer-token-value",
+  masterKey: "installation-master-key-value",
+  operator: "operator-password-value",
+  session: "browser-session-value",
+  csrf: "browser-csrf-value",
 });
 
 /** @param {number} code @param {NodeJS.Signals | null} [signal] */
@@ -58,6 +69,19 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
     codexCommand: "pinned-codex",
     codexPrefixArguments: ["adapter.mjs"],
     openSubmissionChannel: async () => channel({ accepted: true }),
+    processEnvironment: {
+      CODEX_HOME: "/var/lib/quality-bar/codex",
+      HOME: "/var/lib/quality-bar",
+      LANG: "en_US.UTF-8",
+      PATH: "/usr/local/bin:/usr/bin",
+      QUALITY_BAR_FORGE_TOKEN: ownedSecrets.forge,
+      QUALITY_BAR_GIT_TOKEN: ownedSecrets.git,
+      QUALITY_BAR_IMPLEMENTER_TOKEN: ownedSecrets.implementer,
+      QUALITY_BAR_MASTER_KEY: ownedSecrets.masterKey,
+      QUALITY_BAR_OPERATOR_PASSWORD: ownedSecrets.operator,
+      QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
+      QUALITY_BAR_CSRF_SECRET: ownedSecrets.csrf,
+    },
     resultService: { submit() {} },
     run,
     spawnProcess(command, arguments_, options) {
@@ -73,6 +97,10 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       {
         cwd: "/checkout",
         env: {
+          CODEX_HOME: "/var/lib/quality-bar/codex",
+          HOME: "/var/lib/quality-bar",
+          LANG: "en_US.UTF-8",
+          PATH: "/usr/local/bin:/usr/bin",
           QUALITY_BAR_SUBMIT_PATH: "/submit",
           QUALITY_BAR_SUBMIT_SOCKET: "/socket",
           QUALITY_BAR_SUBMIT_TOKEN: "secret",
@@ -81,6 +109,40 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
       },
     ],
   ]);
+  for (const secret of Object.values(ownedSecrets)) {
+    assert.doesNotMatch(JSON.stringify(spawnCalls), new RegExp(secret));
+  }
+});
+
+test("constructs a fixed host-login-safe environment instead of inheriting application secrets", () => {
+  assert.deepEqual(
+    reviewRunCodexEnvironment(
+      { QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token" },
+      {
+        CODEX_HOME: "/codex-home",
+        HOME: "/home/quality-bar",
+        LANG: "C.UTF-8",
+        LC_ALL: "C.UTF-8",
+        PATH: "/bin",
+        SSL_CERT_FILE: "/etc/ssl/cert.pem",
+        TMPDIR: "/tmp",
+        XDG_CONFIG_HOME: "/config",
+        QUALITY_BAR_MASTER_KEY: ownedSecrets.masterKey,
+        QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
+      },
+    ),
+    {
+      CODEX_HOME: "/codex-home",
+      HOME: "/home/quality-bar",
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      PATH: "/bin",
+      QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token",
+      SSL_CERT_FILE: "/etc/ssl/cert.pem",
+      TMPDIR: "/tmp",
+      XDG_CONFIG_HOME: "/config",
+    },
+  );
 });
 
 test("maps process completion without an accepted Result to exact owning failures", async () => {

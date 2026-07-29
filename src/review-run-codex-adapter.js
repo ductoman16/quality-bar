@@ -4,6 +4,19 @@ import { validateCodexConfiguration } from "./codex-capabilities.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
+const CODEX_HOST_ENVIRONMENT = Object.freeze([
+  "CODEX_HOME",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "NODE_EXTRA_CA_CERTS",
+  "PATH",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
+  "TMPDIR",
+  "XDG_CONFIG_HOME",
+]);
+
 class CodexProcessExitError extends Error {
   /**
    * @param {{
@@ -69,6 +82,25 @@ export function reviewRunCodexArguments(candidate) {
 }
 
 /**
+ * @param {Record<string, string>} submissionEnvironment
+ * @param {NodeJS.ProcessEnv} [processEnvironment]
+ */
+export function reviewRunCodexEnvironment(
+  submissionEnvironment,
+  processEnvironment = process.env,
+) {
+  /** @type {Record<string, string>} */
+  const environment = {};
+  for (const name of CODEX_HOST_ENVIRONMENT) {
+    const value = processEnvironment[name];
+    if (typeof value === "string" && value.length > 0) {
+      environment[name] = value;
+    }
+  }
+  return { ...environment, ...submissionEnvironment };
+}
+
+/**
  * @param {{
  *   checkoutPath: string,
  *   claim: {fencingToken: number, workerId: string, workId: string},
@@ -85,6 +117,7 @@ export function reviewRunCodexArguments(candidate) {
  *   }>,
  *   resultService: {submit(claim: any, candidate: unknown): unknown},
  *   run: unknown,
+ *   processEnvironment?: NodeJS.ProcessEnv,
  *   spawnProcess?: (
  *     command: string,
  *     arguments_: string[],
@@ -98,6 +131,7 @@ export async function runReviewRunCodex({
   codexCommand = "codex",
   codexPrefixArguments = [],
   openSubmissionChannel = openReviewRunSubmissionChannel,
+  processEnvironment = process.env,
   resultService,
   run,
   spawnProcess = spawn,
@@ -113,7 +147,10 @@ export async function runReviewRunCodex({
       try {
         child = spawnProcess(codexCommand, arguments_, {
           cwd: checkoutPath,
-          env: channel.environment,
+          env: reviewRunCodexEnvironment(
+            channel.environment,
+            processEnvironment,
+          ),
           stdio: ["ignore", "pipe", "pipe"],
         });
       } catch (error) {
