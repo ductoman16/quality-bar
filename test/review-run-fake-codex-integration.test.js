@@ -97,7 +97,7 @@ async function proveFakeCodexResult(context, outcome) {
           ? [fakeCodexPath, "--fake-not-applicable"]
           : outcome === "error"
             ? [fakeCodexPath, "--fake-error"]
-            : [fakeCodexPath],
+            : [fakeCodexPath, "--fake-correction"],
     processEnvironment: {
       CODEX_HOME: "/var/lib/quality-bar/codex",
       HOME: "/var/lib/quality-bar",

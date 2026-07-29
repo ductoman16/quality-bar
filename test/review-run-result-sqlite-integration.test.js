@@ -14,6 +14,7 @@ import {
 } from "../src/review-run-result.js";
 import { createReviewService } from "../src/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { assertRejectedCandidatesStoreNothing } from "./review-run-result-sqlite-integration-support.js";
 import { executeUnexpectedReviewRun } from "./review-run-result-sqlite-integration-support.js";
 
 test("the first valid fenced submission atomically preserves every complete Criterion Result meaning", async (context) => {
@@ -91,53 +92,13 @@ test("the first valid fenced submission atomically preserves every complete Crit
     },
   ];
 
-  assert.throws(
-    () =>
-      results.submit(
-        claim,
-        {
-          criterion_results: [
-            {
-              criterion_id: review.active_version.criteria[0].id,
-              findings: [
-                {
-                  evidence: "The submitted range invents a head line.",
-                  location: {
-                    end_line: 4,
-                    file_change_id: "file-change-1",
-                    kind: "line_range",
-                    side: "head",
-                    start_line: 4,
-                  },
-                  remediation: "Use an inclusive range within the frozen side.",
-                },
-              ],
-              outcome: "triggered",
-            },
-            {
-              criterion_id: review.active_version.criteria[1].id,
-              outcome: "clear",
-            },
-          ],
-        },
-        fileChanges,
-      ),
-    (error) =>
-      error instanceof ReviewRunExecutionError &&
-      error.code === "finding_location_line_range_invalid",
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
-    0,
-  );
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM evaluation_results")?.count,
-    0,
-  );
-  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
-  assert.equal(
-    core.get("SELECT count(*) AS count FROM evaluation_file_changes")?.count,
-    0,
+  const criterionIds = review.active_version.criteria.map(({ id }) => id);
+  assertRejectedCandidatesStoreNothing(
+    core,
+    results,
+    claim,
+    fileChanges,
+    criterionIds,
   );
 
   results.submit(

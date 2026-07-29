@@ -99,6 +99,29 @@ function owningExecutionFailure(error) {
 }
 
 /**
+ * @param {(failure: Error) => unknown} reportDiagnostic
+ * @param {Error[]} diagnosticFailures
+ */
+function reportAcceptedDiagnostics(reportDiagnostic, diagnosticFailures) {
+  /** @type {{diagnosticFailure: Error, reportingFailure: Error}[]} */
+  const unreportedDiagnostics = [];
+  for (const diagnosticFailure of diagnosticFailures) {
+    try {
+      reportDiagnostic(diagnosticFailure);
+    } catch (reportingFailure) {
+      unreportedDiagnostics.push({
+        diagnosticFailure,
+        reportingFailure:
+          reportingFailure instanceof Error
+            ? reportingFailure
+            : new TypeError("Review Run diagnostic reporting failed"),
+      });
+    }
+  }
+  return unreportedDiagnostics;
+}
+
+/**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): (Record<string, import("node:sqlite").SQLInputValue> | undefined)[],
  *   get(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Record<string, import("node:sqlite").SQLInputValue> | undefined
@@ -194,6 +217,7 @@ function readRun(durableCore, workId) {
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
+ *   reportDiagnostic?: (failure: Error) => unknown,
  *   resultService: {
  *     fail(claim: any, failure: ReviewRunExecutionError): unknown,
  *     submit(claim: any, candidate: unknown, fileChanges: any[]): unknown
@@ -215,6 +239,7 @@ export async function executeReviewRun(
     claimService,
     prepareCheckout = prepareReviewRunCheckout,
     readFileChanges = readReviewRunFileChanges,
+    reportDiagnostic = (failure) => process.emitWarning(failure),
     resultService,
     runCodex = runReviewRunCodex,
     ...codexOptions
@@ -240,6 +265,10 @@ export async function executeReviewRun(
       workId: claim.workId,
     });
     let executionFailure;
+    /** @type {Error[]} */
+    let diagnosticFailures = [];
+    /** @type {{diagnosticFailure: Error, reportingFailure: Error}[]} */
+    let unreportedDiagnostics = [];
     let started = false;
     try {
       if (claimFailure) {
@@ -260,7 +289,7 @@ export async function executeReviewRun(
       };
       claimService.start(claim);
       started = true;
-      await runCodex({
+      const codexExecution = await runCodex({
         checkoutPath: checkout.path,
         claim,
         resultService: {
@@ -275,6 +304,11 @@ export async function executeReviewRun(
         run: reviewRun,
         ...codexOptions,
       });
+      diagnosticFailures = codexExecution?.diagnosticFailures ?? [];
+      unreportedDiagnostics = reportAcceptedDiagnostics(
+        reportDiagnostic,
+        diagnosticFailures,
+      );
     } catch (error) {
       const failure = owningExecutionFailure(error);
       executionFailure = failure;
@@ -293,6 +327,7 @@ export async function executeReviewRun(
     } finally {
       removeCheckout(checkout, executionFailure);
     }
+    return { unreportedDiagnostics };
   } finally {
     stopRenewal();
   }

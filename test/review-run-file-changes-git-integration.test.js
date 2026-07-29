@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { readReviewRunFileChanges } from "../src/review-run-file-changes.js";
-import { validateReviewRunSubmission } from "../src/review-run-result.js";
+import {
+  ReviewRunExecutionError,
+  validateReviewRunSubmission,
+} from "../src/review-run-result.js";
 
 /** @param {string} repository @param {string} message */
 function commit(repository, message) {
@@ -95,6 +98,10 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
       },
     ],
   );
+  const criteria = [
+    { criterion_id: "criterion-1", impact: "blocking" },
+    { criterion_id: "criterion-2", impact: "advisory" },
+  ];
   assert.deepEqual(
     validateReviewRunSubmission(
       {
@@ -110,10 +117,7 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
           },
         ],
       },
-      [
-        { criterion_id: "criterion-1", impact: "blocking" },
-        { criterion_id: "criterion-2", impact: "advisory" },
-      ],
+      criteria,
       changes,
     ),
     [
@@ -128,4 +132,28 @@ test("reads inclusive base/head coordinates for added, deleted, and renamed File
       },
     ],
   );
+  for (const candidate of [
+    {
+      criterion_results: [{ criterion_id: "criterion-1", outcome: "clear" }],
+    },
+    {
+      criterion_results: [
+        { criterion_id: "criterion-1", outcome: "clear" },
+        { criterion_id: "criterion-1", outcome: "clear" },
+      ],
+    },
+    {
+      criterion_results: [
+        { criterion_id: "criterion-1", outcome: "clear" },
+        { criterion_id: "criterion-extra", outcome: "clear" },
+      ],
+    },
+  ]) {
+    assert.throws(
+      () => validateReviewRunSubmission(candidate, criteria, changes),
+      (error) =>
+        error instanceof ReviewRunExecutionError &&
+        error.code === "criterion_result_coverage_invalid",
+    );
+  }
 });
