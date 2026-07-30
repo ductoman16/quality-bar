@@ -89,6 +89,7 @@ export function readWaiverAdjudication(access, row, requestIds) {
     throw new TypeError("Waiver Adjudication row is invalid");
   }
   const failed = row.execution_status === "failed";
+  const cancelled = row.execution_status === "cancelled";
   if (
     (failed &&
       (typeof row.error_code !== "string" ||
@@ -124,7 +125,14 @@ export function readWaiverAdjudication(access, row, requestIds) {
     ...(decisions === undefined ? {} : { decisions }),
     ...(failed
       ? { error: { code: row.error_code, detail: row.error_detail } }
-      : {}),
+      : cancelled
+        ? {
+            error: {
+              code: "waiver_adjudication_cancelled",
+              detail: "Waiver Adjudication was cancelled",
+            },
+          }
+        : {}),
     evaluation_id: row.evaluation_id,
     execution_status: row.execution_status,
     head_commit: row.head_commit,

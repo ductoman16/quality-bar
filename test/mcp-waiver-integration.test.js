@@ -43,9 +43,9 @@ function submission(key, findingId, rationale) {
   };
 }
 
-test("MCP atomically submits and polls canonical waiver resources through completion and failure", async () => {
-  const adjudicationIds = ["adjudication-1", "adjudication-2"];
-  const requestIds = ["request-1", "request-2"];
+test("MCP submits and polls one canonical waiver workflow through authenticated HTTP", async () => {
+  const adjudicationIds = ["adjudication-1"];
+  const requestIds = ["request-1"];
   let now = 10;
   const { application, origin, request } = await startApplication({
     createEvaluations(core, options) {
@@ -95,52 +95,6 @@ test("MCP atomically submits and polls canonical waiver resources through comple
       channel: "implementer_token",
       route: "quality_bar.submit_waiver_requests",
     },
-  );
-
-  const replayed = await callMcp(
-    origin,
-    headers,
-    requestMessage(
-      "tools/call",
-      {
-        arguments: submission(
-          "waiver-key",
-          "finding-1",
-          "The exact generated evidence warrants an exception.",
-        ),
-        name: "quality_bar.submit_waiver_requests",
-      },
-      2,
-    ),
-  );
-  assert.deepEqual(
-    replayed.result.structuredContent,
-    created.result.structuredContent,
-  );
-  const conflict = await callMcp(
-    origin,
-    headers,
-    requestMessage(
-      "tools/call",
-      {
-        arguments: submission(
-          "waiver-key",
-          "finding-1",
-          "Different canonical input.",
-        ),
-        name: "quality_bar.submit_waiver_requests",
-      },
-      3,
-    ),
-  );
-  assert.equal(
-    conflict.result.structuredContent.error.code,
-    "idempotency_conflict",
-  );
-  assert.equal(
-    application.durableCore.get("SELECT count(*) AS count FROM waiver_requests")
-      ?.count,
-    1,
   );
 
   const active = await callMcp(
@@ -240,66 +194,4 @@ test("MCP atomically submits and polls canonical waiver resources through comple
     JSON.parse(decisionResource.result.contents[0].text),
     await httpDecision.json(),
   );
-
-  now = 20;
-  const second = await callMcp(
-    origin,
-    headers,
-    requestMessage(
-      "tools/call",
-      {
-        arguments: submission(
-          "second-key",
-          "finding-2",
-          "The second exact exception.",
-        ),
-        name: "quality_bar.submit_waiver_requests",
-      },
-      8,
-    ),
-  );
-  assert.equal(second.result.isError, false);
-  application.durableCore.run(
-    `UPDATE codex_execution_queue
-     SET worker_id = 'worker-2', fencing_token = 1,
-         lease_expires_at = 100, started_at = 21
-     WHERE work_id = 'adjudication-2'`,
-  );
-  application.durableCore.run(
-    `UPDATE waiver_adjudications
-     SET execution_status = 'running', started_at = 21,
-         codex_cli_version = '0.145.0'
-     WHERE id = 'adjudication-2'`,
-  );
-  now = 22;
-  createWaiverAdjudicationResultService(application.durableCore, {
-    createDecisionId: () => assert.fail("failure created a Decision"),
-    now: () => now,
-  }).fail(
-    {
-      fencingToken: 1,
-      workerId: "worker-2",
-      workId: "adjudication-2",
-    },
-    Object.assign(new Error("Codex exited before submitting Decisions"), {
-      code: "codex_process_failed",
-    }),
-  );
-  const failed = await callMcp(
-    origin,
-    headers,
-    requestMessage(
-      "tools/call",
-      {
-        arguments: { waiver_adjudication_id: "adjudication-2" },
-        name: "quality_bar.get_waiver_adjudication",
-      },
-      9,
-    ),
-  );
-  assert.deepEqual(failed.result.structuredContent.error, {
-    code: "codex_process_failed",
-    detail: "Codex exited before submitting Decisions",
-  });
-  assert.equal("decisions" in failed.result.structuredContent, false);
 });

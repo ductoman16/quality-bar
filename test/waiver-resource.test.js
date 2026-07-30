@@ -82,6 +82,37 @@ test("failed Waiver Adjudications expose the exact failure and no Decisions", ()
   assert.equal("decisions" in adjudication, false);
 });
 
+test("cancelled Waiver Adjudications expose exact cancellation and no Decisions", () => {
+  const adjudication = readWaiverAdjudication(
+    {
+      all() {
+        assert.fail("cancelled Adjudication read Decisions");
+      },
+    },
+    {
+      base_commit: "a".repeat(40),
+      completed_at: 3,
+      created_at: 1,
+      error_code: null,
+      error_detail: null,
+      evaluation_id: "evaluation-1",
+      execution_status: "cancelled",
+      head_commit: "b".repeat(40),
+      id: "adjudication-1",
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
+      started_at: 2,
+    },
+    ["request-1"],
+  );
+  assert.deepEqual(adjudication.error, {
+    code: "waiver_adjudication_cancelled",
+    detail: "Waiver Adjudication was cancelled",
+  });
+  assert.equal("decisions" in adjudication, false);
+});
+
 test("canonical waiver Request and Decision resources preserve immutable facts", () => {
   assert.deepEqual(
     readWaiverRequest({

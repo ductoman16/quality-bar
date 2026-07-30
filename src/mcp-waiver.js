@@ -1,3 +1,4 @@
+import { mcpResourceLink } from "./mcp-resource-link.js";
 import { isClosedMcpRecord, mcpError } from "./mcp-validation.js";
 
 /** @param {unknown} arguments_ */
@@ -35,16 +36,6 @@ export function waiverAdjudicationArguments(arguments_) {
   return { adjudicationId: arguments_.waiver_adjudication_id };
 }
 
-/** @param {string} kind @param {string} id */
-function resourceLink(kind, id) {
-  return {
-    mimeType: "application/json",
-    name: id,
-    type: "resource_link",
-    uri: `quality-bar://v1/${kind}/${encodeURIComponent(id)}`,
-  };
-}
-
 /**
  * @param {string} name
  * @param {unknown} arguments_
@@ -61,9 +52,9 @@ export function executeWaiverTool(name, arguments_, evaluations) {
     return {
       document: created.resource,
       links: [
-        resourceLink("waiver-adjudications", adjudication.id),
+        mcpResourceLink("waiver-adjudications", adjudication.id),
         ...requests.map((/** @type {{id: string}} */ { id }) =>
-          resourceLink("waiver-requests", id),
+          mcpResourceLink("waiver-requests", id),
         ),
       ],
       resourceIds: [
@@ -81,10 +72,12 @@ export function executeWaiverTool(name, arguments_, evaluations) {
   return {
     document,
     links: [
-      resourceLink("waiver-adjudications", adjudicationId),
-      ...document.request_ids.map((id) => resourceLink("waiver-requests", id)),
+      mcpResourceLink("waiver-adjudications", adjudicationId),
+      ...document.request_ids.map((id) =>
+        mcpResourceLink("waiver-requests", id),
+      ),
       ...(document.decisions ?? []).map(({ id }) =>
-        resourceLink("waiver-decisions", id),
+        mcpResourceLink("waiver-decisions", id),
       ),
     ],
     resourceIds: [

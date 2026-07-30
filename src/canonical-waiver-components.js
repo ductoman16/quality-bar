@@ -78,11 +78,31 @@ export function canonicalWaiverSchemas() {
           {
             ...adjudicationProperties,
             execution_status: {
-              enum: ["queued", "running", "cancelled"],
+              enum: ["queued", "running"],
               type: "string",
             },
           },
           adjudicationRequired,
+        ),
+        closedObject(
+          {
+            ...adjudicationProperties,
+            error: closedObject(
+              {
+                code: {
+                  const: "waiver_adjudication_cancelled",
+                  type: "string",
+                },
+                detail: {
+                  const: "Waiver Adjudication was cancelled",
+                  type: "string",
+                },
+              },
+              ["code", "detail"],
+            ),
+            execution_status: { const: "cancelled", type: "string" },
+          },
+          [...adjudicationRequired, "error"],
         ),
         closedObject(
           {
