@@ -189,6 +189,7 @@ export function createApplication({
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       recoverExecutions(durableCore, { now });
+      storageReserve.cleanupEligibleData();
       githubConnections = createGitHubConnections(durableCore, {
         acquirePullRequestChangeset: (
           /** @type {{pullRequest: any, repositoryId: string}} */ {

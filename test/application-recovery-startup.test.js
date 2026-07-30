@@ -15,7 +15,14 @@ test("startup recovers durable Codex work before composing or starting workers",
   const order = [];
   const application = createApplication({
     databasePath: join(directory, "quality-bar.sqlite"),
-    createStorageReserve: () => availableStorageReserve,
+    createStorageReserve() {
+      return {
+        ...availableStorageReserve,
+        cleanupEligibleData() {
+          order.push("cleanup");
+        },
+      };
+    },
     loadInstallation: () => ({
       externalOrigin: "http://127.0.0.1:3000",
       freeSpaceReserveBytes: 5 * 1024 ** 3,
@@ -43,7 +50,7 @@ test("startup recovers durable Codex work before composing or starting workers",
     writeLog() {},
   });
   try {
-    assert.deepEqual(order, ["recover", "compose", "start"]);
+    assert.deepEqual(order, ["recover", "cleanup", "compose", "start"]);
   } finally {
     await application.close();
     rmSync(directory, { force: true, recursive: true });

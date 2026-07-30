@@ -29,6 +29,8 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/http-port.test.js",
   "test/installation-environment.test.js",
   "test/storage-reserve.test.js",
+  "test/application-io-cleanup.test.js",
+  "test/owned-artifact-cleanup-security-integration.test.js",
   "test/system-execution-facts.test.js",
   "test/storage-reserve-application-integration.test.js",
   "test/operator-password.test.js",

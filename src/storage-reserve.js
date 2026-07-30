@@ -174,6 +174,7 @@ export function createStorageReserveGate({
     preparePollingObservationAdvance: () =>
       readFor(ACTIONS.pollingObservationAdvancement),
     assertWorkAdmissionAvailable: () => readFor(ACTIONS.workAdmission),
+    cleanupEligibleData,
     readFacts() {
       try {
         return readFor("system_read");

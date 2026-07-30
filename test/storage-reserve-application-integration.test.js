@@ -51,6 +51,7 @@ test("runtime reserve gates admission and Codex starts while System keeps exact 
         assertWorkAdmissionAvailable() {
           throw Object.assign(failure, { action: "work_admission" });
         },
+        cleanupEligibleData() {},
         readFacts: () => lowFacts,
       }),
   });
@@ -104,6 +105,7 @@ test("System exposes the exact owning filesystem when reserve measurement fails"
         assertPollingObservationAdvanceAvailable() {},
         preparePollingObservationAdvance() {},
         assertWorkAdmissionAvailable() {},
+        cleanupEligibleData() {},
         readFacts() {
           throw failure;
         },

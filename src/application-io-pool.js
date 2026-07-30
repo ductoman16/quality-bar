@@ -1,10 +1,23 @@
 import { removeExpiredBrowserSessions } from "./browser-session.js";
 import { createIoExecutionPool } from "./io-execution-pool.js";
 import { throwIoTerminationFailure } from "./io-operation-context.js";
+import { CHECKOUTS_PATH } from "./installation-environment.js";
+import { cleanupOwnedTemporaryArtifacts } from "./owned-artifact-cleanup.js";
 
-/** @param {{reportBackgroundFailure: (error: unknown) => unknown}} options */
-export function createApplicationIoPool({ reportBackgroundFailure }) {
-  if (typeof reportBackgroundFailure !== "function") {
+/**
+ * @param {{
+ *   cleanupOwnedArtifacts?: typeof cleanupOwnedTemporaryArtifacts,
+ *   reportBackgroundFailure: (error: unknown) => unknown
+ * }} options
+ */
+export function createApplicationIoPool({
+  cleanupOwnedArtifacts = cleanupOwnedTemporaryArtifacts,
+  reportBackgroundFailure,
+}) {
+  if (
+    typeof reportBackgroundFailure !== "function" ||
+    typeof cleanupOwnedArtifacts !== "function"
+  ) {
     throw new TypeError("Application I/O failure reporter is required");
   }
   const ioPool = createIoExecutionPool({ reportBackgroundFailure });
@@ -38,22 +51,32 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
       now,
       reserveBytes,
     ) {
-      const storageReserve = createStorageReserve({
-        cleanupEligibleData() {
-          const durableCore = readDurableCore();
-          if (!durableCore) {
-            throw new TypeError("durable core is required for storage cleanup");
-          }
-          return ioPool.runImmediate("retention", (signal) => {
-            signal?.throwIfAborted();
-            const result = removeExpiredBrowserSessions(durableCore, { now });
-            signal?.throwIfAborted();
-            return result;
+      function cleanupEligibleData() {
+        const durableCore = readDurableCore();
+        if (!durableCore) {
+          throw new TypeError("durable core is required for storage cleanup");
+        }
+        return ioPool.runImmediate("cleanup", (signal) => {
+          signal?.throwIfAborted();
+          const sessions = removeExpiredBrowserSessions(durableCore, { now });
+          const artifacts = cleanupOwnedArtifacts({
+            checkoutRoot: CHECKOUTS_PATH,
+            durableCore,
           });
-        },
+          signal?.throwIfAborted();
+          return { artifacts, sessions };
+        });
+      }
+      const storageReserve = createStorageReserve({
+        cleanupEligibleData,
         reserveBytes,
       });
-      return { ...storageReserve, ioPool };
+      return {
+        ...storageReserve,
+        cleanupEligibleData:
+          storageReserve.cleanupEligibleData ?? cleanupEligibleData,
+        ioPool,
+      };
     },
   };
 }
