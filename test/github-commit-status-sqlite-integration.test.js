@@ -171,7 +171,7 @@ test("schema 36 backfills a retired Connection status as exactly unavailable", (
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 46);
+  assert.equal(migrated.facts.schemaVersion, 47);
   assert.equal(
     migrated.get(
       `SELECT count(*) AS count FROM sqlite_schema

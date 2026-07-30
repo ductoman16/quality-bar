@@ -37,7 +37,7 @@ test("schema v45 migrates to durable Review Run pre-start retry without changing
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 46);
+  assert.equal(migrated.facts.schemaVersion, 47);
   const retryCycle = migrated
     .all("PRAGMA table_info(review_runs)")
     .find((row) => row?.name === "retry_cycle");
@@ -94,4 +94,28 @@ test("schema v46 rejects a malformed Evaluation retry authority table", (context
       "code" in error &&
       error.code === "schema_invalid",
   );
+});
+
+test("schema v46 gains terminal Waiver Adjudication immutability", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-v46-waiver-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite");
+  openDurableCore(databasePath).close();
+
+  const legacy = new DatabaseSync(databasePath);
+  legacy.exec(`
+    DROP TRIGGER waiver_adjudication_terminal_immutable;
+    UPDATE quality_bar_metadata SET value = '46' WHERE key = 'schema_version';
+    PRAGMA user_version = 46;
+  `);
+  legacy.close();
+
+  const migrated = openDurableCore(databasePath);
+  assert.equal(migrated.facts.schemaVersion, 47);
+  assert.ok(
+    migrated.get(
+      "SELECT 1 AS present FROM sqlite_schema WHERE type = 'trigger' AND name = 'waiver_adjudication_terminal_immutable'",
+    ),
+  );
+  migrated.close();
 });

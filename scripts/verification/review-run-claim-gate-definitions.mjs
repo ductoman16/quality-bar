@@ -18,6 +18,26 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
     ],
   },
   {
+    name: "codex-execution-race-sqlite-integration",
+    testGroup:
+      "deterministic-review-run-and-waiver-adjudication-accepted-submission-cancellation-lease-replacement-and-fencing-without-partial-facts",
+    failureCode: "codex_execution_race_sqlite_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-race-sqlite-integration.test.js",
+    ],
+  },
+  {
+    name: "codex-execution-race-sqlite-failure-integration",
+    testGroup:
+      "review-run-and-waiver-adjudication-submission-storage-failure-with-no-partial-facts",
+    failureCode: "codex_execution_race_sqlite_failure_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-race-sqlite-failure-integration.test.js",
+    ],
+  },
+  {
     name: "codex-execution-claim-sqlite-integration",
     testGroup:
       "shared-ready-at-stable-identity-ordering-durable-slot-owner-error-lease-fencing-and-v24-migration-boundary",

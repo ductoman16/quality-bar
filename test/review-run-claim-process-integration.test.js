@@ -175,3 +175,50 @@ test("separate processes cannot claim beyond the durable concurrency setting", a
   );
   verified.close();
 });
+
+test("a replacement Review Run claim fences the expired process before launch", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-race-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const core = openDurableCore(databasePath);
+  seedQueuedCodexExecutionKinds(core, {
+    adjudicationReadyAt: 300_000,
+    reviewRunReadyAt: 1_000,
+  });
+  core.close();
+
+  const first = await runWorker([databasePath, "claim", "review-old", "1000"]);
+  assert.equal(first.claim.workId, "review-run-z");
+  assert.equal(first.claim.workKind, "review_run");
+  const replacement = await runWorker([
+    databasePath,
+    "claim",
+    "review-new",
+    "121000",
+  ]);
+  assert.equal(replacement.claim.fencingToken, 2);
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      first.claim.workerId,
+      "121000",
+      first.claim.workId,
+      first.claim.workKind,
+      String(first.claim.fencingToken),
+    ]),
+    { code: "review_run_claim_lost", outcome: "rejected" },
+  );
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      replacement.claim.workerId,
+      "121000",
+      replacement.claim.workId,
+      replacement.claim.workKind,
+      String(replacement.claim.fencingToken),
+    ]),
+    { outcome: "started" },
+  );
+});

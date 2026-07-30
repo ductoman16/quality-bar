@@ -1,3 +1,10 @@
+export const WAIVER_ADJUDICATION_TERMINAL_INTEGRITY = `
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_terminal_immutable
+    BEFORE UPDATE OF execution_status ON waiver_adjudications
+    WHEN OLD.execution_status IN ('completed', 'failed', 'cancelled')
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_terminal_immutable'); END;
+`;
+
 export const WAIVER_ADJUDICATION_EXECUTION_INTEGRITY = `
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_failure_integrity_insert
     BEFORE INSERT ON waiver_adjudications
