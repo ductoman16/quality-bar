@@ -1,4 +1,7 @@
 import { openDurableCore } from "./durable-core.js";
+import { createCodexExecutionRuntime } from "./codex-execution-runtime.js";
+import { createCodexExecutionConcurrencyService } from "./codex-execution-concurrency.js";
+import { createApplicationExecutionRuntime } from "./application-execution-runtime.js";
 import {
   loadInstallationConfiguration,
   verifyInstallationKey,
@@ -12,7 +15,6 @@ import {
 import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
-  removeExpiredBrowserSessions,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import { requireCodedError } from "./coded-error.js";
@@ -28,7 +30,7 @@ import {
   createForgejoConnectionService,
   unavailableForgejoConnectionService,
 } from "./forgejo-connection.js";
-import { createApplicationServer } from "./server.js";
+import { createApplicationRuntimeServer } from "./application-server-runtime.js";
 import {
   createRequestSecurityBoundary,
   createUnavailableRequestSecurityBoundary,
@@ -81,6 +83,7 @@ import {
  *   createWaiverAdjudicatorConfiguration?: typeof createWaiverAdjudicatorConfigurationService,
  *   createStorageReserve?: typeof createStorageReserveGate,
  *   createEvaluations?: typeof createEvaluationService,
+ *   createCodexRuntime?: typeof createCodexExecutionRuntime,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -101,6 +104,7 @@ export function createApplication({
   createWaiverAdjudicatorConfiguration = createWaiverAdjudicatorConfigurationService,
   createStorageReserve = createStorageReserveGate,
   createEvaluations = createEvaluationService,
+  createCodexRuntime = createCodexExecutionRuntime,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -129,6 +133,22 @@ export function createApplication({
   let storageReserve = null;
   /** @type {ReturnType<typeof createEvaluationService> | null} */
   let evaluations = null;
+  /** @type {ReturnType<typeof createCodexExecutionRuntime> | null} */
+  let codexRuntime = null;
+  /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
+  let codexExecutionConcurrency = null;
+  const executionRuntime = createApplicationExecutionRuntime({
+    createCodexRuntime,
+    now,
+    stopIoDuties() {
+      githubConnections?.destroy?.();
+      forgejoConnections?.destroy?.();
+      void codexRuntime?.close();
+    },
+    storageBoundary,
+    writeLog,
+  });
+  const { ioPool } = executionRuntime;
   let secureBrowserCookie = false;
   /** @type {CodedError | null} */
   let codexCapabilityFailure = null;
@@ -146,20 +166,19 @@ export function createApplication({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    storageReserve = createStorageReserve({
-      cleanupEligibleData() {
-        if (!durableCore) {
-          throw new TypeError("durable core is required for storage cleanup");
-        }
-        removeExpiredBrowserSessions(durableCore, { now });
-      },
-      reserveBytes: installation.freeSpaceReserveBytes,
-    });
+    storageReserve = ioPool.createStorageReserve(
+      createStorageReserve,
+      () => durableCore,
+      now,
+      installation.freeSpaceReserveBytes,
+    );
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(requireCodedError(error));
       },
     });
+    codexExecutionConcurrency =
+      createCodexExecutionConcurrencyService(durableCore);
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       githubConnections = createGitHubConnections(durableCore, {
@@ -226,9 +245,7 @@ export function createApplication({
       });
       evaluations = createEvaluations(durableCore, {
         acquireChangeset: (repositoryId, request) =>
-          /** @type {ReturnType<typeof createRepositoryService>} */ (
-            repositories
-          ).resolvePushedSelectors(repositoryId, request),
+          ioPool.acquireChangeset(repositories, repositoryId, request),
         readCodexCapabilityFailure: () => codexCapabilityFailure,
         masterKey: installation.masterKey,
         now,
@@ -260,6 +277,13 @@ export function createApplication({
         codexCapabilityFailure,
       );
     }
+    if (!codexCapabilityFailure) {
+      codexRuntime = executionRuntime.createCodexRuntime(
+        durableCore,
+        repositories,
+        storageReserve,
+      );
+    }
     structuredLog(
       writeLog,
       "info",
@@ -268,6 +292,16 @@ export function createApplication({
       "success",
     );
   } catch (error) {
+    void codexRuntime?.close();
+    codexRuntime = null;
+    codexExecutionConcurrency = {
+      read() {
+        throw startupFailure;
+      },
+      set() {
+        throw startupFailure;
+      },
+    };
     evaluations?.destroy?.();
     repositories?.destroy?.();
     githubConnections?.destroy?.();
@@ -302,13 +336,14 @@ export function createApplication({
   }
 
   function readDurableCoreStatus() {
-    const error = storageBoundary.failure ?? startupFailure;
+    const error =
+      storageBoundary.failure ?? executionRuntime.failure ?? startupFailure;
     return error
       ? { error: error.code, status: "not_ready" }
       : { status: "ready" };
   }
 
-  const server = createApplicationServer({
+  const server = createApplicationRuntimeServer({
     browserSessions,
     browserAssetReader: readBrowserAsset,
     implementerTokens,
@@ -323,63 +358,18 @@ export function createApplication({
     evaluations,
     reviews,
     waiverAdjudicatorConfiguration,
+    codexExecutionConcurrency,
     readDurableCoreStatus,
-    readSystemStatus: () => {
-      if (!systemResource || !storageReserve) {
-        throw startupFailure;
-      }
-      return {
-        ...systemResource.readFacts({
-          browserSessions,
-          codex: codexCapabilityFailure
-            ? { error: codexCapabilityFailure.code, status: "unavailable" }
-            : { status: "available" },
-          implementerToken: implementerTokens?.hasActiveToken()
-            ? { status: "active" }
-            : { status: "revoked" },
-          storage: storageReserve.readFacts(),
-        }),
-      };
-    },
-    listAuthorityAttributions: (query) => {
-      if (!systemResource) {
-        throw startupFailure;
-      }
-      return systemResource.listAuthorityAttributions(query);
-    },
-    recordAuthorityAttribution: (event) => {
-      if (!systemResource) {
-        throw startupFailure;
-      }
-      return systemResource.recordAuthorityAttribution(event);
-    },
-    recordMcpOperation: ({
-      durationMs,
-      errorCode,
-      operation,
-      outcome,
-      requestId,
-      resourceIds,
-    }) => {
-      writeLog(
-        `${JSON.stringify({
-          timestamp: new Date().toISOString(),
-          severity: outcome === "success" ? "info" : "error",
-          event: "mcp_request",
-          component: "mcp",
-          outcome,
-          request_id: requestId,
-          operation,
-          resource_ids: resourceIds,
-          duration_ms: durationMs,
-          ...(errorCode ? { error: errorCode } : {}),
-        })}\n`,
-      );
-    },
+    codexCapabilityFailure,
+    startupFailure,
+    storageReserve,
+    systemResource,
+    writeLog,
     secureBrowserCookie,
   });
   githubConnections.startPolling();
   forgejoConnections.startPolling();
+  codexRuntime?.start();
 
   return {
     server,
@@ -426,10 +416,13 @@ export function createApplication({
           })
         );
       }
-      evaluations?.destroy?.();
-      repositories?.destroy?.();
       githubConnections?.destroy?.();
       forgejoConnections?.destroy?.();
+      evaluations?.destroy?.();
+      await codexRuntime?.close();
+      codexRuntime = null;
+      repositories?.destroy?.();
+      await ioPool.close();
       durableCore?.close();
       releaseInstallationLock?.();
       releaseInstallationLock = null;

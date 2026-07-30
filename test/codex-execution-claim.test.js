@@ -15,6 +15,9 @@ test("Codex execution claims use one oldest-ready-first selection across work ki
         return callback({
           /** @param {string} sql */
           get(sql) {
+            if (sql.includes("codex_execution_settings")) {
+              return { maximum_running: 1 };
+            }
             selection = sql;
             return {
               fencing_token: 0,
@@ -42,7 +45,8 @@ test("Codex execution claims use one oldest-ready-first selection across work ki
     workKind: "waiver_adjudication",
   });
   assert.match(selection, /ORDER BY ready_at, work_id/);
-  assert.doesNotMatch(selection, /work_kind\s*=/);
+  assert.match(selection, /active_queue\.work_kind = 'review_run'/);
+  assert.match(selection, /active_queue\.work_kind = 'waiver_adjudication'/);
   assert.equal(CODEX_EXECUTION_RENEWAL_MILLISECONDS, 30_000);
   assert.equal(CODEX_EXECUTION_LEASE_MILLISECONDS, 120_000);
 });

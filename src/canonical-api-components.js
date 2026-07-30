@@ -4,6 +4,7 @@ import { closedObject, openObject } from "./canonical-schema.js";
 import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
+import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-api.js";
 import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /**
@@ -73,6 +74,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ["error"],
       ),
       ...canonicalGitHubConnectionSchemas(),
+      ...canonicalCodexExecutionConcurrencySchemas(),
       CurrentPasswordRequest: closedObject({ password: { type: "string" } }, [
         "password",
       ]),

@@ -7,6 +7,7 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { prepareReviewRunCheckout } from "../src/review-run-checkout.js";
 import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
 import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
@@ -43,6 +44,17 @@ function createFixture(context) {
     },
   });
   return core;
+}
+
+/** @param {import("node:test").TestContext} context */
+function createIoPool(context) {
+  const ioPool = createIoExecutionPool({
+    reportBackgroundFailure() {
+      assert.fail("Unexpected background I/O failure");
+    },
+  });
+  context.after(() => ioPool.close());
+  return ioPool;
 }
 
 test("pre-start checkout failures persist the one-minute and five-minute retry schedule before exhaustion", (context) => {
@@ -133,6 +145,7 @@ test("the production executor records checkout failure before Codex launch", asy
       executeWaiverAdjudication(core, claim, {
         claimService: claims,
         evidenceService: {},
+        ioPool: createIoPool(context),
         async prepareCheckout() {
           throw Object.assign(new Error("Checkout preparation failed"), {
             code: "review_run_checkout_failed",
@@ -178,6 +191,7 @@ test("the production executor exhausts definitive checkout permission failure im
         checkoutRoot,
         claimService: claims,
         evidenceService: {},
+        ioPool: createIoPool(context),
         prepareCheckout: (/** @type {any} */ input) =>
           prepareReviewRunCheckout({
             ...input,

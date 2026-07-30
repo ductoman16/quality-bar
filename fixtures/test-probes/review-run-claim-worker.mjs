@@ -1,5 +1,6 @@
 import { openDurableCore } from "../../src/durable-core.js";
 import { createReviewRunClaimService } from "../../src/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../../src/codex-execution-concurrency.js";
 
 const [
   databasePath,
@@ -28,6 +29,14 @@ try {
     process.stdout.write(
       `${JSON.stringify({ claim: claims.claimNext() ?? null })}\n`,
     );
+  } else if (action === "set-concurrency" && workId) {
+    process.stdout.write(
+      `${JSON.stringify({
+        maximumRunning: createCodexExecutionConcurrencyService(core).set(
+          Number(workId),
+        ),
+      })}\n`,
+    );
   } else if (
     action === "start" &&
     workId &&
@@ -51,9 +60,11 @@ try {
       if (
         error instanceof Error &&
         "code" in error &&
-        ["review_run_claim_lost", "waiver_adjudication_claim_lost"].includes(
-          String(error.code),
-        )
+        [
+          "codex_execution_concurrency_unavailable",
+          "review_run_claim_lost",
+          "waiver_adjudication_claim_lost",
+        ].includes(String(error.code))
       ) {
         process.stdout.write(
           `${JSON.stringify({ code: error.code, outcome: "rejected" })}\n`,

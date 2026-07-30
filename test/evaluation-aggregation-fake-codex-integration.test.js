@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -89,6 +90,7 @@ test("multiple independent fake Codex runs share one frozen Git Changeset and pu
     const claim = claims.claimNext();
     assert.ok(claim);
     await executeReviewRun(core, claim, {
+      ioPool: createIoExecutionPool(),
       checkoutRoot,
       claimService: claims,
       codexCommand: process.execPath,
@@ -244,6 +246,7 @@ test("intentional same-Changeset reruns launch distinct fake Codex work and Resu
     const claim = claims.claimNext();
     assert.ok(claim);
     await executeReviewRun(core, claim, {
+      ioPool: createIoExecutionPool(),
       checkoutRoot,
       claimService: claims,
       codexCommand: process.execPath,

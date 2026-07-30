@@ -12,6 +12,7 @@ import {
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { createStorageReservePollingCore } from "../src/storage-reserve-polling-core.js";
 import {
   createStorageReserveGate,
@@ -125,6 +126,7 @@ test("SQLite polling advances no observation while the runtime reserve is unavai
     now: () => currentTime,
     storageReserve: {
       assertPollingObservationAdvanceAvailable: assertReserveAvailable,
+      ioPool: createIoExecutionPool(),
       preparePollingObservationAdvance: assertReserveAvailable,
     },
     verifier: {
@@ -279,6 +281,7 @@ test("GitHub provider and credential failures advance nothing after reserve loss
     },
     storageReserve: {
       assertPollingObservationAdvanceAvailable: assertReserveAvailable,
+      ioPool: createIoExecutionPool(),
       preparePollingObservationAdvance: assertReserveAvailable,
     },
     timestamp: () => 65_000,

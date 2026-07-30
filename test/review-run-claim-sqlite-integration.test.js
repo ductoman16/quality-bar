@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
 import {
   createQueuedReviewRun,
   createSiblingQueuedReviewRun,
@@ -18,6 +19,7 @@ test("oldest queued Review Run is claimed once and replacement increments its fe
   context.after(() => core.close());
   await createQueuedReviewRun(core);
   createSiblingQueuedReviewRun(core);
+  createCodexExecutionConcurrencyService(core).set(2);
   core.run(
     "UPDATE codex_execution_queue SET ready_at = ? WHERE work_id = ?",
     300_000,

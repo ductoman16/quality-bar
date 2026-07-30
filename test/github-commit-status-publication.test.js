@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,6 +20,7 @@ test("status publication records success and the exact owning GitHub failure", a
   /** @type {Error | null} */
   let failure = null;
   const service = createGitHubCommitStatusService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt() {
         if (failure) {
@@ -139,6 +141,7 @@ test("an in-flight older status restores the latest Evaluation before publicatio
   /** @type {string[]} */
   const states = [];
   const service = createGitHubCommitStatusService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt() {
         return {

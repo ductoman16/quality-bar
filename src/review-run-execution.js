@@ -76,12 +76,13 @@ export function createReviewRunPrompt(run) {
 }
 
 /**
+ * @param {{run: (duty: "cleanup", operation: () => unknown) => Promise<unknown>}} ioPool
  * @param {{remove(): void}} checkout
  * @param {unknown} executionFailure
  */
-function removeCheckout(checkout, executionFailure) {
+async function removeCheckout(ioPool, checkout, executionFailure) {
   try {
-    checkout.remove();
+    await ioPool.run("cleanup", () => checkout.remove());
   } catch (cleanupFailure) {
     if (executionFailure instanceof Error) {
       Object.defineProperty(executionFailure, "checkoutCleanupFailure", {
@@ -219,6 +220,7 @@ function readRun(durableCore, workId) {
  * @param {any} durableCore
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {{
+ *   acquireCheckoutCredential?: () => Promise<{token: string, username: string} | undefined> | {token: string, username: string} | undefined,
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
@@ -228,6 +230,7 @@ function readRun(durableCore, workId) {
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
  *   evidenceService?: ReturnType<typeof createReviewRunEvidenceService>,
+ *   ioPool: {run: (duty: "acquisition" | "cleanup", operation: () => unknown) => Promise<any>},
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
@@ -248,10 +251,12 @@ export async function executeReviewRun(
   durableCore,
   claim,
   {
+    acquireCheckoutCredential = () => checkoutCredential,
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
     evidenceService = createReviewRunEvidenceService(durableCore),
+    ioPool,
     prepareCheckout = prepareReviewRunCheckout,
     readFileChanges = readReviewRunFileChanges,
     reportDiagnostic = (failure) => process.emitWarning(failure),
@@ -260,6 +265,9 @@ export async function executeReviewRun(
     ...codexOptions
   },
 ) {
+  if (typeof ioPool?.run !== "function") {
+    throw new TypeError("Review Run I/O pool is required");
+  }
   const run = readRun(durableCore, claim.workId);
   /** @type {Error | null} */
   let claimFailure = null;
@@ -270,15 +278,17 @@ export async function executeReviewRun(
         : new TypeError("Review Run claim renewal failed");
   });
   try {
-    const checkout = await prepareCheckout({
-      baseCommit: run.baseCommit,
-      checkoutRoot,
-      credential: checkoutCredential,
-      fencingToken: claim.fencingToken,
-      headCommit: run.headCommit,
-      repositoryUrl: run.repositoryUrl,
-      workId: claim.workId,
-    });
+    const checkout = await ioPool.run("acquisition", async () =>
+      prepareCheckout({
+        baseCommit: run.baseCommit,
+        checkoutRoot,
+        credential: await acquireCheckoutCredential(),
+        fencingToken: claim.fencingToken,
+        headCommit: run.headCommit,
+        repositoryUrl: run.repositoryUrl,
+        workId: claim.workId,
+      }),
+    );
     let executionFailure;
     /** @type {Error[]} */
     let diagnosticFailures = [];
@@ -366,7 +376,7 @@ export async function executeReviewRun(
       }
       throw failure;
     } finally {
-      removeCheckout(checkout, executionFailure);
+      await removeCheckout(ioPool, checkout, executionFailure);
     }
     return { unreportedDiagnostics };
   } finally {

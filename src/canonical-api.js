@@ -8,7 +8,9 @@ import { canonicalForgejoConnectionPaths } from "./canonical-forgejo-connection-
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { canonicalWaiverAdjudicatorConfigurationPath } from "./canonical-waiver-adjudicator-configuration-api.js";
 import { canonicalEvaluationPaths } from "./canonical-evaluation-api.js";
+import { canonicalCodexExecutionConcurrencyPath } from "./canonical-codex-execution-concurrency-api.js";
 import { canonicalAnalyticsPath } from "./canonical-analytics-api.js";
+import { canonicalSystemPath } from "./canonical-system-api.js";
 
 const errorResponse = {
   content: {
@@ -367,28 +369,9 @@ export function canonicalOpenApiDocument() {
           security: [{ browser_session: [] }],
         },
       },
-      "/api/v1/system": {
-        get: {
-          operationId: "getSystem",
-          responses: {
-            200: {
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/System" },
-                },
-              },
-              description: "System facts",
-            },
-            400: errorResponse,
-            401: errorResponse,
-            403: errorResponse,
-            500: errorResponse,
-            503: errorResponse,
-          },
-          security: [{ browser_session: [] }],
-        },
-      },
+      ...canonicalSystemPath(errorResponse),
       ...canonicalWaiverAdjudicatorConfigurationPath(),
+      ...canonicalCodexExecutionConcurrencyPath(),
       ...canonicalEvaluationPaths(errorResponse),
       "/api/v1/system/authority-attributions": {
         get: {

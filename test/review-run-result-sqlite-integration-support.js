@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 
 import { executeReviewRun } from "../src/review-run-execution.js";
@@ -120,6 +121,7 @@ export async function executeFailedReviewRun(core, underlyingFailure) {
     throw new Error("Expected a queued Review Run");
   }
   return executeReviewRun(core, claim, {
+    ioPool: createIoExecutionPool(),
     claimService: claims,
     prepareCheckout: async () => ({
       path: "/discarded-checkout",

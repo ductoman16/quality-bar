@@ -1,4 +1,5 @@
 import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
+import { IoExecutionPoolError } from "./io-execution-pool.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
@@ -190,10 +191,10 @@ function owningFailure(error) {
   );
 }
 
-/** @param {{remove(): void}} checkout @param {unknown} failure */
-function removeCheckout(checkout, failure) {
+/** @param {{run: (duty: "cleanup", operation: () => unknown) => Promise<unknown>}} ioPool @param {{remove(): void}} checkout @param {unknown} failure */
+async function removeCheckout(ioPool, checkout, failure) {
   try {
-    checkout.remove();
+    await ioPool.run("cleanup", () => checkout.remove());
   } catch (cleanupFailure) {
     if (!(failure instanceof Error)) {
       throw cleanupFailure;
@@ -210,16 +211,21 @@ export async function executeWaiverAdjudication(
   durableCore,
   claim,
   {
+    acquireCheckoutCredential = () => checkoutCredential,
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
     evidenceService = createWaiverAdjudicationEvidenceService(durableCore),
+    ioPool,
     prepareCheckout = prepareReviewRunCheckout,
     resultService,
     runCodex = runReviewRunCodex,
     ...codexOptions
   },
 ) {
+  if (typeof ioPool?.run !== "function") {
+    throw new TypeError("Waiver Adjudication I/O pool is required");
+  }
   const adjudication = readAdjudication(durableCore, claim.workId);
   let claimFailure = null;
   const stopRenewal = claimService.startRenewal(
@@ -234,16 +240,25 @@ export async function executeWaiverAdjudication(
   try {
     let checkout;
     try {
-      checkout = await prepareCheckout({
-        baseCommit: adjudication.baseCommit,
-        checkoutRoot,
-        credential: checkoutCredential,
-        fencingToken: claim.fencingToken,
-        headCommit: adjudication.headCommit,
-        repositoryUrl: adjudication.repositoryUrl,
-        workId: claim.workId,
-      });
+      checkout = await ioPool.run("acquisition", async () =>
+        prepareCheckout({
+          baseCommit: adjudication.baseCommit,
+          checkoutRoot,
+          credential: await acquireCheckoutCredential(),
+          fencingToken: claim.fencingToken,
+          headCommit: adjudication.headCommit,
+          repositoryUrl: adjudication.repositoryUrl,
+          workId: claim.workId,
+        }),
+      );
     } catch (error) {
+      if (
+        error instanceof IoExecutionPoolError &&
+        error.code === "io_execution_capacity_unavailable"
+      ) {
+        claimService.release(claim);
+        throw owningFailure(error);
+      }
       const failure = owningFailure(error);
       claimService.recordPreStartFailure(claim, failure);
       throw failure;
@@ -293,7 +308,7 @@ export async function executeWaiverAdjudication(
       }
       throw executionFailure;
     } finally {
-      removeCheckout(checkout, executionFailure);
+      await removeCheckout(ioPool, checkout, executionFailure);
     }
   } finally {
     stopRenewal();

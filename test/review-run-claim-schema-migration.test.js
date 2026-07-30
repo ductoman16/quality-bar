@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
 import {
   createQueuedReviewRun,
   createSiblingQueuedReviewRun,
@@ -136,6 +137,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
     createWorkerId: () => "worker-after-migration",
     now: () => 1_000,
   });
+  createCodexExecutionConcurrencyService(migrated).set(2);
   assert.equal(migratedClaims.claimNext()?.fencingToken, 1);
   assert.throws(
     () => migratedClaims.claimNext(),

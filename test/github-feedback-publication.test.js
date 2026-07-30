@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,6 +25,7 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
   /** @type {any[][]} */
   const inlines = [];
   const service = createGitHubFeedbackService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt() {
         return { client_id: "Iv1.client", pem: "private-key" };
@@ -330,6 +332,7 @@ test("retired publication materializes every Finding with exact per-surface stat
   context.after(() => core.close());
   arrange(core, { connectionLifecycle: "retired" });
   const service = createGitHubFeedbackService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt() {
         throw new Error("credential must not be read");

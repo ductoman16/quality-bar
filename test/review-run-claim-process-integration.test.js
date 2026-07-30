@@ -90,3 +90,88 @@ test("separate processes share ordering and fence an expired worker across work 
     { outcome: "started" },
   );
 });
+
+test("separate processes cannot claim beyond the durable concurrency setting", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-concurrency-race-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const core = openDurableCore(databasePath);
+  seedQueuedCodexExecutionKinds(core, {
+    adjudicationReadyAt: 1_000,
+    reviewRunReadyAt: 1_000,
+  });
+  core.close();
+
+  const racers = await Promise.all([
+    runWorker([databasePath, "claim", "worker-a", "1000"]),
+    runWorker([databasePath, "claim", "worker-b", "1000"]),
+  ]);
+  assert.equal(racers.filter((result) => result.claim !== null).length, 1);
+
+  const setting = await runWorker([
+    databasePath,
+    "set-concurrency",
+    "worker-setting",
+    "1000",
+    "2",
+  ]);
+  assert.deepEqual(setting, { maximumRunning: 2 });
+  const second = await runWorker([databasePath, "claim", "worker-c", "1000"]);
+  assert.ok(second.claim);
+
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "set-concurrency",
+      "worker-setting",
+      "1001",
+      "1",
+    ]),
+    { maximumRunning: 1 },
+  );
+  const firstClaim = racers.find((result) => result.claim !== null).claim;
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      firstClaim.workerId,
+      "1001",
+      firstClaim.workId,
+      firstClaim.workKind,
+      String(firstClaim.fencingToken),
+    ]),
+    { outcome: "started" },
+  );
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      second.claim.workerId,
+      "1001",
+      second.claim.workId,
+      second.claim.workKind,
+      String(second.claim.fencingToken),
+    ]),
+    {
+      code: "codex_execution_concurrency_unavailable",
+      outcome: "rejected",
+    },
+  );
+  const verified = openDurableCore(databasePath);
+  assert.equal(
+    verified.get(
+      "SELECT count(*) AS count FROM codex_execution_queue WHERE started_at IS NOT NULL",
+    )?.count,
+    1,
+  );
+  assert.equal(
+    verified.get(
+      "SELECT lease_expires_at FROM codex_execution_queue WHERE work_id = ?",
+      second.claim.workId,
+    )?.lease_expires_at,
+    1_001,
+  );
+  verified.close();
+});

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
@@ -88,4 +89,34 @@ test("the owning fake Codex adapter is reached only after the shared durable cla
     )?.execution_status,
     "queued",
   );
+});
+
+test("a long owning Codex adapter cannot starve an independent I/O duty", async () => {
+  /** @type {(value?: void) => void} */
+  let finishCodex = () => {};
+  const codexFinished = new Promise((resolve) => {
+    finishCodex = resolve;
+  });
+  const codexStarted = executeClaimWithOwningAdapter(
+    {
+      fencingToken: 1,
+      leaseExpiresAt: 120_000,
+      workerId: "worker-1",
+      workId: "review-run-1",
+      workKind: "review_run",
+    },
+    {
+      executeReviewRun: () => codexFinished,
+      executeWaiverAdjudication() {
+        assert.fail("the non-owning adapter must not run");
+      },
+    },
+  );
+  let polled = false;
+  await createIoExecutionPool().run("polling", async () => {
+    polled = true;
+  });
+  assert.equal(polled, true);
+  finishCodex();
+  await codexStarted;
 });

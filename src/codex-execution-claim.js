@@ -1,4 +1,5 @@
 import { DurableCoreError } from "./durable-error.js";
+import { readCodexExecutionConcurrency } from "./codex-execution-concurrency.js";
 import { recordWaiverPreStartFailure } from "./waiver-adjudication-pre-start.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
@@ -71,6 +72,25 @@ function assertClaim(claim) {
   }
 }
 
+/** @param {any} transaction */
+function countRunningCodexExecutions(transaction) {
+  return transaction.get(
+    `SELECT count(*) AS count
+     FROM codex_execution_queue AS running_queue
+     LEFT JOIN review_runs AS running_review_run
+       ON running_queue.work_kind = 'review_run'
+      AND running_review_run.id = running_queue.work_id
+     LEFT JOIN waiver_adjudications AS running_adjudication
+       ON running_queue.work_kind = 'waiver_adjudication'
+      AND running_adjudication.id = running_queue.work_id
+     WHERE running_queue.started_at IS NOT NULL
+       AND (
+         running_review_run.execution_status = 'running'
+         OR running_adjudication.execution_status = 'running'
+       )`,
+  )?.count;
+}
+
 /**
  * @param {{
  *   transaction: (callback: (transaction: any) => any) => any
@@ -108,6 +128,7 @@ export function createCodexExecutionClaimService(
       const leaseExpiresAt = claimedAt + CODEX_EXECUTION_LEASE_MILLISECONDS;
       requireTimestamp(leaseExpiresAt);
       return durableCore.transaction((transaction) => {
+        const maximumRunning = readCodexExecutionConcurrency(transaction);
         const queued = transaction.get(
           `SELECT work_id, work_kind, fencing_token
            FROM codex_execution_queue
@@ -115,10 +136,36 @@ export function createCodexExecutionClaimService(
              AND retry_state = 'ready'
              AND ready_at <= ?
              AND (worker_id IS NULL OR lease_expires_at <= ?)
+             AND (
+               SELECT count(*)
+               FROM codex_execution_queue AS active_queue
+               LEFT JOIN review_runs AS active_review_run
+                 ON active_queue.work_kind = 'review_run'
+                AND active_review_run.id = active_queue.work_id
+               LEFT JOIN waiver_adjudications AS active_adjudication
+                 ON active_queue.work_kind = 'waiver_adjudication'
+                AND active_adjudication.id = active_queue.work_id
+               WHERE (
+                 (active_queue.work_kind = 'review_run'
+                   AND active_review_run.execution_status IN ('queued', 'running'))
+                 OR
+                 (active_queue.work_kind = 'waiver_adjudication'
+                   AND active_adjudication.execution_status IN ('queued', 'running'))
+               )
+               AND (
+                 active_queue.started_at IS NOT NULL
+                 OR (
+                   active_queue.worker_id IS NOT NULL
+                   AND active_queue.lease_expires_at > ?
+                 )
+               )
+             ) < ?
            ORDER BY ready_at, work_id
            LIMIT 1`,
           claimedAt,
           claimedAt,
+          claimedAt,
+          maximumRunning,
         );
         if (!queued) {
           return undefined;
@@ -191,6 +238,31 @@ export function createCodexExecutionClaimService(
       }
       return recordWaiverPreStartFailure(durableCore, claim, failure, now);
     },
+    /** @param {CodexExecutionClaim} claim */
+    release(claim) {
+      assertClaim(claim);
+      const releasedAt = now();
+      requireTimestamp(releasedAt);
+      const released = durableCore.transaction((transaction) =>
+        transaction.run(
+          `UPDATE codex_execution_queue SET lease_expires_at = ?
+           WHERE work_id = ? AND work_kind = ?
+             AND worker_id = ? AND fencing_token = ?
+             AND retry_state = 'ready'
+             AND started_at IS NULL AND lease_expires_at > ?`,
+          releasedAt,
+          claim.workId,
+          claim.workKind,
+          claim.workerId,
+          claim.fencingToken,
+          releasedAt,
+        ),
+      );
+      if (released.changes !== 1) {
+        claimLost(claim.workKind);
+      }
+      return { ...claim, leaseExpiresAt: releasedAt };
+    },
     /** @param {CodexExecutionClaim} claim @param {string} codexCliVersion */
     start(claim, codexCliVersion) {
       assertClaim(claim);
@@ -198,7 +270,34 @@ export function createCodexExecutionClaimService(
       requireNonblank(codexCliVersion, owner.versionMessage);
       const startedAt = now();
       requireTimestamp(startedAt);
-      return durableCore.transaction((transaction) => {
+      const started = durableCore.transaction((transaction) => {
+        const maximumRunning = readCodexExecutionConcurrency(transaction);
+        const running = countRunningCodexExecutions(transaction);
+        if (!Number.isSafeInteger(running) || running < 0) {
+          throw new DurableCoreError(
+            "codex_execution_concurrency_unavailable",
+            "Codex execution concurrency is unavailable",
+          );
+        }
+        if (running >= maximumRunning) {
+          const released = transaction.run(
+            `UPDATE codex_execution_queue SET lease_expires_at = ?
+             WHERE work_id = ? AND work_kind = ?
+               AND worker_id = ? AND fencing_token = ?
+               AND retry_state = 'ready'
+               AND started_at IS NULL AND lease_expires_at > ?`,
+            startedAt,
+            claim.workId,
+            claim.workKind,
+            claim.workerId,
+            claim.fencingToken,
+            startedAt,
+          );
+          if (released.changes !== 1) {
+            claimLost(claim.workKind);
+          }
+          return false;
+        }
         const startedQueue = transaction.run(
           `UPDATE codex_execution_queue SET started_at = ?
            WHERE work_id = ? AND work_kind = ?
@@ -227,7 +326,14 @@ export function createCodexExecutionClaimService(
         if (startedOwner.changes !== 1) {
           throw new DurableCoreError(owner.stateCode, owner.stateMessage);
         }
+        return true;
       });
+      if (!started) {
+        throw new DurableCoreError(
+          "codex_execution_concurrency_unavailable",
+          "Codex execution concurrency is unavailable",
+        );
+      }
     },
     /**
      * @param {CodexExecutionClaim} claim

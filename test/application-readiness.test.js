@@ -71,6 +71,7 @@ async function startApplication(databasePath, options = {}) {
     validateTools: options.validateTools ?? (() => {}),
     validateCodexAuthentication:
       options.validateCodexAuthentication ?? (() => {}),
+    createCodexRuntime: options.createCodexRuntime,
     writeLog: options.writeLog ?? (() => {}),
   });
   await new Promise((resolve, reject) => {
@@ -107,6 +108,36 @@ afterEach(async () => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { force: true, recursive: true });
   }
+});
+
+test("the ready application starts and closes its composed Codex runtime", async () => {
+  let started = 0;
+  let closed = 0;
+  let composed = false;
+  const { application } = await startApplication(temporaryDatabasePath(), {
+    createCodexRuntime(durableCore, dependencies) {
+      assert.equal(durableCore?.get instanceof Function, true);
+      assert.equal(dependencies.ioPool?.run instanceof Function, true);
+      assert.equal(
+        dependencies.repositories?.acquireGitCredential instanceof Function,
+        true,
+      );
+      composed = true;
+      return {
+        async close() {
+          closed += 1;
+        },
+        start() {
+          started += 1;
+        },
+      };
+    },
+  });
+  assert.equal(composed, true);
+  assert.equal(started, 1);
+  await application.close();
+  applications.splice(applications.indexOf(application), 1);
+  assert.equal(closed, 1);
 });
 
 test("SQLite startup failure keeps liveness distinct from exact not-ready state", async () => {

@@ -77,7 +77,7 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
+ * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
@@ -93,6 +93,7 @@ export function createForgejoConnectionService(
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof createId !== "function" ||
+    typeof storageReserve?.ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
       "function" ||

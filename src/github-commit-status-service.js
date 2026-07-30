@@ -3,6 +3,7 @@ import {
   attemptGitHubDelivery,
   recordGitHubDeliveryHealth,
 } from "./github-delivery-service.js";
+import { createIoDutyScheduler } from "./io-execution-pool.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -71,6 +72,7 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
  * @param {{
  *   cipher: {decrypt: (connection: {appId: number, id: string}, encrypted: string) => any},
  *   externalOrigin: string,
+ *   ioPool: {run: (duty: "delivery", operation: () => unknown) => Promise<unknown>},
  *   now?: () => number,
  *   verifier: {
  *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
@@ -80,12 +82,13 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
  */
 export function createGitHubCommitStatusService(
   durableCore,
-  { cipher, externalOrigin, now = () => Date.now(), verifier },
+  { cipher, externalOrigin, ioPool, now = () => Date.now(), verifier },
 ) {
   if (
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
+    typeof ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof verifier?.publishCommitStatus !== "function" ||
     typeof verifier.reconcileCommitStatus !== "function"
@@ -282,22 +285,30 @@ export function createGitHubCommitStatusService(
     }
   }
 
+  const schedulePublication = createIoDutyScheduler(
+    ioPool,
+    "delivery",
+    publishWaiting,
+  );
+
   return {
     destroy() {
       if (timer) {
         clearInterval(timer);
         timer = null;
       }
+      schedulePublication.cancel();
     },
     publishWaiting,
     start() {
       if (timer) {
         return;
       }
-      void publishWaiting();
-      timer = setInterval(() => {
-        void publishWaiting();
-      }, PUBLICATION_INTERVAL_MS);
+      schedulePublication.background();
+      timer = setInterval(
+        schedulePublication.background,
+        PUBLICATION_INTERVAL_MS,
+      );
       timer.unref?.();
     },
   };
