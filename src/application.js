@@ -1,5 +1,6 @@
 import { openDurableCore } from "./durable-core.js";
 import { createCodexExecutionRuntime } from "./codex-execution-runtime.js";
+import { recoverCodexExecutions } from "./codex-execution-recovery.js";
 import { createCodexExecutionConcurrencyService } from "./codex-execution-concurrency.js";
 import { createApplicationExecutionRuntime } from "./application-execution-runtime.js";
 import {
@@ -84,6 +85,7 @@ import {
  *   createStorageReserve?: typeof createStorageReserveGate,
  *   createEvaluations?: typeof createEvaluationService,
  *   createCodexRuntime?: typeof createCodexExecutionRuntime,
+ *   recoverExecutions?: typeof recoverCodexExecutions,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
@@ -105,6 +107,7 @@ export function createApplication({
   createStorageReserve = createStorageReserveGate,
   createEvaluations = createEvaluationService,
   createCodexRuntime = createCodexExecutionRuntime,
+  recoverExecutions = recoverCodexExecutions,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
@@ -181,6 +184,7 @@ export function createApplication({
       createCodexExecutionConcurrencyService(durableCore);
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
+      recoverExecutions(durableCore, { now });
       githubConnections = createGitHubConnections(durableCore, {
         acquirePullRequestChangeset: (
           /** @type {{pullRequest: any, repositoryId: string}} */ {

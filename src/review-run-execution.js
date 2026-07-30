@@ -4,6 +4,14 @@ import { subscribeReviewRunCancellation } from "./evaluation-cancellation.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { createReviewRunEvidenceService } from "./review-run-evidence.js";
 import { readReviewRunFileChanges } from "./review-run-file-changes.js";
+
+/** @param {any} service @param {string} method @param {any[]} parameters */
+function callClaimService(service, method, ...parameters) {
+  if (typeof service?.[method] !== "function") {
+    throw new TypeError(`Review Run claim service ${method} is required`);
+  }
+  return service[method](...parameters);
+}
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
 /**
@@ -224,8 +232,10 @@ function readRun(durableCore, workId) {
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
+ *     finishProcessGroup?(claim: any): unknown,
  *     start(claim: any, codexCliVersion: string): unknown,
- *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void
+ *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void,
+ *     trackProcessGroup?(claim: any, processGroupId: number): unknown
  *   },
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
@@ -339,12 +349,23 @@ export async function executeReviewRun(
             },
           },
           run: reviewRun,
+          finishProcessGroup() {
+            callClaimService(claimService, "finishProcessGroup", claim);
+          },
           startRun() {
             claimService.start(
               claim,
               CODEX_CAPABILITY_CATALOG.codex_cli_version,
             );
             started = true;
+          },
+          trackProcessGroup(processGroupId) {
+            callClaimService(
+              claimService,
+              "trackProcessGroup",
+              claim,
+              processGroupId,
+            );
           },
           ...codexOptions,
           recordDeadline(failure) {

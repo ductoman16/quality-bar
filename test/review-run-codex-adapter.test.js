@@ -50,14 +50,15 @@ function processThatExits(code, signal = null) {
 function processThatFailsWithJsonl() {
   const child = new EventEmitter();
   const process = Object.assign(child, {
+    pid: 77,
     stderr: new PassThrough(),
     stdout: new PassThrough(),
   });
   queueMicrotask(() => {
-    process.stdout.end(
+    process.stdout.write(
       '{"type":"turn.failed","error":{"message":"model failure"}}\n',
     );
-    process.stderr.end("pinned Codex diagnostic\n");
+    process.stderr.write("pinned Codex diagnostic\n");
     child.emit("close", 1, null);
   });
   return process;

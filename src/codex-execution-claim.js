@@ -238,6 +238,67 @@ export function createCodexExecutionClaimService(
       }
       return recordWaiverPreStartFailure(durableCore, claim, failure, now);
     },
+    /** @param {CodexExecutionClaim} claim @param {number} processGroupId */
+    trackProcessGroup(claim, processGroupId) {
+      assertClaim(claim);
+      if (!Number.isSafeInteger(processGroupId) || processGroupId < 1) {
+        throw new TypeError("Codex execution process group is invalid");
+      }
+      const recordedAt = now();
+      requireTimestamp(recordedAt);
+      const tracked = durableCore.transaction((transaction) =>
+        transaction.run(
+          `UPDATE codex_execution_queue
+           SET process_group_id = ?, process_group_recorded_at = ?
+           WHERE work_id = ? AND work_kind = ?
+             AND worker_id = ? AND fencing_token = ?
+             AND started_at IS NOT NULL
+             AND process_group_id IS NULL
+             AND recovered_at IS NULL
+             AND lease_expires_at > ?`,
+          processGroupId,
+          recordedAt,
+          claim.workId,
+          claim.workKind,
+          claim.workerId,
+          claim.fencingToken,
+          recordedAt,
+        ),
+      );
+      if (tracked.changes !== 1) {
+        claimLost(claim.workKind);
+      }
+      return { processGroupId, recordedAt };
+    },
+    /** @param {CodexExecutionClaim} claim */
+    finishProcessGroup(claim) {
+      assertClaim(claim);
+      const finishedAt = now();
+      requireTimestamp(finishedAt);
+      const finished = durableCore.transaction((transaction) =>
+        transaction.run(
+          `UPDATE codex_execution_queue
+           SET process_group_finished_at = ?
+           WHERE work_id = ? AND work_kind = ?
+             AND worker_id = ? AND fencing_token = ?
+             AND started_at IS NOT NULL
+             AND process_group_id IS NOT NULL
+             AND process_group_finished_at IS NULL
+             AND recovered_at IS NULL
+             AND lease_expires_at > ?`,
+          finishedAt,
+          claim.workId,
+          claim.workKind,
+          claim.workerId,
+          claim.fencingToken,
+          finishedAt,
+        ),
+      );
+      if (finished.changes !== 1) {
+        claimLost(claim.workKind);
+      }
+      return { finishedAt };
+    },
     /** @param {CodexExecutionClaim} claim */
     release(claim) {
       assertClaim(claim);

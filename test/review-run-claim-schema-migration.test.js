@@ -59,7 +59,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 44);
+  assert.equal(migrated.facts.schemaVersion, 45);
   assert.deepEqual(
     migrated.get(
       `SELECT worker_id, fencing_token, lease_expires_at, retry_state
@@ -163,7 +163,7 @@ test("schema v42 preserves queue identity while adding ready retry state", async
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 44);
+  assert.equal(migrated.facts.schemaVersion, 45);
   assert.deepEqual(
     migrated.get(
       `SELECT work_id, ready_at, retry_state

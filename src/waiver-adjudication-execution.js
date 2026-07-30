@@ -281,9 +281,16 @@ export async function executeWaiverAdjudication(
           criteria: adjudication.requests,
           prompt,
         },
+        finishProcessGroup() {
+          claimService.finishProcessGroup(claim);
+        },
         startRun() {
           claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
           started = true;
+        },
+        /** @param {number} processGroupId */
+        trackProcessGroup(processGroupId) {
+          claimService.trackProcessGroup(claim, processGroupId);
         },
         ...codexOptions,
         /** @param {unknown} failure */

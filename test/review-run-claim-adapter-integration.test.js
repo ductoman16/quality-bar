@@ -9,6 +9,13 @@ import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.j
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
+import {
+  acceptedChannel,
+  claim as adapterClaim,
+  run as adapterRun,
+  runReviewRunCodex,
+  runningProcess,
+} from "./review-run-codex-adapter-support.js";
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-claim-adapter-"));
@@ -119,4 +126,48 @@ test("a long owning Codex adapter cannot starve an independent I/O duty", async 
   assert.equal(polled, true);
   finishCodex();
   await codexStarted;
+});
+
+test("the Codex adapter tracks the detached process group before observing its terminal result", async () => {
+  const child = runningProcess(4321);
+  /** @type {string[]} */
+  const events = [];
+
+  await runReviewRunCodex({
+    checkoutPath: "/checkout",
+    claim: adapterClaim,
+    evidenceService: {
+      appendTranscriptChunk() {},
+      complete() {},
+    },
+    finishProcessGroup() {
+      events.push("finish");
+    },
+    killProcessGroup(processGroupId, signal) {
+      assert.equal(processGroupId, -4321);
+      if (signal === "SIGTERM") {
+        events.push("terminate");
+        queueMicrotask(() => child.emit("close", 0, null));
+        return;
+      }
+      if (signal === 0) {
+        throw Object.assign(new Error("process group exited"), {
+          code: "ESRCH",
+        });
+      }
+    },
+    openSubmissionChannel: async () => acceptedChannel(),
+    resultService: { prepare() {} },
+    run: adapterRun,
+    spawnProcess() {
+      events.push("spawn");
+      return /** @type {any} */ (child);
+    },
+    trackProcessGroup(processGroupId) {
+      assert.equal(processGroupId, 4321);
+      events.push("track");
+    },
+  });
+
+  assert.deepEqual(events, ["spawn", "track", "terminate", "finish"]);
 });

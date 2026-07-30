@@ -19,8 +19,9 @@ import {
   createTranscriptFailureController,
   observeCodexProcess,
 } from "./review-run-codex-process.js";
+import { trackSpawnedCodexProcessGroup } from "./codex-execution-process-group-tracking.js";
 import * as deadline from "./review-run-deadline.js";
-import { captureEvidenceCompletionFailure } from "./review-run-evidence.js";
+import * as evidence from "./review-run-evidence.js";
 import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
@@ -82,14 +83,13 @@ export function reviewRunCodexEnvironment(
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},
  *   recordDeadline: (failure: ReviewRunExecutionError) => unknown,
  *   startRun: () => unknown,
+ *   finishProcessGroup?: () => unknown,
+ *   trackProcessGroup?: (processGroupId: number) => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearDeadlineTimer?: (timer: any) => void,
  *   clearTerminationTimer?: (timer: any) => void,
- *   evidenceService?: {
- *     appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown,
- *     complete(claim: any, facts: unknown): unknown
- *   },
+ *   evidenceService?: {appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown, complete(claim: any, facts: unknown): unknown},
  *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
  *   setDeadlineTimer?: (callback: () => void, milliseconds: number) => any,
  *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
@@ -108,10 +108,7 @@ export async function runReviewRunCodex({
   codexPrefixArguments = [],
   clearDeadlineTimer = clearTimeout,
   clearTerminationTimer = clearTimeout,
-  evidenceService = {
-    appendTranscriptChunk() {},
-    complete() {},
-  },
+  evidenceService = evidence.NO_REVIEW_RUN_EVIDENCE,
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
   processEnvironment = process.env,
@@ -122,6 +119,8 @@ export async function runReviewRunCodex({
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
   startRun,
+  finishProcessGroup = () => {},
+  trackProcessGroup = () => {},
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
   const channel = await openSubmissionChannel(claim, resultService);
@@ -205,6 +204,12 @@ export async function runReviewRunCodex({
         transcript.stop(error);
       }
     });
+    await trackSpawnedCodexProcessGroup(
+      child,
+      trackProcessGroup,
+      closeSubmissionChannel,
+      terminateProcessGroup,
+    );
     /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "process-error" } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     let terminal;
     try {
@@ -358,7 +363,8 @@ export async function runReviewRunCodex({
     }
     const terminalProcess =
       terminal.kind === "process" ? terminal.result : await processResult;
-    const evidenceCompletionFailure = captureEvidenceCompletionFailure(
+    finishProcessGroup();
+    const evidenceCompletionFailure = evidence.captureEvidenceCompletionFailure(
       evidenceService,
       claim,
       terminalProcess,

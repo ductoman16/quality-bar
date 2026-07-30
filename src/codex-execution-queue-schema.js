@@ -89,4 +89,47 @@ export const CODEX_EXECUTION_QUEUE_TRIGGERS = `
       )
     )
     BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_process_group_update
+    BEFORE UPDATE OF process_group_id, process_group_recorded_at
+    ON codex_execution_queue
+    WHEN (
+      OLD.process_group_id IS NOT NULL
+      OR NEW.process_group_id IS NULL
+      OR NEW.process_group_id <= 0
+      OR NEW.process_group_recorded_at IS NULL
+      OR NEW.started_at IS NULL
+      OR NEW.process_group_recorded_at < NEW.started_at
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'codex_execution_process_group_invalid');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_process_group_finish
+    BEFORE UPDATE OF process_group_finished_at
+    ON codex_execution_queue
+    WHEN (
+      OLD.process_group_finished_at IS NOT NULL
+      OR NEW.process_group_finished_at IS NULL
+      OR NEW.process_group_id IS NULL
+      OR NEW.process_group_recorded_at IS NULL
+      OR NEW.process_group_finished_at < NEW.process_group_recorded_at
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'codex_execution_process_group_finish_invalid');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_recovery_update
+    BEFORE UPDATE OF recovery_termination_signal, recovered_at
+    ON codex_execution_queue
+    WHEN (
+      OLD.recovered_at IS NOT NULL
+      OR NEW.recovered_at IS NULL
+      OR NEW.started_at IS NULL
+      OR NEW.recovered_at < NEW.started_at
+      OR (
+        NEW.recovery_termination_signal IS NOT NULL
+        AND NEW.recovery_termination_signal NOT IN ('SIGTERM', 'SIGKILL')
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'codex_execution_recovery_invalid');
+    END;
 `;

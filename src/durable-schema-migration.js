@@ -71,6 +71,11 @@ export function migrateSchema(
     typeof queueSchema === "string" &&
     !queueColumns.has("retry_state") &&
     !statements.includes("ADD COLUMN retry_state");
+  const queueNeedsProcessGroup =
+    schemaVersion === CURRENT_SCHEMA_VERSION &&
+    typeof queueSchema === "string" &&
+    !queueColumns.has("process_group_id") &&
+    !statements.includes("ADD COLUMN process_group_id");
   database.function(
     "quality_bar_legacy_file_change_modified",
     { deterministic: true },
@@ -110,6 +115,24 @@ export function migrateSchema(
              CHECK (retry_state IN ('ready', 'exhausted'));`
         : ""
     }
+    ${
+      queueNeedsProcessGroup
+        ? `ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_id INTEGER
+             CHECK (process_group_id IS NULL OR process_group_id > 0);
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_recorded_at INTEGER;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_finished_at INTEGER;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN recovery_termination_signal TEXT CHECK (
+               recovery_termination_signal IS NULL
+               OR recovery_termination_signal IN ('SIGTERM', 'SIGKILL')
+             );
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN recovered_at INTEGER;`
+        : ""
+    }
     ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
@@ -128,7 +151,7 @@ export function finalizeSchemaMigration(
   /** @type {number} */ version,
 ) {
   if (
-    ![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43].includes(
+    ![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].includes(
       version,
     )
   ) {
@@ -155,7 +178,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 44;
+export const CURRENT_SCHEMA_VERSION = 45;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";

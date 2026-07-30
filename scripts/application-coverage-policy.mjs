@@ -17,6 +17,7 @@ export const APPLICATION_COVERAGE_BOUNDARY = Object.freeze({
 
 export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/application-readiness.test.js",
+  "test/application-recovery-startup.test.js",
   "test/application-execution-runtime.test.js",
   "test/application-execution-shutdown.test.js",
   "test/codex-capabilities.test.js",
@@ -64,6 +65,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/codex-execution-concurrency.test.js",
   "test/codex-execution-concurrency-http-integration.test.js",
   "test/codex-execution-claim.test.js",
+  "test/codex-execution-recovery.test.js",
   "test/codex-execution-worker.test.js",
   "test/io-execution-pool.test.js",
   "test/review-run-claim.test.js",
@@ -186,6 +188,10 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-run-admission-sqlite-integration.test.js",
   "test/review-run-admission-sqlite-failure-integration.test.js",
   "test/review-run-claim-adapter-integration.test.js",
+  "test/codex-execution-recovery-sqlite-integration.test.js",
+  "test/codex-execution-recovery-schema-migration.test.js",
+  "test/codex-execution-recovery-sqlite-failure-integration.test.js",
+  "test/codex-execution-recovery-process-integration.test.js",
   "test/codex-execution-concurrency-sqlite-integration.test.js",
   "test/codex-execution-concurrency-sqlite-failure-integration.test.js",
   "test/codex-execution-ordering-sqlite-integration.test.js",
