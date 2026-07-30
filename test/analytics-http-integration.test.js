@@ -31,6 +31,85 @@ const document = {
       numerator: 3,
     },
   },
+  matching_facts: {
+    evaluations: [
+      {
+        base_commit: "a".repeat(40),
+        created_at: 100,
+        evaluation_id: "evaluation-1",
+        head_commit: "b".repeat(40),
+        pull_request_number: 42,
+        repository_id: "repository-1",
+        terminal_outcome: "clear",
+      },
+    ],
+    review_runs: [
+      {
+        base_commit: "a".repeat(40),
+        cached_input_tokens: null,
+        cancellation_code: null,
+        completed_at: 220,
+        created_at: 100,
+        criterion_results: [
+          { criterion_id: "criterion-1", outcome: "triggered" },
+        ],
+        error_code: null,
+        evaluation_id: "evaluation-1",
+        execution_status: "completed",
+        findings: [
+          {
+            criterion_id: "criterion-1",
+            finding_id: "finding-1",
+            impact: "advisory",
+          },
+        ],
+        head_commit: "b".repeat(40),
+        input_tokens: 30,
+        model: "gpt-5.4",
+        output_tokens: 8,
+        pull_request_number: 42,
+        reasoning_effort: "high",
+        repository_id: "repository-1",
+        review_id: "review-1",
+        review_run_id: "review-run-1",
+        review_version_id: "review-version-1",
+        service_tier: "standard",
+        started_at: 120,
+        waiver_decisions: [
+          {
+            created_at: 180,
+            outcome: "accepted",
+            waiver_decision_id: "waiver-decision-1",
+            waiver_request_id: "waiver-request-1",
+          },
+        ],
+        waiver_requests: [
+          {
+            created_at: 160,
+            finding_id: "finding-1",
+            waiver_request_id: "waiver-request-1",
+          },
+        ],
+      },
+    ],
+  },
+  population: {
+    filters: {},
+    matching_evaluations: 6,
+    matching_waiver_adjudications: 1,
+    matching_waiver_decisions: 3,
+    matching_waiver_requests: 1,
+    pending_adjudications: 0,
+    pending_evaluations: 2,
+    state: "pending_data",
+    total_evaluations: 6,
+  },
+  pull_request_criterion_transitions: {
+    no_longer_applicable: 1,
+    sample_size: 3,
+    triggered_to_clear: 1,
+    triggered_to_error: 1,
+  },
   review_applicability: [
     {
       applicable: 2,
@@ -145,6 +224,47 @@ test("the canonical Analytics document conforms to the published HTTP schema", a
   assert.equal(assertion.facts().responseDocuments, 1);
 });
 
+test("the canonical Analytics schema rejects inexact provenance and failure codes", async () => {
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
+  for (const matchingFacts of [
+    {
+      ...document.matching_facts,
+      evaluations: [
+        {
+          ...document.matching_facts.evaluations[0],
+          base_commit: "not-a-commit",
+        },
+      ],
+    },
+    {
+      ...document.matching_facts,
+      review_runs: [
+        {
+          ...document.matching_facts.review_runs[0],
+          error_code: "Not Stable",
+        },
+      ],
+    },
+  ]) {
+    await assert.rejects(
+      () =>
+        assertion.assertExchange({
+          request: {
+            method: "GET",
+            url: "http://127.0.0.1/api/v1/analytics",
+          },
+          response: Response.json({
+            ...document,
+            matching_facts: matchingFacts,
+          }),
+        }),
+      /openapi_success_document_invalid/,
+    );
+  }
+});
+
 test("HTTP exposes the canonical Analytics document to browser and machine authorities", async () => {
   const { application, request } = await startApplication({
     createEvaluations() {
@@ -175,6 +295,70 @@ test("HTTP exposes the canonical Analytics document to browser and machine autho
   });
   assert.equal(malformed.status, 400);
   assert.equal(await responseErrorCode(malformed), "request_malformed");
+});
+
+test("HTTP accepts exact Analytics filters and preserves their half-open boundaries", async () => {
+  let received;
+  const filteredDocument = {
+    ...document,
+    population: {
+      filters: {
+        criterion_id: "criterion-1",
+        end: 200,
+        repository_id: "repository-1",
+        start: 100,
+      },
+      matching_evaluations: 1,
+      matching_waiver_adjudications: 0,
+      matching_waiver_decisions: 0,
+      matching_waiver_requests: 0,
+      pending_adjudications: 0,
+      pending_evaluations: 0,
+      state: "ready",
+      total_evaluations: 6,
+    },
+  };
+  const { request } = await startApplication({
+    createEvaluations() {
+      return {
+        ...createUnavailableEvaluationService(new Error("unused Evaluation")),
+        readAnalytics(filters) {
+          received = filters;
+          return filteredDocument;
+        },
+      };
+    },
+  });
+  const operator = await authenticatedOperatorHeaders(request);
+  const response = await request(
+    "/api/v1/analytics?repository_id=repository-1&criterion_id=criterion-1&start=100&end=200",
+    { headers: { cookie: operator.cookie } },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(received, {
+    criterion_id: "criterion-1",
+    end: 200,
+    repository_id: "repository-1",
+    start: 100,
+  });
+  assert.deepEqual(await response.json(), filteredDocument);
+
+  const invalid = await request("/api/v1/analytics?start=200&end=100", {
+    headers: { cookie: operator.cookie },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(await responseErrorCode(invalid), "analytics_filter_invalid");
+  for (const value of ["", "%20", "0x10", "01"]) {
+    const malformed = await request(`/api/v1/analytics?start=${value}`, {
+      headers: { cookie: operator.cookie },
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal(
+      await responseErrorCode(malformed),
+      "analytics_filter_invalid",
+    );
+  }
 });
 
 test("HTTP surfaces the exact Analytics query failure without fallback data", async () => {

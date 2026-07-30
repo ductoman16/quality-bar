@@ -112,7 +112,7 @@ export function createApiRoute({
       return true;
     }
     if (method === "GET" && path === "/api/v1/analytics") {
-      writeAnalytics(response, analytics);
+      writeAnalytics(response, analytics, requestUrl.searchParams);
       return true;
     }
     if (method === "GET" && path === "/api/v1/reviews") {

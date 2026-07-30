@@ -6,6 +6,10 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import { browserElement } from "./repository-browser-component-support.js";
+import {
+  analyticsMatchingFactsFixture,
+  assertAnalyticsBrowserStates,
+} from "./analytics-browser-state-support.js";
 
 test("Analytics renders visible counts and numerator/denominator rates", () => {
   const page = operatorPage({ view: "analytics" });
@@ -20,6 +24,22 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   assert.match(page, /id="analytics-execution-failure-codes"/);
   assert.match(page, /id="analytics-execution-duration"/);
   assert.match(page, /id="analytics-token-counters"/);
+  assert.match(page, /id="analytics-filters"/);
+  assert.match(page, /id="analytics-population"/);
+  assert.match(page, /id="analytics-transitions"/);
+  assert.match(page, /id="analytics-matching-evaluations"/);
+  assert.match(page, /id="analytics-matching-review-runs"/);
+  assert.match(page, /id="analytics-invalid-denominator" role="status"/);
+  assert.match(page, /id="analytics-unavailable-tokens" role="status"/);
+  assert.match(
+    page,
+    /<script src="\/assets\/analytics-contract\.js"><\/script>/,
+  );
+  assert.match(
+    page,
+    /<script src="\/assets\/analytics-matching-facts\.js"><\/script>/,
+  );
+  assert.match(page, /<script src="\/assets\/analytics-state\.js"><\/script>/);
   assert.match(page, /<script src="\/assets\/analytics\.js"><\/script>/);
   const labels = [...page.matchAll(/<th>([^<]+)<\/th>/g)].map(
     ([, label]) => label,
@@ -37,6 +57,13 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const executionFailureCodes = browserElement();
   const executionDuration = browserElement();
   const tokenCounters = browserElement();
+  const transitions = browserElement();
+  const matchingEvaluations = browserElement();
+  const matchingReviewRuns = browserElement();
+  const population = browserElement();
+  const invalidDenominator = browserElement({ hidden: true });
+  const unavailableTokens = browserElement({ hidden: true });
+  const filters = browserElement();
   const error = browserElement({ hidden: true });
   const elements = new Map([
     ["analytics-applicability", applicability],
@@ -53,6 +80,13 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-execution-failure-codes", executionFailureCodes],
     ["analytics-execution-duration", executionDuration],
     ["analytics-token-counters", tokenCounters],
+    ["analytics-transitions", transitions],
+    ["analytics-matching-evaluations", matchingEvaluations],
+    ["analytics-matching-review-runs", matchingReviewRuns],
+    ["analytics-population", population],
+    ["analytics-invalid-denominator", invalidDenominator],
+    ["analytics-unavailable-tokens", unavailableTokens],
+    ["analytics-filters", filters],
     ["analytics-error", error],
   ]);
   const context = /** @type {any} */ ({
@@ -67,6 +101,46 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     },
     window: {},
   });
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/analytics-contract.js",
+    readBrowserAsset("/assets/analytics-contract.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/analytics-state.js",
+    readBrowserAsset("/assets/analytics-state.js"),
+    context,
+  );
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/analytics-matching-facts.js",
+    readBrowserAsset("/assets/analytics-matching-facts.js"),
+    context,
+  );
+  assert.throws(
+    () =>
+      executeServedBrowserAsset(
+        resolve("."),
+        "src/browser/analytics.js",
+        readBrowserAsset("/assets/analytics.js"),
+        {
+          ...context,
+          document: {
+            ...context.document,
+            /** @param {string} id */
+            getElementById(id) {
+              return id === "analytics-filters"
+                ? null
+                : context.document.getElementById(id);
+            },
+          },
+          window: { ...context.window },
+        },
+      ),
+    { message: "analytics_filter_surface_missing" },
+  );
   executeServedBrowserAsset(
     resolve("."),
     "src/browser/analytics.js",
@@ -106,6 +180,24 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
         denominator: 4,
         numerator: 7,
       },
+    },
+    matching_facts: analyticsMatchingFactsFixture(),
+    population: {
+      filters: {},
+      matching_evaluations: 11,
+      matching_waiver_adjudications: 1,
+      matching_waiver_decisions: 5,
+      matching_waiver_requests: 3,
+      pending_adjudications: 1,
+      pending_evaluations: 3,
+      state: "pending_data",
+      total_evaluations: 11,
+    },
+    pull_request_criterion_transitions: {
+      no_longer_applicable: 1,
+      sample_size: 4,
+      triggered_to_clear: 2,
+      triggered_to_error: 1,
     },
     review_applicability: [
       {
@@ -284,31 +376,28 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ),
     ["Review Run", "Cached input tokens", "Unavailable", "Unavailable", "0/3"],
   );
-  const renderedEvaluation = evaluationOutcomes.options[0];
-  assert.throws(
-    () =>
-      context.window.qualityBarAnalytics.render({
-        ...analyticsDocument,
-        review_run_reliability: {
-          ...analyticsDocument.review_run_reliability,
-          duration: null,
-          token_counters: null,
-        },
-      }),
-    { message: "analytics_document_invalid" },
+  assert.equal(
+    population.textContent,
+    "Pending data · 11/11 Evaluations · 3 Waiver Requests · 5 Waiver Decisions · 1 Waiver Adjudications",
   );
-  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
-  assert.throws(
-    () =>
-      context.window.qualityBarAnalytics.render({
-        ...analyticsDocument,
-        review_run_reliability: {
-          ...analyticsDocument.review_run_reliability,
-          token_counters: null,
-        },
-      }),
-    { message: "analytics_document_invalid" },
+  assert.equal(matchingEvaluations.options.length, 1);
+  assert.equal(matchingReviewRuns.options.length, 1);
+  assert.deepEqual(
+    transitions.options[0].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["2", "1", "1", "4"],
   );
-  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
-  assert.equal(error.hidden, true);
+  assert.equal(invalidDenominator.hidden, true);
+  assert.equal(unavailableTokens.hidden, false);
+  assertAnalyticsBrowserStates({
+    analyticsDocument,
+    context,
+    error,
+    evaluationOutcomes,
+    invalidDenominator,
+    matchingEvaluations,
+    page,
+    population,
+  });
 });

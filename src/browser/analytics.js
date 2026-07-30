@@ -23,10 +23,40 @@ const executionDurationBody = document.getElementById(
   "analytics-execution-duration",
 );
 const tokenCountersBody = document.getElementById("analytics-token-counters");
+const transitionsBody = document.getElementById("analytics-transitions");
+const populationStatus = document.getElementById("analytics-population");
+const invalidDenominatorStatus = document.getElementById(
+  "analytics-invalid-denominator",
+);
+const unavailableTokensStatus = document.getElementById(
+  "analytics-unavailable-tokens",
+);
+const filterForm = document.getElementById("analytics-filters");
 const analyticsError = document.getElementById("analytics-error");
+let invalidDenominator = false;
+
+const analyticsWindow = /** @type {any} */ (window);
+const analyticsContract = analyticsWindow.qualityBarAnalyticsContract;
+const matchingFactsSurface = analyticsWindow.qualityBarAnalyticsMatchingFacts;
+const analyticsState = analyticsWindow.qualityBarAnalyticsState;
+if (!analyticsContract || !matchingFactsSurface || !analyticsState) {
+  throw new Error("analytics_contract_unavailable");
+}
+if (!filterForm) {
+  throw new Error("analytics_filter_surface_missing");
+}
+const {
+  validCount: analyticsValidCount,
+  validExecutionReliability: analyticsValidExecutionReliability,
+  validMatchingFacts: analyticsValidMatchingFacts,
+} = analyticsContract;
 
 /** @param {{numerator: number, denominator: number}} rate */
 function rateText(rate) {
+  if (rate.denominator === 0) {
+    invalidDenominator = true;
+    return "Invalid denominator";
+  }
   return `${rate.numerator}/${rate.denominator}`;
 }
 
@@ -46,71 +76,6 @@ function row(values) {
   return element;
 }
 
-/** @param {unknown} value */
-function validCount(value) {
-  return Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0;
-}
-
-/** @param {any} candidate */
-function validRate(candidate) {
-  return (
-    typeof candidate === "object" &&
-    validCount(candidate?.numerator) &&
-    validCount(candidate?.denominator)
-  );
-}
-
-/** @param {any} candidate */
-function validDuration(candidate) {
-  return (
-    typeof candidate === "object" &&
-    validCount(candidate?.execution_count) &&
-    (candidate?.median_ms === null ||
-      (typeof candidate?.median_ms === "number" &&
-        Number.isFinite(candidate.median_ms) &&
-        candidate.median_ms >= 0)) &&
-    (candidate?.total_ms === null || validCount(candidate?.total_ms))
-  );
-}
-
-/** @param {any} candidate */
-function validTokenCounter(candidate) {
-  return (
-    typeof candidate === "object" &&
-    validRate(candidate?.coverage) &&
-    (candidate?.median === null ||
-      (typeof candidate?.median === "number" &&
-        Number.isFinite(candidate.median) &&
-        candidate.median >= 0)) &&
-    (candidate?.sum === null || validCount(candidate?.sum))
-  );
-}
-
-/** @param {any} candidate @param {string[]} outcomes */
-function validExecutionReliability(candidate, outcomes) {
-  return (
-    typeof candidate === "object" &&
-    validCount(candidate?.active) &&
-    outcomes.every(
-      (outcome) =>
-        validCount(candidate?.[outcome]) &&
-        validRate(candidate?.[`${outcome}_rate`]) &&
-        validDuration(candidate?.duration?.[outcome]),
-    ) &&
-    validDuration(candidate?.duration?.terminal) &&
-    Array.isArray(candidate?.failure_codes) &&
-    candidate.failure_codes.every(
-      (/** @type {any} */ failure) =>
-        typeof failure?.code === "string" &&
-        /^[a-z][a-z0-9_]*$/.test(failure.code) &&
-        validCount(failure?.count),
-    ) &&
-    ["input_tokens", "cached_input_tokens", "output_tokens"].every((counter) =>
-      validTokenCounter(candidate?.token_counters?.[counter]),
-    )
-  );
-}
-
 /** @param {any} document */
 function render(document) {
   if (
@@ -125,24 +90,49 @@ function render(document) {
     !executionFailureCodesBody ||
     !executionDurationBody ||
     !tokenCountersBody ||
+    !transitionsBody ||
+    !populationStatus ||
+    !invalidDenominatorStatus ||
+    !unavailableTokensStatus ||
     !analyticsError ||
     !Array.isArray(document?.review_applicability) ||
     !Array.isArray(document?.criterion_outcomes) ||
     typeof document?.evaluation_outcomes !== "object" ||
     typeof document?.finding_impact !== "object" ||
+    !analyticsValidMatchingFacts(document?.matching_facts) ||
     typeof document?.waiver_analytics !== "object" ||
     typeof document?.waiver_analytics?.decision_history !== "object" ||
-    !validExecutionReliability(document?.review_run_reliability, [
+    typeof document?.population !== "object" ||
+    !["no_evaluations", "no_filter_match", "pending_data", "ready"].includes(
+      document?.population?.state,
+    ) ||
+    !analyticsValidCount(document?.population?.total_evaluations) ||
+    !analyticsValidCount(document?.population?.matching_evaluations) ||
+    !analyticsValidCount(document?.population?.matching_waiver_requests) ||
+    !analyticsValidCount(document?.population?.matching_waiver_decisions) ||
+    !analyticsValidCount(document?.population?.matching_waiver_adjudications) ||
+    !analyticsValidCount(document?.population?.pending_evaluations) ||
+    !analyticsValidCount(document?.population?.pending_adjudications) ||
+    typeof document?.population?.filters !== "object" ||
+    typeof document?.pull_request_criterion_transitions !== "object" ||
+    ![
+      "triggered_to_clear",
+      "no_longer_applicable",
+      "triggered_to_error",
+      "sample_size",
+    ].every((name) =>
+      analyticsValidCount(document?.pull_request_criterion_transitions?.[name]),
+    ) ||
+    !analyticsValidExecutionReliability(document?.review_run_reliability, [
       "successful",
       "failed",
       "operator_cancelled",
       "superseded",
     ]) ||
-    !validExecutionReliability(document?.waiver_adjudication_reliability, [
-      "completed",
-      "failed",
-      "cancelled",
-    ])
+    !analyticsValidExecutionReliability(
+      document?.waiver_adjudication_reliability,
+      ["completed", "failed", "cancelled"],
+    )
   ) {
     throw new Error("analytics_document_invalid");
   }
@@ -157,6 +147,34 @@ function render(document) {
   executionFailureCodesBody.replaceChildren();
   executionDurationBody.replaceChildren();
   tokenCountersBody.replaceChildren();
+  transitionsBody.replaceChildren();
+  invalidDenominator = false;
+  const populationLabels = {
+    no_evaluations: "No Evaluations",
+    no_filter_match: "No filter match",
+    pending_data: "Pending data",
+    ready: "Ready",
+  };
+  populationStatus.textContent = `${
+    populationLabels[
+      /** @type {keyof typeof populationLabels} */ (document.population.state)
+    ]
+  } · ${document.population.matching_evaluations}/${document.population.total_evaluations} Evaluations`;
+  populationStatus.textContent +=
+    ` · ${document.population.matching_waiver_requests} Waiver Requests` +
+    ` · ${document.population.matching_waiver_decisions} Waiver Decisions` +
+    ` · ${document.population.matching_waiver_adjudications} Waiver Adjudications`;
+  populationStatus.hidden = false;
+  const transitions = document.pull_request_criterion_transitions;
+  transitionsBody.append(
+    row([
+      transitions.triggered_to_clear,
+      transitions.no_longer_applicable,
+      transitions.triggered_to_error,
+      transitions.sample_size,
+    ]),
+  );
+  matchingFactsSurface.render(document.matching_facts);
   const evaluations = document.evaluation_outcomes;
   evaluationOutcomesBody.append(
     row([
@@ -320,16 +338,36 @@ function render(document) {
       );
     }
   }
+  invalidDenominatorStatus.hidden = !invalidDenominator;
+  unavailableTokensStatus.hidden = ![reviewRuns, adjudications].some(
+    (reliability) =>
+      ["input_tokens", "cached_input_tokens", "output_tokens"].some(
+        (counter) => reliability.token_counters[counter].sum === null,
+      ),
+  );
   analyticsError.hidden = true;
   analyticsError.textContent = "";
 }
 
-const browserWindow = /** @type {any} */ (window);
-browserWindow.qualityBarAnalytics = { render };
+/** @param {Error} error */
+function showQueryFailure(error) {
+  if (!analyticsError) {
+    throw new Error("analytics_error_surface_missing", { cause: error });
+  }
+  analyticsState.clear();
+  analyticsError.hidden = false;
+  analyticsError.textContent = error.message;
+}
 
-if (typeof browserWindow.fetch === "function") {
-  browserWindow
-    .fetch("/api/v1/analytics")
+analyticsWindow.qualityBarAnalytics = {
+  render,
+  showQueryFailure,
+};
+
+/** @param {string} query */
+function load(query) {
+  return analyticsWindow
+    .fetch(`/api/v1/analytics${query}`)
     .then(async (/** @type {Response} */ response) => {
       const body = await response.json();
       if (!response.ok) {
@@ -338,10 +376,27 @@ if (typeof browserWindow.fetch === "function") {
       render(body);
     })
     .catch((/** @type {Error} */ error) => {
-      if (!analyticsError) {
-        throw new Error("analytics_error_surface_missing", { cause: error });
-      }
-      analyticsError.hidden = false;
-      analyticsError.textContent = error.message;
+      showQueryFailure(error);
     });
+}
+
+filterForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (typeof analyticsWindow.fetch !== "function") {
+    throw new Error("analytics_fetch_unavailable");
+  }
+  const parameters = new URLSearchParams();
+  for (const [name, value] of new FormData(
+    /** @type {HTMLFormElement} */ (filterForm),
+  )) {
+    if (typeof value === "string" && value !== "") {
+      parameters.set(name, value);
+    }
+  }
+  const query = parameters.size === 0 ? "" : `?${parameters}`;
+  void load(query);
+});
+
+if (typeof analyticsWindow.fetch === "function") {
+  void load("");
 }

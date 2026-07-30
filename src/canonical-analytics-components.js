@@ -1,4 +1,5 @@
 import { closedObject } from "./canonical-schema.js";
+import { canonicalAnalyticsMatchingSchemas } from "./canonical-analytics-matching-components.js";
 
 const count = { minimum: 0, type: "integer" };
 const rate = closedObject({ denominator: count, numerator: count }, [
@@ -33,6 +34,33 @@ const failureCodes = {
   items: { $ref: "#/components/schemas/ExecutionFailureCodeAnalytics" },
   type: "array",
 };
+const analyticsFilters = closedObject(
+  {
+    base_commit: {
+      pattern: "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      type: "string",
+    },
+    criterion_id: { minLength: 1, type: "string" },
+    end: count,
+    head_commit: {
+      pattern: "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      type: "string",
+    },
+    model: { minLength: 1, type: "string" },
+    pull_request_number: { minimum: 1, type: "integer" },
+    reasoning_effort: { minLength: 1, type: "string" },
+    repository_id: { minLength: 1, type: "string" },
+    review_id: { minLength: 1, type: "string" },
+    review_version_id: { minLength: 1, type: "string" },
+    service_tier: { minLength: 1, type: "string" },
+    start: count,
+    terminal_outcome: {
+      enum: ["clear", "advisory", "blocking", "error"],
+      type: "string",
+    },
+  },
+  [],
+);
 
 export function canonicalAnalyticsSchemas() {
   return {
@@ -47,6 +75,13 @@ export function canonicalAnalyticsSchemas() {
         },
         finding_impact: {
           $ref: "#/components/schemas/FindingImpactAnalytics",
+        },
+        matching_facts: {
+          $ref: "#/components/schemas/AnalyticsMatchingFacts",
+        },
+        population: { $ref: "#/components/schemas/AnalyticsPopulation" },
+        pull_request_criterion_transitions: {
+          $ref: "#/components/schemas/PullRequestCriterionTransitions",
         },
         review_applicability: {
           items: { $ref: "#/components/schemas/ReviewApplicabilityAnalytics" },
@@ -66,10 +101,55 @@ export function canonicalAnalyticsSchemas() {
         "criterion_outcomes",
         "evaluation_outcomes",
         "finding_impact",
+        "matching_facts",
+        "population",
+        "pull_request_criterion_transitions",
         "review_applicability",
         "review_run_reliability",
         "waiver_analytics",
         "waiver_adjudication_reliability",
+      ],
+    ),
+    ...canonicalAnalyticsMatchingSchemas(),
+    AnalyticsPopulation: closedObject(
+      {
+        filters: analyticsFilters,
+        matching_evaluations: count,
+        matching_waiver_adjudications: count,
+        matching_waiver_decisions: count,
+        matching_waiver_requests: count,
+        pending_adjudications: count,
+        pending_evaluations: count,
+        state: {
+          enum: ["no_evaluations", "no_filter_match", "pending_data", "ready"],
+          type: "string",
+        },
+        total_evaluations: count,
+      },
+      [
+        "filters",
+        "matching_evaluations",
+        "matching_waiver_requests",
+        "matching_waiver_decisions",
+        "matching_waiver_adjudications",
+        "pending_evaluations",
+        "pending_adjudications",
+        "state",
+        "total_evaluations",
+      ],
+    ),
+    PullRequestCriterionTransitions: closedObject(
+      {
+        no_longer_applicable: count,
+        sample_size: count,
+        triggered_to_clear: count,
+        triggered_to_error: count,
+      },
+      [
+        "triggered_to_clear",
+        "no_longer_applicable",
+        "triggered_to_error",
+        "sample_size",
       ],
     ),
     CriterionOutcomeAnalytics: closedObject(

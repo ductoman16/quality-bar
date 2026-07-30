@@ -17,7 +17,7 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
           { outcome: "error", review_id: "review-2" },
         ];
       }
-      if (sql.includes("FROM criterion_results")) {
+      if (sql.includes("AS analytics_criterion_rows")) {
         return [
           { criterion_id: "criterion-1", outcome: "triggered" },
           { criterion_id: "criterion-1", outcome: "clear" },
@@ -31,10 +31,12 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
   });
 
   const {
+    matching_facts: matchingFacts,
     review_run_reliability: reviewRunReliability,
     waiver_adjudication_reliability: waiverAdjudicationReliability,
     ...document
   } = analytics.read();
+  assert.deepEqual(matchingFacts, { evaluations: [], review_runs: [] });
   assert.deepEqual(document, {
     criterion_outcomes: [
       {
@@ -79,6 +81,23 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
         numerator: 0,
       },
     },
+    population: {
+      filters: {},
+      matching_evaluations: 0,
+      matching_waiver_adjudications: 0,
+      matching_waiver_decisions: 0,
+      matching_waiver_requests: 0,
+      pending_adjudications: 0,
+      pending_evaluations: 0,
+      state: "no_evaluations",
+      total_evaluations: 0,
+    },
+    pull_request_criterion_transitions: {
+      no_longer_applicable: 0,
+      sample_size: 0,
+      triggered_to_clear: 0,
+      triggered_to_error: 0,
+    },
     review_applicability: [
       {
         applicable: 2,
@@ -121,7 +140,7 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
   });
   assert.equal(reviewRunReliability.token_counters.input_tokens.sum, null);
   assert.equal(waiverAdjudicationReliability.active, 0);
-  assert.equal(queries.length, 8);
+  assert.equal(queries.length, 12);
 });
 
 test("Analytics query failure surfaces one exact owning error without a partial result", () => {
@@ -169,10 +188,16 @@ test("Analytics query failure surfaces one exact owning error without a partial 
 test("Analytics derives current Evaluation, Finding, and waiver populations from immutable facts", () => {
   const analytics = createAnalyticsService({
     all(sql) {
+      if (sql.includes("AS analytics_transition_rows")) {
+        return [];
+      }
+      if (sql.includes("AS analytics_filter_rows")) {
+        return [];
+      }
       if (sql.includes("FROM applicability_results")) {
         return [];
       }
-      if (sql.includes("FROM criterion_results")) {
+      if (sql.includes("AS analytics_criterion_rows")) {
         return [
           { criterion_id: "criterion-1", outcome: "triggered" },
           { criterion_id: "criterion-2", outcome: "triggered" },
@@ -260,7 +285,7 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           { has_accepted_decision: 0, has_waiver_request: 0 },
         ];
       }
-      if (sql.includes("FROM waiver_decisions")) {
+      if (sql.includes("AS analytics_decision_rows")) {
         return [
           { outcome: "accepted" },
           { outcome: "denied" },
@@ -269,7 +294,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
         ];
       }
       if (
-        sql.includes("FROM review_runs AS analytics_review_runs") ||
+        sql.includes("SELECT waiver_requests.id AS waiver_request_id") ||
+        sql.includes("AS analytics_adjudication_scope_rows") ||
+        sql.includes("AS analytics_review_run_rows") ||
         sql.includes(
           "FROM waiver_adjudications AS analytics_waiver_adjudications",
         )
@@ -281,10 +308,12 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
   });
 
   const {
+    matching_facts: matchingFacts,
     review_run_reliability: reviewRunReliability,
     waiver_adjudication_reliability: waiverAdjudicationReliability,
     ...document
   } = analytics.read();
+  assert.equal(matchingFacts.evaluations.length, 8);
   assert.equal(reviewRunReliability.active, 0);
   assert.equal(waiverAdjudicationReliability.active, 0);
   assert.deepEqual(document, {
@@ -341,6 +370,23 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
         denominator: 2,
         numerator: 3,
       },
+    },
+    population: {
+      filters: {},
+      matching_evaluations: 8,
+      matching_waiver_adjudications: 0,
+      matching_waiver_decisions: 4,
+      matching_waiver_requests: 0,
+      pending_adjudications: 0,
+      pending_evaluations: 2,
+      state: "pending_data",
+      total_evaluations: 8,
+    },
+    pull_request_criterion_transitions: {
+      no_longer_applicable: 0,
+      sample_size: 0,
+      triggered_to_clear: 0,
+      triggered_to_error: 0,
     },
     review_applicability: [],
     waiver_analytics: {
