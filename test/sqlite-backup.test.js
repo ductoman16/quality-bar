@@ -137,6 +137,40 @@ test("discards incomplete output and preserves the exact online backup failure",
   database.close();
 });
 
+test("hard shutdown aborts an online backup and discards its incomplete output", async () => {
+  const directory = temporaryDirectory();
+  const backupsPath = join(directory, "backups");
+  const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
+  database.exec("PRAGMA user_version = 20");
+  const workers = new AbortController();
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+
+  await assert.rejects(
+    createValidatedBackup({
+      applicationVersion: "1.2.3",
+      backupsPath,
+      database,
+      keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
+      kind: "daily",
+      now: () => Date.parse("2026-07-28T12:34:56.789Z"),
+      performBackup: async (sourceDatabase, destinationPath, options) => {
+        void sourceDatabase;
+        writeFileSync(destinationPath, "incomplete");
+        workers.abort(failure);
+        options?.progress?.({ remainingPages: 1, totalPages: 1 });
+        return 1;
+      },
+      signal: workers.signal,
+    }),
+    (error) => error === failure,
+  );
+
+  assert.deepEqual(readdirSync(backupsPath), []);
+  database.close();
+});
+
 test("retains only the seven latest successful daily backups", async () => {
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");

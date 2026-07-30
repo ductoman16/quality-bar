@@ -42,7 +42,7 @@ export function structuredLog(
 
 /**
  * @param {(line: string) => unknown} writeLog
- * @param {() => unknown} stopProductWork
+ * @param {(error: CodedError) => unknown} stopProductWork
  */
 export function createHardStorageBoundary(writeLog, stopProductWork) {
   if (typeof stopProductWork !== "function") {
@@ -90,7 +90,7 @@ export function createHardStorageBoundary(writeLog, stopProductWork) {
       for (const childProcess of codexProcesses) {
         terminateCodexProcess(childProcess);
       }
-      stopProductWork();
+      stopProductWork(error);
       structuredLog(
         writeLog,
         "error",

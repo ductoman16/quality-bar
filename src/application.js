@@ -136,11 +136,16 @@ export function createApplication({
   let codexRuntime = null;
   /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
   let codexExecutionConcurrency = null;
-  function stopProductWork() {
+  /** @param {CodedError} [error] */
+  function stopProductWork(error) {
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
     void codexRuntime?.close();
-    void ioPool.close();
+    if (error) {
+      ioPool.shutdown(error);
+    } else {
+      void ioPool.close();
+    }
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({

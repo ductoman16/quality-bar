@@ -202,6 +202,76 @@ test("hard storage shutdown cancels the installed daily-backup worker until rest
   assert.equal(closed, 1);
 });
 
+test("hard storage shutdown aborts an active installed daily backup", async () => {
+  const workers = new AbortController();
+  let backupRuns = 0;
+  let backupStops = 0;
+  let closed = 0;
+  let surfaced = 0;
+  /** @type {(() => void) | undefined} */
+  let timerCallback;
+  const application = await createInstalledApplication({
+    applicationVersion: "1.2.3",
+    backupsPath: "/backups",
+    createRuntime: () =>
+      /** @type {any} */ ({
+        durableCore: {},
+        async close() {
+          closed += 1;
+        },
+        workerSignal: workers.signal,
+      }),
+    databasePath: "/quality-bar.sqlite3",
+    loadInstallation: installation,
+    prepareBackup: async () => null,
+    async runDailyBackup(input) {
+      backupRuns += 1;
+      if (backupRuns === 1) {
+        return /** @type {any} */ ({ status: "current" });
+      }
+      assert.ok(input.signal);
+      const signal = input.signal;
+      const stopped = Promise.withResolvers();
+      signal.addEventListener(
+        "abort",
+        () => {
+          backupStops += 1;
+          stopped.reject(signal.reason);
+        },
+        { once: true },
+      );
+      return stopped.promise;
+    },
+    setBackupTimer(callback) {
+      timerCallback = callback;
+      return /** @type {any} */ ({ unref() {} });
+    },
+    surfaceBackupFailure() {
+      surfaced += 1;
+    },
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
+    validateSources() {},
+    writeLog() {},
+  });
+
+  timerCallback?.();
+  await nextTurn(() => {});
+  workers.abort(
+    Object.assign(new Error("SQLite durable write failed"), {
+      code: "storage_unavailable",
+    }),
+  );
+  await nextTurn(() => {});
+
+  assert.equal(backupRuns, 2);
+  assert.equal(backupStops, 1);
+  assert.equal(surfaced, 0);
+  assert.equal(closed, 0);
+
+  await application.close();
+  assert.equal(closed, 1);
+});
+
 test("a scheduled backup failure closes the runtime and surfaces exactly", async () => {
   const workers = new AbortController();
   const failure = Object.assign(new Error("daily backup failed"), {

@@ -86,6 +86,32 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   const codexExited = new Promise((resolve) =>
     codexProcess.once("exit", () => resolve(undefined)),
   );
+  const activeIo = Array.from({ length: 3 }, () =>
+    ioPool.run(
+      "polling",
+      /** @param {AbortSignal | undefined} signal */
+      (signal) => {
+        assert.ok(signal);
+        return new Promise((resolve) =>
+          signal.addEventListener("abort", () => resolve(undefined), {
+            once: true,
+          }),
+        );
+      },
+    ),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  let queuedIoRuns = 0;
+  const queuedIo = ioPool.run("delivery", () => {
+    queuedIoRuns += 1;
+  });
+  const queuedIoRejection = assert.rejects(
+    queuedIo,
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "storage_unavailable",
+  );
 
   assert.ok(application.durableCore);
   application.durableCore.run("PRAGMA query_only = ON");
@@ -105,8 +131,11 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   );
 
   await codexExited;
+  await queuedIoRejection;
+  await Promise.all(activeIo);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(application.workerSignal.aborted, true);
+  assert.equal(queuedIoRuns, 0);
   assert.deepEqual(stopped, ["github", "forgejo", "codex"]);
   assert.throws(
     () => ioPool.run("cleanup", () => assert.fail("I/O work ran")),

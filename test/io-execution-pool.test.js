@@ -125,6 +125,34 @@ test("the fixed waiting bound and shutdown surface exact owning errors", async (
   await Promise.all([...active, ...queued, closed]);
 });
 
+test("hard shutdown aborts active duties and rejects queued duties with its owning error", async () => {
+  const pool = createIoExecutionPool();
+  let queuedRuns = 0;
+  const active = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
+    pool.run("polling", (signal) => {
+      assert.ok(signal);
+      return new Promise((resolve) =>
+        signal.addEventListener("abort", () => resolve(undefined), {
+          once: true,
+        }),
+      );
+    }),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  const queued = pool.run("delivery", () => {
+    queuedRuns += 1;
+  });
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+
+  pool.shutdown(failure);
+
+  await assert.rejects(queued, (error) => error === failure);
+  await Promise.all(active);
+  assert.equal(queuedRuns, 0);
+});
+
 test("a saturated production scheduler reports its exact admission failure", async () => {
   /** @type {any[]} */
   const failures = [];

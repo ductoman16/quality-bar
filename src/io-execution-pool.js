@@ -24,7 +24,8 @@ export class IoExecutionPoolError extends Error {
 export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
   let active = 0;
   let accepting = true;
-  /** @type {{operation: () => unknown, reject: (reason?: unknown) => void, resolve: (value: unknown) => void}[]} */
+  const workers = new AbortController();
+  /** @type {{operation: (signal?: AbortSignal) => unknown, reject: (reason?: unknown) => void, resolve: (value: unknown) => void}[]} */
   const waiting = [];
   /** @type {((value?: void) => void)[]} */
   const drainWaiters = [];
@@ -46,7 +47,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
       }
       active += 1;
       Promise.resolve()
-        .then(task.operation)
+        .then(() => task.operation(workers.signal))
         .then(task.resolve, task.reject)
         .finally(() => {
           active -= 1;
@@ -75,7 +76,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
   return {
     /**
      * @param {"polling" | "acquisition" | "delivery" | "retention" | "cleanup"} duty
-     * @param {() => unknown} operation
+     * @param {(signal?: AbortSignal) => unknown} operation
      */
     run(duty, operation) {
       validate(duty, operation);
@@ -93,7 +94,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
     },
     /**
      * @param {"polling" | "acquisition" | "delivery" | "retention" | "cleanup"} duty
-     * @param {() => unknown} operation
+     * @param {(signal?: AbortSignal) => unknown} operation
      */
     runImmediate(duty, operation) {
       validate(duty, operation);
@@ -110,7 +111,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
       }
       active += 1;
       try {
-        const result = operation();
+        const result = operation(workers.signal);
         if (
           result &&
           typeof (/** @type {any} */ (result).then) === "function"
@@ -148,6 +149,15 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
         return Promise.resolve();
       }
       return new Promise((resolve) => drainWaiters.push(resolve));
+    },
+    /** @param {unknown} reason */
+    shutdown(reason) {
+      accepting = false;
+      workers.abort(reason);
+      for (const task of waiting.splice(0)) {
+        task.reject(reason);
+      }
+      finishDrain();
     },
   };
 }

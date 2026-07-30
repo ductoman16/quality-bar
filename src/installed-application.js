@@ -189,6 +189,7 @@ export async function createInstalledApplication({
     databasePath,
     keyIdentity,
     now,
+    signal: application.workerSignal,
   };
   try {
     await runDailyBackup(dailyBackupInput);
@@ -221,6 +222,9 @@ export async function createInstalledApplication({
           }
         },
         async (error) => {
+          if (application.workerSignal.aborted) {
+            return;
+          }
           const failure = codedBackupFailure(error);
           logBackupFailure(writeLog, failure);
           stopped = true;
