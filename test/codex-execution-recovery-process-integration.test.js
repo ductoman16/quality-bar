@@ -5,12 +5,170 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { createHardStorageBoundary } from "../src/application-runtime.js";
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
 import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+
+test("hard storage failure terminates the supervised Codex process group", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-storage-process-group-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const boundary = createHardStorageBoundary(
+    () => {},
+    () => {},
+  );
+  const marker = join(directory, "codex-started");
+  const prepared = prepareCodexProcess(
+    process.execPath,
+    [
+      join(import.meta.dirname, "../fixtures/test-probes/mark-and-idle.mjs"),
+      marker,
+    ],
+    { cwd: directory, environment: {} },
+    process.execPath,
+    (command, arguments_, options) => {
+      const child = spawn(command, arguments_, options);
+      boundary.registerCodexProcess(child, {
+        processGroup: options.detached === true,
+      });
+      return child;
+    },
+  );
+  const { child } = prepared;
+  assert.ok(child.pid);
+  context.after(() => {
+    try {
+      process.kill(-(/** @type {number} */ (child.pid)), "SIGKILL");
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          "code" in error &&
+          String(error.code) === "ESRCH"
+        )
+      ) {
+        throw error;
+      }
+    }
+  });
+  await prepared.start();
+  const launchDeadline = Date.now() + 2_000;
+  while (!existsSync(marker) && Date.now() < launchDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(existsSync(marker), true);
+  const exited = new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("supervised Codex process group survived")),
+      2_000,
+    );
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
+  });
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+
+  boundary.enter(failure);
+
+  await exited;
+  assert.throws(
+    () => process.kill(-(/** @type {number} */ (child.pid)), 0),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      String(error.code) === "ESRCH",
+  );
+  assert.equal(boundary.failure, failure);
+});
+
+test("hard storage failure force-kills a resistant supervised process group", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-storage-process-group-force-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const boundary = createHardStorageBoundary(
+    () => {},
+    () => {},
+  );
+  const marker = join(directory, "codex-started");
+  const prepared = prepareCodexProcess(
+    process.execPath,
+    [
+      join(
+        import.meta.dirname,
+        "../fixtures/test-probes/ignore-term-and-mark.mjs",
+      ),
+      marker,
+    ],
+    { cwd: directory, environment: {} },
+    process.execPath,
+    (command, arguments_, options) => {
+      const child = spawn(command, arguments_, options);
+      boundary.registerCodexProcess(child, {
+        processGroup: options.detached === true,
+      });
+      return child;
+    },
+  );
+  const { child } = prepared;
+  assert.ok(child.pid);
+  context.after(() => {
+    try {
+      process.kill(-(/** @type {number} */ (child.pid)), "SIGKILL");
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          "code" in error &&
+          String(error.code) === "ESRCH"
+        )
+      ) {
+        throw error;
+      }
+    }
+  });
+  await prepared.start();
+  const launchDeadline = Date.now() + 2_000;
+  while (!existsSync(marker) && Date.now() < launchDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(existsSync(marker), true);
+  const exited = new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("resistant Codex process group survived")),
+      7_000,
+    );
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
+  });
+
+  boundary.enter(
+    Object.assign(new Error("SQLite durable write failed"), {
+      code: "storage_unavailable",
+    }),
+  );
+
+  assert.deepEqual(await exited, { code: null, signal: "SIGKILL" });
+  assert.throws(
+    () => process.kill(-(/** @type {number} */ (child.pid)), 0),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      String(error.code) === "ESRCH",
+  );
+});
 
 test("restart terminates a tracked surviving process group and retains its partial transcript", async (context) => {
   const directory = mkdtempSync(

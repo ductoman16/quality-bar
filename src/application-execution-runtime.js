@@ -23,6 +23,7 @@ function codedRuntimeFailure(error) {
  * @param {{
  *   createCodexRuntime: (...parameters: any[]) => any,
  *   now: () => number,
+ *   spawnProcess?: typeof spawn,
  *   stopIoDuties: () => unknown,
  *   storageBoundary: ReturnType<typeof import("./application-runtime.js").createHardStorageBoundary>,
  *   writeLog: (line: string) => unknown
@@ -31,6 +32,7 @@ function codedRuntimeFailure(error) {
 export function createApplicationExecutionRuntime({
   createCodexRuntime,
   now,
+  spawnProcess: spawnChild = spawn,
   stopIoDuties,
   storageBoundary,
   writeLog,
@@ -96,8 +98,10 @@ export function createApplicationExecutionRuntime({
          * @param {import("node:child_process").SpawnOptions} spawnOptions
          */
         spawnProcess(command, arguments_, spawnOptions) {
-          const childProcess = spawn(command, arguments_, spawnOptions);
-          storageBoundary.registerCodexProcess(childProcess);
+          const childProcess = spawnChild(command, arguments_, spawnOptions);
+          storageBoundary.registerCodexProcess(childProcess, {
+            processGroup: spawnOptions.detached === true,
+          });
           return childProcess;
         },
       });
