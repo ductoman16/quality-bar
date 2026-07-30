@@ -11,6 +11,7 @@ import {
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
 } from "./forgejo-v16-repository.js";
 import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
+import { currentIoOperationSignal } from "./io-operation-context.js";
 
 const PROFILE = "forgejo-v16";
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
@@ -183,6 +184,8 @@ export function createForgejoV16Verifier({
         createForgejoVerificationEvidence(repositoryIds);
       /** @param {string} path */
       const get = async (path) => {
+        const signal = currentIoOperationSignal();
+        signal?.throwIfAborted();
         let response;
         try {
           response = await fetchRequest(`${origin}${path}`, {
@@ -191,15 +194,22 @@ export function createForgejoV16Verifier({
               authorization: `token ${token}`,
             },
             redirect: "error",
+            ...(signal ? { signal } : {}),
           });
         } catch (cause) {
+          if (signal?.aborted) {
+            throw signal.reason;
+          }
           fail(
             "forgejo_api_unavailable",
             `Forgejo required route is unavailable: ${path}`,
             cause,
           );
         }
-        return { body: await responseJson(path, response) };
+        signal?.throwIfAborted();
+        const body = await responseJson(path, response);
+        signal?.throwIfAborted();
+        return { body };
       };
       try {
         verificationEvidence.reported_version = version(

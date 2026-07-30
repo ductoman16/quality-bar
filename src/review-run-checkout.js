@@ -181,6 +181,18 @@ async function runGit(arguments_, cwd, spawnProcess, credential, signal) {
     if (signal?.aborted && failure === signal.reason) {
       throw failure;
     }
+    if (
+      signal?.aborted &&
+      failure instanceof Error &&
+      "code" in failure &&
+      failure.code === "git_termination_failed"
+    ) {
+      throw checkoutFailed(
+        failure,
+        "review_run_checkout_termination_failed",
+        "Review Run checkout could not terminate",
+      );
+    }
     throw classifyGitFailure(
       /** @type {Error & {stderr?: string}} */ (failure),
       arguments_,

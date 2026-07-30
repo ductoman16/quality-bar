@@ -215,6 +215,7 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
   const failure = new Error("unexpected recorder implementation detail");
   const server = createApplicationServer({
     browserOrigin: "http://127.0.0.1:3000",
+    workerSignal: new AbortController().signal,
     codexExecutionConcurrency: {
       read: () => 1,
       set: (/** @type {unknown} */ value) => value,

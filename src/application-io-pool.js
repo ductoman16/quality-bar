@@ -14,14 +14,19 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
       if (typeof repositories?.resolvePushedSelectors !== "function") {
         throw new TypeError("Repository service is unavailable");
       }
-      return ioPool.run("acquisition", (signal) => {
+      return ioPool.run("acquisition", async (signal) => {
         signal?.throwIfAborted();
-        const changeset = repositories.resolvePushedSelectors(
-          repositoryId,
-          request,
-        );
-        signal?.throwIfAborted();
-        return changeset;
+        try {
+          const changeset = await repositories.resolvePushedSelectors(
+            repositoryId,
+            request,
+          );
+          signal?.throwIfAborted();
+          return changeset;
+        } catch (error) {
+          signal?.throwIfAborted();
+          throw error;
+        }
       });
     },
     /** @param {Function} createStorageReserve @param {() => any} readDurableCore @param {() => number} now @param {number} reserveBytes */

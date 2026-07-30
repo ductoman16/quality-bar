@@ -1,5 +1,14 @@
 import { randomUUID } from "node:crypto";
 
+import { currentIoOperationSignal } from "./io-operation-context.js";
+
+/** @param {number} status */
+function assertProductOutputAvailable(status) {
+  if (status < 400) {
+    currentIoOperationSignal()?.throwIfAborted();
+  }
+}
+
 /**
  * @param {import("node:http").ServerResponse} response
  * @param {number} status
@@ -7,6 +16,7 @@ import { randomUUID } from "node:crypto";
  * @param {import("node:http").OutgoingHttpHeaders} [headers]
  */
 export function writeJson(response, status, body, headers = {}) {
+  assertProductOutputAvailable(status);
   response.writeHead(status, {
     "content-type": "application/json",
     ...headers,
@@ -19,6 +29,7 @@ export function writeJson(response, status, body, headers = {}) {
  * @param {string} body
  */
 export function writeHtml(response, body) {
+  assertProductOutputAvailable(200);
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   response.end(`<!doctype html><html lang="en"><body>${body}</body></html>`);
 }
@@ -28,6 +39,7 @@ export function writeHtml(response, body) {
  * @param {string} body
  */
 export function writeJavascript(response, body) {
+  assertProductOutputAvailable(200);
   response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
   response.end(body);
 }
@@ -37,6 +49,7 @@ export function writeJavascript(response, body) {
  * @param {import("node:http").OutgoingHttpHeaders} [headers]
  */
 export function writeEmpty(response, headers = {}) {
+  assertProductOutputAvailable(204);
   response.writeHead(204, headers);
   response.end();
 }

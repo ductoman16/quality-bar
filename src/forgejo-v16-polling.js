@@ -178,6 +178,9 @@ export function createForgejoV16PullRequestReader({
       try {
         body = await response.json();
       } catch (cause) {
+        if (signal?.aborted) {
+          throw signal.reason;
+        }
         fail(
           "forgejo_poll_response_invalid",
           "Forgejo pull-request polling response is invalid",

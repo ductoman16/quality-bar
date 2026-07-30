@@ -87,6 +87,8 @@ export function runGitCommand({
     let completed = false;
     /** @type {unknown} */
     let abortReason;
+    /** @type {unknown} */
+    let terminationFailure;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let forceKill;
     const abort = () => {
@@ -153,11 +155,26 @@ export function runGitCommand({
       credentialPipe.end(`${credential.username}\n${credential.token}\n`);
     }
     child.once("error", (cause) => {
-      complete(abortReason ?? cause, true);
+      if (abortReason !== undefined) {
+        terminationFailure = cause;
+        return;
+      }
+      complete(cause, true);
     });
     child.once("close", (code, exitSignal) => {
       if (abortReason !== undefined) {
-        complete(abortReason, true);
+        complete(
+          terminationFailure === undefined
+            ? abortReason
+            : Object.assign(
+                new AggregateError(
+                  [abortReason, terminationFailure],
+                  "Git process termination failed",
+                ),
+                { code: "git_termination_failed" },
+              ),
+          true,
+        );
         return;
       }
       const stdoutBuffer = Buffer.concat(stdoutChunks);

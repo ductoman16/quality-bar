@@ -234,6 +234,77 @@ test("hard shutdown aborts production provider I/O before the pool drains", asyn
   assert.equal(fetchStopped, true);
 });
 
+test("hard shutdown waits for non-cooperative work and replaces its late success", async () => {
+  const pool = createIoExecutionPool();
+  const operation = Promise.withResolvers();
+  const completion = pool.run("delivery", () => operation.promise);
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  const completionRejection = assert.rejects(
+    completion,
+    (error) => error === failure,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  let drained = false;
+  const closed = pool.close().then(() => {
+    drained = true;
+  });
+
+  pool.shutdown(failure);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(drained, false);
+  operation.resolve("stale product result");
+
+  await completionRejection;
+  await closed;
+  assert.equal(drained, true);
+});
+
+test("same-turn hard shutdown prevents promoted work from starting", async () => {
+  const pool = createIoExecutionPool();
+  let started = false;
+  const completion = pool.run("delivery", () => {
+    started = true;
+  });
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+
+  pool.shutdown(failure);
+
+  await assert.rejects(completion, (error) => error === failure);
+  await pool.close();
+  assert.equal(started, false);
+});
+
+test("application acquisition preserves hard shutdown over a wrapped late failure", async () => {
+  const ioPool = createApplicationIoPool({
+    reportBackgroundFailure: (error) =>
+      assert.fail(/** @type {Error} */ (error)),
+  });
+  const acquisition = Promise.withResolvers();
+  const completion = ioPool.acquireChangeset(
+    {
+      resolvePushedSelectors() {
+        return acquisition.promise;
+      },
+    },
+    "repository-1",
+    { head: "main" },
+  );
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  ioPool.shutdown(failure);
+  acquisition.reject(new Error("evaluation_git_acquisition_failed"));
+
+  await assert.rejects(completion, (error) => error === failure);
+  await ioPool.close();
+});
+
 test("a saturated production scheduler reports its exact admission failure", async () => {
   /** @type {any[]} */
   const failures = [];

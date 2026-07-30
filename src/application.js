@@ -371,6 +371,7 @@ export function createApplication({
     startupFailure,
     storageReserve,
     systemResource,
+    workerSignal: storageBoundary.signal,
     writeLog,
     secureBrowserCookie,
   });

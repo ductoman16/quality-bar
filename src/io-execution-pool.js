@@ -50,8 +50,15 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
       active += 1;
       Promise.resolve()
         .then(() =>
-          runIoOperation(workers.signal, () => task.operation(workers.signal)),
+          runIoOperation(workers.signal, () => {
+            workers.signal.throwIfAborted();
+            return task.operation(workers.signal);
+          }),
         )
+        .then((result) => {
+          workers.signal.throwIfAborted();
+          return result;
+        })
         .then(task.resolve, task.reject)
         .finally(() => {
           active -= 1;

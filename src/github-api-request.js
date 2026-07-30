@@ -89,6 +89,9 @@ export function createGitHubApiRequest(
               body.message,
             );
         } catch {
+          if (signal?.aborted) {
+            throw signal.reason;
+          }
           rateLimitResponse = false;
         }
       }
