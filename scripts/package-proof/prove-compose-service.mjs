@@ -29,6 +29,16 @@ const serviceFixtureImage =
 /** @typedef {ReturnType<typeof provePackageOfflineRestore>["authenticatedHttpSmoke"]} AuthenticatedHttpSmoke */
 /**
  * @typedef {{
+ *   api: {errorCode: string, status: number},
+ *   browser: {errorCode: string, status: number},
+ *   failedWrite: {errorCode: string, status: number},
+ *   liveness: {body: {status: string}, status: number},
+ *   mcp: {errorCode: string, status: number},
+ *   readiness: {body: {error: string, status: string}, status: number},
+ * }} DurableWriteFailureFacts
+ */
+/**
+ * @typedef {{
  *   applicationVersion: string,
  *   count: number,
  *   integrity: string,
@@ -62,6 +72,7 @@ function assertFilesystemFacts(filesystemFacts) {
  *   authenticatedHttpSmoke: AuthenticatedHttpSmoke,
  *   backupFacts: BackupFacts,
  *   configuration: ComposeConfiguration,
+ *   durableWriteFailure: DurableWriteFailureFacts,
  *   fixture: PackageFixture,
  *   filesystemFacts: FilesystemFacts,
  *   httpFacts: HttpFacts,
@@ -85,6 +96,7 @@ function packageFacts({
   authenticatedHttpSmoke,
   backupFacts,
   configuration,
+  durableWriteFailure,
   fixture,
   filesystemFacts,
   httpFacts,
@@ -170,6 +182,7 @@ function packageFacts({
       },
     },
     authenticatedHttpSmoke,
+    durableWriteFailure,
     restore: {
       browserSessionsRevoked: restoredDatabaseFacts.activeBrowserSessions === 0,
       implementerTokenRevoked:
@@ -398,11 +411,49 @@ export function proveComposeService({ configuration, fixture }) {
     recoveryPassword,
     schemaVersion: recreatedDatabaseFacts.schemaVersion,
   });
+  const durableWriteFailure = /** @type {DurableWriteFailureFacts} */ (
+    jsonPackageProbe(
+      fixture,
+      "durable-write-failure.mjs",
+      [environment.QUALITY_BAR_HTTP_PORT],
+      restorePassword,
+    )
+  );
+  for (const surface of [
+    durableWriteFailure.failedWrite,
+    durableWriteFailure.browser,
+    durableWriteFailure.api,
+    durableWriteFailure.mcp,
+  ]) {
+    assert.deepEqual(surface, {
+      errorCode: "storage_unavailable",
+      status: 503,
+    });
+  }
+  assert.deepEqual(durableWriteFailure.liveness, {
+    body: { status: "live" },
+    status: 200,
+  });
+  assert.deepEqual(durableWriteFailure.readiness, {
+    body: { error: "storage_unavailable", status: "not_ready" },
+    status: 503,
+  });
+  fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
+  const repairedHttpFacts = /** @type {HttpFacts} */ (
+    jsonPackageProbe(fixture, "http-facts.mjs", [
+      environment.QUALITY_BAR_HTTP_PORT,
+    ])
+  );
+  assert.deepEqual(repairedHttpFacts.readiness, {
+    body: { status: "ready" },
+    status: 200,
+  });
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
     backupFacts,
     configuration,
+    durableWriteFailure,
     fixture,
     filesystemFacts,
     httpFacts,

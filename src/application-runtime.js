@@ -40,8 +40,14 @@ export function structuredLog(
   writeLog(`${JSON.stringify(record)}\n`);
 }
 
-/** @param {(line: string) => unknown} writeLog */
-export function createHardStorageBoundary(writeLog) {
+/**
+ * @param {(line: string) => unknown} writeLog
+ * @param {() => unknown} [stopProductWork]
+ */
+export function createHardStorageBoundary(
+  writeLog,
+  stopProductWork = () => {},
+) {
   const workers = new AbortController();
   const codexProcesses = new Set(
     /** @type {import("node:child_process").ChildProcess[]} */ ([]),
@@ -69,6 +75,11 @@ export function createHardStorageBoundary(writeLog) {
     get failure() {
       return failure;
     },
+    assertAvailable() {
+      if (failure) {
+        throw failure;
+      }
+    },
     /** @param {CodedError} error */
     enter(error) {
       if (failure) {
@@ -79,6 +90,7 @@ export function createHardStorageBoundary(writeLog) {
       for (const childProcess of codexProcesses) {
         terminateCodexProcess(childProcess);
       }
+      stopProductWork();
       structuredLog(
         writeLog,
         "error",

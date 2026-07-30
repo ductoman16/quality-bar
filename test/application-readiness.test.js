@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -369,71 +368,4 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
     await responseErrorCode(productResponse),
     "master_key_undecryptable",
   );
-});
-
-test("hard storage failure stops work, terminates Codex, and rejects every product surface", async () => {
-  const { application, origin } = await startApplication(
-    temporaryDatabasePath(),
-  );
-  const codexProcess = application.startCodexProcess(() =>
-    spawn(process.execPath, [
-      join(import.meta.dirname, "../fixtures/test-probes/idle-child.mjs"),
-    ]),
-  );
-  const codexExited = new Promise((resolve) =>
-    codexProcess.once("exit", () => resolve(undefined)),
-  );
-
-  const readyResponse = await fetch(`${origin}/health/ready`);
-  assert.equal(readyResponse.status, 200);
-  assert.deepEqual(await readyResponse.json(), { status: "ready" });
-
-  assert.ok(application.durableCore);
-  const durableCore = application.durableCore;
-  durableCore.run("PRAGMA query_only = ON");
-  assert.throws(
-    () =>
-      durableCore.transaction((transaction) => {
-        transaction.run(
-          "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
-          "write_failure",
-          "must-not-exist",
-        );
-      }),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "storage_unavailable",
-  );
-
-  await codexExited;
-  assert.equal(application.workerSignal.aborted, true);
-  const workerFailure = /** @type {{code: string}} */ (
-    application.workerSignal.reason
-  );
-  assert.equal(workerFailure.code, "storage_unavailable");
-
-  for (const path of [
-    "/",
-    "/?view=system",
-    "/api/v1/system",
-    "/api/v1?resource=system",
-    "/mcp/v1",
-    "/mcp/v1?resource=system",
-  ]) {
-    const response = await fetch(`${origin}${path}`);
-    assert.equal(response.status, 503, path);
-    assert.equal(await responseErrorCode(response), "storage_unavailable");
-  }
-
-  const liveAfterFailure = await fetch(`${origin}/health/live`);
-  assert.equal(liveAfterFailure.status, 200);
-  assert.deepEqual(await liveAfterFailure.json(), { status: "live" });
-
-  const readyAfterFailure = await fetch(`${origin}/health/ready`);
-  assert.equal(readyAfterFailure.status, 503);
-  assert.deepEqual(await readyAfterFailure.json(), {
-    error: "storage_unavailable",
-    status: "not_ready",
-  });
 });

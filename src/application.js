@@ -113,7 +113,6 @@ export function createApplication({
     throw new TypeError("databasePath is required");
   }
 
-  const storageBoundary = createHardStorageBoundary(writeLog);
   /** @type {ReturnType<typeof openDurableCore> | null} */
   let durableCore = null;
   let browserSessions = null;
@@ -137,14 +136,16 @@ export function createApplication({
   let codexRuntime = null;
   /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
   let codexExecutionConcurrency = null;
+  function stopProductWork() {
+    githubConnections?.destroy?.();
+    forgejoConnections?.destroy?.();
+    void codexRuntime?.close();
+  }
+  const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({
     createCodexRuntime,
     now,
-    stopIoDuties() {
-      githubConnections?.destroy?.();
-      forgejoConnections?.destroy?.();
-      void codexRuntime?.close();
-    },
+    stopIoDuties: stopProductWork,
     storageBoundary,
     writeLog,
   });
@@ -386,6 +387,7 @@ export function createApplication({
       if (typeof admit !== "function") {
         throw new TypeError("work admission transition is required");
       }
+      storageBoundary.assertAvailable();
       if (!storageReserve) {
         throw startupFailure;
       }
@@ -397,6 +399,7 @@ export function createApplication({
       if (typeof start !== "function") {
         throw new TypeError("Codex start transition is required");
       }
+      storageBoundary.assertAvailable();
       if (!storageReserve) {
         throw startupFailure;
       }
