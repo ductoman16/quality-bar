@@ -8,7 +8,7 @@ import {
   mcpInitializeResult,
 } from "../src/mcp-contract.js";
 
-test("the fixed MCP contract pins Repository and Evaluation tools and resources", () => {
+test("the fixed MCP contract pins Repository, Evaluation, and waiver tools and resources", () => {
   assert.equal(MCP_PROTOCOL_VERSION, "2025-11-25");
   assert.deepEqual(mcpInitializeResult(), {
     capabilities: { resources: {}, tools: {} },
@@ -23,6 +23,8 @@ test("the fixed MCP contract pins Repository and Evaluation tools and resources"
       "quality_bar.request_evaluation",
       "quality_bar.get_evaluation",
       "quality_bar.get_evaluation_result",
+      "quality_bar.submit_waiver_requests",
+      "quality_bar.get_waiver_adjudication",
     ],
   );
   assert.deepEqual(
@@ -34,6 +36,11 @@ test("the fixed MCP contract pins Repository and Evaluation tools and resources"
       pattern: "^[!-~]+$",
       type: "string",
     },
+  );
+  assert.deepEqual(
+    MCP_TOOLS.find(({ name }) => name === "quality_bar.submit_waiver_requests")
+      ?.inputSchema.required,
+    ["evaluation_id", "requests", "idempotency_key"],
   );
   for (const tool of MCP_TOOLS) {
     assert.equal(

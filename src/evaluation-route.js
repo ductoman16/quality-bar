@@ -41,6 +41,15 @@ export function matchEvaluationRoute(method, path) {
   const waiverErrorRetryMatch = path.match(
     /^\/api\/v1\/evaluations\/([^/]+)\/waiver-adjudications\/error-retries$/,
   );
+  const waiverRequestMatch = path.match(
+    /^\/api\/v1\/waiver-requests\/([^/]+)$/,
+  );
+  const waiverAdjudicationMatch = path.match(
+    /^\/api\/v1\/waiver-adjudications\/([^/]+)$/,
+  );
+  const waiverDecisionMatch = path.match(
+    /^\/api\/v1\/waiver-decisions\/([^/]+)$/,
+  );
   const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
   const collection = method === "GET" && path === "/api/v1/evaluations";
   const readable =
@@ -48,7 +57,10 @@ export function matchEvaluationRoute(method, path) {
     (evaluationMatch !== null ||
       resultMatch !== null ||
       reviewRunMatch !== null ||
-      findingMatch !== null);
+      findingMatch !== null ||
+      waiverRequestMatch !== null ||
+      waiverAdjudicationMatch !== null ||
+      waiverDecisionMatch !== null);
   return {
     cancellationMatch,
     collection,
@@ -71,8 +83,11 @@ export function matchEvaluationRoute(method, path) {
       (method === "GET" && diagnosticsMatch !== null),
     resultMatch,
     reviewRunMatch,
+    waiverAdjudicationMatch,
     waiverBatchMatch,
+    waiverDecisionMatch,
     waiverErrorRetryMatch,
+    waiverRequestMatch,
   };
 }
 
@@ -102,6 +117,8 @@ function failureStatus(failure) {
       "repository_not_found",
       "review_run_not_found",
       "waiver_request_not_found",
+      "waiver_adjudication_not_found",
+      "waiver_decision_not_found",
     ].includes(code)
   ) {
     return 404;
@@ -186,8 +203,11 @@ export function createEvaluationRoute({
       findingMatch,
       resultMatch,
       reviewRunMatch,
+      waiverAdjudicationMatch,
       waiverBatchMatch,
+      waiverDecisionMatch,
       waiverErrorRetryMatch,
+      waiverRequestMatch,
     } = matches;
     if (!matches.recognized) {
       return false;
@@ -258,6 +278,36 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.read(decodeEvaluationPathSegment(evaluationMatch[1])),
+        );
+        return true;
+      }
+      if (method === "GET" && waiverRequestMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readWaiverRequest(
+            decodeEvaluationPathSegment(waiverRequestMatch[1]),
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && waiverAdjudicationMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readWaiverAdjudication(
+            decodeEvaluationPathSegment(waiverAdjudicationMatch[1]),
+          ),
+        );
+        return true;
+      }
+      if (method === "GET" && waiverDecisionMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readWaiverDecision(
+            decodeEvaluationPathSegment(waiverDecisionMatch[1]),
+          ),
         );
         return true;
       }

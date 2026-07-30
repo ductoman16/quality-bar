@@ -95,7 +95,7 @@ test("complete Result links and fixed resource matches stay exact", () => {
   );
 });
 
-test("future waiver resource addresses fail exact not-found until their owning facts exist", () => {
+test("waiver resource addresses preserve their exact owning not-found error", () => {
   const match = matchWorkflowResource(
     "quality-bar://v1/waiver-requests/waiver-request-1",
   );
@@ -103,7 +103,13 @@ test("future waiver resource addresses fail exact not-found until their owning f
   assert.throws(
     () =>
       readWorkflowResource(match, {
-        evaluations: /** @type {any} */ ({}),
+        evaluations: /** @type {any} */ ({
+          readWaiverRequest() {
+            throw Object.assign(new Error("Waiver Request was not found"), {
+              code: "waiver_request_not_found",
+            });
+          },
+        }),
         repositories: /** @type {any} */ ({}),
         repositoryGuidance: /** @type {any} */ ({}),
       }),

@@ -239,6 +239,15 @@ export function readWorkflowResource(
   if (match.kind === "findings") {
     return evaluations.readFindingById(match.id);
   }
+  if (match.kind === "waiver-requests") {
+    return evaluations.readWaiverRequest(match.id);
+  }
+  if (match.kind === "waiver-adjudications") {
+    return evaluations.readWaiverAdjudication(match.id);
+  }
+  if (match.kind === "waiver-decisions") {
+    return evaluations.readWaiverDecision(match.id);
+  }
   throw mcpError(
     `${match.kind.replaceAll("-", "_").replace(/s$/, "")}_not_found`,
     "Resource was not found",

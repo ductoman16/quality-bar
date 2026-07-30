@@ -29,6 +29,15 @@ export function createUnavailableEvaluationService(error) {
     readResult() {
       failEvaluation(failure.code, failure.message, error);
     },
+    readWaiverAdjudication() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readWaiverDecision() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    readWaiverRequest() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     readFinding() {
       failEvaluation(failure.code, failure.message, error);
     },

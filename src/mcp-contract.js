@@ -112,6 +112,51 @@ export const MCP_TOOLS = Object.freeze([
     },
     name: "quality_bar.get_evaluation_result",
   },
+  {
+    description:
+      "Atomically submit Waiver Requests and return the queued Waiver Adjudication.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: {
+        evaluation_id: identifier,
+        idempotency_key: {
+          maxLength: 255,
+          minLength: 1,
+          pattern: "^[!-~]+$",
+          type: "string",
+        },
+        requests: {
+          items: {
+            additionalProperties: false,
+            properties: {
+              finding_id: identifier,
+              rationale: { minLength: 1, pattern: "\\S", type: "string" },
+            },
+            required: ["finding_id", "rationale"],
+            type: "object",
+          },
+          minItems: 1,
+          type: "array",
+        },
+      },
+      required: ["evaluation_id", "requests", "idempotency_key"],
+      type: "object",
+    },
+    name: "quality_bar.submit_waiver_requests",
+  },
+  {
+    description:
+      "Get the current canonical Waiver Adjudication for client-controlled polling.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: { waiver_adjudication_id: identifier },
+      required: ["waiver_adjudication_id"],
+      type: "object",
+    },
+    name: "quality_bar.get_waiver_adjudication",
+  },
 ]);
 
 export const MCP_RESOURCE_TEMPLATES = Object.freeze([

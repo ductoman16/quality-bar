@@ -29,6 +29,7 @@ import {
   listRepositoryArguments,
 } from "./mcp-repository.js";
 import { isClosedMcpRecord } from "./mcp-validation.js";
+import { executeWaiverTool } from "./mcp-waiver.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -336,6 +337,8 @@ export function createMcpRoute({
           "quality_bar.request_evaluation",
           "quality_bar.get_evaluation",
           "quality_bar.get_evaluation_result",
+          "quality_bar.submit_waiver_requests",
+          "quality_bar.get_waiver_adjudication",
         ].includes(name)
       ) {
         writeProtocolError(response, message.id, -32602, "Unknown tool");
@@ -379,11 +382,16 @@ export function createMcpRoute({
           writeResult(response, message.id, result);
           return true;
         }
-        const evaluationCall = await executeEvaluationTool(
-          name,
-          message.params.arguments ?? {},
-          evaluations,
-        );
+        const evaluationCall = [
+          "quality_bar.submit_waiver_requests",
+          "quality_bar.get_waiver_adjudication",
+        ].includes(name)
+          ? executeWaiverTool(name, message.params.arguments ?? {}, evaluations)
+          : await executeEvaluationTool(
+              name,
+              message.params.arguments ?? {},
+              evaluations,
+            );
         const result = toolSuccess(
           evaluationCall.document,
           evaluationCall.links,
