@@ -22,25 +22,62 @@ export function assertEvaluationPage(page) {
   }
 }
 
-/** @param {Record<string, unknown>} [overrides] */
-export const evaluation = (overrides = {}) => ({
-  base_commit: oid("1"),
-  base_selector: { type: "branch", value: "main" },
-  completed_at: "2026-07-28T12:00:00.000Z",
-  created_at: "2026-07-28T12:00:00.000Z",
-  effective_outcome: "clear",
-  execution_status: "completed",
-  head_commit: oid("2"),
-  head_selector: { type: "branch", value: "topic" },
-  id: "evaluation-complete",
+const delivery = {
+  attempt_count: 1,
+  last_attempt_at: "2026-07-28T12:00:00.000Z",
   next_attempt_at: null,
-  provenance: "explicit",
-  repository: {
-    id: "repository-1",
-    url: "https://example.invalid/repository.git",
-  },
-  ...overrides,
-});
+  provider_gate_until: null,
+  reconciliation_required: false,
+  source_identity: "source-1",
+  target: '{"repository_id":101}',
+};
+
+/** @param {Record<string, any>} [overrides] */
+export const evaluation = (overrides = {}) => {
+  const value = /** @type {any} */ ({
+    base_commit: oid("1"),
+    base_selector: { type: "branch", value: "main" },
+    completed_at: "2026-07-28T12:00:00.000Z",
+    created_at: "2026-07-28T12:00:00.000Z",
+    effective_outcome: "clear",
+    execution_status: "completed",
+    head_commit: oid("2"),
+    head_selector: { type: "branch", value: "topic" },
+    id: "evaluation-complete",
+    next_attempt_at: null,
+    provenance: "explicit",
+    repository: {
+      id: "repository-1",
+      url: "https://example.invalid/repository.git",
+    },
+    ...overrides,
+  });
+  if (value.commit_status) {
+    value.commit_status = {
+      ...delivery,
+      external_id: null,
+      ...value.commit_status,
+    };
+  }
+  if (value.feedback) {
+    value.feedback = {
+      aggregate: { ...delivery, ...value.feedback.aggregate },
+      findings: value.feedback.findings.map((/** @type {any} */ finding) => ({
+        ...(finding.publication_status === "aggregate_only"
+          ? {
+              ...delivery,
+              attempt_count: 0,
+              last_attempt_at: null,
+              target: "aggregate_only",
+            }
+          : delivery),
+        source_identity: finding.finding_id,
+        ...finding,
+      })),
+    };
+  }
+  return value;
+};
 
 export function evaluationElements() {
   return /** @type {any} */ (

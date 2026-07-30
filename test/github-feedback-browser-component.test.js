@@ -46,14 +46,19 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
                         published_at: null,
                       },
                       {
+                        attempt_count: 2,
                         error: {
-                          code: "github_api_request_failed",
-                          detail: "GitHub API request failed with HTTP 403",
+                          code: "github_api_transient_failure",
+                          detail:
+                            "GitHub API request temporarily failed with HTTP 429",
                         },
                         external_id: null,
                         finding_id: "finding-failed",
-                        publication_status: "unavailable",
+                        next_attempt_at: "2026-07-29T12:01:00.000Z",
+                        provider_gate_until: "2026-07-29T12:01:00.000Z",
+                        publication_status: "waiting",
                         published_at: null,
+                        reconciliation_required: true,
                       },
                     ],
                   },
@@ -108,24 +113,25 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
         ariaLive: "polite",
         role: "status",
         textContent:
-          "Aggregate feedback — succeeded — GitHub comment 701 — Published 2026-07-29T12:00:00.000Z",
+          'Aggregate feedback — succeeded — Source source-1 — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — GitHub comment 701 — Published 2026-07-29T12:00:00.000Z',
       },
       {
         ariaLive: "polite",
         role: "status",
         textContent:
-          "Finding finding-inline inline feedback — succeeded — GitHub comment 702 — Published 2026-07-29T12:00:00.000Z",
-      },
-      {
-        ariaLive: "polite",
-        role: "status",
-        textContent: "Finding finding-whole inline feedback — aggregate-only",
+          'Finding finding-inline inline feedback — succeeded — Source finding-inline — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — GitHub comment 702 — Published 2026-07-29T12:00:00.000Z',
       },
       {
         ariaLive: "polite",
         role: "status",
         textContent:
-          "Finding finding-failed inline feedback — unavailable — Error github_api_request_failed: GitHub API request failed with HTTP 403",
+          "Finding finding-whole inline feedback — aggregate-only — Source finding-whole — Target aggregate_only — Attempts 0",
+      },
+      {
+        ariaLive: "polite",
+        role: "status",
+        textContent:
+          'Finding finding-failed inline feedback — waiting — Source finding-failed — Target {"repository_id":101} — Attempts 2 — Last attempt 2026-07-28T12:00:00.000Z — Reconciliation required — Provider gate until 2026-07-29T12:01:00.000Z — Next attempt 2026-07-29T12:01:00.000Z — Error github_api_transient_failure: GitHub API request temporarily failed with HTTP 429',
       },
     ],
   );

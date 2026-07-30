@@ -57,6 +57,7 @@ test("Evaluation detail makes an unavailable success status exact attention with
           hasUnavailable: () => false,
           render() {},
           valid: () => true,
+          validCommitStatus: () => true,
         },
         qualityBarEvaluationResult: { async render() {} },
         qualityBarOperator: {
@@ -80,6 +81,6 @@ test("Evaluation detail makes an unavailable success status exact attention with
   assert.equal(state.role, "status");
   assert.equal(
     state.textContent,
-    "Commit status — Quality Bar — intended state success — unavailable — Error github_api_request_failed: GitHub API request failed with HTTP 403",
+    'Commit status — Quality Bar — intended state success — unavailable — Source source-1 — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — Error github_api_request_failed: GitHub API request failed with HTTP 403',
   );
 });

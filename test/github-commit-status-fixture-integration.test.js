@@ -49,10 +49,30 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
         response.end(
           JSON.stringify({
             context: GITHUB_COMMIT_STATUS_CONTEXT,
+            id: 901,
             sha: head,
             state: "failure",
             target_url: "https://quality-bar.example/evaluations/evaluation-1",
           }),
+        );
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        request.url ===
+          `/repos/operator/repository/commits/${head}/statuses?per_page=100&page=1`
+      ) {
+        response.end(
+          JSON.stringify([
+            {
+              context: GITHUB_COMMIT_STATUS_CONTEXT,
+              id: 901,
+              sha: head,
+              state: "failure",
+              target_url:
+                "https://quality-bar.example/evaluations/evaluation-1",
+            },
+          ]),
         );
         return;
       }
@@ -100,4 +120,27 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
     method: "POST",
     path: `/repos/operator/repository/statuses/${head}`,
   });
+  assert.equal(
+    await verifier.reconcileCommitStatus(
+      {
+        app_id: 47,
+        app_slug: "quality-bar-personal",
+        client_id: "Iv1.client",
+        owner: { id: 91, login: "operator", type: "User" },
+        pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+      },
+      73,
+      { full_name: "operator/repository", id: 101 },
+      {
+        head,
+        state: "failure",
+        targetUrl: "https://quality-bar.example/evaluations/evaluation-1",
+      },
+    ),
+    901,
+  );
+  assert.equal(
+    requests.at(-1).path,
+    `/repos/operator/repository/commits/${head}/statuses?per_page=100&page=1`,
+  );
 });

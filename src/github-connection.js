@@ -29,8 +29,10 @@ import { createGitHubRepositorySelector } from "./github-repository-registration
 import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
 import { createGitHubPublicationServices } from "./github-publication-services.js";
+import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
+import { assertGitHubVerifier } from "./github-connection-dependencies.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<void>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<number>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, reconcileAggregateFeedback?: (...parameters: any[]) => Promise<number | null>, reconcileCommitStatus?: (...parameters: any[]) => Promise<number | null>, reconcileInlineFeedback?: (...parameters: any[]) => Promise<number | null>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -58,17 +60,11 @@ export function createGitHubConnectionService(
     typeof randomBytes !== "function" ||
     typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
       "function" ||
-    typeof storageReserve.preparePollingObservationAdvance !== "function" ||
-    typeof verifier?.exchangeManifest !== "function" ||
-    typeof verifier.verifyInstallation !== "function" ||
-    typeof verifier.verifyRepositories !== "function" ||
-    typeof verifier.listPullRequests !== "function" ||
-    typeof verifier.publishAggregateFeedback !== "function" ||
-    typeof verifier.publishInlineFeedback !== "function" ||
-    typeof verifier.publishCommitStatus !== "function"
+    typeof storageReserve.preparePollingObservationAdvance !== "function"
   ) {
     throw new TypeError("GitHub Connection dependencies are invalid");
   }
+  assertGitHubVerifier(verifier);
   const cipher = createGitHubConnectionCredentialCipher(masterKey);
   validatePersistedGitHubCredentials(durableCore, cipher);
   const pending = new Map();
@@ -265,6 +261,7 @@ export function createGitHubConnectionService(
               verifiedAt,
               id,
             );
+            resumeGitHubDeliveries(transaction, id, verifiedAt);
           } else {
             transaction.run(
               `INSERT INTO github_connections (

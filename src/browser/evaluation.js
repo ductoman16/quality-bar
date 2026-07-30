@@ -59,39 +59,6 @@ function controlValue(id) {
   return control.value;
 }
 
-/** @param {any} status @param {string} head */
-function validCommitStatus(status, head) {
-  if (status === undefined) {
-    return true;
-  }
-  const validError =
-    status.error === null ||
-    (typeof status.error?.code === "string" &&
-      status.error.code.length > 0 &&
-      typeof status.error.detail === "string" &&
-      status.error.detail.length > 0);
-  return (
-    status &&
-    status.context === "Quality Bar" &&
-    status.head_commit === head &&
-    ["pending", "success", "failure", "error"].includes(status.state) &&
-    ["waiting", "succeeded", "unavailable"].includes(
-      status.publication_status,
-    ) &&
-    nullableString(status.published_at) &&
-    validError &&
-    ((status.publication_status === "waiting" &&
-      status.published_at === null &&
-      status.error === null) ||
-      (status.publication_status === "succeeded" &&
-        typeof status.published_at === "string" &&
-        status.error === null) ||
-      (status.publication_status === "unavailable" &&
-        status.published_at === null &&
-        status.error !== null))
-  );
-}
-
 /** @param {any} evaluation */
 async function renderEvaluation(evaluation) {
   if (
@@ -104,7 +71,10 @@ async function renderEvaluation(evaluation) {
     typeof evaluation.head_selector.value !== "string" ||
     typeof evaluation.base_commit !== "string" ||
     typeof evaluation.head_commit !== "string" ||
-    !validCommitStatus(evaluation.commit_status, evaluation.head_commit) ||
+    !feedbackRenderer.validCommitStatus(
+      evaluation.commit_status,
+      evaluation.head_commit,
+    ) ||
     !feedbackRenderer.valid(evaluation.feedback) ||
     !["automatic", "explicit"].includes(evaluation.provenance) ||
     !(
@@ -151,6 +121,8 @@ async function renderEvaluation(evaluation) {
     evaluation.effective_outcome;
   const target =
     evaluation.commit_status?.publication_status === "unavailable" ||
+    evaluation.commit_status?.error ||
+    evaluation.commit_status?.reconciliation_required ||
     feedbackRenderer.hasUnavailable(evaluation.feedback)
       ? attention
       : ["queued", "running"].includes(evaluation.execution_status)
@@ -176,6 +148,28 @@ async function renderEvaluation(evaluation) {
       evaluation.commit_status.state +
       " — " +
       evaluation.commit_status.publication_status +
+      " — Source " +
+      evaluation.commit_status.source_identity +
+      " — Target " +
+      evaluation.commit_status.target +
+      " — Attempts " +
+      evaluation.commit_status.attempt_count +
+      (evaluation.commit_status.last_attempt_at
+        ? " — Last attempt " + evaluation.commit_status.last_attempt_at
+        : "") +
+      (evaluation.commit_status.reconciliation_required
+        ? " — Reconciliation required"
+        : "") +
+      (evaluation.commit_status.provider_gate_until
+        ? " — Provider gate until " +
+          evaluation.commit_status.provider_gate_until
+        : "") +
+      (evaluation.commit_status.next_attempt_at
+        ? " — Next attempt " + evaluation.commit_status.next_attempt_at
+        : "") +
+      (evaluation.commit_status.external_id !== null
+        ? " — GitHub status " + evaluation.commit_status.external_id
+        : "") +
       (evaluation.commit_status.error
         ? " — Error " +
           evaluation.commit_status.error.code +

@@ -63,6 +63,35 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         );
         return;
       }
+      if (
+        request.method === "GET" &&
+        request.url ===
+          "/repos/operator/repository/issues/17/comments?per_page=100&page=1"
+      ) {
+        response.end(JSON.stringify([{ body: "complete aggregate", id: 701 }]));
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        request.url ===
+          "/repos/operator/repository/pulls/17/comments?per_page=100&page=1"
+      ) {
+        response.end(
+          JSON.stringify([
+            {
+              body: "finding feedback",
+              commit_id: head,
+              id: 702,
+              line: 12,
+              path: "src/example.js",
+              side: "RIGHT",
+              start_line: null,
+              start_side: null,
+            },
+          ]),
+        );
+        return;
+      }
       response.statusCode = 404;
       response.end(JSON.stringify({ message: "fixture route missing" }));
     });
@@ -127,4 +156,28 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     method: "POST",
     path: "/repos/operator/repository/pulls/17/comments",
   });
+  assert.equal(
+    await verifier.reconcileAggregateFeedback(
+      credential,
+      73,
+      repository,
+      17,
+      "complete aggregate",
+    ),
+    701,
+  );
+  assert.equal(
+    await verifier.reconcileInlineFeedback(credential, 73, repository, 17, {
+      body: "finding feedback",
+      commit_id: head,
+      line: 12,
+      path: "src/example.js",
+      side: "RIGHT",
+    }),
+    702,
+  );
+  assert.equal(
+    requests.at(-1).path,
+    "/repos/operator/repository/pulls/17/comments?per_page=100&page=1",
+  );
 });

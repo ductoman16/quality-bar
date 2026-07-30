@@ -1,5 +1,30 @@
 import { closedObject } from "./canonical-schema.js";
 
+export function canonicalGitHubDeliveryProperties() {
+  const timestamp = {
+    oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+  };
+  return {
+    attempt_count: { minimum: 0, type: "integer" },
+    last_attempt_at: timestamp,
+    next_attempt_at: timestamp,
+    provider_gate_until: timestamp,
+    reconciliation_required: { type: "boolean" },
+    source_identity: { minLength: 1, type: "string" },
+    target: { minLength: 1, type: "string" },
+  };
+}
+
+export const GITHUB_DELIVERY_REQUIRED = [
+  "source_identity",
+  "target",
+  "attempt_count",
+  "last_attempt_at",
+  "provider_gate_until",
+  "next_attempt_at",
+  "reconciliation_required",
+];
+
 export function canonicalGitHubFeedbackSchemas() {
   const error = {
     oneOf: [
@@ -26,6 +51,7 @@ export function canonicalGitHubFeedbackSchemas() {
     ),
     GitHubAggregateFeedbackPublication: closedObject(
       {
+        ...canonicalGitHubDeliveryProperties(),
         error,
         external_id: externalId,
         publication_status: {
@@ -34,10 +60,17 @@ export function canonicalGitHubFeedbackSchemas() {
         },
         published_at: publishedAt,
       },
-      ["publication_status", "external_id", "published_at", "error"],
+      [
+        ...GITHUB_DELIVERY_REQUIRED,
+        "publication_status",
+        "external_id",
+        "published_at",
+        "error",
+      ],
     ),
     GitHubFindingFeedbackPublication: closedObject(
       {
+        ...canonicalGitHubDeliveryProperties(),
         error,
         external_id: externalId,
         finding_id: { minLength: 1, type: "string" },
@@ -48,6 +81,7 @@ export function canonicalGitHubFeedbackSchemas() {
         published_at: publishedAt,
       },
       [
+        ...GITHUB_DELIVERY_REQUIRED,
         "finding_id",
         "publication_status",
         "external_id",

@@ -289,6 +289,7 @@ test("each explicit browser rerun of one Changeset owns a fresh key", async () =
         hasUnavailable: () => false,
         render() {},
         valid: () => true,
+        validCommitStatus: () => true,
       },
       qualityBarEvaluationResult: {
         async render() {

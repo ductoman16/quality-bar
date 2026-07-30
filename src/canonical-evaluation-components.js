@@ -1,6 +1,10 @@
 import { closedObject } from "./canonical-schema.js";
 import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
-import { canonicalGitHubFeedbackSchemas } from "./canonical-github-feedback-components.js";
+import {
+  GITHUB_DELIVERY_REQUIRED,
+  canonicalGitHubDeliveryProperties,
+  canonicalGitHubFeedbackSchemas,
+} from "./canonical-github-feedback-components.js";
 import { canonicalReviewRunSchemas } from "./canonical-review-run-components.js";
 import { canonicalWaiverSchemas } from "./canonical-waiver-components.js";
 
@@ -55,6 +59,7 @@ export function canonicalEvaluationSchemas() {
         },
         commit_status: closedObject(
           {
+            ...canonicalGitHubDeliveryProperties(),
             context: { const: "Quality Bar", type: "string" },
             error: {
               oneOf: [
@@ -75,6 +80,9 @@ export function canonicalEvaluationSchemas() {
               pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
               type: "string",
             },
+            external_id: {
+              oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
+            },
             publication_status: {
               enum: ["waiting", "succeeded", "unavailable"],
               type: "string",
@@ -91,7 +99,9 @@ export function canonicalEvaluationSchemas() {
             },
           },
           [
+            ...GITHUB_DELIVERY_REQUIRED,
             "context",
+            "external_id",
             "head_commit",
             "state",
             "publication_status",

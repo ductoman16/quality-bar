@@ -27,13 +27,21 @@ function validTargetUrl(value) {
  * }} dependencies
  */
 export function createGitHubCommitStatusPublisher(dependencies) {
+  /** @param {{full_name: string}} repository @param {string} head */
+  function statusPath(repository, head) {
+    return `/repos/${repository.full_name
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}/commits/${head}/statuses`;
+  }
+
   /**
    * @param {any} credential
    * @param {number} installationId
    * @param {{full_name: string, id: number}} repository
    * @param {{description: string, head: string, state: string, targetUrl: string}} status
    */
-  return async function publishCommitStatus(
+  async function publishCommitStatus(
     credential,
     installationId,
     repository,
@@ -82,6 +90,8 @@ export function createGitHubCommitStatusPublisher(dependencies) {
     );
     if (
       !response ||
+      !Number.isSafeInteger(response.id) ||
+      /** @type {number} */ (response.id) <= 0 ||
       response.context !== GITHUB_COMMIT_STATUS_CONTEXT ||
       response.sha !== status.head ||
       response.state !== status.state ||
@@ -92,5 +102,70 @@ export function createGitHubCommitStatusPublisher(dependencies) {
         "GitHub commit status response is invalid",
       );
     }
-  };
+    return /** @type {number} */ (response.id);
+  }
+
+  /**
+   * @param {any} credential
+   * @param {number} installationId
+   * @param {{full_name: string, id: number}} repository
+   * @param {{head: string, state: string, targetUrl: string}} status
+   */
+  async function reconcileCommitStatus(
+    credential,
+    installationId,
+    repository,
+    status,
+  ) {
+    const authorization = await dependencies.installationToken(
+      credential,
+      installationId,
+    );
+    /** @type {number[]} */
+    const matches = [];
+    for (let page = 1; ; page += 1) {
+      const response = await dependencies.request(
+        `${statusPath(repository, status.head)}?per_page=100&page=${page}`,
+        {
+          affectedRepositoryIds: [repository.id],
+          authorization,
+          repositoryId: repository.id,
+        },
+      );
+      if (!Array.isArray(response)) {
+        dependencies.fail(
+          "github_api_response_invalid",
+          "GitHub commit status reconciliation response is invalid",
+        );
+      }
+      for (const item of /** @type {any[]} */ (response)) {
+        if (
+          item?.context === GITHUB_COMMIT_STATUS_CONTEXT &&
+          item.sha === status.head &&
+          item.state === status.state &&
+          item.target_url === status.targetUrl
+        ) {
+          if (!Number.isSafeInteger(item.id) || item.id <= 0) {
+            dependencies.fail(
+              "github_api_response_invalid",
+              "GitHub commit status reconciliation response is invalid",
+            );
+          }
+          matches.push(item.id);
+        }
+      }
+      if (response.length < 100) {
+        break;
+      }
+    }
+    if (matches.length > 1) {
+      dependencies.fail(
+        "github_api_response_invalid",
+        "GitHub commit status reconciliation found duplicate source identities",
+      );
+    }
+    return matches[0] ?? null;
+  }
+
+  return { publishCommitStatus, reconcileCommitStatus };
 }

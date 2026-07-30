@@ -105,7 +105,7 @@ test("migrates legacy browser sessions by revoking records without lifetime time
   migrated.close();
 });
 
-test("migrates v4 to v38 without losing existing authority facts", () => {
+test("migrates v4 to v40 without losing existing authority facts", () => {
   const databasePath = temporaryDatabasePath();
   const core = openDurableCore(databasePath);
   core.transaction((transaction) => {
