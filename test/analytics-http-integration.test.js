@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { createHttpConformanceAssertion } from "../scripts/openapi-conformance.mjs";
+import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 import { createUnavailableEvaluationService } from "../src/evaluation.js";
 import {
   authenticatedOperatorHeaders,
@@ -10,6 +12,25 @@ import {
 
 const document = {
   criterion_outcomes: [],
+  evaluation_outcomes: {
+    advisory: 1,
+    advisory_rate: { denominator: 4, numerator: 1 },
+    blocking: 1,
+    blocking_rate: { denominator: 4, numerator: 1 },
+    clear: 1,
+    clear_rate: { denominator: 4, numerator: 1 },
+    error: 1,
+    error_rate: { denominator: 4, numerator: 1 },
+    pending: 2,
+  },
+  finding_impact: {
+    advisory: 2,
+    blocking: 1,
+    findings_per_triggered_criterion_result: {
+      denominator: 2,
+      numerator: 3,
+    },
+  },
   review_applicability: [
     {
       applicable: 2,
@@ -20,7 +41,36 @@ const document = {
       review_id: "review-1",
     },
   ],
+  waiver_analytics: {
+    advisory_findings: 2,
+    decision_history: {
+      accepted: 1,
+      accepted_rate: { denominator: 3, numerator: 1 },
+      denied: 1,
+      denied_rate: { denominator: 3, numerator: 1 },
+      error: 1,
+      error_rate: { denominator: 3, numerator: 1 },
+    },
+    requested_findings: 1,
+    waived_findings: 1,
+    waived_finding_rate: { denominator: 2, numerator: 1 },
+    waiver_request_rate: { denominator: 2, numerator: 1 },
+  },
 };
+
+test("the canonical Analytics document conforms to the published HTTP schema", async () => {
+  const assertion = await createHttpConformanceAssertion(
+    canonicalOpenApiDocument(),
+  );
+  await assertion.assertExchange({
+    request: {
+      method: "GET",
+      url: "http://127.0.0.1/api/v1/analytics",
+    },
+    response: Response.json(document),
+  });
+  assert.equal(assertion.facts().responseDocuments, 1);
+});
 
 test("HTTP exposes the canonical Analytics document to browser and machine authorities", async () => {
   const { application, request } = await startApplication({
