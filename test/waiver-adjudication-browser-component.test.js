@@ -106,3 +106,82 @@ test("the browser preserves queued state and the exact owning execution failure"
     );
   }
 });
+
+test("the browser retries an errored immutable Request in a later Adjudication", async () => {
+  /** @type {{path: string, options: any}[]} */
+  const requests = [];
+  class Element {
+    /** @type {any[]} */
+    children = [];
+    /** @type {Map<string, (event: any) => unknown>} */
+    listeners = new Map();
+    textContent = "";
+    type = "";
+
+    /** @param {any} child */
+    append(child) {
+      this.children.push(child);
+    }
+
+    /** @param {string} name @param {(event: any) => unknown} listener */
+    addEventListener(name, listener) {
+      this.listeners.set(name, listener);
+    }
+
+    setAttribute() {}
+  }
+  const context = /** @type {any} */ ({
+    crypto: { randomUUID: () => "retry-key" },
+    document: { createElement: () => new Element() },
+    fetch: async (/** @type {string} */ path, /** @type {any} */ options) => {
+      requests.push({ options, path });
+      return {
+        async json() {
+          return {
+            adjudication: {
+              execution_status: "queued",
+              id: "adjudication-retry",
+            },
+          };
+        },
+        ok: true,
+      };
+    },
+    window: {
+      qualityBarOperator: {
+        csrfToken: () => "csrf-token",
+        displayMutationFailure: () => assert.fail("unexpected failure"),
+      },
+    },
+  });
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/waiver-batch.js",
+    readBrowserAsset("/assets/waiver-batch.js"),
+    context,
+  );
+  const form = context.window.qualityBarWaiverBatch.createErrorRetryForm(
+    "evaluation-1",
+    ["request-error"],
+  );
+  await form.listeners.get("submit")({ preventDefault() {} });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(requests)), [
+    {
+      options: {
+        body: JSON.stringify({ request_ids: ["request-error"] }),
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "retry-key",
+          "x-quality-bar-csrf": "csrf-token",
+        },
+        method: "POST",
+      },
+      path: "/api/v1/evaluations/evaluation-1/waiver-adjudications/error-retries",
+    },
+  ]);
+  assert.equal(
+    form.children[1].textContent,
+    "Waiver Adjudication adjudication-retry queued.",
+  );
+});

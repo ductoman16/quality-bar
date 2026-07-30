@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canonicalWaiverErrorRetryRequest,
   canonicalWaiverBatchRequest,
   createWaiverBatchService,
 } from "../src/waiver-batch.js";
@@ -43,6 +44,30 @@ test("canonical waiver batch requires unique Findings and scenario-specific rati
         error instanceof Error &&
         "code" in error &&
         error.code === "waiver_batch_invalid",
+    );
+  }
+});
+
+test("canonical waiver error retry requires unique immutable Request identities", () => {
+  assert.deepEqual(
+    canonicalWaiverErrorRetryRequest({
+      request_ids: ["request-2", "request-1"],
+    }),
+    { request_ids: ["request-1", "request-2"] },
+  );
+  for (const candidate of [
+    {},
+    { request_ids: [] },
+    { request_ids: [""] },
+    { request_ids: ["request-1", "request-1"] },
+    { request_ids: ["request-1"], unexpected: true },
+  ]) {
+    assert.throws(
+      () => canonicalWaiverErrorRetryRequest(candidate),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "waiver_error_retry_invalid",
     );
   }
 });

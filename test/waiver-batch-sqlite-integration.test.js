@@ -7,6 +7,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
+import { prepareDeniedWaiverRequest } from "./support/waiver-request-lifecycle.js";
 
 test("one transaction creates every immutable Request and its queued Adjudication", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-"));
@@ -238,9 +239,7 @@ const rejectionScenarios = [
     code: "waiver_request_duplicate",
     name: "unchanged prior rationale",
     prepare(core) {
-      core.run(
-        "INSERT INTO waiver_requests (id, evaluation_id, finding_id, rationale, requester_channel, created_at) VALUES ('prior-duplicate', 'evaluation-1', 'finding-1', 'Scenario-specific reason', 'browser_session', 1)",
-      );
+      prepareDeniedWaiverRequest(core, 1, "Scenario-specific reason");
     },
     evaluationId: "evaluation-1",
   },
@@ -279,12 +278,7 @@ const rejectionScenarios = [
     name: "Finding request capacity",
     prepare(core) {
       for (let index = 1; index <= 3; index += 1) {
-        core.run(
-          "INSERT INTO waiver_requests (id, evaluation_id, finding_id, rationale, requester_channel, created_at) VALUES (?, 'evaluation-1', 'finding-1', ?, 'browser_session', ?)",
-          `prior-request-${index}`,
-          `Prior rationale ${index}`,
-          index,
-        );
+        prepareDeniedWaiverRequest(core, index, `Prior rationale ${index}`);
       }
     },
     evaluationId: "evaluation-1",
@@ -356,6 +350,9 @@ for (const scenario of rejectionScenarios) {
       const beforeAdjudications = core.get(
         "SELECT count(*) AS count FROM waiver_adjudications",
       )?.count;
+      const beforeIdempotency = core.get(
+        "SELECT count(*) AS count FROM waiver_batch_idempotency",
+      )?.count;
       const service = createWaiverBatchService(core, {
         createAdjudicationId: () => "rejected-adjudication",
         createRequestId: () => "rejected-request",
@@ -394,7 +391,7 @@ for (const scenario of rejectionScenarios) {
       assert.equal(
         core.get("SELECT count(*) AS count FROM waiver_batch_idempotency")
           ?.count,
-        0,
+        beforeIdempotency,
       );
     } finally {
       core.close();

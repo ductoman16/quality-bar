@@ -3,8 +3,17 @@ import {
   failEvaluation,
   requireIdempotencyKey,
 } from "./evaluation-validation.js";
-import { assertReviewRunCapacity } from "./review-run-admission.js";
 import { freezeWaiverAdjudicatorConfiguration } from "./waiver-adjudicator-configuration.js";
+import {
+  assertNoActiveWaiverAdjudication,
+  persistQueuedWaiverAdjudication,
+  readWaiverEvaluation,
+  readWaiverReplay,
+} from "./waiver-adjudication-persistence.js";
+import { createWaiverErrorRetryService } from "./waiver-error-retry.js";
+import { waiverRequestNextAction } from "./waiver-request-lifecycle.js";
+
+export { canonicalWaiverErrorRetryRequest } from "./waiver-error-retry.js";
 
 function invalidBatch() {
   failEvaluation(
@@ -59,40 +68,6 @@ export function canonicalWaiverBatchRequest(candidate) {
   return { requests };
 }
 
-/** @param {number} value */
-const timestamp = (value) => new Date(value).toISOString();
-
-/**
- * @param {any} access
- * @param {string} channel
- * @param {string} route
- * @param {string} key
- * @param {string} hash
- */
-function readReplay(access, channel, route, key, hash) {
-  const row = access.get(
-    `SELECT request_hash, response_status, response_body
-     FROM waiver_batch_idempotency
-     WHERE channel = ? AND route = ? AND idempotency_key = ?`,
-    channel,
-    route,
-    key,
-  );
-  if (!row) {
-    return null;
-  }
-  if (row.request_hash !== hash) {
-    failEvaluation(
-      "idempotency_conflict",
-      "Idempotency key was already used with different input",
-    );
-  }
-  return {
-    resource: JSON.parse(row.response_body),
-    status: row.response_status,
-  };
-}
-
 /**
  * @param {any} durableCore
  * @param {{
@@ -124,7 +99,14 @@ export function createWaiverBatchService(
   ) {
     throw new TypeError("Waiver batch dependencies are invalid");
   }
+  const errorRetries = createWaiverErrorRetryService(durableCore, {
+    createAdjudicationId,
+    now,
+    readCodexCapabilityFailure,
+    storageReserve,
+  });
   return {
+    retryErrors: errorRetries.retry,
     /**
      * @param {{
      *   channel: "browser_session" | "implementer_token",
@@ -147,7 +129,12 @@ export function createWaiverBatchService(
       const hash = createHash("sha256")
         .update(JSON.stringify(canonical))
         .digest("hex");
-      const replay = readReplay(durableCore, channel, route, key, hash);
+      const replay = readWaiverReplay(durableCore, {
+        channel,
+        hash,
+        key,
+        route,
+      });
       if (replay) {
         return replay;
       }
@@ -171,46 +158,57 @@ export function createWaiverBatchService(
         throw new TypeError("Waiver batch identity or timestamp is invalid");
       }
       return durableCore.transaction((/** @type {any} */ transaction) => {
-        const racedReplay = readReplay(transaction, channel, route, key, hash);
+        const racedReplay = readWaiverReplay(transaction, {
+          channel,
+          hash,
+          key,
+          route,
+        });
         if (racedReplay) {
           return racedReplay;
         }
-        const evaluation = transaction.get(
-          `SELECT evaluations.base_commit, evaluations.head_commit,
-                  evaluations.execution_status, evaluation_results.evaluation_id
-           FROM evaluations
-           LEFT JOIN evaluation_results
-             ON evaluation_results.evaluation_id = evaluations.id
-           WHERE evaluations.id = ?`,
-          evaluationId,
-        );
-        if (!evaluation) {
-          failEvaluation("evaluation_not_found", "Evaluation was not found");
-        }
-        if (evaluation.evaluation_id !== evaluationId) {
-          failEvaluation(
-            "evaluation_result_not_ready",
-            "Evaluation Result is not ready",
-          );
-        }
-        const activeAdjudication = transaction.get(
-          `SELECT id, execution_status FROM waiver_adjudications
-             WHERE evaluation_id = ?
-               AND execution_status IN ('queued', 'running')`,
-          evaluationId,
-        );
-        if (activeAdjudication) {
-          failEvaluation(
-            "waiver_adjudication_active",
-            `Waiver Adjudication ${activeAdjudication.id} is ${activeAdjudication.execution_status}`,
-          );
-        }
+        const evaluation = readWaiverEvaluation(transaction, evaluationId);
+        assertNoActiveWaiverAdjudication(transaction, evaluationId);
         const configuration = freezeWaiverAdjudicatorConfiguration(transaction);
         const findings = transaction.all(
           `SELECT findings.id, findings.evaluation_id,
                   review_version_criteria.impact,
                   (SELECT count(*) FROM waiver_requests
-                   WHERE waiver_requests.finding_id = findings.id) AS request_count
+                   WHERE waiver_requests.finding_id = findings.id) AS request_count,
+                  (
+                    SELECT count(*)
+                    FROM waiver_requests AS accepted_request
+                    WHERE accepted_request.finding_id = findings.id
+                      AND (
+                        SELECT waiver_decisions.outcome
+                        FROM waiver_decisions
+                        JOIN waiver_adjudications
+                          ON waiver_adjudications.id =
+                               waiver_decisions.waiver_adjudication_id
+                        WHERE waiver_decisions.waiver_request_id =
+                                accepted_request.id
+                        ORDER BY waiver_adjudications.rowid DESC
+                        LIMIT 1
+                      ) = 'accepted'
+                  ) AS accepted_request_count,
+                  (
+                    SELECT waiver_decisions.outcome
+                    FROM waiver_requests AS latest_request
+                    JOIN waiver_decisions
+                      ON waiver_decisions.waiver_request_id = latest_request.id
+                    JOIN waiver_adjudications
+                      ON waiver_adjudications.id =
+                           waiver_decisions.waiver_adjudication_id
+                    WHERE latest_request.id = (
+                      SELECT waiver_requests.id
+                      FROM waiver_requests
+                      WHERE waiver_requests.finding_id = findings.id
+                      ORDER BY waiver_requests.rowid DESC
+                      LIMIT 1
+                    )
+                    ORDER BY waiver_adjudications.rowid DESC
+                    LIMIT 1
+                  ) AS latest_decision
            FROM findings
            JOIN review_runs ON review_runs.id = findings.review_run_id
            JOIN review_version_criteria
@@ -256,6 +254,35 @@ export function createWaiverBatchService(
               "Only advisory Findings are eligible for waiver",
             );
           }
+          const nextAction = waiverRequestNextAction({
+            acceptedRequestCount: finding.accepted_request_count,
+            latestDecision: finding.latest_decision,
+            requestCount: finding.request_count,
+          });
+          if (nextAction === "accepted") {
+            failEvaluation(
+              "waiver_request_accepted",
+              "Finding already has an accepted Waiver Request",
+            );
+          }
+          if (nextAction === "retry_error") {
+            failEvaluation(
+              "waiver_request_error_retry_required",
+              "Finding's errored Waiver Request must be retried without creating another Request",
+            );
+          }
+          if (nextAction === "decision_required") {
+            failEvaluation(
+              "waiver_request_decision_required",
+              "Finding's latest Waiver Request has no Decision",
+            );
+          }
+          if (nextAction === "limit_reached") {
+            failEvaluation(
+              "waiver_request_limit_reached",
+              "Finding has reached its Waiver Request limit",
+            );
+          }
           if (
             priorRationales.has(
               `${requestValue.finding_id}\u0000${requestValue.rationale}`,
@@ -266,99 +293,47 @@ export function createWaiverBatchService(
               "Finding already has a Waiver Request with this rationale",
             );
           }
-          if (finding.request_count >= 3) {
-            failEvaluation(
-              "waiver_request_limit_reached",
-              "Finding has reached its Waiver Request limit",
-            );
-          }
         }
-        const queued = transaction.get(
-          "SELECT count(*) AS count FROM codex_execution_queue WHERE started_at IS NULL",
-        )?.count;
-        assertReviewRunCapacity(queued, 1);
-        transaction.run(
-          `INSERT INTO waiver_adjudications (
-             id, evaluation_id, base_commit, head_commit, model,
-             reasoning_effort, service_tier, execution_status, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+        return persistQueuedWaiverAdjudication(transaction, {
           adjudicationId,
-          evaluationId,
-          evaluation.base_commit,
-          evaluation.head_commit,
-          configuration.model,
-          configuration.reasoning_effort,
-          configuration.service_tier,
-          createdAt,
-        );
-        const requests = canonical.requests.map(
-          (/** @type {any} */ requestValue, /** @type {number} */ index) => {
-            const id = requestIds[index];
-            transaction.run(
-              `INSERT INTO waiver_requests (
-               id, evaluation_id, finding_id, rationale, requester_channel, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?)`,
-              id,
-              evaluationId,
-              requestValue.finding_id,
-              requestValue.rationale,
-              channel,
-              createdAt,
-            );
-            transaction.run(
-              `INSERT INTO waiver_adjudication_requests (
-               waiver_adjudication_id, waiver_request_id, position
-             ) VALUES (?, ?, ?)`,
-              adjudicationId,
-              id,
-              index + 1,
-            );
-            return {
-              created_at: timestamp(createdAt),
-              evaluation_id: evaluationId,
-              finding_id: requestValue.finding_id,
-              id,
-              rationale: requestValue.rationale,
-            };
-          },
-        );
-        transaction.run(
-          `INSERT INTO codex_execution_queue (
-             work_id, work_kind, ready_at, accepted_at, started_at
-           ) VALUES (?, 'waiver_adjudication', ?, ?, NULL)`,
-          adjudicationId,
-          createdAt,
-          createdAt,
-        );
-        const adjudication = {
-          base_commit: evaluation.base_commit,
-          configuration: {
-            model: configuration.model,
-            reasoning_effort: configuration.reasoning_effort,
-            service_tier: configuration.service_tier,
-          },
-          created_at: timestamp(createdAt),
-          evaluation_id: evaluationId,
-          execution_status: "queued",
-          head_commit: evaluation.head_commit,
-          id: adjudicationId,
-          request_ids: requestIds,
-        };
-        const resource = { adjudication, requests };
-        transaction.run(
-          `INSERT INTO waiver_batch_idempotency (
-             channel, route, idempotency_key, request_hash, response_status,
-             response_body, waiver_adjudication_id, created_at
-           ) VALUES (?, ?, ?, ?, 201, ?, ?, ?)`,
           channel,
-          route,
-          key,
-          hash,
-          JSON.stringify(resource),
-          adjudicationId,
+          configuration,
           createdAt,
-        );
-        return { resource, status: 201 };
+          evaluation,
+          evaluationId,
+          hash,
+          key,
+          requestIds,
+          route,
+          writeRequests: () =>
+            canonical.requests.map(
+              (
+                /** @type {any} */ requestValue,
+                /** @type {number} */ index,
+              ) => {
+                const id = requestIds[index];
+                transaction.run(
+                  `INSERT INTO waiver_requests (
+                     id, evaluation_id, finding_id, rationale,
+                     requester_channel, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?)`,
+                  id,
+                  evaluationId,
+                  requestValue.finding_id,
+                  requestValue.rationale,
+                  channel,
+                  createdAt,
+                );
+                return {
+                  created_at: new Date(createdAt).toISOString(),
+                  evaluation_id: evaluationId,
+                  finding_id: requestValue.finding_id,
+                  id,
+                  rationale: requestValue.rationale,
+                };
+              },
+            ),
+        });
       });
     },
   };
