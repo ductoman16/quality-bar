@@ -261,6 +261,13 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
   legacy.exec("PRAGMA foreign_keys = OFF");
   legacy.exec(`
     BEGIN IMMEDIATE;
+    DROP TRIGGER github_feedback_bundle_admit;
+    DROP TRIGGER github_feedback_bundle_identity_update;
+    DROP TRIGGER github_feedback_bundle_delete;
+    DROP TRIGGER github_finding_feedback_identity_update;
+    DROP TRIGGER github_finding_feedback_delete;
+    DROP TABLE github_finding_feedback;
+    DROP TABLE github_feedback_bundles;
     DROP TABLE github_automatic_evaluation_pull_requests;
     DROP TRIGGER github_automatic_evaluation_matches_evaluation;
     DROP TRIGGER applicability_selection_closed_insert;
@@ -333,7 +340,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 39);
+  assert.equal(migrated.facts.schemaVersion, 40);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

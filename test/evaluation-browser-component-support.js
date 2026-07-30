@@ -15,6 +15,7 @@ export function assertEvaluationPage(page) {
     /id="evaluation-attention"/,
     /id="evaluation-more"/,
     /<script src="\/assets\/evaluation-result\.js"><\/script>/,
+    /<script src="\/assets\/evaluation-feedback\.js"><\/script>/,
     /<script src="\/assets\/evaluation\.js"><\/script>/,
   ]) {
     assert.match(page, pattern);

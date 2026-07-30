@@ -135,6 +135,13 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
   openDurableCore(databasePath).close();
   const legacy = new DatabaseSync(databasePath);
   legacy.exec(`
+    DROP TRIGGER github_feedback_bundle_admit;
+    DROP TRIGGER github_feedback_bundle_identity_update;
+    DROP TRIGGER github_feedback_bundle_delete;
+    DROP TRIGGER github_finding_feedback_identity_update;
+    DROP TRIGGER github_finding_feedback_delete;
+    DROP TABLE github_finding_feedback;
+    DROP TABLE github_feedback_bundles;
     DROP TABLE github_automatic_evaluation_pull_requests;
     DROP TABLE github_automatic_evaluations;
     UPDATE quality_bar_metadata SET value = '34' WHERE key = 'schema_version';
@@ -144,7 +151,7 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 39);
+  assert.equal(migrated.facts.schemaVersion, 40);
   assert.equal(
     migrated.get(
       `SELECT count(*) AS count FROM sqlite_schema

@@ -78,9 +78,19 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
       ? {
           verifier: {
             ...options.verifier,
+            publishAggregateFeedback:
+              options.verifier.publishAggregateFeedback ??
+              async function publishAggregateFeedback() {
+                return 1;
+              },
             publishCommitStatus:
               options.verifier.publishCommitStatus ??
               async function publishCommitStatus() {},
+            publishInlineFeedback:
+              options.verifier.publishInlineFeedback ??
+              async function publishInlineFeedback() {
+                return 1;
+              },
           },
         }
       : {}),

@@ -53,6 +53,11 @@ test("Evaluation detail makes an unavailable success status exact attention with
       },
       window: {
         location: { search: "" },
+        qualityBarEvaluationFeedback: {
+          hasUnavailable: () => false,
+          render() {},
+          valid: () => true,
+        },
         qualityBarEvaluationResult: { async render() {} },
         qualityBarOperator: {
           csrfToken: () => "csrf",

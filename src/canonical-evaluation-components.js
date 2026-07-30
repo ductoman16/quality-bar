@@ -1,11 +1,13 @@
 import { closedObject } from "./canonical-schema.js";
 import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
+import { canonicalGitHubFeedbackSchemas } from "./canonical-github-feedback-components.js";
 import { canonicalReviewRunSchemas } from "./canonical-review-run-components.js";
 import { canonicalWaiverSchemas } from "./canonical-waiver-components.js";
 
 export function canonicalEvaluationSchemas() {
   return {
     ...canonicalApplicabilitySchemas(),
+    ...canonicalGitHubFeedbackSchemas(),
     ...canonicalReviewRunSchemas(),
     ...canonicalWaiverSchemas(),
     EvaluationSelector: {
@@ -105,6 +107,9 @@ export function canonicalEvaluationSchemas() {
         execution_status: {
           enum: ["queued", "running", "completed", "failed", "cancelled"],
           type: "string",
+        },
+        feedback: {
+          $ref: "#/components/schemas/GitHubEvaluationFeedback",
         },
         head_commit: {
           pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
