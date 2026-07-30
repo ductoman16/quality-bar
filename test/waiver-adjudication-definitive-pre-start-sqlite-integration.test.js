@@ -7,6 +7,7 @@ import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { prepareReviewRunCheckout } from "../src/review-run-checkout.js";
 import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
 import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
@@ -51,7 +52,13 @@ function createFixture(
     createWorkerId,
     now,
   });
-  return { claims, core };
+  const ioPool = createIoExecutionPool({
+    reportBackgroundFailure() {
+      assert.fail("Unexpected background I/O failure");
+    },
+  });
+  context.after(() => ioPool.close());
+  return { claims, core, ioPool };
 }
 
 /** @param {any} core @param {string} errorCode */
@@ -66,7 +73,7 @@ function assertOneExhaustedAttempt(core, errorCode) {
 }
 
 test("the production executor exhausts a definitive pre-launch configuration failure", async (context) => {
-  const { claims, core } = createFixture(context);
+  const { claims, core, ioPool } = createFixture(context);
   const claim = claims.claimNext();
   assert.ok(claim);
   await assert.rejects(
@@ -74,6 +81,7 @@ test("the production executor exhausts a definitive pre-launch configuration fai
       executeWaiverAdjudication(core, claim, {
         claimService: claims,
         evidenceService: {},
+        ioPool,
         async prepareCheckout() {
           return { path: "/checkout", remove() {} };
         },
@@ -93,7 +101,7 @@ test("the production executor exhausts a definitive pre-launch configuration fai
 });
 
 test("the production executor exhausts checkout filesystem failure immediately", async (context) => {
-  const { claims, core } = createFixture(context);
+  const { claims, core, ioPool } = createFixture(context);
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-filesystem-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const checkoutRoot = join(directory, "not-a-directory");
@@ -106,6 +114,7 @@ test("the production executor exhausts checkout filesystem failure immediately",
         checkoutRoot,
         claimService: claims,
         evidenceService: {},
+        ioPool,
         resultService: {},
         runCodex: () => assert.fail("Codex launched after filesystem failure"),
       }),
@@ -118,7 +127,7 @@ test("the production executor exhausts checkout filesystem failure immediately",
 });
 
 test("the production executor exhausts an unrecognized definitive Git failure", async (context) => {
-  const { claims, core } = createFixture(context);
+  const { claims, core, ioPool } = createFixture(context);
   const checkoutRoot = mkdtempSync(join(tmpdir(), "quality-bar-git-failed-"));
   context.after(() => rmSync(checkoutRoot, { force: true, recursive: true }));
   const claim = claims.claimNext();
@@ -129,6 +138,7 @@ test("the production executor exhausts an unrecognized definitive Git failure", 
         checkoutRoot,
         claimService: claims,
         evidenceService: {},
+        ioPool,
         prepareCheckout: (/** @type {any} */ input) =>
           prepareReviewRunCheckout({
             ...input,
@@ -160,7 +170,7 @@ test("the production executor exhausts an unrecognized definitive Git failure", 
 test("production Git DNS failure receives the complete transient retry schedule", async (context) => {
   let currentTime = 20;
   let worker = 0;
-  const { claims, core } = createFixture(context, {
+  const { claims, core, ioPool } = createFixture(context, {
     createWorkerId: () => `transient-worker-${++worker}`,
     now: () => currentTime,
   });
@@ -176,6 +186,7 @@ test("production Git DNS failure receives the complete transient retry schedule"
           checkoutRoot,
           claimService: claims,
           evidenceService: {},
+          ioPool,
           prepareCheckout: (/** @type {any} */ input) =>
             prepareReviewRunCheckout({
               ...input,

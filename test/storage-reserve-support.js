@@ -1,6 +1,7 @@
 import { createForgejoConnectionService as createForgejoService } from "../src/forgejo-connection.js";
 import { createGitHubConnectionService as createGitHubService } from "../src/github-connection.js";
 import { createGitHubPollingRunner as createGitHubRunner } from "../src/github-polling-runner.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 
 const facts = {
   filesystems: [
@@ -22,10 +23,11 @@ const facts = {
 };
 
 export const availableStorageReserve =
-  /** @type {ReturnType<typeof import("../src/storage-reserve.js").createStorageReserveGate>} */ (
+  /** @type {ReturnType<typeof import("../src/storage-reserve.js").createStorageReserveGate> & {ioPool: ReturnType<typeof createIoExecutionPool>}} */ (
     Object.freeze({
       assertCodexStartAvailable: () => facts,
       assertPollingObservationAdvanceAvailable: () => facts,
+      ioPool: createIoExecutionPool(),
       preparePollingObservationAdvance: () => facts,
       assertWorkAdmissionAvailable: () => facts,
       readFacts: () => facts,

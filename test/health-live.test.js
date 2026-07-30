@@ -19,6 +19,10 @@ function callApplicationServer(options) {
 
 function applicationServerOptions() {
   return {
+    codexExecutionConcurrency: {
+      read: () => 1,
+      set: (/** @type {unknown} */ value) => value,
+    },
     evaluations: createUnavailableEvaluationService(
       new Error("unused Evaluation"),
     ),
@@ -100,6 +104,9 @@ function applicationServerOptions() {
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {
+      async acquireGitCredential() {
+        throw new Error("unused Repository service operation");
+      },
       destroy() {},
       list() {
         throw new Error("unused Repository service operation");

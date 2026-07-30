@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -52,6 +53,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
     username: "repository-user",
   };
   await executeReviewRun(durableCore(), claim, {
+    ioPool: createIoExecutionPool(),
     checkoutCredential,
     claimService: {
       start() {
@@ -152,6 +154,7 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
   const diagnosticFailure = new Error("submission cleanup failed");
   const reportingFailure = new Error("diagnostic sink failed");
   const execution = await executeReviewRun(durableCore(), claim, {
+    ioPool: createIoExecutionPool(),
     claimService: {
       start() {},
       startRenewal() {
@@ -192,6 +195,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
   await assert.rejects(
     () =>
       executeReviewRun(durableCore(), claim, {
+        ioPool: createIoExecutionPool(),
         claimService: {
           start() {
             started = true;
@@ -228,6 +232,7 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
   await assert.rejects(
     () =>
       executeReviewRun(durableCore(), claim, {
+        ioPool: createIoExecutionPool(),
         claimService: {
           start() {},
           startRenewal() {
@@ -271,6 +276,7 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
   await assert.rejects(
     () =>
       executeReviewRun(durableCore(), claim, {
+        ioPool: createIoExecutionPool(),
         claimService: {
           start() {},
           startRenewal() {
@@ -308,6 +314,7 @@ test("an unexpected started failure has one stable safe owning detail", async ()
   await assert.rejects(
     () =>
       executeReviewRun(durableCore(), claim, {
+        ioPool: createIoExecutionPool(),
         claimService: {
           start() {},
           startRenewal() {
@@ -358,6 +365,7 @@ test("a contradictory File Change authority failure remains exact through execut
   await assert.rejects(
     () =>
       executeReviewRun(durableCore(), claim, {
+        ioPool: createIoExecutionPool(),
         claimService: {
           start() {},
           startRenewal() {

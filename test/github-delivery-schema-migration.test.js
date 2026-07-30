@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -208,6 +209,7 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
   );
   let reconciliations = 0;
   const service = createGitHubCommitStatusService(migrated, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt: () => ({ client_id: "Iv1.client", pem: "private-key" }),
     },

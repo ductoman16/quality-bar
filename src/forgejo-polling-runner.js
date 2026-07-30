@@ -15,15 +15,24 @@ import {
   createStorageReservePollingCore,
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
-
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+import { createIoDutyScheduler } from "./io-execution-pool.js";
+import { createIoDutyTimer } from "./io-duty-timer.js";
+/** @param {any} durableCore @param {any} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
-  { cipher, storageReserve, timestamp, verifier },
+  {
+    cipher,
+    clearTimer: cancelTimer = clearTimeout,
+    setTimer = setTimeout,
+    storageReserve,
+    timestamp,
+    verifier,
+  },
 ) {
   if (
     !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
+    typeof storageReserve?.ioPool?.run !== "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function"
   ) {
@@ -42,10 +51,7 @@ export function createForgejoPollingRunner(
     now: timestamp,
     recordOwningFailure,
   });
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let timer = null;
-  let started = false;
-  let running = false;
+  let [started, running] = [false, false];
 
   function requireFreshBaseline() {
     durableCore.transaction((/** @type {any} */ transaction) => {
@@ -365,9 +371,20 @@ export function createForgejoPollingRunner(
     if (!started) {
       return;
     }
-    timer = setTimeout(() => void runScheduled(), delay);
-    timer.unref();
+    dutyTimer.schedule(delay);
   }
+
+  const scheduleRun = createIoDutyScheduler(
+    storageReserve.ioPool,
+    "polling",
+    runScheduled,
+  );
+
+  const dutyTimer = createIoDutyTimer(scheduleRun, {
+    clearTimer: cancelTimer,
+    retryDelay: FORGEJO_POLL_INTERVAL_MS,
+    setTimer,
+  });
 
   return {
     commitFailure: polling.commitFailure,
@@ -382,11 +399,9 @@ export function createForgejoPollingRunner(
       );
     },
     destroy() {
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
-      timer = null;
       started = false;
+      dutyTimer.stop();
+      scheduleRun.cancel();
     },
     prepareBaseline,
     requireFreshBaseline,
@@ -396,8 +411,7 @@ export function createForgejoPollingRunner(
         return;
       }
       started = true;
-      timer = setTimeout(() => void runScheduled(), 0);
-      timer.unref();
+      dutyTimer.start(0);
     },
   };
 }

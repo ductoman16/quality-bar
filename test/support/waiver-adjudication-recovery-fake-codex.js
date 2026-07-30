@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { createIoExecutionPool } from "../../src/io-execution-pool.js";
 import { createWaiverAdjudicationClaimService } from "../../src/waiver-adjudication-claim.js";
 import { createWaiverAdjudicationEvidenceService } from "../../src/waiver-adjudication-evidence.js";
 import { executeWaiverAdjudication } from "../../src/waiver-adjudication-execution.js";
@@ -37,24 +38,34 @@ export async function recoverStartedAdjudicationWithFakeCodex({
     "recovered-decision-2",
     "recovered-decision-3",
   ];
-  await executeWaiverAdjudication(core, claim, {
-    checkoutRoot,
-    claimService: claims,
-    codexCommand: process.execPath,
-    codexPrefixArguments: [fakeCodex],
-    evidenceService: createWaiverAdjudicationEvidenceService(core),
-    processEnvironment: {
-      CODEX_HOME: "/var/lib/quality-bar/codex",
-      HOME: "/var/lib/quality-bar",
-      LANG: "C.UTF-8",
-      PATH: "/usr/local/bin:/usr/bin",
+  const ioPool = createIoExecutionPool({
+    reportBackgroundFailure() {
+      assert.fail("Unexpected background I/O failure");
     },
-    resultService: createWaiverAdjudicationResultService(core, {
-      createDecisionId: () =>
-        decisionIds.shift() ?? assert.fail("missing Decision identity"),
-      now: () => 42,
-    }),
   });
+  try {
+    await executeWaiverAdjudication(core, claim, {
+      checkoutRoot,
+      claimService: claims,
+      codexCommand: process.execPath,
+      codexPrefixArguments: [fakeCodex],
+      evidenceService: createWaiverAdjudicationEvidenceService(core),
+      ioPool,
+      processEnvironment: {
+        CODEX_HOME: "/var/lib/quality-bar/codex",
+        HOME: "/var/lib/quality-bar",
+        LANG: "C.UTF-8",
+        PATH: "/usr/local/bin:/usr/bin",
+      },
+      resultService: createWaiverAdjudicationResultService(core, {
+        createDecisionId: () =>
+          decisionIds.shift() ?? assert.fail("missing Decision identity"),
+        now: () => 42,
+      }),
+    });
+  } finally {
+    await ioPool.close();
+  }
   assert.deepEqual(
     core.all(
       `SELECT id, execution_status, error_code

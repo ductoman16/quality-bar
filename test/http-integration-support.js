@@ -36,6 +36,7 @@ function temporaryDatabasePath() {
  *   createReviews?: Parameters<typeof createApplication>[0]["createReviews"],
  *   createStorageReserve?: Parameters<typeof createApplication>[0]["createStorageReserve"],
  *   createEvaluations?: Parameters<typeof createApplication>[0]["createEvaluations"],
+ *   createCodexRuntime?: Parameters<typeof createApplication>[0]["createCodexRuntime"],
  *   validateCodexAuthentication?: Parameters<typeof createApplication>[0]["validateCodexAuthentication"],
  *   writeLog?: Parameters<typeof createApplication>[0]["writeLog"]
  * }} [options]
@@ -62,6 +63,12 @@ export async function startApplication(options = {}) {
     createStorageReserve:
       options.createStorageReserve ?? (() => availableStorageReserve),
     createEvaluations: options.createEvaluations,
+    createCodexRuntime:
+      options.createCodexRuntime ??
+      (() => ({
+        async close() {},
+        start() {},
+      })),
     writeLog: options.writeLog ?? (() => {}),
   });
   if (!application.durableCore || !application.implementerTokens) {

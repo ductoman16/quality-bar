@@ -11,6 +11,7 @@ import {
   resolvePushedCommitSelectors,
   verifyRepositoryRead,
 } from "./repository-git.js";
+import { createRepositoryGitCredentialAcquirer } from "./repository-git-credential.js";
 import {
   readRepositoryResource,
   REPOSITORY_SELECTION,
@@ -135,6 +136,13 @@ export function createRepositoryService(
     return row;
   }
 
+  const acquireGitCredential = createRepositoryGitCredentialAcquirer({
+    credentialCipher,
+    find,
+    readRepository: readRepositoryResource,
+    resolveForgeCredential,
+  });
+
   /** @param {string} id */
   function requireAcceptsNewWork(id) {
     const row = find(id);
@@ -204,6 +212,7 @@ export function createRepositoryService(
   });
 
   return {
+    acquireGitCredential,
     list() {
       return durableCore
         .all(

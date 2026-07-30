@@ -6,6 +6,7 @@ import { createGitHubFeedbackService } from "./github-feedback-service.js";
  * @param {{
  *   cipher: any,
  *   externalOrigin: string,
+ *   ioPool: any,
  *   now: () => number,
  *   verifier: {
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
@@ -19,11 +20,12 @@ import { createGitHubFeedbackService } from "./github-feedback-service.js";
  */
 export function createGitHubPublicationServices(
   durableCore,
-  { cipher, externalOrigin, now, verifier },
+  { cipher, externalOrigin, ioPool, now, verifier },
 ) {
   const commitStatuses = createGitHubCommitStatusService(durableCore, {
     cipher,
     externalOrigin,
+    ioPool,
     now,
     verifier: {
       publishCommitStatus: verifier.publishCommitStatus,
@@ -33,6 +35,7 @@ export function createGitHubPublicationServices(
   const feedback = createGitHubFeedbackService(durableCore, {
     cipher,
     externalOrigin,
+    ioPool,
     now,
     verifier: {
       publishAggregateFeedback: verifier.publishAggregateFeedback,

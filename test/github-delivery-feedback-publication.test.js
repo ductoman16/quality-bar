@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +21,7 @@ test("feedback failures preserve exact owning errors without inferred success", 
     { code: "github_connection_credential_undecryptable" },
   );
   const service = createGitHubFeedbackService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt() {
         throw failure;
@@ -84,6 +86,7 @@ test("successful feedback stays successful while a rate-limited inline surface r
   let aggregates = 0;
   let inlines = 0;
   const service = createGitHubFeedbackService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: { decrypt: () => ({}) },
     externalOrigin: "https://quality-bar.example",
     now: () => now,

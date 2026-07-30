@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +21,7 @@ test("an uncertain status response reconciles before recreate and recreates only
   const operations = [];
   let createCount = 0;
   const service = createGitHubCommitStatusService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt: () => ({ client_id: "Iv1.client", pem: "private-key" }),
     },
@@ -102,6 +104,7 @@ test("an uncertain status response accepts the reconciled external identity with
   let now = 0;
   let creates = 0;
   const service = createGitHubCommitStatusService(core, {
+    ioPool: createIoExecutionPool(),
     cipher: {
       decrypt: () => ({ client_id: "Iv1.client", pem: "private-key" }),
     },

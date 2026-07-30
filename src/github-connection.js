@@ -33,7 +33,7 @@ import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
 import { assertGitHubVerifier } from "./github-connection-dependencies.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
 /** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<number>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, reconcileAggregateFeedback?: (...parameters: any[]) => Promise<number | null>, reconcileCommitStatus?: (...parameters: any[]) => Promise<number | null>, reconcileInlineFeedback?: (...parameters: any[]) => Promise<number | null>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
-/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
+/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
   {
@@ -56,6 +56,7 @@ export function createGitHubConnectionService(
   }
   if (
     typeof createId !== "function" ||
+    typeof storageReserve?.ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof randomBytes !== "function" ||
     typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
@@ -85,6 +86,7 @@ export function createGitHubConnectionService(
   const publications = createGitHubPublicationServices(durableCore, {
     cipher,
     externalOrigin,
+    ioPool: storageReserve.ioPool,
     now,
     verifier: /** @type {any} */ (verifier),
   });
