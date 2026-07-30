@@ -2,13 +2,15 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
   {
     name: "codex-execution-claim-unit",
     testGroup:
-      "shared-review-run-and-waiver-adjudication-oldest-ready-first-selection-renewal-and-expiration-contract",
+      "shared-review-run-and-waiver-adjudication-oldest-ready-first-selection-renewal-expiration-and-restart-classification-contract",
     failureCode: "review_run_claim_unit_tests_failed",
     arguments: [
       "--test",
       "test/application-execution-runtime.test.js",
+      "test/application-recovery-startup.test.js",
       "test/codex-execution-concurrency.test.js",
       "test/codex-execution-claim.test.js",
+      "test/codex-execution-recovery.test.js",
       "test/codex-execution-worker.test.js",
       "test/io-execution-pool.test.js",
       "test/forgejo-polling-runner-io.test.js",
@@ -29,6 +31,27 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
     ],
   },
   {
+    name: "codex-execution-recovery-sqlite-integration",
+    testGroup:
+      "queued-survival-interrupted-review-run-and-waiver-failure-submission-cancellation-v44-migration-and-no-automatic-started-retry",
+    failureCode: "codex_execution_recovery_sqlite_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-recovery-schema-migration.test.js",
+      "test/codex-execution-recovery-sqlite-integration.test.js",
+    ],
+  },
+  {
+    name: "codex-execution-recovery-sqlite-failure-integration",
+    testGroup:
+      "restart-recovery-durable-write-failure-exact-storage-error-and-no-partial-state",
+    failureCode: "codex_execution_recovery_sqlite_failure_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-recovery-sqlite-failure-integration.test.js",
+    ],
+  },
+  {
     name: "codex-execution-concurrency-sqlite-failure-integration",
     testGroup:
       "durable-concurrency-write-failure-exact-storage-error-no-partial-setting",
@@ -41,9 +64,19 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
   {
     name: "codex-execution-claim-adapter-integration",
     testGroup:
-      "shared-oldest-ready-claim-before-owning-fake-codex-launch-boundary",
+      "shared-oldest-ready-claim-before-owning-fake-codex-launch-and-detached-process-group-tracking-boundary",
     failureCode: "review_run_claim_adapter_integration_tests_failed",
     arguments: ["--test", "test/review-run-claim-adapter-integration.test.js"],
+  },
+  {
+    name: "codex-execution-recovery-process-integration",
+    testGroup:
+      "gated-identity-anchored-process-group-termination-partial-transcript-retention-and-exact-interrupted-failure",
+    failureCode: "codex_execution_recovery_process_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-recovery-process-integration.test.js",
+    ],
   },
   {
     name: "codex-execution-claim-process-integration",

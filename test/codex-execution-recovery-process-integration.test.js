@@ -1,0 +1,202 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
+import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
+import { openDurableCore } from "../src/durable-core.js";
+import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
+import { createQueuedReviewRun } from "./review-run-claim-support.js";
+
+test("restart terminates a tracked surviving process group and retains its partial transcript", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-process-recovery-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const claims = createCodexExecutionClaimService(core, {
+    createWorkerId: () => "interrupted-process-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  const marker = join(directory, "codex-started");
+  const prepared = prepareCodexProcess(
+    process.execPath,
+    [
+      join(import.meta.dirname, "../fixtures/test-probes/mark-and-idle.mjs"),
+      marker,
+    ],
+    { cwd: directory, environment: {} },
+    process.execPath,
+  );
+  const { child } = prepared;
+  assert.ok(child.pid);
+  context.after(() => {
+    try {
+      process.kill(-(/** @type {number} */ (child.pid)), "SIGKILL");
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          "code" in error &&
+          String(error.code) === "ESRCH"
+        )
+      ) {
+        throw error;
+      }
+    }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(existsSync(marker), false);
+  claims.startTracked(claim, "0.145.0", child.pid);
+  createReviewRunEvidenceService(core).appendTranscriptChunk(
+    claim,
+    "stdout",
+    '{"type":"item.completed","partial":true}\n',
+  );
+  await prepared.start();
+  const launchDeadline = Date.now() + 2_000;
+  while (!existsSync(marker) && Date.now() < launchDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(existsSync(marker), true);
+  const exited = new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("tracked process group survived recovery")),
+      2_000,
+    );
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
+  });
+
+  recoverCodexExecutions(core, { now: () => 30 });
+  await exited;
+
+  assert.deepEqual(
+    core.get(
+      `SELECT process_group_id, recovery_termination_signal, recovered_at
+       FROM codex_execution_queue WHERE work_id = 'review-run-1'`,
+    ),
+    {
+      process_group_id: child.pid,
+      recovered_at: 30,
+      recovery_termination_signal: "SIGTERM",
+    },
+  );
+  assert.deepEqual(
+    core.all(
+      `SELECT sequence, stream, content
+       FROM review_run_transcript_chunks
+       WHERE review_run_id = 'review-run-1'`,
+    ),
+    [
+      {
+        content: '{"type":"item.completed","partial":true}\n',
+        sequence: 1,
+        stream: "stdout",
+      },
+    ],
+  );
+  assert.equal(
+    core.get("SELECT error_code FROM review_runs WHERE id = 'review-run-1'")
+      ?.error_code,
+    "unexpected_execution_failure",
+  );
+});
+
+test("restart rejects a tracked process group whose identity anchor exited", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-leaderless-recovery-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const claims = createCodexExecutionClaimService(core, {
+    createWorkerId: () => "leaderless-process-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  claims.start(claim, "0.145.0");
+
+  const leader = spawn(
+    process.execPath,
+    [
+      join(
+        import.meta.dirname,
+        "../fixtures/test-probes/leaderless-process-group.mjs",
+      ),
+    ],
+    { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"] },
+  );
+  assert.ok(leader.pid);
+  /** @type {number | undefined} */
+  let descendantId;
+  /** @type {Promise<void>} */
+  const descendantReady = new Promise((resolve, reject) => {
+    leader.once("error", reject);
+    leader.once("message", (message) => {
+      descendantId = /** @type {{childPid: number}} */ (message).childPid;
+      resolve();
+    });
+  });
+  context.after(() => {
+    for (const target of [
+      -(/** @type {number} */ (leader.pid)),
+      descendantId,
+    ]) {
+      try {
+        if (Number.isSafeInteger(target)) {
+          process.kill(/** @type {number} */ (target), "SIGKILL");
+        }
+      } catch (error) {
+        if (
+          !(
+            error instanceof Error &&
+            "code" in error &&
+            String(error.code) === "ESRCH"
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+  });
+  await descendantReady;
+  claims.trackProcessGroup(claim, leader.pid);
+  const leaderExited = new Promise((resolve, reject) => {
+    leader.once("error", reject);
+    leader.once("exit", resolve);
+  });
+  leader.send("exit-leader");
+  await leaderExited;
+  assert.doesNotThrow(() =>
+    process.kill(-(/** @type {number} */ (leader.pid)), 0),
+  );
+
+  assert.throws(
+    () => recoverCodexExecutions(core, { now: () => 30 }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "codex_execution_process_identity_unavailable",
+  );
+  assert.equal(
+    core.get(
+      `SELECT recovered_at
+       FROM codex_execution_queue WHERE work_id = 'review-run-1'`,
+    )?.recovered_at,
+    null,
+  );
+});

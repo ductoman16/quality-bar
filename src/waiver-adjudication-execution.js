@@ -281,11 +281,19 @@ export async function executeWaiverAdjudication(
           criteria: adjudication.requests,
           prompt,
         },
-        startRun() {
-          claimService.start(claim, CODEX_CAPABILITY_CATALOG.codex_cli_version);
+        ...codexOptions,
+        finishProcessGroup() {
+          claimService.finishProcessGroup(claim);
+        },
+        /** @param {number} processGroupId */
+        startProcessGroup(processGroupId) {
+          claimService.startTracked(
+            claim,
+            CODEX_CAPABILITY_CATALOG.codex_cli_version,
+            processGroupId,
+          );
           started = true;
         },
-        ...codexOptions,
         /** @param {unknown} failure */
         recordDeadline(failure) {
           resultService.fail(claim, owningFailure(failure));

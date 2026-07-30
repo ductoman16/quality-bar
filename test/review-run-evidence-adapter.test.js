@@ -4,7 +4,10 @@ import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
-import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
+import {
+  runningProcess,
+  runReviewRunCodex,
+} from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
@@ -281,12 +284,14 @@ test("a transcript write failure immediately terminates Codex with its owning er
   assert.deepEqual(signals, ["SIGTERM", 0]);
 });
 
-test("claim start failures remain exact and prevent process spawn", async () => {
+test("claim start failures remain exact and prevent Codex launch", async () => {
   const claimFailure = new ReviewRunExecutionError(
     "review_run_claim_lost",
     "Review Run claim is no longer authoritative",
   );
-  let spawned = false;
+  let codexLaunched = false;
+  let supervisorPrepared = false;
+  const supervisor = runningProcess(76);
   await assert.rejects(
     () =>
       runReviewRunCodex({
@@ -303,9 +308,20 @@ test("claim start failures remain exact and prevent process spawn", async () => 
         }),
         resultService: { prepare() {} },
         run,
-        spawnProcess() {
-          spawned = true;
-          return /** @type {never} */ (undefined);
+        prepareProcess() {
+          supervisorPrepared = true;
+          return {
+            async abort() {
+              supervisor.stdout.end();
+              supervisor.stderr.end();
+              supervisor.emit("close", 0, null);
+            },
+            child: /** @type {any} */ (supervisor),
+            async finish() {},
+            async start() {
+              codexLaunched = true;
+            },
+          };
         },
         startRun() {
           throw claimFailure;
@@ -313,7 +329,8 @@ test("claim start failures remain exact and prevent process spawn", async () => 
       }),
     (error) => error === claimFailure,
   );
-  assert.equal(spawned, false);
+  assert.equal(supervisorPrepared, true);
+  assert.equal(codexLaunched, false);
 });
 
 test("transcript failure surfaces even when process termination also fails", async () => {

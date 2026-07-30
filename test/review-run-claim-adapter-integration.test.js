@@ -7,8 +7,77 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { startSpawnedCodexProcessGroup } from "../src/codex-execution-process-group-tracking.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
+import { runReviewRunCodex as runProductionReviewRunCodex } from "../src/review-run-codex-adapter.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
+import {
+  acceptedChannel,
+  claim as adapterClaim,
+  run as adapterRun,
+  runReviewRunCodex,
+  runningProcess,
+} from "./review-run-codex-adapter-support.js";
+
+test("process-group tracking is required before opening submission", async () => {
+  let opened = false;
+  await assert.rejects(
+    () =>
+      runProductionReviewRunCodex(
+        /** @type {any} */ ({
+          checkoutPath: "/checkout",
+          claim: adapterClaim,
+          openSubmissionChannel: async () => {
+            opened = true;
+            return acceptedChannel();
+          },
+          recordDeadline() {},
+          resultService: { prepare() {} },
+          run: adapterRun,
+        }),
+      ),
+    new TypeError("Codex process-group tracking dependencies are invalid"),
+  );
+  assert.equal(opened, false);
+});
+
+test("tracking failure still terminates the untracked detached process group", async () => {
+  const trackingFailure = new Error("durable tracking failed");
+  const closeFailure = new Error("submission close failed");
+  const terminationFailure = new Error("termination failed");
+  /** @type {string[]} */
+  const events = [];
+  await assert.rejects(
+    () =>
+      startSpawnedCodexProcessGroup(
+        /** @type {any} */ ({ pid: 4321 }),
+        () => {
+          throw trackingFailure;
+        },
+        async () => {
+          assert.fail("Codex launched before durable tracking");
+        },
+        async () => {
+          events.push("close");
+          throw closeFailure;
+        },
+        async () => {
+          events.push("terminate");
+          throw terminationFailure;
+        },
+      ),
+    trackingFailure,
+  );
+  assert.deepEqual(events, ["close", "terminate"]);
+  assert.equal(
+    /** @type {any} */ (trackingFailure).submissionCloseFailure,
+    closeFailure,
+  );
+  assert.equal(
+    /** @type {any} */ (trackingFailure).terminationFailure,
+    terminationFailure,
+  );
+});
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-claim-adapter-"));
@@ -119,4 +188,48 @@ test("a long owning Codex adapter cannot starve an independent I/O duty", async 
   assert.equal(polled, true);
   finishCodex();
   await codexStarted;
+});
+
+test("the Codex adapter tracks the detached process group before observing its terminal result", async () => {
+  const child = runningProcess(4321);
+  /** @type {string[]} */
+  const events = [];
+
+  await runReviewRunCodex({
+    checkoutPath: "/checkout",
+    claim: adapterClaim,
+    evidenceService: {
+      appendTranscriptChunk() {},
+      complete() {},
+    },
+    finishProcessGroup() {
+      events.push("finish");
+    },
+    killProcessGroup(processGroupId, signal) {
+      assert.equal(processGroupId, -4321);
+      if (signal === "SIGTERM") {
+        events.push("terminate");
+        queueMicrotask(() => child.emit("close", 0, null));
+        return;
+      }
+      if (signal === 0) {
+        throw Object.assign(new Error("process group exited"), {
+          code: "ESRCH",
+        });
+      }
+    },
+    openSubmissionChannel: async () => acceptedChannel(),
+    resultService: { prepare() {} },
+    run: adapterRun,
+    spawnProcess() {
+      events.push("spawn");
+      return /** @type {any} */ (child);
+    },
+    trackProcessGroup(processGroupId) {
+      assert.equal(processGroupId, 4321);
+      events.push("track");
+    },
+  });
+
+  assert.deepEqual(events, ["spawn", "track", "terminate", "finish"]);
 });

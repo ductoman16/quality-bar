@@ -368,7 +368,7 @@ test("canonical schema v43 migrates queued Adjudications to validated recovery s
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 44);
+  assert.equal(migrated.facts.schemaVersion, 45);
   assert.deepEqual(
     migrated.get(
       `SELECT waiver_adjudications.execution_status,

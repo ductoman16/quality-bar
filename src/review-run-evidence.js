@@ -4,6 +4,11 @@ const UNAVAILABLE_TOKEN_COUNTERS = Object.freeze({
   output_tokens: null,
 });
 
+export const NO_REVIEW_RUN_EVIDENCE = Object.freeze({
+  appendTranscriptChunk() {},
+  complete() {},
+});
+
 export const REVIEW_RUN_TRANSCRIPT_SCHEMA = `
   CREATE TABLE IF NOT EXISTS review_run_transcript_chunks (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),

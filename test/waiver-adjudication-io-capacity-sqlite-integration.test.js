@@ -104,8 +104,12 @@ test("I/O saturation releases waiver work without consuming a pre-start attempt"
     ioPool,
     prepareCheckout: async () => ({ path: "/checkout", remove() {} }),
     resultService: {},
-    async runCodex(/** @type {{startRun: () => void}} */ { startRun }) {
-      startRun();
+    async runCodex(
+      /** @type {{startProcessGroup: (processGroupId: number) => void}} */ {
+        startProcessGroup,
+      },
+    ) {
+      startProcessGroup(process.pid);
       launched = true;
     },
   });
