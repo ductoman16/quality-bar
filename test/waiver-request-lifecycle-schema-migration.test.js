@@ -71,8 +71,8 @@ function submitMigratedRequest(core, findingId, index) {
   return { adjudicationId, requestId };
 }
 
-/** @param {string} databasePath @param {string} invalidStatements */
-function downgradeInvalidHistoryToV40(databasePath, invalidStatements) {
+/** @param {string} databasePath @param {40 | 41} version @param {string} invalidStatements */
+function downgradeLifecycleHistory(databasePath, version, invalidStatements) {
   const deployed = new DatabaseSync(databasePath);
   deployed.exec(`
     BEGIN IMMEDIATE;
@@ -83,44 +83,32 @@ function downgradeInvalidHistoryToV40(databasePath, invalidStatements) {
     DROP TRIGGER waiver_adjudication_request_retry_insert;
     ${invalidStatements}
     UPDATE quality_bar_metadata
-    SET value = '40' WHERE key = 'schema_version';
-    PRAGMA user_version = 40;
+    SET value = '${version}' WHERE key = 'schema_version';
+    PRAGMA user_version = ${version};
     COMMIT;
   `);
   deployed.close();
 }
 
-test("schema v40 installs every subsequent Waiver Request lifecycle guard", () => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-waiver-v40-migrate-"),
-  );
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const current = openDurableCore(databasePath);
-  seedCompletedEvaluation(current);
-  current.close();
+for (const version of /** @type {const} */ ([40, 41])) {
+  test(`schema v${version} installs every subsequent Waiver Request lifecycle guard`, () => {
+    const directory = mkdtempSync(
+      join(tmpdir(), `quality-bar-waiver-v${version}-migrate-`),
+    );
+    const databasePath = join(directory, "quality-bar.sqlite");
+    const current = openDurableCore(databasePath);
+    seedCompletedEvaluation(current);
+    current.close();
 
-  const deployed = new DatabaseSync(databasePath);
-  deployed.exec(`
-    BEGIN IMMEDIATE;
-    DROP TRIGGER waiver_request_limit_insert;
-    DROP TRIGGER waiver_request_after_acceptance_insert;
-    DROP TRIGGER waiver_request_sequence_insert;
-    DROP TRIGGER waiver_request_rationale_revised_insert;
-    DROP TRIGGER waiver_adjudication_request_retry_insert;
-    UPDATE quality_bar_metadata
-    SET value = '40' WHERE key = 'schema_version';
-    PRAGMA user_version = 40;
-    COMMIT;
-  `);
-  deployed.close();
+    downgradeLifecycleHistory(databasePath, version, "");
 
-  const migrated = openDurableCore(databasePath);
-  try {
-    assert.equal(migrated.facts.schemaVersion, 41);
-    assert.deepEqual(
-      migrated
-        .all(
-          `SELECT name FROM sqlite_schema
+    const migrated = openDurableCore(databasePath);
+    try {
+      assert.equal(migrated.facts.schemaVersion, 42);
+      assert.deepEqual(
+        migrated
+          .all(
+            `SELECT name FROM sqlite_schema
            WHERE type = 'trigger'
              AND name IN (
                'waiver_request_limit_insert',
@@ -130,88 +118,89 @@ test("schema v40 installs every subsequent Waiver Request lifecycle guard", () =
                'waiver_adjudication_request_retry_insert'
              )
            ORDER BY name`,
-        )
-        .map((/** @type {any} */ row) => row.name),
-      [
-        "waiver_adjudication_request_retry_insert",
-        "waiver_request_after_acceptance_insert",
-        "waiver_request_limit_insert",
-        "waiver_request_rationale_revised_insert",
-        "waiver_request_sequence_insert",
-      ],
-    );
+          )
+          .map((/** @type {any} */ row) => row.name),
+        [
+          "waiver_adjudication_request_retry_insert",
+          "waiver_request_after_acceptance_insert",
+          "waiver_request_limit_insert",
+          "waiver_request_rationale_revised_insert",
+          "waiver_request_sequence_insert",
+        ],
+      );
 
-    const accepted = submitMigratedRequest(migrated, "finding-1", 1);
-    completeWaiverDecision(
-      migrated,
-      accepted.adjudicationId,
-      accepted.requestId,
-      "accepted",
-    );
-    assert.throws(
-      () =>
-        migrated.run(
-          `INSERT INTO waiver_requests (
+      const accepted = submitMigratedRequest(migrated, "finding-1", 1);
+      completeWaiverDecision(
+        migrated,
+        accepted.adjudicationId,
+        accepted.requestId,
+        "accepted",
+      );
+      assert.throws(
+        () =>
+          migrated.run(
+            `INSERT INTO waiver_requests (
              id, evaluation_id, finding_id, rationale,
              requester_channel, created_at
            ) VALUES (
              'post-acceptance-request', 'evaluation-1', 'finding-1',
              'Later rationale', 'browser_session', 30
            )`,
-        ),
-      /waiver_request_(?:accepted|previous_not_denied)/,
-    );
+          ),
+        /waiver_request_(?:accepted|previous_not_denied)/,
+      );
 
-    const firstDenied = submitMigratedRequest(migrated, "finding-2", 1);
-    assert.throws(
-      () =>
-        migrated.run(
-          `INSERT INTO waiver_requests (
+      const firstDenied = submitMigratedRequest(migrated, "finding-2", 1);
+      assert.throws(
+        () =>
+          migrated.run(
+            `INSERT INTO waiver_requests (
              id, evaluation_id, finding_id, rationale,
              requester_channel, created_at
            ) VALUES (
              'pre-decision-request', 'evaluation-1', 'finding-2',
              'Premature rationale', 'browser_session', 31
            )`,
-        ),
-      /waiver_request_previous_not_denied/,
-    );
-    completeWaiverDecision(
-      migrated,
-      firstDenied.adjudicationId,
-      firstDenied.requestId,
-      "denied",
-    );
-    for (const index of [2, 3]) {
-      const denied = submitMigratedRequest(migrated, "finding-2", index);
+          ),
+        /waiver_request_previous_not_denied/,
+      );
       completeWaiverDecision(
         migrated,
-        denied.adjudicationId,
-        denied.requestId,
+        firstDenied.adjudicationId,
+        firstDenied.requestId,
         "denied",
       );
-    }
-    assert.throws(
-      () =>
-        migrated.run(
-          `INSERT INTO waiver_requests (
+      for (const index of [2, 3]) {
+        const denied = submitMigratedRequest(migrated, "finding-2", index);
+        completeWaiverDecision(
+          migrated,
+          denied.adjudicationId,
+          denied.requestId,
+          "denied",
+        );
+      }
+      assert.throws(
+        () =>
+          migrated.run(
+            `INSERT INTO waiver_requests (
              id, evaluation_id, finding_id, rationale,
              requester_channel, created_at
            ) VALUES (
              'fourth-request', 'evaluation-1', 'finding-2',
              'Fourth rationale', 'browser_session', 32
            )`,
-        ),
-      /waiver_request_limit_reached/,
-    );
-  } finally {
-    migrated.close();
-    rmSync(directory, { force: true, recursive: true });
-  }
-});
+          ),
+        /waiver_request_limit_reached/,
+      );
+    } finally {
+      migrated.close();
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+}
 
 /** @type {Array<{name: string, prepare: (core: any) => void, statements: string}>} */
-const invalidV40Histories = [
+const invalidLifecycleHistories = [
   {
     name: "more than three Requests",
     prepare() {},
@@ -290,28 +279,30 @@ const invalidV40Histories = [
   },
 ];
 
-for (const history of invalidV40Histories) {
-  test(`schema v40 rejects ${history.name}`, () => {
-    const directory = mkdtempSync(
-      join(tmpdir(), "quality-bar-waiver-v40-invalid-"),
-    );
-    const databasePath = join(directory, "quality-bar.sqlite");
-    const current = openDurableCore(databasePath);
-    seedCompletedEvaluation(current);
-    history.prepare(current);
-    current.close();
-    downgradeInvalidHistoryToV40(databasePath, history.statements);
+for (const version of /** @type {const} */ ([40, 41])) {
+  for (const history of invalidLifecycleHistories) {
+    test(`schema v${version} rejects ${history.name}`, () => {
+      const directory = mkdtempSync(
+        join(tmpdir(), `quality-bar-waiver-v${version}-invalid-`),
+      );
+      const databasePath = join(directory, "quality-bar.sqlite");
+      const current = openDurableCore(databasePath);
+      seedCompletedEvaluation(current);
+      history.prepare(current);
+      current.close();
+      downgradeLifecycleHistory(databasePath, version, history.statements);
 
-    assert.throws(
-      () => openDurableCore(databasePath),
-      (error) =>
-        error instanceof Error &&
-        "code" in error &&
-        error.code === "schema_invalid" &&
-        error.message === "SQLite schema could not be initialized" &&
-        error.cause instanceof Error &&
-        /waiver_request_lifecycle_history_invalid/.test(error.cause.message),
-    );
-    rmSync(directory, { force: true, recursive: true });
-  });
+      assert.throws(
+        () => openDurableCore(databasePath),
+        (error) =>
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "schema_invalid" &&
+          error.message === "SQLite schema could not be initialized" &&
+          error.cause instanceof Error &&
+          /waiver_request_lifecycle_history_invalid/.test(error.cause.message),
+      );
+      rmSync(directory, { force: true, recursive: true });
+    });
+  }
 }
