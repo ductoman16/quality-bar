@@ -143,6 +143,7 @@ export function finalizeSchemaMigration(
         ? ""
         : "ALTER TABLE evaluations ADD COLUMN applicability_sealed_at INTEGER;"
     }
+    ${version === 40 || version === 41 ? WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION : ""}
     UPDATE evaluations
     SET applicability_sealed_at = created_at
     WHERE applicability_sealed_at IS NULL;`,
@@ -176,6 +177,7 @@ import {
   WAIVER_BATCH_SCHEMA,
   WAIVER_QUEUE_MIGRATION,
 } from "./waiver-batch-schema.js";
+import { WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION } from "./waiver-request-lifecycle-schema-migration.js";
 import { waiverAdjudicationExecutionMigration } from "./waiver-adjudication-schema-migration.js";
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `

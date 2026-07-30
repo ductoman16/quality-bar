@@ -22,11 +22,9 @@ export const WAIVER_BATCH_SCHEMA = `
     process_exit_code INTEGER,
     process_signal TEXT,
     input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
-    cached_input_tokens INTEGER
-      CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
+    cached_input_tokens INTEGER CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
     output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
-    execution_evidence_recorded INTEGER NOT NULL DEFAULT 0
-      CHECK (execution_evidence_recorded IN (0, 1)),
+    execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1)),
     CHECK (length(base_commit) = length(head_commit)),
     CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at),
     CHECK (
@@ -40,15 +38,13 @@ export const WAIVER_BATCH_SCHEMA = `
     )
   ) STRICT;
   CREATE UNIQUE INDEX IF NOT EXISTS waiver_adjudication_active_evaluation
-    ON waiver_adjudications (evaluation_id)
-    WHERE execution_status IN ('queued', 'running');
+    ON waiver_adjudications (evaluation_id) WHERE execution_status IN ('queued', 'running');
   CREATE TABLE IF NOT EXISTS waiver_requests (
     id TEXT PRIMARY KEY,
     evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
     finding_id TEXT NOT NULL REFERENCES findings(id),
     rationale TEXT NOT NULL CHECK (length(trim(rationale)) > 0),
-    requester_channel TEXT NOT NULL
-      CHECK (requester_channel IN ('browser_session', 'implementer_token')),
+    requester_channel TEXT NOT NULL CHECK (requester_channel IN ('browser_session', 'implementer_token')),
     created_at INTEGER NOT NULL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS waiver_adjudication_requests (
@@ -126,6 +122,67 @@ export const WAIVER_BATCH_SCHEMA = `
         AND review_version_criteria.impact = 'advisory'
     )
     BEGIN SELECT RAISE(ABORT, 'waiver_request_finding_ineligible'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_request_limit_insert
+    BEFORE INSERT ON waiver_requests
+    WHEN (
+      SELECT count(*) FROM waiver_requests
+      WHERE waiver_requests.finding_id = NEW.finding_id
+    ) >= 3
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_limit_reached'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_request_after_acceptance_insert
+    BEFORE INSERT ON waiver_requests
+    WHEN EXISTS (
+      SELECT 1
+      FROM waiver_requests AS accepted_request
+      WHERE accepted_request.finding_id = NEW.finding_id
+        AND (
+          SELECT waiver_decisions.outcome
+          FROM waiver_decisions
+          JOIN waiver_adjudications
+            ON waiver_adjudications.id =
+                 waiver_decisions.waiver_adjudication_id
+          WHERE waiver_decisions.waiver_request_id = accepted_request.id
+          ORDER BY waiver_adjudications.rowid DESC
+          LIMIT 1
+        ) = 'accepted'
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_accepted'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_request_sequence_insert
+    BEFORE INSERT ON waiver_requests
+    WHEN EXISTS (
+      SELECT 1 FROM waiver_requests
+      WHERE waiver_requests.finding_id = NEW.finding_id
+    )
+    AND COALESCE(
+      (
+        SELECT waiver_decisions.outcome
+        FROM waiver_requests AS latest_request
+        JOIN waiver_decisions
+          ON waiver_decisions.waiver_request_id = latest_request.id
+        JOIN waiver_adjudications
+          ON waiver_adjudications.id =
+               waiver_decisions.waiver_adjudication_id
+        WHERE latest_request.id = (
+          SELECT waiver_requests.id
+          FROM waiver_requests
+          WHERE waiver_requests.finding_id = NEW.finding_id
+          ORDER BY waiver_requests.rowid DESC
+          LIMIT 1
+        )
+        ORDER BY waiver_adjudications.rowid DESC
+        LIMIT 1
+      ),
+      ''
+    ) <> 'denied'
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_previous_not_denied'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_request_rationale_revised_insert
+    BEFORE INSERT ON waiver_requests
+    WHEN EXISTS (
+      SELECT 1 FROM waiver_requests
+      WHERE waiver_requests.finding_id = NEW.finding_id
+        AND trim(waiver_requests.rationale) = trim(NEW.rationale)
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_duplicate'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_request_immutable_delete
     BEFORE DELETE ON waiver_requests
     BEGIN SELECT RAISE(ABORT, 'waiver_request_immutable'); END;
@@ -177,6 +234,56 @@ export const WAIVER_BATCH_SCHEMA = `
     BEGIN
       SELECT RAISE(ABORT, 'waiver_adjudication_request_evaluation_invalid');
     END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_retry_insert
+    BEFORE INSERT ON waiver_adjudication_requests
+    WHEN EXISTS (
+      SELECT 1 FROM waiver_adjudication_requests
+      WHERE waiver_request_id = NEW.waiver_request_id
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM waiver_requests
+      JOIN waiver_adjudications
+        ON waiver_adjudications.id = NEW.waiver_adjudication_id
+      WHERE waiver_requests.id = NEW.waiver_request_id
+        AND waiver_requests.evaluation_id = waiver_adjudications.evaluation_id
+    )
+    AND NOT COALESCE((
+      (
+        SELECT waiver_decisions.outcome
+        FROM waiver_adjudication_requests AS prior_association
+        JOIN waiver_adjudications
+          ON waiver_adjudications.id =
+               prior_association.waiver_adjudication_id
+        LEFT JOIN waiver_decisions
+          ON waiver_decisions.waiver_adjudication_id =
+               prior_association.waiver_adjudication_id
+         AND waiver_decisions.waiver_request_id =
+               prior_association.waiver_request_id
+        WHERE prior_association.waiver_request_id = NEW.waiver_request_id
+        ORDER BY waiver_adjudications.rowid DESC
+        LIMIT 1
+      ) = 'error'
+      OR
+      (
+        SELECT
+          waiver_decisions.id IS NULL
+          AND waiver_adjudications.execution_status IN ('failed', 'cancelled')
+        FROM waiver_adjudication_requests AS prior_association
+        JOIN waiver_adjudications
+          ON waiver_adjudications.id =
+               prior_association.waiver_adjudication_id
+        LEFT JOIN waiver_decisions
+          ON waiver_decisions.waiver_adjudication_id =
+               prior_association.waiver_adjudication_id
+         AND waiver_decisions.waiver_request_id =
+               prior_association.waiver_request_id
+        WHERE prior_association.waiver_request_id = NEW.waiver_request_id
+        ORDER BY waiver_adjudications.rowid DESC
+        LIMIT 1
+      )
+    ), 0)
+    BEGIN SELECT RAISE(ABORT, 'waiver_request_retry_ineligible'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_set_frozen_insert
     BEFORE INSERT ON waiver_adjudication_requests
     WHEN (

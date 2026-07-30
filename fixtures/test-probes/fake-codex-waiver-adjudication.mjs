@@ -2,13 +2,14 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const arguments_ = process.argv.slice(2);
+const errorRetry = arguments_.includes("--fake-error-retry");
 const prompt = arguments_.at(-1) ?? "";
 const requests = JSON.parse(
   /^selected_requests: (.+)$/m.exec(prompt)?.[1] ?? "null",
 );
 if (
   !Array.isArray(requests) ||
-  requests.length !== 3 ||
+  requests.length !== (errorRetry ? 1 : 3) ||
   requests.some((request) => !request.request_id) ||
   !prompt.startsWith("Quality Bar Waiver Adjudication contract\n") ||
   !prompt.includes("decision_schema:") ||
@@ -28,27 +29,29 @@ if (
   throw new Error("fake_codex_waiver_adjudication_boundary_invalid");
 }
 
-let invalidDetail = "";
-try {
-  execFileSync("quality-bar-submit", {
-    input: JSON.stringify({
-      decisions: [
-        {
-          explanation: "Partial candidate.",
-          outcome: "accepted",
-          request_id: requests[0].request_id,
-        },
-      ],
-    }),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-} catch (error) {
-  invalidDetail = String(
-    error instanceof Error && "stderr" in error ? error.stderr : "",
-  );
-}
-if (!invalidDetail.includes("waiver_adjudication_submission_invalid")) {
-  throw new Error("fake_codex_partial_waiver_candidate_was_not_rejected");
+if (!errorRetry) {
+  let invalidDetail = "";
+  try {
+    execFileSync("quality-bar-submit", {
+      input: JSON.stringify({
+        decisions: [
+          {
+            explanation: "Partial candidate.",
+            outcome: "accepted",
+            request_id: requests[0].request_id,
+          },
+        ],
+      }),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (error) {
+    invalidDetail = String(
+      error instanceof Error && "stderr" in error ? error.stderr : "",
+    );
+  }
+  if (!invalidDetail.includes("waiver_adjudication_submission_invalid")) {
+    throw new Error("fake_codex_partial_waiver_candidate_was_not_rejected");
+  }
 }
 
 writeFileSync("waiver-scratch.txt", "not a Decision\n");
@@ -78,26 +81,35 @@ if (arguments_.includes("--fake-process-failure")) {
 }
 execFileSync("quality-bar-submit", {
   input: JSON.stringify({
-    decisions: [
-      {
-        explanation: "The exact first exception is justified.",
-        outcome: "accepted",
-        request_id: requests[0].request_id,
-      },
-      {
-        explanation: "The exact second rationale is insufficient.",
-        outcome: "denied",
-        request_id: requests[1].request_id,
-      },
-      {
-        error: {
-          code: "required_evidence_unavailable",
-          detail: "The frozen generated file cannot be inspected.",
-        },
-        outcome: "error",
-        request_id: requests[2].request_id,
-      },
-    ],
+    decisions: errorRetry
+      ? [
+          {
+            explanation:
+              "The newly available evidence proves the exact exception.",
+            outcome: "accepted",
+            request_id: requests[0].request_id,
+          },
+        ]
+      : [
+          {
+            explanation: "The exact first exception is justified.",
+            outcome: "accepted",
+            request_id: requests[0].request_id,
+          },
+          {
+            explanation: "The exact second rationale is insufficient.",
+            outcome: "denied",
+            request_id: requests[1].request_id,
+          },
+          {
+            error: {
+              code: "required_evidence_unavailable",
+              detail: "The frozen generated file cannot be inspected.",
+            },
+            outcome: "error",
+            request_id: requests[2].request_id,
+          },
+        ],
   }),
   stdio: ["pipe", "pipe", "pipe"],
 });

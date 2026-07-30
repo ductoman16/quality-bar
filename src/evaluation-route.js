@@ -38,6 +38,9 @@ export function matchEvaluationRoute(method, path) {
   const waiverBatchMatch = path.match(
     /^\/api\/v1\/evaluations\/([^/]+)\/waiver-adjudications$/,
   );
+  const waiverErrorRetryMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/waiver-adjudications\/error-retries$/,
+  );
   const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
   const collection = method === "GET" && path === "/api/v1/evaluations";
   const readable =
@@ -63,11 +66,13 @@ export function matchEvaluationRoute(method, path) {
       (method === "POST" &&
         (createMatch !== null ||
           cancellationMatch !== null ||
-          waiverBatchMatch !== null)) ||
+          waiverBatchMatch !== null ||
+          waiverErrorRetryMatch !== null)) ||
       (method === "GET" && diagnosticsMatch !== null),
     resultMatch,
     reviewRunMatch,
     waiverBatchMatch,
+    waiverErrorRetryMatch,
   };
 }
 
@@ -96,6 +101,7 @@ function failureStatus(failure) {
       "finding_not_found",
       "repository_not_found",
       "review_run_not_found",
+      "waiver_request_not_found",
     ].includes(code)
   ) {
     return 404;
@@ -107,6 +113,10 @@ function failureStatus(failure) {
       "idempotency_conflict",
       "waiver_adjudication_active",
       "waiver_finding_ineligible",
+      "waiver_error_retry_ineligible",
+      "waiver_request_accepted",
+      "waiver_request_decision_required",
+      "waiver_request_error_retry_required",
       "waiver_request_duplicate",
       "waiver_request_limit_reached",
       "repository_disabled",
@@ -177,6 +187,7 @@ export function createEvaluationRoute({
       resultMatch,
       reviewRunMatch,
       waiverBatchMatch,
+      waiverErrorRetryMatch,
     } = matches;
     if (!matches.recognized) {
       return false;
@@ -271,6 +282,20 @@ export function createEvaluationRoute({
           channel:
             authority === "machine" ? "implementer_token" : "browser_session",
           evaluationId: decodeEvaluationPathSegment(waiverBatchMatch[1]),
+          idempotencyKey: request.headers["idempotency-key"],
+          request: await readJsonRequest(request),
+        });
+        writeJson(response, created.status, created.resource, {
+          location: `/api/v1/waiver-adjudications/${encodeURIComponent(
+            created.resource.adjudication.id,
+          )}`,
+        });
+        return true;
+      }
+      if (waiverErrorRetryMatch) {
+        const created = evaluations.retryWaiverErrors({
+          channel: "browser_session",
+          evaluationId: decodeEvaluationPathSegment(waiverErrorRetryMatch[1]),
           idempotencyKey: request.headers["idempotency-key"],
           request: await readJsonRequest(request),
         });

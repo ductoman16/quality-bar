@@ -203,11 +203,14 @@ async function runFocusedAdjudication(context, failProcess) {
     await execution;
   }
   assert.equal(existsSync(join(checkoutRoot, claim.workId, "1")), false);
-  return { claim, core };
+  return { checkoutRoot, claim, core };
 }
 
 test("one focused fake Codex process atomically persists a mixed valid Decision set", async (context) => {
-  const { claim, core } = await runFocusedAdjudication(context, false);
+  const { checkoutRoot, claim, core } = await runFocusedAdjudication(
+    context,
+    false,
+  );
   assert.deepEqual(
     core.all(
       `SELECT waiver_request_id, outcome, explanation
@@ -277,6 +280,64 @@ test("one focused fake Codex process atomically persists a mixed valid Decision 
     .join("");
   assert.match(transcript, /item\.completed/);
   assert.match(transcript, /fake Waiver Adjudication diagnostic/);
+
+  createWaiverBatchService(core, {
+    createAdjudicationId: () => "adjudication-retry",
+    createRequestId: () => assert.fail("error retry created a Request"),
+    now: () => 40,
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  }).retryErrors({
+    channel: "browser_session",
+    evaluationId: "evaluation-1",
+    idempotencyKey: "error-retry",
+    request: { request_ids: ["request-3"] },
+  });
+  const retryClaims = createWaiverAdjudicationClaimService(core, {
+    createWorkerId: () => "waiver-retry-worker",
+    now: () => 41,
+  });
+  const retryClaim = retryClaims.claimNext();
+  assert.ok(retryClaim);
+  await executeWaiverAdjudication(core, retryClaim, {
+    checkoutRoot,
+    claimService: retryClaims,
+    codexCommand: process.execPath,
+    codexPrefixArguments: [fakeCodex, "--fake-error-retry"],
+    evidenceService: createWaiverAdjudicationEvidenceService(core),
+    processEnvironment: {
+      CODEX_HOME: "/var/lib/quality-bar/codex",
+      HOME: "/var/lib/quality-bar",
+      LANG: "C.UTF-8",
+      PATH: "/usr/local/bin:/usr/bin",
+    },
+    resultService: createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => "decision-retry-accepted",
+      now: () => 42,
+    }),
+  });
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM waiver_requests")?.count,
+    3,
+  );
+  assert.deepEqual(
+    core.all(
+      `SELECT waiver_decisions.outcome
+       FROM waiver_decisions
+       JOIN waiver_adjudications
+         ON waiver_adjudications.id =
+              waiver_decisions.waiver_adjudication_id
+       WHERE waiver_decisions.waiver_request_id = 'request-3'
+       ORDER BY waiver_adjudications.rowid`,
+    ),
+    [{ outcome: "error" }, { outcome: "accepted" }],
+  );
+  assert.equal(
+    createEvaluationCollectionReader(core, Buffer.alloc(32, 7)).read(
+      "evaluation-1",
+    ).effective_outcome,
+    "blocking",
+  );
 });
 
 test("a started fake Codex failure stores the exact owning failure and no Decision", async (context) => {

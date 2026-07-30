@@ -310,6 +310,7 @@ export function createEvaluationService(
       };
     },
     read,
+    retryWaiverErrors: waiverBatches.retryErrors,
     submitWaiverBatch: waiverBatches.submit,
     ...resultResources,
     readReviewRunDiagnostics:

@@ -142,5 +142,62 @@
     return form;
   }
 
-  Reflect.set(window, "qualityBarWaiverBatch", { createForm, describeStatus });
+  /** @param {string} evaluationId @param {string[]} requestIds */
+  function createErrorRetryForm(evaluationId, requestIds) {
+    if (
+      !canonicalNonblank(evaluationId) ||
+      !Array.isArray(requestIds) ||
+      requestIds.length === 0 ||
+      requestIds.some((requestId) => !canonicalNonblank(requestId)) ||
+      new Set(requestIds).size !== requestIds.length
+    ) {
+      throw new Error("waiver_error_retry_invalid");
+    }
+    const form = document.createElement("form");
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Retry errored waiver";
+    form.append(submit);
+    const status = document.createElement("output");
+    status.setAttribute("aria-live", "polite");
+    form.append(status);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "";
+      const operator = Reflect.get(window, "qualityBarOperator");
+      if (
+        typeof operator?.csrfToken !== "function" ||
+        typeof operator.displayMutationFailure !== "function"
+      ) {
+        throw new Error("evaluation_operator_boundary_unavailable");
+      }
+      const response = await fetch(
+        "/api/v1/evaluations/" +
+          encodeURIComponent(evaluationId) +
+          "/waiver-adjudications/error-retries",
+        {
+          body: JSON.stringify({ request_ids: requestIds }),
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": crypto.randomUUID(),
+            "x-quality-bar-csrf": operator.csrfToken(),
+          },
+          method: "POST",
+        },
+      );
+      if (!response.ok) {
+        await operator.displayMutationFailure(response);
+        return;
+      }
+      const created = await response.json();
+      status.textContent = describeStatus(created.adjudication);
+    });
+    return form;
+  }
+
+  Reflect.set(window, "qualityBarWaiverBatch", {
+    createErrorRetryForm,
+    createForm,
+    describeStatus,
+  });
 })();
