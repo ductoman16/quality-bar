@@ -1,4 +1,5 @@
 import { requireCodedError } from "./coded-error.js";
+import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
 /**
@@ -10,6 +11,11 @@ export function writeAnalytics(response, analytics) {
     writeJson(response, 200, analytics.read());
   } catch (error) {
     const failure = requireCodedError(error);
-    writeError(response, 500, failure.code, failure.message);
+    writeError(
+      response,
+      isUnavailableError(failure) ? 503 : 500,
+      failure.code,
+      failure.message,
+    );
   }
 }

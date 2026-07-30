@@ -71,3 +71,21 @@ test("HTTP surfaces the exact Analytics query failure without fallback data", as
   assert.equal(response.status, 500);
   assert.equal(await responseErrorCode(response), "analytics_query_failed");
 });
+
+test("HTTP preserves an unavailable Analytics owner as a service gate", async () => {
+  const { request } = await startApplication({
+    createEvaluations() {
+      return createUnavailableEvaluationService(
+        Object.assign(new Error("Canonical storage is unavailable"), {
+          code: "storage_unavailable",
+        }),
+      );
+    },
+  });
+  const operator = await authenticatedOperatorHeaders(request);
+  const response = await request("/api/v1/analytics", {
+    headers: { cookie: operator.cookie },
+  });
+  assert.equal(response.status, 503);
+  assert.equal(await responseErrorCode(response), "storage_unavailable");
+});

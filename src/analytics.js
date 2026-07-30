@@ -116,20 +116,3 @@ export function createAnalyticsService(durableCore) {
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableAnalyticsService(error) {
-  const failure =
-    error instanceof Error && "code" in error && typeof error.code === "string"
-      ? error
-      : new AnalyticsError(
-          "analytics_capability_unavailable",
-          "Analytics capability is unavailable",
-          { cause: error },
-        );
-  return {
-    read() {
-      throw failure;
-    },
-  };
-}

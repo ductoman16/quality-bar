@@ -73,6 +73,11 @@ test("coverage executes the deterministic application proof pyramid without smok
   );
   assert.ok(
     APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/analytics-sqlite-integration.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
       "test/browser-assets-browser-component.test.js",
     ),
   );
