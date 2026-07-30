@@ -15,6 +15,11 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   assert.match(page, /id="analytics-finding-impact"/);
   assert.match(page, /id="analytics-waivers"/);
   assert.match(page, /id="analytics-waiver-decisions"/);
+  assert.match(page, /id="analytics-review-run-reliability"/);
+  assert.match(page, /id="analytics-waiver-adjudication-reliability"/);
+  assert.match(page, /id="analytics-execution-failure-codes"/);
+  assert.match(page, /id="analytics-execution-duration"/);
+  assert.match(page, /id="analytics-token-counters"/);
   assert.match(page, /<script src="\/assets\/analytics\.js"><\/script>/);
   const labels = [...page.matchAll(/<th>([^<]+)<\/th>/g)].map(
     ([, label]) => label,
@@ -27,6 +32,11 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const findingImpact = browserElement();
   const waivers = browserElement();
   const waiverDecisions = browserElement();
+  const reviewRunReliability = browserElement();
+  const waiverAdjudicationReliability = browserElement();
+  const executionFailureCodes = browserElement();
+  const executionDuration = browserElement();
+  const tokenCounters = browserElement();
   const error = browserElement({ hidden: true });
   const elements = new Map([
     ["analytics-applicability", applicability],
@@ -35,6 +45,14 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-finding-impact", findingImpact],
     ["analytics-waivers", waivers],
     ["analytics-waiver-decisions", waiverDecisions],
+    ["analytics-review-run-reliability", reviewRunReliability],
+    [
+      "analytics-waiver-adjudication-reliability",
+      waiverAdjudicationReliability,
+    ],
+    ["analytics-execution-failure-codes", executionFailureCodes],
+    ["analytics-execution-duration", executionDuration],
+    ["analytics-token-counters", tokenCounters],
     ["analytics-error", error],
   ]);
   const context = /** @type {any} */ ({
@@ -56,7 +74,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     context,
   );
 
-  context.window.qualityBarAnalytics.render({
+  const analyticsDocument = {
     criterion_outcomes: [
       {
         clear: 3,
@@ -99,6 +117,46 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
         review_id: "review-1",
       },
     ],
+    review_run_reliability: {
+      active: 2,
+      duration: {
+        failed: { execution_count: 1, median_ms: 300, total_ms: 300 },
+        operator_cancelled: {
+          execution_count: 1,
+          median_ms: 400,
+          total_ms: 400,
+        },
+        successful: { execution_count: 1, median_ms: 100, total_ms: 100 },
+        superseded: { execution_count: 0, median_ms: null, total_ms: null },
+        terminal: { execution_count: 3, median_ms: 300, total_ms: 800 },
+      },
+      failed: 1,
+      failed_rate: { denominator: 3, numerator: 1 },
+      failure_codes: [{ code: "codex_process_failed", count: 1 }],
+      operator_cancelled: 1,
+      operator_cancelled_rate: { denominator: 3, numerator: 1 },
+      successful: 1,
+      successful_rate: { denominator: 3, numerator: 1 },
+      superseded: 0,
+      superseded_rate: { denominator: 3, numerator: 0 },
+      token_counters: {
+        cached_input_tokens: {
+          coverage: { denominator: 3, numerator: 0 },
+          median: null,
+          sum: null,
+        },
+        input_tokens: {
+          coverage: { denominator: 3, numerator: 2 },
+          median: 15,
+          sum: 30,
+        },
+        output_tokens: {
+          coverage: { denominator: 3, numerator: 2 },
+          median: 4,
+          sum: 8,
+        },
+      },
+    },
     waiver_analytics: {
       advisory_findings: 5,
       decision_history: {
@@ -114,7 +172,41 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
       waived_finding_rate: { denominator: 5, numerator: 2 },
       waiver_request_rate: { denominator: 5, numerator: 3 },
     },
-  });
+    waiver_adjudication_reliability: {
+      active: 1,
+      cancelled: 1,
+      cancelled_rate: { denominator: 3, numerator: 1 },
+      completed: 1,
+      completed_rate: { denominator: 3, numerator: 1 },
+      duration: {
+        cancelled: { execution_count: 1, median_ms: 300, total_ms: 300 },
+        completed: { execution_count: 1, median_ms: 100, total_ms: 100 },
+        failed: { execution_count: 1, median_ms: 200, total_ms: 200 },
+        terminal: { execution_count: 3, median_ms: 200, total_ms: 600 },
+      },
+      failed: 1,
+      failed_rate: { denominator: 3, numerator: 1 },
+      failure_codes: [{ code: "codex_process_failed", count: 1 }],
+      token_counters: {
+        cached_input_tokens: {
+          coverage: { denominator: 3, numerator: 1 },
+          median: 3,
+          sum: 3,
+        },
+        input_tokens: {
+          coverage: { denominator: 3, numerator: 1 },
+          median: 6,
+          sum: 6,
+        },
+        output_tokens: {
+          coverage: { denominator: 3, numerator: 2 },
+          median: 6,
+          sum: 12,
+        },
+      },
+    },
+  };
+  context.window.qualityBarAnalytics.render(analyticsDocument);
 
   assert.deepEqual(
     applicability.options[0].options.map(
@@ -152,5 +244,71 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ),
     ["2", "2", "1", "2/5", "2/5", "1/5"],
   );
+  assert.deepEqual(
+    reviewRunReliability.options[0].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["1", "1", "1", "0", "2", "1/3", "1/3", "1/3", "0/3"],
+  );
+  assert.deepEqual(
+    waiverAdjudicationReliability.options[0].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["1", "1", "1", "1", "1/3", "1/3", "1/3"],
+  );
+  assert.deepEqual(
+    executionFailureCodes.options.map(
+      (/** @type {{options: {textContent: string}[]}} */ item) =>
+        item.options.map(({ textContent }) => textContent),
+    ),
+    [
+      ["Review Run", "codex_process_failed", "1"],
+      ["Waiver Adjudication", "codex_process_failed", "1"],
+    ],
+  );
+  assert.deepEqual(
+    executionDuration.options[0].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["Review Run", "Terminal", "3", "800", "300"],
+  );
+  assert.deepEqual(
+    tokenCounters.options[0].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["Review Run", "Input tokens", "30", "15", "2/3"],
+  );
+  assert.deepEqual(
+    tokenCounters.options[1].options.map(
+      (/** @type {{textContent: string}} */ { textContent }) => textContent,
+    ),
+    ["Review Run", "Cached input tokens", "Unavailable", "Unavailable", "0/3"],
+  );
+  const renderedEvaluation = evaluationOutcomes.options[0];
+  assert.throws(
+    () =>
+      context.window.qualityBarAnalytics.render({
+        ...analyticsDocument,
+        review_run_reliability: {
+          ...analyticsDocument.review_run_reliability,
+          duration: null,
+          token_counters: null,
+        },
+      }),
+    { message: "analytics_document_invalid" },
+  );
+  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
+  assert.throws(
+    () =>
+      context.window.qualityBarAnalytics.render({
+        ...analyticsDocument,
+        review_run_reliability: {
+          ...analyticsDocument.review_run_reliability,
+          token_counters: null,
+        },
+      }),
+    { message: "analytics_document_invalid" },
+  );
+  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
   assert.equal(error.hidden, true);
 });

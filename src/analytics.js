@@ -1,18 +1,11 @@
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
+import {
+  AnalyticsError,
+  deriveExecutionReliability,
+} from "./execution-analytics.js";
 
-export class AnalyticsError extends Error {
-  /**
-   * @param {string} code
-   * @param {string} message
-   * @param {ErrorOptions} [options]
-   */
-  constructor(code, message, options) {
-    super(message, options);
-    this.name = "AnalyticsError";
-    this.code = code;
-  }
-}
+export { AnalyticsError } from "./execution-analytics.js";
 
 /** @param {number} numerator @param {number} denominator */
 function rate(numerator, denominator) {
@@ -186,6 +179,26 @@ export function createAnalyticsService(durableCore) {
              FROM waiver_decisions
             ORDER BY rowid`,
         );
+        const reviewRunRows = durableCore.all(
+          `SELECT analytics_review_runs.execution_status,
+                  analytics_review_runs.started_at,
+                  analytics_review_runs.completed_at,
+                  analytics_review_runs.error_code,
+                  analytics_review_runs.input_tokens,
+                  analytics_review_runs.cached_input_tokens,
+                  analytics_review_runs.output_tokens,
+                  evaluations.cancellation_code
+             FROM review_runs AS analytics_review_runs
+             JOIN evaluations
+               ON evaluations.id = analytics_review_runs.evaluation_id
+            ORDER BY analytics_review_runs.rowid`,
+        );
+        const waiverAdjudicationRows = durableCore.all(
+          `SELECT execution_status, started_at, completed_at, error_code,
+                  input_tokens, cached_input_tokens, output_tokens
+             FROM waiver_adjudications AS analytics_waiver_adjudications
+            ORDER BY rowid`,
+        );
         const applicability = countOutcomes(applicabilityRows, "review_id", [
           "applicable",
           "not_applicable",
@@ -299,6 +312,19 @@ export function createAnalyticsService(durableCore) {
               review_id: reviewId,
             };
           }),
+          review_run_reliability: deriveExecutionReliability(
+            reviewRunRows,
+            {
+              completed: "successful",
+              failed: "failed",
+            },
+            {
+              cancellationOutcomes: {
+                cancelled_by_operator: "operator_cancelled",
+                cancelled_by_supersession: "superseded",
+              },
+            },
+          ),
           waiver_analytics: {
             advisory_findings: waiverRows.length,
             decision_history: {
@@ -314,6 +340,15 @@ export function createAnalyticsService(durableCore) {
             waived_finding_rate: rate(waivedFindings, waiverRows.length),
             waiver_request_rate: rate(requestedFindings, waiverRows.length),
           },
+          waiver_adjudication_reliability: deriveExecutionReliability(
+            waiverAdjudicationRows,
+            {
+              cancelled: "cancelled",
+              completed: "completed",
+              failed: "failed",
+            },
+            { includeUnstartedTerminals: true },
+          ),
         };
       } catch (cause) {
         if (cause instanceof AnalyticsError) {

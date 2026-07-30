@@ -10,11 +10,29 @@ const waiversBody = document.getElementById("analytics-waivers");
 const waiverDecisionsBody = document.getElementById(
   "analytics-waiver-decisions",
 );
+const reviewRunReliabilityBody = document.getElementById(
+  "analytics-review-run-reliability",
+);
+const waiverAdjudicationReliabilityBody = document.getElementById(
+  "analytics-waiver-adjudication-reliability",
+);
+const executionFailureCodesBody = document.getElementById(
+  "analytics-execution-failure-codes",
+);
+const executionDurationBody = document.getElementById(
+  "analytics-execution-duration",
+);
+const tokenCountersBody = document.getElementById("analytics-token-counters");
 const analyticsError = document.getElementById("analytics-error");
 
 /** @param {{numerator: number, denominator: number}} rate */
 function rateText(rate) {
   return `${rate.numerator}/${rate.denominator}`;
+}
+
+/** @param {number | null} value */
+function measurementText(value) {
+  return value === null ? "Unavailable" : String(value);
 }
 
 /** @param {unknown[]} values */
@@ -28,6 +46,71 @@ function row(values) {
   return element;
 }
 
+/** @param {unknown} value */
+function validCount(value) {
+  return Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0;
+}
+
+/** @param {any} candidate */
+function validRate(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.numerator) &&
+    validCount(candidate?.denominator)
+  );
+}
+
+/** @param {any} candidate */
+function validDuration(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.execution_count) &&
+    (candidate?.median_ms === null ||
+      (typeof candidate?.median_ms === "number" &&
+        Number.isFinite(candidate.median_ms) &&
+        candidate.median_ms >= 0)) &&
+    (candidate?.total_ms === null || validCount(candidate?.total_ms))
+  );
+}
+
+/** @param {any} candidate */
+function validTokenCounter(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validRate(candidate?.coverage) &&
+    (candidate?.median === null ||
+      (typeof candidate?.median === "number" &&
+        Number.isFinite(candidate.median) &&
+        candidate.median >= 0)) &&
+    (candidate?.sum === null || validCount(candidate?.sum))
+  );
+}
+
+/** @param {any} candidate @param {string[]} outcomes */
+function validExecutionReliability(candidate, outcomes) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.active) &&
+    outcomes.every(
+      (outcome) =>
+        validCount(candidate?.[outcome]) &&
+        validRate(candidate?.[`${outcome}_rate`]) &&
+        validDuration(candidate?.duration?.[outcome]),
+    ) &&
+    validDuration(candidate?.duration?.terminal) &&
+    Array.isArray(candidate?.failure_codes) &&
+    candidate.failure_codes.every(
+      (/** @type {any} */ failure) =>
+        typeof failure?.code === "string" &&
+        /^[a-z][a-z0-9_]*$/.test(failure.code) &&
+        validCount(failure?.count),
+    ) &&
+    ["input_tokens", "cached_input_tokens", "output_tokens"].every((counter) =>
+      validTokenCounter(candidate?.token_counters?.[counter]),
+    )
+  );
+}
+
 /** @param {any} document */
 function render(document) {
   if (
@@ -37,13 +120,29 @@ function render(document) {
     !findingImpactBody ||
     !waiversBody ||
     !waiverDecisionsBody ||
+    !reviewRunReliabilityBody ||
+    !waiverAdjudicationReliabilityBody ||
+    !executionFailureCodesBody ||
+    !executionDurationBody ||
+    !tokenCountersBody ||
     !analyticsError ||
     !Array.isArray(document?.review_applicability) ||
     !Array.isArray(document?.criterion_outcomes) ||
     typeof document?.evaluation_outcomes !== "object" ||
     typeof document?.finding_impact !== "object" ||
     typeof document?.waiver_analytics !== "object" ||
-    typeof document?.waiver_analytics?.decision_history !== "object"
+    typeof document?.waiver_analytics?.decision_history !== "object" ||
+    !validExecutionReliability(document?.review_run_reliability, [
+      "successful",
+      "failed",
+      "operator_cancelled",
+      "superseded",
+    ]) ||
+    !validExecutionReliability(document?.waiver_adjudication_reliability, [
+      "completed",
+      "failed",
+      "cancelled",
+    ])
   ) {
     throw new Error("analytics_document_invalid");
   }
@@ -53,6 +152,11 @@ function render(document) {
   findingImpactBody.replaceChildren();
   waiversBody.replaceChildren();
   waiverDecisionsBody.replaceChildren();
+  reviewRunReliabilityBody.replaceChildren();
+  waiverAdjudicationReliabilityBody.replaceChildren();
+  executionFailureCodesBody.replaceChildren();
+  executionDurationBody.replaceChildren();
+  tokenCountersBody.replaceChildren();
   const evaluations = document.evaluation_outcomes;
   evaluationOutcomesBody.append(
     row([
@@ -123,6 +227,99 @@ function render(document) {
       rateText(decisions.error_rate),
     ]),
   );
+  const reviewRuns = document.review_run_reliability;
+  reviewRunReliabilityBody.append(
+    row([
+      reviewRuns.successful,
+      reviewRuns.failed,
+      reviewRuns.operator_cancelled,
+      reviewRuns.superseded,
+      reviewRuns.active,
+      rateText(reviewRuns.successful_rate),
+      rateText(reviewRuns.failed_rate),
+      rateText(reviewRuns.operator_cancelled_rate),
+      rateText(reviewRuns.superseded_rate),
+    ]),
+  );
+  const adjudications = document.waiver_adjudication_reliability;
+  waiverAdjudicationReliabilityBody.append(
+    row([
+      adjudications.completed,
+      adjudications.failed,
+      adjudications.cancelled,
+      adjudications.active,
+      rateText(adjudications.completed_rate),
+      rateText(adjudications.failed_rate),
+      rateText(adjudications.cancelled_rate),
+    ]),
+  );
+  for (const [kind, reliability] of [
+    ["Review Run", reviewRuns],
+    ["Waiver Adjudication", adjudications],
+  ]) {
+    for (const failure of reliability.failure_codes) {
+      executionFailureCodesBody.append(
+        row([kind, failure.code, failure.count]),
+      );
+    }
+  }
+  for (const [kind, reliability, outcomes] of [
+    [
+      "Review Run",
+      reviewRuns,
+      [
+        ["terminal", "Terminal"],
+        ["successful", "Successful"],
+        ["failed", "Failed"],
+        ["operator_cancelled", "Operator-cancelled"],
+        ["superseded", "Superseded"],
+      ],
+    ],
+    [
+      "Waiver Adjudication",
+      adjudications,
+      [
+        ["terminal", "Terminal"],
+        ["completed", "Completed"],
+        ["failed", "Failed"],
+        ["cancelled", "Cancelled"],
+      ],
+    ],
+  ]) {
+    for (const [outcome, label] of outcomes) {
+      const duration = reliability.duration[outcome];
+      executionDurationBody.append(
+        row([
+          kind,
+          label,
+          duration.execution_count,
+          measurementText(duration.total_ms),
+          measurementText(duration.median_ms),
+        ]),
+      );
+    }
+  }
+  for (const [kind, reliability] of [
+    ["Review Run", reviewRuns],
+    ["Waiver Adjudication", adjudications],
+  ]) {
+    for (const [counter, label] of [
+      ["input_tokens", "Input tokens"],
+      ["cached_input_tokens", "Cached input tokens"],
+      ["output_tokens", "Output tokens"],
+    ]) {
+      const summary = reliability.token_counters[counter];
+      tokenCountersBody.append(
+        row([
+          kind,
+          label,
+          measurementText(summary.sum),
+          measurementText(summary.median),
+          rateText(summary.coverage),
+        ]),
+      );
+    }
+  }
   analyticsError.hidden = true;
   analyticsError.textContent = "";
 }

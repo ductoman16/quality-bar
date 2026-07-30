@@ -205,7 +205,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "core-unit-contracts-including-applicability-criterion-evaluation-finding-and-waiver-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
+        "core-unit-contracts-including-applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -229,6 +229,7 @@ export function createGateDefinitions(metadata) {
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
         "test/analytics.test.js",
+        "test/execution-analytics.test.js",
         "test/evaluation-validation.test.js",
         ...evaluationGate.EVALUATION_UNIT_TESTS,
         "test/review-run-admission.test.js",
@@ -269,7 +270,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-applicability-criterion-evaluation-finding-and-waiver-analytics-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -315,7 +316,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "durable-resources-including-applicability-and-criterion-analytics-terminal-run-failure-exclusion-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
+        "durable-resources-including-applicability-criterion-and-review-run-reliability-duration-token-counter-analytics-terminal-run-failure-exclusion-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -361,7 +362,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "applicability-criterion-evaluation-finding-and-waiver-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
+        "applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",

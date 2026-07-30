@@ -41,6 +41,46 @@ const document = {
       review_id: "review-1",
     },
   ],
+  review_run_reliability: {
+    active: 1,
+    duration: {
+      failed: { execution_count: 0, median_ms: null, total_ms: null },
+      operator_cancelled: {
+        execution_count: 0,
+        median_ms: null,
+        total_ms: null,
+      },
+      successful: { execution_count: 1, median_ms: 120, total_ms: 120 },
+      superseded: { execution_count: 0, median_ms: null, total_ms: null },
+      terminal: { execution_count: 1, median_ms: 120, total_ms: 120 },
+    },
+    failed: 0,
+    failed_rate: { denominator: 1, numerator: 0 },
+    failure_codes: [],
+    operator_cancelled: 0,
+    operator_cancelled_rate: { denominator: 1, numerator: 0 },
+    successful: 1,
+    successful_rate: { denominator: 1, numerator: 1 },
+    superseded: 0,
+    superseded_rate: { denominator: 1, numerator: 0 },
+    token_counters: {
+      cached_input_tokens: {
+        coverage: { denominator: 1, numerator: 0 },
+        median: null,
+        sum: null,
+      },
+      input_tokens: {
+        coverage: { denominator: 1, numerator: 1 },
+        median: 10,
+        sum: 10,
+      },
+      output_tokens: {
+        coverage: { denominator: 1, numerator: 1 },
+        median: 5,
+        sum: 5,
+      },
+    },
+  },
   waiver_analytics: {
     advisory_findings: 2,
     decision_history: {
@@ -55,6 +95,39 @@ const document = {
     waived_findings: 1,
     waived_finding_rate: { denominator: 2, numerator: 1 },
     waiver_request_rate: { denominator: 2, numerator: 1 },
+  },
+  waiver_adjudication_reliability: {
+    active: 0,
+    cancelled: 0,
+    cancelled_rate: { denominator: 1, numerator: 0 },
+    completed: 1,
+    completed_rate: { denominator: 1, numerator: 1 },
+    duration: {
+      cancelled: { execution_count: 0, median_ms: null, total_ms: null },
+      completed: { execution_count: 1, median_ms: 80, total_ms: 80 },
+      failed: { execution_count: 0, median_ms: null, total_ms: null },
+      terminal: { execution_count: 1, median_ms: 80, total_ms: 80 },
+    },
+    failed: 0,
+    failed_rate: { denominator: 1, numerator: 0 },
+    failure_codes: [],
+    token_counters: {
+      cached_input_tokens: {
+        coverage: { denominator: 1, numerator: 0 },
+        median: null,
+        sum: null,
+      },
+      input_tokens: {
+        coverage: { denominator: 1, numerator: 1 },
+        median: 4,
+        sum: 4,
+      },
+      output_tokens: {
+        coverage: { denominator: 1, numerator: 1 },
+        median: 2,
+        sum: 2,
+      },
+    },
   },
 };
 

@@ -16,6 +16,7 @@ const repositoryConstructors = new Map(
     "src/browser-session.js": ["BrowserSessionError"],
     "src/codex-capabilities.js": ["CodexConfigurationError"],
     "src/durable-error.js": ["DurableCoreError"],
+    "src/execution-analytics.js": ["AnalyticsError"],
     "src/github-connection-error.js": ["GitHubConnectionError"],
     "src/implementer-token.js": ["ImplementerTokenError"],
     "src/installation-configuration.js": ["InstallationConfigurationError"],
