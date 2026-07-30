@@ -55,10 +55,24 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
             return task.operation(workers.signal);
           }),
         )
-        .then((result) => {
-          workers.signal.throwIfAborted();
-          return result;
-        })
+        .then(
+          (result) => {
+            workers.signal.throwIfAborted();
+            return result;
+          },
+          (error) => {
+            if (
+              !(
+                error instanceof Error &&
+                "code" in error &&
+                error.code === "git_termination_failed"
+              )
+            ) {
+              workers.signal.throwIfAborted();
+            }
+            throw error;
+          },
+        )
         .then(task.resolve, task.reject)
         .finally(() => {
           active -= 1;

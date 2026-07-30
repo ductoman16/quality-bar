@@ -1,6 +1,6 @@
 import { requireCodedError } from "./coded-error.js";
 import { isUnavailableError } from "./http-request.js";
-import { writeError, writeJson } from "./http-response.js";
+import { writeError, writeJson, writeStatus } from "./http-response.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -19,8 +19,7 @@ export function writeRepositoryGuidance(
     const guidance = repositoryGuidance.read(repositoryId);
     const entityTag = `"${guidance.guidance_revision}"`;
     if (ifNoneMatch === entityTag) {
-      response.writeHead(304, { etag: entityTag });
-      response.end();
+      writeStatus(response, 304, { etag: entityTag });
     } else {
       writeJson(response, 200, guidance, { etag: entityTag });
     }

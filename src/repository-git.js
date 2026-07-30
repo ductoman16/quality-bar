@@ -350,6 +350,13 @@ export async function resolvePushedCommitSelectors(
         cause,
       );
     }
+    if (
+      acquisitionFailure instanceof Error &&
+      "code" in acquisitionFailure &&
+      acquisitionFailure.code === "git_termination_failed"
+    ) {
+      throw acquisitionFailure;
+    }
     if (acquisitionFailure instanceof EvaluationError) {
       failEvaluation(
         acquisitionFailure.code,

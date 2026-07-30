@@ -4,7 +4,7 @@ import {
   assertAllowedQueryParameters,
   isUnavailableError,
 } from "./http-request.js";
-import { writeError, writeJson } from "./http-response.js";
+import { writeError, writeJson, writeStatus } from "./http-response.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -14,10 +14,9 @@ import { writeError, writeJson } from "./http-response.js";
 function redirectCallbackFailure(response, error, githubConnections) {
   const failure = requireCodedError(error);
   const receipt = githubConnections.recordCallbackFailure(failure);
-  response.writeHead(303, {
+  writeStatus(response, 303, {
     location: `/?view=repositories&github_connection_error=${receipt}`,
   });
-  response.end();
 }
 
 /**
@@ -59,8 +58,7 @@ export function createGitHubConnectionRoute({
           code: requestUrl.searchParams.get("code") ?? "",
           state: requestUrl.searchParams.get("state") ?? "",
         });
-        response.writeHead(303, { location });
-        response.end();
+        writeStatus(response, 303, { location });
       } catch (error) {
         redirectCallbackFailure(response, error, githubConnections);
       }
@@ -82,10 +80,9 @@ export function createGitHubConnectionRoute({
           installationId: requestUrl.searchParams.get("installation_id") ?? "",
           state: requestUrl.searchParams.get("state") ?? "",
         });
-        response.writeHead(303, {
+        writeStatus(response, 303, {
           location: "/?view=repositories&github_connection=connected",
         });
-        response.end();
       } catch (error) {
         redirectCallbackFailure(response, error, githubConnections);
       }

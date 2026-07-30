@@ -24,6 +24,13 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
           signal?.throwIfAborted();
           return changeset;
         } catch (error) {
+          if (
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "git_termination_failed"
+          ) {
+            throw error;
+          }
           signal?.throwIfAborted();
           throw error;
         }

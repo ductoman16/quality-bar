@@ -141,11 +141,8 @@ export function createApplication({
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
     void codexRuntime?.close();
-    if (error) {
-      ioPool.shutdown(error);
-    } else {
-      void ioPool.close();
-    }
+    const stopped = error ? ioPool.shutdown(error) : ioPool.close();
+    void stopped;
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({

@@ -6,6 +6,10 @@ export function currentIoOperationSignal() {
   return signals.getStore();
 }
 
+export function throwIfIoOperationAborted() {
+  currentIoOperationSignal()?.throwIfAborted();
+}
+
 /**
  * @param {AbortSignal} signal
  * @param {() => unknown} operation

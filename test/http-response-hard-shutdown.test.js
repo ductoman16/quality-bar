@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { writeError, writeJson } from "../src/http-response.js";
+import { writeError, writeJson, writeStatus } from "../src/http-response.js";
 import { runIoOperation } from "../src/io-operation-context.js";
 
 test("hard shutdown rejects a late product result but permits its exact error", () => {
@@ -26,6 +26,14 @@ test("hard shutdown rejects a late product result but permits its exact error", 
   runIoOperation(workers.signal, () => {
     assert.throws(
       () => writeJson(response, 200, { stale: true }),
+      (error) => error === failure,
+    );
+    assert.throws(
+      () => writeError(response, 400, "request_malformed", "Wrong response"),
+      (error) => error === failure,
+    );
+    assert.throws(
+      () => writeStatus(response, 202),
       (error) => error === failure,
     );
     writeError(

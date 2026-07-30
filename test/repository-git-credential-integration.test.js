@@ -39,6 +39,58 @@ test("Git stdout preserves a UTF-8 code point split across chunks", async () => 
   assert.deepEqual(result.stdoutBuffer, Buffer.from("é"));
 });
 
+test("hard shutdown settles and consumes failures from both Git kill attempts", async () => {
+  const workers = new AbortController();
+  /** @type {NodeJS.Signals[]} */
+  const signals = [];
+  const completion = runGitCommand({
+    arguments_: ["status"],
+    captureStdout: false,
+    credential: undefined,
+    cwd: "/",
+    signal: workers.signal,
+    spawnProcess: /** @type {any} */ (
+      () => {
+        const child = new EventEmitter();
+        const stderr = new PassThrough();
+        Object.assign(child, {
+          /** @param {NodeJS.Signals} signal */
+          kill(signal) {
+            signals.push(signal);
+            queueMicrotask(() => {
+              child.emit(
+                "error",
+                Object.assign(new Error("kill EPERM"), {
+                  code: "EPERM",
+                }),
+              );
+              if (signal === "SIGKILL") {
+                queueMicrotask(() => child.emit("close", null, signal));
+              }
+            });
+          },
+          stderr,
+          stdio: [null, null, stderr],
+        });
+        return child;
+      }
+    ),
+    terminationGraceMs: 0,
+  });
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+
+  workers.abort(failure);
+
+  await assert.rejects(completion, {
+    code: "git_termination_failed",
+    message: "Git process termination failed",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+});
+
 test("private Git credentials cross only an anonymous pipe, never child environment or arguments", async () => {
   /** @type {{arguments?: string[], options?: {env?: Record<string, string>}}} */
   const captured = {};

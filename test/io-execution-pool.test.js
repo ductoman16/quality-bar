@@ -305,6 +305,34 @@ test("application acquisition preserves hard shutdown over a wrapped late failur
   await ioPool.close();
 });
 
+test("application acquisition preserves a distinct Git termination failure", async () => {
+  const ioPool = createApplicationIoPool({
+    reportBackgroundFailure: (error) =>
+      assert.fail(/** @type {Error} */ (error)),
+  });
+  const acquisition = Promise.withResolvers();
+  const completion = ioPool.acquireChangeset(
+    { resolvePushedSelectors: () => acquisition.promise },
+    "repository-1",
+    { head: "main" },
+  );
+  const storageFailure = Object.assign(
+    new Error("SQLite durable write failed"),
+    { code: "storage_unavailable" },
+  );
+  const terminationFailure = Object.assign(
+    new Error("Git process termination failed"),
+    { code: "git_termination_failed" },
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  ioPool.shutdown(storageFailure);
+  acquisition.reject(terminationFailure);
+
+  await assert.rejects(completion, (error) => error === terminationFailure);
+  await ioPool.close();
+});
+
 test("a saturated production scheduler reports its exact admission failure", async () => {
   /** @type {any[]} */
   const failures = [];

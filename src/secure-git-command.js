@@ -48,7 +48,8 @@ export function secureGitConfiguration(
  *   cwd: string,
  *   onStderr?: (chunk: string) => void,
  *   signal?: AbortSignal,
- *   spawnProcess: typeof import("node:child_process").spawn
+ *   spawnProcess: typeof import("node:child_process").spawn,
+ *   terminationGraceMs?: number
  * }} input
  */
 export function runGitCommand({
@@ -59,7 +60,11 @@ export function runGitCommand({
   onStderr = () => {},
   signal,
   spawnProcess,
+  terminationGraceMs = GIT_TERMINATION_GRACE_MS,
 }) {
+  if (!Number.isSafeInteger(terminationGraceMs) || terminationGraceMs < 0) {
+    throw new TypeError("Git termination grace must be a nonnegative integer");
+  }
   signal ??= currentIoOperationSignal();
   return new Promise((resolve, reject) => {
     /** @type {import("node:child_process").ChildProcess} */
@@ -87,38 +92,98 @@ export function runGitCommand({
     let completed = false;
     /** @type {unknown} */
     let abortReason;
-    /** @type {unknown} */
-    let terminationFailure;
+    /** @type {unknown[]} */
+    const terminationFailures = [];
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let forceKill;
+    /** @returns {Error & {code: string}} */
+    function gitTerminationFailure() {
+      return Object.assign(
+        new AggregateError(
+          [abortReason, ...terminationFailures],
+          "Git process termination failed",
+        ),
+        { code: "git_termination_failed" },
+      );
+    }
+    /** @param {NodeJS.Signals} killSignal */
+    function attemptKill(killSignal) {
+      try {
+        child.kill(killSignal);
+      } catch (cause) {
+        childError(cause);
+      }
+    }
     const abort = () => {
       abortReason = signal?.reason;
-      child.kill("SIGTERM");
-      forceKill = setTimeout(
-        () => child.kill("SIGKILL"),
-        GIT_TERMINATION_GRACE_MS,
-      );
+      attemptKill("SIGTERM");
+      forceKill = setTimeout(() => attemptKill("SIGKILL"), terminationGraceMs);
       forceKill.unref();
     };
     /** @type {Buffer[]} */
     const stdoutChunks = [];
     let stderr = "";
-    /** @param {unknown} result @param {boolean} failed */
-    function complete(result, failed) {
-      if (completed) {
-        return;
-      }
-      completed = true;
+    function cleanup() {
       if (forceKill) {
         clearTimeout(forceKill);
       }
       signal?.removeEventListener("abort", abort);
+      child.removeListener("error", childError);
+    }
+    /**
+     * @param {unknown} result
+     * @param {boolean} failed
+     * @param {boolean} [cleanupResources]
+     */
+    function complete(result, failed, cleanupResources = true) {
+      if (completed) {
+        if (cleanupResources) {
+          cleanup();
+        }
+        return;
+      }
+      completed = true;
+      if (cleanupResources) {
+        cleanup();
+      }
       if (failed) {
         reject(result);
       } else {
         resolve(result);
       }
     }
+    /** @param {unknown} cause */
+    function childError(cause) {
+      if (abortReason !== undefined) {
+        terminationFailures.push(cause);
+        complete(gitTerminationFailure(), true, false);
+        return;
+      }
+      complete(cause, true, false);
+    }
+    child.on("error", childError);
+    child.once("close", (code, exitSignal) => {
+      if (abortReason !== undefined) {
+        complete(
+          terminationFailures.length === 0
+            ? abortReason
+            : gitTerminationFailure(),
+          true,
+        );
+        return;
+      }
+      const stdoutBuffer = Buffer.concat(stdoutChunks);
+      complete(
+        {
+          code,
+          signal: exitSignal,
+          stderr,
+          stdout: stdoutBuffer.toString("utf8"),
+          stdoutBuffer,
+        },
+        false,
+      );
+    });
     if (signal?.aborted) {
       abort();
       return;
@@ -154,40 +219,5 @@ export function runGitCommand({
       credentialPipe.on("error", () => {});
       credentialPipe.end(`${credential.username}\n${credential.token}\n`);
     }
-    child.once("error", (cause) => {
-      if (abortReason !== undefined) {
-        terminationFailure = cause;
-        return;
-      }
-      complete(cause, true);
-    });
-    child.once("close", (code, exitSignal) => {
-      if (abortReason !== undefined) {
-        complete(
-          terminationFailure === undefined
-            ? abortReason
-            : Object.assign(
-                new AggregateError(
-                  [abortReason, terminationFailure],
-                  "Git process termination failed",
-                ),
-                { code: "git_termination_failed" },
-              ),
-          true,
-        );
-        return;
-      }
-      const stdoutBuffer = Buffer.concat(stdoutChunks);
-      complete(
-        {
-          code,
-          signal: exitSignal,
-          stderr,
-          stdout: stdoutBuffer.toString("utf8"),
-          stdoutBuffer,
-        },
-        false,
-      );
-    });
   });
 }
