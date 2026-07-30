@@ -30,7 +30,12 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
     },
   });
 
-  assert.deepEqual(analytics.read(), {
+  const {
+    review_run_reliability: reviewRunReliability,
+    waiver_adjudication_reliability: waiverAdjudicationReliability,
+    ...document
+  } = analytics.read();
+  assert.deepEqual(document, {
     criterion_outcomes: [
       {
         clear: 1,
@@ -108,7 +113,15 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
       waiver_request_rate: { denominator: 0, numerator: 0 },
     },
   });
-  assert.equal(queries.length, 6);
+  assert.equal(reviewRunReliability.active, 0);
+  assert.deepEqual(reviewRunReliability.duration.terminal, {
+    execution_count: 0,
+    median_ms: null,
+    total_ms: null,
+  });
+  assert.equal(reviewRunReliability.token_counters.input_tokens.sum, null);
+  assert.equal(waiverAdjudicationReliability.active, 0);
+  assert.equal(queries.length, 8);
 });
 
 test("Analytics query failure surfaces one exact owning error without a partial result", () => {
@@ -255,11 +268,26 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           { outcome: "error" },
         ];
       }
+      if (
+        sql.includes("FROM review_runs AS analytics_review_runs") ||
+        sql.includes(
+          "FROM waiver_adjudications AS analytics_waiver_adjudications",
+        )
+      ) {
+        return [];
+      }
       throw new Error("Unexpected analytics query");
     },
   });
 
-  assert.deepEqual(analytics.read(), {
+  const {
+    review_run_reliability: reviewRunReliability,
+    waiver_adjudication_reliability: waiverAdjudicationReliability,
+    ...document
+  } = analytics.read();
+  assert.equal(reviewRunReliability.active, 0);
+  assert.equal(waiverAdjudicationReliability.active, 0);
+  assert.deepEqual(document, {
     criterion_outcomes: [
       {
         clear: 0,

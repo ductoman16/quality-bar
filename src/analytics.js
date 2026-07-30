@@ -1,18 +1,11 @@
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
+import {
+  AnalyticsError,
+  deriveExecutionReliability,
+} from "./execution-analytics.js";
 
-export class AnalyticsError extends Error {
-  /**
-   * @param {string} code
-   * @param {string} message
-   * @param {ErrorOptions} [options]
-   */
-  constructor(code, message, options) {
-    super(message, options);
-    this.name = "AnalyticsError";
-    this.code = code;
-  }
-}
+export { AnalyticsError } from "./execution-analytics.js";
 
 /** @param {number} numerator @param {number} denominator */
 function rate(numerator, denominator) {
@@ -186,6 +179,18 @@ export function createAnalyticsService(durableCore) {
              FROM waiver_decisions
             ORDER BY rowid`,
         );
+        const reviewRunRows = durableCore.all(
+          `SELECT execution_status, started_at, completed_at, error_code,
+                  input_tokens, cached_input_tokens, output_tokens
+             FROM review_runs AS analytics_review_runs
+            ORDER BY rowid`,
+        );
+        const waiverAdjudicationRows = durableCore.all(
+          `SELECT execution_status, started_at, completed_at, error_code,
+                  input_tokens, cached_input_tokens, output_tokens
+             FROM waiver_adjudications AS analytics_waiver_adjudications
+            ORDER BY rowid`,
+        );
         const applicability = countOutcomes(applicabilityRows, "review_id", [
           "applicable",
           "not_applicable",
@@ -299,6 +304,11 @@ export function createAnalyticsService(durableCore) {
               review_id: reviewId,
             };
           }),
+          review_run_reliability: deriveExecutionReliability(reviewRunRows, {
+            cancelled: "operator_cancelled",
+            completed: "successful",
+            failed: "failed",
+          }),
           waiver_analytics: {
             advisory_findings: waiverRows.length,
             decision_history: {
@@ -314,6 +324,14 @@ export function createAnalyticsService(durableCore) {
             waived_finding_rate: rate(waivedFindings, waiverRows.length),
             waiver_request_rate: rate(requestedFindings, waiverRows.length),
           },
+          waiver_adjudication_reliability: deriveExecutionReliability(
+            waiverAdjudicationRows,
+            {
+              cancelled: "cancelled",
+              completed: "completed",
+              failed: "failed",
+            },
+          ),
         };
       } catch (cause) {
         if (cause instanceof AnalyticsError) {

@@ -5,6 +5,34 @@ const rate = closedObject({ denominator: count, numerator: count }, [
   "numerator",
   "denominator",
 ]);
+const nullableCount = {
+  oneOf: [count, { type: "null" }],
+};
+const nullableMeasurement = {
+  oneOf: [{ minimum: 0, type: "number" }, { type: "null" }],
+};
+const durationSummary = closedObject(
+  {
+    execution_count: count,
+    median_ms: nullableMeasurement,
+    total_ms: nullableCount,
+  },
+  ["execution_count", "median_ms", "total_ms"],
+);
+const tokenCounters = closedObject(
+  {
+    cached_input_tokens: {
+      $ref: "#/components/schemas/TokenCounterAnalytics",
+    },
+    input_tokens: { $ref: "#/components/schemas/TokenCounterAnalytics" },
+    output_tokens: { $ref: "#/components/schemas/TokenCounterAnalytics" },
+  },
+  ["input_tokens", "cached_input_tokens", "output_tokens"],
+);
+const failureCodes = {
+  items: { $ref: "#/components/schemas/ExecutionFailureCodeAnalytics" },
+  type: "array",
+};
 
 export function canonicalAnalyticsSchemas() {
   return {
@@ -24,8 +52,14 @@ export function canonicalAnalyticsSchemas() {
           items: { $ref: "#/components/schemas/ReviewApplicabilityAnalytics" },
           type: "array",
         },
+        review_run_reliability: {
+          $ref: "#/components/schemas/ReviewRunReliabilityAnalytics",
+        },
         waiver_analytics: {
           $ref: "#/components/schemas/WaiverAnalytics",
+        },
+        waiver_adjudication_reliability: {
+          $ref: "#/components/schemas/WaiverAdjudicationReliabilityAnalytics",
         },
       },
       [
@@ -33,7 +67,9 @@ export function canonicalAnalyticsSchemas() {
         "evaluation_outcomes",
         "finding_impact",
         "review_applicability",
+        "review_run_reliability",
         "waiver_analytics",
+        "waiver_adjudication_reliability",
       ],
     ),
     CriterionOutcomeAnalytics: closedObject(
@@ -108,6 +144,92 @@ export function canonicalAnalyticsSchemas() {
         "error",
         "applicability_rate",
         "error_rate",
+      ],
+    ),
+    ExecutionFailureCodeAnalytics: closedObject(
+      {
+        code: {
+          pattern: "^[a-z][a-z0-9_]*$",
+          type: "string",
+        },
+        count,
+      },
+      ["code", "count"],
+    ),
+    TokenCounterAnalytics: closedObject(
+      {
+        coverage: rate,
+        median: nullableMeasurement,
+        sum: nullableCount,
+      },
+      ["sum", "median", "coverage"],
+    ),
+    ReviewRunReliabilityAnalytics: closedObject(
+      {
+        active: count,
+        duration: closedObject(
+          {
+            failed: durationSummary,
+            operator_cancelled: durationSummary,
+            successful: durationSummary,
+            terminal: durationSummary,
+          },
+          ["terminal", "successful", "failed", "operator_cancelled"],
+        ),
+        failed: count,
+        failed_rate: rate,
+        failure_codes: failureCodes,
+        operator_cancelled: count,
+        operator_cancelled_rate: rate,
+        successful: count,
+        successful_rate: rate,
+        token_counters: tokenCounters,
+      },
+      [
+        "successful",
+        "failed",
+        "operator_cancelled",
+        "active",
+        "successful_rate",
+        "failed_rate",
+        "operator_cancelled_rate",
+        "failure_codes",
+        "duration",
+        "token_counters",
+      ],
+    ),
+    WaiverAdjudicationReliabilityAnalytics: closedObject(
+      {
+        active: count,
+        cancelled: count,
+        cancelled_rate: rate,
+        completed: count,
+        completed_rate: rate,
+        duration: closedObject(
+          {
+            cancelled: durationSummary,
+            completed: durationSummary,
+            failed: durationSummary,
+            terminal: durationSummary,
+          },
+          ["terminal", "completed", "failed", "cancelled"],
+        ),
+        failed: count,
+        failed_rate: rate,
+        failure_codes: failureCodes,
+        token_counters: tokenCounters,
+      },
+      [
+        "completed",
+        "failed",
+        "cancelled",
+        "active",
+        "completed_rate",
+        "failed_rate",
+        "cancelled_rate",
+        "failure_codes",
+        "duration",
+        "token_counters",
       ],
     ),
     WaiverAnalytics: closedObject(
