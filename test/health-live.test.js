@@ -277,6 +277,21 @@ test("the application server requires the Evaluation resource boundary", () => {
   );
 });
 
+test("the application server rejects an Evaluation resource without error retry", () => {
+  const options = applicationServerOptions();
+  const evaluations = { ...options.evaluations };
+  Reflect.deleteProperty(evaluations, "retryWaiverErrors");
+
+  assert.throws(
+    () =>
+      callApplicationServer({
+        ...options,
+        evaluations,
+      }),
+    /evaluations must provide the Evaluation resource/,
+  );
+});
+
 test("the application server rejects an incomplete Repository resource boundary", () => {
   const options = applicationServerOptions();
   assert.throws(

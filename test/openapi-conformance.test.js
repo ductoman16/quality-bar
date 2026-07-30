@@ -32,8 +32,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 52,
-    responseStatuses: 361,
+    operations: 53,
+    responseStatuses: 369,
     version: "3.1.0",
   });
   assert.equal(
@@ -55,6 +55,12 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
   assert.deepEqual(
     contract.components.schemas.GitHubRepositorySelectionRequest.required,
     ["repository_ids", "request_id"],
+  );
+  assert.deepEqual(
+    contract.paths[
+      "/api/v1/evaluations/{evaluation_id}/waiver-adjudications/error-retries"
+    ].post.security,
+    [{ browser_session: [] }],
   );
   assert.equal(contract.components.schemas.Repository.oneOf.length, 2);
   assert.ok(

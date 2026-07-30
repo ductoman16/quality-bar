@@ -48,7 +48,10 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
     DROP TRIGGER codex_execution_queue_waiver_seal_insert;
     DROP TRIGGER codex_execution_queue_waiver_active_delete;
     DROP TRIGGER waiver_adjudication_request_evaluation_insert;
+    DROP TRIGGER waiver_adjudication_request_retry_insert;
     DROP TRIGGER waiver_adjudication_request_set_frozen_insert;
+    DROP TRIGGER waiver_request_after_acceptance_insert;
+    DROP TRIGGER waiver_request_sequence_insert;
     DROP TABLE waiver_adjudication_transcript_chunks;
     DROP TABLE waiver_decisions;
     CREATE TABLE waiver_adjudications_v39 (
@@ -89,7 +92,7 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 41);
+    assert.equal(migrated.facts.schemaVersion, 42);
     assert.ok(
       migrated.get(
         "SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = 'github_finding_feedback'",
@@ -177,7 +180,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 41);
+    assert.equal(migrated.facts.schemaVersion, 42);
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -321,7 +324,7 @@ for (const version of [28, 36, 37]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 41);
+      assert.equal(migrated.facts.schemaVersion, 42);
       assert.match(
         String(
           migrated.get(

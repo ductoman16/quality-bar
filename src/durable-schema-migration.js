@@ -113,7 +113,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40].includes(version)) {
+  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   if (version === 35) {
@@ -131,12 +131,13 @@ export function finalizeSchemaMigration(
         ? ""
         : "ALTER TABLE evaluations ADD COLUMN applicability_sealed_at INTEGER;"
     }
+    ${version === 40 || version === 41 ? WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION : ""}
     UPDATE evaluations
     SET applicability_sealed_at = created_at
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 41;
+export const CURRENT_SCHEMA_VERSION = 42;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -164,6 +165,7 @@ import {
   WAIVER_BATCH_SCHEMA,
   WAIVER_QUEUE_MIGRATION,
 } from "./waiver-batch-schema.js";
+import { WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION } from "./waiver-request-lifecycle-schema-migration.js";
 import { waiverAdjudicationExecutionMigration } from "./waiver-adjudication-schema-migration.js";
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `

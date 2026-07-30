@@ -19,6 +19,17 @@ export function canonicalWaiverSchemas() {
       },
       ["requests"],
     ),
+    WaiverErrorRetryRequest: closedObject(
+      {
+        request_ids: {
+          items: { minLength: 1, type: "string" },
+          minItems: 1,
+          type: "array",
+          uniqueItems: true,
+        },
+      },
+      ["request_ids"],
+    ),
     WaiverRequest: closedObject(
       {
         created_at: { format: "date-time", type: "string" },
