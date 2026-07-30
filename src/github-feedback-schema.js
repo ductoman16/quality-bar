@@ -1,3 +1,5 @@
+import { GITHUB_DELIVERY_SCHEMA } from "./github-delivery-schema.js";
+
 export const GITHUB_FEEDBACK_SCHEMA = `
   CREATE TABLE IF NOT EXISTS github_feedback_bundles (
     evaluation_id TEXT PRIMARY KEY REFERENCES evaluation_results(evaluation_id),
@@ -194,4 +196,5 @@ export const GITHUB_FEEDBACK_SCHEMA = `
     ON github_connections.id = github_repositories.connection_id
   WHERE evaluations.execution_status != 'cancelled'
   ON CONFLICT (evaluation_id) DO NOTHING;
+  ${GITHUB_DELIVERY_SCHEMA}
 `;

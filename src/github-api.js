@@ -126,7 +126,7 @@ export function createGitHubVerifier({
     object,
     request,
   });
-  const publishCommitStatus = createGitHubCommitStatusPublisher({
+  const commitStatus = createGitHubCommitStatusPublisher({
     fail,
     installationToken,
     request,
@@ -427,8 +427,11 @@ export function createGitHubVerifier({
     },
     createInstallationToken: installationToken,
     publishAggregateFeedback: feedback.publishAggregate,
-    publishCommitStatus,
+    publishCommitStatus: commitStatus.publishCommitStatus,
     publishInlineFeedback: feedback.publishInline,
+    reconcileAggregateFeedback: feedback.reconcileAggregate,
+    reconcileCommitStatus: commitStatus.reconcileCommitStatus,
+    reconcileInlineFeedback: feedback.reconcileInline,
     listPullRequests: createGitHubPullRequestReader({
       installationToken,
       request,

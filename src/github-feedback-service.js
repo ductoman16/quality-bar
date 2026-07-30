@@ -3,19 +3,18 @@ import {
   formatGitHubInlineFeedback,
   projectFrozenDiffLineRange,
 } from "./github-feedback.js";
-import { githubPublicationFailure } from "./github-publication-error.js";
+import { attemptGitHubDelivery } from "./github-delivery-service.js";
+import {
+  recordGitHubBundleDeliveryFailure,
+  recordGitHubFindingDeliveryFailure,
+} from "./github-feedback-delivery.js";
+import {
+  readAggregateDeliveryTarget,
+  readInlineDeliveryTarget,
+} from "./github-feedback-delivery-target.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
-
-/** @param {() => number} now */
-function publicationTimestamp(now) {
-  const value = now();
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new TypeError("now must return a nonnegative safe integer");
-  }
-  return value;
-}
 
 /**
  * @param {any} durableCore
@@ -25,7 +24,9 @@ function publicationTimestamp(now) {
  *   now?: () => number,
  *   verifier: {
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
- *     publishInlineFeedback: (...parameters: any[]) => Promise<number>
+ *     publishInlineFeedback: (...parameters: any[]) => Promise<number>,
+ *     reconcileAggregateFeedback: (...parameters: any[]) => Promise<number | null>,
+ *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>
  *   }
  * }} dependencies
  */
@@ -39,7 +40,9 @@ export function createGitHubFeedbackService(
     typeof cipher?.decrypt !== "function" ||
     typeof now !== "function" ||
     typeof verifier?.publishAggregateFeedback !== "function" ||
-    typeof verifier.publishInlineFeedback !== "function"
+    typeof verifier.publishInlineFeedback !== "function" ||
+    typeof verifier.reconcileAggregateFeedback !== "function" ||
+    typeof verifier.reconcileInlineFeedback !== "function"
   ) {
     throw new TypeError("GitHub feedback dependencies are invalid");
   }
@@ -129,36 +132,6 @@ export function createGitHubFeedbackService(
     });
   }
 
-  /** @param {any} bundle @param {{code: string, detail: string}} failure */
-  function recordBundleFailure(bundle, failure) {
-    durableCore.transaction((/** @type {any} */ transaction) =>
-      transaction.run(
-        `UPDATE github_feedback_bundles
-         SET publication_status = 'unavailable',
-             error_code = ?, error_detail = ?
-         WHERE evaluation_id = ? AND publication_status = 'waiting'`,
-        failure.code,
-        failure.detail,
-        bundle.evaluation_id,
-      ),
-    );
-  }
-
-  /** @param {any} row @param {{code: string, detail: string}} failure */
-  function recordFindingFailure(row, failure) {
-    durableCore.transaction((/** @type {any} */ transaction) =>
-      transaction.run(
-        `UPDATE github_finding_feedback
-         SET publication_status = 'unavailable',
-             error_code = ?, error_detail = ?
-         WHERE finding_id = ? AND publication_status = 'waiting'`,
-        failure.code,
-        failure.detail,
-        row.finding_id,
-      ),
-    );
-  }
-
   async function publishWaiting() {
     if (running) {
       return;
@@ -187,10 +160,10 @@ export function createGitHubFeedbackService(
           readEvaluationFindings(durableCore, evaluationId),
         );
       }
-      while (true) {
-        const [bundle] = durableCore.all(
-          `SELECT
+      const bundles = durableCore.all(
+        `SELECT
              github_feedback_bundles.evaluation_id,
+             github_feedback_bundles.publication_status,
              evaluations.base_commit,
              evaluations.head_commit,
              evaluation_results.outcome,
@@ -221,12 +194,16 @@ export function createGitHubFeedbackService(
              ON github_connection_credentials.connection_id =
                   github_connections.id
            WHERE github_feedback_bundles.publication_status = 'waiting'
-           ORDER BY evaluations.created_at, evaluations.id
-           LIMIT 1`,
-        );
-        if (!bundle) {
-          break;
-        }
+              OR EXISTS (
+                SELECT 1
+                FROM github_finding_feedback
+                WHERE github_finding_feedback.evaluation_id =
+                      github_feedback_bundles.evaluation_id
+                  AND github_finding_feedback.publication_status = 'waiting'
+              )
+           ORDER BY evaluations.created_at, evaluations.id`,
+      );
+      for (const bundle of bundles) {
         const evaluationId = /** @type {string} */ (bundle.evaluation_id);
         const findings = readEvaluationFindings(durableCore, evaluationId);
         materializeFindingFeedback(bundle, findings);
@@ -237,52 +214,85 @@ export function createGitHubFeedbackService(
           head_commit: /** @type {string} */ (bundle.head_commit),
           outcome: /** @type {string} */ (bundle.outcome),
         };
-        const credential = cipher.decrypt(
-          {
-            appId: /** @type {number} */ (bundle.app_id),
-            id: /** @type {string} */ (bundle.connection_id),
-          },
-          /** @type {string} */ (bundle.encrypted_credential),
-        );
         const repository = {
           full_name: /** @type {string} */ (bundle.name),
           id: /** @type {number} */ (bundle.forge_repository_id),
         };
-        try {
-          const externalId = await verifier.publishAggregateFeedback(
+        const authentication = () => {
+          const credential = cipher.decrypt(
             {
-              app_id: bundle.app_id,
-              app_slug: bundle.app_slug,
-              client_id: credential.client_id,
-              owner: {
-                id: bundle.principal_id,
-                login: bundle.principal_login,
-                type: "User",
-              },
-              pem: credential.pem,
+              appId: /** @type {number} */ (bundle.app_id),
+              id: /** @type {string} */ (bundle.connection_id),
             },
-            /** @type {number} */ (bundle.installation_id),
-            repository,
-            /** @type {number} */ (bundle.pull_request_number),
-            formatGitHubAggregateFeedback(
-              identity,
-              /** @type {any[]} */ (findings),
-            ),
+            /** @type {string} */ (bundle.encrypted_credential),
           );
-          const publishedAt = publicationTimestamp(now);
-          durableCore.transaction((/** @type {any} */ transaction) =>
-            transaction.run(
-              `UPDATE github_feedback_bundles
+          return {
+            app_id: bundle.app_id,
+            app_slug: bundle.app_slug,
+            client_id: credential.client_id,
+            owner: {
+              id: bundle.principal_id,
+              login: bundle.principal_login,
+              type: "User",
+            },
+            pem: credential.pem,
+          };
+        };
+        const aggregate = formatGitHubAggregateFeedback(
+          identity,
+          /** @type {any[]} */ (findings),
+        );
+        const aggregateTarget = {
+          body: aggregate,
+          pull_request_number: bundle.pull_request_number,
+          repository_id: bundle.forge_repository_id,
+        };
+        const deliverAggregate = (
+          /** @type {any} */ method,
+          /** @type {string} */ deliveryTarget,
+        ) => {
+          const target = readAggregateDeliveryTarget(
+            deliveryTarget,
+            aggregateTarget,
+            repository.id,
+          );
+          return method(
+            authentication(),
+            bundle.installation_id,
+            repository,
+            target.pullRequestNumber,
+            target.body,
+          );
+        };
+        if (bundle.publication_status === "waiting") {
+          await attemptGitHubDelivery(durableCore, {
+            connectionId: /** @type {string} */ (bundle.connection_id),
+            create: (target) =>
+              deliverAggregate(verifier.publishAggregateFeedback, target),
+            onDefinitive: (transaction, failure, attemptedAt) =>
+              recordGitHubBundleDeliveryFailure(
+                transaction,
+                bundle,
+                failure,
+                attemptedAt,
+              ),
+            now,
+            onSuccess: (transaction, externalId, publishedAt) =>
+              transaction.run(
+                `UPDATE github_feedback_bundles
                SET publication_status = 'succeeded',
                    external_id = ?, published_at = ?
                WHERE evaluation_id = ? AND publication_status = 'waiting'`,
-              externalId,
-              publishedAt,
-              evaluationId,
-            ),
-          );
-        } catch (error) {
-          recordBundleFailure(bundle, githubPublicationFailure(error));
+                externalId,
+                publishedAt,
+                evaluationId,
+              ),
+            reconcile: (target) =>
+              deliverAggregate(verifier.reconcileAggregateFeedback, target),
+            sourceId: evaluationId,
+            surface: "aggregate_feedback",
+            target: JSON.stringify(aggregateTarget),
+          });
         }
         const inlineRows = durableCore.all(
           `SELECT github_finding_feedback.*,
@@ -302,46 +312,60 @@ export function createGitHubFeedbackService(
           evaluationId,
         );
         for (const row of inlineRows) {
-          try {
-            const comment = {
-              body: formatGitHubInlineFeedback(identity, {
-                evidence: /** @type {string} */ (row?.evidence),
-                id: /** @type {string} */ (row?.finding_id),
-                impact: /** @type {string} */ (row?.impact),
-                remediation: /** @type {string} */ (row?.remediation),
-              }),
-              commit_id: identity.head_commit,
-              line: /** @type {number} */ (row?.line),
-              path: /** @type {string} */ (row?.path),
-              side: /** @type {"LEFT" | "RIGHT"} */ (row?.side),
-              ...(row?.start_line === null
-                ? {}
-                : {
-                    start_line: /** @type {number} */ (row?.start_line),
-                    start_side: /** @type {"LEFT" | "RIGHT"} */ (
-                      row?.start_side
-                    ),
-                  }),
-            };
-            const externalId = await verifier.publishInlineFeedback(
-              {
-                app_id: bundle.app_id,
-                app_slug: bundle.app_slug,
-                client_id: credential.client_id,
-                owner: {
-                  id: bundle.principal_id,
-                  login: bundle.principal_login,
-                  type: "User",
-                },
-                pem: credential.pem,
-              },
-              /** @type {number} */ (bundle.installation_id),
-              repository,
-              /** @type {number} */ (bundle.pull_request_number),
-              comment,
+          const comment = {
+            body: formatGitHubInlineFeedback(identity, {
+              evidence: /** @type {string} */ (row?.evidence),
+              id: /** @type {string} */ (row?.finding_id),
+              impact: /** @type {string} */ (row?.impact),
+              remediation: /** @type {string} */ (row?.remediation),
+            }),
+            commit_id: identity.head_commit,
+            line: /** @type {number} */ (row?.line),
+            path: /** @type {string} */ (row?.path),
+            side: /** @type {"LEFT" | "RIGHT"} */ (row?.side),
+            ...(row?.start_line === null
+              ? {}
+              : {
+                  start_line: /** @type {number} */ (row?.start_line),
+                  start_side: /** @type {"LEFT" | "RIGHT"} */ (row?.start_side),
+                }),
+          };
+          const inlineTarget = {
+            ...comment,
+            pull_request_number: bundle.pull_request_number,
+            repository_id: bundle.forge_repository_id,
+          };
+          const deliverInline = (
+            /** @type {any} */ method,
+            /** @type {string} */ deliveryTarget,
+          ) => {
+            const target = readInlineDeliveryTarget(
+              deliveryTarget,
+              inlineTarget,
+              repository.id,
             );
-            const publishedAt = publicationTimestamp(now);
-            durableCore.transaction((/** @type {any} */ transaction) =>
+            return method(
+              authentication(),
+              bundle.installation_id,
+              repository,
+              target.pullRequestNumber,
+              target.comment,
+            );
+          };
+          await attemptGitHubDelivery(durableCore, {
+            connectionId: /** @type {string} */ (bundle.connection_id),
+            create: (target) =>
+              deliverInline(verifier.publishInlineFeedback, target),
+            onDefinitive: (transaction, failure, attemptedAt) =>
+              recordGitHubFindingDeliveryFailure(
+                transaction,
+                bundle,
+                row,
+                failure,
+                attemptedAt,
+              ),
+            now,
+            onSuccess: (transaction, externalId, publishedAt) =>
               transaction.run(
                 `UPDATE github_finding_feedback
                  SET publication_status = 'succeeded',
@@ -351,10 +375,12 @@ export function createGitHubFeedbackService(
                 publishedAt,
                 row?.finding_id,
               ),
-            );
-          } catch (error) {
-            recordFindingFailure(row, githubPublicationFailure(error));
-          }
+            reconcile: (target) =>
+              deliverInline(verifier.reconcileInlineFeedback, target),
+            sourceId: /** @type {string} */ (row.finding_id),
+            surface: "inline_feedback",
+            target: JSON.stringify(inlineTarget),
+          });
         }
       }
     } finally {

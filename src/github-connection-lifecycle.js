@@ -91,6 +91,55 @@ export function retireGitHubConnection(durableCore, request) {
          )`,
       connection.id,
     );
+    transaction.run(
+      `UPDATE github_delivery_attempts
+       SET generation = generation + 1,
+           next_attempt_at = 0,
+           error_code = 'github_connection_retired',
+           error_detail =
+             'GitHub delivery is unavailable because the GitHub Connection is retired',
+           response_status = NULL,
+           definitive = 1
+       WHERE
+         (surface = 'commit_status' AND source_id IN (
+           SELECT evaluation_id || ':' || desired_state
+           FROM github_commit_statuses
+           WHERE publication_status = 'unavailable'
+             AND repository_id IN (
+               SELECT repository_id FROM github_repositories
+               WHERE connection_id = ?
+             )
+         ))
+         OR
+         (surface = 'aggregate_feedback' AND source_id IN (
+           SELECT github_automatic_evaluations.evaluation_id
+           FROM github_automatic_evaluations
+           JOIN github_repositories
+             ON github_repositories.repository_id =
+                  github_automatic_evaluations.repository_id
+           JOIN github_feedback_bundles
+             ON github_feedback_bundles.evaluation_id =
+                  github_automatic_evaluations.evaluation_id
+           WHERE github_repositories.connection_id = ?
+             AND github_feedback_bundles.publication_status = 'unavailable'
+         ))
+         OR
+         (surface = 'inline_feedback' AND source_id IN (
+           SELECT github_finding_feedback.finding_id
+           FROM github_finding_feedback
+           JOIN github_automatic_evaluations
+             ON github_automatic_evaluations.evaluation_id =
+                  github_finding_feedback.evaluation_id
+           JOIN github_repositories
+             ON github_repositories.repository_id =
+                  github_automatic_evaluations.repository_id
+           WHERE github_repositories.connection_id = ?
+             AND github_finding_feedback.publication_status = 'unavailable'
+         ))`,
+      connection.id,
+      connection.id,
+      connection.id,
+    );
     const credential = transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,
@@ -98,6 +147,10 @@ export function retireGitHubConnection(durableCore, request) {
     transaction.run(
       "DELETE FROM quality_bar_metadata WHERE key = ?",
       `github_poll_gate:${connection.id}`,
+    );
+    transaction.run(
+      "DELETE FROM github_delivery_provider_gates WHERE connection_id = ?",
+      connection.id,
     );
     const retired = transaction.run(
       `UPDATE github_connections
@@ -159,6 +212,10 @@ export function removeNeverUsedGitHubConnection(durableCore) {
     transaction.run(
       "DELETE FROM quality_bar_metadata WHERE key = ?",
       `github_poll_gate:${connection.id}`,
+    );
+    transaction.run(
+      "DELETE FROM github_delivery_provider_gates WHERE connection_id = ?",
+      connection.id,
     );
     transaction.run(
       "DELETE FROM github_connections WHERE id = ?",
