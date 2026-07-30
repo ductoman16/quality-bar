@@ -209,6 +209,7 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
           "src/browser/analytics-state.js",
           "src/browser/storage-reserve.js",
           "src/browser/system-attention.js",
+          "src/browser/system-execution.js",
         ].includes(path),
     ).map((path) => basename(path)),
   );

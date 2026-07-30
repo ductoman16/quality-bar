@@ -62,6 +62,11 @@ const browserAssets = [
     url: new URL("./browser/system-attention.js", import.meta.url),
   },
   {
+    route: "/assets/system-execution.js",
+    sourcePath: "src/browser/system-execution.js",
+    url: new URL("./browser/system-execution.js", import.meta.url),
+  },
+  {
     route: "/assets/storage-reserve.js",
     sourcePath: "src/browser/storage-reserve.js",
     url: new URL("./browser/storage-reserve.js", import.meta.url),

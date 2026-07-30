@@ -308,10 +308,9 @@ fetch("/api/v1/system")
     document.dispatchEvent(
       new CustomEvent("quality-bar:system-loaded", {
         detail: {
+          ...system,
           catalog: system.codex.catalog,
-          codex: system.codex,
           csrfCookieName,
-          storage: system.storage,
         },
       }),
     );
