@@ -8,6 +8,10 @@ import {
   recordGitHubBundleDeliveryFailure,
   recordGitHubFindingDeliveryFailure,
 } from "./github-feedback-delivery.js";
+import {
+  readAggregateDeliveryTarget,
+  readInlineDeliveryTarget,
+} from "./github-feedback-delivery-target.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
@@ -238,17 +242,33 @@ export function createGitHubFeedbackService(
           identity,
           /** @type {any[]} */ (findings),
         );
+        const aggregateTarget = {
+          body: aggregate,
+          pull_request_number: bundle.pull_request_number,
+          repository_id: bundle.forge_repository_id,
+        };
+        const deliverAggregate = (
+          /** @type {any} */ method,
+          /** @type {string} */ deliveryTarget,
+        ) => {
+          const target = readAggregateDeliveryTarget(
+            deliveryTarget,
+            aggregateTarget,
+            repository.id,
+          );
+          return method(
+            authentication(),
+            bundle.installation_id,
+            repository,
+            target.pullRequestNumber,
+            target.body,
+          );
+        };
         if (bundle.publication_status === "waiting") {
           await attemptGitHubDelivery(durableCore, {
             connectionId: /** @type {string} */ (bundle.connection_id),
-            create: () =>
-              verifier.publishAggregateFeedback(
-                authentication(),
-                /** @type {number} */ (bundle.installation_id),
-                repository,
-                /** @type {number} */ (bundle.pull_request_number),
-                aggregate,
-              ),
+            create: (target) =>
+              deliverAggregate(verifier.publishAggregateFeedback, target),
             onDefinitive: (transaction, failure, attemptedAt) =>
               recordGitHubBundleDeliveryFailure(
                 transaction,
@@ -267,20 +287,11 @@ export function createGitHubFeedbackService(
                 publishedAt,
                 evaluationId,
               ),
-            reconcile: () =>
-              verifier.reconcileAggregateFeedback(
-                authentication(),
-                /** @type {number} */ (bundle.installation_id),
-                repository,
-                /** @type {number} */ (bundle.pull_request_number),
-                aggregate,
-              ),
+            reconcile: (target) =>
+              deliverAggregate(verifier.reconcileAggregateFeedback, target),
             sourceId: evaluationId,
             surface: "aggregate_feedback",
-            target: JSON.stringify({
-              pull_request_number: bundle.pull_request_number,
-              repository_id: bundle.forge_repository_id,
-            }),
+            target: JSON.stringify(aggregateTarget),
           });
         }
         const inlineRows = durableCore.all(
@@ -319,16 +330,32 @@ export function createGitHubFeedbackService(
                   start_side: /** @type {"LEFT" | "RIGHT"} */ (row?.start_side),
                 }),
           };
+          const inlineTarget = {
+            ...comment,
+            pull_request_number: bundle.pull_request_number,
+            repository_id: bundle.forge_repository_id,
+          };
+          const deliverInline = (
+            /** @type {any} */ method,
+            /** @type {string} */ deliveryTarget,
+          ) => {
+            const target = readInlineDeliveryTarget(
+              deliveryTarget,
+              inlineTarget,
+              repository.id,
+            );
+            return method(
+              authentication(),
+              bundle.installation_id,
+              repository,
+              target.pullRequestNumber,
+              target.comment,
+            );
+          };
           await attemptGitHubDelivery(durableCore, {
             connectionId: /** @type {string} */ (bundle.connection_id),
-            create: () =>
-              verifier.publishInlineFeedback(
-                authentication(),
-                /** @type {number} */ (bundle.installation_id),
-                repository,
-                /** @type {number} */ (bundle.pull_request_number),
-                comment,
-              ),
+            create: (target) =>
+              deliverInline(verifier.publishInlineFeedback, target),
             onDefinitive: (transaction, failure, attemptedAt) =>
               recordGitHubFindingDeliveryFailure(
                 transaction,
@@ -348,25 +375,11 @@ export function createGitHubFeedbackService(
                 publishedAt,
                 row?.finding_id,
               ),
-            reconcile: () =>
-              verifier.reconcileInlineFeedback(
-                authentication(),
-                /** @type {number} */ (bundle.installation_id),
-                repository,
-                /** @type {number} */ (bundle.pull_request_number),
-                comment,
-              ),
+            reconcile: (target) =>
+              deliverInline(verifier.reconcileInlineFeedback, target),
             sourceId: /** @type {string} */ (row.finding_id),
             surface: "inline_feedback",
-            target: JSON.stringify({
-              line: row.line,
-              path: row.path,
-              pull_request_number: bundle.pull_request_number,
-              repository_id: bundle.forge_repository_id,
-              side: row.side,
-              start_line: row.start_line,
-              start_side: row.start_side,
-            }),
+            target: JSON.stringify(inlineTarget),
           });
         }
       }

@@ -6,6 +6,11 @@ export function githubDeliveryResource(value) {
   if (
     typeof value.source_identity !== "string" ||
     typeof value.target !== "string" ||
+    !(
+      value.connection_identity === null ||
+      (typeof value.connection_identity === "string" &&
+        value.connection_identity.length > 0)
+    ) ||
     !Number.isSafeInteger(value.attempt_count) ||
     value.attempt_count < 0 ||
     !(
@@ -37,6 +42,7 @@ export function githubDeliveryResource(value) {
   );
   return {
     attempt_count: value.attempt_count,
+    connection_identity: value.connection_identity,
     last_attempt_at:
       value.last_attempt_at === null ? null : timestamp(value.last_attempt_at),
     next_attempt_at: nextAttemptAt === 0 ? null : timestamp(nextAttemptAt),

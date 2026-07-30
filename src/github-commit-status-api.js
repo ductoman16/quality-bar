@@ -19,6 +19,19 @@ function validTargetUrl(value) {
   }
 }
 
+/** @param {unknown} value */
+function evaluationIdentity(value) {
+  try {
+    const identity =
+      typeof value === "string"
+        ? new URL(value).searchParams.get("evaluation_id")
+        : null;
+    return identity && identity.length > 0 ? identity : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * @param {{
  *   fail: (code: string, message: string) => never,
@@ -121,6 +134,10 @@ export function createGitHubCommitStatusPublisher(dependencies) {
       credential,
       installationId,
     );
+    const evaluationId = evaluationIdentity(status.targetUrl);
+    if (!evaluationId) {
+      throw new TypeError("GitHub commit status input is invalid");
+    }
     /** @type {number[]} */
     const matches = [];
     for (let page = 1; ; page += 1) {
@@ -143,7 +160,7 @@ export function createGitHubCommitStatusPublisher(dependencies) {
           item?.context === GITHUB_COMMIT_STATUS_CONTEXT &&
           item.sha === status.head &&
           item.state === status.state &&
-          item.target_url === status.targetUrl
+          evaluationIdentity(item.target_url) === evaluationId
         ) {
           if (!Number.isSafeInteger(item.id) || item.id <= 0) {
             dependencies.fail(

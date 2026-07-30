@@ -6,6 +6,35 @@ import {
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
+/** @param {string} serialized @param {any} fallback @param {number} repositoryId */
+function readStatusTarget(serialized, fallback, repositoryId) {
+  let target;
+  try {
+    target = JSON.parse(serialized);
+  } catch {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  if (
+    !target ||
+    typeof target !== "object" ||
+    Array.isArray(target) ||
+    ("repository_id" in target && target.repository_id !== repositoryId)
+  ) {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  return typeof target.description === "string" &&
+    typeof target.head === "string" &&
+    typeof target.state === "string" &&
+    typeof target.target_url === "string"
+    ? {
+        description: target.description,
+        head: target.head,
+        state: target.state,
+        targetUrl: target.target_url,
+      }
+    : fallback;
+}
+
 /**
  * @param {any} durableCore
  * @param {{
@@ -141,12 +170,12 @@ export function createGitHubCommitStatusService(
           };
           await attemptGitHubDelivery(durableCore, {
             connectionId: /** @type {string} */ (row.connection_id),
-            create: () =>
+            create: (deliveryTarget) =>
               verifier.publishCommitStatus(
                 authentication(),
                 /** @type {number} */ (row.installation_id),
                 repository,
-                statusTarget,
+                readStatusTarget(deliveryTarget, statusTarget, repository.id),
               ),
             now,
             onDefinitive: (transaction, failure, attemptedAt) => {
@@ -197,20 +226,22 @@ export function createGitHubCommitStatusService(
                 row.desired_state,
               );
             },
-            reconcile: () =>
+            reconcile: (deliveryTarget) =>
               verifier.reconcileCommitStatus(
                 authentication(),
                 /** @type {number} */ (row.installation_id),
                 repository,
-                statusTarget,
+                readStatusTarget(deliveryTarget, statusTarget, repository.id),
               ),
             sourceId: `${row.evaluation_id}:${row.desired_state}`,
             surface: "commit_status",
             target: JSON.stringify({
               context: "Quality Bar",
-              head_commit: row.head_commit,
-              repository_id: row.repository_id,
+              description: status.description,
+              head: row.head_commit,
+              repository_id: row.forge_repository_id,
               state: row.desired_state,
+              target_url: statusTarget.targetUrl,
             }),
           });
         }

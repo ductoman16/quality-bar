@@ -57,6 +57,25 @@ test("status publication records success and the exact owning GitHub failure", a
     },
   ]);
   assert.deepEqual(
+    JSON.parse(
+      /** @type {string} */ (
+        core.get(
+          `SELECT target FROM github_delivery_attempts
+         WHERE surface = 'commit_status'`,
+        )?.target
+      ),
+    ),
+    {
+      context: "Quality Bar",
+      description: "Quality Bar Evaluation is active",
+      head,
+      repository_id: 101,
+      state: "pending",
+      target_url:
+        "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
+    },
+  );
+  assert.deepEqual(
     core.get(
       `SELECT publication_status, published_state, published_at,
               error_code, error_detail

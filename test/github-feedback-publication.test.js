@@ -115,6 +115,7 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
   assert.deepEqual(resource.feedback, {
     aggregate: {
       attempt_count: 1,
+      connection_identity: "connection-1",
       error: null,
       external_id: 701,
       last_attempt_at: "1970-01-01T00:00:00.010Z",
@@ -125,11 +126,16 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
       published_at: "1970-01-01T00:00:00.010Z",
       reconciliation_required: false,
       source_identity: "evaluation-1",
-      target: '{"pull_request_number":17,"repository_id":101}',
+      target: JSON.stringify({
+        body: aggregates[0][4],
+        pull_request_number: 17,
+        repository_id: 101,
+      }),
     },
     findings: [
       {
         attempt_count: 1,
+        connection_identity: "connection-1",
         error: null,
         external_id: 702,
         finding_id: "finding-inline",
@@ -141,11 +147,21 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
         published_at: "1970-01-01T00:00:00.010Z",
         reconciliation_required: false,
         source_identity: "finding-inline",
-        target:
-          '{"line":2,"path":"src/example.js","pull_request_number":17,"repository_id":101,"side":"LEFT","start_line":1,"start_side":"RIGHT"}',
+        target: JSON.stringify({
+          body: inlines[0][4].body,
+          commit_id: head,
+          line: 2,
+          path: "src/example.js",
+          side: "LEFT",
+          start_line: 1,
+          start_side: "RIGHT",
+          pull_request_number: 17,
+          repository_id: 101,
+        }),
       },
       {
         attempt_count: 0,
+        connection_identity: null,
         error: null,
         external_id: null,
         finding_id: "finding-stale",
@@ -161,6 +177,7 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
       },
       {
         attempt_count: 0,
+        connection_identity: null,
         error: null,
         external_id: null,
         finding_id: "finding-whole",

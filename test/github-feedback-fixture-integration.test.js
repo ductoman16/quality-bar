@@ -19,6 +19,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
   const requests = [];
   let duplicate = false;
   const head = "a".repeat(40);
+  const aggregateBody = "complete aggregate\nEvaluation: `evaluation-1`";
   const server = createServer((request, response) => {
     let body = "";
     request.setEncoding("utf8");
@@ -71,8 +72,8 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       ) {
         response.end(
           JSON.stringify([
-            { body: "complete aggregate", id: 701 },
-            ...(duplicate ? [{ body: "complete aggregate", id: 703 }] : []),
+            { body: aggregateBody, id: 701 },
+            ...(duplicate ? [{ body: aggregateBody, id: 703 }] : []),
           ]),
         );
         return;
@@ -131,7 +132,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       73,
       repository,
       17,
-      "complete aggregate",
+      aggregateBody,
     ),
     701,
   );
@@ -153,7 +154,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         73,
         repository,
         17,
-        "complete aggregate",
+        aggregateBody,
       ),
     () =>
       verifier.reconcileInlineFeedback(credential, 73, repository, 17, {
@@ -183,7 +184,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     ),
     {
       authorization: "Bearer installation-token",
-      body: { body: "complete aggregate" },
+      body: { body: aggregateBody },
       method: "POST",
       path: "/repos/operator/repository/issues/17/comments",
     },
@@ -215,7 +216,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       73,
       repository,
       17,
-      "complete aggregate",
+      "changed formatting\nEvaluation: `evaluation-1`",
     ),
     701,
   );

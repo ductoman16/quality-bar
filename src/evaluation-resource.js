@@ -150,6 +150,7 @@ export function readEvaluation(row) {
           commit_status: {
             ...delivery({
               attempt_count: row.commit_status_attempt_count,
+              connection_identity: row.commit_status_connection_identity,
               delivery_next_attempt_at:
                 row.commit_status_delivery_next_attempt_at,
               last_attempt_at: row.commit_status_last_attempt_at,
@@ -191,6 +192,7 @@ export function readEvaluation(row) {
             aggregate: {
               ...delivery({
                 attempt_count: row.feedback_attempt_count,
+                connection_identity: row.feedback_connection_identity,
                 delivery_next_attempt_at: row.feedback_delivery_next_attempt_at,
                 last_attempt_at: row.feedback_last_attempt_at,
                 provider_gate_until:
@@ -223,6 +225,7 @@ export function readEvaluation(row) {
               ...(item.publication_status === "aggregate_only"
                 ? {
                     attempt_count: 0,
+                    connection_identity: null,
                     last_attempt_at: null,
                     next_attempt_at: null,
                     provider_gate_until: null,
@@ -233,6 +236,7 @@ export function readEvaluation(row) {
                   }
                 : delivery({
                     attempt_count: item.attempt_count,
+                    connection_identity: item.connection_identity,
                     delivery_next_attempt_at: item.delivery_next_attempt_at,
                     last_attempt_at: item.last_attempt_at,
                     provider_gate_until:
@@ -300,9 +304,8 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
   github_commit_statuses.desired_state AS commit_status_state,
   github_commit_statuses.publication_status AS commit_status_publication_status,
   github_commit_statuses.published_at AS commit_status_published_at,
-  github_commit_statuses.error_code AS commit_status_error_code,
-  github_commit_statuses.error_detail AS commit_status_error_detail,
-  status_delivery.source_id AS commit_status_source_identity,
+  github_commit_statuses.error_code AS commit_status_error_code, github_commit_statuses.error_detail AS commit_status_error_detail,
+  status_delivery.source_id AS commit_status_source_identity, status_delivery.connection_id AS commit_status_connection_identity,
   status_delivery.target AS commit_status_target,
   status_delivery.attempt_count AS commit_status_attempt_count,
   status_delivery.last_attempt_at AS commit_status_last_attempt_at,
@@ -310,8 +313,7 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
   status_delivery.reconciliation_required
     AS commit_status_reconciliation_required,
   status_delivery.external_id AS commit_status_external_id,
-  status_delivery.error_code AS commit_status_delivery_error_code,
-  status_delivery.error_detail AS commit_status_delivery_error_detail,
+  status_delivery.error_code AS commit_status_delivery_error_code, status_delivery.error_detail AS commit_status_delivery_error_detail,
   delivery_gate.gate_until AS commit_status_provider_gate_until,
   delivery_gate.error_code AS commit_status_provider_gate_error_code,
   delivery_gate.error_detail AS commit_status_provider_gate_error_detail,
@@ -320,16 +322,14 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
     AS feedback_publication_status,
   github_feedback_bundles.external_id AS feedback_external_id,
   github_feedback_bundles.published_at AS feedback_published_at,
-  github_feedback_bundles.error_code AS feedback_error_code,
-  github_feedback_bundles.error_detail AS feedback_error_detail,
-  aggregate_delivery.source_id AS feedback_source_identity,
+  github_feedback_bundles.error_code AS feedback_error_code, github_feedback_bundles.error_detail AS feedback_error_detail,
+  aggregate_delivery.source_id AS feedback_source_identity, aggregate_delivery.connection_id AS feedback_connection_identity,
   aggregate_delivery.target AS feedback_target,
   aggregate_delivery.attempt_count AS feedback_attempt_count,
   aggregate_delivery.last_attempt_at AS feedback_last_attempt_at,
   aggregate_delivery.next_attempt_at AS feedback_delivery_next_attempt_at,
   aggregate_delivery.reconciliation_required AS feedback_reconciliation_required,
-  aggregate_delivery.error_code AS feedback_delivery_error_code,
-  aggregate_delivery.error_detail AS feedback_delivery_error_detail,
+  aggregate_delivery.error_code AS feedback_delivery_error_code, aggregate_delivery.error_detail AS feedback_delivery_error_detail,
   delivery_gate.gate_until AS feedback_provider_gate_until,
   delivery_gate.error_code AS feedback_provider_gate_error_code,
   delivery_gate.error_detail AS feedback_provider_gate_error_detail,
@@ -341,9 +341,8 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
       'published_at', published_at,
       'error_code', error_code,
       'error_detail', error_detail,
-      'source_identity', source_identity,
-      'target', target,
-      'attempt_count', attempt_count,
+      'source_identity', source_identity, 'target', target,
+      'attempt_count', attempt_count, 'connection_identity', connection_identity,
       'last_attempt_at', last_attempt_at,
       'delivery_next_attempt_at', delivery_next_attempt_at,
       'reconciliation_required', reconciliation_required,
@@ -360,14 +359,13 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
              github_finding_feedback.published_at,
              github_finding_feedback.error_code,
              github_finding_feedback.error_detail,
-             inline_delivery.source_id AS source_identity,
+             inline_delivery.source_id AS source_identity, inline_delivery.connection_id AS connection_identity,
              inline_delivery.target,
              inline_delivery.attempt_count,
              inline_delivery.last_attempt_at,
              inline_delivery.next_attempt_at AS delivery_next_attempt_at,
              inline_delivery.reconciliation_required,
-             inline_delivery.error_code AS delivery_error_code,
-             inline_delivery.error_detail AS delivery_error_detail,
+             inline_delivery.error_code AS delivery_error_code, inline_delivery.error_detail AS delivery_error_detail,
              delivery_gate.gate_until AS provider_gate_until,
              delivery_gate.error_code AS provider_gate_error_code,
              delivery_gate.error_detail AS provider_gate_error_detail

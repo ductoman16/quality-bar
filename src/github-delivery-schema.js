@@ -6,6 +6,10 @@ export const GITHUB_DELIVERY_SCHEMA = `
     source_id TEXT NOT NULL CHECK (length(source_id) > 0),
     target TEXT NOT NULL CHECK (length(target) > 0),
     generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0),
+    connection_id TEXT REFERENCES github_connections(id),
+    authority_verified_at INTEGER CHECK (
+      authority_verified_at IS NULL OR authority_verified_at >= 0
+    ),
     attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
     last_attempt_at INTEGER,
     next_attempt_at INTEGER NOT NULL DEFAULT 0 CHECK (next_attempt_at >= 0),
@@ -20,7 +24,7 @@ export const GITHUB_DELIVERY_SCHEMA = `
     definitive INTEGER NOT NULL DEFAULT 0 CHECK (definitive IN (0, 1)),
     CHECK (
       (attempt_count = 0 AND last_attempt_at IS NULL)
-      OR (attempt_count > 0 AND last_attempt_at IS NOT NULL)
+      OR attempt_count > 0
     ),
     CHECK (
       (error_code IS NULL AND error_detail IS NULL)
@@ -30,6 +34,10 @@ export const GITHUB_DELIVERY_SCHEMA = `
       )
     ),
     CHECK (definitive = 0 OR error_code IS NOT NULL),
+    CHECK (
+      (connection_id IS NULL AND authority_verified_at IS NULL)
+      OR (connection_id IS NOT NULL AND authority_verified_at IS NOT NULL)
+    ),
     PRIMARY KEY (surface, source_id)
   ) STRICT;
   CREATE INDEX IF NOT EXISTS github_delivery_due
@@ -171,7 +179,8 @@ export const GITHUB_DELIVERY_SCHEMA = `
     END;
   INSERT INTO github_delivery_attempts (
     surface, source_id, target, attempt_count, last_attempt_at,
-    reconciliation_required, external_id, error_code, error_detail, definitive
+    reconciliation_required, external_id, error_code, error_detail,
+    response_status, definitive
   )
   SELECT
     'commit_status',
@@ -182,12 +191,20 @@ export const GITHUB_DELIVERY_SCHEMA = `
       'repository_id', repository_id,
       'state', desired_state
     ),
-    CASE WHEN publication_status = 'succeeded' THEN 1 ELSE 0 END,
+    CASE WHEN publication_status IN ('succeeded', 'unavailable')
+      THEN 1 ELSE 0 END,
     CASE WHEN publication_status = 'succeeded' THEN published_at ELSE NULL END,
     CASE WHEN publication_status = 'unavailable' THEN 1 ELSE 0 END,
     NULL,
     error_code,
     error_detail,
+    CASE
+      WHEN error_code = 'github_api_request_failed'
+        AND error_detail = 'GitHub API request failed with HTTP 401' THEN 401
+      WHEN error_code = 'github_api_request_failed'
+        AND error_detail = 'GitHub API request failed with HTTP 403' THEN 403
+      ELSE NULL
+    END,
     CASE WHEN error_code IN (
       'github_api_request_failed',
       'github_app_profile_mismatch',
@@ -205,7 +222,8 @@ export const GITHUB_DELIVERY_SCHEMA = `
   ON CONFLICT (surface, source_id) DO NOTHING;
   INSERT INTO github_delivery_attempts (
     surface, source_id, target, attempt_count, last_attempt_at,
-    reconciliation_required, external_id, error_code, error_detail, definitive
+    reconciliation_required, external_id, error_code, error_detail,
+    response_status, definitive
   )
   SELECT
     'aggregate_feedback',
@@ -215,7 +233,8 @@ export const GITHUB_DELIVERY_SCHEMA = `
         github_automatic_evaluations.pull_request_number,
       'repository_id', github_repositories.forge_repository_id
     ),
-    CASE WHEN github_feedback_bundles.publication_status = 'succeeded'
+    CASE WHEN github_feedback_bundles.publication_status
+      IN ('succeeded', 'unavailable')
       THEN 1 ELSE 0 END,
     CASE WHEN github_feedback_bundles.publication_status = 'succeeded'
       THEN github_feedback_bundles.published_at ELSE NULL END,
@@ -224,6 +243,15 @@ export const GITHUB_DELIVERY_SCHEMA = `
     github_feedback_bundles.external_id,
     github_feedback_bundles.error_code,
     github_feedback_bundles.error_detail,
+    CASE
+      WHEN github_feedback_bundles.error_code = 'github_api_request_failed'
+        AND github_feedback_bundles.error_detail =
+          'GitHub API request failed with HTTP 401' THEN 401
+      WHEN github_feedback_bundles.error_code = 'github_api_request_failed'
+        AND github_feedback_bundles.error_detail =
+          'GitHub API request failed with HTTP 403' THEN 403
+      ELSE NULL
+    END,
     CASE WHEN github_feedback_bundles.error_code IN (
       'github_api_request_failed',
       'github_app_profile_mismatch',
@@ -247,7 +275,8 @@ export const GITHUB_DELIVERY_SCHEMA = `
   ON CONFLICT (surface, source_id) DO NOTHING;
   INSERT INTO github_delivery_attempts (
     surface, source_id, target, attempt_count, last_attempt_at,
-    reconciliation_required, external_id, error_code, error_detail, definitive
+    reconciliation_required, external_id, error_code, error_detail,
+    response_status, definitive
   )
   SELECT
     'inline_feedback',
@@ -262,7 +291,8 @@ export const GITHUB_DELIVERY_SCHEMA = `
       'start_line', github_finding_feedback.start_line,
       'start_side', github_finding_feedback.start_side
     ),
-    CASE WHEN github_finding_feedback.publication_status = 'succeeded'
+    CASE WHEN github_finding_feedback.publication_status
+      IN ('succeeded', 'unavailable')
       THEN 1 ELSE 0 END,
     CASE WHEN github_finding_feedback.publication_status = 'succeeded'
       THEN github_finding_feedback.published_at ELSE NULL END,
@@ -271,6 +301,15 @@ export const GITHUB_DELIVERY_SCHEMA = `
     github_finding_feedback.external_id,
     github_finding_feedback.error_code,
     github_finding_feedback.error_detail,
+    CASE
+      WHEN github_finding_feedback.error_code = 'github_api_request_failed'
+        AND github_finding_feedback.error_detail =
+          'GitHub API request failed with HTTP 401' THEN 401
+      WHEN github_finding_feedback.error_code = 'github_api_request_failed'
+        AND github_finding_feedback.error_detail =
+          'GitHub API request failed with HTTP 403' THEN 403
+      ELSE NULL
+    END,
     CASE WHEN github_finding_feedback.error_code IN (
       'github_api_request_failed',
       'github_app_profile_mismatch',

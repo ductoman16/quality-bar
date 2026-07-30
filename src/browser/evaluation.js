@@ -20,6 +20,7 @@ if (
   !feedbackRenderer ||
   typeof feedbackRenderer.valid !== "function" ||
   typeof feedbackRenderer.hasUnavailable !== "function" ||
+  typeof feedbackRenderer.correction !== "function" ||
   typeof feedbackRenderer.render !== "function"
 ) {
   throw new Error("evaluation_feedback_boundary_unavailable");
@@ -189,17 +190,11 @@ async function renderEvaluation(evaluation) {
   if (evaluation.feedback) {
     feedbackRenderer.render(row, evaluation.feedback);
   }
-  if (
-    evaluation.commit_status?.publication_status === "unavailable" ||
-    evaluation.feedback?.aggregate.publication_status === "unavailable" ||
-    evaluation.feedback?.findings.some(
-      (/** @type {any} */ finding) =>
-        finding.publication_status === "unavailable",
-    )
-  ) {
+  const correctionTarget = feedbackRenderer.correction(evaluation);
+  if (correctionTarget) {
     const correction = document.createElement("a");
-    correction.href = "/?view=repositories";
-    correction.textContent = "GitHub Connection and Repository";
+    correction.href = correctionTarget.href;
+    correction.textContent = correctionTarget.text;
     row.append(correction);
   }
   target.append(row);

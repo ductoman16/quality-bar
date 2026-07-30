@@ -103,7 +103,9 @@ export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
     );
   }
   transaction.run(
-    "DELETE FROM github_delivery_provider_gates WHERE connection_id = ?",
+    `DELETE FROM github_delivery_provider_gates
+     WHERE connection_id = ? AND gate_until <= ?`,
     connectionId,
+    readyAt,
   );
 }

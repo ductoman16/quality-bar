@@ -15,6 +15,20 @@ function validRepository(repository) {
   );
 }
 
+/** @param {unknown} body @param {"Evaluation" | "Finding"} label */
+function sourceIdentity(body, label) {
+  if (typeof body !== "string") {
+    return null;
+  }
+  const prefix = `${label}: \``;
+  const line = body
+    .split("\n")
+    .find((candidate) => candidate.startsWith(prefix));
+  return line?.endsWith("`") && line.length > prefix.length + 1
+    ? line.slice(prefix.length, -1)
+    : null;
+}
+
 /**
  * @param {{
  *   fail: (code: string, message: string) => never,
@@ -242,13 +256,18 @@ export function createGitHubFeedbackPublisher(dependencies) {
       pullRequestNumber,
       body,
     ) {
+      const evaluationId = sourceIdentity(body, "Evaluation");
       return reconcile(
         credential,
         installationId,
         repository,
         pullRequestNumber,
         "issues",
-        (item) => item?.body === body,
+        (item) =>
+          typeof item?.body === "string" &&
+          (evaluationId
+            ? sourceIdentity(item.body, "Evaluation") === evaluationId
+            : item.body === body),
       );
     },
     /**
@@ -265,6 +284,8 @@ export function createGitHubFeedbackPublisher(dependencies) {
       pullRequestNumber,
       comment,
     ) {
+      const evaluationId = sourceIdentity(comment?.body, "Evaluation");
+      const findingId = sourceIdentity(comment?.body, "Finding");
       return reconcile(
         credential,
         installationId,
@@ -272,7 +293,11 @@ export function createGitHubFeedbackPublisher(dependencies) {
         pullRequestNumber,
         "pulls",
         (item) =>
-          item?.body === comment.body &&
+          typeof item?.body === "string" &&
+          (evaluationId && findingId
+            ? sourceIdentity(item.body, "Evaluation") === evaluationId &&
+              sourceIdentity(item.body, "Finding") === findingId
+            : item.body === comment.body) &&
           item.commit_id === comment.commit_id &&
           item.path === comment.path &&
           item.line === comment.line &&

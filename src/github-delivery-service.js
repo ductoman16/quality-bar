@@ -69,11 +69,11 @@ export function recordGitHubDeliveryHealth(
  * @param {any} durableCore
  * @param {{
  *   connectionId: string,
- *   create: () => Promise<number>,
+ *   create: (target: string) => Promise<number>,
  *   now: () => number,
  *   onDefinitive: (transaction: any, failure: any, attemptedAt: number) => void,
  *   onSuccess: (transaction: any, externalId: number, publishedAt: number) => void,
- *   reconcile: () => Promise<number | null>,
+ *   reconcile: (target: string) => Promise<number | null>,
  *   sourceId: string,
  *   surface: "commit_status" | "aggregate_feedback" | "inline_feedback",
  *   target: string
@@ -93,6 +93,7 @@ export async function attemptGitHubDelivery(durableCore, input) {
   if (delivery.external_id !== null) {
     succeedGitHubDelivery(
       durableCore,
+      input.connectionId,
       delivery,
       delivery.external_id,
       (transaction) =>
@@ -116,10 +117,11 @@ export async function attemptGitHubDelivery(durableCore, input) {
   }
   try {
     if (operation === "reconcile") {
-      const reconciled = await input.reconcile();
+      const reconciled = await input.reconcile(delivery.target);
       if (reconciled !== null) {
         succeedGitHubDelivery(
           durableCore,
+          input.connectionId,
           delivery,
           reconciled,
           (transaction) =>
@@ -127,7 +129,13 @@ export async function attemptGitHubDelivery(durableCore, input) {
         );
         return;
       }
-      proveGitHubDeliveryAbsent(durableCore, delivery, attemptedAt);
+      proveGitHubDeliveryAbsent(
+        durableCore,
+        input.connectionId,
+        delivery,
+        attemptedAt,
+        input.target,
+      );
       delivery = ensureGitHubDelivery(
         durableCore,
         input.surface,
@@ -147,9 +155,13 @@ export async function attemptGitHubDelivery(durableCore, input) {
       }
       operation = "create";
     }
-    const externalId = await input.create();
-    succeedGitHubDelivery(durableCore, delivery, externalId, (transaction) =>
-      input.onSuccess(transaction, externalId, attemptedAt),
+    const externalId = await input.create(delivery.target);
+    succeedGitHubDelivery(
+      durableCore,
+      input.connectionId,
+      delivery,
+      externalId,
+      (transaction) => input.onSuccess(transaction, externalId, attemptedAt),
     );
   } catch (error) {
     const failure = githubDeliveryFailure(error, { operation });

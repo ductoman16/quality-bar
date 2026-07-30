@@ -140,4 +140,24 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
       },
     ],
   );
+  const correction = /** @type {any} */ (
+    browserContext.window
+  ).qualityBarEvaluationFeedback.correction(
+    evaluation({
+      feedback: {
+        aggregate: {
+          error: {
+            code: "github_repository_api_access_failed",
+            detail: "GitHub Repository API access verification failed",
+          },
+          external_id: null,
+          publication_status: "unavailable",
+          published_at: null,
+        },
+        findings: [],
+      },
+    }),
+  );
+  assert.equal(correction.href, "/?view=repositories#repository-repository-1");
+  assert.equal(correction.text, "Repository repository-1");
 });

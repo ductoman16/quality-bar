@@ -24,6 +24,7 @@ export function assertEvaluationPage(page) {
 
 const delivery = {
   attempt_count: 1,
+  connection_identity: "connection-1",
   last_attempt_at: "2026-07-28T12:00:00.000Z",
   next_attempt_at: null,
   provider_gate_until: null,
@@ -68,6 +69,7 @@ export const evaluation = (overrides = {}) => {
           ? {
               ...delivery,
               attempt_count: 0,
+              connection_identity: null,
               last_attempt_at: null,
               target: "aggregate_only",
             }

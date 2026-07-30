@@ -86,17 +86,13 @@ async function submitRepositoryMutation(
  * }} RepositoryResource
  */
 
-/** @type {Map<string, HTMLElement>} */
-const repositoryRows = new Map();
-/** @type {Map<string, RepositoryResource>} */
-const repositoryResources = new Map();
-/** @type {Set<(repositories: RepositoryResource[]) => unknown>} */
+const repositoryRows = new Map(),
+  repositoryResources = new Map();
 const repositorySubscribers = new Set();
 
 function publishRepositoryResources() {
-  for (const subscriber of repositorySubscribers) {
-    subscriber([...repositoryResources.values()]);
-  }
+  const resources = [...repositoryResources.values()];
+  repositorySubscribers.forEach((subscriber) => subscriber(resources));
 }
 
 Reflect.set(
@@ -158,6 +154,7 @@ function renderRepository(repository) {
   let row = repositoryRows.get(repository.id);
   if (!row) {
     row = document.createElement("tr");
+    row.id = `repository-${repository.id}`;
     repositoryRows.set(repository.id, row);
     requiredRepositoryElement("repository-inventory").append(row);
   }

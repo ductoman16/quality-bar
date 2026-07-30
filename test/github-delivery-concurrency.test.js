@@ -23,6 +23,7 @@ test("retirement wins successful and failed in-flight delivery completions", asy
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
   for (const outcome of ["success", "failure"]) {
     const started = Promise.withResolvers();
     const release = Promise.withResolvers();
@@ -147,6 +148,80 @@ test("provider gate retains the error that owns the winning deadline", () => {
     core.close();
     rmSync(directory, { force: true, recursive: true });
   }
+});
+
+test("newer successful verification fences an older in-flight delivery failure", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-delivery-authority-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  const running = attemptGitHubDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => {
+      started.resolve(undefined);
+      await release.promise;
+      throw new GitHubConnectionError(
+        "github_api_request_failed",
+        "GitHub API request failed with HTTP 403",
+        { responseStatus: 403 },
+      );
+    },
+    now: () => 10,
+    onDefinitive(transaction, failure, attemptedAt) {
+      recordGitHubDeliveryHealth(
+        transaction,
+        "connection-1",
+        attemptedAt,
+        failure,
+      );
+    },
+    onSuccess() {},
+    reconcile: async () => null,
+    sourceId: "authority-race",
+    surface: "aggregate_feedback",
+    target: "authority-target",
+  });
+  await started.promise;
+  core.run(
+    `UPDATE github_connections
+     SET health = 'healthy',
+         health_error_code = NULL,
+         health_error_message = NULL,
+         verified_at = 20
+     WHERE id = 'connection-1'`,
+  );
+  release.resolve(undefined);
+  await running;
+  assert.deepEqual(
+    core.get(
+      `SELECT health, health_error_code, health_error_message, verified_at
+       FROM github_connections WHERE id = 'connection-1'`,
+    ),
+    {
+      health: "healthy",
+      health_error_code: null,
+      health_error_message: null,
+      verified_at: 20,
+    },
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT definitive, reconciliation_required, error_code, error_detail
+       FROM github_delivery_attempts
+       WHERE surface = 'aggregate_feedback' AND source_id = 'authority-race'`,
+    ),
+    {
+      definitive: 0,
+      error_code: null,
+      error_detail: null,
+      reconciliation_required: 1,
+    },
+  );
 });
 
 test("surface validation failures do not poison GitHub Connection health", () => {

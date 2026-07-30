@@ -25,6 +25,7 @@ test("runtime conformance accepts exact aggregate and per-Finding feedback state
       feedback: {
         aggregate: {
           attempt_count: 1,
+          connection_identity: "connection-1",
           error: null,
           external_id: 701,
           last_attempt_at: "2026-07-29T12:00:00.000Z",
@@ -40,6 +41,7 @@ test("runtime conformance accepts exact aggregate and per-Finding feedback state
         findings: [
           {
             attempt_count: 1,
+            connection_identity: "connection-1",
             error: {
               code: "github_api_request_failed",
               detail: "GitHub API request failed with HTTP 403",

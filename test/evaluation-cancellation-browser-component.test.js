@@ -286,6 +286,7 @@ test("each explicit browser rerun of one Changeset owns a fresh key", async () =
     window: {
       location: { search: "" },
       qualityBarEvaluationFeedback: {
+        correction: () => null,
         hasUnavailable: () => false,
         render() {},
         valid: () => true,

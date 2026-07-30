@@ -71,7 +71,7 @@ export function githubDeliveryFailure(error, input) {
  * @param {string} target
  */
 export function ensureGitHubDelivery(durableCore, surface, sourceId, target) {
-  durableCore.transaction((/** @type {any} */ transaction) =>
+  durableCore.transaction((/** @type {any} */ transaction) => {
     transaction.run(
       `INSERT INTO github_delivery_attempts (surface, source_id, target)
        VALUES (?, ?, ?)
@@ -79,15 +79,24 @@ export function ensureGitHubDelivery(durableCore, surface, sourceId, target) {
       surface,
       sourceId,
       target,
-    ),
-  );
+    );
+    transaction.run(
+      `UPDATE github_delivery_attempts
+       SET target = ?
+       WHERE surface = ? AND source_id = ?
+         AND attempt_count = 0 AND connection_id IS NULL`,
+      target,
+      surface,
+      sourceId,
+    );
+  });
   const [delivery] = durableCore.all(
     `SELECT * FROM github_delivery_attempts
      WHERE surface = ? AND source_id = ?`,
     surface,
     sourceId,
   );
-  if (!delivery || delivery.target !== target) {
+  if (!delivery) {
     throw new TypeError("GitHub delivery source target is invalid");
   }
   return delivery;
@@ -124,6 +133,10 @@ export function beginGitHubDeliveryAttempt(
     const begun = transaction.run(
       `UPDATE github_delivery_attempts
        SET generation = generation + 1,
+           connection_id = ?,
+           authority_verified_at = (
+             SELECT verified_at FROM github_connections WHERE id = ?
+           ),
            attempt_count = attempt_count + 1,
            last_attempt_at = ?,
            reconciliation_required =
@@ -133,6 +146,8 @@ export function beginGitHubDeliveryAttempt(
            response_status = NULL
        WHERE surface = ? AND source_id = ?
          AND generation = ? AND definitive = 0`,
+      connectionId,
+      connectionId,
       attemptedAt,
       operation,
       delivery.surface,
@@ -146,9 +161,10 @@ export function beginGitHubDeliveryAttempt(
   });
 }
 
-/** @param {any} durableCore @param {any} delivery @param {number} externalId @param {(transaction: any) => void} commitPublication */
+/** @param {any} durableCore @param {string} connectionId @param {any} delivery @param {number} externalId @param {(transaction: any) => void} commitPublication */
 export function succeedGitHubDelivery(
   durableCore,
+  connectionId,
   delivery,
   externalId,
   commitPublication,
@@ -166,11 +182,17 @@ export function succeedGitHubDelivery(
            error_detail = NULL,
            response_status = NULL
        WHERE surface = ? AND source_id = ?
-         AND generation = ? AND definitive = 0`,
+         AND generation = ? AND definitive = 0
+         AND connection_id = ?
+         AND authority_verified_at = (
+           SELECT verified_at FROM github_connections WHERE id = ?
+         )`,
       externalId,
       delivery.surface,
       delivery.source_id,
       delivery.generation + 1,
+      connectionId,
+      connectionId,
     );
     if (succeeded.changes !== 1) {
       return false;
@@ -208,7 +230,11 @@ export function failGitHubDelivery(
            response_status = ?,
            definitive = ?
        WHERE surface = ? AND source_id = ?
-         AND generation = ? AND definitive = 0`,
+         AND generation = ? AND definitive = 0
+         AND connection_id = ?
+         AND authority_verified_at = (
+           SELECT verified_at FROM github_connections WHERE id = ?
+         )`,
         nextAttemptAt,
         failure.uncertain ? 1 : 0,
         failure.code,
@@ -218,6 +244,8 @@ export function failGitHubDelivery(
         delivery.surface,
         delivery.source_id,
         delivery.generation + 1,
+        connectionId,
+        connectionId,
       );
       if (failed.changes !== 1) {
         return false;
@@ -262,22 +290,36 @@ export function failGitHubDelivery(
   return committed ? nextAttemptAt : null;
 }
 
-/** @param {any} durableCore @param {any} delivery @param {number} attemptedAt */
-export function proveGitHubDeliveryAbsent(durableCore, delivery, attemptedAt) {
+/** @param {any} durableCore @param {string} connectionId @param {any} delivery @param {number} attemptedAt @param {string} target */
+export function proveGitHubDeliveryAbsent(
+  durableCore,
+  connectionId,
+  delivery,
+  attemptedAt,
+  target,
+) {
   return durableCore.transaction((/** @type {any} */ transaction) => {
     const proven = transaction.run(
       `UPDATE github_delivery_attempts
        SET reconciliation_required = 0,
            next_attempt_at = ?,
+           target = ?,
            error_code = NULL,
            error_detail = NULL,
            response_status = NULL
        WHERE surface = ? AND source_id = ?
-         AND generation = ? AND definitive = 0`,
+         AND generation = ? AND definitive = 0
+         AND connection_id = ?
+         AND authority_verified_at = (
+           SELECT verified_at FROM github_connections WHERE id = ?
+         )`,
       attemptedAt,
+      target,
       delivery.surface,
       delivery.source_id,
       delivery.generation + 1,
+      connectionId,
+      connectionId,
     );
     return proven.changes === 1;
   });

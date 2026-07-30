@@ -131,6 +131,7 @@ test("every create crash reconciles before another status, aggregate, or inline 
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
   const surfaces = ["commit_status", "aggregate_feedback", "inline_feedback"];
   for (const [index, surface] of surfaces.entries()) {
     let creates = 0;
@@ -176,6 +177,55 @@ test("every create crash reconciles before another status, aggregate, or inline 
     assert.equal(creates, 1);
     assert.equal(reconciles, 1);
   }
+});
+
+test("uncertain recovery replays the persisted target after caller target drift", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-target-replay-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
+  let now = 0;
+  /** @type {string[]} */
+  const receivedTargets = [];
+  const input = {
+    connectionId: "connection-1",
+    create: async (/** @type {string} */ target) => {
+      receivedTargets.push(target);
+      throw new GitHubConnectionError(
+        "github_api_unavailable",
+        "GitHub API request could not complete",
+      );
+    },
+    now: () => now,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async (/** @type {string} */ target) => {
+      receivedTargets.push(target);
+      return 801;
+    },
+    sourceId: "persisted-target",
+    surface: /** @type {const} */ ("aggregate_feedback"),
+    target: '{"body":"original"}',
+  };
+  await attemptGitHubDelivery(core, input);
+  now = 60_000;
+  await attemptGitHubDelivery(core, {
+    ...input,
+    target: '{"body":"changed"}',
+  });
+  assert.deepEqual(receivedTargets, [
+    '{"body":"original"}',
+    '{"body":"original"}',
+  ]);
+  assert.equal(
+    core.get(
+      `SELECT target FROM github_delivery_attempts
+       WHERE surface = 'aggregate_feedback'
+         AND source_id = 'persisted-target'`,
+    )?.target,
+    '{"body":"original"}',
+  );
 });
 
 test("corrected GitHub credentials preserve uncertainty and reconcile before create", async (context) => {
@@ -246,17 +296,18 @@ test("corrected GitHub credentials preserve uncertainty and reconcile before cre
   assert.equal(
     core.get("SELECT count(*) AS count FROM github_delivery_provider_gates")
       ?.count,
-    0,
+    1,
   );
   let creates = 0;
   let reconciles = 0;
-  await attemptGitHubDelivery(core, {
+  let now = 20;
+  const input = {
     connectionId: "connection-1",
     create: async () => {
       creates += 1;
       return 902;
     },
-    now: () => 20,
+    now: () => now,
     onDefinitive() {},
     onSuccess() {},
     reconcile: async () => {
@@ -264,14 +315,24 @@ test("corrected GitHub credentials preserve uncertainty and reconcile before cre
       return 901;
     },
     sourceId: "evaluation-1:pending",
-    surface: "commit_status",
+    surface: /** @type {const} */ ("commit_status"),
     target: /** @type {string} */ (
       core.get(
         `SELECT target FROM github_delivery_attempts
          WHERE surface = 'commit_status'`,
       )?.target
     ),
-  });
+  };
+  await attemptGitHubDelivery(core, input);
+  assert.equal(creates, 0);
+  assert.equal(reconciles, 0);
+  now = 3_600_000;
+  await attemptGitHubDelivery(core, input);
   assert.equal(creates, 0);
   assert.equal(reconciles, 1);
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM github_delivery_provider_gates")
+      ?.count,
+    0,
+  );
 });

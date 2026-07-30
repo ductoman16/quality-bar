@@ -14,6 +14,9 @@ function validDelivery(publication) {
   return (
     typeof publication.source_identity === "string" &&
     publication.source_identity.length > 0 &&
+    (publication.connection_identity === null ||
+      (typeof publication.connection_identity === "string" &&
+        publication.connection_identity.length > 0)) &&
     typeof publication.target === "string" &&
     publication.target.length > 0 &&
     Number.isSafeInteger(publication.attempt_count) &&
@@ -163,6 +166,43 @@ function hasUnavailable(feedback) {
   );
 }
 
+/** @param {any} evaluation */
+function correction(evaluation) {
+  const unavailable = [
+    evaluation.commit_status,
+    evaluation.feedback?.aggregate,
+    ...(evaluation.feedback?.findings ?? []),
+  ].find((publication) => publication?.publication_status === "unavailable");
+  if (!unavailable) {
+    return null;
+  }
+  const connectionOwned =
+    [
+      "github_app_profile_mismatch",
+      "github_connection_credential_invalid",
+      "github_connection_credential_undecryptable",
+      "github_installation_scope_invalid",
+      "github_permissions_mismatch",
+      "github_principal_mismatch",
+    ].includes(unavailable.error.code) ||
+    (unavailable.error.code === "github_api_request_failed" &&
+      [
+        "GitHub API request failed with HTTP 401",
+        "GitHub API request failed with HTTP 403",
+      ].includes(unavailable.error.detail));
+  return connectionOwned && unavailable.connection_identity
+    ? {
+        href: "/?view=repositories#github-connection-details",
+        text: "GitHub Connection " + unavailable.connection_identity,
+      }
+    : {
+        href:
+          "/?view=repositories#repository-" +
+          encodeURIComponent(evaluation.repository.id),
+        text: "Repository " + evaluation.repository.id,
+      };
+}
+
 /** @param {any} row @param {any} feedback */
 function render(row, feedback) {
   const aggregate = document.createElement("div");
@@ -209,6 +249,7 @@ function render(row, feedback) {
 }
 
 Reflect.set(window, "qualityBarEvaluationFeedback", {
+  correction,
   hasUnavailable,
   render,
   valid,

@@ -6,6 +6,9 @@ export function canonicalGitHubDeliveryProperties() {
   };
   return {
     attempt_count: { minimum: 0, type: "integer" },
+    connection_identity: {
+      oneOf: [{ minLength: 1, type: "string" }, { type: "null" }],
+    },
     last_attempt_at: timestamp,
     next_attempt_at: timestamp,
     provider_gate_error: {
@@ -23,6 +26,7 @@ export function canonicalGitHubDeliveryProperties() {
 
 export const GITHUB_DELIVERY_REQUIRED = [
   "source_identity",
+  "connection_identity",
   "target",
   "attempt_count",
   "last_attempt_at",

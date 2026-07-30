@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
 import { arrangeGitHubFeedback as arrange } from "./github-feedback-publication-support.js";
 
 test("schema 40 preserves successful identities and reconciles uncertain delivery history", (context) => {
@@ -15,9 +16,9 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
   arrange(prior);
   prior.run(
     `UPDATE github_commit_statuses
-     SET publication_status = 'succeeded',
-         published_state = desired_state,
-         published_at = 10`,
+     SET publication_status = 'unavailable',
+         error_code = 'github_api_request_failed',
+         error_detail = 'GitHub API request failed with HTTP 403'`,
   );
   prior.run(
     `UPDATE github_feedback_bundles
@@ -60,7 +61,8 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
   assert.deepEqual(
     migrated.all(
       `SELECT surface, source_id, attempt_count, last_attempt_at,
-              reconciliation_required, external_id, error_code, definitive
+              reconciliation_required, external_id, error_code,
+              response_status, definitive
        FROM github_delivery_attempts
        ORDER BY surface, source_id`,
     ),
@@ -72,26 +74,29 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
         external_id: 701,
         last_attempt_at: 11,
         reconciliation_required: 0,
+        response_status: null,
         source_id: "evaluation-1",
         surface: "aggregate_feedback",
       },
       {
         attempt_count: 1,
-        definitive: 0,
-        error_code: null,
+        definitive: 1,
+        error_code: "github_api_request_failed",
         external_id: null,
-        last_attempt_at: 10,
-        reconciliation_required: 0,
+        last_attempt_at: null,
+        reconciliation_required: 1,
+        response_status: 403,
         source_id: "evaluation-1:failure",
         surface: "commit_status",
       },
       {
-        attempt_count: 0,
+        attempt_count: 1,
         definitive: 0,
         error_code: "github_api_unavailable",
         external_id: null,
         last_attempt_at: null,
         reconciliation_required: 1,
+        response_status: null,
         source_id: "finding-inline",
         surface: "inline_feedback",
       },
@@ -107,6 +112,32 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
       error_code: null,
       error_detail: null,
       publication_status: "waiting",
+    },
+  );
+  migrated.transaction((transaction) => {
+    resumeGitHubDeliveries(transaction, "connection-1", 20);
+  });
+  assert.deepEqual(
+    migrated.get(
+      `SELECT publication_status, error_code, error_detail
+       FROM github_commit_statuses`,
+    ),
+    {
+      error_code: null,
+      error_detail: null,
+      publication_status: "waiting",
+    },
+  );
+  assert.deepEqual(
+    migrated.get(
+      `SELECT definitive, response_status, next_attempt_at
+       FROM github_delivery_attempts
+       WHERE surface = 'commit_status'`,
+    ),
+    {
+      definitive: 0,
+      next_attempt_at: 20,
+      response_status: null,
     },
   );
 });
