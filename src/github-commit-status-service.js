@@ -1,7 +1,70 @@
 import { githubCommitStatusForEvaluation } from "./github-commit-status.js";
-import { githubPublicationFailure } from "./github-publication-error.js";
+import {
+  attemptGitHubDelivery,
+  recordGitHubDeliveryHealth,
+} from "./github-delivery-service.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
+
+/** @param {unknown} value */
+function evaluationTargetIdentity(value) {
+  try {
+    const target = new URL(/** @type {string} */ (value));
+    const keys = [...target.searchParams.keys()].sort().join(",");
+    return target.pathname === "/" &&
+      target.hash === "" &&
+      keys === "evaluation_id,view" &&
+      target.searchParams.get("view") === "evaluations"
+      ? target.searchParams.get("evaluation_id")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {string} serialized @param {any} fallback @param {number} repositoryId */
+export function readStatusTarget(serialized, fallback, repositoryId) {
+  let target;
+  try {
+    target = JSON.parse(serialized);
+  } catch {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  if (!target || typeof target !== "object" || Array.isArray(target)) {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  const keys = Object.keys(target).sort().join(",");
+  if (
+    keys === "context,head_commit,repository_id,state" &&
+    target.context === "Quality Bar" &&
+    target.head_commit === fallback.head &&
+    target.repository_id === repositoryId &&
+    target.state === fallback.state
+  ) {
+    return fallback;
+  }
+  if (
+    keys !== "context,description,head,repository_id,state,target_url" ||
+    target.context !== "Quality Bar" ||
+    target.repository_id !== repositoryId ||
+    typeof target.description !== "string" ||
+    typeof target.head !== "string" ||
+    target.head !== fallback.head ||
+    target.state !== fallback.state ||
+    typeof target.target_url !== "string" ||
+    evaluationTargetIdentity(target.target_url) === null ||
+    evaluationTargetIdentity(target.target_url) !==
+      evaluationTargetIdentity(fallback.targetUrl)
+  ) {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  return {
+    description: target.description,
+    head: target.head,
+    state: target.state,
+    targetUrl: target.target_url,
+  };
+}
 
 /**
  * @param {any} durableCore
@@ -9,7 +72,10 @@ const PUBLICATION_INTERVAL_MS = 1_000;
  *   cipher: {decrypt: (connection: {appId: number, id: string}, encrypted: string) => any},
  *   externalOrigin: string,
  *   now?: () => number,
- *   verifier: {publishCommitStatus: (...parameters: any[]) => Promise<void>}
+ *   verifier: {
+ *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
+ *     reconcileCommitStatus: (...parameters: any[]) => Promise<number | null>
+ *   }
  * }} dependencies
  */
 export function createGitHubCommitStatusService(
@@ -21,7 +87,8 @@ export function createGitHubCommitStatusService(
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
     typeof now !== "function" ||
-    typeof verifier?.publishCommitStatus !== "function"
+    typeof verifier?.publishCommitStatus !== "function" ||
+    typeof verifier.reconcileCommitStatus !== "function"
   ) {
     throw new TypeError("GitHub commit status dependencies are invalid");
   }
@@ -39,9 +106,11 @@ export function createGitHubCommitStatusService(
     }
     running = true;
     try {
+      const attemptedSources = new Set();
       while (true) {
-        const [row] = durableCore.all(
-          `SELECT
+        const rows = durableCore
+          .all(
+            `SELECT
              github_commit_statuses.evaluation_id,
              github_commit_statuses.repository_id,
              github_commit_statuses.head_commit,
@@ -71,98 +140,141 @@ export function createGitHubCommitStatusService(
            WHERE github_commit_statuses.publication_status = 'waiting'
            ORDER BY github_commit_statuses.repository_id,
                     github_commit_statuses.head_commit
-           LIMIT 1`,
-        );
-        if (!row) {
+            `,
+          )
+          .filter(
+            (/** @type {any} */ row) =>
+              !attemptedSources.has(
+                `${row.evaluation_id}:${row.desired_state}`,
+              ),
+          );
+        if (rows.length === 0) {
           break;
         }
-        const outcome = row.result_outcome ?? "pending";
-        const status = githubCommitStatusForEvaluation(outcome);
-        if (status.state !== row.desired_state) {
-          throw new TypeError("GitHub commit status durable state is invalid");
-        }
-        const credential = cipher.decrypt(
-          {
+        for (const row of rows) {
+          attemptedSources.add(`${row.evaluation_id}:${row.desired_state}`);
+          const outcome = row.result_outcome ?? "pending";
+          const status = githubCommitStatusForEvaluation(outcome);
+          if (status.state !== row.desired_state) {
+            throw new TypeError(
+              "GitHub commit status durable state is invalid",
+            );
+          }
+          const target = new URL("/", origin);
+          target.searchParams.set("view", "evaluations");
+          target.searchParams.set(
+            "evaluation_id",
+            /** @type {string} */ (row.evaluation_id),
+          );
+          const statusTarget = {
+            ...status,
+            head: row.head_commit,
+            targetUrl: target.toString(),
+          };
+          const credentialIdentity = {
             appId: /** @type {number} */ (row.app_id),
             id: /** @type {string} */ (row.connection_id),
-          },
-          /** @type {string} */ (row.encrypted_credential),
-        );
-        const target = new URL("/", origin);
-        target.searchParams.set("view", "evaluations");
-        target.searchParams.set(
-          "evaluation_id",
-          /** @type {string} */ (row.evaluation_id),
-        );
-        try {
-          await verifier.publishCommitStatus(
-            {
-              app_id: row.app_id,
-              app_slug: row.app_slug,
+          };
+          const credentialInput = {
+            app_id: row.app_id,
+            app_slug: row.app_slug,
+            owner: {
+              id: row.principal_id,
+              login: row.principal_login,
+              type: "User",
+            },
+          };
+          const repository = {
+            full_name: /** @type {string} */ (row.name),
+            id: /** @type {number} */ (row.forge_repository_id),
+          };
+          const authentication = () => {
+            const credential = cipher.decrypt(
+              credentialIdentity,
+              /** @type {string} */ (row.encrypted_credential),
+            );
+            return {
+              ...credentialInput,
               client_id: credential.client_id,
-              owner: {
-                id: row.principal_id,
-                login: row.principal_login,
-                type: "User",
-              },
               pem: credential.pem,
+            };
+          };
+          await attemptGitHubDelivery(durableCore, {
+            connectionId: /** @type {string} */ (row.connection_id),
+            create: (deliveryTarget) =>
+              verifier.publishCommitStatus(
+                authentication(),
+                /** @type {number} */ (row.installation_id),
+                repository,
+                readStatusTarget(deliveryTarget, statusTarget, repository.id),
+              ),
+            now,
+            onDefinitive: (transaction, failure, attemptedAt) => {
+              transaction.run(
+                `UPDATE github_commit_statuses
+                 SET publication_status = 'unavailable',
+                     error_code = ?,
+                     error_detail = ?
+                 WHERE repository_id = ?
+                   AND head_commit = ?
+                   AND evaluation_id = ?
+                   AND desired_state = ?
+                   AND publication_status = 'waiting'`,
+                failure.code,
+                failure.detail,
+                row.repository_id,
+                row.head_commit,
+                row.evaluation_id,
+                row.desired_state,
+              );
+              recordGitHubDeliveryHealth(
+                transaction,
+                /** @type {string} */ (row.connection_id),
+                attemptedAt,
+                failure,
+              );
             },
-            /** @type {number} */ (row.installation_id),
-            {
-              full_name: /** @type {string} */ (row.name),
-              id: /** @type {number} */ (row.forge_repository_id),
+            onSuccess: (transaction, externalId, publishedAt) => {
+              if (!Number.isSafeInteger(externalId)) {
+                throw new TypeError("GitHub status identity is invalid");
+              }
+              transaction.run(
+                `UPDATE github_commit_statuses
+                 SET publication_status = 'succeeded',
+                     published_state = desired_state,
+                     published_at = ?,
+                     error_code = NULL,
+                     error_detail = NULL
+                 WHERE repository_id = ?
+                   AND head_commit = ?
+                   AND evaluation_id = ?
+                   AND desired_state = ?
+                   AND publication_status = 'waiting'`,
+                publishedAt,
+                row.repository_id,
+                row.head_commit,
+                row.evaluation_id,
+                row.desired_state,
+              );
             },
-            {
-              ...status,
+            reconcile: (deliveryTarget) =>
+              verifier.reconcileCommitStatus(
+                authentication(),
+                /** @type {number} */ (row.installation_id),
+                repository,
+                readStatusTarget(deliveryTarget, statusTarget, repository.id),
+              ),
+            sourceId: `${row.evaluation_id}:${row.desired_state}`,
+            surface: "commit_status",
+            target: JSON.stringify({
+              context: "Quality Bar",
+              description: status.description,
               head: row.head_commit,
-              targetUrl: target.toString(),
-            },
-          );
-          const publishedAt = now();
-          if (!Number.isSafeInteger(publishedAt) || publishedAt < 0) {
-            throw new TypeError("now must return a nonnegative safe integer");
-          }
-          durableCore.transaction((/** @type {any} */ transaction) =>
-            transaction.run(
-              `UPDATE github_commit_statuses
-                  SET publication_status = 'succeeded',
-                      published_state = desired_state,
-                      published_at = ?,
-                      error_code = NULL,
-                      error_detail = NULL
-                WHERE repository_id = ?
-                  AND head_commit = ?
-                  AND evaluation_id = ?
-                  AND desired_state = ?
-                  AND publication_status = 'waiting'`,
-              publishedAt,
-              row.repository_id,
-              row.head_commit,
-              row.evaluation_id,
-              row.desired_state,
-            ),
-          );
-        } catch (error) {
-          const failure = githubPublicationFailure(error);
-          durableCore.transaction((/** @type {any} */ transaction) =>
-            transaction.run(
-              `UPDATE github_commit_statuses
-                  SET publication_status = 'unavailable',
-                      error_code = ?,
-                      error_detail = ?
-                WHERE repository_id = ?
-                  AND head_commit = ?
-                  AND evaluation_id = ?
-                  AND desired_state = ?
-                  AND publication_status = 'waiting'`,
-              failure.code,
-              failure.detail,
-              row.repository_id,
-              row.head_commit,
-              row.evaluation_id,
-              row.desired_state,
-            ),
-          );
+              repository_id: row.forge_repository_id,
+              state: row.desired_state,
+              target_url: statusTarget.targetUrl,
+            }),
+          });
         }
       }
     } finally {

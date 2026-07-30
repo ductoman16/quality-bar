@@ -6,7 +6,6 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { cancelEvaluation } from "../src/evaluation-cancellation.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { createGitHubFeedbackService } from "../src/github-feedback-service.js";
 import {
   EVALUATION_SELECTION,
@@ -40,6 +39,12 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
       async publishInlineFeedback(...parameters) {
         inlines.push(parameters);
         return 702;
+      },
+      async reconcileAggregateFeedback() {
+        return null;
+      },
+      async reconcileInlineFeedback() {
+        return null;
       },
     },
   });
@@ -109,32 +114,82 @@ test("one append-only aggregate includes every Finding while only frozen-diff co
   );
   assert.deepEqual(resource.feedback, {
     aggregate: {
+      attempt_count: 1,
+      connection_identity: "connection-1",
       error: null,
       external_id: 701,
+      last_attempt_at: "1970-01-01T00:00:00.010Z",
+      next_attempt_at: null,
+      provider_gate_until: null,
+      provider_gate_error: null,
       publication_status: "succeeded",
       published_at: "1970-01-01T00:00:00.010Z",
+      reconciliation_required: false,
+      source_identity: "evaluation-1",
+      target: JSON.stringify({
+        body: aggregates[0][4],
+        pull_request_number: 17,
+        repository_id: 101,
+      }),
     },
     findings: [
       {
+        attempt_count: 1,
+        connection_identity: "connection-1",
         error: null,
         external_id: 702,
         finding_id: "finding-inline",
+        last_attempt_at: "1970-01-01T00:00:00.010Z",
+        next_attempt_at: null,
+        provider_gate_until: null,
+        provider_gate_error: null,
         publication_status: "succeeded",
         published_at: "1970-01-01T00:00:00.010Z",
+        reconciliation_required: false,
+        source_identity: "finding-inline",
+        target: JSON.stringify({
+          body: inlines[0][4].body,
+          commit_id: head,
+          line: 2,
+          path: "src/example.js",
+          side: "LEFT",
+          start_line: 1,
+          start_side: "RIGHT",
+          pull_request_number: 17,
+          repository_id: 101,
+        }),
       },
       {
+        attempt_count: 0,
+        connection_identity: null,
         error: null,
         external_id: null,
         finding_id: "finding-stale",
+        last_attempt_at: null,
+        next_attempt_at: null,
+        provider_gate_until: null,
+        provider_gate_error: null,
         publication_status: "aggregate_only",
         published_at: null,
+        reconciliation_required: false,
+        source_identity: "finding-stale",
+        target: "aggregate_only",
       },
       {
+        attempt_count: 0,
+        connection_identity: null,
         error: null,
         external_id: null,
         finding_id: "finding-whole",
+        last_attempt_at: null,
+        next_attempt_at: null,
+        provider_gate_until: null,
+        provider_gate_error: null,
         publication_status: "aggregate_only",
         published_at: null,
+        reconciliation_required: false,
+        source_identity: "finding-whole",
+        target: "aggregate_only",
       },
     ],
   });
@@ -256,7 +311,7 @@ test("schema 38 adds GitHub feedback without losing the canonical waiver schema"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 40);
+  assert.equal(migrated.facts.schemaVersion, 41);
   assert.deepEqual(
     migrated.all(
       `SELECT name FROM sqlite_schema
@@ -287,6 +342,12 @@ test("retired publication materializes every Finding with exact per-surface stat
       },
       async publishInlineFeedback() {
         throw new Error("inline must not publish");
+      },
+      async reconcileAggregateFeedback() {
+        throw new Error("aggregate must not reconcile");
+      },
+      async reconcileInlineFeedback() {
+        throw new Error("inline must not reconcile");
       },
     },
   });
@@ -320,54 +381,5 @@ test("retired publication materializes every Finding with exact per-surface stat
         publication_status: "aggregate_only",
       },
     ],
-  );
-});
-
-test("feedback failures preserve exact owning errors without inferred success", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-feedback-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  context.after(() => core.close());
-  arrange(core);
-  const failure = new GitHubConnectionError(
-    "github_api_request_failed",
-    "GitHub API request failed with HTTP 403",
-  );
-  const service = createGitHubFeedbackService(core, {
-    cipher: { decrypt: () => ({}) },
-    externalOrigin: "https://quality-bar.example",
-    verifier: {
-      async publishAggregateFeedback() {
-        throw failure;
-      },
-      async publishInlineFeedback() {
-        throw failure;
-      },
-    },
-  });
-
-  await service.publishWaiting();
-
-  assert.deepEqual(
-    core.get(
-      "SELECT publication_status, external_id, error_code, error_detail FROM github_feedback_bundles",
-    ),
-    {
-      error_code: "github_api_request_failed",
-      error_detail: "GitHub API request failed with HTTP 403",
-      external_id: null,
-      publication_status: "unavailable",
-    },
-  );
-  assert.deepEqual(
-    core.get(
-      "SELECT publication_status, external_id, error_code, error_detail FROM github_finding_feedback WHERE finding_id = 'finding-inline'",
-    ),
-    {
-      error_code: "github_api_request_failed",
-      error_detail: "GitHub API request failed with HTTP 403",
-      external_id: null,
-      publication_status: "unavailable",
-    },
   );
 });

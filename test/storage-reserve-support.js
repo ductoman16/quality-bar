@@ -85,11 +85,28 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
               },
             publishCommitStatus:
               options.verifier.publishCommitStatus ??
-              async function publishCommitStatus() {},
+              async function publishCommitStatus() {
+                return 1;
+              },
             publishInlineFeedback:
               options.verifier.publishInlineFeedback ??
               async function publishInlineFeedback() {
                 return 1;
+              },
+            reconcileAggregateFeedback:
+              options.verifier.reconcileAggregateFeedback ??
+              async function reconcileAggregateFeedback() {
+                return null;
+              },
+            reconcileCommitStatus:
+              options.verifier.reconcileCommitStatus ??
+              async function reconcileCommitStatus() {
+                return null;
+              },
+            reconcileInlineFeedback:
+              options.verifier.reconcileInlineFeedback ??
+              async function reconcileInlineFeedback() {
+                return null;
               },
           },
         }

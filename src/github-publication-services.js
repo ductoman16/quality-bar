@@ -9,8 +9,11 @@ import { createGitHubFeedbackService } from "./github-feedback-service.js";
  *   now: () => number,
  *   verifier: {
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
- *     publishCommitStatus: (...parameters: any[]) => Promise<void>,
- *     publishInlineFeedback: (...parameters: any[]) => Promise<number>
+ *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
+ *     publishInlineFeedback: (...parameters: any[]) => Promise<number>,
+ *     reconcileAggregateFeedback: (...parameters: any[]) => Promise<number | null>,
+ *     reconcileCommitStatus: (...parameters: any[]) => Promise<number | null>,
+ *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>
  *   }
  * }} dependencies
  */
@@ -22,7 +25,10 @@ export function createGitHubPublicationServices(
     cipher,
     externalOrigin,
     now,
-    verifier: { publishCommitStatus: verifier.publishCommitStatus },
+    verifier: {
+      publishCommitStatus: verifier.publishCommitStatus,
+      reconcileCommitStatus: verifier.reconcileCommitStatus,
+    },
   });
   const feedback = createGitHubFeedbackService(durableCore, {
     cipher,
@@ -31,6 +37,8 @@ export function createGitHubPublicationServices(
     verifier: {
       publishAggregateFeedback: verifier.publishAggregateFeedback,
       publishInlineFeedback: verifier.publishInlineFeedback,
+      reconcileAggregateFeedback: verifier.reconcileAggregateFeedback,
+      reconcileInlineFeedback: verifier.reconcileInlineFeedback,
     },
   });
   return {

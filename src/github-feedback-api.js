@@ -1,3 +1,5 @@
+import { githubFeedbackSourceIdentity as sourceIdentity } from "./github-feedback-identity.js";
+
 /** @param {unknown} value */
 function object(value) {
   return value && !Array.isArray(value) && typeof value === "object"
@@ -30,6 +32,67 @@ export function createGitHubFeedbackPublisher(dependencies) {
       .map(encodeURIComponent)
       .join("/");
     return `/repos/${fullName}/${collection}/${pullRequestNumber}/comments`;
+  }
+
+  /**
+   * @param {any} credential
+   * @param {number} installationId
+   * @param {{full_name: string, id: number}} repository
+   * @param {number} pullRequestNumber
+   * @param {"issues" | "pulls"} collection
+   * @param {(item: any) => boolean} matches
+   */
+  async function reconcile(
+    credential,
+    installationId,
+    repository,
+    pullRequestNumber,
+    collection,
+    matches,
+  ) {
+    const authorization = await dependencies.installationToken(
+      credential,
+      installationId,
+    );
+    /** @type {number[]} */
+    const identities = [];
+    for (let page = 1; ; page += 1) {
+      const response = await dependencies.request(
+        `${path(repository, pullRequestNumber, collection)}?per_page=100&page=${page}`,
+        {
+          affectedRepositoryIds: [repository.id],
+          authorization,
+          repositoryId: repository.id,
+        },
+      );
+      if (!Array.isArray(response)) {
+        dependencies.fail(
+          "github_api_response_invalid",
+          "GitHub feedback reconciliation response is invalid",
+        );
+      }
+      for (const item of /** @type {any[]} */ (response)) {
+        if (matches(item)) {
+          if (!Number.isSafeInteger(item.id) || item.id <= 0) {
+            dependencies.fail(
+              "github_api_response_invalid",
+              "GitHub feedback reconciliation response is invalid",
+            );
+          }
+          identities.push(item.id);
+        }
+      }
+      if (response.length < 100) {
+        break;
+      }
+    }
+    if (identities.length > 1) {
+      dependencies.fail(
+        "github_delivery_identity_conflict",
+        "GitHub feedback reconciliation found duplicate source identities",
+      );
+    }
+    return identities[0] ?? null;
   }
 
   /**
@@ -164,5 +227,76 @@ export function createGitHubFeedbackPublisher(dependencies) {
     return /** @type {number} */ (response.id);
   }
 
-  return { publishAggregate, publishInline };
+  return {
+    publishAggregate,
+    publishInline,
+    /**
+     * @param {any} credential
+     * @param {number} installationId
+     * @param {{full_name: string, id: number}} repository
+     * @param {number} pullRequestNumber
+     * @param {string} body
+     */
+    reconcileAggregate(
+      credential,
+      installationId,
+      repository,
+      pullRequestNumber,
+      body,
+    ) {
+      const evaluationId = sourceIdentity(body, "Evaluation");
+      return reconcile(
+        credential,
+        installationId,
+        repository,
+        pullRequestNumber,
+        "issues",
+        (item) =>
+          typeof item?.body === "string" &&
+          (evaluationId
+            ? sourceIdentity(item.body, "Evaluation") === evaluationId
+            : item.body === body),
+      );
+    },
+    /**
+     * @param {any} credential
+     * @param {number} installationId
+     * @param {{full_name: string, id: number}} repository
+     * @param {number} pullRequestNumber
+     * @param {any} comment
+     */
+    reconcileInline(
+      credential,
+      installationId,
+      repository,
+      pullRequestNumber,
+      comment,
+    ) {
+      const evaluationId = sourceIdentity(comment?.body, "Evaluation");
+      const findingId = sourceIdentity(comment?.body, "Finding");
+      return reconcile(
+        credential,
+        installationId,
+        repository,
+        pullRequestNumber,
+        "pulls",
+        (item) =>
+          typeof item?.body === "string" &&
+          (evaluationId && findingId
+            ? sourceIdentity(item.body, "Evaluation") === evaluationId &&
+              sourceIdentity(item.body, "Finding") === findingId
+            : item.body === comment.body) &&
+          item.commit_id === comment.commit_id &&
+          item.path === comment.path &&
+          item.line === comment.line &&
+          item.side === comment.side &&
+          (comment.start_line === undefined
+            ? item.start_line === null
+            : item.start_line === comment.start_line) &&
+          (comment.start_side === undefined
+            ? item.start_side === null
+            : item.start_side === comment.start_side),
+      );
+    },
+  };
 }

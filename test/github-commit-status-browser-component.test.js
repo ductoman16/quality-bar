@@ -54,9 +54,18 @@ test("Evaluation detail makes an unavailable success status exact attention with
       window: {
         location: { search: "" },
         qualityBarEvaluationFeedback: {
+          correction(/** @type {any} */ evaluationResource) {
+            return {
+              href: "/?view=repositories#github-connection-details",
+              text:
+                "GitHub Connection " +
+                evaluationResource.commit_status.connection_identity,
+            };
+          },
           hasUnavailable: () => false,
           render() {},
           valid: () => true,
+          validCommitStatus: () => true,
         },
         qualityBarEvaluationResult: { async render() {} },
         qualityBarOperator: {
@@ -74,12 +83,19 @@ test("Evaluation detail makes an unavailable success status exact attention with
   );
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
 
-  const state = controls.get("evaluation-attention").options[0].options[1];
+  const row = controls.get("evaluation-attention").options[0];
+  const state = row.options[1];
+  const correction = row.options[2];
   assert.equal(controls.get("evaluation-recent").options.length, 0);
   assert.equal(state["aria-live"], "polite");
   assert.equal(state.role, "status");
   assert.equal(
     state.textContent,
-    "Commit status — Quality Bar — intended state success — unavailable — Error github_api_request_failed: GitHub API request failed with HTTP 403",
+    'Commit status — Quality Bar — intended state success — unavailable — Source source-1 — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — Error github_api_request_failed: GitHub API request failed with HTTP 403',
   );
+  assert.equal(
+    correction.href,
+    "/?view=repositories#github-connection-details",
+  );
+  assert.equal(correction.textContent, "GitHub Connection connection-1");
 });

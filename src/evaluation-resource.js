@@ -1,4 +1,6 @@
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
+import { githubDeliveryResource as delivery } from "./github-delivery-resource.js";
+import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
 
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
@@ -74,11 +76,16 @@ export function readEvaluation(row) {
     throw new TypeError("Evaluation commit status row is invalid");
   }
   const commitStatusError =
-    row.commit_status_error_code === null
+    row.commit_status_error_code === null &&
+    row.commit_status_delivery_error_code === null
       ? null
       : {
-          code: row.commit_status_error_code,
-          detail: row.commit_status_error_detail,
+          code:
+            row.commit_status_error_code ??
+            row.commit_status_delivery_error_code,
+          detail:
+            row.commit_status_error_detail ??
+            row.commit_status_delivery_error_detail,
         };
   const hasFeedback = row.feedback_evaluation_id !== null;
   let findingFeedback = [];
@@ -123,11 +130,13 @@ export function readEvaluation(row) {
     }
   }
   const feedbackError =
-    row.feedback_error_code === null
+    row.feedback_error_code === null &&
+    row.feedback_delivery_error_code === null
       ? null
       : {
-          code: row.feedback_error_code,
-          detail: row.feedback_error_detail,
+          code: row.feedback_error_code ?? row.feedback_delivery_error_code,
+          detail:
+            row.feedback_error_detail ?? row.feedback_delivery_error_detail,
         };
   return {
     base_commit: row.base_commit,
@@ -139,8 +148,32 @@ export function readEvaluation(row) {
     ...(hasCommitStatus
       ? {
           commit_status: {
+            ...delivery({
+              attempt_count: row.commit_status_attempt_count,
+              connection_identity: row.commit_status_connection_identity,
+              delivery_next_attempt_at:
+                row.commit_status_delivery_next_attempt_at,
+              last_attempt_at: row.commit_status_last_attempt_at,
+              provider_gate_until:
+                row.commit_status_publication_status === "waiting"
+                  ? row.commit_status_provider_gate_until
+                  : null,
+              provider_gate_error_code:
+                row.commit_status_publication_status === "waiting"
+                  ? row.commit_status_provider_gate_error_code
+                  : null,
+              provider_gate_error_detail:
+                row.commit_status_publication_status === "waiting"
+                  ? row.commit_status_provider_gate_error_detail
+                  : null,
+              reconciliation_required:
+                row.commit_status_reconciliation_required,
+              source_identity: row.commit_status_source_identity,
+              target: row.commit_status_target,
+            }),
             context: "Quality Bar",
             error: commitStatusError,
+            external_id: row.commit_status_external_id,
             head_commit: row.commit_status_head_commit,
             publication_status: row.commit_status_publication_status,
             published_at:
@@ -157,6 +190,27 @@ export function readEvaluation(row) {
       ? {
           feedback: {
             aggregate: {
+              ...delivery({
+                attempt_count: row.feedback_attempt_count,
+                connection_identity: row.feedback_connection_identity,
+                delivery_next_attempt_at: row.feedback_delivery_next_attempt_at,
+                last_attempt_at: row.feedback_last_attempt_at,
+                provider_gate_until:
+                  row.feedback_publication_status === "waiting"
+                    ? row.feedback_provider_gate_until
+                    : null,
+                provider_gate_error_code:
+                  row.feedback_publication_status === "waiting"
+                    ? row.feedback_provider_gate_error_code
+                    : null,
+                provider_gate_error_detail:
+                  row.feedback_publication_status === "waiting"
+                    ? row.feedback_provider_gate_error_detail
+                    : null,
+                reconciliation_required: row.feedback_reconciliation_required,
+                source_identity: row.feedback_source_identity,
+                target: row.feedback_target,
+              }),
               error: feedbackError,
               external_id: row.feedback_external_id,
               publication_status: row.feedback_publication_status,
@@ -168,10 +222,46 @@ export function readEvaluation(row) {
                     ),
             },
             findings: findingFeedback.map((item) => ({
+              ...(item.publication_status === "aggregate_only"
+                ? {
+                    attempt_count: 0,
+                    connection_identity: null,
+                    last_attempt_at: null,
+                    next_attempt_at: null,
+                    provider_gate_until: null,
+                    provider_gate_error: null,
+                    reconciliation_required: false,
+                    source_identity: item.finding_id,
+                    target: "aggregate_only",
+                  }
+                : delivery({
+                    attempt_count: item.attempt_count,
+                    connection_identity: item.connection_identity,
+                    delivery_next_attempt_at: item.delivery_next_attempt_at,
+                    last_attempt_at: item.last_attempt_at,
+                    provider_gate_until:
+                      item.publication_status === "waiting"
+                        ? item.provider_gate_until
+                        : null,
+                    provider_gate_error_code:
+                      item.publication_status === "waiting"
+                        ? item.provider_gate_error_code
+                        : null,
+                    provider_gate_error_detail:
+                      item.publication_status === "waiting"
+                        ? item.provider_gate_error_detail
+                        : null,
+                    reconciliation_required: item.reconciliation_required,
+                    source_identity: item.source_identity,
+                    target: item.target,
+                  })),
               error:
-                item.error_code === null
+                item.error_code === null && item.delivery_error_code === null
                   ? null
-                  : { code: item.error_code, detail: item.error_detail },
+                  : {
+                      code: item.error_code ?? item.delivery_error_code,
+                      detail: item.error_detail ?? item.delivery_error_detail,
+                    },
               external_id: item.external_id,
               finding_id: item.finding_id,
               publication_status: item.publication_status,
@@ -208,97 +298,39 @@ export function readEvaluation(row) {
   };
 }
 
-export const EVALUATION_SELECTION = `WITH evaluation_finding_impacts AS (
-  SELECT findings.id, findings.evaluation_id,
-         review_version_criteria.impact
-  FROM findings
-  JOIN review_runs ON review_runs.id = findings.review_run_id
-  JOIN review_version_criteria
-    ON review_version_criteria.review_version_id =
-         review_runs.review_version_id
-   AND review_version_criteria.criterion_id = findings.criterion_id
-)
-SELECT evaluations.*, repositories.normalized_url,
-  CASE WHEN github_automatic_evaluations.evaluation_id IS NULL
-    THEN evaluations.provenance ELSE 'automatic' END AS resource_provenance,
-  github_automatic_evaluations.pull_request_number
-    AS automatic_pull_request_number,
-  evaluation_results.outcome AS result_outcome,
-  (
-    SELECT count(*) FROM waiver_adjudications
-    WHERE waiver_adjudications.evaluation_id = evaluations.id
-      AND waiver_adjudications.execution_status IN ('queued', 'running')
-  ) AS active_waiver_adjudication_count,
-  (
-    SELECT count(*)
-    FROM evaluation_finding_impacts
-    WHERE evaluation_finding_impacts.evaluation_id = evaluations.id
-      AND evaluation_finding_impacts.impact = 'blocking'
-  ) AS blocking_finding_count,
-  (
-    SELECT count(*)
-    FROM waiver_requests
-    WHERE waiver_requests.evaluation_id = evaluations.id
-      AND (
-        SELECT CASE
-          WHEN current_adjudication.execution_status IN ('failed', 'cancelled')
-            THEN 1
-          WHEN current_adjudication.execution_status = 'completed'
-            AND (
-              SELECT waiver_decisions.outcome
-              FROM waiver_decisions
-              WHERE waiver_decisions.waiver_adjudication_id =
-                      current_adjudication.id
-                AND waiver_decisions.waiver_request_id = waiver_requests.id
-              ORDER BY waiver_decisions.rowid DESC
-              LIMIT 1
-            ) = 'error'
-            THEN 1
-          ELSE 0
-        END
-        FROM waiver_adjudication_requests
-        JOIN waiver_adjudications AS current_adjudication
-          ON current_adjudication.id =
-               waiver_adjudication_requests.waiver_adjudication_id
-        WHERE waiver_adjudication_requests.waiver_request_id =
-                waiver_requests.id
-        ORDER BY current_adjudication.rowid DESC
-        LIMIT 1
-      ) = 1
-  ) AS current_waiver_error_count,
-  (
-    SELECT count(*)
-    FROM evaluation_finding_impacts
-    WHERE evaluation_finding_impacts.evaluation_id = evaluations.id
-      AND evaluation_finding_impacts.impact = 'advisory'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM waiver_requests
-        WHERE waiver_requests.finding_id = evaluation_finding_impacts.id
-          AND (
-            SELECT waiver_decisions.outcome
-            FROM waiver_decisions
-            WHERE waiver_decisions.waiver_request_id = waiver_requests.id
-            ORDER BY waiver_decisions.rowid DESC
-            LIMIT 1
-          ) = 'accepted'
-      )
-  ) AS unwaived_advisory_finding_count,
+export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
   github_commit_statuses.evaluation_id AS commit_status_evaluation_id,
   github_commit_statuses.head_commit AS commit_status_head_commit,
   github_commit_statuses.desired_state AS commit_status_state,
-  github_commit_statuses.publication_status
-    AS commit_status_publication_status,
+  github_commit_statuses.publication_status AS commit_status_publication_status,
   github_commit_statuses.published_at AS commit_status_published_at,
-  github_commit_statuses.error_code AS commit_status_error_code,
-  github_commit_statuses.error_detail AS commit_status_error_detail,
+  github_commit_statuses.error_code AS commit_status_error_code, github_commit_statuses.error_detail AS commit_status_error_detail,
+  status_delivery.source_id AS commit_status_source_identity, COALESCE(status_delivery.connection_id, CASE WHEN github_commit_statuses.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS commit_status_connection_identity,
+  status_delivery.target AS commit_status_target,
+  status_delivery.attempt_count AS commit_status_attempt_count,
+  status_delivery.last_attempt_at AS commit_status_last_attempt_at,
+  status_delivery.next_attempt_at AS commit_status_delivery_next_attempt_at,
+  status_delivery.reconciliation_required AS commit_status_reconciliation_required,
+  status_delivery.external_id AS commit_status_external_id,
+  status_delivery.error_code AS commit_status_delivery_error_code, status_delivery.error_detail AS commit_status_delivery_error_detail,
+  delivery_gate.gate_until AS commit_status_provider_gate_until,
+  delivery_gate.error_code AS commit_status_provider_gate_error_code,
+  delivery_gate.error_detail AS commit_status_provider_gate_error_detail,
   github_feedback_bundles.evaluation_id AS feedback_evaluation_id,
-  github_feedback_bundles.publication_status
-    AS feedback_publication_status,
+  github_feedback_bundles.publication_status AS feedback_publication_status,
   github_feedback_bundles.external_id AS feedback_external_id,
   github_feedback_bundles.published_at AS feedback_published_at,
-  github_feedback_bundles.error_code AS feedback_error_code,
-  github_feedback_bundles.error_detail AS feedback_error_detail,
+  github_feedback_bundles.error_code AS feedback_error_code, github_feedback_bundles.error_detail AS feedback_error_detail,
+  aggregate_delivery.source_id AS feedback_source_identity, COALESCE(aggregate_delivery.connection_id, CASE WHEN github_feedback_bundles.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS feedback_connection_identity,
+  aggregate_delivery.target AS feedback_target,
+  aggregate_delivery.attempt_count AS feedback_attempt_count,
+  aggregate_delivery.last_attempt_at AS feedback_last_attempt_at,
+  aggregate_delivery.next_attempt_at AS feedback_delivery_next_attempt_at,
+  aggregate_delivery.reconciliation_required AS feedback_reconciliation_required,
+  aggregate_delivery.error_code AS feedback_delivery_error_code, aggregate_delivery.error_detail AS feedback_delivery_error_detail,
+  delivery_gate.gate_until AS feedback_provider_gate_until,
+  delivery_gate.error_code AS feedback_provider_gate_error_code,
+  delivery_gate.error_detail AS feedback_provider_gate_error_detail,
   CASE WHEN github_feedback_bundles.evaluation_id IS NULL THEN NULL ELSE (
     SELECT json_group_array(json_object(
       'finding_id', finding_id,
@@ -306,12 +338,37 @@ SELECT evaluations.*, repositories.normalized_url,
       'external_id', external_id,
       'published_at', published_at,
       'error_code', error_code,
-      'error_detail', error_detail
+      'error_detail', error_detail,
+      'source_identity', source_identity, 'target', target,
+      'attempt_count', attempt_count, 'connection_identity', connection_identity,
+      'last_attempt_at', last_attempt_at, 'delivery_next_attempt_at', delivery_next_attempt_at,
+      'reconciliation_required', reconciliation_required, 'delivery_error_code', delivery_error_code,
+      'delivery_error_detail', delivery_error_detail,
+      'provider_gate_until', provider_gate_until,
+      'provider_gate_error_code', provider_gate_error_code,
+      'provider_gate_error_detail', provider_gate_error_detail
     ))
     FROM (
-      SELECT finding_id, publication_status, external_id, published_at,
-             error_code, error_detail
+      SELECT github_finding_feedback.finding_id,
+             github_finding_feedback.publication_status,
+             github_finding_feedback.external_id,
+             github_finding_feedback.published_at,
+             github_finding_feedback.error_code,
+             github_finding_feedback.error_detail,
+             inline_delivery.source_id AS source_identity, COALESCE(inline_delivery.connection_id, CASE WHEN github_finding_feedback.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS connection_identity,
+             inline_delivery.target,
+             inline_delivery.attempt_count,
+             inline_delivery.last_attempt_at,
+             inline_delivery.next_attempt_at AS delivery_next_attempt_at,
+             inline_delivery.reconciliation_required,
+             inline_delivery.error_code AS delivery_error_code, inline_delivery.error_detail AS delivery_error_detail,
+             delivery_gate.gate_until AS provider_gate_until,
+             delivery_gate.error_code AS provider_gate_error_code,
+             delivery_gate.error_detail AS provider_gate_error_detail
       FROM github_finding_feedback
+      LEFT JOIN github_delivery_attempts AS inline_delivery
+        ON inline_delivery.surface = 'inline_feedback'
+       AND inline_delivery.source_id = github_finding_feedback.finding_id
       WHERE evaluation_id = evaluations.id
       ORDER BY finding_id
     )
@@ -323,5 +380,18 @@ SELECT evaluations.*, repositories.normalized_url,
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id
   LEFT JOIN github_commit_statuses
     ON github_commit_statuses.evaluation_id = evaluations.id
+  LEFT JOIN github_delivery_attempts AS status_delivery
+    ON status_delivery.surface = 'commit_status'
+   AND status_delivery.source_id =
+         github_commit_statuses.evaluation_id || ':' ||
+         github_commit_statuses.desired_state
   LEFT JOIN github_feedback_bundles
-    ON github_feedback_bundles.evaluation_id = evaluations.id`;
+    ON github_feedback_bundles.evaluation_id = evaluations.id
+  LEFT JOIN github_delivery_attempts AS aggregate_delivery
+    ON aggregate_delivery.surface = 'aggregate_feedback'
+   AND aggregate_delivery.source_id =
+         github_feedback_bundles.evaluation_id
+  LEFT JOIN github_repositories AS delivery_repository
+    ON delivery_repository.repository_id = evaluations.repository_id
+  LEFT JOIN github_delivery_provider_gates AS delivery_gate
+    ON delivery_gate.connection_id = delivery_repository.connection_id`;

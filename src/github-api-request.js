@@ -2,7 +2,7 @@ import { GitHubConnectionError } from "./github-connection-error.js";
 
 const API_VERSION = "2026-03-10";
 
-/** @param {string} code @param {string} message @param {{affectedRepositoryIds?: number[], cause?: unknown, nextAttemptAt?: number, repositoryId?: number}} [options] @returns {never} */
+/** @param {string} code @param {string} message @param {{affectedRepositoryIds?: number[], cause?: unknown, nextAttemptAt?: number, repositoryId?: number, responseStatus?: number}} [options] @returns {never} */
 function fail(code, message, options) {
   throw new GitHubConnectionError(code, message, options);
 }
@@ -96,7 +96,12 @@ export function createGitHubApiRequest(
         fail(
           "github_api_transient_failure",
           `GitHub API request temporarily failed with HTTP ${response.status}`,
-          { affectedRepositoryIds, nextAttemptAt, repositoryId },
+          {
+            affectedRepositoryIds,
+            nextAttemptAt,
+            repositoryId,
+            responseStatus: response.status,
+          },
         );
       }
       if (Number.isSafeInteger(repositoryId) && response.status === 404) {
@@ -109,7 +114,11 @@ export function createGitHubApiRequest(
       fail(
         "github_api_request_failed",
         `GitHub API request failed with HTTP ${response.status}`,
-        { affectedRepositoryIds, repositoryId },
+        {
+          affectedRepositoryIds,
+          repositoryId,
+          responseStatus: response.status,
+        },
       );
     }
     try {

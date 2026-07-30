@@ -192,6 +192,12 @@ export function recordGitHubConnectionVerification(
         ...completedIds,
       );
     }
+    const recoveredIds = input.error
+      ? [...completedIds]
+      : input.affectedRepositoryIds;
+    if (recoveredIds.length > 0) {
+      resumeGitHubDeliveries(transaction, input.id, verifiedAt, recoveredIds);
+    }
     transaction.run(
       `INSERT INTO github_connection_verifications (
          id, connection_id, trigger, outcome, error_code, error_message,
@@ -222,3 +228,4 @@ export function recordGitHubConnectionVerification(
   }
   return { commit, id: verificationId, verifiedAt };
 }
+import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
