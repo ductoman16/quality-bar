@@ -18,31 +18,43 @@ const DEFINITIVE_FAILURES = new Set([
  * @param {{operation: "create" | "reconcile"}} input
  */
 export function githubDeliveryFailure(error, input) {
-  if (!(error instanceof GitHubConnectionError)) {
+  const codedError =
+    error instanceof Error &&
+    typeof (/** @type {any} */ (error).code) === "string" &&
+    DEFINITIVE_FAILURES.has(/** @type {any} */ (error).code)
+      ? /** @type {Error & {code: string}} */ (error)
+      : null;
+  if (!(error instanceof GitHubConnectionError) && !codedError) {
     throw error instanceof Error
       ? error
       : new TypeError("GitHub delivery failed with a non-Error value");
   }
-  const definitive = DEFINITIVE_FAILURES.has(error.code);
+  const failure = /** @type {any} */ (error);
+  const definitive = DEFINITIVE_FAILURES.has(failure.code);
   const uncertain =
     !definitive &&
     input.operation === "create" &&
-    (error.code === "github_api_unavailable" ||
-      error.code === "github_api_response_invalid" ||
-      (error.code === "github_api_transient_failure" &&
-        error.responseStatus !== 429));
+    (failure.code === "github_api_unavailable" ||
+      failure.code === "github_api_response_invalid" ||
+      (failure.code === "github_api_transient_failure" &&
+        failure.responseStatus !== 429));
+  const providerGate =
+    failure.code === "github_api_transient_failure" &&
+    (Number.isSafeInteger(failure.nextAttemptAt) ||
+      [403, 429].includes(/** @type {number} */ (failure.responseStatus)));
   return {
-    code: error.code,
-    detail: error.message,
+    code: failure.code,
+    detail: failure.message,
     definitive,
-    ...(Number.isSafeInteger(error.nextAttemptAt)
-      ? { nextAttemptAt: error.nextAttemptAt }
+    ...(Array.isArray(failure.affectedRepositoryIds)
+      ? { affectedRepositoryIds: failure.affectedRepositoryIds }
       : {}),
-    ...(error.code === "github_api_transient_failure" &&
-    Number.isSafeInteger(error.nextAttemptAt) &&
-    Number.isSafeInteger(error.responseStatus) &&
-    [403, 429].includes(/** @type {number} */ (error.responseStatus))
-      ? { providerGate: true }
+    ...(Number.isSafeInteger(failure.nextAttemptAt)
+      ? { nextAttemptAt: failure.nextAttemptAt }
+      : {}),
+    ...(providerGate ? { providerGate: true } : {}),
+    ...(Number.isSafeInteger(failure.repositoryId)
+      ? { repositoryId: failure.repositoryId }
       : {}),
     uncertain,
   };
@@ -77,12 +89,13 @@ export function ensureGitHubDelivery(durableCore, surface, sourceId, target) {
   return delivery;
 }
 
-/** @param {any} durableCore @param {string} connectionId @param {any} delivery @param {number} attemptedAt */
+/** @param {any} durableCore @param {string} connectionId @param {any} delivery @param {number} attemptedAt @param {"create" | "reconcile"} operation */
 export function beginGitHubDeliveryAttempt(
   durableCore,
   connectionId,
   delivery,
   attemptedAt,
+  operation,
 ) {
   const [gate] = durableCore.all(
     `SELECT gate_until FROM github_delivery_provider_gates
@@ -108,10 +121,13 @@ export function beginGitHubDeliveryAttempt(
       `UPDATE github_delivery_attempts
        SET attempt_count = attempt_count + 1,
            last_attempt_at = ?,
+           reconciliation_required =
+             CASE WHEN ? = 'create' THEN 1 ELSE reconciliation_required END,
            error_code = NULL,
            error_detail = NULL
        WHERE surface = ? AND source_id = ? AND definitive = 0`,
       attemptedAt,
+      operation,
       delivery.surface,
       delivery.source_id,
     );
@@ -119,12 +135,17 @@ export function beginGitHubDeliveryAttempt(
   return true;
 }
 
-/** @param {any} durableCore @param {any} delivery @param {number} externalId */
-export function succeedGitHubDelivery(durableCore, delivery, externalId) {
+/** @param {any} durableCore @param {any} delivery @param {number} externalId @param {(transaction: any) => void} commitPublication */
+export function succeedGitHubDelivery(
+  durableCore,
+  delivery,
+  externalId,
+  commitPublication,
+) {
   if (!Number.isSafeInteger(externalId) || externalId <= 0) {
     throw new TypeError("GitHub delivery external identity is invalid");
   }
-  durableCore.transaction((/** @type {any} */ transaction) =>
+  durableCore.transaction((/** @type {any} */ transaction) => {
     transaction.run(
       `UPDATE github_delivery_attempts
        SET next_attempt_at = 0,
@@ -136,17 +157,19 @@ export function succeedGitHubDelivery(durableCore, delivery, externalId) {
       externalId,
       delivery.surface,
       delivery.source_id,
-    ),
-  );
+    );
+    commitPublication(transaction);
+  });
 }
 
-/** @param {any} durableCore @param {any} delivery @param {number} attemptedAt @param {any} failure @param {string} connectionId */
+/** @param {any} durableCore @param {any} delivery @param {number} attemptedAt @param {any} failure @param {string} connectionId @param {(transaction: any, failure: any) => void} commitDefinitive */
 export function failGitHubDelivery(
   durableCore,
   delivery,
   attemptedAt,
   failure,
   connectionId,
+  commitDefinitive,
 ) {
   const nextAttemptAt = failure.definitive
     ? 0
@@ -187,6 +210,9 @@ export function failGitHubDelivery(
         failure.code,
         failure.detail,
       );
+    }
+    if (failure.definitive) {
+      commitDefinitive(transaction, failure);
     }
   });
   return nextAttemptAt;

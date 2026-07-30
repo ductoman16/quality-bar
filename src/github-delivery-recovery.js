@@ -37,7 +37,6 @@ export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
   transaction.run(
     `UPDATE github_delivery_attempts
      SET next_attempt_at = ?,
-         reconciliation_required = 0,
          error_code = NULL,
          error_detail = NULL,
          definitive = 0

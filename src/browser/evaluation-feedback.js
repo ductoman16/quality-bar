@@ -24,6 +24,11 @@ function validDelivery(publication) {
       typeof publication.next_attempt_at === "string") &&
     (publication.provider_gate_until === null ||
       typeof publication.provider_gate_until === "string") &&
+    validError(publication.provider_gate_error) &&
+    ((publication.provider_gate_until === null &&
+      publication.provider_gate_error === null) ||
+      (typeof publication.provider_gate_until === "string" &&
+        publication.provider_gate_error !== null)) &&
     typeof publication.reconciliation_required === "boolean"
   );
 }
@@ -70,6 +75,12 @@ function deliveryText(publication) {
     (publication.reconciliation_required ? " — Reconciliation required" : "") +
     (publication.provider_gate_until
       ? " — Provider gate until " + publication.provider_gate_until
+      : "") +
+    (publication.provider_gate_error
+      ? " — Provider gate error " +
+        publication.provider_gate_error.code +
+        ": " +
+        publication.provider_gate_error.detail
       : "") +
     (publication.next_attempt_at
       ? " — Next attempt " + publication.next_attempt_at

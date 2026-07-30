@@ -164,6 +164,12 @@ async function renderEvaluation(evaluation) {
         ? " — Provider gate until " +
           evaluation.commit_status.provider_gate_until
         : "") +
+      (evaluation.commit_status.provider_gate_error
+        ? " — Provider gate error " +
+          evaluation.commit_status.provider_gate_error.code +
+          ": " +
+          evaluation.commit_status.provider_gate_error.detail
+        : "") +
       (evaluation.commit_status.next_attempt_at
         ? " — Next attempt " + evaluation.commit_status.next_attempt_at
         : "") +
@@ -182,6 +188,19 @@ async function renderEvaluation(evaluation) {
   }
   if (evaluation.feedback) {
     feedbackRenderer.render(row, evaluation.feedback);
+  }
+  if (
+    evaluation.commit_status?.publication_status === "unavailable" ||
+    evaluation.feedback?.aggregate.publication_status === "unavailable" ||
+    evaluation.feedback?.findings.some(
+      (/** @type {any} */ finding) =>
+        finding.publication_status === "unavailable",
+    )
+  ) {
+    const correction = document.createElement("a");
+    correction.href = "/?view=repositories";
+    correction.textContent = "GitHub Connection and Repository";
+    row.append(correction);
   }
   target.append(row);
   if (["queued", "running"].includes(evaluation.execution_status)) {

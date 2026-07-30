@@ -1,12 +1,8 @@
 import { githubCommitStatusForEvaluation } from "./github-commit-status.js";
 import {
-  beginGitHubDeliveryAttempt,
-  ensureGitHubDelivery,
-  failGitHubDelivery,
-  githubDeliveryFailure,
-  proveGitHubDeliveryAbsent,
-  succeedGitHubDelivery,
-} from "./github-delivery.js";
+  attemptGitHubDelivery,
+  recordGitHubDeliveryHealth,
+} from "./github-delivery-service.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -115,30 +111,6 @@ export function createGitHubCommitStatusService(
             head: row.head_commit,
             targetUrl: target.toString(),
           };
-          let delivery = ensureGitHubDelivery(
-            durableCore,
-            "commit_status",
-            `${row.evaluation_id}:${row.desired_state}`,
-            JSON.stringify({
-              context: "Quality Bar",
-              head_commit: row.head_commit,
-              repository_id: row.repository_id,
-              state: row.desired_state,
-            }),
-          );
-          const attemptedAt = now();
-          if (
-            !Number.isSafeInteger(attemptedAt) ||
-            attemptedAt < 0 ||
-            !beginGitHubDeliveryAttempt(
-              durableCore,
-              /** @type {string} */ (row.connection_id),
-              delivery,
-              attemptedAt,
-            )
-          ) {
-            continue;
-          }
           const credentialIdentity = {
             appId: /** @type {number} */ (row.app_id),
             id: /** @type {string} */ (row.connection_id),
@@ -156,130 +128,91 @@ export function createGitHubCommitStatusService(
             full_name: /** @type {string} */ (row.name),
             id: /** @type {number} */ (row.forge_repository_id),
           };
-          try {
+          const authentication = () => {
             const credential = cipher.decrypt(
               credentialIdentity,
               /** @type {string} */ (row.encrypted_credential),
             );
-            const authentication = {
+            return {
               ...credentialInput,
               client_id: credential.client_id,
               pem: credential.pem,
             };
-            if (delivery.reconciliation_required === 1) {
-              const reconciled = await verifier.reconcileCommitStatus(
-                authentication,
+          };
+          await attemptGitHubDelivery(durableCore, {
+            connectionId: /** @type {string} */ (row.connection_id),
+            create: () =>
+              verifier.publishCommitStatus(
+                authentication(),
                 /** @type {number} */ (row.installation_id),
                 repository,
                 statusTarget,
-              );
-              if (reconciled !== null) {
-                succeedGitHubDelivery(durableCore, delivery, reconciled);
-                durableCore.transaction((/** @type {any} */ transaction) =>
-                  transaction.run(
-                    `UPDATE github_commit_statuses
-                   SET publication_status = 'succeeded',
-                       published_state = desired_state,
-                       published_at = ?,
-                       error_code = NULL,
-                       error_detail = NULL
-                   WHERE repository_id = ?
-                     AND head_commit = ?
-                     AND evaluation_id = ?
-                     AND desired_state = ?
-                     AND publication_status = 'waiting'`,
-                    attemptedAt,
-                    row.repository_id,
-                    row.head_commit,
-                    row.evaluation_id,
-                    row.desired_state,
-                  ),
-                );
-                continue;
-              }
-              proveGitHubDeliveryAbsent(durableCore, delivery, attemptedAt);
-              delivery = ensureGitHubDelivery(
-                durableCore,
-                "commit_status",
-                `${row.evaluation_id}:${row.desired_state}`,
-                delivery.target,
-              );
-              if (
-                !beginGitHubDeliveryAttempt(
-                  durableCore,
-                  /** @type {string} */ (row.connection_id),
-                  delivery,
-                  attemptedAt,
-                )
-              ) {
-                continue;
-              }
-            }
-            const externalId = await verifier.publishCommitStatus(
-              authentication,
-              /** @type {number} */ (row.installation_id),
-              {
-                full_name: /** @type {string} */ (row.name),
-                id: /** @type {number} */ (row.forge_repository_id),
-              },
-              statusTarget,
-            );
-            succeedGitHubDelivery(durableCore, delivery, externalId);
-            durableCore.transaction((/** @type {any} */ transaction) =>
-              transaction.run(
-                `UPDATE github_commit_statuses
-                  SET publication_status = 'succeeded',
-                      published_state = desired_state,
-                      published_at = ?,
-                      error_code = NULL,
-                      error_detail = NULL
-                WHERE repository_id = ?
-                  AND head_commit = ?
-                  AND evaluation_id = ?
-                  AND desired_state = ?
-                  AND publication_status = 'waiting'`,
-                attemptedAt,
-                row.repository_id,
-                row.head_commit,
-                row.evaluation_id,
-                row.desired_state,
               ),
-            );
-          } catch (error) {
-            const failure = githubDeliveryFailure(error, {
-              operation:
-                delivery.reconciliation_required === 1 ? "reconcile" : "create",
-            });
-            failGitHubDelivery(
-              durableCore,
-              delivery,
-              attemptedAt,
-              failure,
-              /** @type {string} */ (row.connection_id),
-            );
-            if (!failure.definitive) {
-              continue;
-            }
-            durableCore.transaction((/** @type {any} */ transaction) =>
+            now,
+            onDefinitive: (transaction, failure, attemptedAt) => {
               transaction.run(
                 `UPDATE github_commit_statuses
-                  SET publication_status = 'unavailable',
-                      error_code = ?,
-                      error_detail = ?
-                WHERE repository_id = ?
-                  AND head_commit = ?
-                  AND evaluation_id = ?
-                  AND desired_state = ?
-                  AND publication_status = 'waiting'`,
+                 SET publication_status = 'unavailable',
+                     error_code = ?,
+                     error_detail = ?
+                 WHERE repository_id = ?
+                   AND head_commit = ?
+                   AND evaluation_id = ?
+                   AND desired_state = ?
+                   AND publication_status = 'waiting'`,
                 failure.code,
                 failure.detail,
                 row.repository_id,
                 row.head_commit,
                 row.evaluation_id,
                 row.desired_state,
+              );
+              recordGitHubDeliveryHealth(
+                transaction,
+                /** @type {string} */ (row.connection_id),
+                attemptedAt,
+                failure,
+              );
+            },
+            onSuccess: (transaction, externalId, publishedAt) => {
+              if (!Number.isSafeInteger(externalId)) {
+                throw new TypeError("GitHub status identity is invalid");
+              }
+              transaction.run(
+                `UPDATE github_commit_statuses
+                 SET publication_status = 'succeeded',
+                     published_state = desired_state,
+                     published_at = ?,
+                     error_code = NULL,
+                     error_detail = NULL
+                 WHERE repository_id = ?
+                   AND head_commit = ?
+                   AND evaluation_id = ?
+                   AND desired_state = ?
+                   AND publication_status = 'waiting'`,
+                publishedAt,
+                row.repository_id,
+                row.head_commit,
+                row.evaluation_id,
+                row.desired_state,
+              );
+            },
+            reconcile: () =>
+              verifier.reconcileCommitStatus(
+                authentication(),
+                /** @type {number} */ (row.installation_id),
+                repository,
+                statusTarget,
               ),
-            );
-          }
+            sourceId: `${row.evaluation_id}:${row.desired_state}`,
+            surface: "commit_status",
+            target: JSON.stringify({
+              context: "Quality Bar",
+              head_commit: row.head_commit,
+              repository_id: row.repository_id,
+              state: row.desired_state,
+            }),
+          });
         }
       }
     } finally {

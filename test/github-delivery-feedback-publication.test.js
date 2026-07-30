@@ -15,12 +15,16 @@ test("feedback failures preserve exact owning errors without inferred success", 
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
   arrange(core);
-  const failure = new GitHubConnectionError(
-    "github_api_request_failed",
-    "GitHub API request failed with HTTP 403",
+  const failure = Object.assign(
+    new Error("GitHub Connection credential cannot be decrypted"),
+    { code: "github_connection_credential_undecryptable" },
   );
   const service = createGitHubFeedbackService(core, {
-    cipher: { decrypt: () => ({}) },
+    cipher: {
+      decrypt() {
+        throw failure;
+      },
+    },
     externalOrigin: "https://quality-bar.example",
     verifier: {
       async publishAggregateFeedback() {
@@ -40,8 +44,8 @@ test("feedback failures preserve exact owning errors without inferred success", 
 
   await service.publishWaiting();
   const expected = {
-    error_code: "github_api_request_failed",
-    error_detail: "GitHub API request failed with HTTP 403",
+    error_code: "github_connection_credential_undecryptable",
+    error_detail: "GitHub Connection credential cannot be decrypted",
     external_id: null,
     publication_status: "unavailable",
   };
@@ -50,6 +54,17 @@ test("feedback failures preserve exact owning errors without inferred success", 
       "SELECT publication_status, external_id, error_code, error_detail FROM github_feedback_bundles",
     ),
     expected,
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT health, health_error_code, health_error_message
+       FROM github_connections`,
+    ),
+    {
+      health: "error",
+      health_error_code: "github_connection_credential_undecryptable",
+      health_error_message: "GitHub Connection credential cannot be decrypted",
+    },
   );
   assert.deepEqual(
     core.get(

@@ -156,6 +156,14 @@ export function readEvaluation(row) {
                 row.commit_status_publication_status === "waiting"
                   ? row.commit_status_provider_gate_until
                   : null,
+              provider_gate_error_code:
+                row.commit_status_publication_status === "waiting"
+                  ? row.commit_status_provider_gate_error_code
+                  : null,
+              provider_gate_error_detail:
+                row.commit_status_publication_status === "waiting"
+                  ? row.commit_status_provider_gate_error_detail
+                  : null,
               reconciliation_required:
                 row.commit_status_reconciliation_required,
               source_identity: row.commit_status_source_identity,
@@ -188,6 +196,14 @@ export function readEvaluation(row) {
                   row.feedback_publication_status === "waiting"
                     ? row.feedback_provider_gate_until
                     : null,
+                provider_gate_error_code:
+                  row.feedback_publication_status === "waiting"
+                    ? row.feedback_provider_gate_error_code
+                    : null,
+                provider_gate_error_detail:
+                  row.feedback_publication_status === "waiting"
+                    ? row.feedback_provider_gate_error_detail
+                    : null,
                 reconciliation_required: row.feedback_reconciliation_required,
                 source_identity: row.feedback_source_identity,
                 target: row.feedback_target,
@@ -209,6 +225,7 @@ export function readEvaluation(row) {
                     last_attempt_at: null,
                     next_attempt_at: null,
                     provider_gate_until: null,
+                    provider_gate_error: null,
                     reconciliation_required: false,
                     source_identity: item.finding_id,
                     target: "aggregate_only",
@@ -220,6 +237,14 @@ export function readEvaluation(row) {
                     provider_gate_until:
                       item.publication_status === "waiting"
                         ? item.provider_gate_until
+                        : null,
+                    provider_gate_error_code:
+                      item.publication_status === "waiting"
+                        ? item.provider_gate_error_code
+                        : null,
+                    provider_gate_error_detail:
+                      item.publication_status === "waiting"
+                        ? item.provider_gate_error_detail
                         : null,
                     reconciliation_required: item.reconciliation_required,
                     source_identity: item.source_identity,
@@ -362,14 +387,9 @@ SELECT evaluations.*, repositories.normalized_url,
   status_delivery.external_id AS commit_status_external_id,
   status_delivery.error_code AS commit_status_delivery_error_code,
   status_delivery.error_detail AS commit_status_delivery_error_detail,
-  (
-    SELECT github_delivery_provider_gates.gate_until
-    FROM github_delivery_provider_gates
-    JOIN github_repositories AS status_gate_repository
-      ON status_gate_repository.connection_id =
-           github_delivery_provider_gates.connection_id
-    WHERE status_gate_repository.repository_id = evaluations.repository_id
-  ) AS commit_status_provider_gate_until,
+  delivery_gate.gate_until AS commit_status_provider_gate_until,
+  delivery_gate.error_code AS commit_status_provider_gate_error_code,
+  delivery_gate.error_detail AS commit_status_provider_gate_error_detail,
   github_feedback_bundles.evaluation_id AS feedback_evaluation_id,
   github_feedback_bundles.publication_status
     AS feedback_publication_status,
@@ -386,14 +406,9 @@ SELECT evaluations.*, repositories.normalized_url,
     AS feedback_reconciliation_required,
   aggregate_delivery.error_code AS feedback_delivery_error_code,
   aggregate_delivery.error_detail AS feedback_delivery_error_detail,
-  (
-    SELECT github_delivery_provider_gates.gate_until
-    FROM github_delivery_provider_gates
-    JOIN github_repositories AS feedback_gate_repository
-      ON feedback_gate_repository.connection_id =
-           github_delivery_provider_gates.connection_id
-    WHERE feedback_gate_repository.repository_id = evaluations.repository_id
-  ) AS feedback_provider_gate_until,
+  delivery_gate.gate_until AS feedback_provider_gate_until,
+  delivery_gate.error_code AS feedback_provider_gate_error_code,
+  delivery_gate.error_detail AS feedback_provider_gate_error_detail,
   CASE WHEN github_feedback_bundles.evaluation_id IS NULL THEN NULL ELSE (
     SELECT json_group_array(json_object(
       'finding_id', finding_id,
@@ -410,7 +425,9 @@ SELECT evaluations.*, repositories.normalized_url,
       'reconciliation_required', reconciliation_required,
       'delivery_error_code', delivery_error_code,
       'delivery_error_detail', delivery_error_detail,
-      'provider_gate_until', provider_gate_until
+      'provider_gate_until', provider_gate_until,
+      'provider_gate_error_code', provider_gate_error_code,
+      'provider_gate_error_detail', provider_gate_error_detail
     ))
     FROM (
       SELECT github_finding_feedback.finding_id,
@@ -427,15 +444,9 @@ SELECT evaluations.*, repositories.normalized_url,
              inline_delivery.reconciliation_required,
              inline_delivery.error_code AS delivery_error_code,
              inline_delivery.error_detail AS delivery_error_detail,
-             (
-               SELECT github_delivery_provider_gates.gate_until
-               FROM github_delivery_provider_gates
-               JOIN github_repositories AS inline_gate_repository
-                 ON inline_gate_repository.connection_id =
-                      github_delivery_provider_gates.connection_id
-               WHERE inline_gate_repository.repository_id =
-                       evaluations.repository_id
-             ) AS provider_gate_until
+             delivery_gate.gate_until AS provider_gate_until,
+             delivery_gate.error_code AS provider_gate_error_code,
+             delivery_gate.error_detail AS provider_gate_error_detail
       FROM github_finding_feedback
       LEFT JOIN github_delivery_attempts AS inline_delivery
         ON inline_delivery.surface = 'inline_feedback'
@@ -462,4 +473,8 @@ SELECT evaluations.*, repositories.normalized_url,
   LEFT JOIN github_delivery_attempts AS aggregate_delivery
     ON aggregate_delivery.surface = 'aggregate_feedback'
    AND aggregate_delivery.source_id =
-         github_feedback_bundles.evaluation_id`;
+         github_feedback_bundles.evaluation_id
+  LEFT JOIN github_repositories AS delivery_repository
+    ON delivery_repository.repository_id = evaluations.repository_id
+  LEFT JOIN github_delivery_provider_gates AS delivery_gate
+    ON delivery_gate.connection_id = delivery_repository.connection_id`;

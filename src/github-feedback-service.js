@@ -4,6 +4,10 @@ import {
   projectFrozenDiffLineRange,
 } from "./github-feedback.js";
 import { attemptGitHubDelivery } from "./github-delivery-service.js";
+import {
+  recordGitHubBundleDeliveryFailure,
+  recordGitHubFindingDeliveryFailure,
+} from "./github-feedback-delivery.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
@@ -122,36 +126,6 @@ export function createGitHubFeedbackService(
         );
       }
     });
-  }
-
-  /** @param {any} bundle @param {{code: string, detail: string}} failure */
-  function recordBundleFailure(bundle, failure) {
-    durableCore.transaction((/** @type {any} */ transaction) =>
-      transaction.run(
-        `UPDATE github_feedback_bundles
-         SET publication_status = 'unavailable',
-             error_code = ?, error_detail = ?
-         WHERE evaluation_id = ? AND publication_status = 'waiting'`,
-        failure.code,
-        failure.detail,
-        bundle.evaluation_id,
-      ),
-    );
-  }
-
-  /** @param {any} row @param {{code: string, detail: string}} failure */
-  function recordFindingFailure(row, failure) {
-    durableCore.transaction((/** @type {any} */ transaction) =>
-      transaction.run(
-        `UPDATE github_finding_feedback
-         SET publication_status = 'unavailable',
-             error_code = ?, error_detail = ?
-         WHERE finding_id = ? AND publication_status = 'waiting'`,
-        failure.code,
-        failure.detail,
-        row.finding_id,
-      ),
-    );
   }
 
   async function publishWaiting() {
@@ -275,19 +249,23 @@ export function createGitHubFeedbackService(
                 /** @type {number} */ (bundle.pull_request_number),
                 aggregate,
               ),
-            onDefinitive: (failure) => recordBundleFailure(bundle, failure),
+            onDefinitive: (transaction, failure, attemptedAt) =>
+              recordGitHubBundleDeliveryFailure(
+                transaction,
+                bundle,
+                failure,
+                attemptedAt,
+              ),
             now,
-            onSuccess: (externalId, publishedAt) =>
-              durableCore.transaction((/** @type {any} */ transaction) =>
-                transaction.run(
-                  `UPDATE github_feedback_bundles
+            onSuccess: (transaction, externalId, publishedAt) =>
+              transaction.run(
+                `UPDATE github_feedback_bundles
                SET publication_status = 'succeeded',
                    external_id = ?, published_at = ?
                WHERE evaluation_id = ? AND publication_status = 'waiting'`,
-                  externalId,
-                  publishedAt,
-                  evaluationId,
-                ),
+                externalId,
+                publishedAt,
+                evaluationId,
               ),
             reconcile: () =>
               verifier.reconcileAggregateFeedback(
@@ -351,19 +329,24 @@ export function createGitHubFeedbackService(
                 /** @type {number} */ (bundle.pull_request_number),
                 comment,
               ),
-            onDefinitive: (failure) => recordFindingFailure(row, failure),
+            onDefinitive: (transaction, failure, attemptedAt) =>
+              recordGitHubFindingDeliveryFailure(
+                transaction,
+                bundle,
+                row,
+                failure,
+                attemptedAt,
+              ),
             now,
-            onSuccess: (externalId, publishedAt) =>
-              durableCore.transaction((/** @type {any} */ transaction) =>
-                transaction.run(
-                  `UPDATE github_finding_feedback
+            onSuccess: (transaction, externalId, publishedAt) =>
+              transaction.run(
+                `UPDATE github_finding_feedback
                  SET publication_status = 'succeeded',
                      external_id = ?, published_at = ?
                  WHERE finding_id = ? AND publication_status = 'waiting'`,
-                  externalId,
-                  publishedAt,
-                  row?.finding_id,
-                ),
+                externalId,
+                publishedAt,
+                row?.finding_id,
               ),
             reconcile: () =>
               verifier.reconcileInlineFeedback(

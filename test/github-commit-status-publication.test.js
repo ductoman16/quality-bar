@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { retireGitHubConnection } from "../src/github-connection-lifecycle.js";
 import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
@@ -17,11 +16,14 @@ test("status publication records success and the exact owning GitHub failure", a
   const head = arrangeGitHubCommitStatus(core);
   /** @type {any[][]} */
   const publications = [];
-  /** @type {GitHubConnectionError | null} */
+  /** @type {Error | null} */
   let failure = null;
   const service = createGitHubCommitStatusService(core, {
     cipher: {
       decrypt() {
+        if (failure) {
+          throw failure;
+        }
         return {
           client_id: "Iv1.client",
           installation_id: 73,
@@ -33,9 +35,6 @@ test("status publication records success and the exact owning GitHub failure", a
     now: () => 10,
     verifier: {
       async publishCommitStatus(...parameters) {
-        if (failure) {
-          throw failure;
-        }
         publications.push(parameters);
         return 901;
       },
@@ -76,9 +75,9 @@ test("status publication records success and the exact owning GitHub failure", a
     `INSERT INTO evaluation_results (evaluation_id, outcome, completed_at)
      VALUES ('evaluation-1', 'error', 11)`,
   );
-  failure = new GitHubConnectionError(
-    "github_api_request_failed",
-    "GitHub API request failed with HTTP 403",
+  failure = Object.assign(
+    new Error("GitHub Connection credential cannot be decrypted"),
+    { code: "github_connection_credential_undecryptable" },
   );
   await service.publishWaiting();
   assert.deepEqual(
@@ -88,9 +87,20 @@ test("status publication records success and the exact owning GitHub failure", a
     ),
     {
       desired_state: "error",
-      error_code: "github_api_request_failed",
-      error_detail: "GitHub API request failed with HTTP 403",
+      error_code: "github_connection_credential_undecryptable",
+      error_detail: "GitHub Connection credential cannot be decrypted",
       publication_status: "unavailable",
+    },
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT health, health_error_code, health_error_message
+       FROM github_connections`,
+    ),
+    {
+      health: "error",
+      health_error_code: "github_connection_credential_undecryptable",
+      health_error_message: "GitHub Connection credential cannot be decrypted",
     },
   );
   core.close();

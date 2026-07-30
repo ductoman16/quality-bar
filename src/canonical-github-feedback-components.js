@@ -8,6 +8,12 @@ export function canonicalGitHubDeliveryProperties() {
     attempt_count: { minimum: 0, type: "integer" },
     last_attempt_at: timestamp,
     next_attempt_at: timestamp,
+    provider_gate_error: {
+      oneOf: [
+        { $ref: "#/components/schemas/GitHubFeedbackPublicationError" },
+        { type: "null" },
+      ],
+    },
     provider_gate_until: timestamp,
     reconciliation_required: { type: "boolean" },
     source_identity: { minLength: 1, type: "string" },
@@ -21,6 +27,7 @@ export const GITHUB_DELIVERY_REQUIRED = [
   "attempt_count",
   "last_attempt_at",
   "provider_gate_until",
+  "provider_gate_error",
   "next_attempt_at",
   "reconciliation_required",
 ];

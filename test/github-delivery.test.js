@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
+import { attemptGitHubDelivery } from "../src/github-delivery-service.js";
 import {
   githubDeliveryFailure,
   nextGitHubDeliveryAttemptAt,
@@ -85,9 +86,96 @@ test("GitHub delivery distinguishes definitive failures and uncertain creates", 
       uncertain: false,
     },
   );
+  assert.deepEqual(
+    githubDeliveryFailure(
+      new GitHubConnectionError(
+        "github_api_transient_failure",
+        "GitHub API request temporarily failed with HTTP 429",
+        { responseStatus: 429 },
+      ),
+      { operation: "create" },
+    ),
+    {
+      code: "github_api_transient_failure",
+      detail: "GitHub API request temporarily failed with HTTP 429",
+      definitive: false,
+      providerGate: true,
+      uncertain: false,
+    },
+  );
+  assert.deepEqual(
+    githubDeliveryFailure(
+      new GitHubConnectionError(
+        "github_api_transient_failure",
+        "GitHub API request temporarily failed with HTTP 503",
+        { nextAttemptAt: 125_000, responseStatus: 503 },
+      ),
+      { operation: "create" },
+    ),
+    {
+      code: "github_api_transient_failure",
+      detail: "GitHub API request temporarily failed with HTTP 503",
+      definitive: false,
+      nextAttemptAt: 125_000,
+      providerGate: true,
+      uncertain: true,
+    },
+  );
 });
 
-test("corrected GitHub credentials resume definitive deliveries and clear the provider gate", (context) => {
+test("every create crash reconciles before another status, aggregate, or inline write", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-delivery-crash-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  const surfaces = ["commit_status", "aggregate_feedback", "inline_feedback"];
+  for (const [index, surface] of surfaces.entries()) {
+    let creates = 0;
+    let reconciles = 0;
+    let crash = true;
+    const input = {
+      connectionId: "connection-1",
+      create: async () => {
+        creates += 1;
+        return 700 + index;
+      },
+      now: () => 10,
+      onDefinitive() {},
+      onSuccess() {
+        if (crash) {
+          throw new Error("injected local commit crash");
+        }
+      },
+      reconcile: async () => {
+        reconciles += 1;
+        return 700 + index;
+      },
+      sourceId: `source-${index}`,
+      surface: /** @type {any} */ (surface),
+      target: `target-${index}`,
+    };
+    await assert.rejects(
+      attemptGitHubDelivery(core, input),
+      /injected local commit crash/,
+    );
+    assert.deepEqual(
+      core.get(
+        `SELECT external_id, reconciliation_required
+         FROM github_delivery_attempts
+         WHERE surface = ? AND source_id = ?`,
+        surface,
+        input.sourceId,
+      ),
+      { external_id: null, reconciliation_required: 1 },
+    );
+    crash = false;
+    await attemptGitHubDelivery(core, input);
+    assert.equal(creates, 1);
+    assert.equal(reconciles, 1);
+  }
+});
+
+test("corrected GitHub credentials preserve uncertainty and reconcile before create", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-delivery-recovery-"),
   );
@@ -105,6 +193,7 @@ test("corrected GitHub credentials resume definitive deliveries and clear the pr
     `UPDATE github_delivery_attempts
      SET attempt_count = 1,
          last_attempt_at = 10,
+         reconciliation_required = 1,
          definitive = 1,
          error_code = 'github_api_request_failed',
          error_detail = 'GitHub API request failed with HTTP 403'`,
@@ -137,7 +226,7 @@ test("corrected GitHub credentials resume definitive deliveries and clear the pr
   assert.deepEqual(
     core.get(
       `SELECT attempt_count, last_attempt_at, next_attempt_at,
-              definitive, error_code, error_detail
+              reconciliation_required, definitive, error_code, error_detail
        FROM github_delivery_attempts`,
     ),
     {
@@ -147,6 +236,7 @@ test("corrected GitHub credentials resume definitive deliveries and clear the pr
       error_detail: null,
       last_attempt_at: 10,
       next_attempt_at: 20,
+      reconciliation_required: 1,
     },
   );
   assert.equal(
@@ -154,4 +244,30 @@ test("corrected GitHub credentials resume definitive deliveries and clear the pr
       ?.count,
     0,
   );
+  let creates = 0;
+  let reconciles = 0;
+  await attemptGitHubDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => {
+      creates += 1;
+      return 902;
+    },
+    now: () => 20,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async () => {
+      reconciles += 1;
+      return 901;
+    },
+    sourceId: "evaluation-1:pending",
+    surface: "commit_status",
+    target: /** @type {string} */ (
+      core.get(
+        `SELECT target FROM github_delivery_attempts
+         WHERE surface = 'commit_status'`,
+      )?.target
+    ),
+  });
+  assert.equal(creates, 0);
+  assert.equal(reconciles, 1);
 });

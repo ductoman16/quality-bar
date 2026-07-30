@@ -27,6 +27,7 @@ const delivery = {
   last_attempt_at: "2026-07-28T12:00:00.000Z",
   next_attempt_at: null,
   provider_gate_until: null,
+  provider_gate_error: null,
   reconciliation_required: false,
   source_identity: "source-1",
   target: '{"repository_id":101}',

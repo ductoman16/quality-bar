@@ -17,6 +17,16 @@ export function githubDeliveryResource(value) {
     !(
       value.provider_gate_until === null ||
       Number.isSafeInteger(value.provider_gate_until)
+    ) ||
+    !(
+      (value.provider_gate_until === null &&
+        value.provider_gate_error_code === null &&
+        value.provider_gate_error_detail === null) ||
+      (Number.isSafeInteger(value.provider_gate_until) &&
+        typeof value.provider_gate_error_code === "string" &&
+        value.provider_gate_error_code.length > 0 &&
+        typeof value.provider_gate_error_detail === "string" &&
+        value.provider_gate_error_detail.length > 0)
     )
   ) {
     throw new TypeError("GitHub delivery attempt row is invalid");
@@ -34,6 +44,13 @@ export function githubDeliveryResource(value) {
       value.provider_gate_until === null
         ? null
         : timestamp(value.provider_gate_until),
+    provider_gate_error:
+      value.provider_gate_until === null
+        ? null
+        : {
+            code: value.provider_gate_error_code,
+            detail: value.provider_gate_error_detail,
+          },
     reconciliation_required: value.reconciliation_required === 1,
     source_identity: value.source_identity,
     target: value.target,

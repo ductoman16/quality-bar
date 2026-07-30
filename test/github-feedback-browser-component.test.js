@@ -56,6 +56,11 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
                         finding_id: "finding-failed",
                         next_attempt_at: "2026-07-29T12:01:00.000Z",
                         provider_gate_until: "2026-07-29T12:01:00.000Z",
+                        provider_gate_error: {
+                          code: "github_api_transient_failure",
+                          detail:
+                            "GitHub API request temporarily failed with HTTP 429",
+                        },
                         publication_status: "waiting",
                         published_at: null,
                         reconciliation_required: true,
@@ -131,7 +136,7 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
         ariaLive: "polite",
         role: "status",
         textContent:
-          'Finding finding-failed inline feedback — waiting — Source finding-failed — Target {"repository_id":101} — Attempts 2 — Last attempt 2026-07-28T12:00:00.000Z — Reconciliation required — Provider gate until 2026-07-29T12:01:00.000Z — Next attempt 2026-07-29T12:01:00.000Z — Error github_api_transient_failure: GitHub API request temporarily failed with HTTP 429',
+          'Finding finding-failed inline feedback — waiting — Source finding-failed — Target {"repository_id":101} — Attempts 2 — Last attempt 2026-07-28T12:00:00.000Z — Reconciliation required — Provider gate until 2026-07-29T12:01:00.000Z — Provider gate error github_api_transient_failure: GitHub API request temporarily failed with HTTP 429 — Next attempt 2026-07-29T12:01:00.000Z — Error github_api_transient_failure: GitHub API request temporarily failed with HTTP 429',
       },
     ],
   );
