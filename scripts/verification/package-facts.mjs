@@ -67,6 +67,7 @@
  *     foreignKeys?: boolean,
  *     integrity?: string,
  *     journalMode?: string,
+ *     restoredDiscovery?: {forgejo?: string, github?: string},
  *     schemaVersion?: number,
  *     synchronous?: string,
  *   },
@@ -354,6 +355,11 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.restore?.snapshotEraFactsPreserved === true,
       "restore.snapshotEraFactsPreserved must equal true",
+    ],
+    [
+      packageFacts?.database?.restoredDiscovery?.github === "pending" &&
+        packageFacts?.database?.restoredDiscovery?.forgejo === "pending",
+      "restore must require fresh GitHub and Forgejo discovery baselines",
     ],
     [
       packageFacts?.restore?.postBackupFactsAbsent === true,

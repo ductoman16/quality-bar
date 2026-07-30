@@ -15,6 +15,7 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   journalMode: string,
  *   operatorPasswordVerifier: string | null,
  *   persistedMarker: string | null,
+ *   restoredDiscovery: {forgejo: string, github: string},
  *   schemaVersion: number,
  *   synchronous: string,
  * }} DatabaseFacts
@@ -104,6 +105,10 @@ export function provePackageOfflineRestore({
   assert.equal(restoredDatabaseFacts.persistedMarker, "survived");
   assert.equal(restoredDatabaseFacts.activeBrowserSessions, 0);
   assert.equal(restoredDatabaseFacts.activeImplementerToken, false);
+  assert.deepEqual(restoredDatabaseFacts.restoredDiscovery, {
+    forgejo: "pending",
+    github: "pending",
+  });
   const snapshotPasswordStatus = /** @type {{authenticated: boolean}} */ (
     jsonPackageProbe(
       fixture,

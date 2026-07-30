@@ -205,7 +205,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "core-unit-contracts-including-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
+        "core-unit-contracts-including-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-restored-discovery-baselines-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -223,6 +223,7 @@ export function createGateDefinitions(metadata) {
         "test/installed-application.test.js",
         "test/installed-backup.test.js",
         "test/offline-restore.test.js",
+        "test/restored-discovery.test.js",
         "test/operator-authority-recovery.test.js",
         "test/operator-password.test.js",
         "test/quality-foundation.test.js",

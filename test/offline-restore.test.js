@@ -167,10 +167,10 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
     ),
     [
       {
-        baseline_status: "complete",
-        last_success_at: 100,
-        next_attempt_at: 200,
-        snapshot: "[]",
+        baseline_status: "pending",
+        last_success_at: null,
+        next_attempt_at: 0,
+        snapshot: null,
       },
     ],
   );
@@ -181,10 +181,10 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
     ),
     [
       {
-        baseline_status: "complete",
-        last_success_at: 100,
-        next_attempt_at: 200,
-        snapshot: "[]",
+        baseline_status: "pending",
+        last_success_at: null,
+        next_attempt_at: 0,
+        snapshot: null,
       },
     ],
   );
