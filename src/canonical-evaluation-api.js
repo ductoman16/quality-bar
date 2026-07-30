@@ -1,3 +1,5 @@
+import { canonicalWaiverRecoveryOperation } from "./canonical-waiver-recovery-api.js";
+
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
   const authenticated = [{ browser_session: [] }, { implementer_token: [] }];
@@ -150,6 +152,26 @@ export function canonicalEvaluationPaths(errorResponse) {
       },
     },
     "/api/v1/evaluations/{evaluation_id}/waiver-adjudications": {
+      get: {
+        operationId: "listEvaluationWaiverAdjudications",
+        parameters: [identityParameter],
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/WaiverAdjudicationOperationalCollection",
+                },
+              },
+            },
+            description: "Current operational Waiver Adjudication projection",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          404: errorResponse,
+        },
+        security: authenticated,
+      },
       post: {
         operationId: "submitWaiverBatch",
         parameters: [
@@ -260,6 +282,8 @@ export function canonicalEvaluationPaths(errorResponse) {
       "Complete immutable Waiver Decision",
       "waiver_decision_id",
     ),
+    "/api/v1/waiver-adjudications/{waiver_adjudication_id}/recover":
+      canonicalWaiverRecoveryOperation(errorResponse),
     "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}":
       relatedRead(
         "getEvaluationReviewRun",

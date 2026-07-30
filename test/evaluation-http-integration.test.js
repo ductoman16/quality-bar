@@ -113,6 +113,12 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
     outcome: "clear",
     review_runs: [],
   });
+  const waiverAdjudications = await request(
+    "/api/v1/evaluations/evaluation-1/waiver-adjudications",
+    { headers: { cookie: operatorHeaders.cookie } },
+  );
+  assert.equal(waiverAdjudications.status, 200);
+  assert.deepEqual(await waiverAdjudications.json(), { items: [] });
 
   const collection = await request("/api/v1/evaluations", {
     headers: { cookie: operatorHeaders.cookie },

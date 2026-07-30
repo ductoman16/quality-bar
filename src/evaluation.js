@@ -31,6 +31,8 @@ import {
 } from "./review-run-admission.js";
 import { createWaiverBatchService } from "./waiver-batch.js";
 import { createWaiverResourceReader } from "./waiver-resource.js";
+import { readEvaluationWaiverAdjudications } from "./waiver-adjudication-resource.js";
+import { createAnalyticsService } from "./analytics.js";
 
 export { EvaluationError };
 export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
@@ -101,6 +103,7 @@ export function createEvaluationService(
     storageReserve,
   });
   const waiverResources = createWaiverResourceReader(durableCore);
+  const analytics = createAnalyticsService(durableCore);
 
   /**
    * @param {any} transaction
@@ -312,6 +315,13 @@ export function createEvaluationService(
       };
     },
     read,
+    readAnalytics: analytics.read,
+    /** @param {string} id */
+    readWaiverAdjudications(id) {
+      read(id);
+      return { items: readEvaluationWaiverAdjudications(durableCore, id) };
+    },
+    recoverWaiverAdjudication: waiverBatches.recoverAdjudication,
     retryWaiverErrors: waiverBatches.retryErrors,
     submitWaiverBatch: waiverBatches.submit,
     readWaiverAdjudication: waiverResources.readAdjudication,

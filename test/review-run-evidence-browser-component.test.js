@@ -73,6 +73,7 @@ test("the operator browser preserves an exact unavailable-material Criterion err
       ],
     },
     "",
+    [],
   );
 
   assert.equal(
@@ -154,6 +155,7 @@ test("the operator browser renders raw Review Run diagnostics without configurat
       ],
     },
     "",
+    [],
   );
 
   const diagnostics = target.options[0];
@@ -245,6 +247,7 @@ test("historical CLI evidence is explicitly unavailable and diagnostics failures
     evaluation,
     result,
     "",
+    [],
   );
   assert.match(target.options[0].options[1].textContent, /CLI unavailable/);
   unavailable = true;
@@ -255,6 +258,7 @@ test("historical CLI evidence is explicitly unavailable and diagnostics failures
         evaluation,
         result,
         "",
+        [],
       ),
     /Diagnostics storage unavailable/,
   );
@@ -326,6 +330,7 @@ test("the operator browser keeps the exact deadline failure beside force-kill ev
       ],
     },
     "",
+    [],
   );
 
   assert.equal(

@@ -205,7 +205,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "core-unit-contracts-including-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
+        "core-unit-contracts-including-applicability-and-criterion-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -228,6 +228,7 @@ export function createGateDefinitions(metadata) {
         "test/implementer-token.test.js",
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
+        "test/analytics.test.js",
         "test/evaluation-validation.test.js",
         ...evaluationGate.EVALUATION_UNIT_TESTS,
         "test/review-run-admission.test.js",
@@ -268,11 +269,12 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-applicability-and-criterion-analytics-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
         "test/browser-assets-browser-component.test.js",
+        "test/analytics-browser-component.test.js",
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
         "test/review-criterion-retirement-browser-component.test.js",
@@ -313,7 +315,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "sqlite-integration",
       testGroup:
-        "durable-resources-including-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
+        "durable-resources-including-applicability-and-criterion-analytics-terminal-run-failure-exclusion-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
       failureCode: "sqlite_integration_tests_failed",
       arguments: [
         "--test",
@@ -351,6 +353,7 @@ export function createGateDefinitions(metadata) {
         "test/waiver-batch-sqlite-integration.test.js",
         "test/waiver-batch-schema-migration.test.js",
         "test/evaluation-sqlite-integration.test.js",
+        "test/analytics-sqlite-integration.test.js",
       ],
     },
     SQLITE_BACKUP_FAILURE_GATE,
@@ -358,7 +361,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
+        "applicability-and-criterion-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
@@ -375,6 +378,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-http-integration.test.js",
         "test/waiver-adjudicator-configuration-http-integration.test.js",
         "test/storage-reserve-application-integration.test.js",
+        "test/analytics-http-integration.test.js",
         ...evaluationGate.EVALUATION_HTTP_TESTS,
         "test/evaluation-cancellation-http-integration.test.js",
       ],

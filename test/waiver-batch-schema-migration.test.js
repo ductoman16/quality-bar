@@ -8,6 +8,7 @@ import test from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { removeWaiverAdjudicationRecoverySchema } from "./support/waiver-adjudication-recovery-schema.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudication work", () => {
@@ -52,8 +53,13 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
     DROP TRIGGER waiver_adjudication_request_set_frozen_insert;
     DROP TRIGGER waiver_request_after_acceptance_insert;
     DROP TRIGGER waiver_request_sequence_insert;
+    DROP TRIGGER waiver_adjudication_exhausted_start;
+    DROP TRIGGER waiver_adjudication_pre_start_attempt_exhaust;
+    DROP TRIGGER waiver_adjudication_retry_transition;
     DROP TABLE waiver_adjudication_transcript_chunks;
     DROP TABLE waiver_decisions;
+    DROP TABLE waiver_recovery_idempotency;
+    DROP TABLE waiver_adjudication_pre_start_attempts;
     CREATE TABLE waiver_adjudications_v39 (
       id TEXT PRIMARY KEY,
       evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
@@ -101,7 +107,7 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(waiver_adjudications)")
-        .slice(-9)
+        .slice(-10)
         .map((/** @type {any} */ column) => column.name),
       [
         "error_code",
@@ -113,7 +119,15 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
         "cached_input_tokens",
         "output_tokens",
         "execution_evidence_recorded",
+        "retry_cycle",
       ],
+    );
+    assert.equal(
+      migrated.get(
+        `SELECT retry_state FROM codex_execution_queue
+         WHERE work_id = 'queued-adjudication'`,
+      )?.retry_state,
+      "ready",
     );
     const claim = createWaiverAdjudicationClaimService(migrated, {
       createWorkerId: () => "v39-upgrade-worker",
@@ -137,6 +151,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
   const databasePath = join(directory, "quality-bar.sqlite");
   const prior = openDurableCore(databasePath);
   prior.transaction((transaction) => {
+    removeWaiverAdjudicationRecoverySchema(transaction);
     transaction.run("DROP INDEX codex_execution_queue_ready");
     transaction.run("DROP INDEX codex_execution_queue_worker");
     transaction.run("DROP TRIGGER codex_execution_queue_identity_update");
@@ -270,6 +285,7 @@ for (const version of [28, 36, 37]) {
       );
     }
     prior.transaction((transaction) => {
+      removeWaiverAdjudicationRecoverySchema(transaction);
       transaction.run("DROP INDEX codex_execution_queue_ready");
       transaction.run("DROP INDEX codex_execution_queue_worker");
       transaction.run("DROP TRIGGER codex_execution_queue_identity_update");

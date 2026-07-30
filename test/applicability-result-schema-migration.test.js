@@ -110,9 +110,16 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
       prepare(sql) {
         return {
           all() {
-            return sql.includes("evaluations")
+            return sql.includes("evaluations") ||
+              sql.includes("waiver_adjudication_") ||
+              sql.includes("waiver_recovery_")
               ? []
               : [{ name: "has_been_used" }];
+          },
+          get() {
+            return sql.includes("quality_bar_metadata")
+              ? { value: "30" }
+              : undefined;
           },
         };
       },

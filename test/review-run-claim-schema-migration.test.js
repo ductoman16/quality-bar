@@ -11,6 +11,7 @@ import {
   createQueuedReviewRun,
   createSiblingQueuedReviewRun,
 } from "./review-run-claim-support.js";
+import { removeWaiverAdjudicationRecoverySchema } from "./support/waiver-adjudication-recovery-schema.js";
 
 test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-claim-migrate-"));
@@ -19,6 +20,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
   const current = openDurableCore(databasePath);
   await createQueuedReviewRun(current);
   current.transaction((transaction) => {
+    removeWaiverAdjudicationRecoverySchema(transaction);
     transaction.run(
       "DROP TRIGGER waiver_adjudication_request_set_frozen_insert",
     );
@@ -149,6 +151,9 @@ test("schema v42 preserves queue identity while adding ready retry state", async
   const databasePath = join(directory, "quality-bar.sqlite3");
   const current = openDurableCore(databasePath);
   await createQueuedReviewRun(current);
+  current.transaction((transaction) => {
+    removeWaiverAdjudicationRecoverySchema(transaction);
+  });
   current.run("ALTER TABLE codex_execution_queue DROP COLUMN retry_state");
   current.run(
     "UPDATE quality_bar_metadata SET value = '42' WHERE key = 'schema_version'",

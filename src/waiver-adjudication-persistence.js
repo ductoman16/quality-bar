@@ -72,18 +72,13 @@ export function assertNoActiveWaiverAdjudication(transaction, evaluationId) {
 }
 
 /**
- * @param {any} transaction
- * @param {{
+ * @typedef {{
  *   adjudicationId: string,
- *   channel: "browser_session" | "implementer_token",
  *   configuration: {model: string, reasoning_effort: string, service_tier: string},
  *   createdAt: number,
  *   evaluation: {base_commit: string, head_commit: string},
  *   evaluationId: string,
- *   hash: string,
- *   key: string,
  *   requestIds: string[],
- *   route: string,
  *   writeRequests: () => Array<{
  *     created_at: string,
  *     evaluation_id: string,
@@ -91,9 +86,11 @@ export function assertNoActiveWaiverAdjudication(transaction, evaluationId) {
  *     id: string,
  *     rationale: string
  *   }>
- * }} input
+ * }} QueuedWaiverAdjudication
  */
-export function persistQueuedWaiverAdjudication(transaction, input) {
+
+/** @param {any} transaction @param {QueuedWaiverAdjudication} input */
+export function queueWaiverAdjudication(transaction, input) {
   const queued = transaction.get(
     "SELECT count(*) AS count FROM codex_execution_queue WHERE started_at IS NULL",
   )?.count;
@@ -146,6 +143,20 @@ export function persistQueuedWaiverAdjudication(transaction, input) {
     request_ids: input.requestIds,
   };
   const resource = { adjudication, requests };
+  return resource;
+}
+
+/**
+ * @param {any} transaction
+ * @param {QueuedWaiverAdjudication & {
+ *   channel: "browser_session" | "implementer_token",
+ *   hash: string,
+ *   key: string,
+ *   route: string
+ * }} input
+ */
+export function persistQueuedWaiverAdjudication(transaction, input) {
+  const resource = queueWaiverAdjudication(transaction, input);
   transaction.run(
     `INSERT INTO waiver_batch_idempotency (
        channel, route, idempotency_key, request_hash, response_status,

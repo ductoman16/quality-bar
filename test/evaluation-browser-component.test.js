@@ -126,12 +126,14 @@ test("Evaluations renders no partial data before the complete first-valid Result
         return {
           ok: true,
           async json() {
-            return {
-              adjudication: {
-                execution_status: "queued",
-                id: "waiver-adjudication-browser",
-              },
-            };
+            return options?.method === "POST"
+              ? {
+                  adjudication: {
+                    execution_status: "queued",
+                    id: "waiver-adjudication-browser",
+                  },
+                }
+              : { items: [] };
           },
         };
       }
@@ -145,6 +147,14 @@ test("Evaluations renders no partial data before the complete first-valid Result
       }
       if (path === "/api/v1/evaluations/evaluation-result-failure/result") {
         throw new Error("simulated Result transport failure");
+      }
+      if (path.endsWith("/waiver-adjudications")) {
+        return {
+          ok: true,
+          async json() {
+            return { items: [] };
+          },
+        };
       }
       if (path.endsWith("/diagnostics")) {
         return reviewRunDiagnosticsResponse(path);
@@ -293,8 +303,10 @@ test("Evaluations renders no partial data before the complete first-valid Result
   const waiverForm = resultDetails.options[3];
   await waiverForm.listener("submit")({ preventDefault() {} });
   const waiverSubmission = requests.find(
-    ({ path }) =>
-      path === "/api/v1/evaluations/evaluation-triggered/waiver-adjudications",
+    ({ options, path }) =>
+      path ===
+        "/api/v1/evaluations/evaluation-triggered/waiver-adjudications" &&
+      options?.method === "POST",
   );
   assert.ok(waiverSubmission);
   assert.deepEqual(JSON.parse(waiverSubmission.options.body), {

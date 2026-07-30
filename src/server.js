@@ -207,6 +207,7 @@ export function createApplicationServer({
     typeof evaluations?.createExplicit !== "function" ||
     typeof evaluations.list !== "function" ||
     typeof evaluations.read !== "function" ||
+    typeof evaluations.readAnalytics !== "function" ||
     typeof evaluations.readResult !== "function" ||
     typeof evaluations.readFinding !== "function" ||
     typeof evaluations.readFindingById !== "function" ||
@@ -214,6 +215,7 @@ export function createApplicationServer({
     typeof evaluations.readReviewRunById !== "function" ||
     typeof evaluations.readReviewRunDiagnostics !== "function" ||
     typeof evaluations.submitWaiverBatch !== "function" ||
+    typeof evaluations.recoverWaiverAdjudication !== "function" ||
     typeof evaluations.retryWaiverErrors !== "function"
   ) {
     throw new TypeError("evaluations must provide the Evaluation resource");
@@ -266,6 +268,7 @@ export function createApplicationServer({
     forgejoConnections: /** @type {any} */ (forgejoConnections),
     repositoryGuidance,
     reviews,
+    analytics: { read: evaluations.readAnalytics },
   });
   const handleMcp = createMcpRoute({
     browserOrigin,

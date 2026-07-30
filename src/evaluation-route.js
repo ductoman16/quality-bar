@@ -1,12 +1,13 @@
 import { forbidMachineOperatorAccess } from "./api-authorization.js";
 import { requireCodedError } from "./coded-error.js";
+import { evaluationFailureStatus } from "./evaluation-route-failure.js";
 import {
   assertAllowedQueryParameters,
-  isUnavailableError,
   readJsonRequest,
   requireBrowserMutationWithQuery,
 } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
+import { writeWaiverRecovery } from "./waiver-recovery-route.js";
 
 /** @param {string} segment */
 export function decodeEvaluationPathSegment(segment) {
@@ -50,6 +51,9 @@ export function matchEvaluationRoute(method, path) {
   const waiverDecisionMatch = path.match(
     /^\/api\/v1\/waiver-decisions\/([^/]+)$/,
   );
+  const waiverRecoveryMatch = path.match(
+    /^\/api\/v1\/waiver-adjudications\/([^/]+)\/recover$/,
+  );
   const evaluationMatch = path.match(/^\/api\/v1\/evaluations\/([^/]+)$/);
   const collection = method === "GET" && path === "/api/v1/evaluations";
   const readable =
@@ -60,7 +64,8 @@ export function matchEvaluationRoute(method, path) {
       findingMatch !== null ||
       waiverRequestMatch !== null ||
       waiverAdjudicationMatch !== null ||
-      waiverDecisionMatch !== null);
+      waiverDecisionMatch !== null ||
+      waiverBatchMatch !== null);
   return {
     cancellationMatch,
     collection,
@@ -79,7 +84,8 @@ export function matchEvaluationRoute(method, path) {
         (createMatch !== null ||
           cancellationMatch !== null ||
           waiverBatchMatch !== null ||
-          waiverErrorRetryMatch !== null)) ||
+          waiverErrorRetryMatch !== null ||
+          waiverRecoveryMatch !== null)) ||
       (method === "GET" && diagnosticsMatch !== null),
     resultMatch,
     reviewRunMatch,
@@ -88,81 +94,8 @@ export function matchEvaluationRoute(method, path) {
     waiverDecisionMatch,
     waiverErrorRetryMatch,
     waiverRequestMatch,
+    waiverRecoveryMatch,
   };
-}
-
-/** @param {Error & {code: string, unavailable?: boolean}} failure */
-function failureStatus(failure) {
-  const { code } = failure;
-  if (code === "authentication_required") {
-    return 401;
-  }
-  if (["csrf_invalid", "origin_invalid"].includes(code)) {
-    return 403;
-  }
-  if (
-    [
-      "cursor_invalid",
-      "idempotency_key_required",
-      "page_size_invalid",
-      "request_malformed",
-    ].includes(code)
-  ) {
-    return 400;
-  }
-  if (
-    [
-      "evaluation_not_found",
-      "finding_not_found",
-      "repository_not_found",
-      "review_run_not_found",
-      "waiver_request_not_found",
-      "waiver_adjudication_not_found",
-      "waiver_decision_not_found",
-    ].includes(code)
-  ) {
-    return 404;
-  }
-  if (
-    [
-      "evaluation_result_not_ready",
-      "evaluation_not_cancellable",
-      "idempotency_conflict",
-      "waiver_adjudication_active",
-      "waiver_finding_ineligible",
-      "waiver_error_retry_ineligible",
-      "waiver_request_accepted",
-      "waiver_request_decision_required",
-      "waiver_request_error_retry_required",
-      "waiver_request_duplicate",
-      "waiver_request_limit_reached",
-      "repository_disabled",
-      "repository_not_enabled",
-      "repository_retired",
-    ].includes(code)
-  ) {
-    return 409;
-  }
-  if (
-    [
-      "evaluation_git_acquisition_failed",
-      "evaluation_git_acquisition_unavailable",
-      "capacity_unavailable",
-      "repository_authentication_failed",
-      "repository_git_credentials_unavailable",
-      "repository_git_read_failed",
-      "repository_permission_denied",
-      "review_run_admission_unavailable",
-      "storage_reserve_check_failed",
-      "storage_reserve_unavailable",
-      "waiver_adjudicator_configuration_required",
-    ].includes(code) ||
-    failure.unavailable === true ||
-    isUnavailableError(failure)
-  ) {
-    return 503;
-  }
-  return 422;
 }
 
 /**
@@ -208,6 +141,7 @@ export function createEvaluationRoute({
       waiverDecisionMatch,
       waiverErrorRetryMatch,
       waiverRequestMatch,
+      waiverRecoveryMatch,
     } = matches;
     if (!matches.recognized) {
       return false;
@@ -237,6 +171,16 @@ export function createEvaluationRoute({
           response,
           200,
           evaluations.readResult(decodeEvaluationPathSegment(resultMatch[1])),
+        );
+        return true;
+      }
+      if (method === "GET" && waiverBatchMatch) {
+        writeJson(
+          response,
+          200,
+          evaluations.readWaiverAdjudications(
+            decodeEvaluationPathSegment(waiverBatchMatch[1]),
+          ),
         );
         return true;
       }
@@ -356,6 +300,15 @@ export function createEvaluationRoute({
         });
         return true;
       }
+      if (waiverRecoveryMatch) {
+        writeWaiverRecovery(
+          response,
+          evaluations,
+          decodeEvaluationPathSegment(waiverRecoveryMatch[1]),
+          request.headers["idempotency-key"],
+        );
+        return true;
+      }
       const idempotencyKey = request.headers["idempotency-key"];
       const created = await evaluations.createExplicit({
         channel:
@@ -383,7 +336,7 @@ export function createEvaluationRoute({
       const failure = requireCodedError(error);
       writeError(
         response,
-        failureStatus(failure),
+        evaluationFailureStatus(failure),
         failure.code,
         failure.message,
       );

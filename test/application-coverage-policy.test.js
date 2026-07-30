@@ -23,6 +23,7 @@ test("application coverage has one positive maintained-code boundary", () => {
     servedBrowserAssets: [
       "src/browser/login.js",
       "src/browser/operator.js",
+      "src/browser/analytics.js",
       "src/browser/waiver-batch.js",
       "src/browser/evaluation-result.js",
       "src/browser/evaluation-feedback.js",
@@ -59,6 +60,22 @@ test("application coverage has one positive maintained-code boundary", () => {
 
 test("coverage executes the deterministic application proof pyramid without smokes", () => {
   assert.ok(APPLICATION_COVERAGE_TEST_PATHS.length > 0);
+  assert.ok(APPLICATION_COVERAGE_TEST_PATHS.includes("test/analytics.test.js"));
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/analytics-browser-component.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/analytics-http-integration.test.js",
+    ),
+  );
+  assert.ok(
+    APPLICATION_COVERAGE_TEST_PATHS.includes(
+      "test/analytics-sqlite-integration.test.js",
+    ),
+  );
   assert.ok(
     APPLICATION_COVERAGE_TEST_PATHS.includes(
       "test/browser-assets-browser-component.test.js",

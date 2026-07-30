@@ -15,6 +15,7 @@ import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.
 import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
+import { recoverStartedAdjudicationWithFakeCodex } from "./support/waiver-adjudication-recovery-fake-codex.js";
 
 const fakeCodex = fileURLToPath(
   new URL(
@@ -344,7 +345,7 @@ test("one focused fake Codex process atomically persists a mixed valid Decision 
 });
 
 test("a started fake Codex failure stores the exact owning failure and no Decision", async (context) => {
-  const { core } = await runFocusedAdjudication(context, true);
+  const { checkoutRoot, core } = await runFocusedAdjudication(context, true);
   assert.equal(
     core.get("SELECT count(*) AS count FROM waiver_decisions")?.count,
     0,
@@ -367,4 +368,10 @@ test("a started fake Codex failure stores the exact owning failure and no Decisi
     ).effective_outcome,
     "error",
   );
+
+  await recoverStartedAdjudicationWithFakeCodex({
+    checkoutRoot,
+    core,
+    fakeCodex,
+  });
 });

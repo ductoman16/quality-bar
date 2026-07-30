@@ -8,9 +8,11 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
 import { createReviewRunResultService } from "../src/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { removeWaiverAdjudicationRecoverySchema } from "./support/waiver-adjudication-recovery-schema.js";
 
 /** @param {any} transaction */
 function removeWaiverBatchSchema(transaction) {
+  removeWaiverAdjudicationRecoverySchema(transaction);
   transaction.run("DROP TRIGGER codex_execution_queue_reference_insert");
   transaction.run("DROP TRIGGER codex_execution_queue_waiver_requests_insert");
   transaction.run("DROP TRIGGER codex_execution_queue_waiver_lifecycle_insert");

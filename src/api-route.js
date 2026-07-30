@@ -24,6 +24,7 @@ import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
 import { writeReviewList } from "./review-list-route.js";
 import { writeReviewDeletion } from "./review-delete-route.js";
 import { writeError, writeJson } from "./http-response.js";
+import { writeAnalytics } from "./analytics-route.js";
 
 /** @param {import("./api-route-contract.js").ApiRouteDependencies} dependencies */
 export function createApiRoute({
@@ -37,6 +38,7 @@ export function createApiRoute({
   forgejoConnections,
   repositoryGuidance,
   reviews,
+  analytics,
 }) {
   const handleGitHubConnection = createGitHubConnectionRoute({
     browserOrigin,
@@ -107,6 +109,10 @@ export function createApiRoute({
     }
     if (method === "GET" && path === "/api/v1/openapi.json") {
       writeJson(response, 200, canonicalOpenApiDocument());
+      return true;
+    }
+    if (method === "GET" && path === "/api/v1/analytics") {
+      writeAnalytics(response, analytics);
       return true;
     }
     if (method === "GET" && path === "/api/v1/reviews") {

@@ -7,6 +7,7 @@ import { afterEach, test } from "node:test";
 import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createSystemResource } from "../src/system-resource.js";
+import { removeWaiverAdjudicationRecoverySchema } from "./support/waiver-adjudication-recovery-schema.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];
@@ -161,6 +162,7 @@ test("migrates the v23 Evaluation schema to durable Review Run admission", () =>
   const databasePath = temporaryDatabasePath();
   const current = openDurableCore(databasePath);
   current.transaction((transaction) => {
+    removeWaiverAdjudicationRecoverySchema(transaction);
     transaction.run("DROP TRIGGER review_hard_delete_lineage");
     transaction.run(
       "DROP TRIGGER waiver_adjudication_request_set_frozen_insert",

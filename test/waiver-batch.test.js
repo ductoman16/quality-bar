@@ -76,6 +76,9 @@ test("waiver rejection consumes no idempotency key", () => {
   const rows = [];
   const service = createWaiverBatchService(
     {
+      all() {
+        return [];
+      },
       get() {
         return undefined;
       },
