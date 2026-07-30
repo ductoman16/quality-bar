@@ -92,11 +92,11 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
       /** @param {AbortSignal | undefined} signal */
       (signal) => {
         assert.ok(signal);
-        return new Promise((resolve) =>
-          signal.addEventListener("abort", () => resolve(undefined), {
-            once: true,
-          }),
-        );
+        const stopped = Promise.withResolvers();
+        signal.addEventListener("abort", () => stopped.reject(signal.reason), {
+          once: true,
+        });
+        return stopped.promise;
       },
     ),
   );

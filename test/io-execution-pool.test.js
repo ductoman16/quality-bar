@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createApplicationIoPool } from "../src/application-io-pool.js";
+import { createGitHubApiRequest } from "../src/github-api-request.js";
 import {
   IO_EXECUTION_CONCURRENCY,
   IO_EXECUTION_QUEUE_CAPACITY,
@@ -131,11 +132,11 @@ test("hard shutdown aborts active duties and rejects queued duties with its owni
   const active = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
     pool.run("polling", (signal) => {
       assert.ok(signal);
-      return new Promise((resolve) =>
-        signal.addEventListener("abort", () => resolve(undefined), {
-          once: true,
-        }),
-      );
+      const stopped = Promise.withResolvers();
+      signal.addEventListener("abort", () => stopped.reject(signal.reason), {
+        once: true,
+      });
+      return stopped.promise;
     }),
   );
   await new Promise((resolve) => setImmediate(resolve));
@@ -184,6 +185,53 @@ test("hard shutdown settles an active production scheduler with its owning error
 
   await assert.rejects(scheduled, (error) => error === failure);
   assert.equal(observedReason, failure);
+});
+
+test("hard shutdown aborts production provider I/O before the pool drains", async () => {
+  const pool = createIoExecutionPool();
+  let fetchStopped = false;
+  const request = createGitHubApiRequest(
+    "https://api.github.test",
+    /** @type {typeof fetch} */ (
+      /** @type {unknown} */ (
+        /**
+         * @param {unknown} _url
+         * @param {RequestInit | undefined} options
+         */
+        (_url, options) => {
+          void _url;
+          const stopped = Promise.withResolvers();
+          const signal = options?.signal;
+          assert.ok(signal);
+          signal.addEventListener(
+            "abort",
+            () => {
+              fetchStopped = true;
+              stopped.reject(signal.reason);
+            },
+            { once: true },
+          );
+          return stopped.promise;
+        }
+      )
+    ),
+  );
+  const completion = pool.run("delivery", () => request("/provider-duty"));
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  const completionRejection = assert.rejects(
+    completion,
+    (error) => error === failure,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  const closed = pool.close();
+
+  pool.shutdown(failure);
+
+  await completionRejection;
+  await closed;
+  assert.equal(fetchStopped, true);
 });
 
 test("a saturated production scheduler reports its exact admission failure", async () => {

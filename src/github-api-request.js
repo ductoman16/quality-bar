@@ -1,4 +1,5 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
+import { currentIoOperationSignal } from "./io-operation-context.js";
 
 const API_VERSION = "2026-03-10";
 
@@ -46,6 +47,8 @@ export function createGitHubApiRequest(
       repositoryId,
     } = {},
   ) {
+    const signal = currentIoOperationSignal();
+    signal?.throwIfAborted();
     let response;
     try {
       response = await fetchRequest(new URL(path, apiBaseUrl), {
@@ -60,14 +63,19 @@ export function createGitHubApiRequest(
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         method,
         redirect: "error",
+        ...(signal ? { signal } : {}),
       });
     } catch (cause) {
+      if (signal?.aborted) {
+        throw signal.reason;
+      }
       fail("github_api_unavailable", "GitHub API request could not complete", {
         affectedRepositoryIds,
         cause,
         repositoryId,
       });
     }
+    signal?.throwIfAborted();
     if (!response.ok) {
       let rateLimitResponse = false;
       if (response.status === 403) {
@@ -123,8 +131,12 @@ export function createGitHubApiRequest(
     }
     try {
       const body = /** @type {unknown} */ (await response.json());
+      signal?.throwIfAborted();
       return includePage ? { body, link: response.headers.get("link") } : body;
     } catch (cause) {
+      if (signal?.aborted) {
+        throw signal.reason;
+      }
       fail("github_api_response_invalid", "GitHub API response is invalid", {
         affectedRepositoryIds,
         cause,

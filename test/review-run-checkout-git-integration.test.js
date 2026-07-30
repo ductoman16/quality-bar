@@ -225,6 +225,8 @@ test("hard shutdown terminates an active Git checkout with its owning error", as
   const failure = Object.assign(new Error("SQLite durable write failed"), {
     code: "storage_unavailable",
   });
+  /** @type {import("node:child_process").ChildProcess | undefined} */
+  let gitChild;
   const checkout = prepareReviewRunCheckout({
     baseCommit: "a".repeat(40),
     checkoutRoot,
@@ -242,7 +244,7 @@ test("hard shutdown terminates an active Git checkout with its owning error", as
         (_command, _arguments, options) => {
           void _command;
           void _arguments;
-          return spawn(
+          gitChild = spawn(
             process.execPath,
             [
               join(
@@ -252,6 +254,7 @@ test("hard shutdown terminates an active Git checkout with its owning error", as
             ],
             options,
           );
+          return gitChild;
         }
       )
     ),
@@ -262,6 +265,8 @@ test("hard shutdown terminates an active Git checkout with its owning error", as
   workers.abort(failure);
 
   await assert.rejects(checkout, (error) => error === failure);
+  assert.ok(gitChild);
+  assert.ok(gitChild.exitCode !== null || gitChild.signalCode !== null);
   assert.equal(
     existsSync(join(checkoutRoot, "stopped-review-run", "1")),
     false,

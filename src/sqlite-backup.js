@@ -66,6 +66,7 @@ function synchronize(path) {
  *   kind: "daily" | "pre-migration",
  *   now?: () => number,
  *   performBackup?: typeof backup,
+ *   removeBackupOutput?: typeof rmSync,
  *   signal?: AbortSignal,
  * }} input
  */
@@ -77,6 +78,7 @@ export async function createValidatedBackup({
   kind,
   now = () => Date.now(),
   performBackup = backup,
+  removeBackupOutput = rmSync,
   signal,
 }) {
   if (!/^\d+\.\d+\.\d+$/.test(applicationVersion)) {
@@ -235,10 +237,21 @@ export async function createValidatedBackup({
       ...(manifestCommitted ? [manifestPath] : []),
     ]) {
       try {
-        rmSync(path, { force: true });
+        removeBackupOutput(path, { force: true });
       } catch (cleanupError) {
         cleanupFailures.push(cleanupError);
       }
+    }
+    if (
+      signal?.aborted &&
+      error === signal.reason &&
+      cleanupFailures.length > 0
+    ) {
+      failBackup(
+        "backup_invalid_output_cleanup_failed",
+        "Canceled SQLite backup output could not be discarded",
+        new AggregateError([error, ...cleanupFailures]),
+      );
     }
     const failure =
       signal?.aborted && error === signal.reason

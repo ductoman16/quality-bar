@@ -1,5 +1,8 @@
+import { currentIoOperationSignal } from "./io-operation-context.js";
+
 const GIT_CREDENTIAL_HELPER =
   'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f';
+const GIT_TERMINATION_GRACE_MS = 5_000;
 
 /** @param {{token: string, username: string} | undefined} credential */
 export function gitCredentialIsValid(credential) {
@@ -57,6 +60,7 @@ export function runGitCommand({
   signal,
   spawnProcess,
 }) {
+  signal ??= currentIoOperationSignal();
   return new Promise((resolve, reject) => {
     /** @type {import("node:child_process").ChildProcess} */
     let child;
@@ -81,9 +85,18 @@ export function runGitCommand({
       return;
     }
     let completed = false;
+    /** @type {unknown} */
+    let abortReason;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let forceKill;
     const abort = () => {
+      abortReason = signal?.reason;
       child.kill("SIGTERM");
-      complete(signal?.reason, true);
+      forceKill = setTimeout(
+        () => child.kill("SIGKILL"),
+        GIT_TERMINATION_GRACE_MS,
+      );
+      forceKill.unref();
     };
     /** @type {Buffer[]} */
     const stdoutChunks = [];
@@ -94,6 +107,9 @@ export function runGitCommand({
         return;
       }
       completed = true;
+      if (forceKill) {
+        clearTimeout(forceKill);
+      }
       signal?.removeEventListener("abort", abort);
       if (failed) {
         reject(result);
@@ -137,14 +153,18 @@ export function runGitCommand({
       credentialPipe.end(`${credential.username}\n${credential.token}\n`);
     }
     child.once("error", (cause) => {
-      complete(cause, true);
+      complete(abortReason ?? cause, true);
     });
-    child.once("close", (code, signal) => {
+    child.once("close", (code, exitSignal) => {
+      if (abortReason !== undefined) {
+        complete(abortReason, true);
+        return;
+      }
       const stdoutBuffer = Buffer.concat(stdoutChunks);
       complete(
         {
           code,
-          signal,
+          signal: exitSignal,
           stderr,
           stdout: stdoutBuffer.toString("utf8"),
           stdoutBuffer,

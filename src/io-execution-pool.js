@@ -1,3 +1,5 @@
+import { runIoOperation } from "./io-operation-context.js";
+
 export const IO_EXECUTION_CONCURRENCY = 4;
 export const IO_EXECUTION_QUEUE_CAPACITY = 16;
 const IO_EXECUTION_ORDINARY_CONCURRENCY = IO_EXECUTION_CONCURRENCY - 1;
@@ -46,25 +48,12 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
         throw new Error("I/O execution pool queue is invalid");
       }
       active += 1;
-      let stopCancellation = () => {};
-      const cancellation = new Promise((resolve, reject) => {
-        void resolve;
-        const cancel = () => reject(workers.signal.reason);
-        if (workers.signal.aborted) {
-          cancel();
-          return;
-        }
-        workers.signal.addEventListener("abort", cancel, { once: true });
-        stopCancellation = () =>
-          workers.signal.removeEventListener("abort", cancel);
-      });
-      Promise.race([
-        Promise.resolve().then(() => task.operation(workers.signal)),
-        cancellation,
-      ])
+      Promise.resolve()
+        .then(() =>
+          runIoOperation(workers.signal, () => task.operation(workers.signal)),
+        )
         .then(task.resolve, task.reject)
         .finally(() => {
-          stopCancellation();
           active -= 1;
           drain();
           finishDrain();

@@ -171,6 +171,62 @@ test("hard shutdown aborts an online backup and discards its incomplete output",
   database.close();
 });
 
+test("hard shutdown surfaces failed cancellation cleanup distinctly", async () => {
+  const directory = temporaryDirectory();
+  const backupsPath = join(directory, "backups");
+  const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
+  database.exec("PRAGMA user_version = 20");
+  const workers = new AbortController();
+  const cancellation = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  const cleanupFailure = Object.assign(new Error("remove failed"), {
+    code: "EACCES",
+  });
+
+  await assert.rejects(
+    createValidatedBackup({
+      applicationVersion: "1.2.3",
+      backupsPath,
+      database,
+      keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
+      kind: "daily",
+      now: () => Date.parse("2026-07-28T12:34:56.789Z"),
+      performBackup: async (sourceDatabase, destinationPath, options) => {
+        void sourceDatabase;
+        writeFileSync(destinationPath, "incomplete");
+        workers.abort(cancellation);
+        options?.progress?.({ remainingPages: 1, totalPages: 1 });
+        return 1;
+      },
+      removeBackupOutput() {
+        throw cleanupFailure;
+      },
+      signal: workers.signal,
+    }),
+    (error) => {
+      assert.ok(error instanceof Error && "code" in error);
+      assert.equal(error.code, "backup_invalid_output_cleanup_failed");
+      assert.equal(
+        error.message,
+        "Canceled SQLite backup output could not be discarded",
+      );
+      assert.notEqual(error, cancellation);
+      assert.ok(error.cause instanceof AggregateError);
+      assert.equal(error.cause.errors[0], cancellation);
+      assert.equal(error.cause.errors.length, 5);
+      assert.equal(
+        error.cause.errors.slice(1).every((item) => item === cleanupFailure),
+        true,
+      );
+      return true;
+    },
+  );
+
+  assert.equal(readdirSync(backupsPath).length, 1);
+  database.close();
+});
+
 test("retains only the seven latest successful daily backups", async () => {
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");

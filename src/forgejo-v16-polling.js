@@ -1,3 +1,5 @@
+import { currentIoOperationSignal } from "./io-operation-context.js";
+
 /** @param {unknown} value @returns {Record<string, unknown> | null} */
 function object(value) {
   return value && !Array.isArray(value) && typeof value === "object"
@@ -87,6 +89,8 @@ export function createForgejoV16PullRequestReader({
     const observedNumbers = new Set();
     const snapshot = [];
     for (let page = 1; ; page += 1) {
+      const signal = currentIoOperationSignal();
+      signal?.throwIfAborted();
       const path = `/api/v1/repos/${encoded}/pulls?state=all&page=${page}&limit=50`;
       let response;
       try {
@@ -96,8 +100,12 @@ export function createForgejoV16PullRequestReader({
             authorization: `token ${connection.token}`,
           },
           redirect: "error",
+          ...(signal ? { signal } : {}),
         });
       } catch (cause) {
+        if (signal?.aborted) {
+          throw signal.reason;
+        }
         fail(
           "forgejo_api_unavailable",
           `Forgejo polling route is unavailable: ${path}`,
@@ -108,6 +116,7 @@ export function createForgejoV16PullRequestReader({
           },
         );
       }
+      signal?.throwIfAborted();
       if (!response.ok) {
         const providerNextAttemptAt = retryAfterAt(
           response.headers.get("retry-after"),
