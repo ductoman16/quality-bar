@@ -7,6 +7,7 @@ import {
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { throwIoTerminationFailure } from "./io-operation-context.js";
 
 export class ReviewRunCheckoutError extends Error {
   /**
@@ -301,6 +302,9 @@ export async function prepareReviewRunCheckout({
     );
     signal?.throwIfAborted();
   } catch (cause) {
+    throwIoTerminationFailure(cause, () =>
+      rmSync(claimRoot, { force: true, recursive: true }),
+    );
     try {
       rmSync(claimRoot, { force: true, recursive: true });
     } catch (cleanupCause) {

@@ -345,6 +345,9 @@ export async function resolvePushedCommitSelectors(
     acquisitionFailure = error;
   }
   if (acquisitionFailure) {
+    throwIoTerminationFailure(acquisitionFailure, () =>
+      removeDirectory(objectDatabase),
+    );
     try {
       removeDirectory(objectDatabase);
     } catch (cause) {
@@ -354,7 +357,6 @@ export async function resolvePushedCommitSelectors(
         cause,
       );
     }
-    throwIoTerminationFailure(acquisitionFailure);
     if (acquisitionFailure instanceof EvaluationError) {
       failEvaluation(
         acquisitionFailure.code,

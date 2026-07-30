@@ -1,6 +1,6 @@
 import {
-  isIoTerminationFailure,
   runIoOperation,
+  throwIoTerminationFailure,
 } from "./io-operation-context.js";
 
 export const IO_EXECUTION_CONCURRENCY = 4;
@@ -64,9 +64,8 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
             return result;
           },
           (error) => {
-            if (!isIoTerminationFailure(error)) {
-              workers.signal.throwIfAborted();
-            }
+            throwIoTerminationFailure(error);
+            workers.signal.throwIfAborted();
             throw error;
           },
         )
