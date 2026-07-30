@@ -18,5 +18,26 @@ export function assertApiQueryParameters(method, path, requestUrl) {
     assertAllowedQueryParameters(requestUrl, new Set(["state"]));
     return;
   }
+  if (method === "GET" && path === "/api/v1/analytics") {
+    assertAllowedQueryParameters(
+      requestUrl,
+      new Set([
+        "base_commit",
+        "criterion_id",
+        "end",
+        "head_commit",
+        "model",
+        "pull_request_number",
+        "reasoning_effort",
+        "repository_id",
+        "review_id",
+        "review_version_id",
+        "service_tier",
+        "start",
+        "terminal_outcome",
+      ]),
+    );
+    return;
+  }
   assertAllowedQueryParameters(requestUrl, new Set());
 }

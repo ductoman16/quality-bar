@@ -17,6 +17,21 @@ const browserAssets = [
     url: new URL("./browser/analytics.js", import.meta.url),
   },
   {
+    route: "/assets/analytics-contract.js",
+    sourcePath: "src/browser/analytics-contract.js",
+    url: new URL("./browser/analytics-contract.js", import.meta.url),
+  },
+  {
+    route: "/assets/analytics-matching-facts.js",
+    sourcePath: "src/browser/analytics-matching-facts.js",
+    url: new URL("./browser/analytics-matching-facts.js", import.meta.url),
+  },
+  {
+    route: "/assets/analytics-state.js",
+    sourcePath: "src/browser/analytics-state.js",
+    url: new URL("./browser/analytics-state.js", import.meta.url),
+  },
+  {
     route: "/assets/waiver-batch.js",
     sourcePath: "src/browser/waiver-batch.js",
     url: new URL("./browser/waiver-batch.js", import.meta.url),

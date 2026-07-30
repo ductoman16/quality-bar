@@ -205,7 +205,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "unit",
       testGroup:
-        "core-unit-contracts-including-applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
+        "core-unit-contracts-including-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-and-waivers",
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
@@ -229,6 +229,7 @@ export function createGateDefinitions(metadata) {
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
         "test/analytics.test.js",
+        "test/analytics-filter.test.js",
         "test/execution-analytics.test.js",
         "test/evaluation-validation.test.js",
         ...evaluationGate.EVALUATION_UNIT_TESTS,
@@ -270,7 +271,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "browser-component",
       testGroup:
-        "browser-applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+        "browser-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-distinct-states-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
@@ -362,7 +363,7 @@ export function createGateDefinitions(metadata) {
     {
       name: "http-integration",
       testGroup:
-        "applicability-criterion-evaluation-finding-waiver-and-execution-reliability-duration-token-counter-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
+        "filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
       failureCode: "http_integration_tests_failed",
       arguments: [
         "--test",
