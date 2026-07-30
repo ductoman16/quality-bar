@@ -143,7 +143,7 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
 
   assert.deepEqual(restored, {
     applicationVersion: "0.1.0",
-    schemaVersion: 42,
+    schemaVersion: 43,
     status: "restored",
   });
   const restoredCore = openDurableCore(databasePath);

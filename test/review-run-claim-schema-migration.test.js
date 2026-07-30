@@ -56,7 +56,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 42);
+  assert.equal(migrated.facts.schemaVersion, 43);
   assert.deepEqual(
     migrated.get(
       `SELECT worker_id, fencing_token, lease_expires_at, retry_state
@@ -141,7 +141,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
   );
 });
 
-test("schema v41 preserves queue identity while adding ready retry state", async (context) => {
+test("schema v42 preserves queue identity while adding ready retry state", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-retry-migrate-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
@@ -149,14 +149,14 @@ test("schema v41 preserves queue identity while adding ready retry state", async
   await createQueuedReviewRun(current);
   current.run("ALTER TABLE codex_execution_queue DROP COLUMN retry_state");
   current.run(
-    "UPDATE quality_bar_metadata SET value = '41' WHERE key = 'schema_version'",
+    "UPDATE quality_bar_metadata SET value = '42' WHERE key = 'schema_version'",
   );
-  current.run("PRAGMA user_version = 41");
+  current.run("PRAGMA user_version = 42");
   current.close();
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 42);
+  assert.equal(migrated.facts.schemaVersion, 43);
   assert.deepEqual(
     migrated.get(
       `SELECT work_id, ready_at, retry_state
