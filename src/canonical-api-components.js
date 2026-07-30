@@ -4,6 +4,7 @@ import { closedObject, openObject } from "./canonical-schema.js";
 import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
+import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /**
  * @typedef {{
@@ -329,6 +330,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       ...canonicalStorageReserveSchemas(),
       ...canonicalEvaluationSchemas(),
+      ...canonicalAnalyticsSchemas(),
       BootstrapFact: openObject(
         { status: { enum: ["complete", "required"], type: "string" } },
         ["status"],

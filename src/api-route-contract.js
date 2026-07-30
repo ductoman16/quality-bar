@@ -9,7 +9,8 @@
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
  *   forgejoConnections: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
- *   reviews: ReturnType<typeof import("./review.js").createReviewService>
+ *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
+ *   analytics: ReturnType<typeof import("./analytics.js").createAnalyticsService>
  * }} ApiRouteDependencies
  */
 
