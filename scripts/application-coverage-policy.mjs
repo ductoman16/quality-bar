@@ -120,6 +120,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/github-pr-lifecycle-sqlite-integration.test.js",
   "test/github-polling-state.test.js",
   "test/github-polling.test.js",
+  "test/github-polling-owning-failure.test.js",
   "test/github-polling-fixture-integration.test.js",
   "test/github-fixture-integration.test.js",
   "test/forgejo-v16-integration.test.js",

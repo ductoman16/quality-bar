@@ -8,8 +8,8 @@ import {
 import {
   GITHUB_POLL_INTERVAL_MS,
   createGitHubPollingService,
-  isDefinitiveGitHubPollingFailure,
 } from "./github-polling.js";
+import { recordGitHubPollingOwningFailure } from "./github-polling-owning-failure.js";
 import { requireStorageReservePause } from "./storage-reserve.js";
 import {
   createStorageReservePollingCore,
@@ -64,59 +64,13 @@ export function createGitHubPollingRunner(
       );
     },
     now: timestamp,
-    recordOwningFailure,
+    recordOwningFailure: recordGitHubPollingOwningFailure,
   });
   const preparedBaselines = new WeakMap();
   const preparedBaselineFailures = new WeakMap();
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
   let running = false;
-
-  /** @param {any} transaction @param {string} connectionId @param {number[]} forgeRepositoryIds @param {GitHubConnectionError} failure @param {number} attemptedAt */
-  function recordOwningFailure(
-    transaction,
-    connectionId,
-    forgeRepositoryIds,
-    failure,
-    attemptedAt,
-  ) {
-    if (!isDefinitiveGitHubPollingFailure(failure)) {
-      return;
-    }
-    const repositoryId = Number.isSafeInteger(failure.repositoryId)
-      ? /** @type {number} */ (failure.repositoryId)
-      : failure.code === "github_repository_api_access_failed" &&
-          forgeRepositoryIds.length === 1
-        ? forgeRepositoryIds[0]
-        : null;
-    if (repositoryId !== null && forgeRepositoryIds.includes(repositoryId)) {
-      transaction.run(
-        `UPDATE repositories
-              SET health = 'error', health_error_code = ?,
-                  health_error_message = ?, verified_at = ?
-            WHERE id = (
-              SELECT repository_id FROM github_repositories
-               WHERE connection_id = ? AND forge_repository_id = ?
-            )`,
-        failure.code,
-        failure.message,
-        attemptedAt,
-        connectionId,
-        repositoryId,
-      );
-    } else {
-      transaction.run(
-        `UPDATE github_connections
-              SET health = 'error', health_error_code = ?,
-                  health_error_message = ?, verified_at = ?
-            WHERE id = ?`,
-        failure.code,
-        failure.message,
-        attemptedAt,
-        connectionId,
-      );
-    }
-  }
 
   async function pollDue() {
     if (running) {
@@ -149,10 +103,25 @@ export function createGitHubPollingRunner(
         timestamp(),
       );
       const gatedConnections = new Set();
+      const baselineConnections = new Set(
+        due
+          .filter(
+            (/** @type {any} */ row) => row.baseline_status !== "complete",
+          )
+          .map((/** @type {any} */ row) => row.connection_id),
+      );
+      const completedBaselines = new Set();
       for (const row of due) {
         if (gatedConnections.has(row.connection_id)) {
           continue;
         }
+        if (
+          baselineConnections.has(row.connection_id) &&
+          completedBaselines.has(row.connection_id)
+        ) {
+          continue;
+        }
+        const baseline = baselineConnections.has(row.connection_id);
         let credential;
         try {
           credential = cipher.decrypt(
@@ -184,14 +153,21 @@ export function createGitHubPollingRunner(
           continue;
         }
         try {
+          const baselineRows = baseline
+            ? due.filter(
+                (/** @type {any} */ candidate) =>
+                  candidate.connection_id === row.connection_id &&
+                  candidate.baseline_status !== "complete",
+              )
+            : [row];
           const input = {
             connection: { ...row, id: row.connection_id },
             credential,
-            repositories: [
-              { id: row.forge_repository_id, full_name: row.name },
-            ],
+            repositories: baselineRows.map((/** @type {any} */ candidate) => ({
+              id: candidate.forge_repository_id,
+              full_name: candidate.name,
+            })),
           };
-          const baseline = row.baseline_status !== "complete";
           const prepared = await polling.prepare(input, {
             baseline,
           });
@@ -237,6 +213,9 @@ export function createGitHubPollingRunner(
               );
             }
             completeAutomaticEvaluationAdmissions(admissions);
+            if (baseline) {
+              completedBaselines.add(row.connection_id);
+            }
           } finally {
             for (const { changeset } of automaticEvaluations) {
               if (!releaseAttempted.has(changeset)) {
@@ -267,7 +246,7 @@ export function createGitHubPollingRunner(
           if (error.code === "github_polling_conflict") {
             throw error;
           }
-          if (error.nextAttemptAt !== undefined) {
+          if (baseline || error.nextAttemptAt !== undefined) {
             gatedConnections.add(row.connection_id);
           }
         }

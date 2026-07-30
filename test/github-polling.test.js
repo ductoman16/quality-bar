@@ -188,7 +188,7 @@ test("GitHub polling fails hard on an unexpected implementation error", async (c
   core.close();
 });
 
-test("due GitHub polling reconciles only enabled healthy state and persists its next attempt", async (context) => {
+test("restored GitHub polling completes a full baseline before normal admission", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-poll-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -270,12 +270,10 @@ test("due GitHub polling reconciles only enabled healthy state and persists its 
   );
   core.run(
     `INSERT INTO github_repository_polls (connection_id, forge_repository_id, baseline_status, last_success_at, next_attempt_at, snapshot)
-     VALUES (?, ?, 'complete', ?, ?, ?)`,
+     VALUES (?, ?, 'pending', NULL, ?, NULL)`,
     "connection-1",
     101,
-    5_000,
-    65_000,
-    "[]",
+    0,
   );
   core.run(
     `INSERT INTO github_repository_polls (connection_id, forge_repository_id, baseline_status, last_success_at, next_attempt_at, snapshot)
@@ -285,39 +283,39 @@ test("due GitHub polling reconciles only enabled healthy state and persists its 
     0,
   );
   let currentTime = 65_000;
-  let rateLimited = false;
-  /** @type {Error & {code?: string} | null} */
-  let credentialFailure = null;
-  /** @type {GitHubConnectionError | null} */
-  let providerFailure = null;
+  let failRestoredBaseline = true;
+  let automaticAcquisitions = 0;
   const runner = createGitHubPollingRunner(core, {
-    acquirePullRequestChangeset: async () => ({
-      base_commit: "a".repeat(40),
-      head_commit: "b".repeat(40),
-      release() {},
-    }),
+    acquirePullRequestChangeset: async () => {
+      automaticAcquisitions += 1;
+      return {
+        base_commit: "a".repeat(40),
+        head_commit: "b".repeat(40),
+        release() {},
+      };
+    },
     admitAutomaticEvaluation() {
       return { afterCommit() {}, resource: {} };
     },
     cipher: {
       decrypt() {
-        if (credentialFailure) {
-          throw credentialFailure;
-        }
         return { client_id: null, pem: "private-key" };
       },
     },
     timestamp: () => currentTime,
     verifier: {
-      async listPullRequests() {
-        if (providerFailure) {
-          throw providerFailure;
-        }
-        if (rateLimited) {
+      async listPullRequests(
+        /** @type {any} */ _connection,
+        /** @type {number} */ _installationId,
+        /** @type {{id: number}} */ repository,
+      ) {
+        void _connection;
+        void _installationId;
+        if (failRestoredBaseline && repository.id === 202) {
           throw new GitHubConnectionError(
             "github_api_transient_failure",
             "GitHub API request temporarily failed with HTTP 429",
-            { nextAttemptAt: 300_000 },
+            { repositoryId: 202 },
           );
         }
         return [pullRequest(7)];
@@ -329,85 +327,47 @@ test("due GitHub polling reconciles only enabled healthy state and persists its 
   });
   await runner.runDue();
   assert.deepEqual(
-    core.get(
-      "SELECT baseline_status, last_success_at, error_code, next_attempt_at, snapshot FROM github_repository_polls",
+    core.all(
+      `SELECT forge_repository_id, baseline_status, last_success_at,
+              error_code, next_attempt_at, snapshot
+         FROM github_repository_polls ORDER BY forge_repository_id`,
     ),
-    {
-      baseline_status: "complete",
-      error_code: null,
-      last_success_at: 65_000,
-      next_attempt_at: 125_000,
-      snapshot: JSON.stringify([pullRequest(7)]),
-    },
+    [
+      {
+        forge_repository_id: 101,
+        baseline_status: "pending",
+        last_success_at: null,
+        error_code: null,
+        next_attempt_at: 0,
+        snapshot: null,
+      },
+      {
+        forge_repository_id: 202,
+        baseline_status: "error",
+        last_success_at: null,
+        error_code: "github_api_transient_failure",
+        next_attempt_at: 125_000,
+        snapshot: null,
+      },
+    ],
   );
-  rateLimited = true;
+  assert.equal(automaticAcquisitions, 0);
+
+  failRestoredBaseline = false;
   currentTime = 125_000;
   await runner.runDue();
   assert.deepEqual(
     core.all(
-      `SELECT baseline_status, last_success_at, error_code, rate_gate_until,
-              next_attempt_at, snapshot
+      `SELECT baseline_status, last_success_at, error_code, next_attempt_at, snapshot
          FROM github_repository_polls ORDER BY forge_repository_id`,
     ),
     [101, 202].map(() => ({
       baseline_status: "complete",
       error_code: null,
-      last_success_at: 65_000,
-      next_attempt_at: 300_000,
-      rate_gate_until: 300_000,
+      last_success_at: 125_000,
+      next_attempt_at: 185_000,
       snapshot: JSON.stringify([pullRequest(7)]),
     })),
-  );
-  assert.equal(
-    readGitHubPollingFailure(core, "connection-1")?.error.code,
-    "github_api_transient_failure",
-  );
-
-  rateLimited = false;
-  currentTime = 300_000;
-  credentialFailure = Object.assign(
-    new Error("GitHub Connection credential cannot be decrypted"),
-    { code: "github_connection_credential_undecryptable" },
-  );
-  await runner.runDue();
-  assert.deepEqual(
-    core.get(
-      "SELECT health, health_error_code, health_error_message FROM github_connections",
-    ),
-    {
-      health: "error",
-      health_error_code: "github_connection_credential_undecryptable",
-      health_error_message: "GitHub Connection credential cannot be decrypted",
-    },
-  );
-  assert.equal(
-    readGitHubPollingFailure(core, "connection-1")?.error.code,
-    "github_connection_credential_undecryptable",
-  );
-
-  core.run(
-    `UPDATE github_connections
-        SET health = 'healthy', health_error_code = NULL,
-            health_error_message = NULL`,
-  );
-  core.run("UPDATE github_repository_polls SET next_attempt_at = 360000");
-  credentialFailure = null;
-  providerFailure = new GitHubConnectionError(
-    "github_repository_api_access_failed",
-    "GitHub Repository API access verification failed",
-    { repositoryId: 101 },
-  );
-  currentTime = 360_000;
-  await runner.runDue();
-  assert.deepEqual(
-    core.get(
-      "SELECT health, health_error_code, health_error_message FROM repositories WHERE id = 'repository-1'",
-    ),
-    {
-      health: "error",
-      health_error_code: "github_repository_api_access_failed",
-      health_error_message: "GitHub Repository API access verification failed",
-    },
   );
   runner.destroy();
   core.close();

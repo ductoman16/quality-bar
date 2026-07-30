@@ -21,6 +21,7 @@ import {
 import { failRestore, failRetainedRestore } from "./offline-restore-error.js";
 import { validateRestoredCredentials } from "./offline-restore-state.js";
 import { replaceRestoredOperatorAuthority } from "./operator-password.js";
+import { requireRestoredDiscoveryBaseline } from "./restored-discovery.js";
 
 /** @param {string} path */
 function synchronize(path) {
@@ -231,6 +232,7 @@ function commitRestoreCandidate(
  *   masterKey: Buffer,
  *   operatorPassword: unknown,
  *   recoverAuthority?: typeof replaceRestoredOperatorAuthority,
+ *   requireDiscoveryBaseline?: typeof requireRestoredDiscoveryBaseline,
  *   copyOperations?: Parameters<typeof copyRestoreCandidate>[2],
  *   commitOperations?: Parameters<typeof commitRestoreCandidate>[2],
  * }} input
@@ -242,6 +244,7 @@ export async function restoreOfflineBackup({
   masterKey,
   operatorPassword,
   recoverAuthority = replaceRestoredOperatorAuthority,
+  requireDiscoveryBaseline = requireRestoredDiscoveryBaseline,
   copyOperations,
   commitOperations,
 }) {
@@ -265,6 +268,7 @@ export async function restoreOfflineBackup({
     verifyRestoredInstallationKey(core, masterKey);
     validateRestoredCredentials(core, masterKey);
     recoverAuthority(core, operatorPassword);
+    requireDiscoveryBaseline(core);
     core.get("PRAGMA wal_checkpoint(TRUNCATE)");
     core.close();
     core = undefined;

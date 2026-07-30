@@ -223,7 +223,6 @@ export function createApplication({
         now,
         storageReserve,
       });
-      forgejoConnections.requireFreshBaseline();
       repositories = createRepositories(durableCore, {
         masterKey: installation.masterKey,
         now,

@@ -38,6 +38,22 @@ console.log(
     journalMode: scalar("PRAGMA journal_mode", "journal_mode"),
     operatorPasswordVerifier: metadata("operator_password_verifier"),
     persistedMarker: metadata("package_persistence_test"),
+    restoredDiscovery: {
+      forgejo:
+        database
+          .prepare(
+            `SELECT baseline_status FROM forgejo_repository_polls
+              WHERE connection_id = 'package-restored-forgejo'`,
+          )
+          .get()?.baseline_status ?? null,
+      github:
+        database
+          .prepare(
+            `SELECT baseline_status FROM github_repository_polls
+              WHERE connection_id = 'package-restored-github'`,
+          )
+          .get()?.baseline_status ?? null,
+    },
     schemaVersion: scalar("PRAGMA user_version", "user_version"),
     synchronous: { 0: "off", 1: "normal", 2: "full", 3: "extra" }[synchronous],
   }),
