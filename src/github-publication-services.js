@@ -1,5 +1,6 @@
 import { createGitHubCommitStatusService } from "./github-commit-status-service.js";
 import { createGitHubFeedbackService } from "./github-feedback-service.js";
+import { SHARED_IO_EXECUTION_POOL } from "./io-execution-pool.js";
 
 /**
  * @param {any} durableCore
@@ -24,6 +25,7 @@ export function createGitHubPublicationServices(
   const commitStatuses = createGitHubCommitStatusService(durableCore, {
     cipher,
     externalOrigin,
+    ioPool: SHARED_IO_EXECUTION_POOL,
     now,
     verifier: {
       publishCommitStatus: verifier.publishCommitStatus,
@@ -33,6 +35,7 @@ export function createGitHubPublicationServices(
   const feedback = createGitHubFeedbackService(durableCore, {
     cipher,
     externalOrigin,
+    ioPool: SHARED_IO_EXECUTION_POOL,
     now,
     verifier: {
       publishAggregateFeedback: verifier.publishAggregateFeedback,

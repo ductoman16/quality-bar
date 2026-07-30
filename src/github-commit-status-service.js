@@ -3,6 +3,7 @@ import {
   attemptGitHubDelivery,
   recordGitHubDeliveryHealth,
 } from "./github-delivery-service.js";
+import { createIoExecutionPool } from "./io-execution-pool.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -71,6 +72,7 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
  * @param {{
  *   cipher: {decrypt: (connection: {appId: number, id: string}, encrypted: string) => any},
  *   externalOrigin: string,
+ *   ioPool?: ReturnType<typeof createIoExecutionPool>,
  *   now?: () => number,
  *   verifier: {
  *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
@@ -80,12 +82,19 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
  */
 export function createGitHubCommitStatusService(
   durableCore,
-  { cipher, externalOrigin, now = () => Date.now(), verifier },
+  {
+    cipher,
+    externalOrigin,
+    ioPool = createIoExecutionPool(),
+    now = () => Date.now(),
+    verifier,
+  },
 ) {
   if (
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
+    typeof ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof verifier?.publishCommitStatus !== "function" ||
     typeof verifier.reconcileCommitStatus !== "function"
@@ -294,9 +303,9 @@ export function createGitHubCommitStatusService(
       if (timer) {
         return;
       }
-      void publishWaiting();
+      void ioPool.run("delivery", publishWaiting);
       timer = setInterval(() => {
-        void publishWaiting();
+        void ioPool.run("delivery", publishWaiting);
       }, PUBLICATION_INTERVAL_MS);
       timer.unref?.();
     },

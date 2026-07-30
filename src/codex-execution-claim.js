@@ -1,4 +1,5 @@
 import { DurableCoreError } from "./durable-error.js";
+import { readCodexExecutionConcurrency } from "./codex-execution-concurrency.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
 export const CODEX_EXECUTION_LEASE_MILLISECONDS = 120_000;
@@ -107,6 +108,7 @@ export function createCodexExecutionClaimService(
       const leaseExpiresAt = claimedAt + CODEX_EXECUTION_LEASE_MILLISECONDS;
       requireTimestamp(leaseExpiresAt);
       return durableCore.transaction((transaction) => {
+        const maximumRunning = readCodexExecutionConcurrency(transaction);
         const queued = transaction.get(
           `SELECT work_id, work_kind, fencing_token
            FROM codex_execution_queue
@@ -114,10 +116,36 @@ export function createCodexExecutionClaimService(
              AND retry_state = 'ready'
              AND ready_at <= ?
              AND (worker_id IS NULL OR lease_expires_at <= ?)
+             AND (
+               SELECT count(*)
+               FROM codex_execution_queue AS active_queue
+               LEFT JOIN review_runs AS active_review_run
+                 ON active_queue.work_kind = 'review_run'
+                AND active_review_run.id = active_queue.work_id
+               LEFT JOIN waiver_adjudications AS active_adjudication
+                 ON active_queue.work_kind = 'waiver_adjudication'
+                AND active_adjudication.id = active_queue.work_id
+               WHERE (
+                 (active_queue.work_kind = 'review_run'
+                   AND active_review_run.execution_status IN ('queued', 'running'))
+                 OR
+                 (active_queue.work_kind = 'waiver_adjudication'
+                   AND active_adjudication.execution_status IN ('queued', 'running'))
+               )
+               AND (
+                 active_queue.started_at IS NOT NULL
+                 OR (
+                   active_queue.worker_id IS NOT NULL
+                   AND active_queue.lease_expires_at > ?
+                 )
+               )
+             ) < ?
            ORDER BY ready_at, work_id
            LIMIT 1`,
           claimedAt,
           claimedAt,
+          claimedAt,
+          maximumRunning,
         );
         if (!queued) {
           return undefined;

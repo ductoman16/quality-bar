@@ -1,4 +1,7 @@
+import { CODEX_EXECUTION_CONCURRENCY_SCHEMA } from "./codex-execution-concurrency-schema.js";
+
 export const CODEX_EXECUTION_QUEUE_TRIGGERS = `
+  ${CODEX_EXECUTION_CONCURRENCY_SCHEMA}
   CREATE TRIGGER IF NOT EXISTS codex_execution_queue_identity_update
     BEFORE UPDATE OF work_id, work_kind, accepted_at
     ON codex_execution_queue

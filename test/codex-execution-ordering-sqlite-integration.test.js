@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
@@ -56,6 +57,7 @@ test("retry-exhausted work keeps its slot until the same identity is retried", (
     adjudicationReadyAt: 5,
     reviewRunReadyAt: 10,
   });
+  createCodexExecutionConcurrencyService(core).set(2);
   core.run(
     `UPDATE codex_execution_queue SET retry_state = 'exhausted'
      WHERE work_id = 'adjudication-a'`,

@@ -1,5 +1,6 @@
 import { openDurableCore } from "../../src/durable-core.js";
 import { createReviewRunClaimService } from "../../src/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../../src/codex-execution-concurrency.js";
 
 const [
   databasePath,
@@ -27,6 +28,14 @@ try {
   if (action === "claim") {
     process.stdout.write(
       `${JSON.stringify({ claim: claims.claimNext() ?? null })}\n`,
+    );
+  } else if (action === "set-concurrency" && workId) {
+    process.stdout.write(
+      `${JSON.stringify({
+        maximumRunning: createCodexExecutionConcurrencyService(core).set(
+          Number(workId),
+        ),
+      })}\n`,
     );
   } else if (
     action === "start" &&

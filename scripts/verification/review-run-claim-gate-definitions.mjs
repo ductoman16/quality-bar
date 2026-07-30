@@ -6,7 +6,9 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
     failureCode: "review_run_claim_unit_tests_failed",
     arguments: [
       "--test",
+      "test/codex-execution-concurrency.test.js",
       "test/codex-execution-claim.test.js",
+      "test/io-execution-pool.test.js",
       "test/review-run-claim.test.js",
     ],
   },
@@ -17,9 +19,20 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
     failureCode: "review_run_claim_sqlite_integration_tests_failed",
     arguments: [
       "--test",
+      "test/codex-execution-concurrency-sqlite-integration.test.js",
       "test/codex-execution-ordering-sqlite-integration.test.js",
       "test/review-run-claim-sqlite-integration.test.js",
       "test/review-run-claim-schema-migration.test.js",
+    ],
+  },
+  {
+    name: "codex-execution-concurrency-sqlite-failure-integration",
+    testGroup:
+      "durable-concurrency-write-failure-exact-storage-error-no-partial-setting",
+    failureCode: "codex_execution_concurrency_sqlite_failure_tests_failed",
+    arguments: [
+      "--test",
+      "test/codex-execution-concurrency-sqlite-failure-integration.test.js",
     ],
   },
   {

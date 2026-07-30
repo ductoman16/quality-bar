@@ -15,6 +15,7 @@ import {
   createStorageReservePollingCore,
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
+import { scheduleIoDuty } from "./io-execution-pool.js";
 
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
@@ -396,6 +397,8 @@ export function createGitHubPollingRunner(
     }
   }
 
+  const schedulePoll = scheduleIoDuty("polling", pollScheduled);
+
   return {
     commitConnectionBaseline,
     destroy() {
@@ -407,9 +410,9 @@ export function createGitHubPollingRunner(
       if (timer !== null) {
         return;
       }
-      timer = setInterval(() => void pollScheduled(), GITHUB_POLL_INTERVAL_MS);
+      timer = setInterval(schedulePoll, GITHUB_POLL_INTERVAL_MS);
       timer.unref();
-      void pollScheduled();
+      schedulePoll();
     },
     repositoryVerifier,
     prepareConnectionBaseline,

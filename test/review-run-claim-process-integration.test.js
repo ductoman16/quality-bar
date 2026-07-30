@@ -90,3 +90,34 @@ test("separate processes share ordering and fence an expired worker across work 
     { outcome: "started" },
   );
 });
+
+test("separate processes cannot claim beyond the durable concurrency setting", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-concurrency-race-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const core = openDurableCore(databasePath);
+  seedQueuedCodexExecutionKinds(core, {
+    adjudicationReadyAt: 1_000,
+    reviewRunReadyAt: 1_000,
+  });
+  core.close();
+
+  const racers = await Promise.all([
+    runWorker([databasePath, "claim", "worker-a", "1000"]),
+    runWorker([databasePath, "claim", "worker-b", "1000"]),
+  ]);
+  assert.equal(racers.filter((result) => result.claim !== null).length, 1);
+
+  const setting = await runWorker([
+    databasePath,
+    "set-concurrency",
+    "worker-setting",
+    "1000",
+    "2",
+  ]);
+  assert.deepEqual(setting, { maximumRunning: 2 });
+  const second = await runWorker([databasePath, "claim", "worker-c", "1000"]);
+  assert.ok(second.claim);
+});

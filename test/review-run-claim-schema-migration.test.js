@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
 import {
   createQueuedReviewRun,
   createSiblingQueuedReviewRun,
@@ -56,7 +57,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 43);
+  assert.equal(migrated.facts.schemaVersion, 44);
   assert.deepEqual(
     migrated.get(
       `SELECT worker_id, fencing_token, lease_expires_at, retry_state
@@ -134,6 +135,7 @@ test("schema v24 migrates queued Review Runs to unclaimed fence zero", async (co
     createWorkerId: () => "worker-after-migration",
     now: () => 1_000,
   });
+  createCodexExecutionConcurrencyService(migrated).set(2);
   assert.equal(migratedClaims.claimNext()?.fencingToken, 1);
   assert.throws(
     () => migratedClaims.claimNext(),
@@ -156,7 +158,7 @@ test("schema v42 preserves queue identity while adding ready retry state", async
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 43);
+  assert.equal(migrated.facts.schemaVersion, 44);
   assert.deepEqual(
     migrated.get(
       `SELECT work_id, ready_at, retry_state

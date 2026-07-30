@@ -15,6 +15,7 @@ import {
   createStorageReservePollingCore,
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
+import { scheduleIoDuty } from "./io-execution-pool.js";
 
 /** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
@@ -365,9 +366,11 @@ export function createForgejoPollingRunner(
     if (!started) {
       return;
     }
-    timer = setTimeout(() => void runScheduled(), delay);
+    timer = setTimeout(scheduleRun, delay);
     timer.unref();
   }
+
+  const scheduleRun = scheduleIoDuty("polling", runScheduled);
 
   return {
     commitFailure: polling.commitFailure,
@@ -396,7 +399,7 @@ export function createForgejoPollingRunner(
         return;
       }
       started = true;
-      timer = setTimeout(() => void runScheduled(), 0);
+      timer = setTimeout(scheduleRun, 0);
       timer.unref();
     },
   };
