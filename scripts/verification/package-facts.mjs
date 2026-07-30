@@ -67,7 +67,7 @@
  *     foreignKeys?: boolean,
  *     integrity?: string,
  *     journalMode?: string,
- *     restoredDiscovery?: {forgejo?: string, github?: string},
+ *     restoredDiscovery?: {forgejo?: string | null, github?: string | null},
  *     schemaVersion?: number,
  *     synchronous?: string,
  *   },

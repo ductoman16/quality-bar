@@ -15,7 +15,7 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   journalMode: string,
  *   operatorPasswordVerifier: string | null,
  *   persistedMarker: string | null,
- *   restoredDiscovery: {forgejo: string, github: string},
+ *   restoredDiscovery: {forgejo: string | null, github: string | null},
  *   schemaVersion: number,
  *   synchronous: string,
  * }} DatabaseFacts
