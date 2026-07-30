@@ -34,6 +34,17 @@ test("the browser preserves queued state and the exact owning execution failure"
   );
   assert.equal(
     describeStatus({
+      error: {
+        code: "result_not_submitted",
+        detail: " Exact failure detail retained. ",
+      },
+      execution_status: "failed",
+      id: "adjudication-exact-failure",
+    }),
+    "Waiver Adjudication adjudication-exact-failure failed. Error result_not_submitted:  Exact failure detail retained. ",
+  );
+  assert.equal(
+    describeStatus({
       decisions: [
         {
           explanation:

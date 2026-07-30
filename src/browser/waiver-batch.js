@@ -4,6 +4,10 @@
     typeof value === "string" && value.length > 0 && value === value.trim();
 
   /** @param {unknown} value */
+  const nonblank = (value) =>
+    typeof value === "string" && value.trim().length > 0;
+
+  /** @param {unknown} value */
   const stableCode = (value) =>
     typeof value === "string" && /^[a-z][a-z0-9_]*$/.test(value);
 
@@ -27,7 +31,7 @@
     if (adjudication.execution_status === "failed") {
       if (
         !stableCode(adjudication.error?.code) ||
-        !canonicalNonblank(adjudication.error?.detail)
+        !nonblank(adjudication.error?.detail)
       ) {
         throw new Error("waiver_adjudication_invalid");
       }

@@ -208,7 +208,17 @@ export function readEvaluation(row) {
   };
 }
 
-export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normalized_url,
+export const EVALUATION_SELECTION = `WITH evaluation_finding_impacts AS (
+  SELECT findings.id, findings.evaluation_id,
+         review_version_criteria.impact
+  FROM findings
+  JOIN review_runs ON review_runs.id = findings.review_run_id
+  JOIN review_version_criteria
+    ON review_version_criteria.review_version_id =
+         review_runs.review_version_id
+   AND review_version_criteria.criterion_id = findings.criterion_id
+)
+SELECT evaluations.*, repositories.normalized_url,
   CASE WHEN github_automatic_evaluations.evaluation_id IS NULL
     THEN evaluations.provenance ELSE 'automatic' END AS resource_provenance,
   github_automatic_evaluations.pull_request_number
@@ -221,14 +231,9 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
   ) AS active_waiver_adjudication_count,
   (
     SELECT count(*)
-    FROM findings
-    JOIN review_runs ON review_runs.id = findings.review_run_id
-    JOIN review_version_criteria
-      ON review_version_criteria.review_version_id =
-           review_runs.review_version_id
-     AND review_version_criteria.criterion_id = findings.criterion_id
-    WHERE findings.evaluation_id = evaluations.id
-      AND review_version_criteria.impact = 'blocking'
+    FROM evaluation_finding_impacts
+    WHERE evaluation_finding_impacts.evaluation_id = evaluations.id
+      AND evaluation_finding_impacts.impact = 'blocking'
   ) AS blocking_finding_count,
   (
     SELECT count(*)
@@ -263,18 +268,13 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
   ) AS current_waiver_error_count,
   (
     SELECT count(*)
-    FROM findings
-    JOIN review_runs ON review_runs.id = findings.review_run_id
-    JOIN review_version_criteria
-      ON review_version_criteria.review_version_id =
-           review_runs.review_version_id
-     AND review_version_criteria.criterion_id = findings.criterion_id
-    WHERE findings.evaluation_id = evaluations.id
-      AND review_version_criteria.impact = 'advisory'
+    FROM evaluation_finding_impacts
+    WHERE evaluation_finding_impacts.evaluation_id = evaluations.id
+      AND evaluation_finding_impacts.impact = 'advisory'
       AND NOT EXISTS (
         SELECT 1
         FROM waiver_requests
-        WHERE waiver_requests.finding_id = findings.id
+        WHERE waiver_requests.finding_id = evaluation_finding_impacts.id
           AND (
             SELECT waiver_decisions.outcome
             FROM waiver_decisions
