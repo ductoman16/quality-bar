@@ -211,6 +211,7 @@ export function createApplicationServer({
     typeof evaluations.readReviewRunById !== "function" ||
     typeof evaluations.readReviewRunDiagnostics !== "function" ||
     typeof evaluations.submitWaiverBatch !== "function" ||
+    typeof evaluations.recoverWaiverAdjudication !== "function" ||
     typeof evaluations.retryWaiverErrors !== "function"
   ) {
     throw new TypeError("evaluations must provide the Evaluation resource");

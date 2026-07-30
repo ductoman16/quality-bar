@@ -72,6 +72,7 @@ test("Evaluation Results expose each Applicability outcome with its owning scope
       review_runs: [],
     },
     "",
+    [],
   );
   assert.equal(target.textContent, "Result error");
   assert.equal(

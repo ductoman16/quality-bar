@@ -161,7 +161,7 @@ test("checkout preparation creates a fresh disposable frozen-head checkout with 
       }),
     (error) =>
       error instanceof ReviewRunCheckoutError &&
-      error.code === "review_run_checkout_failed",
+      error.code === "review_run_checkout_commit_unavailable",
   );
   assert.equal(existsSync(join(checkoutRoot, "review-run-2", "8")), false);
 });
@@ -214,4 +214,30 @@ test("credentialed checkout keeps credentials out of Git arguments, environment,
     /private-git-token-value|private-git-user/,
   );
   prepared.remove();
+});
+
+test("missing Git checkout capability is a definitive owning failure", async (context) => {
+  const checkoutRoot = mkdtempSync(join(tmpdir(), "quality-bar-checkout-git-"));
+  context.after(() => rmSync(checkoutRoot, { force: true, recursive: true }));
+  await assert.rejects(
+    () =>
+      prepareReviewRunCheckout({
+        baseCommit: "a".repeat(40),
+        checkoutRoot,
+        fencingToken: 1,
+        headCommit: "b".repeat(40),
+        repositoryUrl: "https://example.invalid/repository.git",
+        spawnProcess: /** @type {typeof spawn} */ (
+          () => {
+            throw Object.assign(new Error("spawn git ENOENT"), {
+              code: "ENOENT",
+            });
+          }
+        ),
+        workId: "review-run-capability",
+      }),
+    (error) =>
+      error instanceof ReviewRunCheckoutError &&
+      error.code === "review_run_checkout_capability_unavailable",
+  );
 });

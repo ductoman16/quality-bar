@@ -177,9 +177,11 @@ function owningFailure(error) {
     typeof error.code === "string" &&
     /^[a-z][a-z0-9_]*$/.test(error.code)
   ) {
-    return new ReviewRunExecutionError(error.code, error.message, {
-      cause: error,
-    });
+    return new ReviewRunExecutionError(
+      error.code,
+      error.message.replaceAll("Review Run", "Waiver Adjudication"),
+      { cause: error },
+    );
   }
   return new ReviewRunExecutionError(
     "unexpected_execution_failure",
@@ -230,15 +232,22 @@ export async function executeWaiverAdjudication(
     },
   );
   try {
-    const checkout = await prepareCheckout({
-      baseCommit: adjudication.baseCommit,
-      checkoutRoot,
-      credential: checkoutCredential,
-      fencingToken: claim.fencingToken,
-      headCommit: adjudication.headCommit,
-      repositoryUrl: adjudication.repositoryUrl,
-      workId: claim.workId,
-    });
+    let checkout;
+    try {
+      checkout = await prepareCheckout({
+        baseCommit: adjudication.baseCommit,
+        checkoutRoot,
+        credential: checkoutCredential,
+        fencingToken: claim.fencingToken,
+        headCommit: adjudication.headCommit,
+        repositoryUrl: adjudication.repositoryUrl,
+        workId: claim.workId,
+      });
+    } catch (error) {
+      const failure = owningFailure(error);
+      claimService.recordPreStartFailure(claim, failure);
+      throw failure;
+    }
     let executionFailure;
     let started = false;
     let terminalFailureRecorded = false;
@@ -279,6 +288,8 @@ export async function executeWaiverAdjudication(
             value: persistenceFailure,
           });
         }
+      } else if (!started) {
+        claimService.recordPreStartFailure(claim, executionFailure);
       }
       throw executionFailure;
     } finally {

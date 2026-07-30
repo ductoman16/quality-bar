@@ -87,6 +87,14 @@ test("the operator cancels active work and reads one complete cancelled Result",
           },
         };
       }
+      if (path.endsWith("/waiver-adjudications")) {
+        return {
+          ok: true,
+          async json() {
+            return { items: [] };
+          },
+        };
+      }
       throw new Error(`unexpected fetch: ${path}`);
     },
     window: {
@@ -198,6 +206,14 @@ test("superseded pull-request work exposes its exact cancellation state", async 
                 },
               ],
             };
+          },
+        };
+      }
+      if (path.endsWith("/waiver-adjudications")) {
+        return {
+          ok: true,
+          async json() {
+            return { items: [] };
           },
         };
       }

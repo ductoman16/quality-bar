@@ -38,6 +38,9 @@ export function createUnavailableEvaluationService(error) {
     readWaiverRequest() {
       failEvaluation(failure.code, failure.message, error);
     },
+    readWaiverAdjudications() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     readFinding() {
       failEvaluation(failure.code, failure.message, error);
     },
@@ -51,6 +54,9 @@ export function createUnavailableEvaluationService(error) {
       failEvaluation(failure.code, failure.message, error);
     },
     readReviewRunDiagnostics() {
+      failEvaluation(failure.code, failure.message, error);
+    },
+    recoverWaiverAdjudication() {
       failEvaluation(failure.code, failure.message, error);
     },
     retryWaiverErrors() {
