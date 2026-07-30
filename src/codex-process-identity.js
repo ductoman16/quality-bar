@@ -66,6 +66,29 @@ export function readCodexProcessIdentity(processId) {
   throw new TypeError("Codex process identity platform is unsupported");
 }
 
+/** @param {number} processGroupId */
+export function codexProcessGroupHasLiveMember(processGroupId) {
+  if (!Number.isSafeInteger(processGroupId) || processGroupId < 1) {
+    throw new TypeError("Codex process group identity is invalid");
+  }
+  const listing = execFileSync("/bin/ps", ["-axo", "pgid=,stat="], {
+    encoding: "utf8",
+  });
+  for (const line of listing.trim().split("\n")) {
+    const match = /^\s*(\d+)\s+(\S+)\s*$/.exec(line);
+    if (match === null) {
+      throw new TypeError("Codex process group inspection is invalid");
+    }
+    if (
+      Number.parseInt(match[1], 10) === processGroupId &&
+      !match[2].startsWith("Z")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** @param {unknown} candidate */
 export function requireCodexProcessIdentity(candidate) {
   const identity = /** @type {any} */ (candidate);

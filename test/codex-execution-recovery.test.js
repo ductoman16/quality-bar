@@ -150,6 +150,58 @@ test("a reused process-group number is never signalled", () => {
   assert.deepEqual(signals, []);
 });
 
+test("a leaderless original process group remains safely terminable", () => {
+  /** @type {[number, NodeJS.Signals | 0][]} */
+  const signals = [];
+  const result = terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
+    killProcessGroup(processId, signal) {
+      signals.push([processId, signal]);
+      if (processId === 4321) {
+        throw Object.assign(new Error("leader exited"), { code: "ESRCH" });
+      }
+    },
+    readProcessIdentity(processId) {
+      if (processId === 4321) {
+        throw Object.assign(new Error("leader exited"), { code: "ESRCH" });
+      }
+      assert.equal(processId, process.pid);
+      return { ...TRACKED_PROCESS, startIdentity: "host-start" };
+    },
+    waitForExit: () => false,
+  });
+  assert.equal(result, "SIGKILL");
+  assert.deepEqual(signals, [
+    [-4321, 0],
+    [4321, 0],
+    [-4321, "SIGTERM"],
+    [-4321, "SIGKILL"],
+  ]);
+});
+
+test("permission denial after termination remains an exact hard failure", () => {
+  let inspected = 0;
+  assert.throws(
+    () =>
+      terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
+        hasLiveProcessGroupMember: () => true,
+        killProcessGroup(processId, signal) {
+          assert.equal(processId, -4321);
+          if (signal === 0 && inspected++ > 0) {
+            throw Object.assign(new Error("permission denied"), {
+              code: "EPERM",
+            });
+          }
+        },
+        readProcessIdentity: () => TRACKED_PROCESS,
+        waitForExit: (isActive) => isActive(),
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "codex_execution_process_group_termination_failed",
+  );
+});
+
 test("recovery releases queued work and fails an interrupted waiver without retry", () => {
   /** @type {{sql: string, parameters: unknown[]}[]} */
   const writes = [];
@@ -160,6 +212,8 @@ test("recovery releases queued work and fails an interrupted waiver without retr
           execution_status: "queued",
           process_group_finished_at: null,
           process_group_id: null,
+          recovered_at: null,
+          recovery_termination_signal: null,
           started_at: null,
           work_id: "review-queued",
           work_kind: "review_run",
@@ -172,6 +226,8 @@ test("recovery releases queued work and fails an interrupted waiver without retr
           process_group_id: 4321,
           process_namespace_identity: "namespace-1",
           process_start_identity: "start-1",
+          recovered_at: null,
+          recovery_termination_signal: null,
           started_at: 20,
           work_id: "waiver-running",
           work_kind: "waiver_adjudication",
@@ -196,9 +252,97 @@ test("recovery releases queued work and fails an interrupted waiver without retr
     { interrupted: 1, queued: 1 },
   );
   assert.equal(writes.length, 3);
-  assert.match(writes[0].sql, /SET lease_expires_at/);
-  assert.match(writes[1].sql, /execution_status = 'failed'/);
-  assert.match(writes[2].sql, /recovery_termination_signal/);
+  assert.match(writes[0].sql, /recovery_termination_signal/);
+  assert.match(writes[1].sql, /SET lease_expires_at/);
+  assert.match(writes[2].sql, /execution_status = 'failed'/);
+});
+
+test("each physical termination fact commits before a later survivor fails", () => {
+  /** @type {{parameters: unknown[], sql: string}[]} */
+  const persisted = [];
+  const work = [4321, 4322].map((processGroupId) => ({
+    execution_status: "running",
+    process_boot_identity: "boot-1",
+    process_group_finished_at: null,
+    process_group_id: processGroupId,
+    process_namespace_identity: "namespace-1",
+    process_start_identity: `start-${processGroupId}`,
+    recovered_at: null,
+    recovery_termination_signal: null,
+    started_at: 20,
+    work_id: `waiver-${processGroupId}`,
+    work_kind: "waiver_adjudication",
+  }));
+  const durableCore = {
+    all: () => work,
+    transaction(/** @type {any} */ callback) {
+      return callback({
+        /** @param {string} sql @param {unknown[]} parameters */
+        run(sql, ...parameters) {
+          persisted.push({ parameters, sql });
+          return { changes: 1 };
+        },
+      });
+    },
+  };
+  assert.throws(
+    () =>
+      recoverCodexExecutions(durableCore, {
+        now: () => 30,
+        terminateProcessGroup({ processGroupId }) {
+          if (processGroupId === 4322) {
+            throw new Error("later termination failed");
+          }
+          return "SIGTERM";
+        },
+      }),
+    new Error("later termination failed"),
+  );
+  assert.equal(persisted.length, 1);
+  assert.match(persisted[0].sql, /recovery_termination_signal/);
+  assert.deepEqual(persisted[0].parameters.slice(0, 3), [
+    "SIGTERM",
+    30,
+    "waiver-4321",
+  ]);
+});
+
+test("restart resumes owner recovery from an already durable termination fact", () => {
+  /** @type {string[]} */
+  const writes = [];
+  const durableCore = {
+    all: () => [
+      {
+        execution_status: "running",
+        process_group_finished_at: null,
+        process_group_id: 4321,
+        recovered_at: 30,
+        recovery_termination_signal: "SIGTERM",
+        started_at: 20,
+        work_id: "waiver-running",
+        work_kind: "waiver_adjudication",
+      },
+    ],
+    transaction(/** @type {any} */ callback) {
+      return callback({
+        /** @param {string} sql */
+        run(sql) {
+          writes.push(sql);
+          return { changes: 1 };
+        },
+      });
+    },
+  };
+  assert.deepEqual(
+    recoverCodexExecutions(durableCore, {
+      now: () => 40,
+      terminateProcessGroup: () =>
+        assert.fail("durably terminated work was signalled again"),
+    }),
+    { interrupted: 1, queued: 0 },
+  );
+  assert.equal(writes.length, 1);
+  assert.match(writes[0], /execution_status = 'failed'/);
 });
 
 test("recovery fails when durable interrupted authority changes", () => {
@@ -208,6 +352,8 @@ test("recovery fails when durable interrupted authority changes", () => {
         execution_status: "running",
         process_group_finished_at: null,
         process_group_id: null,
+        recovered_at: null,
+        recovery_termination_signal: null,
         started_at: 20,
         work_id: "waiver-running",
         work_kind: "waiver_adjudication",

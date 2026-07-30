@@ -1,4 +1,5 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
+import { attachFailureDiagnostic } from "./review-run-codex-failure.js";
 
 /** @param {unknown} finish @param {unknown} track */
 export function requireTracking(finish, track) {
@@ -33,8 +34,34 @@ export async function trackSpawnedCodexProcessGroup(
     }
     track(/** @type {number} */ (child.pid));
   } catch (error) {
-    await closeSubmission();
-    await terminate();
+    let submissionCloseFailure;
+    try {
+      await closeSubmission();
+    } catch (failure) {
+      submissionCloseFailure = failure;
+    }
+    let terminationFailure;
+    try {
+      await terminate();
+    } catch (failure) {
+      terminationFailure = failure;
+    }
+    if (error instanceof Error) {
+      if (submissionCloseFailure !== undefined) {
+        attachFailureDiagnostic(
+          error,
+          "submissionCloseFailure",
+          submissionCloseFailure,
+        );
+      }
+      if (terminationFailure !== undefined) {
+        attachFailureDiagnostic(
+          error,
+          "terminationFailure",
+          terminationFailure,
+        );
+      }
+    }
     throw error;
   }
 }

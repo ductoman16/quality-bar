@@ -100,3 +100,85 @@ test("restart terminates a tracked surviving process group and retains its parti
     "unexpected_execution_failure",
   );
 });
+
+test("restart terminates a tracked process group after its leader exits", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-leaderless-recovery-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const claims = createCodexExecutionClaimService(core, {
+    createWorkerId: () => "leaderless-process-worker",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  claims.start(claim, "0.145.0");
+
+  const leader = spawn(
+    process.execPath,
+    [
+      join(
+        import.meta.dirname,
+        "../fixtures/test-probes/leaderless-process-group.mjs",
+      ),
+    ],
+    { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"] },
+  );
+  assert.ok(leader.pid);
+  /** @type {number | undefined} */
+  let descendantId;
+  /** @type {Promise<void>} */
+  const descendantReady = new Promise((resolve, reject) => {
+    leader.once("error", reject);
+    leader.once("message", (message) => {
+      descendantId = /** @type {{childPid: number}} */ (message).childPid;
+      resolve();
+    });
+  });
+  context.after(() => {
+    for (const target of [
+      -(/** @type {number} */ (leader.pid)),
+      descendantId,
+    ]) {
+      try {
+        if (Number.isSafeInteger(target)) {
+          process.kill(/** @type {number} */ (target), "SIGKILL");
+        }
+      } catch (error) {
+        if (
+          !(
+            error instanceof Error &&
+            "code" in error &&
+            String(error.code) === "ESRCH"
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+  });
+  await descendantReady;
+  claims.trackProcessGroup(claim, leader.pid);
+  const leaderExited = new Promise((resolve, reject) => {
+    leader.once("error", reject);
+    leader.once("exit", resolve);
+  });
+  leader.send("exit-leader");
+  await leaderExited;
+  assert.doesNotThrow(() =>
+    process.kill(-(/** @type {number} */ (leader.pid)), 0),
+  );
+
+  recoverCodexExecutions(core, { now: () => 30 });
+
+  assert.deepEqual(
+    core.get(
+      `SELECT recovery_termination_signal, recovered_at
+       FROM codex_execution_queue WHERE work_id = 'review-run-1'`,
+    ),
+    { recovered_at: 30, recovery_termination_signal: "SIGTERM" },
+  );
+});

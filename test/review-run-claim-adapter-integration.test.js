@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { trackSpawnedCodexProcessGroup } from "../src/codex-execution-process-group-tracking.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { runReviewRunCodex as runProductionReviewRunCodex } from "../src/review-run-codex-adapter.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
@@ -38,6 +39,41 @@ test("process-group tracking is required before opening submission", async () =>
     new TypeError("Codex process-group tracking dependencies are invalid"),
   );
   assert.equal(opened, false);
+});
+
+test("tracking failure still terminates the untracked detached process group", async () => {
+  const trackingFailure = new Error("durable tracking failed");
+  const closeFailure = new Error("submission close failed");
+  const terminationFailure = new Error("termination failed");
+  /** @type {string[]} */
+  const events = [];
+  await assert.rejects(
+    () =>
+      trackSpawnedCodexProcessGroup(
+        /** @type {any} */ ({ pid: 4321 }),
+        () => {
+          throw trackingFailure;
+        },
+        async () => {
+          events.push("close");
+          throw closeFailure;
+        },
+        async () => {
+          events.push("terminate");
+          throw terminationFailure;
+        },
+      ),
+    trackingFailure,
+  );
+  assert.deepEqual(events, ["close", "terminate"]);
+  assert.equal(
+    /** @type {any} */ (trackingFailure).submissionCloseFailure,
+    closeFailure,
+  );
+  assert.equal(
+    /** @type {any} */ (trackingFailure).terminationFailure,
+    terminationFailure,
+  );
 });
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
