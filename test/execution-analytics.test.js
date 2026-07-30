@@ -87,6 +87,24 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: null,
+            completed_at: null,
+            error_code: null,
+            execution_status: "cancelled",
+            input_tokens: null,
+            output_tokens: null,
+            started_at: null,
+          },
+          {
+            cached_input_tokens: null,
+            completed_at: 950,
+            error_code: "review_run_checkout_failed",
+            execution_status: "failed",
+            input_tokens: null,
+            output_tokens: null,
+            started_at: null,
+          },
+          {
+            cached_input_tokens: null,
             completed_at: 1_100,
             error_code: null,
             execution_status: "completed",
@@ -161,19 +179,22 @@ test("Analytics derives execution reliability, duration, and supplied token cove
   });
   assert.deepEqual(document.waiver_adjudication_reliability, {
     active: 1,
-    cancelled: 1,
-    cancelled_rate: { denominator: 3, numerator: 1 },
+    cancelled: 2,
+    cancelled_rate: { denominator: 5, numerator: 2 },
     completed: 1,
-    completed_rate: { denominator: 3, numerator: 1 },
+    completed_rate: { denominator: 5, numerator: 1 },
     duration: {
       cancelled: { execution_count: 1, median_ms: 300, total_ms: 300 },
       completed: { execution_count: 1, median_ms: 100, total_ms: 100 },
       failed: { execution_count: 1, median_ms: 200, total_ms: 200 },
       terminal: { execution_count: 3, median_ms: 200, total_ms: 600 },
     },
-    failed: 1,
-    failed_rate: { denominator: 3, numerator: 1 },
-    failure_codes: [{ code: "codex_process_failed", count: 1 }],
+    failed: 2,
+    failed_rate: { denominator: 5, numerator: 2 },
+    failure_codes: [
+      { code: "codex_process_failed", count: 1 },
+      { code: "review_run_checkout_failed", count: 1 },
+    ],
     token_counters: {
       cached_input_tokens: {
         coverage: { denominator: 3, numerator: 1 },

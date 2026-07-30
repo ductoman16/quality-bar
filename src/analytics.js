@@ -319,8 +319,10 @@ export function createAnalyticsService(durableCore) {
               failed: "failed",
             },
             {
-              cancelled_by_operator: "operator_cancelled",
-              cancelled_by_supersession: "superseded",
+              cancellationOutcomes: {
+                cancelled_by_operator: "operator_cancelled",
+                cancelled_by_supersession: "superseded",
+              },
             },
           ),
           waiver_analytics: {
@@ -345,6 +347,7 @@ export function createAnalyticsService(durableCore) {
               completed: "completed",
               failed: "failed",
             },
+            { includeUnstartedTerminals: true },
           ),
         };
       } catch (cause) {

@@ -72,12 +72,15 @@ function tokenSummary(values, population) {
 /**
  * @param {Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>} rows
  * @param {Record<string, string>} terminalOutcomes
- * @param {Record<string, string>} [cancellationOutcomes]
+ * @param {{
+ *   cancellationOutcomes?: Record<string, string>,
+ *   includeUnstartedTerminals?: boolean
+ * }} [options]
  */
 export function deriveExecutionReliability(
   rows,
   terminalOutcomes,
-  cancellationOutcomes,
+  { cancellationOutcomes, includeUnstartedTerminals = false } = {},
 ) {
   const outcomeNames = [
     ...new Set([
@@ -99,6 +102,7 @@ export function deriveExecutionReliability(
   /** @type {Map<string, number>} */
   const failureCodes = new Map();
   let active = 0;
+  let terminalReliability = 0;
   let terminalStarted = 0;
   for (const row of rows) {
     const status = row?.execution_status;
@@ -129,6 +133,10 @@ export function deriveExecutionReliability(
         completedAt === null) ||
       (["completed", "failed"].includes(/** @type {string} */ (status)) &&
         typeof startedAt === "number" &&
+        typeof completedAt === "number") ||
+      (includeUnstartedTerminals &&
+        ["failed", "cancelled"].includes(/** @type {string} */ (status)) &&
+        startedAt === null &&
         typeof completedAt === "number") ||
       (status === "cancelled" &&
         ((startedAt === null && completedAt === null) ||
@@ -165,9 +173,6 @@ export function deriveExecutionReliability(
       active += 1;
       continue;
     }
-    if (startedAt === null || completedAt === null) {
-      continue;
-    }
     const outcome =
       status === "cancelled" && cancellationOutcomes !== undefined
         ? cancellationOutcomes[/** @type {string} */ (cancellationCode)]
@@ -178,17 +183,23 @@ export function deriveExecutionReliability(
         "Canonical analytics fact is invalid",
       );
     }
+    if (includeUnstartedTerminals || startedAt !== null) {
+      outcomeCounts[outcome] += 1;
+      terminalReliability += 1;
+      if (status === "failed") {
+        failureCodes.set(
+          /** @type {string} */ (errorCode),
+          (failureCodes.get(/** @type {string} */ (errorCode)) ?? 0) + 1,
+        );
+      }
+    }
+    if (startedAt === null || completedAt === null) {
+      continue;
+    }
     const duration = completedAt - startedAt;
     durations.terminal.push(duration);
     durations[outcome].push(duration);
-    outcomeCounts[outcome] += 1;
     terminalStarted += 1;
-    if (status === "failed") {
-      failureCodes.set(
-        /** @type {string} */ (errorCode),
-        (failureCodes.get(/** @type {string} */ (errorCode)) ?? 0) + 1,
-      );
-    }
     for (const name of TOKEN_COUNTER_NAMES) {
       const value = row?.[name];
       if (typeof value === "number") {
@@ -207,7 +218,7 @@ export function deriveExecutionReliability(
     ...Object.fromEntries(
       outcomeNames.flatMap((outcome) => [
         [outcome, outcomeCounts[outcome]],
-        [`${outcome}_rate`, rate(outcomeCounts[outcome], terminalStarted)],
+        [`${outcome}_rate`, rate(outcomeCounts[outcome], terminalReliability)],
       ]),
     ),
     failure_codes: [...failureCodes]

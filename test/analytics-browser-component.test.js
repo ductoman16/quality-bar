@@ -298,5 +298,17 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     { message: "analytics_document_invalid" },
   );
   assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
+  assert.throws(
+    () =>
+      context.window.qualityBarAnalytics.render({
+        ...analyticsDocument,
+        review_run_reliability: {
+          ...analyticsDocument.review_run_reliability,
+          token_counters: null,
+        },
+      }),
+    { message: "analytics_document_invalid" },
+  );
+  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
   assert.equal(error.hidden, true);
 });
