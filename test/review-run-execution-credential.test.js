@@ -36,7 +36,7 @@ test("credential acquisition failure stays inside the claimed execution lifecycl
           throw failure;
         },
         claimService: {
-          start: assert.fail,
+          startTracked: assert.fail,
           startRenewal() {
             return () => {
               stoppedRenewal = true;

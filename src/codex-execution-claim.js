@@ -4,6 +4,7 @@ import {
   readCodexProcessIdentity,
   requireCodexProcessIdentity,
 } from "./codex-process-identity.js";
+import { startCodexExecution } from "./codex-execution-start.js";
 import { recordWaiverPreStartFailure } from "./waiver-adjudication-pre-start.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
@@ -74,25 +75,6 @@ function assertClaim(claim) {
   if (!Number.isSafeInteger(claim.fencingToken) || claim.fencingToken < 1) {
     throw new TypeError("Codex execution claim is invalid");
   }
-}
-
-/** @param {any} transaction */
-function countRunningCodexExecutions(transaction) {
-  return transaction.get(
-    `SELECT count(*) AS count
-     FROM codex_execution_queue AS running_queue
-     LEFT JOIN review_runs AS running_review_run
-       ON running_queue.work_kind = 'review_run'
-      AND running_review_run.id = running_queue.work_id
-     LEFT JOIN waiver_adjudications AS running_adjudication
-       ON running_queue.work_kind = 'waiver_adjudication'
-      AND running_adjudication.id = running_queue.work_id
-     WHERE running_queue.started_at IS NOT NULL
-       AND (
-         running_review_run.execution_status = 'running'
-         OR running_adjudication.execution_status = 'running'
-       )`,
-  )?.count;
 }
 
 /**
@@ -338,77 +320,35 @@ export function createCodexExecutionClaimService(
       }
       return { ...claim, leaseExpiresAt: releasedAt };
     },
-    /** @param {CodexExecutionClaim} claim @param {string} codexCliVersion */
-    start(claim, codexCliVersion) {
+    /**
+     * @param {CodexExecutionClaim} claim
+     * @param {string} codexCliVersion
+     * @param {number} [processGroupId]
+     */
+    start(claim, codexCliVersion, processGroupId) {
       assertClaim(claim);
-      const owner = WORK_OWNERS[claim.workKind];
-      requireNonblank(codexCliVersion, owner.versionMessage);
-      const startedAt = now();
-      requireTimestamp(startedAt);
-      const started = durableCore.transaction((transaction) => {
-        const maximumRunning = readCodexExecutionConcurrency(transaction);
-        const running = countRunningCodexExecutions(transaction);
-        if (!Number.isSafeInteger(running) || running < 0) {
-          throw new DurableCoreError(
-            "codex_execution_concurrency_unavailable",
-            "Codex execution concurrency is unavailable",
-          );
-        }
-        if (running >= maximumRunning) {
-          const released = transaction.run(
-            `UPDATE codex_execution_queue SET lease_expires_at = ?
-             WHERE work_id = ? AND work_kind = ?
-               AND worker_id = ? AND fencing_token = ?
-               AND retry_state = 'ready'
-               AND started_at IS NULL AND lease_expires_at > ?`,
-            startedAt,
-            claim.workId,
-            claim.workKind,
-            claim.workerId,
-            claim.fencingToken,
-            startedAt,
-          );
-          if (released.changes !== 1) {
-            claimLost(claim.workKind);
-          }
-          return false;
-        }
-        const startedQueue = transaction.run(
-          `UPDATE codex_execution_queue SET started_at = ?
-           WHERE work_id = ? AND work_kind = ?
-             AND worker_id = ? AND fencing_token = ?
-             AND retry_state = 'ready'
-             AND started_at IS NULL AND lease_expires_at > ?`,
-          startedAt,
-          claim.workId,
-          claim.workKind,
-          claim.workerId,
-          claim.fencingToken,
-          startedAt,
-        );
-        if (startedQueue.changes !== 1) {
-          claimLost(claim.workKind);
-        }
-        const startedOwner = transaction.run(
-          `UPDATE ${owner.table}
-           SET execution_status = 'running', started_at = ?,
-               codex_cli_version = ?
-           WHERE id = ? AND execution_status = 'queued'`,
-          startedAt,
-          codexCliVersion,
-          claim.workId,
-        );
-        if (startedOwner.changes !== 1) {
-          throw new DurableCoreError(owner.stateCode, owner.stateMessage);
-        }
-        return true;
-      });
-      if (!started) {
-        throw new DurableCoreError(
-          "codex_execution_concurrency_unavailable",
-          "Codex execution concurrency is unavailable",
-        );
+      return startCodexExecution(
+        durableCore,
+        claim,
+        codexCliVersion,
+        processGroupId,
+        {
+          claimLost: () => claimLost(claim.workKind),
+          now,
+          readProcessIdentity,
+        },
+      );
+    },
+    /**
+     * @param {CodexExecutionClaim} claim
+     * @param {string} codexCliVersion
+     * @param {number} processGroupId
+     */
+    startTracked(claim, codexCliVersion, processGroupId) {
+      if (!Number.isSafeInteger(processGroupId) || processGroupId < 1) {
+        throw new TypeError("Codex execution process group is invalid");
       }
+      return service.start(claim, codexCliVersion, processGroupId);
     },
     /**
      * @param {CodexExecutionClaim} claim

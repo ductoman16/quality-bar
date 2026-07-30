@@ -6,17 +6,17 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { CODEX_EXECUTION_QUEUE_TRIGGERS } from "../src/codex-execution-queue-schema.js";
+import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { openDurableCore } from "../src/durable-core.js";
+import {
+  createReviewRunResultService,
+  ReviewRunExecutionError,
+} from "../src/review-run-result.js";
 import { WAIVER_ADJUDICATION_RECOVERY_SCHEMA } from "../src/waiver-adjudication-recovery-schema.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
-test("schema v44 preserves queued work while adding restart process facts", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-recovery-v44-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const current = openDurableCore(databasePath);
-  await createQueuedReviewRun(current);
-  current.close();
+/** @param {string} databasePath */
+function downgradeToVersion44(databasePath) {
   const deployed = new DatabaseSync(databasePath);
   deployed.exec(`
     PRAGMA foreign_keys = OFF;
@@ -68,6 +68,16 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
   deployed.exec(WAIVER_ADJUDICATION_RECOVERY_SCHEMA);
   deployed.exec(CODEX_EXECUTION_QUEUE_TRIGGERS);
   deployed.close();
+}
+
+test("schema v44 preserves queued work while adding restart process facts", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-recovery-v44-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite");
+  const current = openDurableCore(databasePath);
+  await createQueuedReviewRun(current);
+  current.close();
+  downgradeToVersion44(databasePath);
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
@@ -104,4 +114,62 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
       ),
     /codex_execution_recovery_integrity_invalid/,
   );
+});
+
+test("schema v44 rejects unresolved started ownership before migration commits", async (context) => {
+  for (const terminal of [false, true]) {
+    const directory = mkdtempSync(
+      join(
+        tmpdir(),
+        terminal
+          ? "quality-bar-recovery-v44-terminal-"
+          : "quality-bar-recovery-v44-running-",
+      ),
+    );
+    context.after(() => rmSync(directory, { force: true, recursive: true }));
+    const databasePath = join(directory, "quality-bar.sqlite");
+    const current = openDurableCore(databasePath);
+    await createQueuedReviewRun(current);
+    const claims = createCodexExecutionClaimService(current, {
+      createWorkerId: () => "legacy-worker",
+      now: () => 20,
+    });
+    const claim = claims.claimNext();
+    assert.ok(claim);
+    claims.start(claim, "0.145.0");
+    if (terminal) {
+      createReviewRunResultService(current, { now: () => 30 }).fail(
+        claim,
+        new ReviewRunExecutionError(
+          "unexpected_execution_failure",
+          "Legacy Review Run failed",
+        ),
+      );
+    }
+    current.close();
+    downgradeToVersion44(databasePath);
+
+    assert.throws(
+      () => openDurableCore(databasePath),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "codex_execution_process_identity_unavailable" &&
+        error.message ===
+          "Legacy started Codex execution process identity is unavailable",
+    );
+    const unchanged = new DatabaseSync(databasePath);
+    assert.equal(
+      unchanged.prepare("PRAGMA user_version").get()?.user_version,
+      44,
+    );
+    assert.equal(
+      unchanged
+        .prepare("PRAGMA table_info(codex_execution_queue)")
+        .all()
+        .some((column) => column.name === "process_group_id"),
+      false,
+    );
+    unchanged.close();
+  }
 });

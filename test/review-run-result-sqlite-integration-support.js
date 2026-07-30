@@ -130,7 +130,7 @@ export async function executeFailedReviewRun(core, underlyingFailure) {
     readFileChanges: () => [],
     resultService: createReviewRunResultService(core, { now: () => 30 }),
     async runCodex(input) {
-      input.startRun?.();
+      input.startProcessGroup?.(process.pid);
       throw underlyingFailure;
     },
   });

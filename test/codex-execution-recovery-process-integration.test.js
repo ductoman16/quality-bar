@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
+import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
@@ -25,18 +26,17 @@ test("restart terminates a tracked surviving process group and retains its parti
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim, "0.145.0");
-  createReviewRunEvidenceService(core).appendTranscriptChunk(
-    claim,
-    "stdout",
-    '{"type":"item.completed","partial":true}\n',
-  );
-
-  const child = spawn(
+  const marker = join(directory, "codex-started");
+  const prepared = prepareCodexProcess(
     process.execPath,
-    [join(import.meta.dirname, "../fixtures/test-probes/idle-child.mjs")],
-    { detached: true, stdio: "ignore" },
+    [
+      join(import.meta.dirname, "../fixtures/test-probes/mark-and-idle.mjs"),
+      marker,
+    ],
+    { cwd: directory, environment: {} },
+    process.execPath,
   );
+  const { child } = prepared;
   assert.ok(child.pid);
   context.after(() => {
     try {
@@ -53,7 +53,20 @@ test("restart terminates a tracked surviving process group and retains its parti
       }
     }
   });
-  claims.trackProcessGroup(claim, child.pid);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(existsSync(marker), false);
+  claims.startTracked(claim, "0.145.0", child.pid);
+  createReviewRunEvidenceService(core).appendTranscriptChunk(
+    claim,
+    "stdout",
+    '{"type":"item.completed","partial":true}\n',
+  );
+  await prepared.start();
+  const launchDeadline = Date.now() + 2_000;
+  while (!existsSync(marker) && Date.now() < launchDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(existsSync(marker), true);
   const exited = new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error("tracked process group survived recovery")),
@@ -101,7 +114,7 @@ test("restart terminates a tracked surviving process group and retains its parti
   );
 });
 
-test("restart terminates a tracked process group after its leader exits", async (context) => {
+test("restart rejects a tracked process group whose identity anchor exited", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-leaderless-recovery-"),
   );
@@ -172,13 +185,18 @@ test("restart terminates a tracked process group after its leader exits", async 
     process.kill(-(/** @type {number} */ (leader.pid)), 0),
   );
 
-  recoverCodexExecutions(core, { now: () => 30 });
-
-  assert.deepEqual(
+  assert.throws(
+    () => recoverCodexExecutions(core, { now: () => 30 }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "codex_execution_process_identity_unavailable",
+  );
+  assert.equal(
     core.get(
-      `SELECT recovery_termination_signal, recovered_at
+      `SELECT recovered_at
        FROM codex_execution_queue WHERE work_id = 'review-run-1'`,
-    ),
-    { recovered_at: 30, recovery_termination_signal: "SIGTERM" },
+    )?.recovered_at,
+    null,
   );
 });

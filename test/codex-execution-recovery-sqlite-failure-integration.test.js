@@ -18,10 +18,16 @@ test("restart recovery write failure is hard storage_unavailable with no partial
   const claims = createCodexExecutionClaimService(core, {
     createWorkerId: () => "failed-recovery-worker",
     now: () => 20,
+    readProcessIdentity: () => ({
+      bootIdentity: "boot-1",
+      namespaceIdentity: "namespace-1",
+      startIdentity: "start-1",
+    }),
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim, "0.145.0");
+  claims.startTracked(claim, "0.145.0", 4321);
+  claims.finishProcessGroup(claim);
   const failureInjectingCore = {
     ...core,
     /**

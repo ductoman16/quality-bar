@@ -37,6 +37,7 @@ function readRepositoryId(durableCore, claim) {
 export function createStorageGuardedClaimService(claimService, storageReserve) {
   if (
     typeof claimService?.start !== "function" ||
+    typeof claimService?.startTracked !== "function" ||
     typeof storageReserve?.assertCodexStartAvailable !== "function"
   ) {
     throw new TypeError("Codex start gate dependencies are invalid");
@@ -47,6 +48,11 @@ export function createStorageGuardedClaimService(claimService, storageReserve) {
     start(claim, codexCliVersion) {
       storageReserve.assertCodexStartAvailable();
       return claimService.start(claim, codexCliVersion);
+    },
+    /** @param {any} claim @param {string} codexCliVersion @param {number} processGroupId */
+    startTracked(claim, codexCliVersion, processGroupId) {
+      storageReserve.assertCodexStartAvailable();
+      return claimService.startTracked(claim, codexCliVersion, processGroupId);
     },
   };
 }

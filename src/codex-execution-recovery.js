@@ -142,6 +142,17 @@ export function recoverCodexExecutions(
       item.recovery !== "queued" &&
       !item.terminationPersisted &&
       item.process_group_finished_at === null &&
+      !Number.isSafeInteger(item.process_group_id)
+    ) {
+      throw new DurableCoreError(
+        "codex_execution_process_identity_unavailable",
+        "Tracked Codex process identity could not be verified",
+      );
+    }
+    if (
+      item.recovery !== "queued" &&
+      !item.terminationPersisted &&
+      item.process_group_finished_at === null &&
       Number.isSafeInteger(item.process_group_id)
     ) {
       item.terminationSignal = terminateProcessGroup({

@@ -76,7 +76,8 @@ test("restart fails an interrupted Review Run exactly without a partial Result o
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  claims.start(claim, "0.145.0");
+  claims.startTracked(claim, "0.145.0", 4321);
+  claims.finishProcessGroup(claim);
 
   recoverCodexExecutions(core, { now: () => 30 });
 
@@ -132,7 +133,8 @@ test("restart fails an interrupted Waiver Adjudication without Decisions or auto
   const claim = claims.claimNext();
   assert.ok(claim);
   assert.equal(claim.workKind, "waiver_adjudication");
-  claims.start(claim, "0.145.0");
+  claims.startTracked(claim, "0.145.0", 4321);
+  claims.finishProcessGroup(claim);
 
   recoverCodexExecutions(core, { now: () => 30 });
 

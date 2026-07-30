@@ -88,6 +88,9 @@ test("the production start boundary checks storage before authoritative Codex st
       start() {
         started = true;
       },
+      startTracked() {
+        started = true;
+      },
     },
     {
       assertCodexStartAvailable() {
@@ -96,7 +99,7 @@ test("the production start boundary checks storage before authoritative Codex st
     },
   );
   assert.throws(
-    () => service.start({}, "0.145.0"),
+    () => service.startTracked({}, "0.145.0", 4321),
     (error) => error === failure,
   );
   assert.equal(started, false);

@@ -157,3 +157,39 @@ export function observeCodexProcess(child, readTranscript) {
     wasClosed: () => closed,
   };
 }
+
+/**
+ * @param {() => Promise<void>} closeSubmissionChannel
+ * @param {unknown} executionFailure
+ * @param {Error[]} diagnosticFailures
+ */
+export async function completeCodexExecutionCleanup(
+  closeSubmissionChannel,
+  executionFailure,
+  diagnosticFailures,
+) {
+  let cleanupFailure;
+  try {
+    await closeSubmissionChannel();
+  } catch (error) {
+    cleanupFailure = error;
+  }
+  if (executionFailure instanceof Error) {
+    if (cleanupFailure) {
+      attachFailureDiagnostic(
+        executionFailure,
+        "submissionChannelCleanupFailure",
+        cleanupFailure,
+      );
+    }
+    throw executionFailure;
+  }
+  if (cleanupFailure) {
+    diagnosticFailures.push(
+      cleanupFailure instanceof Error
+        ? cleanupFailure
+        : new TypeError("Review Run submission channel cleanup failed"),
+    );
+  }
+  return { diagnosticFailures };
+}

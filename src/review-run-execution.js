@@ -233,9 +233,8 @@ function readRun(durableCore, workId) {
  *   checkoutRoot?: string,
  *   claimService: {
  *     finishProcessGroup?(claim: any): unknown,
- *     start(claim: any, codexCliVersion: string): unknown,
+ *     startTracked(claim: any, codexCliVersion: string, processGroupId: number): unknown,
  *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void,
- *     trackProcessGroup?(claim: any, processGroupId: number): unknown
  *   },
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
@@ -349,25 +348,18 @@ export async function executeReviewRun(
             },
           },
           run: reviewRun,
+          ...codexOptions,
           finishProcessGroup() {
             callClaimService(claimService, "finishProcessGroup", claim);
           },
-          startRun() {
-            claimService.start(
+          startProcessGroup(processGroupId) {
+            claimService.startTracked(
               claim,
               CODEX_CAPABILITY_CATALOG.codex_cli_version,
+              processGroupId,
             );
             started = true;
           },
-          trackProcessGroup(processGroupId) {
-            callClaimService(
-              claimService,
-              "trackProcessGroup",
-              claim,
-              processGroupId,
-            );
-          },
-          ...codexOptions,
           recordDeadline(failure) {
             resultService.fail(claim, failure);
             deadlineRecorded = true;

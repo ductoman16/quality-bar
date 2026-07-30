@@ -1,9 +1,9 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { attachFailureDiagnostic } from "./review-run-codex-failure.js";
 
-/** @param {unknown} finish @param {unknown} track */
-export function requireTracking(finish, track) {
-  if (typeof finish !== "function" || typeof track !== "function") {
+/** @param {unknown} finish @param {unknown} start */
+export function requireTracking(finish, start) {
+  if (typeof finish !== "function" || typeof start !== "function") {
     throw new TypeError(
       "Codex process-group tracking dependencies are invalid",
     );
@@ -12,13 +12,15 @@ export function requireTracking(finish, track) {
 
 /**
  * @param {import("node:child_process").ChildProcess} child
- * @param {(processGroupId: number) => unknown} track
+ * @param {(processGroupId: number) => unknown} startProcessGroup
+ * @param {() => Promise<void>} launch
  * @param {() => Promise<void>} closeSubmission
  * @param {() => Promise<void>} terminate
  */
-export async function trackSpawnedCodexProcessGroup(
+export async function startSpawnedCodexProcessGroup(
   child,
-  track,
+  startProcessGroup,
+  launch,
   closeSubmission,
   terminate,
 ) {
@@ -32,7 +34,8 @@ export async function trackSpawnedCodexProcessGroup(
         "Codex Review Run process group is unavailable",
       );
     }
-    track(/** @type {number} */ (child.pid));
+    startProcessGroup(/** @type {number} */ (child.pid));
+    await launch();
   } catch (error) {
     let submissionCloseFailure;
     try {

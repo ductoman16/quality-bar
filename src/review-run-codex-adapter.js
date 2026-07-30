@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 
 import {
+  observeSupervisedCodexProcess,
+  prepareCodexProcess,
+} from "./codex-process-supervisor.js";
+import {
   cancelledReviewRunResult,
   closesSubmissionForCancellationOrDeadline,
   NO_REVIEW_RUN_CANCELLATION,
@@ -15,9 +19,9 @@ import {
   createSubmissionFailure,
 } from "./review-run-codex-failure.js";
 import {
+  completeCodexExecutionCleanup,
   createCodexLaunchFailure,
   createTranscriptFailureController,
-  observeCodexProcess,
 } from "./review-run-codex-process.js";
 import * as group from "./codex-execution-process-group-tracking.js";
 import * as deadline from "./review-run-deadline.js";
@@ -59,45 +63,7 @@ export function reviewRunCodexEnvironment(
   );
 }
 
-/**
- * @param {{
- *   cancellationSignal?: Promise<void>,
- *   checkoutPath: string,
- *   claim: {fencingToken: number, workerId: string, workId: string},
- *   codexCommand?: string,
- *   codexPrefixArguments?: string[],
- *   openSubmissionChannel?: (
- *     claim: any,
- *     resultService: any
- *   ) => Promise<{
- *     accepted(): boolean,
- *     close(): Promise<void>,
- *     commandDirectory: string,
- *     environment: Record<string, string>,
- *     failure(): Error | null,
- *     lastValidationFailure(): ReviewRunExecutionError | null,
- *     waitForResult(): Promise<"accepted" | "failed">
- *   }>,
- *   resultService: {prepare(claim: any, candidate: unknown): unknown},
- *   recordDeadline: (failure: ReviewRunExecutionError) => unknown,
- *   startRun: () => unknown,
- *   finishProcessGroup: () => unknown,
- *   trackProcessGroup: (processGroupId: number) => unknown,
- *   run: unknown,
- *   processEnvironment?: NodeJS.ProcessEnv,
- *   clearDeadlineTimer?: (timer: any) => void,
- *   clearTerminationTimer?: (timer: any) => void,
- *   evidenceService?: {appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown, complete(claim: any, facts: unknown): unknown},
- *   killProcessGroup?: (pid: number, signal: NodeJS.Signals | 0) => void,
- *   setDeadlineTimer?: (callback: () => void, milliseconds: number) => any,
- *   setTerminationTimer?: (callback: () => void, milliseconds: number) => any,
- *   spawnProcess?: (
- *     command: string,
- *     arguments_: string[],
- *     options: import("node:child_process").SpawnOptions
- *   ) => import("node:child_process").ChildProcess
- * }} options
- */
+/** @param {import("./review-run-codex-options.js").ReviewRunCodexOptions} options */
 export async function runReviewRunCodex({
   cancellationSignal = NO_REVIEW_RUN_CANCELLATION,
   checkoutPath,
@@ -109,6 +75,8 @@ export async function runReviewRunCodex({
   evidenceService = evidence.NO_REVIEW_RUN_EVIDENCE,
   killProcessGroup = process.kill,
   openSubmissionChannel = openReviewRunSubmissionChannel,
+  observeProcess = observeSupervisedCodexProcess,
+  prepareProcess = prepareCodexProcess,
   processEnvironment = process.env,
   recordDeadline,
   resultService,
@@ -116,12 +84,11 @@ export async function runReviewRunCodex({
   setDeadlineTimer = setTimeout,
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
-  startRun,
+  startProcessGroup,
   finishProcessGroup,
-  trackProcessGroup,
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
-  group.requireTracking(finishProcessGroup, trackProcessGroup);
+  group.requireTracking(finishProcessGroup, startProcessGroup);
   const channel = await openSubmissionChannel(claim, resultService);
   /** @type {Promise<void> | undefined} */
   let channelClose;
@@ -133,11 +100,8 @@ export async function runReviewRunCodex({
   /** @type {Error[]} */
   const diagnosticFailures = [];
   try {
-    const arguments_ = [
-      ...codexPrefixArguments,
-      ...reviewRunCodexArguments(run),
-    ];
-    startRun();
+    const arguments_ = reviewRunCodexArguments(run);
+    arguments_.unshift(...codexPrefixArguments);
     /** @type {(value?: void) => void} */
     let signalDeadline = () => {};
     const deadlineSignal = new Promise((resolve) => {
@@ -147,19 +111,23 @@ export async function runReviewRunCodex({
       signalDeadline,
       deadline.REVIEW_RUN_DEADLINE_MILLISECONDS,
     );
-    /** @type {import("node:child_process").ChildProcess} */
-    let child;
+    /** @type {{abort: () => Promise<void>, child: import("node:child_process").ChildProcess, finish: () => Promise<void>, start: () => Promise<void>}} */
+    let prepared;
     try {
-      child = spawnProcess(codexCommand, arguments_, {
-        cwd: checkoutPath,
-        detached: true,
-        env: reviewRunCodexEnvironment(
-          channel.environment,
-          channel.commandDirectory,
-          processEnvironment,
-        ),
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      prepared = prepareProcess(
+        codexCommand,
+        arguments_,
+        {
+          cwd: checkoutPath,
+          environment: reviewRunCodexEnvironment(
+            channel.environment,
+            channel.commandDirectory,
+            processEnvironment,
+          ),
+        },
+        process.execPath,
+        spawnProcess,
+      );
     } catch (cause) {
       clearDeadlineTimer(deadlineTimer);
       throw createCodexLaunchFailure({
@@ -169,46 +137,58 @@ export async function runReviewRunCodex({
         evidenceService,
       });
     }
+    const { child } = prepared;
     let [stdout, stderr] = ["", ""];
     const {
       error: processErrorSignal,
       result: processResult,
       wasClosed,
-    } = observeCodexProcess(child, () => ({ stderr, stdout }));
+    } = observeProcess(child, () => ({ stderr, stdout }));
     const terminateProcessGroup = createReviewRunProcessGroupTermination({
       child,
       processResult,
       killProcessGroup,
       setTerminationTimer,
       clearTerminationTimer,
+      finishSupervisor: prepared.finish,
     });
     const transcript = createTranscriptFailureController({
       closeSubmissionChannel,
       diagnosticFailures,
       terminateProcessGroup,
     });
-    child.stdout?.setEncoding("utf8").on("data", (chunk) => {
-      stdout += chunk;
-      try {
-        evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
-      } catch (error) {
-        transcript.stop(error);
-      }
-    });
-    child.stderr?.setEncoding("utf8").on("data", (chunk) => {
-      stderr += chunk;
-      try {
-        evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
-      } catch (error) {
-        transcript.stop(error);
-      }
-    });
-    await group.trackSpawnedCodexProcessGroup(
-      child,
-      trackProcessGroup,
-      closeSubmissionChannel,
-      terminateProcessGroup,
-    );
+    child.stdout
+      ?.setEncoding("utf8")
+      .on("data", (/** @type {string} */ chunk) => {
+        stdout += chunk;
+        try {
+          evidenceService.appendTranscriptChunk(claim, "stdout", chunk);
+        } catch (error) {
+          transcript.stop(error);
+        }
+      });
+    child.stderr
+      ?.setEncoding("utf8")
+      .on("data", (/** @type {string} */ chunk) => {
+        stderr += chunk;
+        try {
+          evidenceService.appendTranscriptChunk(claim, "stderr", chunk);
+        } catch (error) {
+          transcript.stop(error);
+        }
+      });
+    try {
+      await group.startSpawnedCodexProcessGroup(
+        child,
+        startProcessGroup,
+        prepared.start,
+        closeSubmissionChannel,
+        prepared.abort,
+      );
+    } catch (error) {
+      clearDeadlineTimer(deadlineTimer);
+      throw error;
+    }
     /** @type {{ kind: "cancellation" } | { kind: "deadline" } | { kind: "process", result: any } | { kind: "process-error" } | { kind: "submission", result: "accepted" | "failed" } | { kind: "transcript" }} */
     let terminal;
     try {
@@ -436,28 +416,9 @@ export async function runReviewRunCodex({
   } catch (error) {
     executionFailure = error;
   }
-  let cleanupFailure;
-  try {
-    await closeSubmissionChannel();
-  } catch (error) {
-    cleanupFailure = error;
-  }
-  if (executionFailure instanceof Error) {
-    if (cleanupFailure) {
-      attachDiagnostic(
-        executionFailure,
-        "submissionChannelCleanupFailure",
-        cleanupFailure,
-      );
-    }
-    throw executionFailure;
-  }
-  if (cleanupFailure) {
-    diagnosticFailures.push(
-      cleanupFailure instanceof Error
-        ? cleanupFailure
-        : new TypeError("Review Run submission channel cleanup failed"),
-    );
-  }
-  return { diagnosticFailures };
+  return completeCodexExecutionCleanup(
+    closeSubmissionChannel,
+    executionFailure,
+    diagnosticFailures,
+  );
 }

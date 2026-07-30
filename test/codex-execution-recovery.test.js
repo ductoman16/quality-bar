@@ -76,12 +76,13 @@ test("unsupported durable recovery facts fail with their owning error", () => {
 test("a tracked survivor receives process-group termination without reattachment", () => {
   /** @type {[number, NodeJS.Signals | 0][]} */
   const signals = [];
+  let waits = 0;
   const result = terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
     killProcessGroup(processId, signal) {
       signals.push([processId, signal]);
     },
     readProcessIdentity: () => TRACKED_PROCESS,
-    waitForExit: () => false,
+    waitForExit: () => waits++ > 0,
   });
 
   assert.equal(result, "SIGKILL");
@@ -150,50 +151,41 @@ test("a reused process-group number is never signalled", () => {
   assert.deepEqual(signals, []);
 });
 
-test("a leaderless original process group remains safely terminable", () => {
+test("a process group without its durable identity anchor is never signalled", () => {
   /** @type {[number, NodeJS.Signals | 0][]} */
   const signals = [];
-  const result = terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
-    killProcessGroup(processId, signal) {
-      signals.push([processId, signal]);
-      if (processId === 4321) {
-        throw Object.assign(new Error("leader exited"), { code: "ESRCH" });
-      }
-    },
-    readProcessIdentity(processId) {
-      if (processId === 4321) {
-        throw Object.assign(new Error("leader exited"), { code: "ESRCH" });
-      }
-      assert.equal(processId, process.pid);
-      return { ...TRACKED_PROCESS, startIdentity: "host-start" };
-    },
-    waitForExit: () => false,
-  });
-  assert.equal(result, "SIGKILL");
-  assert.deepEqual(signals, [
-    [-4321, 0],
-    [4321, 0],
-    [-4321, "SIGTERM"],
-    [-4321, "SIGKILL"],
-  ]);
+  assert.throws(
+    () =>
+      terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
+        killProcessGroup(processId, signal) {
+          signals.push([processId, signal]);
+        },
+        readProcessIdentity() {
+          throw Object.assign(new Error("leader exited"), { code: "ESRCH" });
+        },
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "codex_execution_process_identity_unavailable",
+  );
+  assert.deepEqual(signals, [[-4321, 0]]);
 });
 
-test("permission denial after termination remains an exact hard failure", () => {
-  let inspected = 0;
+test("a survivor after SIGKILL remains an exact hard failure", () => {
   assert.throws(
     () =>
       terminateTrackedCodexProcessGroup(TRACKED_PROCESS, {
         hasLiveProcessGroupMember: () => true,
         killProcessGroup(processId, signal) {
           assert.equal(processId, -4321);
-          if (signal === 0 && inspected++ > 0) {
-            throw Object.assign(new Error("permission denied"), {
-              code: "EPERM",
-            });
-          }
+          assert.ok([0, "SIGTERM", "SIGKILL"].includes(signal));
         },
         readProcessIdentity: () => TRACKED_PROCESS,
-        waitForExit: (isActive) => isActive(),
+        waitForExit(isActive) {
+          assert.equal(isActive(), true);
+          return false;
+        },
       }),
     (error) =>
       error instanceof Error &&
@@ -350,7 +342,7 @@ test("recovery fails when durable interrupted authority changes", () => {
     all: () => [
       {
         execution_status: "running",
-        process_group_finished_at: null,
+        process_group_finished_at: 25,
         process_group_id: null,
         recovered_at: null,
         recovery_termination_signal: null,

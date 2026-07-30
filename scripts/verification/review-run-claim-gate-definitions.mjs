@@ -71,7 +71,7 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
   {
     name: "codex-execution-recovery-process-integration",
     testGroup:
-      "tracked-surviving-process-group-termination-partial-transcript-retention-and-exact-interrupted-failure",
+      "gated-identity-anchored-process-group-termination-partial-transcript-retention-and-exact-interrupted-failure",
     failureCode: "codex_execution_recovery_process_integration_tests_failed",
     arguments: [
       "--test",

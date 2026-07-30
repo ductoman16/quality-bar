@@ -145,7 +145,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
     },
   });
 
-  assert.deepEqual(launchEvents, ["submission-channel", "start", "spawn"]);
+  assert.deepEqual(launchEvents, ["submission-channel", "spawn", "start"]);
   assert.deepEqual(spawnCalls, [
     [
       "pinned-codex",

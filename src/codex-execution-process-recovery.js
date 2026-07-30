@@ -78,24 +78,22 @@ export function terminateTrackedCodexProcessGroup(
   const target = -processGroupId;
   let terminationRequested = false;
   function isActive() {
+    if (terminationRequested) {
+      try {
+        return hasLiveProcessGroupMember(processGroupId);
+      } catch (error) {
+        throw new DurableCoreError(
+          "codex_execution_process_group_termination_failed",
+          "Tracked Codex process group could not be inspected",
+          { cause: error },
+        );
+      }
+    }
     try {
       killProcessGroup(target, 0);
     } catch (error) {
       if (processGroupAbsent(error)) {
         return false;
-      }
-      if (terminationRequested) {
-        try {
-          if (!hasLiveProcessGroupMember(processGroupId)) {
-            return false;
-          }
-        } catch (inspectionError) {
-          throw new DurableCoreError(
-            "codex_execution_process_group_termination_failed",
-            "Tracked Codex process group could not be inspected",
-            { cause: inspectionError },
-          );
-        }
       }
       throw new DurableCoreError(
         "codex_execution_process_group_termination_failed",
@@ -109,40 +107,6 @@ export function terminateTrackedCodexProcessGroup(
         readProcessIdentity(processGroupId),
       );
     } catch (error) {
-      try {
-        killProcessGroup(processGroupId, 0);
-      } catch (inspectionError) {
-        if (processGroupAbsent(inspectionError)) {
-          let hostIdentity;
-          try {
-            hostIdentity = requireCodexProcessIdentity(
-              readProcessIdentity(process.pid),
-            );
-          } catch (hostError) {
-            throw new DurableCoreError(
-              "codex_execution_process_identity_unavailable",
-              "Tracked Codex process host identity could not be verified",
-              { cause: hostError },
-            );
-          }
-          if (
-            expectedIdentity.bootIdentity !== hostIdentity.bootIdentity ||
-            expectedIdentity.namespaceIdentity !==
-              hostIdentity.namespaceIdentity
-          ) {
-            throw new DurableCoreError(
-              "codex_execution_process_identity_changed",
-              "Tracked Codex process identity changed before recovery",
-            );
-          }
-          return true;
-        }
-        throw new DurableCoreError(
-          "codex_execution_process_identity_unavailable",
-          "Tracked Codex process identity could not be verified",
-          { cause: inspectionError },
-        );
-      }
       throw new DurableCoreError(
         "codex_execution_process_identity_unavailable",
         "Tracked Codex process identity could not be verified",
@@ -154,19 +118,6 @@ export function terminateTrackedCodexProcessGroup(
         "codex_execution_process_identity_changed",
         "Tracked Codex process identity changed before recovery",
       );
-    }
-    if (terminationRequested) {
-      try {
-        if (!hasLiveProcessGroupMember(processGroupId)) {
-          return false;
-        }
-      } catch (error) {
-        throw new DurableCoreError(
-          "codex_execution_process_group_termination_failed",
-          "Tracked Codex process group could not be inspected",
-          { cause: error },
-        );
-      }
     }
     return true;
   }
@@ -192,7 +143,6 @@ export function terminateTrackedCodexProcessGroup(
   }
   try {
     killProcessGroup(target, "SIGKILL");
-    return "SIGKILL";
   } catch (error) {
     if (processGroupAbsent(error)) {
       return "SIGTERM";
@@ -203,4 +153,11 @@ export function terminateTrackedCodexProcessGroup(
       { cause: error },
     );
   }
+  if (!waitForExit(isActive)) {
+    throw new DurableCoreError(
+      "codex_execution_process_group_termination_failed",
+      "Tracked Codex process group remained active after force termination",
+    );
+  }
+  return "SIGKILL";
 }

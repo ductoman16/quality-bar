@@ -167,6 +167,22 @@ export function finalizeSchemaMigration(
     migrateEvaluationCancellationReason(database, migrateSchema);
     return;
   }
+  if (
+    version === 44 &&
+    database
+      .prepare(
+        `SELECT 1
+         FROM codex_execution_queue
+         WHERE started_at IS NOT NULL
+         LIMIT 1`,
+      )
+      .get()
+  ) {
+    fail(
+      "codex_execution_process_identity_unavailable",
+      "Legacy started Codex execution process identity is unavailable",
+    );
+  }
   const hasApplicabilitySeal = database
     .prepare("PRAGMA table_info(evaluations)")
     .all()

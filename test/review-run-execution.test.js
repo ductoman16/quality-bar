@@ -56,7 +56,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
     ioPool: createIoExecutionPool(),
     checkoutCredential,
     claimService: {
-      start() {
+      startTracked() {
         events.push("start");
       },
       startRenewal() {
@@ -83,7 +83,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
     },
     resultService: { fail() {}, prepare() {} },
     async runCodex(input) {
-      input.startRun?.();
+      input.startProcessGroup?.(4321);
       events.push("codex");
       assert.doesNotMatch(
         JSON.stringify(input),
@@ -156,7 +156,7 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
   const execution = await executeReviewRun(durableCore(), claim, {
     ioPool: createIoExecutionPool(),
     claimService: {
-      start() {},
+      startTracked() {},
       startRenewal() {
         return () => {};
       },
@@ -176,7 +176,7 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
       prepare() {},
     },
     async runCodex(input) {
-      input.startRun?.();
+      input.startProcessGroup?.(4321);
       return { diagnosticFailures: [diagnosticFailure] };
     },
   });
@@ -197,7 +197,7 @@ test("checkout failure remains pre-start and does not launch Codex", async () =>
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
-          start() {
+          startTracked() {
             started = true;
           },
           startRenewal() {
@@ -234,7 +234,7 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
-          start() {},
+          startTracked() {},
           startRenewal() {
             return () => {};
           },
@@ -253,7 +253,7 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
           prepare() {},
         },
         async runCodex(input) {
-          input.startRun?.();
+          input.startProcessGroup?.(4321);
           throw executionFailure;
         },
       }),
@@ -278,7 +278,7 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
-          start() {},
+          startTracked() {},
           startRenewal() {
             return () => {};
           },
@@ -297,7 +297,7 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
           prepare() {},
         },
         async runCodex(input) {
-          input.startRun?.();
+          input.startProcessGroup?.(4321);
           return { diagnosticFailures: [] };
         },
       }),
@@ -316,7 +316,7 @@ test("an unexpected started failure has one stable safe owning detail", async ()
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
-          start() {},
+          startTracked() {},
           startRenewal() {
             return () => {};
           },
@@ -336,7 +336,7 @@ test("an unexpected started failure has one stable safe owning detail", async ()
           prepare() {},
         },
         async runCodex(input) {
-          input.startRun?.();
+          input.startProcessGroup?.(4321);
           throw underlyingFailure;
         },
       }),
@@ -367,7 +367,7 @@ test("a contradictory File Change authority failure remains exact through execut
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
-          start() {},
+          startTracked() {},
           startRenewal() {
             return () => {};
           },
@@ -389,7 +389,7 @@ test("a contradictory File Change authority failure remains exact through execut
           },
         },
         async runCodex(input) {
-          input.startRun?.();
+          input.startProcessGroup?.(4321);
           input.resultService.prepare(claim, {});
           throw new Error("unreachable");
         },
