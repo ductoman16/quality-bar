@@ -99,7 +99,7 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
   }
 });
 
-test("MCP exposes only the fixed Repository and Evaluation tools and resource templates", async () => {
+test("MCP exposes only the fixed Repository, Evaluation, and waiver tools and resource templates", async () => {
   const { application, origin } = await startApplication();
   const token = application.implementerTokens.create(
     "a correct operator password",
@@ -123,6 +123,8 @@ test("MCP exposes only the fixed Repository and Evaluation tools and resource te
       "quality_bar.request_evaluation",
       "quality_bar.get_evaluation",
       "quality_bar.get_evaluation_result",
+      "quality_bar.submit_waiver_requests",
+      "quality_bar.get_waiver_adjudication",
     ],
   );
   assert.deepEqual(
@@ -130,7 +132,7 @@ test("MCP exposes only the fixed Repository and Evaluation tools and resource te
       (/** @type {{inputSchema: {$schema: string}}} */ { inputSchema }) =>
         inputSchema.$schema,
     ),
-    Array(5).fill("https://json-schema.org/draft/2020-12/schema"),
+    Array(7).fill("https://json-schema.org/draft/2020-12/schema"),
   );
   assert.deepEqual(
     toolBody.result.tools.map(
@@ -140,7 +142,7 @@ test("MCP exposes only the fixed Repository and Evaluation tools and resource te
         },
       ) => inputSchema.additionalProperties,
     ),
-    Array(5).fill(false),
+    Array(7).fill(false),
   );
 
   const templatesResponse = await fetch(`${origin}/mcp/v1`, {

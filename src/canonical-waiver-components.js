@@ -1,5 +1,37 @@
 import { closedObject } from "./canonical-schema.js";
 
+const adjudicationProperties = {
+  base_commit: {
+    pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+    type: "string",
+  },
+  completed_at: { format: "date-time", type: ["string", "null"] },
+  configuration: { $ref: "#/components/schemas/CodexConfiguration" },
+  created_at: { format: "date-time", type: "string" },
+  evaluation_id: { minLength: 1, type: "string" },
+  head_commit: {
+    pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+    type: "string",
+  },
+  id: { minLength: 1, type: "string" },
+  request_ids: {
+    items: { minLength: 1, type: "string" },
+    minItems: 1,
+    type: "array",
+  },
+  started_at: { format: "date-time", type: ["string", "null"] },
+};
+const adjudicationRequired = [
+  "id",
+  "evaluation_id",
+  "base_commit",
+  "head_commit",
+  "request_ids",
+  "configuration",
+  "execution_status",
+  "created_at",
+];
+
 export function canonicalWaiverSchemas() {
   return {
     WaiverBatchRequestItem: closedObject(
@@ -40,41 +72,115 @@ export function canonicalWaiverSchemas() {
       },
       ["id", "evaluation_id", "finding_id", "rationale", "created_at"],
     ),
-    WaiverAdjudication: closedObject(
-      {
-        base_commit: {
-          pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
-          type: "string",
-        },
-        configuration: { $ref: "#/components/schemas/CodexConfiguration" },
-        created_at: { format: "date-time", type: "string" },
-        evaluation_id: { minLength: 1, type: "string" },
-        execution_status: {
-          enum: ["queued", "running", "completed", "failed", "cancelled"],
-          type: "string",
-        },
-        head_commit: {
-          pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
-          type: "string",
-        },
-        id: { minLength: 1, type: "string" },
-        request_ids: {
-          items: { minLength: 1, type: "string" },
-          minItems: 1,
-          type: "array",
-        },
-      },
-      [
-        "id",
-        "evaluation_id",
-        "base_commit",
-        "head_commit",
-        "request_ids",
-        "configuration",
-        "execution_status",
-        "created_at",
+    WaiverAdjudication: {
+      oneOf: [
+        closedObject(
+          {
+            ...adjudicationProperties,
+            execution_status: {
+              enum: ["queued", "running"],
+              type: "string",
+            },
+          },
+          adjudicationRequired,
+        ),
+        closedObject(
+          {
+            ...adjudicationProperties,
+            error: closedObject(
+              {
+                code: {
+                  const: "waiver_adjudication_cancelled",
+                  type: "string",
+                },
+                detail: {
+                  const: "Waiver Adjudication was cancelled",
+                  type: "string",
+                },
+              },
+              ["code", "detail"],
+            ),
+            execution_status: { const: "cancelled", type: "string" },
+          },
+          [...adjudicationRequired, "error"],
+        ),
+        closedObject(
+          {
+            ...adjudicationProperties,
+            decisions: {
+              items: { $ref: "#/components/schemas/WaiverDecision" },
+              minItems: 1,
+              type: "array",
+            },
+            execution_status: { const: "completed", type: "string" },
+          },
+          [...adjudicationRequired, "decisions"],
+        ),
+        closedObject(
+          {
+            ...adjudicationProperties,
+            error: closedObject(
+              {
+                code: { minLength: 1, type: "string" },
+                detail: { minLength: 1, type: "string" },
+              },
+              ["code", "detail"],
+            ),
+            execution_status: { const: "failed", type: "string" },
+          },
+          [...adjudicationRequired, "error"],
+        ),
       ],
-    ),
+    },
+    WaiverDecision: {
+      oneOf: [
+        closedObject(
+          {
+            created_at: { format: "date-time", type: "string" },
+            explanation: { minLength: 1, pattern: "\\S", type: "string" },
+            id: { minLength: 1, type: "string" },
+            outcome: {
+              enum: ["accepted", "denied"],
+              type: "string",
+            },
+            request_id: { minLength: 1, type: "string" },
+            waiver_adjudication_id: { minLength: 1, type: "string" },
+          },
+          [
+            "id",
+            "waiver_adjudication_id",
+            "request_id",
+            "outcome",
+            "explanation",
+            "created_at",
+          ],
+        ),
+        closedObject(
+          {
+            created_at: { format: "date-time", type: "string" },
+            error: closedObject(
+              {
+                code: { minLength: 1, type: "string" },
+                detail: { minLength: 1, type: "string" },
+              },
+              ["code", "detail"],
+            ),
+            id: { minLength: 1, type: "string" },
+            outcome: { const: "error", type: "string" },
+            request_id: { minLength: 1, type: "string" },
+            waiver_adjudication_id: { minLength: 1, type: "string" },
+          },
+          [
+            "id",
+            "waiver_adjudication_id",
+            "request_id",
+            "outcome",
+            "error",
+            "created_at",
+          ],
+        ),
+      ],
+    },
     WaiverBatch: closedObject(
       {
         adjudication: { $ref: "#/components/schemas/WaiverAdjudication" },

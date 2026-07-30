@@ -1,4 +1,5 @@
 import { isMcpRecord } from "./mcp-message.js";
+import { mcpResourceLink } from "./mcp-resource-link.js";
 import { isClosedMcpRecord, mcpError } from "./mcp-validation.js";
 
 /** @param {unknown} value */
@@ -83,16 +84,6 @@ function evaluationLink(evaluationId, result = false) {
   };
 }
 
-/** @param {string} kind @param {string} id */
-function resourceLink(kind, id) {
-  return {
-    mimeType: "application/json",
-    name: id,
-    type: "resource_link",
-    uri: `quality-bar://v1/${kind}/${encodeURIComponent(id)}`,
-  };
-}
-
 /** @param {string} evaluationId */
 export function evaluationResourceLinks(evaluationId) {
   return [evaluationLink(evaluationId), evaluationLink(evaluationId, true)];
@@ -107,13 +98,13 @@ export function resultChildResourceLinks(document) {
       if (typeof id !== "string") {
         throw new TypeError("Review Run identity is invalid");
       }
-      return resourceLink("review-runs", id);
+      return mcpResourceLink("review-runs", id);
     }),
     ...document.findings.map(({ id }) => {
       if (typeof id !== "string") {
         throw new TypeError("Finding identity is invalid");
       }
-      return resourceLink("findings", id);
+      return mcpResourceLink("findings", id);
     }),
   ];
 }
@@ -238,6 +229,15 @@ export function readWorkflowResource(
   }
   if (match.kind === "findings") {
     return evaluations.readFindingById(match.id);
+  }
+  if (match.kind === "waiver-requests") {
+    return evaluations.readWaiverRequest(match.id);
+  }
+  if (match.kind === "waiver-adjudications") {
+    return evaluations.readWaiverAdjudication(match.id);
+  }
+  if (match.kind === "waiver-decisions") {
+    return evaluations.readWaiverDecision(match.id);
   }
   throw mcpError(
     `${match.kind.replaceAll("-", "_").replace(/s$/, "")}_not_found`,

@@ -50,6 +50,33 @@ export function canonicalEvaluationPaths(errorResponse) {
       security: authenticated,
     },
   });
+  /**
+   * @param {string} operationId
+   * @param {string} schema
+   * @param {string} description
+   * @param {string} parameter
+   */
+  const addressableRead = (operationId, schema, description, parameter) => ({
+    get: {
+      operationId,
+      parameters: [relatedIdentityParameter(parameter)],
+      responses: {
+        200: {
+          content: {
+            "application/json": {
+              schema: { $ref: `#/components/schemas/${schema}` },
+            },
+          },
+          description,
+        },
+        400: errorResponse,
+        401: errorResponse,
+        404: errorResponse,
+        503: errorResponse,
+      },
+      security: authenticated,
+    },
+  });
   return {
     "/api/v1/evaluations": {
       get: {
@@ -215,6 +242,24 @@ export function canonicalEvaluationPaths(errorResponse) {
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/waiver-requests/{waiver_request_id}": addressableRead(
+      "getWaiverRequest",
+      "WaiverRequest",
+      "Complete immutable Waiver Request",
+      "waiver_request_id",
+    ),
+    "/api/v1/waiver-adjudications/{waiver_adjudication_id}": addressableRead(
+      "getWaiverAdjudication",
+      "WaiverAdjudication",
+      "Current canonical Waiver Adjudication",
+      "waiver_adjudication_id",
+    ),
+    "/api/v1/waiver-decisions/{waiver_decision_id}": addressableRead(
+      "getWaiverDecision",
+      "WaiverDecision",
+      "Complete immutable Waiver Decision",
+      "waiver_decision_id",
+    ),
     "/api/v1/evaluations/{evaluation_id}/review-runs/{review_run_id}":
       relatedRead(
         "getEvaluationReviewRun",

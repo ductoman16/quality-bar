@@ -109,7 +109,7 @@ export function createWaiverBatchService(
     retryErrors: errorRetries.retry,
     /**
      * @param {{
-     *   channel: "browser_session" | "implementer_token",
+     *   channel: "browser_session" | "implementer_token" | "mcp",
      *   evaluationId: string,
      *   idempotencyKey: unknown,
      *   request: unknown
@@ -117,7 +117,7 @@ export function createWaiverBatchService(
      */
     submit({ channel, evaluationId, idempotencyKey, request }) {
       if (
-        !["browser_session", "implementer_token"].includes(channel) ||
+        !["browser_session", "implementer_token", "mcp"].includes(channel) ||
         typeof evaluationId !== "string" ||
         evaluationId.length === 0
       ) {
@@ -125,12 +125,17 @@ export function createWaiverBatchService(
       }
       const key = requireIdempotencyKey(idempotencyKey);
       const canonical = canonicalWaiverBatchRequest(request);
-      const route = `/api/v1/evaluations/${evaluationId}/waiver-adjudications`;
+      const persistenceChannel =
+        channel === "mcp" ? "implementer_token" : channel;
+      const route =
+        channel === "mcp"
+          ? "quality_bar.submit_waiver_requests"
+          : `/api/v1/evaluations/${evaluationId}/waiver-adjudications`;
       const hash = createHash("sha256")
         .update(JSON.stringify(canonical))
         .digest("hex");
       const replay = readWaiverReplay(durableCore, {
-        channel,
+        channel: persistenceChannel,
         hash,
         key,
         route,
@@ -159,7 +164,7 @@ export function createWaiverBatchService(
       }
       return durableCore.transaction((/** @type {any} */ transaction) => {
         const racedReplay = readWaiverReplay(transaction, {
-          channel,
+          channel: persistenceChannel,
           hash,
           key,
           route,
@@ -296,7 +301,7 @@ export function createWaiverBatchService(
         }
         return persistQueuedWaiverAdjudication(transaction, {
           adjudicationId,
-          channel,
+          channel: persistenceChannel,
           configuration,
           createdAt,
           evaluation,
@@ -321,7 +326,7 @@ export function createWaiverBatchService(
                   evaluationId,
                   requestValue.finding_id,
                   requestValue.rationale,
-                  channel,
+                  persistenceChannel,
                   createdAt,
                 );
                 return {

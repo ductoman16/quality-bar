@@ -30,6 +30,7 @@ import {
   selectReviewRunsForAdmission,
 } from "./review-run-admission.js";
 import { createWaiverBatchService } from "./waiver-batch.js";
+import { createWaiverResourceReader } from "./waiver-resource.js";
 
 export { EvaluationError };
 export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
@@ -99,6 +100,7 @@ export function createEvaluationService(
     readCodexCapabilityFailure,
     storageReserve,
   });
+  const waiverResources = createWaiverResourceReader(durableCore);
 
   /**
    * @param {any} transaction
@@ -312,6 +314,9 @@ export function createEvaluationService(
     read,
     retryWaiverErrors: waiverBatches.retryErrors,
     submitWaiverBatch: waiverBatches.submit,
+    readWaiverAdjudication: waiverResources.readAdjudication,
+    readWaiverDecision: waiverResources.readDecision,
+    readWaiverRequest: waiverResources.readRequest,
     ...resultResources,
     readReviewRunDiagnostics:
       createEvaluationReviewRunDiagnosticsReader(durableCore),
