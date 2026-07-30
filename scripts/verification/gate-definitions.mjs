@@ -228,6 +228,7 @@ export function createGateDefinitions(metadata) {
         "test/implementer-token.test.js",
         "test/request-security.test.js",
         "test/applicability-rule.test.js",
+        "test/analytics.test.js",
         "test/evaluation-validation.test.js",
         ...evaluationGate.EVALUATION_UNIT_TESTS,
         "test/review-run-admission.test.js",
@@ -273,6 +274,7 @@ export function createGateDefinitions(metadata) {
       arguments: [
         "--test",
         "test/browser-assets-browser-component.test.js",
+        "test/analytics-browser-component.test.js",
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",
         "test/review-criterion-retirement-browser-component.test.js",
@@ -375,6 +377,7 @@ export function createGateDefinitions(metadata) {
         "test/forgejo-connection-http-integration.test.js",
         "test/waiver-adjudicator-configuration-http-integration.test.js",
         "test/storage-reserve-application-integration.test.js",
+        "test/analytics-http-integration.test.js",
         ...evaluationGate.EVALUATION_HTTP_TESTS,
         "test/evaluation-cancellation-http-integration.test.js",
       ],
