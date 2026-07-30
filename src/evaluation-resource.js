@@ -245,8 +245,7 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
               WHERE waiver_decisions.waiver_adjudication_id =
                       current_adjudication.id
                 AND waiver_decisions.waiver_request_id = waiver_requests.id
-              ORDER BY waiver_decisions.created_at DESC,
-                       waiver_decisions.rowid DESC
+              ORDER BY waiver_decisions.rowid DESC
               LIMIT 1
             ) = 'error'
             THEN 1
@@ -258,8 +257,7 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
                waiver_adjudication_requests.waiver_adjudication_id
         WHERE waiver_adjudication_requests.waiver_request_id =
                 waiver_requests.id
-        ORDER BY current_adjudication.created_at DESC,
-                 current_adjudication.rowid DESC
+        ORDER BY current_adjudication.rowid DESC
         LIMIT 1
       ) = 1
   ) AS current_waiver_error_count,
@@ -280,13 +278,8 @@ export const EVALUATION_SELECTION = `SELECT evaluations.*, repositories.normaliz
           AND (
             SELECT waiver_decisions.outcome
             FROM waiver_decisions
-            JOIN waiver_adjudications
-              ON waiver_adjudications.id =
-                   waiver_decisions.waiver_adjudication_id
             WHERE waiver_decisions.waiver_request_id = waiver_requests.id
-            ORDER BY waiver_decisions.created_at DESC,
-                     waiver_adjudications.created_at DESC,
-                     waiver_decisions.rowid DESC
+            ORDER BY waiver_decisions.rowid DESC
             LIMIT 1
           ) = 'accepted'
       )

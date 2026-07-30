@@ -248,7 +248,7 @@ test("current immutable waiver facts control only the exact Evaluation outcome",
          id, evaluation_id, base_commit, head_commit, model,
          reasoning_effort, service_tier, execution_status, created_at
        ) SELECT 'adjudication-2', evaluation_id, base_commit, head_commit,
-                model, reasoning_effort, service_tier, 'queued', 13
+                model, reasoning_effort, service_tier, 'queued', 5
          FROM waiver_adjudications WHERE id = 'adjudication-1'`,
     );
     core.run(
@@ -261,20 +261,20 @@ test("current immutable waiver facts control only the exact Evaluation outcome",
          work_id, work_kind, ready_at, accepted_at, started_at,
          worker_id, fencing_token, lease_expires_at
        ) VALUES (
-         'adjudication-2', 'waiver_adjudication', 13, 13, 13,
+         'adjudication-2', 'waiver_adjudication', 5, 5, 5,
          'worker-2', 1, 100
        )`,
     );
     core.run(
       `UPDATE waiver_adjudications
-       SET execution_status = 'running', started_at = 13,
+       SET execution_status = 'running', started_at = 5,
            codex_cli_version = '0.114.0'
        WHERE id = 'adjudication-2'`,
     );
     assert.equal(evaluations.read("evaluation-1").effective_outcome, "pending");
     createWaiverAdjudicationResultService(core, {
       createDecisionId: () => "decision-retry-accepted",
-      now: () => 14,
+      now: () => 6,
     }).prepare(
       {
         fencingToken: 1,

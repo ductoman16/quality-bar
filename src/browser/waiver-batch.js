@@ -1,9 +1,17 @@
 (() => {
+  /** @param {unknown} value */
+  const canonicalNonblank = (value) =>
+    typeof value === "string" && value.length > 0 && value === value.trim();
+
+  /** @param {unknown} value */
+  const stableCode = (value) =>
+    typeof value === "string" && /^[a-z][a-z0-9_]*$/.test(value);
+
   /** @param {any} adjudication */
   function describeStatus(adjudication) {
     if (
       !adjudication ||
-      typeof adjudication.id !== "string" ||
+      !canonicalNonblank(adjudication.id) ||
       !["queued", "running", "completed", "failed", "cancelled"].includes(
         adjudication.execution_status,
       )
@@ -18,8 +26,8 @@
       ".";
     if (adjudication.execution_status === "failed") {
       if (
-        typeof adjudication.error?.code !== "string" ||
-        typeof adjudication.error?.detail !== "string"
+        !stableCode(adjudication.error?.code) ||
+        !canonicalNonblank(adjudication.error?.detail)
       ) {
         throw new Error("waiver_adjudication_invalid");
       }
@@ -33,42 +41,40 @@
       ) {
         throw new Error("waiver_adjudication_invalid");
       }
+      status += " Decisions:";
       for (const decision of adjudication.decisions) {
         if (
-          typeof decision?.id !== "string" ||
-          typeof decision.request_id !== "string" ||
+          !canonicalNonblank(decision?.id) ||
+          !canonicalNonblank(decision.request_id) ||
           !["accepted", "denied", "error"].includes(decision.outcome)
         ) {
           throw new Error("waiver_adjudication_invalid");
         }
         if (decision.outcome === "error") {
           if (
-            typeof decision.error?.code !== "string" ||
-            typeof decision.error.detail !== "string"
+            !stableCode(decision.error?.code) ||
+            !canonicalNonblank(decision.error.detail)
           ) {
             throw new Error("waiver_adjudication_invalid");
           }
           status +=
-            " Request " +
+            " " +
             decision.request_id +
             " error " +
             decision.error.code +
             ": " +
-            decision.error.detail.trim();
+            decision.error.detail;
         } else {
-          if (
-            typeof decision.explanation !== "string" ||
-            decision.explanation.trim().length === 0
-          ) {
+          if (!canonicalNonblank(decision.explanation)) {
             throw new Error("waiver_adjudication_invalid");
           }
           status +=
-            " Request " +
+            " " +
             decision.request_id +
             " " +
             decision.outcome +
             ": " +
-            decision.explanation.trim();
+            decision.explanation;
         }
       }
     }
