@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 
 import { runReviewRunCodex as runCodexAdapter } from "../src/review-run-codex-adapter.js";
+import { observeCodexProcess } from "../src/review-run-codex-process.js";
 
 export const claim = Object.freeze({
   fencingToken: 7,
@@ -45,10 +46,49 @@ export function runningProcess(pid) {
   });
 }
 
-/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "recordDeadline" | "startRun"> & {recordDeadline?: Parameters<typeof runCodexAdapter>[0]["recordDeadline"], startRun?: () => unknown}} options */
+/**
+ * @param {string} command
+ * @param {string[]} arguments_
+ * @param {{cwd: string, environment: NodeJS.ProcessEnv}} processOptions
+ * @param {string} nodeExecutable
+ * @param {((command: string, arguments_: string[], options: import("node:child_process").SpawnOptions) => import("node:child_process").ChildProcess) | undefined} spawnProcess
+ */
+function prepareDirectProcess(
+  command,
+  arguments_,
+  processOptions,
+  nodeExecutable,
+  spawnProcess,
+) {
+  if (
+    typeof nodeExecutable !== "string" ||
+    typeof spawnProcess !== "function"
+  ) {
+    throw new TypeError("Codex process spawn dependency is invalid");
+  }
+  return {
+    async abort() {},
+    child: spawnProcess(command, arguments_, {
+      cwd: processOptions.cwd,
+      detached: true,
+      env: processOptions.environment,
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+    async finish() {},
+    async start() {},
+  };
+}
+
+/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "finishProcessGroup" | "recordDeadline" | "startProcessGroup"> & {finishProcessGroup?: () => unknown, recordDeadline?: Parameters<typeof runCodexAdapter>[0]["recordDeadline"], startRun?: () => unknown, trackProcessGroup?: (processGroupId: number) => unknown}} options */
 export const runReviewRunCodex = (options) =>
   runCodexAdapter({
     ...options,
+    finishProcessGroup: options.finishProcessGroup ?? (() => {}),
+    observeProcess: options.observeProcess ?? observeCodexProcess,
+    prepareProcess: options.prepareProcess ?? prepareDirectProcess,
     recordDeadline: options.recordDeadline ?? (() => {}),
-    startRun: options.startRun ?? (() => {}),
+    startProcessGroup(processGroupId) {
+      options.startRun?.();
+      options.trackProcessGroup?.(processGroupId);
+    },
   });

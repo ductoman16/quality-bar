@@ -27,6 +27,7 @@ export function createReviewRunProcessGroupTermination(options) {
  *   killProcessGroup: (pid: number, signal: NodeJS.Signals | 0) => void,
  *   setTerminationTimer: (callback: () => void, milliseconds: number) => any,
  *   clearTerminationTimer: (timer: any) => void
+ *   finishSupervisor?: () => Promise<void>
  * }} options
  */
 export async function terminateReviewRunProcessGroup({
@@ -35,6 +36,7 @@ export async function terminateReviewRunProcessGroup({
   killProcessGroup,
   setTerminationTimer,
   clearTerminationTimer,
+  finishSupervisor = async () => {},
 }) {
   if (
     !Number.isSafeInteger(child.pid) ||
@@ -73,6 +75,7 @@ export async function terminateReviewRunProcessGroup({
       forceKill.then(() => "force-kill"),
     ]);
     if (first === "process") {
+      await finishSupervisor();
       try {
         killProcessGroup(processGroupId, 0);
       } catch (error) {

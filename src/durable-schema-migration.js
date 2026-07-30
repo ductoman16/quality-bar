@@ -71,6 +71,11 @@ export function migrateSchema(
     typeof queueSchema === "string" &&
     !queueColumns.has("retry_state") &&
     !statements.includes("ADD COLUMN retry_state");
+  const queueNeedsProcessGroup =
+    schemaVersion === CURRENT_SCHEMA_VERSION &&
+    typeof queueSchema === "string" &&
+    !queueColumns.has("process_group_id") &&
+    !statements.includes("ADD COLUMN process_group_id");
   database.function(
     "quality_bar_legacy_file_change_modified",
     { deterministic: true },
@@ -112,6 +117,30 @@ export function migrateSchema(
     }
     ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
     ${
+      queueNeedsProcessGroup
+        ? `ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_id INTEGER
+             CHECK (process_group_id IS NULL OR process_group_id > 0);
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_recorded_at INTEGER;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_boot_identity TEXT;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_namespace_identity TEXT;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_start_identity TEXT;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_group_finished_at INTEGER;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN recovery_termination_signal TEXT CHECK (
+               recovery_termination_signal IS NULL
+               OR recovery_termination_signal IN ('SIGTERM', 'SIGKILL')
+             );
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN recovered_at INTEGER;`
+        : ""
+    }
+    ${
       schemaVersion === CURRENT_SCHEMA_VERSION
         ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}`
         : ""
@@ -128,7 +157,7 @@ export function finalizeSchemaMigration(
   /** @type {number} */ version,
 ) {
   if (
-    ![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43].includes(
+    ![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44].includes(
       version,
     )
   ) {
@@ -137,6 +166,22 @@ export function finalizeSchemaMigration(
   if (version === 35) {
     migrateEvaluationCancellationReason(database, migrateSchema);
     return;
+  }
+  if (
+    version === 44 &&
+    database
+      .prepare(
+        `SELECT 1
+         FROM codex_execution_queue
+         WHERE started_at IS NOT NULL
+         LIMIT 1`,
+      )
+      .get()
+  ) {
+    fail(
+      "codex_execution_process_identity_unavailable",
+      "Legacy started Codex execution process identity is unavailable",
+    );
   }
   const hasApplicabilitySeal = database
     .prepare("PRAGMA table_info(evaluations)")
@@ -155,7 +200,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 44;
+export const CURRENT_SCHEMA_VERSION = 45;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";

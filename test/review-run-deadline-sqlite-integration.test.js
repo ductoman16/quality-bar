@@ -43,7 +43,7 @@ test("the Review Run deadline persists one exact terminal failure and no partial
         readFileChanges: () => [],
         resultService: createReviewRunResultService(core, { now: () => 30 }),
         async runCodex(input) {
-          input.startRun?.();
+          input.startProcessGroup?.(process.pid);
           input.recordDeadline?.(failure);
           assert.deepEqual(
             core.get(

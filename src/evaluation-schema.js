@@ -11,6 +11,10 @@ import {
   EVALUATION_CANCELLATION_TRIGGERS,
 } from "./evaluation-cancellation-schema.js";
 import { CODEX_EXECUTION_QUEUE_TRIGGERS } from "./codex-execution-queue-schema.js";
+import {
+  CODEX_EXECUTION_RECOVERY_CHECKS,
+  CODEX_EXECUTION_RECOVERY_COLUMNS,
+} from "./codex-execution-recovery-schema.js";
 import { GITHUB_AUTOMATIC_EVALUATION_SCHEMA } from "./github-automatic-evaluation-schema.js";
 import { GITHUB_COMMIT_STATUS_SCHEMA } from "./github-commit-status-schema.js";
 
@@ -169,11 +173,13 @@ export const EVALUATION_SCHEMA = `
     worker_id TEXT CHECK (worker_id IS NULL OR length(worker_id) > 0),
     fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
     lease_expires_at INTEGER,
+    ${CODEX_EXECUTION_RECOVERY_COLUMNS}
     CHECK (
       (worker_id IS NULL AND lease_expires_at IS NULL AND fencing_token = 0)
       OR
       (worker_id IS NOT NULL AND lease_expires_at IS NOT NULL AND fencing_token > 0)
     ),
+    ${CODEX_EXECUTION_RECOVERY_CHECKS}
     CHECK (started_at IS NULL OR started_at >= accepted_at)
   ) STRICT;
   CREATE INDEX IF NOT EXISTS codex_execution_queue_ready

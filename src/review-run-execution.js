@@ -4,6 +4,14 @@ import { subscribeReviewRunCancellation } from "./evaluation-cancellation.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { createReviewRunEvidenceService } from "./review-run-evidence.js";
 import { readReviewRunFileChanges } from "./review-run-file-changes.js";
+
+/** @param {any} service @param {string} method @param {any[]} parameters */
+function callClaimService(service, method, ...parameters) {
+  if (typeof service?.[method] !== "function") {
+    throw new TypeError(`Review Run claim service ${method} is required`);
+  }
+  return service[method](...parameters);
+}
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
 /**
@@ -228,8 +236,9 @@ function readRun(durableCore, workId) {
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
- *     start(claim: any, codexCliVersion: string): unknown,
- *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void
+ *     finishProcessGroup?(claim: any): unknown,
+ *     startTracked(claim: any, codexCliVersion: string, processGroupId: number): unknown,
+ *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void,
  *   },
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
@@ -349,14 +358,18 @@ export async function executeReviewRun(
             },
           },
           run: reviewRun,
-          startRun() {
-            claimService.start(
+          ...codexOptions,
+          finishProcessGroup() {
+            callClaimService(claimService, "finishProcessGroup", claim);
+          },
+          startProcessGroup(processGroupId) {
+            claimService.startTracked(
               claim,
               CODEX_CAPABILITY_CATALOG.codex_cli_version,
+              processGroupId,
             );
             started = true;
           },
-          ...codexOptions,
           recordDeadline(failure) {
             resultService.fail(claim, failure);
             deadlineRecorded = true;
