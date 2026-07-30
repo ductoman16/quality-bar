@@ -93,18 +93,22 @@ export function runGitCommand({
     /** @type {unknown} */
     let abortReason;
     /** @type {unknown[]} */
-    const terminationFailures = [];
+    const terminationEvidence = [];
+    /** @type {(AggregateError & {code: string}) | undefined} */
+    let terminationFailure;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let forceKill;
     /** @returns {Error & {code: string}} */
     function gitTerminationFailure() {
-      return Object.assign(
+      terminationFailure ??= Object.assign(
         new AggregateError(
-          [abortReason, ...terminationFailures],
+          terminationEvidence,
           "Git process termination failed",
         ),
         { code: "git_termination_failed" },
       );
+      terminationFailure.errors = terminationEvidence;
+      return terminationFailure;
     }
     /** @param {NodeJS.Signals} killSignal */
     function attemptKill(killSignal) {
@@ -116,6 +120,7 @@ export function runGitCommand({
     }
     const abort = () => {
       abortReason = signal?.reason;
+      terminationEvidence.push(abortReason);
       attemptKill("SIGTERM");
       forceKill = setTimeout(() => attemptKill("SIGKILL"), terminationGraceMs);
       forceKill.unref();
@@ -155,7 +160,7 @@ export function runGitCommand({
     /** @param {unknown} cause */
     function childError(cause) {
       if (abortReason !== undefined) {
-        terminationFailures.push(cause);
+        terminationEvidence.push(cause);
         complete(gitTerminationFailure(), true, false);
         return;
       }
@@ -165,7 +170,7 @@ export function runGitCommand({
     child.once("close", (code, exitSignal) => {
       if (abortReason !== undefined) {
         complete(
-          terminationFailures.length === 0
+          terminationEvidence.length === 1
             ? abortReason
             : gitTerminationFailure(),
           true,

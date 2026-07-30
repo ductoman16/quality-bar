@@ -83,12 +83,25 @@ test("hard shutdown settles and consumes failures from both Git kill attempts", 
 
   workers.abort(failure);
 
-  await assert.rejects(completion, {
-    code: "git_termination_failed",
-    message: "Git process termination failed",
+  /** @type {AggregateError & {code?: string} | undefined} */
+  let terminationFailure;
+  await assert.rejects(completion, (error) => {
+    terminationFailure = /** @type {AggregateError & {code?: string}} */ (
+      error
+    );
+    return (
+      terminationFailure.code === "git_termination_failed" &&
+      terminationFailure.message === "Git process termination failed"
+    );
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+  assert.equal(terminationFailure?.errors.length, 3);
+  assert.equal(terminationFailure?.errors[0], failure);
+  assert.deepEqual(
+    terminationFailure?.errors.slice(1).map((error) => error.code),
+    ["EPERM", "EPERM"],
+  );
 });
 
 test("private Git credentials cross only an anonymous pipe, never child environment or arguments", async () => {
