@@ -18,6 +18,7 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   /** @type {any[]} */
   const requests = [];
+  let duplicate = false;
   const head = "a".repeat(40);
   const server = createServer((request, response) => {
     let body = "";
@@ -62,16 +63,17 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
         request.url ===
           `/repos/operator/repository/commits/${head}/statuses?per_page=100&page=1`
       ) {
+        const match = {
+          context: GITHUB_COMMIT_STATUS_CONTEXT,
+          id: 901,
+          sha: head,
+          state: "failure",
+          target_url: "https://quality-bar.example/evaluations/evaluation-1",
+        };
         response.end(
           JSON.stringify([
-            {
-              context: GITHUB_COMMIT_STATUS_CONTEXT,
-              id: 901,
-              sha: head,
-              state: "failure",
-              target_url:
-                "https://quality-bar.example/evaluations/evaluation-1",
-            },
+            match,
+            ...(duplicate ? [{ ...match, id: 902 }] : []),
           ]),
         );
         return;
@@ -138,6 +140,30 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
       },
     ),
     901,
+  );
+  duplicate = true;
+  await assert.rejects(
+    verifier.reconcileCommitStatus(
+      {
+        app_id: 47,
+        app_slug: "quality-bar-personal",
+        client_id: "Iv1.client",
+        owner: { id: 91, login: "operator", type: "User" },
+        pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+      },
+      73,
+      { full_name: "operator/repository", id: 101 },
+      {
+        head,
+        state: "failure",
+        targetUrl: "https://quality-bar.example/evaluations/evaluation-1",
+      },
+    ),
+    (error) =>
+      /** @type {any} */ (error)?.code ===
+        "github_delivery_identity_conflict" &&
+      /** @type {any} */ (error).message ===
+        "GitHub commit status reconciliation found duplicate source identities",
   );
   assert.equal(
     requests.at(-1).path,

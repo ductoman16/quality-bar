@@ -113,7 +113,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes(version)) {
+  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   if (version === 35) {
@@ -136,7 +136,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 40;
+export const CURRENT_SCHEMA_VERSION = 41;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";

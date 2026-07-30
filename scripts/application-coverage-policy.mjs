@@ -77,6 +77,8 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/github-automatic-evaluation.test.js",
   "test/github-commit-status.test.js",
   "test/github-delivery.test.js",
+  "test/github-delivery-concurrency.test.js",
+  "test/github-delivery-schema-migration.test.js",
   "test/github-delivery-feedback-publication.test.js",
   "test/github-delivery-status-publication.test.js",
   "test/github-commit-status-publication.test.js",

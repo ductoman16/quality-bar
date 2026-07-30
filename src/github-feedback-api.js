@@ -86,7 +86,7 @@ export function createGitHubFeedbackPublisher(dependencies) {
     }
     if (identities.length > 1) {
       dependencies.fail(
-        "github_api_response_invalid",
+        "github_delivery_identity_conflict",
         "GitHub feedback reconciliation found duplicate source identities",
       );
     }

@@ -5,6 +5,7 @@ export const GITHUB_DELIVERY_SCHEMA = `
     ),
     source_id TEXT NOT NULL CHECK (length(source_id) > 0),
     target TEXT NOT NULL CHECK (length(target) > 0),
+    generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0),
     attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
     last_attempt_at INTEGER,
     next_attempt_at INTEGER NOT NULL DEFAULT 0 CHECK (next_attempt_at >= 0),
@@ -13,6 +14,9 @@ export const GITHUB_DELIVERY_SCHEMA = `
     external_id INTEGER CHECK (external_id IS NULL OR external_id > 0),
     error_code TEXT,
     error_detail TEXT,
+    response_status INTEGER CHECK (
+      response_status IS NULL OR response_status BETWEEN 100 AND 599
+    ),
     definitive INTEGER NOT NULL DEFAULT 0 CHECK (definitive IN (0, 1)),
     CHECK (
       (attempt_count = 0 AND last_attempt_at IS NULL)
@@ -165,7 +169,10 @@ export const GITHUB_DELIVERY_SCHEMA = `
       WHERE github_automatic_evaluations.evaluation_id = NEW.evaluation_id
       ON CONFLICT (surface, source_id) DO NOTHING;
     END;
-  INSERT INTO github_delivery_attempts (surface, source_id, target)
+  INSERT INTO github_delivery_attempts (
+    surface, source_id, target, attempt_count, last_attempt_at,
+    reconciliation_required, external_id, error_code, error_detail, definitive
+  )
   SELECT
     'commit_status',
     evaluation_id || ':' || desired_state,
@@ -174,11 +181,32 @@ export const GITHUB_DELIVERY_SCHEMA = `
       'head_commit', head_commit,
       'repository_id', repository_id,
       'state', desired_state
-    )
+    ),
+    CASE WHEN publication_status = 'succeeded' THEN 1 ELSE 0 END,
+    CASE WHEN publication_status = 'succeeded' THEN published_at ELSE NULL END,
+    CASE WHEN publication_status = 'unavailable' THEN 1 ELSE 0 END,
+    NULL,
+    error_code,
+    error_detail,
+    CASE WHEN error_code IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    ) THEN 1 ELSE 0 END
   FROM github_commit_statuses
   WHERE true
   ON CONFLICT (surface, source_id) DO NOTHING;
-  INSERT INTO github_delivery_attempts (surface, source_id, target)
+  INSERT INTO github_delivery_attempts (
+    surface, source_id, target, attempt_count, last_attempt_at,
+    reconciliation_required, external_id, error_code, error_detail, definitive
+  )
   SELECT
     'aggregate_feedback',
     github_feedback_bundles.evaluation_id,
@@ -186,7 +214,28 @@ export const GITHUB_DELIVERY_SCHEMA = `
       'pull_request_number',
         github_automatic_evaluations.pull_request_number,
       'repository_id', github_repositories.forge_repository_id
-    )
+    ),
+    CASE WHEN github_feedback_bundles.publication_status = 'succeeded'
+      THEN 1 ELSE 0 END,
+    CASE WHEN github_feedback_bundles.publication_status = 'succeeded'
+      THEN github_feedback_bundles.published_at ELSE NULL END,
+    CASE WHEN github_feedback_bundles.publication_status = 'unavailable'
+      THEN 1 ELSE 0 END,
+    github_feedback_bundles.external_id,
+    github_feedback_bundles.error_code,
+    github_feedback_bundles.error_detail,
+    CASE WHEN github_feedback_bundles.error_code IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    ) THEN 1 ELSE 0 END
   FROM github_feedback_bundles
   JOIN github_automatic_evaluations
     ON github_automatic_evaluations.evaluation_id =
@@ -196,7 +245,10 @@ export const GITHUB_DELIVERY_SCHEMA = `
          github_automatic_evaluations.repository_id
   WHERE true
   ON CONFLICT (surface, source_id) DO NOTHING;
-  INSERT INTO github_delivery_attempts (surface, source_id, target)
+  INSERT INTO github_delivery_attempts (
+    surface, source_id, target, attempt_count, last_attempt_at,
+    reconciliation_required, external_id, error_code, error_detail, definitive
+  )
   SELECT
     'inline_feedback',
     github_finding_feedback.finding_id,
@@ -209,7 +261,28 @@ export const GITHUB_DELIVERY_SCHEMA = `
       'side', github_finding_feedback.side,
       'start_line', github_finding_feedback.start_line,
       'start_side', github_finding_feedback.start_side
-    )
+    ),
+    CASE WHEN github_finding_feedback.publication_status = 'succeeded'
+      THEN 1 ELSE 0 END,
+    CASE WHEN github_finding_feedback.publication_status = 'succeeded'
+      THEN github_finding_feedback.published_at ELSE NULL END,
+    CASE WHEN github_finding_feedback.publication_status = 'unavailable'
+      THEN 1 ELSE 0 END,
+    github_finding_feedback.external_id,
+    github_finding_feedback.error_code,
+    github_finding_feedback.error_detail,
+    CASE WHEN github_finding_feedback.error_code IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    ) THEN 1 ELSE 0 END
   FROM github_finding_feedback
   JOIN github_automatic_evaluations
     ON github_automatic_evaluations.evaluation_id =
@@ -219,4 +292,49 @@ export const GITHUB_DELIVERY_SCHEMA = `
          github_automatic_evaluations.repository_id
   WHERE github_finding_feedback.publication_status != 'aggregate_only'
   ON CONFLICT (surface, source_id) DO NOTHING;
+  UPDATE github_commit_statuses
+  SET publication_status = 'waiting', error_code = NULL, error_detail = NULL
+  WHERE publication_status = 'unavailable'
+    AND error_code NOT IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    );
+  UPDATE github_feedback_bundles
+  SET publication_status = 'waiting', error_code = NULL, error_detail = NULL
+  WHERE publication_status = 'unavailable'
+    AND error_code NOT IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    );
+  UPDATE github_finding_feedback
+  SET publication_status = 'waiting', error_code = NULL, error_detail = NULL
+  WHERE publication_status = 'unavailable'
+    AND error_code NOT IN (
+      'github_api_request_failed',
+      'github_app_profile_mismatch',
+      'github_connection_credential_invalid',
+      'github_connection_credential_undecryptable',
+      'github_connection_retired',
+      'github_delivery_identity_conflict',
+      'github_installation_scope_invalid',
+      'github_permissions_mismatch',
+      'github_principal_mismatch',
+      'github_repository_api_access_failed'
+    );
 `;

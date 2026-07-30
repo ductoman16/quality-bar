@@ -151,7 +151,7 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 40);
+  assert.equal(migrated.facts.schemaVersion, 41);
   assert.equal(
     migrated.get(
       `SELECT count(*) AS count FROM sqlite_schema

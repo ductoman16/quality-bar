@@ -15,6 +15,17 @@ export function recordGitHubDeliveryHealth(
   attemptedAt,
   failure,
 ) {
+  const connectionOwned =
+    [
+      "github_app_profile_mismatch",
+      "github_connection_credential_invalid",
+      "github_connection_credential_undecryptable",
+      "github_installation_scope_invalid",
+      "github_permissions_mismatch",
+      "github_principal_mismatch",
+    ].includes(failure.code) ||
+    (failure.code === "github_api_request_failed" &&
+      [401, 403].includes(failure.responseStatus));
   if (
     githubVerificationErrorScope(failure.code) === "repository" &&
     Number.isSafeInteger(failure.repositoryId)
@@ -35,6 +46,9 @@ export function recordGitHubDeliveryHealth(
       connectionId,
       failure.repositoryId,
     );
+    return;
+  }
+  if (!connectionOwned) {
     return;
   }
   transaction.run(

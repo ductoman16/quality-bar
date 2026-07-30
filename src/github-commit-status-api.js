@@ -160,7 +160,7 @@ export function createGitHubCommitStatusPublisher(dependencies) {
     }
     if (matches.length > 1) {
       dependencies.fail(
-        "github_api_response_invalid",
+        "github_delivery_identity_conflict",
         "GitHub commit status reconciliation found duplicate source identities",
       );
     }

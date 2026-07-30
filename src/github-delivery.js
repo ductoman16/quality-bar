@@ -7,6 +7,7 @@ const DEFINITIVE_FAILURES = new Set([
   "github_connection_credential_invalid",
   "github_connection_credential_undecryptable",
   "github_connection_retired",
+  "github_delivery_identity_conflict",
   "github_installation_scope_invalid",
   "github_permissions_mismatch",
   "github_principal_mismatch",
@@ -55,6 +56,9 @@ export function githubDeliveryFailure(error, input) {
     ...(providerGate ? { providerGate: true } : {}),
     ...(Number.isSafeInteger(failure.repositoryId)
       ? { repositoryId: failure.repositoryId }
+      : {}),
+    ...(Number.isSafeInteger(failure.responseStatus)
+      ? { responseStatus: failure.responseStatus }
       : {}),
     uncertain,
   };
@@ -110,29 +114,36 @@ export function beginGitHubDeliveryAttempt(
   ) {
     return false;
   }
-  durableCore.transaction((/** @type {any} */ transaction) => {
+  return durableCore.transaction((/** @type {any} */ transaction) => {
     transaction.run(
       `DELETE FROM github_delivery_provider_gates
        WHERE connection_id = ? AND gate_until <= ?`,
       connectionId,
       attemptedAt,
     );
-    transaction.run(
+    const begun = transaction.run(
       `UPDATE github_delivery_attempts
-       SET attempt_count = attempt_count + 1,
+       SET generation = generation + 1,
+           attempt_count = attempt_count + 1,
            last_attempt_at = ?,
            reconciliation_required =
              CASE WHEN ? = 'create' THEN 1 ELSE reconciliation_required END,
            error_code = NULL,
-           error_detail = NULL
-       WHERE surface = ? AND source_id = ? AND definitive = 0`,
+           error_detail = NULL,
+           response_status = NULL
+       WHERE surface = ? AND source_id = ?
+         AND generation = ? AND definitive = 0`,
       attemptedAt,
       operation,
       delivery.surface,
       delivery.source_id,
+      delivery.generation,
     );
+    if (begun.changes !== 1) {
+      return false;
+    }
+    return true;
   });
-  return true;
 }
 
 /** @param {any} durableCore @param {any} delivery @param {number} externalId @param {(transaction: any) => void} commitPublication */
@@ -145,20 +156,27 @@ export function succeedGitHubDelivery(
   if (!Number.isSafeInteger(externalId) || externalId <= 0) {
     throw new TypeError("GitHub delivery external identity is invalid");
   }
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    transaction.run(
+  return durableCore.transaction((/** @type {any} */ transaction) => {
+    const succeeded = transaction.run(
       `UPDATE github_delivery_attempts
        SET next_attempt_at = 0,
            reconciliation_required = 0,
            external_id = ?,
            error_code = NULL,
-           error_detail = NULL
-       WHERE surface = ? AND source_id = ?`,
+           error_detail = NULL,
+           response_status = NULL
+       WHERE surface = ? AND source_id = ?
+         AND generation = ? AND definitive = 0`,
       externalId,
       delivery.surface,
       delivery.source_id,
+      delivery.generation + 1,
     );
+    if (succeeded.changes !== 1) {
+      return false;
+    }
     commitPublication(transaction);
+    return true;
   });
 }
 
@@ -178,61 +196,91 @@ export function failGitHubDelivery(
         /** @type {number} */ (delivery.attempt_count) + 1,
         failure,
       );
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    transaction.run(
-      `UPDATE github_delivery_attempts
+  const committed = durableCore.transaction(
+    (/** @type {any} */ transaction) => {
+      const failed = transaction.run(
+        `UPDATE github_delivery_attempts
        SET next_attempt_at = ?,
            reconciliation_required =
              CASE WHEN ? THEN 1 ELSE reconciliation_required END,
            error_code = ?,
            error_detail = ?,
+           response_status = ?,
            definitive = ?
-       WHERE surface = ? AND source_id = ?`,
-      nextAttemptAt,
-      failure.uncertain ? 1 : 0,
-      failure.code,
-      failure.detail,
-      failure.definitive ? 1 : 0,
-      delivery.surface,
-      delivery.source_id,
-    );
-    if (failure.providerGate) {
-      transaction.run(
-        `INSERT INTO github_delivery_provider_gates (
+       WHERE surface = ? AND source_id = ?
+         AND generation = ? AND definitive = 0`,
+        nextAttemptAt,
+        failure.uncertain ? 1 : 0,
+        failure.code,
+        failure.detail,
+        failure.responseStatus ?? null,
+        failure.definitive ? 1 : 0,
+        delivery.surface,
+        delivery.source_id,
+        delivery.generation + 1,
+      );
+      if (failed.changes !== 1) {
+        return false;
+      }
+      if (failure.providerGate) {
+        transaction.run(
+          `INSERT INTO github_delivery_provider_gates (
            connection_id, gate_until, error_code, error_detail
          ) VALUES (?, ?, ?, ?)
          ON CONFLICT (connection_id) DO UPDATE SET
-           gate_until = MAX(gate_until, excluded.gate_until),
-           error_code = excluded.error_code,
-           error_detail = excluded.error_detail`,
-        connectionId,
-        nextAttemptAt,
-        failure.code,
-        failure.detail,
-      );
-    }
-    if (failure.definitive) {
-      commitDefinitive(transaction, failure);
-    }
-  });
-  return nextAttemptAt;
+           error_code = CASE
+             WHEN excluded.gate_until > github_delivery_provider_gates.gate_until
+               OR (
+                 excluded.gate_until = github_delivery_provider_gates.gate_until
+                 AND excluded.error_code || ':' || excluded.error_detail <
+                     github_delivery_provider_gates.error_code || ':' ||
+                     github_delivery_provider_gates.error_detail
+               )
+             THEN excluded.error_code ELSE error_code END,
+           error_detail = CASE
+             WHEN excluded.gate_until > github_delivery_provider_gates.gate_until
+               OR (
+                 excluded.gate_until = github_delivery_provider_gates.gate_until
+                 AND excluded.error_code || ':' || excluded.error_detail <
+                     github_delivery_provider_gates.error_code || ':' ||
+                     github_delivery_provider_gates.error_detail
+               )
+             THEN excluded.error_detail ELSE error_detail END,
+           gate_until = MAX(gate_until, excluded.gate_until)`,
+          connectionId,
+          nextAttemptAt,
+          failure.code,
+          failure.detail,
+        );
+      }
+      if (failure.definitive) {
+        commitDefinitive(transaction, failure);
+      }
+      return true;
+    },
+  );
+  return committed ? nextAttemptAt : null;
 }
 
 /** @param {any} durableCore @param {any} delivery @param {number} attemptedAt */
 export function proveGitHubDeliveryAbsent(durableCore, delivery, attemptedAt) {
-  durableCore.transaction((/** @type {any} */ transaction) =>
-    transaction.run(
+  return durableCore.transaction((/** @type {any} */ transaction) => {
+    const proven = transaction.run(
       `UPDATE github_delivery_attempts
        SET reconciliation_required = 0,
            next_attempt_at = ?,
            error_code = NULL,
-           error_detail = NULL
-       WHERE surface = ? AND source_id = ?`,
+           error_detail = NULL,
+           response_status = NULL
+       WHERE surface = ? AND source_id = ?
+         AND generation = ? AND definitive = 0`,
       attemptedAt,
       delivery.surface,
       delivery.source_id,
-    ),
-  );
+      delivery.generation + 1,
+    );
+    return proven.changes === 1;
+  });
 }
 
 /**

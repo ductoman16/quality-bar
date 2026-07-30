@@ -17,6 +17,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   /** @type {any[]} */
   const requests = [];
+  let duplicate = false;
   const head = "a".repeat(40);
   const server = createServer((request, response) => {
     let body = "";
@@ -68,7 +69,12 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         request.url ===
           "/repos/operator/repository/issues/17/comments?per_page=100&page=1"
       ) {
-        response.end(JSON.stringify([{ body: "complete aggregate", id: 701 }]));
+        response.end(
+          JSON.stringify([
+            { body: "complete aggregate", id: 701 },
+            ...(duplicate ? [{ body: "complete aggregate", id: 703 }] : []),
+          ]),
+        );
         return;
       }
       if (
@@ -76,18 +82,20 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         request.url ===
           "/repos/operator/repository/pulls/17/comments?per_page=100&page=1"
       ) {
+        const match = {
+          body: "finding feedback",
+          commit_id: head,
+          id: 702,
+          line: 12,
+          path: "src/example.js",
+          side: "RIGHT",
+          start_line: null,
+          start_side: null,
+        };
         response.end(
           JSON.stringify([
-            {
-              body: "finding feedback",
-              commit_id: head,
-              id: 702,
-              line: 12,
-              path: "src/example.js",
-              side: "RIGHT",
-              start_line: null,
-              start_side: null,
-            },
+            match,
+            ...(duplicate ? [{ ...match, id: 704 }] : []),
           ]),
         );
         return;
@@ -137,25 +145,70 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     }),
     702,
   );
+  duplicate = true;
+  for (const reconcile of [
+    () =>
+      verifier.reconcileAggregateFeedback(
+        credential,
+        73,
+        repository,
+        17,
+        "complete aggregate",
+      ),
+    () =>
+      verifier.reconcileInlineFeedback(credential, 73, repository, 17, {
+        body: "finding feedback",
+        commit_id: head,
+        line: 12,
+        path: "src/example.js",
+        side: "RIGHT",
+      }),
+  ]) {
+    await assert.rejects(
+      reconcile(),
+      (error) =>
+        /** @type {any} */ (error)?.code ===
+          "github_delivery_identity_conflict" &&
+        /** @type {any} */ (error).message ===
+          "GitHub feedback reconciliation found duplicate source identities",
+    );
+  }
+  duplicate = false;
 
-  assert.deepEqual(requests.slice(1, 2)[0], {
-    authorization: "Bearer installation-token",
-    body: { body: "complete aggregate" },
-    method: "POST",
-    path: "/repos/operator/repository/issues/17/comments",
-  });
-  assert.deepEqual(requests.at(-1), {
-    authorization: "Bearer installation-token",
-    body: {
-      body: "finding feedback",
-      commit_id: head,
-      line: 12,
-      path: "src/example.js",
-      side: "RIGHT",
+  assert.deepEqual(
+    requests.find(
+      (request) =>
+        request.method === "POST" &&
+        request.authorization === "Bearer installation-token",
+    ),
+    {
+      authorization: "Bearer installation-token",
+      body: { body: "complete aggregate" },
+      method: "POST",
+      path: "/repos/operator/repository/issues/17/comments",
     },
-    method: "POST",
-    path: "/repos/operator/repository/pulls/17/comments",
-  });
+  );
+  assert.deepEqual(
+    requests
+      .filter(
+        (request) =>
+          request.method === "POST" &&
+          request.authorization === "Bearer installation-token",
+      )
+      .at(-1),
+    {
+      authorization: "Bearer installation-token",
+      body: {
+        body: "finding feedback",
+        commit_id: head,
+        line: 12,
+        path: "src/example.js",
+        side: "RIGHT",
+      },
+      method: "POST",
+      path: "/repos/operator/repository/pulls/17/comments",
+    },
+  );
   assert.equal(
     await verifier.reconcileAggregateFeedback(
       credential,

@@ -93,10 +93,12 @@ export function retireGitHubConnection(durableCore, request) {
     );
     transaction.run(
       `UPDATE github_delivery_attempts
-       SET next_attempt_at = 0,
+       SET generation = generation + 1,
+           next_attempt_at = 0,
            error_code = 'github_connection_retired',
            error_detail =
              'GitHub delivery is unavailable because the GitHub Connection is retired',
+           response_status = NULL,
            definitive = 1
        WHERE
          (surface = 'commit_status' AND source_id IN (
