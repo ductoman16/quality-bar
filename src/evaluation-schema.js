@@ -164,6 +164,8 @@ export const EVALUATION_SCHEMA = `
     ready_at INTEGER NOT NULL,
     accepted_at INTEGER NOT NULL,
     started_at INTEGER,
+    retry_state TEXT NOT NULL DEFAULT 'ready'
+      CHECK (retry_state IN ('ready', 'exhausted')),
     worker_id TEXT CHECK (worker_id IS NULL OR length(worker_id) > 0),
     fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
     lease_expires_at INTEGER,

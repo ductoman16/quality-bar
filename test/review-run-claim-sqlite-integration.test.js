@@ -36,6 +36,7 @@ test("oldest queued Review Run is claimed once and replacement increments its fe
     leaseExpiresAt: 121_000,
     workerId: "worker-1",
     workId: "review-run-1",
+    workKind: "review_run",
   });
   assert.deepEqual(
     core.get(
@@ -67,6 +68,7 @@ test("oldest queued Review Run is claimed once and replacement increments its fe
     leaseExpiresAt: 271_000,
     workerId: "worker-2",
     workId: "review-run-1",
+    workKind: "review_run",
   });
   assert.throws(
     () => firstWorker.start(firstClaim, "0.145.0"),
@@ -89,6 +91,7 @@ test("oldest queued Review Run is claimed once and replacement increments its fe
       leaseExpiresAt: 420_000,
       workerId: "worker-3",
       workId: "review-run-2",
+      workKind: "review_run",
     },
   );
   assert.deepEqual(
