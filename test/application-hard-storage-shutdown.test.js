@@ -6,9 +6,17 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createApplication } from "../src/application.js";
+import { createHardStorageBoundary } from "../src/application-runtime.js";
 import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
+
+test("the hard storage boundary requires one exact shutdown owner", () => {
+  assert.throws(
+    () => createHardStorageBoundary(() => {}, /** @type {any} */ (undefined)),
+    /hard storage shutdown is required/,
+  );
+});
 
 test("hard storage failure stops work, terminates Codex, and rejects every product surface", async (context) => {
   const directory = mkdtempSync(
@@ -17,9 +25,13 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   /** @type {string[]} */
   const stopped = [];
+  /** @type {any} */
+  let ioPool;
   const connectionFailure = new Error("unused connection operation");
   const application = createApplication({
-    createCodexRuntime() {
+    createCodexRuntime(durableCore, dependencies) {
+      assert.ok(durableCore);
+      ioPool = dependencies.ioPool;
       return {
         async close() {
           stopped.push("codex");
@@ -96,6 +108,13 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(application.workerSignal.aborted, true);
   assert.deepEqual(stopped, ["github", "forgejo", "codex"]);
+  assert.throws(
+    () => ioPool.run("cleanup", () => assert.fail("I/O work ran")),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "io_execution_pool_closed",
+  );
   assert.equal(
     /** @type {{code: string}} */ (application.workerSignal.reason).code,
     "storage_unavailable",
@@ -118,6 +137,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   for (const path of [
     "/",
     "/?view=system",
+    "/assets/login.js",
     "/api/v1/system",
     "/api/v1?resource=system",
     "/mcp/v1",

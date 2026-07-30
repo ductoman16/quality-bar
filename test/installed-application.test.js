@@ -23,6 +23,7 @@ function nextTurn(callback) {
 }
 
 test("pre-migration finalization precedes the initial daily backup and next check", async () => {
+  const workers = new AbortController();
   /** @type {string[]} */
   const events = [];
   /** @type {Array<() => void>} */
@@ -32,6 +33,7 @@ test("pre-migration finalization precedes the initial daily backup and next chec
     async close() {
       events.push("close");
     },
+    workerSignal: workers.signal,
   });
 
   const application = await createInstalledApplication({
@@ -147,7 +149,61 @@ test("an initial daily backup failure closes the runtime and surfaces exactly", 
   assert.equal(logs[0].detail, "disk write failed");
 });
 
+test("hard storage shutdown cancels the installed daily-backup worker until restart", async () => {
+  const workers = new AbortController();
+  let backupRuns = 0;
+  let cleared = 0;
+  let closed = 0;
+  /** @type {(() => void) | undefined} */
+  let timerCallback;
+  const application = await createInstalledApplication({
+    applicationVersion: "1.2.3",
+    backupsPath: "/backups",
+    clearBackupTimer() {
+      cleared += 1;
+    },
+    createRuntime: () =>
+      /** @type {any} */ ({
+        durableCore: {},
+        async close() {
+          closed += 1;
+        },
+        workerSignal: workers.signal,
+      }),
+    databasePath: "/quality-bar.sqlite3",
+    loadInstallation: installation,
+    prepareBackup: async () => null,
+    async runDailyBackup() {
+      backupRuns += 1;
+      return /** @type {any} */ ({ status: "created" });
+    },
+    setBackupTimer(callback) {
+      timerCallback = callback;
+      return /** @type {any} */ ({ unref() {} });
+    },
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
+    validateSources() {},
+    writeLog() {},
+  });
+
+  assert.equal(backupRuns, 1);
+  workers.abort(
+    Object.assign(new Error("SQLite durable write failed"), {
+      code: "storage_unavailable",
+    }),
+  );
+  assert.equal(cleared, 1);
+  timerCallback?.();
+  await nextTurn(() => {});
+  assert.equal(backupRuns, 1);
+
+  await application.close();
+  assert.equal(cleared, 1);
+  assert.equal(closed, 1);
+});
+
 test("a scheduled backup failure closes the runtime and surfaces exactly", async () => {
+  const workers = new AbortController();
   const failure = Object.assign(new Error("daily backup failed"), {
     code: "SQLITE_FULL",
   });
@@ -172,6 +228,7 @@ test("a scheduled backup failure closes the runtime and surfaces exactly", async
         async close() {
           closed += 1;
         },
+        workerSignal: workers.signal,
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,

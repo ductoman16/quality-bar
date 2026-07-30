@@ -140,6 +140,7 @@ export function createApplication({
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
     void codexRuntime?.close();
+    void ioPool.close();
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({

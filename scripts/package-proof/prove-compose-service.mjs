@@ -31,6 +31,7 @@ const serviceFixtureImage =
  * @typedef {{
  *   api: {errorCode: string, status: number},
  *   browser: {errorCode: string, status: number},
+ *   browserAsset: {errorCode: string, status: number},
  *   failedWrite: {errorCode: string, status: number},
  *   liveness: {body: {status: string}, status: number},
  *   mcp: {errorCode: string, status: number},
@@ -422,6 +423,7 @@ export function proveComposeService({ configuration, fixture }) {
   for (const surface of [
     durableWriteFailure.failedWrite,
     durableWriteFailure.browser,
+    durableWriteFailure.browserAsset,
     durableWriteFailure.api,
     durableWriteFailure.mcp,
   ]) {

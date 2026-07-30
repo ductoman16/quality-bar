@@ -40,6 +40,7 @@ test("storage_unavailable exposes no product data or write-failure secret throug
     headers,
   ] of /** @type {Array<[string, Record<string, string>]>} */ ([
     ["/", {}],
+    ["/assets/login.js", {}],
     ["/api/v1/system", { authorization: `Bearer ${token}` }],
     [
       "/mcp/v1",
@@ -70,4 +71,16 @@ test("storage_unavailable exposes no product data or write-failure secret throug
     },
   );
   assert.doesNotMatch(logs.join(""), new RegExp(secret));
+  const storageFailureLog = logs
+    .map((line) => JSON.parse(line))
+    .find((record) => record.event === "storage_unavailable");
+  assert.deepEqual(storageFailureLog, {
+    component: "storage",
+    detail: "SQLite durable write failed",
+    error: "storage_unavailable",
+    event: "storage_unavailable",
+    outcome: "failure",
+    severity: "error",
+    timestamp: storageFailureLog.timestamp,
+  });
 });

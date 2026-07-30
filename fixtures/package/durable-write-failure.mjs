@@ -32,6 +32,9 @@ try {
 }
 
 const browser = await responseFacts("/", { headers: forwarded });
+const browserAsset = await responseFacts("/assets/login.js", {
+  headers: forwarded,
+});
 const api = await responseFacts("/api/v1/system", { headers: forwarded });
 const mcp = await responseFacts("/mcp/v1", { headers: forwarded });
 const liveness = await responseFacts("/health/live");
@@ -43,6 +46,10 @@ process.stdout.write(
     browser: {
       errorCode: browser.body.error.code,
       status: browser.status,
+    },
+    browserAsset: {
+      errorCode: browserAsset.body.error.code,
+      status: browserAsset.status,
     },
     failedWrite: {
       errorCode: failedWrite.body.error.code,

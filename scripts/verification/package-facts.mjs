@@ -92,6 +92,7 @@
  *   durableWriteFailure?: {
  *     api?: {errorCode?: string, status?: number},
  *     browser?: {errorCode?: string, status?: number},
+ *     browserAsset?: {errorCode?: string, status?: number},
  *     failedWrite?: {errorCode?: string, status?: number},
  *     liveness?: {body?: {status?: string}, status?: number},
  *     mcp?: {errorCode?: string, status?: number},
@@ -177,6 +178,9 @@ export function validatePackageFacts(facts, applicationVersion) {
         packageFacts?.durableWriteFailure?.browser?.errorCode ===
           "storage_unavailable" &&
         packageFacts?.durableWriteFailure?.browser?.status === 503 &&
+        packageFacts?.durableWriteFailure?.browserAsset?.errorCode ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.browserAsset?.status === 503 &&
         packageFacts?.durableWriteFailure?.api?.errorCode ===
           "storage_unavailable" &&
         packageFacts?.durableWriteFailure?.api?.status === 503 &&

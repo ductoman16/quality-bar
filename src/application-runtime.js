@@ -42,12 +42,12 @@ export function structuredLog(
 
 /**
  * @param {(line: string) => unknown} writeLog
- * @param {() => unknown} [stopProductWork]
+ * @param {() => unknown} stopProductWork
  */
-export function createHardStorageBoundary(
-  writeLog,
-  stopProductWork = () => {},
-) {
+export function createHardStorageBoundary(writeLog, stopProductWork) {
+  if (typeof stopProductWork !== "function") {
+    throw new TypeError("hard storage shutdown is required");
+  }
   const workers = new AbortController();
   const codexProcesses = new Set(
     /** @type {import("node:child_process").ChildProcess[]} */ ([]),
