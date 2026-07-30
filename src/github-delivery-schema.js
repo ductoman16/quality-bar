@@ -1,14 +1,8 @@
-const DEFINITIVE_DELIVERY_ERROR_CODES = `
-      'github_api_request_failed',
-      'github_app_profile_mismatch',
-      'github_connection_credential_invalid',
-      'github_connection_credential_undecryptable',
-      'github_connection_retired',
-      'github_delivery_identity_conflict',
-      'github_installation_scope_invalid',
-      'github_permissions_mismatch',
-      'github_principal_mismatch',
-      'github_repository_api_access_failed'`;
+import { DEFINITIVE_GITHUB_DELIVERY_ERRORS } from "./github-delivery-errors.js";
+
+const DEFINITIVE_DELIVERY_ERROR_CODES = DEFINITIVE_GITHUB_DELIVERY_ERRORS.map(
+  (code) => `'${code}'`,
+).join(", ");
 
 export const GITHUB_DELIVERY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS github_delivery_attempts (

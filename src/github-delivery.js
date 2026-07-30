@@ -1,18 +1,8 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
+import { DEFINITIVE_GITHUB_DELIVERY_ERRORS } from "./github-delivery-errors.js";
 
 const MAXIMUM_DELAY_MS = 60 * 60 * 1_000;
-const DEFINITIVE_FAILURES = new Set([
-  "github_api_request_failed",
-  "github_app_profile_mismatch",
-  "github_connection_credential_invalid",
-  "github_connection_credential_undecryptable",
-  "github_connection_retired",
-  "github_delivery_identity_conflict",
-  "github_installation_scope_invalid",
-  "github_permissions_mismatch",
-  "github_principal_mismatch",
-  "github_repository_api_access_failed",
-]);
+const DEFINITIVE_FAILURES = new Set(DEFINITIVE_GITHUB_DELIVERY_ERRORS);
 
 /**
  * @param {unknown} error

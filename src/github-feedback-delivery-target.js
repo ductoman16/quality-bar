@@ -30,12 +30,19 @@ export function readAggregateDeliveryTarget(
       pullRequestNumber: fallback.pull_request_number,
     };
   }
+  const evaluationId = githubFeedbackSourceIdentity(
+    fallback.body,
+    "Evaluation",
+  );
   if (
     keys !== "body,pull_request_number,repository_id" ||
     typeof target.body !== "string" ||
     target.body.length === 0 ||
+    evaluationId === null ||
+    githubFeedbackSourceIdentity(target.body, "Evaluation") !== evaluationId ||
     !Number.isSafeInteger(target.pull_request_number) ||
     target.pull_request_number <= 0 ||
+    target.pull_request_number !== fallback.pull_request_number ||
     target.repository_id !== repositoryId
   ) {
     throw new TypeError("GitHub feedback delivery target is invalid");
@@ -83,20 +90,36 @@ export function readInlineDeliveryTarget(serialized, fallback, repositoryId) {
   const range =
     keys ===
     "body,commit_id,line,path,pull_request_number,repository_id,side,start_line,start_side";
+  const evaluationId = githubFeedbackSourceIdentity(
+    fallback.body,
+    "Evaluation",
+  );
+  const findingId = githubFeedbackSourceIdentity(fallback.body, "Finding");
   if (
     (!singleLine && !range) ||
     typeof target.body !== "string" ||
     target.body.length === 0 ||
     typeof target.commit_id !== "string" ||
     !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(target.commit_id) ||
+    target.commit_id !== fallback.commit_id ||
+    evaluationId === null ||
+    githubFeedbackSourceIdentity(target.body, "Evaluation") !== evaluationId ||
+    findingId === null ||
+    githubFeedbackSourceIdentity(target.body, "Finding") !== findingId ||
     !Number.isSafeInteger(target.line) ||
     target.line <= 0 ||
+    target.line !== fallback.line ||
     typeof target.path !== "string" ||
     target.path.length === 0 ||
+    target.path !== fallback.path ||
     !Number.isSafeInteger(target.pull_request_number) ||
     target.pull_request_number <= 0 ||
+    target.pull_request_number !== fallback.pull_request_number ||
     target.repository_id !== repositoryId ||
     !["LEFT", "RIGHT"].includes(target.side) ||
+    target.side !== fallback.side ||
+    (target.start_line ?? null) !== (fallback.start_line ?? null) ||
+    (target.start_side ?? null) !== (fallback.start_side ?? null) ||
     (range &&
       (!Number.isSafeInteger(target.start_line) ||
         target.start_line <= 0 ||
@@ -121,3 +144,4 @@ export function readInlineDeliveryTarget(serialized, fallback, repositoryId) {
     pullRequestNumber: target.pull_request_number,
   };
 }
+import { githubFeedbackSourceIdentity } from "./github-feedback-identity.js";

@@ -1,3 +1,5 @@
+import { githubFeedbackSourceIdentity as sourceIdentity } from "./github-feedback-identity.js";
+
 /** @param {unknown} value */
 function object(value) {
   return value && !Array.isArray(value) && typeof value === "object"
@@ -13,26 +15,6 @@ function validRepository(repository) {
     typeof repository.full_name === "string" &&
     /^[^/]+\/[^/]+$/.test(repository.full_name)
   );
-}
-
-/** @param {unknown} body @param {"Evaluation" | "Finding"} label */
-function sourceIdentity(body, label) {
-  if (typeof body !== "string") {
-    return null;
-  }
-  const prefix = `${label}: \``;
-  const lines = body.split("\n");
-  const firstFinding = lines.findIndex((line) =>
-    line.startsWith("### Finding"),
-  );
-  const candidates =
-    body.startsWith("## Quality Bar Evaluation\n") && firstFinding !== -1
-      ? lines.slice(0, firstFinding)
-      : lines;
-  const line = candidates.findLast((candidate) => candidate.startsWith(prefix));
-  return line?.endsWith("`") && line.length > prefix.length + 1
-    ? line.slice(prefix.length, -1)
-    : null;
 }
 
 /**

@@ -6,6 +6,22 @@ import {
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
+/** @param {unknown} value */
+function evaluationTargetIdentity(value) {
+  try {
+    const target = new URL(/** @type {string} */ (value));
+    const keys = [...target.searchParams.keys()].sort().join(",");
+    return target.pathname === "/" &&
+      target.hash === "" &&
+      keys === "evaluation_id,view" &&
+      target.searchParams.get("view") === "evaluations"
+      ? target.searchParams.get("evaluation_id")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @param {string} serialized @param {any} fallback @param {number} repositoryId */
 export function readStatusTarget(serialized, fallback, repositoryId) {
   let target;
@@ -35,7 +51,10 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
     typeof target.head !== "string" ||
     target.head !== fallback.head ||
     target.state !== fallback.state ||
-    typeof target.target_url !== "string"
+    typeof target.target_url !== "string" ||
+    evaluationTargetIdentity(target.target_url) === null ||
+    evaluationTargetIdentity(target.target_url) !==
+      evaluationTargetIdentity(fallback.targetUrl)
   ) {
     throw new TypeError("GitHub commit status delivery target is invalid");
   }

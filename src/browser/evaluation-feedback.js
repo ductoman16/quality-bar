@@ -181,6 +181,7 @@ function correction(evaluation) {
       "github_app_profile_mismatch",
       "github_connection_credential_invalid",
       "github_connection_credential_undecryptable",
+      "github_connection_retired",
       "github_installation_scope_invalid",
       "github_permissions_mismatch",
       "github_principal_mismatch",

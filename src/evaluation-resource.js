@@ -305,25 +305,23 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
   github_commit_statuses.publication_status AS commit_status_publication_status,
   github_commit_statuses.published_at AS commit_status_published_at,
   github_commit_statuses.error_code AS commit_status_error_code, github_commit_statuses.error_detail AS commit_status_error_detail,
-  status_delivery.source_id AS commit_status_source_identity, status_delivery.connection_id AS commit_status_connection_identity,
+  status_delivery.source_id AS commit_status_source_identity, COALESCE(status_delivery.connection_id, CASE WHEN github_commit_statuses.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS commit_status_connection_identity,
   status_delivery.target AS commit_status_target,
   status_delivery.attempt_count AS commit_status_attempt_count,
   status_delivery.last_attempt_at AS commit_status_last_attempt_at,
   status_delivery.next_attempt_at AS commit_status_delivery_next_attempt_at,
-  status_delivery.reconciliation_required
-    AS commit_status_reconciliation_required,
+  status_delivery.reconciliation_required AS commit_status_reconciliation_required,
   status_delivery.external_id AS commit_status_external_id,
   status_delivery.error_code AS commit_status_delivery_error_code, status_delivery.error_detail AS commit_status_delivery_error_detail,
   delivery_gate.gate_until AS commit_status_provider_gate_until,
   delivery_gate.error_code AS commit_status_provider_gate_error_code,
   delivery_gate.error_detail AS commit_status_provider_gate_error_detail,
   github_feedback_bundles.evaluation_id AS feedback_evaluation_id,
-  github_feedback_bundles.publication_status
-    AS feedback_publication_status,
+  github_feedback_bundles.publication_status AS feedback_publication_status,
   github_feedback_bundles.external_id AS feedback_external_id,
   github_feedback_bundles.published_at AS feedback_published_at,
   github_feedback_bundles.error_code AS feedback_error_code, github_feedback_bundles.error_detail AS feedback_error_detail,
-  aggregate_delivery.source_id AS feedback_source_identity, aggregate_delivery.connection_id AS feedback_connection_identity,
+  aggregate_delivery.source_id AS feedback_source_identity, COALESCE(aggregate_delivery.connection_id, CASE WHEN github_feedback_bundles.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS feedback_connection_identity,
   aggregate_delivery.target AS feedback_target,
   aggregate_delivery.attempt_count AS feedback_attempt_count,
   aggregate_delivery.last_attempt_at AS feedback_last_attempt_at,
@@ -343,10 +341,8 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
       'error_detail', error_detail,
       'source_identity', source_identity, 'target', target,
       'attempt_count', attempt_count, 'connection_identity', connection_identity,
-      'last_attempt_at', last_attempt_at,
-      'delivery_next_attempt_at', delivery_next_attempt_at,
-      'reconciliation_required', reconciliation_required,
-      'delivery_error_code', delivery_error_code,
+      'last_attempt_at', last_attempt_at, 'delivery_next_attempt_at', delivery_next_attempt_at,
+      'reconciliation_required', reconciliation_required, 'delivery_error_code', delivery_error_code,
       'delivery_error_detail', delivery_error_detail,
       'provider_gate_until', provider_gate_until,
       'provider_gate_error_code', provider_gate_error_code,
@@ -359,7 +355,7 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
              github_finding_feedback.published_at,
              github_finding_feedback.error_code,
              github_finding_feedback.error_detail,
-             inline_delivery.source_id AS source_identity, inline_delivery.connection_id AS connection_identity,
+             inline_delivery.source_id AS source_identity, COALESCE(inline_delivery.connection_id, CASE WHEN github_finding_feedback.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS connection_identity,
              inline_delivery.target,
              inline_delivery.attempt_count,
              inline_delivery.last_attempt_at,
@@ -372,8 +368,7 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
       FROM github_finding_feedback
       LEFT JOIN github_delivery_attempts AS inline_delivery
         ON inline_delivery.surface = 'inline_feedback'
-       AND inline_delivery.source_id =
-             github_finding_feedback.finding_id
+       AND inline_delivery.source_id = github_finding_feedback.finding_id
       WHERE evaluation_id = evaluations.id
       ORDER BY finding_id
     )

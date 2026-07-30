@@ -11,6 +11,10 @@ import {
 } from "../src/github-commit-status-service.js";
 import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
 import {
+  EVALUATION_SELECTION,
+  readEvaluation,
+} from "../src/evaluation-resource.js";
+import {
   readAggregateDeliveryTarget,
   readInlineDeliveryTarget,
 } from "../src/github-feedback-delivery-target.js";
@@ -164,6 +168,18 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
       publication_status: "waiting",
     },
   );
+  const migratedResource = readEvaluation(
+    migrated.get(
+      `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
+      "evaluation-1",
+    ),
+  );
+  assert.equal(
+    migratedResource.feedback?.findings.find(
+      (finding) => finding.finding_id === "finding-stale",
+    )?.connection_identity,
+    "connection-1",
+  );
   migrated.transaction((transaction) => {
     resumeGitHubDeliveries(transaction, "connection-1", 20);
   });
@@ -217,7 +233,8 @@ test("delivery target readers accept exact legacy identities and reject corrupt 
     description: "Active",
     head,
     state: "pending",
-    targetUrl: "https://quality-bar.example",
+    targetUrl:
+      "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
   };
   assert.equal(
     readStatusTarget(
@@ -233,7 +250,7 @@ test("delivery target readers accept exact legacy identities and reject corrupt 
     status,
   );
   const aggregate = {
-    body: "aggregate",
+    body: "aggregate\nEvaluation: `evaluation-1`",
     pull_request_number: 17,
     repository_id: 101,
   };
@@ -243,10 +260,13 @@ test("delivery target readers accept exact legacy identities and reject corrupt 
       aggregate,
       101,
     ),
-    { body: "aggregate", pullRequestNumber: 17 },
+    {
+      body: "aggregate\nEvaluation: `evaluation-1`",
+      pullRequestNumber: 17,
+    },
   );
   const inline = {
-    body: "inline",
+    body: "inline\nFinding: `finding-1`\nEvaluation: `evaluation-1`",
     commit_id: head,
     line: 2,
     path: "src/example.js",
@@ -262,7 +282,7 @@ test("delivery target readers accept exact legacy identities and reject corrupt 
     ),
     {
       comment: {
-        body: "inline",
+        body: "inline\nFinding: `finding-1`\nEvaluation: `evaluation-1`",
         commit_id: head,
         line: 2,
         path: "src/example.js",
@@ -273,8 +293,37 @@ test("delivery target readers accept exact legacy identities and reject corrupt 
   );
   for (const read of [
     () => readStatusTarget("{}", status, 101),
+    () =>
+      readStatusTarget(
+        JSON.stringify({
+          context: "Quality Bar",
+          description: "Active",
+          head,
+          repository_id: 101,
+          state: "pending",
+          target_url:
+            "https://old.example/?view=evaluations&evaluation_id=evaluation-other",
+        }),
+        status,
+        101,
+      ),
     () => readAggregateDeliveryTarget("{}", aggregate, 101),
+    () =>
+      readAggregateDeliveryTarget(
+        '{"body":"aggregate\\nEvaluation: `evaluation-other`","pull_request_number":17,"repository_id":101}',
+        aggregate,
+        101,
+      ),
     () => readInlineDeliveryTarget("{}", inline, 101),
+    () =>
+      readInlineDeliveryTarget(
+        JSON.stringify({
+          ...inline,
+          body: "inline\nFinding: `finding-other`\nEvaluation: `evaluation-1`",
+        }),
+        inline,
+        101,
+      ),
   ]) {
     assert.throws(read, /delivery target is invalid/);
   }
