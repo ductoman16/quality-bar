@@ -1,5 +1,6 @@
 import { removeExpiredBrowserSessions } from "./browser-session.js";
 import { createIoExecutionPool } from "./io-execution-pool.js";
+import { isIoTerminationFailure } from "./io-operation-context.js";
 
 /** @param {{reportBackgroundFailure: (error: unknown) => unknown}} options */
 export function createApplicationIoPool({ reportBackgroundFailure }) {
@@ -24,11 +25,7 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
           signal?.throwIfAborted();
           return changeset;
         } catch (error) {
-          if (
-            error instanceof Error &&
-            "code" in error &&
-            error.code === "git_termination_failed"
-          ) {
+          if (isIoTerminationFailure(error)) {
             throw error;
           }
           signal?.throwIfAborted();

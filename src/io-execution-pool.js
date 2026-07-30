@@ -1,4 +1,7 @@
-import { runIoOperation } from "./io-operation-context.js";
+import {
+  isIoTerminationFailure,
+  runIoOperation,
+} from "./io-operation-context.js";
 
 export const IO_EXECUTION_CONCURRENCY = 4;
 export const IO_EXECUTION_QUEUE_CAPACITY = 16;
@@ -61,13 +64,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
             return result;
           },
           (error) => {
-            if (
-              !(
-                error instanceof Error &&
-                "code" in error &&
-                error.code === "git_termination_failed"
-              )
-            ) {
+            if (!isIoTerminationFailure(error)) {
               workers.signal.throwIfAborted();
             }
             throw error;

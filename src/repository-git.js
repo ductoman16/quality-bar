@@ -15,6 +15,7 @@ import {
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { throwIoTerminationFailure } from "./io-operation-context.js";
 import { createFrozenFileContentReader } from "./frozen-file-content.js";
 import { createGitPathMatcher } from "./git-path-matcher.js";
 import { proveMergeBase } from "./repository-git-merge-base.js";
@@ -128,6 +129,9 @@ export function verifyRepositoryRead(
           })
         );
     } catch (cause) {
+      throwIoTerminationFailure(cause, () =>
+        removeDirectory(verificationDirectory),
+      );
       throw cleanupUnavailable(cause, false);
     }
     let error =
@@ -350,13 +354,7 @@ export async function resolvePushedCommitSelectors(
         cause,
       );
     }
-    if (
-      acquisitionFailure instanceof Error &&
-      "code" in acquisitionFailure &&
-      acquisitionFailure.code === "git_termination_failed"
-    ) {
-      throw acquisitionFailure;
-    }
+    throwIoTerminationFailure(acquisitionFailure);
     if (acquisitionFailure instanceof EvaluationError) {
       failEvaluation(
         acquisitionFailure.code,

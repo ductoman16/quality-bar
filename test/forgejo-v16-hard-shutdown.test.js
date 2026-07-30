@@ -134,3 +134,34 @@ test("Forgejo verification preserves hard shutdown during private Git read", asy
     (/** @type {unknown} */ error) => error === failure,
   );
 });
+
+test("Forgejo verification preserves a distinct private Git termination failure", async () => {
+  const gitRead = Promise.withResolvers();
+  const terminationFailure = Object.assign(
+    new AggregateError([], "Git process termination failed"),
+    { code: "git_termination_failed" },
+  );
+  const { completion, workers } = beginVerification(
+    createForgejoV16Verifier({
+      fetch: async (input) => {
+        const requestUrl = new URL(String(input));
+        return new Response(
+          JSON.stringify(
+            forgejoVerificationBody(requestUrl.pathname + requestUrl.search),
+          ),
+        );
+      },
+      verifyGit: () => gitRead.promise,
+    }),
+  );
+  const storageFailure = Object.assign(
+    new Error("SQLite durable write failed"),
+    { code: "storage_unavailable" },
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  workers.abort(storageFailure);
+  gitRead.reject(terminationFailure);
+
+  await assert.rejects(completion, (error) => error === terminationFailure);
+});

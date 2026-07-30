@@ -201,7 +201,7 @@ export function createForgejoV16Verifier({
             ...(signal ? { signal } : {}),
           });
         } catch (cause) {
-          throwIfIoOperationAborted();
+          throwIfIoOperationAborted(cause);
           fail(
             "forgejo_api_unavailable",
             `Forgejo required route is unavailable: ${path}`,
@@ -220,7 +220,7 @@ export function createForgejoV16Verifier({
         openApi((await get("/swagger.v1.json")).body);
         beginForgejoCapabilityEvidence(verificationEvidence);
       } catch (error) {
-        throwIfIoOperationAborted();
+        throwIfIoOperationAborted(error);
         throwWithForgejoEvidence(error, verificationEvidence);
       }
       const capabilityEvidence = verificationEvidence.capabilities;
@@ -279,7 +279,7 @@ export function createForgejoV16Verifier({
             break;
           }
         } catch (error) {
-          throwIfIoOperationAborted();
+          throwIfIoOperationAborted(error);
           capabilityEvidence.enumeration = "error";
           throwWithForgejoEvidence(error, verificationEvidence);
         }
@@ -388,7 +388,7 @@ export function createForgejoV16Verifier({
             outcome: "success",
           };
         } catch (error) {
-          throwIfIoOperationAborted();
+          throwIfIoOperationAborted(error);
           if (
             !(error instanceof Error) ||
             !("code" in error) ||

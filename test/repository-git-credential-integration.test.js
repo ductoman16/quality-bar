@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import { verifyRepositoryRead } from "../src/repository-git.js";
+import { runIoOperation } from "../src/io-operation-context.js";
 import { runGitCommand } from "../src/secure-git-command.js";
 
 test("Git stdout preserves a UTF-8 code point split across chunks", async () => {
@@ -102,6 +103,49 @@ test("hard shutdown settles and consumes failures from both Git kill attempts", 
     terminationFailure?.errors.slice(1).map((error) => error.code),
     ["EPERM", "EPERM"],
   );
+});
+
+test("private Git verification preserves its hard termination failure", async () => {
+  const workers = new AbortController();
+  const completion = /** @type {Promise<any>} */ (
+    runIoOperation(workers.signal, () =>
+      verifyRepositoryRead(
+        "https://forgejo.example/operator/private.git",
+        undefined,
+        {
+          spawnProcess: /** @type {any} */ (
+            () => {
+              const child = new EventEmitter();
+              const stderr = new PassThrough();
+              Object.assign(child, {
+                /** @param {NodeJS.Signals} signal */
+                kill(signal) {
+                  queueMicrotask(() => {
+                    child.emit("error", new Error("kill EPERM"));
+                    queueMicrotask(() => child.emit("close", null, signal));
+                  });
+                },
+                stderr,
+                stdio: [null, null, stderr],
+              });
+              return child;
+            }
+          ),
+        },
+      ),
+    )
+  );
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  const rejected = assert.rejects(completion, {
+    code: "git_termination_failed",
+    message: "Git process termination failed",
+  });
+
+  workers.abort(failure);
+
+  await rejected;
 });
 
 test("private Git credentials cross only an anonymous pipe, never child environment or arguments", async () => {
