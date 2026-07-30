@@ -7,7 +7,46 @@ import {
   IO_EXECUTION_QUEUE_CAPACITY,
   createIoExecutionPool,
 } from "../src/io-execution-pool.js";
+import { createIoDutyTimer } from "../src/io-duty-timer.js";
 import { FORGEJO_POLL_INTERVAL_MS } from "../src/forgejo-polling.js";
+
+test("a stopped I/O duty cannot restart from an earlier lifecycle callback", () => {
+  /** @type {{callback: () => void, unref: () => void}[]} */
+  const timers = [];
+  /** @type {any[]} */
+  const cleared = [];
+  let backgroundRuns = 0;
+  const dutyTimer = createIoDutyTimer(
+    Object.assign(() => {}, {
+      background() {
+        backgroundRuns += 1;
+        return true;
+      },
+    }),
+    {
+      clearTimer: (timer) => cleared.push(timer),
+      retryDelay: 10,
+      setTimer(callback) {
+        const timer = { callback, unref() {} };
+        timers.push(timer);
+        return timer;
+      },
+    },
+  );
+
+  dutyTimer.start(0);
+  const staleTimer = timers[0];
+  dutyTimer.stop();
+  dutyTimer.start(0);
+  const restartTimer = timers[1];
+  dutyTimer.stop();
+  staleTimer.callback();
+  restartTimer.callback();
+
+  assert.deepEqual(cleared, [staleTimer, restartTimer]);
+  assert.equal(backgroundRuns, 0);
+  assert.equal(timers.length, 2);
+});
 
 test("the actual Forgejo one-shot scheduler remains due after I/O saturation", async () => {
   /** @type {any[]} */

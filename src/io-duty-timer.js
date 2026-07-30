@@ -15,23 +15,35 @@ export function createIoDutyTimer(
   },
 ) {
   let enabled = false;
+  let generation = 0;
   /** @type {any} */
   let timer = null;
-  /** @param {number} delay */
-  function scheduleNext(delay) {
-    timer = setTimer(() => {
+  /** @param {number} delay @param {number} expectedGeneration */
+  function scheduleNext(delay, expectedGeneration) {
+    if (!enabled || expectedGeneration !== generation || timer !== null) {
+      return;
+    }
+    const nextTimer = setTimer(() => {
+      if (
+        !enabled ||
+        expectedGeneration !== generation ||
+        timer !== nextTimer
+      ) {
+        return;
+      }
       timer = null;
-      if (!schedule.background() && enabled) {
-        scheduleNext(retryDelay);
+      if (!schedule.background()) {
+        scheduleNext(retryDelay, expectedGeneration);
       }
     }, delay);
-    timer.unref();
+    timer = nextTimer;
+    nextTimer.unref();
   }
   return {
     /** @param {number} delay */
     schedule(delay) {
       if (enabled) {
-        scheduleNext(delay);
+        scheduleNext(delay, generation);
       }
     },
     /** @param {number} delay */
@@ -40,10 +52,12 @@ export function createIoDutyTimer(
         return;
       }
       enabled = true;
-      scheduleNext(delay);
+      generation += 1;
+      scheduleNext(delay, generation);
     },
     stop() {
       enabled = false;
+      generation += 1;
       if (timer !== null) {
         clearTimer(timer);
         timer = null;
