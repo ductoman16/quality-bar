@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+
+import {
+  OwnedArtifactCleanupError,
+  cleanupOwnedTemporaryArtifacts,
+} from "../src/owned-artifact-cleanup.js";
 
 import {
   StorageReserveError,
@@ -155,5 +163,82 @@ test("scheduled Forgejo polling pauses low reserve and fails fast on measurement
   assert.throws(
     () => requireStorageReservePause(measurementFailure),
     (error) => error === measurementFailure,
+  );
+});
+
+/** @param {import("node:test").TestContext} context */
+function temporaryRoot(context) {
+  const root = join(
+    tmpdir(),
+    `quality-bar-owned-artifact-cleanup-${Math.random().toString(16).slice(2)}`,
+  );
+  mkdirSync(root, { recursive: true });
+  context.after(() => rmSync(root, { force: true, recursive: true }));
+  return root;
+}
+
+/** @param {Record<string, unknown>[]} rows */
+function cleanupDurableCore(rows) {
+  return { all: () => rows };
+}
+
+test("owned cleanup removes only absent, terminal, and superseded checkout artifacts", (context) => {
+  const root = temporaryRoot(context);
+  for (const path of [
+    join(root, "absent-work", "1", "checkout"),
+    join(root, "terminal-work", "1", "checkout"),
+    join(root, "running-work", "1", "checkout"),
+    join(root, "running-work", "2", "checkout"),
+  ]) {
+    mkdirSync(path, { recursive: true });
+  }
+
+  cleanupOwnedTemporaryArtifacts({
+    checkoutRoot: root,
+    durableCore: cleanupDurableCore([
+      {
+        execution_status: "completed",
+        fencing_token: 1,
+        work_id: "terminal-work",
+      },
+      {
+        execution_status: "running",
+        fencing_token: 2,
+        work_id: "running-work",
+      },
+    ]),
+  });
+
+  assert.equal(existsSync(join(root, "absent-work")), false);
+  assert.equal(existsSync(join(root, "terminal-work")), false);
+  assert.equal(existsSync(join(root, "running-work", "1")), false);
+  assert.equal(existsSync(join(root, "running-work", "2", "checkout")), true);
+});
+
+test("owned cleanup preserves the exact failure owner", () => {
+  const failure = Object.assign(new Error("SQLite unavailable"), {
+    code: "SQLITE_IOERR",
+  });
+
+  assert.throws(
+    () =>
+      cleanupOwnedTemporaryArtifacts({
+        checkoutRoot: "/quality-bar-checkouts",
+        durableCore: {
+          all: () => {
+            throw failure;
+          },
+        },
+      }),
+    (error) => {
+      assert.ok(error instanceof OwnedArtifactCleanupError);
+      assert.equal(error.code, "owned_artifact_cleanup_owner_read_failed");
+      assert.equal(
+        error.message,
+        "Owned temporary artifact owners could not be read",
+      );
+      assert.equal(error.cause, failure);
+      return true;
+    },
   );
 });

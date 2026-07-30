@@ -119,9 +119,9 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
      */
     runImmediate(duty, operation) {
       validate(duty, operation);
-      if (duty !== "retention") {
+      if (duty !== "retention" && duty !== "cleanup") {
         throw new TypeError(
-          "Immediate I/O execution is reserved for retention cleanup",
+          "Immediate I/O execution is reserved for retention or cleanup",
         );
       }
       if (active >= IO_EXECUTION_CONCURRENCY) {

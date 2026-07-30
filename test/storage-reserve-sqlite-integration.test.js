@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -18,6 +18,10 @@ import {
   createStorageReserveGate,
   StorageReserveError,
 } from "../src/storage-reserve.js";
+import {
+  cleanupOwnedTemporaryArtifacts,
+  OwnedArtifactCleanupError,
+} from "../src/owned-artifact-cleanup.js";
 import {
   forgejoVerification,
   repositoryEvidence,
@@ -73,6 +77,68 @@ test("eligible cleanup commits before a low-reserve polling transaction is rejec
   );
   assert.equal(transactionStarted, false);
   assert.deepEqual(core.all("SELECT session_hash FROM browser_sessions"), []);
+  core.close();
+});
+
+test("SQLite-backed cleanup deletes an absent owned checkout before reserve rejection", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-owned-cleanup-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const checkoutRoot = join(directory, "checkouts");
+  const orphan = join(checkoutRoot, "absent-work", "1", "checkout");
+  mkdirSync(orphan, { recursive: true });
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  const gate = createStorageReserveGate({
+    checkoutsPath: checkoutRoot,
+    cleanupEligibleData: () =>
+      cleanupOwnedTemporaryArtifacts({ checkoutRoot, durableCore: core }),
+    reserveBytes: 2,
+    statePath: join(directory, "state"),
+    statfs: () => ({ bavail: 1, bsize: 1 }),
+  });
+
+  assert.throws(
+    () => gate.assertWorkAdmissionAvailable(),
+    (error) =>
+      error instanceof StorageReserveError &&
+      error.code === "storage_reserve_unavailable",
+  );
+  assert.equal(existsSync(join(checkoutRoot, "absent-work")), false);
+  core.close();
+});
+
+test("a SQLite cleanup owner-read failure blocks admission, starts, and polling advancement", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-owned-cleanup-failure-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const checkoutRoot = join(directory, "checkouts");
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  core.run("DROP TABLE codex_execution_queue");
+  const gate = createStorageReserveGate({
+    checkoutsPath: checkoutRoot,
+    cleanupEligibleData: () =>
+      cleanupOwnedTemporaryArtifacts({ checkoutRoot, durableCore: core }),
+    reserveBytes: 2,
+    statePath: join(directory, "state"),
+    statfs: () => ({ bavail: 1, bsize: 1 }),
+  });
+
+  for (const run of [
+    () => gate.assertWorkAdmissionAvailable(),
+    () => gate.assertCodexStartAvailable(),
+    () => gate.preparePollingObservationAdvance(),
+  ]) {
+    assert.throws(run, (error) => {
+      assert.ok(error instanceof OwnedArtifactCleanupError);
+      const cause = /** @type {{code?: string, message?: string}} */ (
+        error.cause
+      );
+      assert.equal(error.code, "owned_artifact_cleanup_owner_read_failed");
+      assert.equal(cause.code, "ERR_SQLITE_ERROR");
+      assert.match(cause.message ?? "", /no such table/i);
+      return true;
+    });
+  }
   core.close();
 });
 
