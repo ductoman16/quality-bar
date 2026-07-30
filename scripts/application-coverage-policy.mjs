@@ -226,6 +226,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/waiver-batch-sqlite-integration.test.js",
   "test/waiver-batch-schema-migration.test.js",
   "test/waiver-adjudication-claim-sqlite-integration.test.js",
+  "test/waiver-adjudication-io-capacity-sqlite-integration.test.js",
   "test/waiver-adjudication-recovery-sqlite-integration.test.js",
   "test/waiver-adjudication-pre-start-sqlite-integration.test.js",
   "test/waiver-adjudication-result-sqlite-integration.test.js",

@@ -238,6 +238,31 @@ export function createCodexExecutionClaimService(
       }
       return recordWaiverPreStartFailure(durableCore, claim, failure, now);
     },
+    /** @param {CodexExecutionClaim} claim */
+    release(claim) {
+      assertClaim(claim);
+      const releasedAt = now();
+      requireTimestamp(releasedAt);
+      const released = durableCore.transaction((transaction) =>
+        transaction.run(
+          `UPDATE codex_execution_queue SET lease_expires_at = ?
+           WHERE work_id = ? AND work_kind = ?
+             AND worker_id = ? AND fencing_token = ?
+             AND retry_state = 'ready'
+             AND started_at IS NULL AND lease_expires_at > ?`,
+          releasedAt,
+          claim.workId,
+          claim.workKind,
+          claim.workerId,
+          claim.fencingToken,
+          releasedAt,
+        ),
+      );
+      if (released.changes !== 1) {
+        claimLost(claim.workKind);
+      }
+      return { ...claim, leaseExpiresAt: releasedAt };
+    },
     /** @param {CodexExecutionClaim} claim @param {string} codexCliVersion */
     start(claim, codexCliVersion) {
       assertClaim(claim);

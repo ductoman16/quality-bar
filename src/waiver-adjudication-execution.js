@@ -1,4 +1,5 @@
 import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
+import { IoExecutionPoolError } from "./io-execution-pool.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
@@ -251,6 +252,13 @@ export async function executeWaiverAdjudication(
         }),
       );
     } catch (error) {
+      if (
+        error instanceof IoExecutionPoolError &&
+        error.code === "io_execution_capacity_unavailable"
+      ) {
+        claimService.release(claim);
+        throw owningFailure(error);
+      }
       const failure = owningFailure(error);
       claimService.recordPreStartFailure(claim, failure);
       throw failure;
