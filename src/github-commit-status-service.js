@@ -7,32 +7,44 @@ import {
 const PUBLICATION_INTERVAL_MS = 1_000;
 
 /** @param {string} serialized @param {any} fallback @param {number} repositoryId */
-function readStatusTarget(serialized, fallback, repositoryId) {
+export function readStatusTarget(serialized, fallback, repositoryId) {
   let target;
   try {
     target = JSON.parse(serialized);
   } catch {
     throw new TypeError("GitHub commit status delivery target is invalid");
   }
+  if (!target || typeof target !== "object" || Array.isArray(target)) {
+    throw new TypeError("GitHub commit status delivery target is invalid");
+  }
+  const keys = Object.keys(target).sort().join(",");
   if (
-    !target ||
-    typeof target !== "object" ||
-    Array.isArray(target) ||
-    ("repository_id" in target && target.repository_id !== repositoryId)
+    keys === "context,head_commit,repository_id,state" &&
+    target.context === "Quality Bar" &&
+    target.head_commit === fallback.head &&
+    target.repository_id === repositoryId &&
+    target.state === fallback.state
+  ) {
+    return fallback;
+  }
+  if (
+    keys !== "context,description,head,repository_id,state,target_url" ||
+    target.context !== "Quality Bar" ||
+    target.repository_id !== repositoryId ||
+    typeof target.description !== "string" ||
+    typeof target.head !== "string" ||
+    target.head !== fallback.head ||
+    target.state !== fallback.state ||
+    typeof target.target_url !== "string"
   ) {
     throw new TypeError("GitHub commit status delivery target is invalid");
   }
-  return typeof target.description === "string" &&
-    typeof target.head === "string" &&
-    typeof target.state === "string" &&
-    typeof target.target_url === "string"
-    ? {
-        description: target.description,
-        head: target.head,
-        state: target.state,
-        targetUrl: target.target_url,
-      }
-    : fallback;
+  return {
+    description: target.description,
+    head: target.head,
+    state: target.state,
+    targetUrl: target.target_url,
+  };
 }
 
 /**

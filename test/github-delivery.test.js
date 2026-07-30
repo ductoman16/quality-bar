@@ -336,3 +336,61 @@ test("corrected GitHub credentials preserve uncertainty and reconcile before cre
     0,
   );
 });
+
+test("repository verification resumes only deliveries in its scope", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-delivery-scope-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
+  core.run(
+    `INSERT INTO repositories
+       (id, normalized_url, created_at, verified_at)
+     VALUES ('repository-2', 'https://github.com/operator/other.git', 1, 1)`,
+  );
+  core.run(
+    `INSERT INTO github_repositories (
+       repository_id, connection_id, verification_id,
+       forge_repository_id, name, api_url, web_url
+     ) VALUES (
+       'repository-2', 'connection-1', 'verification-1', 202,
+       'operator/other', 'https://api.github.com/repos/operator/other',
+       'https://github.com/operator/other'
+     )`,
+  );
+  const head = "3".repeat(40);
+  core.run(
+    `INSERT INTO evaluations (
+       id, repository_id, provenance,
+       base_selector_type, base_selector_value,
+       head_selector_type, head_selector_value,
+       base_commit, head_commit, execution_status, created_at
+     ) VALUES (
+       'evaluation-2', 'repository-2', 'explicit',
+       'commit', ?, 'commit', ?, ?, ?, 'queued', 3
+     )`,
+    head,
+    head,
+    head,
+    head,
+  );
+  core.run(
+    `UPDATE github_delivery_attempts
+     SET definitive = 1, response_status = 403,
+         error_code = 'github_api_request_failed',
+         error_detail = 'GitHub API request failed with HTTP 403'`,
+  );
+  core.transaction((transaction) => {
+    resumeGitHubDeliveries(transaction, "connection-1", 20, [101]);
+  });
+  assert.deepEqual(
+    core.all(
+      `SELECT source_id, definitive FROM github_delivery_attempts
+       ORDER BY source_id`,
+    ),
+    [
+      { definitive: 0, source_id: "evaluation-1:pending" },
+      { definitive: 1, source_id: "evaluation-2:pending" },
+    ],
+  );
+});

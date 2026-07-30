@@ -1,5 +1,32 @@
-/** @param {any} transaction @param {string} connectionId @param {number} readyAt */
-export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
+/**
+ * @param {any} transaction
+ * @param {string} connectionId
+ * @param {number} readyAt
+ * @param {number[]} [repositoryIds]
+ */
+export function resumeGitHubDeliveries(
+  transaction,
+  connectionId,
+  readyAt,
+  repositoryIds,
+) {
+  if (
+    repositoryIds &&
+    (new Set(repositoryIds).size !== repositoryIds.length ||
+      repositoryIds.some(
+        (repositoryId) =>
+          !Number.isSafeInteger(repositoryId) || repositoryId <= 0,
+      ))
+  ) {
+    throw new TypeError("GitHub delivery recovery scope is invalid");
+  }
+  if (repositoryIds?.length === 0) {
+    return;
+  }
+  const repositoryScope = repositoryIds
+    ? ` AND forge_repository_id IN (${repositoryIds.map(() => "?").join(", ")})`
+    : "";
+  const repositoryParameters = repositoryIds ?? [];
   transaction.run(
     `UPDATE github_delivery_attempts
      SET generation = generation + 1,
@@ -31,7 +58,7 @@ export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
            FROM github_commit_statuses
            WHERE repository_id IN (
              SELECT repository_id FROM github_repositories
-             WHERE connection_id = ?
+             WHERE connection_id = ?${repositoryScope}
            )
          ))
          OR
@@ -41,7 +68,7 @@ export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
            JOIN github_repositories
              ON github_repositories.repository_id =
                   github_automatic_evaluations.repository_id
-           WHERE github_repositories.connection_id = ?
+           WHERE github_repositories.connection_id = ?${repositoryScope}
          ))
          OR
          (surface = 'inline_feedback' AND source_id IN (
@@ -53,13 +80,16 @@ export function resumeGitHubDeliveries(transaction, connectionId, readyAt) {
            JOIN github_repositories
              ON github_repositories.repository_id =
                   github_automatic_evaluations.repository_id
-           WHERE github_repositories.connection_id = ?
+           WHERE github_repositories.connection_id = ?${repositoryScope}
          ))
        )`,
     readyAt,
     connectionId,
+    ...repositoryParameters,
     connectionId,
+    ...repositoryParameters,
     connectionId,
+    ...repositoryParameters,
   );
   transaction.run(
     `UPDATE github_commit_statuses

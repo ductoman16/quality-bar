@@ -5,10 +5,18 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import {
+  createGitHubCommitStatusService,
+  readStatusTarget,
+} from "../src/github-commit-status-service.js";
 import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
+import {
+  readAggregateDeliveryTarget,
+  readInlineDeliveryTarget,
+} from "../src/github-feedback-delivery-target.js";
 import { arrangeGitHubFeedback as arrange } from "./github-feedback-publication-support.js";
 
-test("schema 40 preserves successful identities and reconciles uncertain delivery history", (context) => {
+test("schema 40 preserves successful identities and reconciles uncertain delivery history", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-delivery-v40-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
@@ -37,6 +45,17 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
        'GitHub API request could not complete'
      )`,
   );
+  prior.run(
+    `INSERT INTO github_finding_feedback (
+       finding_id, evaluation_id, publication_status,
+       path, side, line, error_code, error_detail
+     ) VALUES (
+       'finding-stale', 'evaluation-1', 'unavailable',
+       'src/example.js', 'RIGHT', 10,
+       'github_connection_retired',
+       'GitHub feedback publication is unavailable because the GitHub Connection is retired'
+     )`,
+  );
   prior.transaction((transaction) => {
     for (const trigger of [
       "github_commit_status_delivery_admit",
@@ -60,7 +79,8 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
   assert.equal(migrated.facts.schemaVersion, 41);
   assert.deepEqual(
     migrated.all(
-      `SELECT surface, source_id, attempt_count, last_attempt_at,
+      `SELECT surface, source_id, connection_id, authority_verified_at,
+              attempt_count, last_attempt_at,
               reconciliation_required, external_id, error_code,
               response_status, definitive
        FROM github_delivery_attempts
@@ -69,6 +89,8 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
     [
       {
         attempt_count: 1,
+        authority_verified_at: 1,
+        connection_id: "connection-1",
         definitive: 0,
         error_code: null,
         external_id: 701,
@@ -80,6 +102,8 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
       },
       {
         attempt_count: 1,
+        authority_verified_at: 1,
+        connection_id: "connection-1",
         definitive: 1,
         error_code: "github_api_request_failed",
         external_id: null,
@@ -91,6 +115,8 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
       },
       {
         attempt_count: 1,
+        authority_verified_at: 1,
+        connection_id: "connection-1",
         definitive: 0,
         error_code: "github_api_unavailable",
         external_id: null,
@@ -100,7 +126,31 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
         source_id: "finding-inline",
         surface: "inline_feedback",
       },
+      {
+        attempt_count: 0,
+        authority_verified_at: null,
+        connection_id: null,
+        definitive: 1,
+        error_code: "github_connection_retired",
+        external_id: null,
+        last_attempt_at: null,
+        reconciliation_required: 0,
+        response_status: null,
+        source_id: "finding-stale",
+        surface: "inline_feedback",
+      },
     ],
+  );
+  assert.equal(
+    JSON.parse(
+      /** @type {string} */ (
+        migrated.get(
+          `SELECT target FROM github_delivery_attempts
+           WHERE surface = 'commit_status'`,
+        )?.target
+      ),
+    ).repository_id,
+    101,
   );
   assert.deepEqual(
     migrated.get(
@@ -140,4 +190,92 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
       response_status: null,
     },
   );
+  let reconciliations = 0;
+  const service = createGitHubCommitStatusService(migrated, {
+    cipher: {
+      decrypt: () => ({ client_id: "Iv1.client", pem: "private-key" }),
+    },
+    externalOrigin: "https://quality-bar.example",
+    now: () => 20,
+    verifier: {
+      async publishCommitStatus() {
+        return 902;
+      },
+      async reconcileCommitStatus() {
+        reconciliations += 1;
+        return 901;
+      },
+    },
+  });
+  await service.publishWaiting();
+  assert.equal(reconciliations, 1);
+});
+
+test("delivery target readers accept exact legacy identities and reject corrupt targets", () => {
+  const head = "a".repeat(40);
+  const status = {
+    description: "Active",
+    head,
+    state: "pending",
+    targetUrl: "https://quality-bar.example",
+  };
+  assert.equal(
+    readStatusTarget(
+      JSON.stringify({
+        context: "Quality Bar",
+        head_commit: head,
+        repository_id: 101,
+        state: "pending",
+      }),
+      status,
+      101,
+    ),
+    status,
+  );
+  const aggregate = {
+    body: "aggregate",
+    pull_request_number: 17,
+    repository_id: 101,
+  };
+  assert.deepEqual(
+    readAggregateDeliveryTarget(
+      '{"pull_request_number":17,"repository_id":101}',
+      aggregate,
+      101,
+    ),
+    { body: "aggregate", pullRequestNumber: 17 },
+  );
+  const inline = {
+    body: "inline",
+    commit_id: head,
+    line: 2,
+    path: "src/example.js",
+    pull_request_number: 17,
+    repository_id: 101,
+    side: "RIGHT",
+  };
+  assert.deepEqual(
+    readInlineDeliveryTarget(
+      '{"line":2,"path":"src/example.js","pull_request_number":17,"repository_id":101,"side":"RIGHT","start_line":null,"start_side":null}',
+      inline,
+      101,
+    ),
+    {
+      comment: {
+        body: "inline",
+        commit_id: head,
+        line: 2,
+        path: "src/example.js",
+        side: "RIGHT",
+      },
+      pullRequestNumber: 17,
+    },
+  );
+  for (const read of [
+    () => readStatusTarget("{}", status, 101),
+    () => readAggregateDeliveryTarget("{}", aggregate, 101),
+    () => readInlineDeliveryTarget("{}", inline, 101),
+  ]) {
+    assert.throws(read, /delivery target is invalid/);
+  }
 });

@@ -192,8 +192,11 @@ export function recordGitHubConnectionVerification(
         ...completedIds,
       );
     }
-    if (!input.error) {
-      resumeGitHubDeliveries(transaction, input.id, verifiedAt);
+    const recoveredIds = input.error
+      ? [...completedIds]
+      : input.affectedRepositoryIds;
+    if (recoveredIds.length > 0) {
+      resumeGitHubDeliveries(transaction, input.id, verifiedAt, recoveredIds);
     }
     transaction.run(
       `INSERT INTO github_connection_verifications (

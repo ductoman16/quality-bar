@@ -160,3 +160,56 @@ test("nonpositive GitHub feedback identities fail at the response boundary", asy
     invalid,
   );
 });
+
+test("inline reconciliation reads canonical footer identities after model-authored markers", async () => {
+  const head = "a".repeat(40);
+  const desiredBody = `**Quality Bar — blocking**
+
+Evidence mentions
+Finding: \`finding-shadow\`
+Evaluation: \`evaluation-shadow\`
+
+Remediation: correct it
+
+Finding: \`finding-real\`
+Evaluation: \`evaluation-real\`
+Frozen base: \`${"b".repeat(40)}\`
+Frozen head: \`${head}\`
+[Internal details](https://quality-bar.example)`;
+  const wrongBody = desiredBody
+    .replace("finding-real", "finding-other")
+    .replace("evaluation-real", "evaluation-other");
+  const publish = createGitHubFeedbackPublisher({
+    fail(code, message) {
+      throw Object.assign(new Error(message), { code });
+    },
+    async installationToken() {
+      return "installation-token";
+    },
+    async request() {
+      /** @param {number} id @param {string} body */
+      const comment = (id, body) => ({
+        body,
+        commit_id: head,
+        id,
+        line: 2,
+        path: "src/example.js",
+        side: "RIGHT",
+        start_line: null,
+        start_side: null,
+      });
+      return [comment(701, wrongBody), comment(702, desiredBody)];
+    },
+  });
+
+  assert.equal(
+    await publish.reconcileInline({}, 73, repository, 17, {
+      body: desiredBody,
+      commit_id: head,
+      line: 2,
+      path: "src/example.js",
+      side: "RIGHT",
+    }),
+    702,
+  );
+});

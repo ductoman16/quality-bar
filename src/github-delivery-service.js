@@ -129,13 +129,17 @@ export async function attemptGitHubDelivery(durableCore, input) {
         );
         return;
       }
-      proveGitHubDeliveryAbsent(
-        durableCore,
-        input.connectionId,
-        delivery,
-        attemptedAt,
-        input.target,
-      );
+      if (
+        !proveGitHubDeliveryAbsent(
+          durableCore,
+          input.connectionId,
+          delivery,
+          attemptedAt,
+          input.target,
+        )
+      ) {
+        return;
+      }
       delivery = ensureGitHubDelivery(
         durableCore,
         input.surface,

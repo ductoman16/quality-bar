@@ -224,6 +224,68 @@ test("newer successful verification fences an older in-flight delivery failure",
   );
 });
 
+test("stale reconciliation cannot create after delivery authority changes", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-delivery-reconcile-authority-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeGitHubCommitStatus(core);
+  ensureGitHubDelivery(
+    core,
+    "aggregate_feedback",
+    "stale-absence",
+    "persisted-target",
+  );
+  core.run(
+    `UPDATE github_delivery_attempts
+     SET reconciliation_required = 1
+     WHERE surface = 'aggregate_feedback' AND source_id = 'stale-absence'`,
+  );
+  const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let creates = 0;
+  const running = attemptGitHubDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => {
+      creates += 1;
+      return 901;
+    },
+    now: () => 10,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async () => {
+      started.resolve(undefined);
+      await release.promise;
+      return null;
+    },
+    sourceId: "stale-absence",
+    surface: "aggregate_feedback",
+    target: "current-target",
+  });
+  await started.promise;
+  core.run(
+    `UPDATE github_connections SET verified_at = 20
+     WHERE id = 'connection-1'`,
+  );
+  release.resolve(undefined);
+  await running;
+  assert.equal(creates, 0);
+  assert.deepEqual(
+    core.get(
+      `SELECT external_id, error_code, reconciliation_required
+       FROM github_delivery_attempts
+       WHERE surface = 'aggregate_feedback' AND source_id = 'stale-absence'`,
+    ),
+    {
+      error_code: null,
+      external_id: null,
+      reconciliation_required: 1,
+    },
+  );
+});
+
 test("surface validation failures do not poison GitHub Connection health", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-delivery-health-"));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
