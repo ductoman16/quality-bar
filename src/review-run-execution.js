@@ -220,6 +220,7 @@ function readRun(durableCore, workId) {
  * @param {any} durableCore
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {{
+ *   acquireCheckoutCredential?: () => Promise<{token: string, username: string} | undefined> | {token: string, username: string} | undefined,
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
@@ -250,6 +251,7 @@ export async function executeReviewRun(
   durableCore,
   claim,
   {
+    acquireCheckoutCredential = () => checkoutCredential,
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
@@ -276,11 +278,11 @@ export async function executeReviewRun(
         : new TypeError("Review Run claim renewal failed");
   });
   try {
-    const checkout = await ioPool.run("acquisition", () =>
+    const checkout = await ioPool.run("acquisition", async () =>
       prepareCheckout({
         baseCommit: run.baseCommit,
         checkoutRoot,
-        credential: checkoutCredential,
+        credential: await acquireCheckoutCredential(),
         fencingToken: claim.fencingToken,
         headCommit: run.headCommit,
         repositoryUrl: run.repositoryUrl,

@@ -65,12 +65,13 @@ export function createApplicationExecutionRuntime({
       return failure;
     },
     ioPool,
-    /** @param {any} durableCore @param {any} repositories */
-    createCodexRuntime(durableCore, repositories) {
+    /** @param {any} durableCore @param {any} repositories @param {any} storageReserve */
+    createCodexRuntime(durableCore, repositories, storageReserve) {
       return createCodexRuntime(durableCore, {
         ioPool,
         now,
         repositories,
+        storageReserve,
         /** @param {unknown} error @param {any} claim */
         reportFailure(error, claim) {
           const codexFailure = codedRuntimeFailure(error);

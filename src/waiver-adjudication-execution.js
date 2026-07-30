@@ -208,6 +208,7 @@ export async function executeWaiverAdjudication(
   durableCore,
   claim,
   {
+    acquireCheckoutCredential = () => checkoutCredential,
     checkoutCredential,
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
@@ -234,11 +235,11 @@ export async function executeWaiverAdjudication(
     },
   );
   try {
-    const checkout = await ioPool.run("acquisition", () =>
+    const checkout = await ioPool.run("acquisition", async () =>
       prepareCheckout({
         baseCommit: adjudication.baseCommit,
         checkoutRoot,
-        credential: checkoutCredential,
+        credential: await acquireCheckoutCredential(),
         fencingToken: claim.fencingToken,
         headCommit: adjudication.headCommit,
         repositoryUrl: adjudication.repositoryUrl,

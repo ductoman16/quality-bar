@@ -33,6 +33,24 @@ function readRepositoryId(durableCore, claim) {
   return row.repository_id;
 }
 
+/** @param {any} claimService @param {any} storageReserve */
+export function createStorageGuardedClaimService(claimService, storageReserve) {
+  if (
+    typeof claimService?.start !== "function" ||
+    typeof storageReserve?.assertCodexStartAvailable !== "function"
+  ) {
+    throw new TypeError("Codex start gate dependencies are invalid");
+  }
+  return {
+    ...claimService,
+    /** @param {any} claim @param {string} codexCliVersion */
+    start(claim, codexCliVersion) {
+      storageReserve.assertCodexStartAvailable();
+      return claimService.start(claim, codexCliVersion);
+    },
+  };
+}
+
 /**
  * @param {any} durableCore
  * @param {{
@@ -40,12 +58,20 @@ function readRepositoryId(durableCore, claim) {
  *   now?: () => number,
  *   repositories: {acquireGitCredential: (repositoryId: string) => Promise<any>},
  *   reportFailure: (error: unknown, claim?: import("./codex-execution-claim.js").CodexExecutionClaim) => unknown,
- *   spawnProcess: (...parameters: any[]) => import("node:child_process").ChildProcess
+ *   spawnProcess: (...parameters: any[]) => import("node:child_process").ChildProcess,
+ *   storageReserve: {assertCodexStartAvailable: () => unknown}
  * }} dependencies
  */
 export function createCodexExecutionRuntime(
   durableCore,
-  { ioPool, now = () => Date.now(), repositories, reportFailure, spawnProcess },
+  {
+    ioPool,
+    now = () => Date.now(),
+    repositories,
+    reportFailure,
+    spawnProcess,
+    storageReserve,
+  },
 ) {
   if (
     typeof durableCore?.get !== "function" ||
@@ -53,7 +79,8 @@ export function createCodexExecutionRuntime(
     typeof ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof reportFailure !== "function" ||
-    typeof spawnProcess !== "function"
+    typeof spawnProcess !== "function" ||
+    typeof storageReserve?.assertCodexStartAvailable !== "function"
   ) {
     throw new TypeError("Codex execution runtime dependencies are invalid");
   }
@@ -61,6 +88,10 @@ export function createCodexExecutionRuntime(
     createWorkerId: randomUUID,
     now,
   });
+  const guardedClaimService = createStorageGuardedClaimService(
+    claimService,
+    storageReserve,
+  );
   const reviewResults = createReviewRunResultService(durableCore, { now });
   const waiverResults = createWaiverAdjudicationResultService(durableCore, {
     now,
@@ -80,8 +111,8 @@ export function createCodexExecutionRuntime(
       executeClaimWithOwningAdapter(claim, {
         async executeReviewRun(reviewClaim) {
           return executeReviewRun(durableCore, reviewClaim, {
-            checkoutCredential: await credential(reviewClaim),
-            claimService,
+            acquireCheckoutCredential: () => credential(reviewClaim),
+            claimService: guardedClaimService,
             ioPool,
             resultService: reviewResults,
             spawnProcess,
@@ -89,8 +120,8 @@ export function createCodexExecutionRuntime(
         },
         async executeWaiverAdjudication(adjudicationClaim) {
           return executeWaiverAdjudication(durableCore, adjudicationClaim, {
-            checkoutCredential: await credential(adjudicationClaim),
-            claimService,
+            acquireCheckoutCredential: () => credential(adjudicationClaim),
+            claimService: guardedClaimService,
             ioPool,
             resultService: waiverResults,
             spawnProcess,

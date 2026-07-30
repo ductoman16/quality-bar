@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCodexExecutionWorker } from "../src/codex-execution-worker.js";
+import { createStorageGuardedClaimService } from "../src/codex-execution-runtime.js";
 
 test("the application worker fills durable claims without serializing long executions", async () => {
   /** @type {import("../src/codex-execution-claim.js").CodexExecutionClaim[]} */
@@ -75,4 +76,28 @@ test("the application worker surfaces the exact claim owner failure", async () =
   timers.shift()?.();
   assert.deepEqual(failures, [failure]);
   await worker.close();
+});
+
+test("the production start boundary checks storage before authoritative Codex start", () => {
+  const failure = Object.assign(new Error("storage low exactly"), {
+    code: "storage_reserve_unavailable",
+  });
+  let started = false;
+  const service = createStorageGuardedClaimService(
+    {
+      start() {
+        started = true;
+      },
+    },
+    {
+      assertCodexStartAvailable() {
+        throw failure;
+      },
+    },
+  );
+  assert.throws(
+    () => service.start({}, "0.145.0"),
+    (error) => error === failure,
+  );
+  assert.equal(started, false);
 });

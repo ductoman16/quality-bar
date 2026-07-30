@@ -8,6 +8,7 @@ import { canonicalForgejoConnectionPaths } from "./canonical-forgejo-connection-
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { canonicalWaiverAdjudicatorConfigurationPath } from "./canonical-waiver-adjudicator-configuration-api.js";
 import { canonicalEvaluationPaths } from "./canonical-evaluation-api.js";
+import { canonicalCodexExecutionConcurrencyPath } from "./canonical-codex-execution-concurrency-api.js";
 
 const errorResponse = {
   content: {
@@ -387,6 +388,7 @@ export function canonicalOpenApiDocument() {
         },
       },
       ...canonicalWaiverAdjudicatorConfigurationPath(),
+      ...canonicalCodexExecutionConcurrencyPath(),
       ...canonicalEvaluationPaths(errorResponse),
       "/api/v1/system/authority-attributions": {
         get: {

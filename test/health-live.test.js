@@ -19,6 +19,10 @@ function callApplicationServer(options) {
 
 function applicationServerOptions() {
   return {
+    codexExecutionConcurrency: {
+      read: () => 1,
+      set: (/** @type {unknown} */ value) => value,
+    },
     evaluations: createUnavailableEvaluationService(
       new Error("unused Evaluation"),
     ),

@@ -11,6 +11,7 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
       "test/codex-execution-claim.test.js",
       "test/codex-execution-worker.test.js",
       "test/io-execution-pool.test.js",
+      "test/forgejo-polling-runner-io.test.js",
       "test/review-run-claim.test.js",
     ],
   },

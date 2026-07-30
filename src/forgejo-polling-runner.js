@@ -16,11 +16,18 @@ import {
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
-
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+import { createIoDutyTimer } from "./io-duty-timer.js";
+/** @param {any} durableCore @param {any} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
-  { cipher, storageReserve, timestamp, verifier },
+  {
+    cipher,
+    clearTimer: cancelTimer = clearTimeout,
+    setTimer = setTimeout,
+    storageReserve,
+    timestamp,
+    verifier,
+  },
 ) {
   if (
     !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
@@ -44,10 +51,7 @@ export function createForgejoPollingRunner(
     now: timestamp,
     recordOwningFailure,
   });
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let timer = null;
-  let started = false;
-  let running = false;
+  let [started, running] = [false, false];
 
   function requireFreshBaseline() {
     durableCore.transaction((/** @type {any} */ transaction) => {
@@ -367,8 +371,7 @@ export function createForgejoPollingRunner(
     if (!started) {
       return;
     }
-    timer = setTimeout(scheduleRun.background, delay);
-    timer.unref();
+    dutyTimer.schedule(delay);
   }
 
   const scheduleRun = createIoDutyScheduler(
@@ -376,6 +379,12 @@ export function createForgejoPollingRunner(
     "polling",
     runScheduled,
   );
+
+  const dutyTimer = createIoDutyTimer(scheduleRun, {
+    clearTimer: cancelTimer,
+    retryDelay: FORGEJO_POLL_INTERVAL_MS,
+    setTimer,
+  });
 
   return {
     commitFailure: polling.commitFailure,
@@ -390,11 +399,8 @@ export function createForgejoPollingRunner(
       );
     },
     destroy() {
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
-      timer = null;
       started = false;
+      dutyTimer.stop();
       scheduleRun.cancel();
     },
     prepareBaseline,
@@ -405,8 +411,7 @@ export function createForgejoPollingRunner(
         return;
       }
       started = true;
-      timer = setTimeout(scheduleRun.background, 0);
-      timer.unref();
+      dutyTimer.start(0);
     },
   };
 }

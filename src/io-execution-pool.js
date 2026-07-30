@@ -136,8 +136,10 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
       }
       try {
         void Promise.resolve(operation()).catch(reportBackgroundFailure);
+        return true;
       } catch (error) {
         reportBackgroundFailure(error);
+        return false;
       }
     },
     close() {
@@ -151,7 +153,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
 }
 
 /**
- * @param {{run: (duty: any, operation: () => unknown) => Promise<any>, runInBackground?: (operation: () => unknown) => void}} ioPool
+ * @param {{run: (duty: any, operation: () => unknown) => Promise<any>, runInBackground?: (operation: () => unknown) => boolean}} ioPool
  * @param {"polling" | "acquisition" | "delivery" | "retention" | "cleanup"} duty
  * @param {() => unknown} operation
  */
@@ -195,7 +197,7 @@ export function createIoDutyScheduler(ioPool, duty, operation) {
     if (typeof ioPool.runInBackground !== "function") {
       throw new TypeError("I/O background execution is unavailable");
     }
-    ioPool.runInBackground(schedule);
+    return ioPool.runInBackground(schedule);
   };
   return schedule;
 }

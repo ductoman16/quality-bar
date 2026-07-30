@@ -1,5 +1,6 @@
 import { openDurableCore } from "./durable-core.js";
 import { createCodexExecutionRuntime } from "./codex-execution-runtime.js";
+import { createCodexExecutionConcurrencyService } from "./codex-execution-concurrency.js";
 import { createApplicationExecutionRuntime } from "./application-execution-runtime.js";
 import {
   loadInstallationConfiguration,
@@ -134,6 +135,8 @@ export function createApplication({
   let evaluations = null;
   /** @type {ReturnType<typeof createCodexExecutionRuntime> | null} */
   let codexRuntime = null;
+  /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
+  let codexExecutionConcurrency = null;
   const executionRuntime = createApplicationExecutionRuntime({
     createCodexRuntime,
     now,
@@ -174,6 +177,8 @@ export function createApplication({
         storageBoundary.enter(requireCodedError(error));
       },
     });
+    codexExecutionConcurrency =
+      createCodexExecutionConcurrencyService(durableCore);
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       githubConnections = createGitHubConnections(durableCore, {
@@ -276,6 +281,7 @@ export function createApplication({
       codexRuntime = executionRuntime.createCodexRuntime(
         durableCore,
         repositories,
+        storageReserve,
       );
     }
     structuredLog(
@@ -288,6 +294,14 @@ export function createApplication({
   } catch (error) {
     void codexRuntime?.close();
     codexRuntime = null;
+    codexExecutionConcurrency = {
+      read() {
+        throw startupFailure;
+      },
+      set() {
+        throw startupFailure;
+      },
+    };
     evaluations?.destroy?.();
     repositories?.destroy?.();
     githubConnections?.destroy?.();
@@ -344,6 +358,7 @@ export function createApplication({
     evaluations,
     reviews,
     waiverAdjudicatorConfiguration,
+    codexExecutionConcurrency,
     readDurableCoreStatus,
     codexCapabilityFailure,
     startupFailure,
@@ -401,12 +416,12 @@ export function createApplication({
           })
         );
       }
-      await codexRuntime?.close();
-      codexRuntime = null;
-      evaluations?.destroy?.();
-      repositories?.destroy?.();
       githubConnections?.destroy?.();
       forgejoConnections?.destroy?.();
+      evaluations?.destroy?.();
+      await codexRuntime?.close();
+      codexRuntime = null;
+      repositories?.destroy?.();
       await ioPool.close();
       durableCore?.close();
       releaseInstallationLock?.();

@@ -18,6 +18,7 @@ import { requireCodedError } from "./coded-error.js";
 import { writeError, writeJson } from "./http-response.js";
 import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
 import { createEvaluationRoute } from "./evaluation-route.js";
+import { createCodexExecutionConcurrencyRoute } from "./codex-execution-concurrency-route.js";
 
 /**
  * @param {unknown} value
@@ -82,6 +83,7 @@ const TOKEN_METHODS = [
  *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
  *   waiverAdjudicatorConfiguration: ReturnType<typeof import("./waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService>,
+ *   codexExecutionConcurrency: ReturnType<typeof import("./codex-execution-concurrency.js").createCodexExecutionConcurrencyService>,
  *   readDurableCoreStatus: () => { error?: string, status: string },
  *   readSystemStatus: () => unknown,
  *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
@@ -115,6 +117,7 @@ export function createApplicationServer({
   evaluations,
   reviews,
   waiverAdjudicatorConfiguration,
+  codexExecutionConcurrency,
   readDurableCoreStatus,
   readSystemStatus,
   listAuthorityAttributions,
@@ -244,6 +247,12 @@ export function createApplicationServer({
     browserOrigin,
     browserSessions,
     evaluations,
+    recordAuthorityAttribution,
+  });
+  const handleCodexExecutionConcurrency = createCodexExecutionConcurrencyRoute({
+    browserOrigin,
+    browserSessions,
+    codexExecutionConcurrency,
     recordAuthorityAttribution,
   });
   const handleApi = createApiRoute({
@@ -390,6 +399,16 @@ export function createApplicationServer({
     }
     if (
       await handleWaiverAdjudicatorConfiguration(
+        request,
+        response,
+        requestUrl,
+        authority,
+      )
+    ) {
+      return;
+    }
+    if (
+      await handleCodexExecutionConcurrency(
         request,
         response,
         requestUrl,
