@@ -367,7 +367,7 @@ export function createForgejoPollingRunner(
     if (!started) {
       return;
     }
-    timer = setTimeout(scheduleRun, delay);
+    timer = setTimeout(scheduleRun.background, delay);
     timer.unref();
   }
 
@@ -405,7 +405,7 @@ export function createForgejoPollingRunner(
         return;
       }
       started = true;
-      timer = setTimeout(scheduleRun, 0);
+      timer = setTimeout(scheduleRun.background, 0);
       timer.unref();
     },
   };

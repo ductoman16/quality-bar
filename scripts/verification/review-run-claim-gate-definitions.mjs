@@ -6,8 +6,10 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
     failureCode: "review_run_claim_unit_tests_failed",
     arguments: [
       "--test",
+      "test/application-execution-runtime.test.js",
       "test/codex-execution-concurrency.test.js",
       "test/codex-execution-claim.test.js",
+      "test/codex-execution-worker.test.js",
       "test/io-execution-pool.test.js",
       "test/review-run-claim.test.js",
     ],

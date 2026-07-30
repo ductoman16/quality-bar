@@ -100,6 +100,9 @@ function applicationServerOptions() {
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     repositories: {
+      async acquireGitCredential() {
+        throw new Error("unused Repository service operation");
+      },
       destroy() {},
       list() {
         throw new Error("unused Repository service operation");

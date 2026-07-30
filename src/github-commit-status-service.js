@@ -304,8 +304,11 @@ export function createGitHubCommitStatusService(
       if (timer) {
         return;
       }
-      void schedulePublication();
-      timer = setInterval(schedulePublication, PUBLICATION_INTERVAL_MS);
+      schedulePublication.background();
+      timer = setInterval(
+        schedulePublication.background,
+        PUBLICATION_INTERVAL_MS,
+      );
       timer.unref?.();
     },
   };

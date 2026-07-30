@@ -1,6 +1,9 @@
 /** @param {unknown} error */
 export function createUnavailableRepositoryService(error) {
   return {
+    async acquireGitCredential() {
+      throw error;
+    },
     list() {
       throw error;
     },

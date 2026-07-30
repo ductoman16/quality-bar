@@ -39,10 +39,10 @@ test("the fixed I/O pool bounds independent duties without hiding failures", asy
   }
 
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(active, 4);
-  releases.splice(0, 4).forEach((release) => release());
+  assert.equal(active, 3);
+  releases.splice(0, 3).forEach((release) => release());
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(active, 2);
+  assert.equal(active, 3);
   releases.splice(0).forEach((release) => release());
   assert.deepEqual(await Promise.all(tasks), [
     "polling",
@@ -52,7 +52,7 @@ test("the fixed I/O pool bounds independent duties without hiding failures", asy
     "cleanup",
     "polling",
   ]);
-  assert.equal(maximumActive, 4);
+  assert.equal(maximumActive, 3);
 
   const owningFailure = Object.assign(new Error("delivery failed exactly"), {
     code: "github_delivery_failed",
@@ -81,7 +81,7 @@ test("scheduled duties coalesce under saturation and cancellation prevents stale
   const pool = createIoExecutionPool();
   /** @type {((value?: void) => void)[]} */
   const releases = [];
-  const saturation = Array.from({ length: IO_EXECUTION_CONCURRENCY }, () =>
+  const saturation = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
     pool.run(
       "acquisition",
       () => new Promise((resolve) => releases.push(resolve)),
@@ -106,7 +106,7 @@ test("the fixed waiting bound and shutdown surface exact owning errors", async (
   const pool = createIoExecutionPool();
   /** @type {((value?: void) => void)[]} */
   const releases = [];
-  const active = Array.from({ length: IO_EXECUTION_CONCURRENCY }, () =>
+  const active = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
     pool.run("polling", () => new Promise((resolve) => releases.push(resolve))),
   );
   await new Promise((resolve) => setImmediate(resolve));
@@ -125,8 +125,34 @@ test("the fixed waiting bound and shutdown surface exact owning errors", async (
   await Promise.all([...active, ...queued, closed]);
 });
 
+test("a saturated production scheduler reports its exact admission failure", async () => {
+  /** @type {any[]} */
+  const failures = [];
+  const pool = createIoExecutionPool({
+    reportBackgroundFailure: (error) => failures.push(error),
+  });
+  /** @type {((value?: void) => void)[]} */
+  const releases = [];
+  const active = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
+    pool.run("polling", () => new Promise((resolve) => releases.push(resolve))),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  const queued = Array.from({ length: IO_EXECUTION_QUEUE_CAPACITY }, () =>
+    pool.run("acquisition", () => {}),
+  );
+  const schedule = createIoDutyScheduler(pool, "delivery", () => {});
+  schedule.background();
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0]?.code, "io_execution_capacity_unavailable");
+  releases.splice(0).forEach((release) => release());
+  await Promise.all([...active, ...queued, pool.close()]);
+});
+
 test("one application pool owns explicit acquisition and retention cleanup", async () => {
-  const ioPool = createApplicationIoPool();
+  const ioPool = createApplicationIoPool({
+    reportBackgroundFailure: (error) =>
+      assert.fail(/** @type {Error} */ (error)),
+  });
   let acquired = false;
   assert.deepEqual(
     await ioPool.acquireChangeset(
@@ -174,4 +200,42 @@ test("one application pool owns explicit acquisition and retention cleanup", asy
   assert.equal(storageReserve.ioPool.run, ioPool.run);
   assert.deepEqual(cleanup(), { changes: 2 });
   await ioPool.close();
+});
+
+test("required retention cleanup keeps one bounded slot under ordinary I/O saturation", async () => {
+  const ioPool = createApplicationIoPool({
+    reportBackgroundFailure: (error) =>
+      assert.fail(/** @type {Error} */ (error)),
+  });
+  /** @type {((value?: void) => void)[]} */
+  const releases = [];
+  const active = Array.from({ length: IO_EXECUTION_CONCURRENCY - 1 }, () =>
+    ioPool.run(
+      "acquisition",
+      () => new Promise((resolve) => releases.push(resolve)),
+    ),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  let cleanup = () => {};
+  ioPool.createStorageReserve(
+    (/** @type {any} */ options) => {
+      cleanup = options.cleanupEligibleData;
+      return {};
+    },
+    () => ({
+      /** @param {(transaction: any) => unknown} callback */
+      transaction(callback) {
+        return callback({
+          run() {
+            return { changes: 1 };
+          },
+        });
+      },
+    }),
+    () => 0,
+    1,
+  );
+  assert.deepEqual(cleanup(), { changes: 1 });
+  releases.splice(0).forEach((release) => release());
+  await Promise.all([...active, ioPool.close()]);
 });

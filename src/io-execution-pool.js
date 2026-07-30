@@ -1,5 +1,6 @@
 export const IO_EXECUTION_CONCURRENCY = 4;
 export const IO_EXECUTION_QUEUE_CAPACITY = 16;
+const IO_EXECUTION_ORDINARY_CONCURRENCY = IO_EXECUTION_CONCURRENCY - 1;
 const IO_DUTIES = new Set([
   "polling",
   "acquisition",
@@ -17,7 +18,10 @@ export class IoExecutionPoolError extends Error {
   }
 }
 
-export function createIoExecutionPool() {
+/**
+ * @param {{reportBackgroundFailure?: (error: unknown) => unknown}} [options]
+ */
+export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
   let active = 0;
   let accepting = true;
   /** @type {{operation: () => unknown, reject: (reason?: unknown) => void, resolve: (value: unknown) => void}[]} */
@@ -35,7 +39,7 @@ export function createIoExecutionPool() {
   }
 
   function drain() {
-    while (active < IO_EXECUTION_CONCURRENCY && waiting.length > 0) {
+    while (active < IO_EXECUTION_ORDINARY_CONCURRENCY && waiting.length > 0) {
       const task = waiting.shift();
       if (!task) {
         throw new Error("I/O execution pool queue is invalid");
@@ -93,7 +97,12 @@ export function createIoExecutionPool() {
      */
     runImmediate(duty, operation) {
       validate(duty, operation);
-      if (active >= IO_EXECUTION_CONCURRENCY || waiting.length > 0) {
+      if (duty !== "retention") {
+        throw new TypeError(
+          "Immediate I/O execution is reserved for retention cleanup",
+        );
+      }
+      if (active >= IO_EXECUTION_CONCURRENCY) {
         throw new IoExecutionPoolError(
           "io_execution_capacity_unavailable",
           "I/O execution capacity is unavailable",
@@ -115,6 +124,22 @@ export function createIoExecutionPool() {
         finishDrain();
       }
     },
+    /** @param {() => unknown} operation */
+    runInBackground(operation) {
+      if (
+        typeof operation !== "function" ||
+        typeof reportBackgroundFailure !== "function"
+      ) {
+        throw new TypeError(
+          "I/O background execution dependencies are invalid",
+        );
+      }
+      try {
+        void Promise.resolve(operation()).catch(reportBackgroundFailure);
+      } catch (error) {
+        reportBackgroundFailure(error);
+      }
+    },
     close() {
       accepting = false;
       if (active === 0 && waiting.length === 0) {
@@ -126,7 +151,7 @@ export function createIoExecutionPool() {
 }
 
 /**
- * @param {{run: (duty: any, operation: () => unknown) => Promise<any>}} ioPool
+ * @param {{run: (duty: any, operation: () => unknown) => Promise<any>, runInBackground?: (operation: () => unknown) => void}} ioPool
  * @param {"polling" | "acquisition" | "delivery" | "retention" | "cleanup"} duty
  * @param {() => unknown} operation
  */
@@ -165,6 +190,12 @@ export function createIoDutyScheduler(ioPool, duty, operation) {
   schedule.cancel = () => {
     generation += 1;
     scheduled = null;
+  };
+  schedule.background = () => {
+    if (typeof ioPool.runInBackground !== "function") {
+      throw new TypeError("I/O background execution is unavailable");
+    }
+    ioPool.runInBackground(schedule);
   };
   return schedule;
 }

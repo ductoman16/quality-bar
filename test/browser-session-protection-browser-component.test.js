@@ -271,6 +271,9 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
         new Error("unused Waiver Adjudicator Configuration"),
       ),
     repositories: {
+      async acquireGitCredential() {
+        throw new Error("unused Repository service operation");
+      },
       destroy() {},
       list() {
         throw new Error("unused Repository service operation");

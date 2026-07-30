@@ -409,9 +409,9 @@ export function createGitHubPollingRunner(
       if (timer !== null) {
         return;
       }
-      timer = setInterval(schedulePoll, GITHUB_POLL_INTERVAL_MS);
+      timer = setInterval(schedulePoll.background, GITHUB_POLL_INTERVAL_MS);
       timer.unref();
-      schedulePoll();
+      schedulePoll.background();
     },
     repositoryVerifier,
     prepareConnectionBaseline,

@@ -17,6 +17,7 @@ export const APPLICATION_COVERAGE_BOUNDARY = Object.freeze({
 
 export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/application-readiness.test.js",
+  "test/application-execution-runtime.test.js",
   "test/codex-capabilities.test.js",
   "test/configuration.test.js",
   "test/durable-core.test.js",
@@ -55,6 +56,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-run-admission.test.js",
   "test/codex-execution-concurrency.test.js",
   "test/codex-execution-claim.test.js",
+  "test/codex-execution-worker.test.js",
   "test/io-execution-pool.test.js",
   "test/review-run-claim.test.js",
   "test/review-run-result.test.js",
@@ -147,6 +149,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/repository-lifecycle.test.js",
   "test/repository-rotation.test.js",
   "test/repository-git-integration.test.js",
+  "test/repository-git-credential.test.js",
   "test/evaluation-browser-component.test.js",
   "test/evaluation-browser-state-component.test.js",
   "test/evaluation-cancellation-browser-component.test.js",

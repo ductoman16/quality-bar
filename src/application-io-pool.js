@@ -1,8 +1,12 @@
 import { removeExpiredBrowserSessions } from "./browser-session.js";
 import { createIoExecutionPool } from "./io-execution-pool.js";
 
-export function createApplicationIoPool() {
-  const ioPool = createIoExecutionPool();
+/** @param {{reportBackgroundFailure: (error: unknown) => unknown}} options */
+export function createApplicationIoPool({ reportBackgroundFailure }) {
+  if (typeof reportBackgroundFailure !== "function") {
+    throw new TypeError("Application I/O failure reporter is required");
+  }
+  const ioPool = createIoExecutionPool({ reportBackgroundFailure });
   return {
     ...ioPool,
     /** @param {any} repositories @param {string} repositoryId @param {any} request */
