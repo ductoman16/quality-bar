@@ -26,6 +26,52 @@
       status +=
         " Error " + adjudication.error.code + ": " + adjudication.error.detail;
     }
+    if (adjudication.execution_status === "completed") {
+      if (
+        !Array.isArray(adjudication.decisions) ||
+        adjudication.decisions.length === 0
+      ) {
+        throw new Error("waiver_adjudication_invalid");
+      }
+      for (const decision of adjudication.decisions) {
+        if (
+          typeof decision?.id !== "string" ||
+          typeof decision.request_id !== "string" ||
+          !["accepted", "denied", "error"].includes(decision.outcome)
+        ) {
+          throw new Error("waiver_adjudication_invalid");
+        }
+        if (decision.outcome === "error") {
+          if (
+            typeof decision.error?.code !== "string" ||
+            typeof decision.error.detail !== "string"
+          ) {
+            throw new Error("waiver_adjudication_invalid");
+          }
+          status +=
+            " Request " +
+            decision.request_id +
+            " error " +
+            decision.error.code +
+            ": " +
+            decision.error.detail.trim();
+        } else {
+          if (
+            typeof decision.explanation !== "string" ||
+            decision.explanation.trim().length === 0
+          ) {
+            throw new Error("waiver_adjudication_invalid");
+          }
+          status +=
+            " Request " +
+            decision.request_id +
+            " " +
+            decision.outcome +
+            ": " +
+            decision.explanation.trim();
+        }
+      }
+    }
     return status;
   }
 

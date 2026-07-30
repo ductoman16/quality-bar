@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createEvaluationCollectionReader } from "../src/evaluation-collection-reader.js";
 import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
 import { createWaiverAdjudicationEvidenceService } from "../src/waiver-adjudication-evidence.js";
 import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
@@ -66,6 +67,71 @@ async function runFocusedAdjudication(context, failProcess) {
     headCommit,
     repositoryUrl: repository,
   });
+  core.transaction((/** @type {any} */ transaction) => {
+    transaction.run(
+      `INSERT INTO reviews (
+         id, name, description, archived_at, active_version_id,
+         hard_delete_pending, created_at
+       ) VALUES (
+         'review-2', 'Second Review', 'Second description', NULL,
+         'version-2', 0, 1
+       )`,
+    );
+    transaction.run(
+      `INSERT INTO review_versions (
+         id, review_id, number, applicability_rule, model,
+         reasoning_effort, service_tier, created_at, sealed_at
+       ) VALUES (
+         'version-2', 'review-2', 1, NULL, 'gpt-5.6-terra',
+         'high', 'standard', 1, NULL
+       )`,
+    );
+    transaction.run(
+      `INSERT INTO criteria (
+         id, review_id, instruction, impact, created_at
+       ) VALUES (
+         'criterion-3', 'review-2', 'criterion-3', 'advisory', 1
+       )`,
+    );
+    transaction.run(
+      `INSERT INTO review_version_criteria (
+         review_version_id, criterion_id, position, instruction, impact
+       ) VALUES (
+         'version-2', 'criterion-3', 1, 'criterion-3', 'advisory'
+       )`,
+    );
+    transaction.run(
+      "UPDATE review_versions SET sealed_at = 1 WHERE id = 'version-2'",
+    );
+    transaction.run(
+      `INSERT INTO review_runs (
+         id, evaluation_id, review_id, review_version_id, execution_status,
+         started_at, completed_at, execution_evidence_recorded, created_at
+       ) VALUES (
+         'run-2', 'evaluation-1', 'review-2', 'version-2', 'running',
+         1, NULL, 1, 1
+       )`,
+    );
+    transaction.run(
+      `INSERT INTO criterion_results (
+         review_run_id, criterion_id, outcome
+       ) VALUES ('run-2', 'criterion-3', 'triggered')`,
+    );
+    transaction.run(
+      `INSERT INTO findings (
+         id, evaluation_id, review_run_id, criterion_id,
+         evidence, remediation, location_kind
+       ) VALUES (
+         'finding-3', 'evaluation-1', 'run-2', 'criterion-3',
+         'third evidence', 'third remediation', 'changeset'
+       )`,
+    );
+    transaction.run(
+      `UPDATE review_runs
+       SET execution_status = 'completed', completed_at = 2
+       WHERE id = 'run-2'`,
+    );
+  });
   core.run(
     `INSERT INTO findings (
        id, evaluation_id, review_run_id, criterion_id,
@@ -75,7 +141,7 @@ async function runFocusedAdjudication(context, failProcess) {
        'unselected evidence', 'unselected remediation', 'changeset'
      )`,
   );
-  const requestIds = ["request-1", "request-2"];
+  const requestIds = ["request-1", "request-2", "request-3"];
   createWaiverBatchService(core, {
     createAdjudicationId: () => "adjudication-1",
     createRequestId: () => requestIds.shift() ?? assert.fail("missing id"),
@@ -90,6 +156,7 @@ async function runFocusedAdjudication(context, failProcess) {
       requests: [
         { finding_id: "finding-1", rationale: "Exact first exception." },
         { finding_id: "finding-2", rationale: "Exact second exception." },
+        { finding_id: "finding-3", rationale: "Exact third exception." },
       ],
     },
   });
@@ -99,7 +166,7 @@ async function runFocusedAdjudication(context, failProcess) {
   });
   const claim = claims.claimNext();
   assert.ok(claim);
-  const decisionIds = ["decision-1", "decision-2"];
+  const decisionIds = ["decision-1", "decision-2", "decision-3"];
   const results = createWaiverAdjudicationResultService(core, {
     createDecisionId: () => decisionIds.shift() ?? assert.fail("missing id"),
     now: () => 30,
@@ -139,7 +206,7 @@ async function runFocusedAdjudication(context, failProcess) {
   return { claim, core };
 }
 
-test("one focused fake Codex process accepts only the first complete Decision set", async (context) => {
+test("one focused fake Codex process atomically persists a mixed valid Decision set", async (context) => {
   const { claim, core } = await runFocusedAdjudication(context, false);
   assert.deepEqual(
     core.all(
@@ -157,7 +224,28 @@ test("one focused fake Codex process accepts only the first complete Decision se
         outcome: "denied",
         waiver_request_id: "request-2",
       },
+      {
+        explanation: null,
+        outcome: "error",
+        waiver_request_id: "request-3",
+      },
     ],
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT error_code, error_detail
+       FROM waiver_decisions WHERE waiver_request_id = 'request-3'`,
+    ),
+    {
+      error_code: "required_evidence_unavailable",
+      error_detail: "The frozen generated file cannot be inspected.",
+    },
+  );
+  assert.equal(
+    createEvaluationCollectionReader(core, Buffer.alloc(32, 7)).read(
+      "evaluation-1",
+    ).effective_outcome,
+    "error",
   );
   assert.deepEqual(
     core.get(
@@ -208,5 +296,11 @@ test("a started fake Codex failure stores the exact owning failure and no Decisi
         "Codex Waiver Adjudication exited without an accepted Decision set; last validation error waiver_adjudication_submission_invalid: Waiver Adjudication submission must contain exactly one complete Decision per selected Request",
       execution_status: "failed",
     },
+  );
+  assert.equal(
+    createEvaluationCollectionReader(core, Buffer.alloc(32, 7)).read(
+      "evaluation-1",
+    ).effective_outcome,
+    "error",
   );
 });

@@ -25,6 +25,9 @@ export function createWaiverAdjudicationPrompt(run) {
     "Inspect surrounding Repository material on demand only when needed to judge a selected Request.",
     "Do not use pull-request discussion, prior runs, other Reviews, Forge metadata, later commits, or unselected Findings.",
     "Scratch changes are permitted inside this disposable checkout and will be discarded.",
+    "Accepted requires convincing frozen evidence that following the exact Finding is unwarranted here or would cause greater harm; explain the rationale, Finding, Criterion, and inspected evidence.",
+    "Weak, merely convenient, or uncertain exceptions are denied with a nonblank explanation.",
+    "Error is only for required permitted evidence that is unavailable or unusable; provide one stable code and exact plain-language detail.",
     "",
     `frozen_evaluation: ${JSON.stringify({
       base_commit: run.baseCommit,

@@ -8,11 +8,15 @@ const requests = JSON.parse(
 );
 if (
   !Array.isArray(requests) ||
-  requests.length !== 2 ||
+  requests.length !== 3 ||
   requests.some((request) => !request.request_id) ||
   !prompt.startsWith("Quality Bar Waiver Adjudication contract\n") ||
   !prompt.includes("decision_schema:") ||
   !prompt.includes('"command":"quality-bar-submit"') ||
+  !prompt.includes(
+    "Weak, merely convenient, or uncertain exceptions are denied",
+  ) ||
+  !prompt.includes("Error is only for required permitted evidence") ||
   !prompt.includes('"base_commit":"') ||
   !prompt.includes('"head_commit":"') ||
   prompt.includes("finding-unselected") ||
@@ -84,6 +88,14 @@ execFileSync("quality-bar-submit", {
         explanation: "The exact second rationale is insufficient.",
         outcome: "denied",
         request_id: requests[1].request_id,
+      },
+      {
+        error: {
+          code: "required_evidence_unavailable",
+          detail: "The frozen generated file cannot be inspected.",
+        },
+        outcome: "error",
+        request_id: requests[2].request_id,
       },
     ],
   }),

@@ -32,4 +32,36 @@ test("the browser preserves queued state and the exact owning execution failure"
     }),
     "Waiver Adjudication adjudication-failed failed. Error result_not_submitted: Codex exited without an accepted Decision set",
   );
+  assert.equal(
+    describeStatus({
+      decisions: [
+        {
+          explanation:
+            "The inspected evidence proves this exact exception is justified.",
+          id: "decision-accepted",
+          outcome: "accepted",
+          request_id: "request-accepted",
+        },
+        {
+          explanation:
+            "The rationale is uncertain and does not justify an exception.",
+          id: "decision-denied",
+          outcome: "denied",
+          request_id: "request-denied",
+        },
+        {
+          error: {
+            code: "required_evidence_unavailable",
+            detail: "The frozen generated file cannot be inspected.",
+          },
+          id: "decision-error",
+          outcome: "error",
+          request_id: "request-error",
+        },
+      ],
+      execution_status: "completed",
+      id: "adjudication-completed",
+    }),
+    "Waiver Adjudication adjudication-completed completed. Request request-accepted accepted: The inspected evidence proves this exact exception is justified. Request request-denied denied: The rationale is uncertain and does not justify an exception. Request request-error error required_evidence_unavailable: The frozen generated file cannot be inspected.",
+  );
 });

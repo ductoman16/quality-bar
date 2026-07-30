@@ -43,6 +43,9 @@ test("the focused prompt contains only selected immutable waiver context", () =>
     "Selected accepted standard.",
     "Selected exception rationale.",
     "quality-bar-submit",
+    "Accepted requires convincing frozen evidence",
+    "Weak, merely convenient, or uncertain exceptions are denied",
+    "Error is only for required permitted evidence that is unavailable or unusable",
   ]) {
     assert.match(
       prompt,
