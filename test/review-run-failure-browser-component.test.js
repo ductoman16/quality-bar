@@ -73,6 +73,7 @@ test("the operator browser surfaces an exact Codex authentication failure withou
       ],
     },
     "",
+    [],
   );
 
   assert.equal(

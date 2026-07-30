@@ -24,10 +24,9 @@
   /** @param {string} evaluationId @param {any} finding */
   function findingLocation(evaluationId, finding) {
     const location = finding.location;
-    const text = locationText(location);
     if (location.kind === "changeset") {
       const value = document.createElement("span");
-      value.textContent = text;
+      value.textContent = locationText(location);
       return value;
     }
     const link = document.createElement("a");
@@ -46,7 +45,7 @@
       "&side=" +
       encodeURIComponent(location.side) +
       lineQuery;
-    link.textContent = text;
+    link.textContent = locationText(location);
     return link;
   }
 
@@ -174,8 +173,8 @@
     return reviewRunDiagnostics(run, await response.json());
   }
 
-  /** @param {any} target @param {any} evaluation @param {any} result @param {string} focusSearch */
-  async function renderResult(target, evaluation, result, focusSearch) {
+  /** @param {any} target @param {any} evaluation @param {any} result @param {string} search @param {any[]} adjudications */
+  async function render(target, evaluation, result, search, adjudications) {
     if (
       !result ||
       typeof result.outcome !== "string" ||
@@ -183,7 +182,8 @@
       !Array.isArray(result.criterion_results) ||
       !Array.isArray(result.file_changes) ||
       !Array.isArray(result.findings) ||
-      !Array.isArray(result.review_runs)
+      !Array.isArray(result.review_runs) ||
+      !Array.isArray(adjudications)
     ) {
       throw new Error("evaluation_result_invalid");
     }
@@ -376,15 +376,12 @@
         }
         const location = finding.location;
         if (
-          focusValue(focusSearch, "evaluation_id") === evaluation.id &&
-          focusValue(focusSearch, "file_change_id") ===
-            location.file_change_id &&
-          focusValue(focusSearch, "side") === location.side &&
+          focusValue(search, "evaluation_id") === evaluation.id &&
+          focusValue(search, "file_change_id") === location.file_change_id &&
+          focusValue(search, "side") === location.side &&
           (location.kind !== "line_range" ||
-            (focusValue(focusSearch, "start_line") ===
-              String(location.start_line) &&
-              focusValue(focusSearch, "end_line") ===
-                String(location.end_line)))
+            (focusValue(search, "start_line") === String(location.start_line) &&
+              focusValue(search, "end_line") === String(location.end_line)))
         ) {
           criterionDetails.open = true;
           findingDetails.open = true;
@@ -396,22 +393,27 @@
       }
       target.append(criterionDetails);
     }
+    const waiverBatch = Reflect.get(window, "qualityBarWaiverBatch");
     if (waiverRationales.length > 0) {
-      const waiverBatch = Reflect.get(window, "qualityBarWaiverBatch");
       if (typeof waiverBatch?.createForm !== "function") {
         throw new Error("waiver_batch_boundary_unavailable");
       }
       target.append(waiverBatch.createForm(evaluation.id, waiverRationales));
     }
-    for (const run of result.review_runs.filter(
-      /** @param {any} candidate */
-      (candidate) => candidate.started_at !== null,
-    )) {
-      target.append(await loadReviewRunDiagnostics(evaluation.id, run));
+    if (adjudications.length > 0) {
+      if (typeof waiverBatch?.renderAdjudications !== "function") {
+        throw new Error("waiver_batch_boundary_unavailable");
+      }
+      waiverBatch.renderAdjudications(target, evaluation.id, adjudications);
+    }
+    for (const run of result.review_runs) {
+      if (run.started_at !== null) {
+        target.append(await loadReviewRunDiagnostics(evaluation.id, run));
+      }
     }
   }
 
   Reflect.set(window, "qualityBarEvaluationResult", {
-    render: renderResult,
+    render,
   });
 })();

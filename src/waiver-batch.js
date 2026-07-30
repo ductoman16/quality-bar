@@ -11,6 +11,7 @@ import {
   readWaiverReplay,
 } from "./waiver-adjudication-persistence.js";
 import { createWaiverErrorRetryService } from "./waiver-error-retry.js";
+import { createWaiverAdjudicationRecoveryService } from "./waiver-adjudication-recovery.js";
 import { waiverRequestNextAction } from "./waiver-request-lifecycle.js";
 
 export { canonicalWaiverErrorRetryRequest } from "./waiver-error-retry.js";
@@ -105,7 +106,14 @@ export function createWaiverBatchService(
     readCodexCapabilityFailure,
     storageReserve,
   });
+  const recoveries = createWaiverAdjudicationRecoveryService(durableCore, {
+    createAdjudicationId,
+    now,
+    readCodexCapabilityFailure,
+    storageReserve,
+  });
   return {
+    recoverAdjudication: recoveries.recover,
     retryErrors: errorRetries.retry,
     /**
      * @param {{

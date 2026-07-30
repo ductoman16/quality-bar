@@ -252,7 +252,27 @@ async function renderEvaluation(evaluation) {
     resultState.textContent = "Result failed to load";
     return;
   }
-  await resultRenderer.render(resultState, evaluation, result, focusSearch);
+  let adjudications;
+  try {
+    const response = await fetch(
+      `/api/v1/evaluations/${encodeURIComponent(evaluation.id)}/waiver-adjudications`,
+    );
+    if (!response.ok) {
+      const failure = await response.json();
+      resultState.textContent = failure.error.message;
+      return;
+    }
+    const projection = await response.json();
+    if (!Array.isArray(projection.items)) {
+      throw new Error("waiver_adjudication_projection_invalid");
+    }
+    adjudications = projection.items;
+  } catch {
+    resultState.textContent = "Waiver Adjudications failed to load";
+    return;
+  }
+  const render = resultRenderer.render;
+  await render(resultState, evaluation, result, focusSearch, adjudications);
 }
 
 async function loadFocusedEvaluation() {

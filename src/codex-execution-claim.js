@@ -1,4 +1,5 @@
 import { DurableCoreError } from "./durable-error.js";
+import { recordWaiverPreStartFailure } from "./waiver-adjudication-pre-start.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
 export const CODEX_EXECUTION_LEASE_MILLISECONDS = 120_000;
@@ -179,6 +180,16 @@ export function createCodexExecutionClaimService(
         }
         return { ...claim, leaseExpiresAt };
       });
+    },
+    /** @param {CodexExecutionClaim} claim @param {unknown} failure */
+    recordPreStartFailure(claim, failure) {
+      assertClaim(claim);
+      if (claim.workKind !== "waiver_adjudication") {
+        throw new TypeError(
+          "Only Waiver Adjudication claims own pre-start retry",
+        );
+      }
+      return recordWaiverPreStartFailure(durableCore, claim, failure, now);
     },
     /** @param {CodexExecutionClaim} claim @param {string} codexCliVersion */
     start(claim, codexCliVersion) {
