@@ -1,5 +1,9 @@
 import { DurableCoreError } from "./durable-error.js";
 import { readCodexExecutionConcurrency } from "./codex-execution-concurrency.js";
+import {
+  readCodexProcessIdentity,
+  requireCodexProcessIdentity,
+} from "./codex-process-identity.js";
 import { recordWaiverPreStartFailure } from "./waiver-adjudication-pre-start.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
@@ -99,6 +103,7 @@ function countRunningCodexExecutions(transaction) {
  *   clearInterval?: (timer: unknown) => void,
  *   createWorkerId: () => string,
  *   now: () => number,
+ *   readProcessIdentity?: typeof readCodexProcessIdentity,
  *   setInterval?: (callback: () => void, milliseconds: number) => unknown
  * }} options
  */
@@ -109,6 +114,7 @@ export function createCodexExecutionClaimService(
       clearInterval(/** @type {NodeJS.Timeout} */ (timer)),
     createWorkerId,
     now,
+    readProcessIdentity = readCodexProcessIdentity,
     setInterval: scheduleInterval = setInterval,
   },
 ) {
@@ -246,10 +252,15 @@ export function createCodexExecutionClaimService(
       }
       const recordedAt = now();
       requireTimestamp(recordedAt);
+      const identity = requireCodexProcessIdentity(
+        readProcessIdentity(processGroupId),
+      );
       const tracked = durableCore.transaction((transaction) =>
         transaction.run(
           `UPDATE codex_execution_queue
-           SET process_group_id = ?, process_group_recorded_at = ?
+           SET process_group_id = ?, process_group_recorded_at = ?,
+               process_boot_identity = ?, process_namespace_identity = ?,
+               process_start_identity = ?
            WHERE work_id = ? AND work_kind = ?
              AND worker_id = ? AND fencing_token = ?
              AND started_at IS NOT NULL
@@ -258,6 +269,9 @@ export function createCodexExecutionClaimService(
              AND lease_expires_at > ?`,
           processGroupId,
           recordedAt,
+          identity.bootIdentity,
+          identity.namespaceIdentity,
+          identity.startIdentity,
           claim.workId,
           claim.workKind,
           claim.workerId,
@@ -268,7 +282,7 @@ export function createCodexExecutionClaimService(
       if (tracked.changes !== 1) {
         claimLost(claim.workKind);
       }
-      return { processGroupId, recordedAt };
+      return { ...identity, processGroupId, recordedAt };
     },
     /** @param {CodexExecutionClaim} claim */
     finishProcessGroup(claim) {

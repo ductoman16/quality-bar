@@ -115,6 +115,7 @@ export function migrateSchema(
              CHECK (retry_state IN ('ready', 'exhausted'));`
         : ""
     }
+    ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
     ${
       queueNeedsProcessGroup
         ? `ALTER TABLE codex_execution_queue
@@ -122,6 +123,12 @@ export function migrateSchema(
              CHECK (process_group_id IS NULL OR process_group_id > 0);
            ALTER TABLE codex_execution_queue
              ADD COLUMN process_group_recorded_at INTEGER;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_boot_identity TEXT;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_namespace_identity TEXT;
+           ALTER TABLE codex_execution_queue
+             ADD COLUMN process_start_identity TEXT;
            ALTER TABLE codex_execution_queue
              ADD COLUMN process_group_finished_at INTEGER;
            ALTER TABLE codex_execution_queue
@@ -133,7 +140,6 @@ export function migrateSchema(
              ADD COLUMN recovered_at INTEGER;`
         : ""
     }
-    ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
         ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}`

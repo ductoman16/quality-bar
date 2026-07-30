@@ -1,11 +1,20 @@
 import { DurableCoreError } from "./durable-error.js";
 import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
+import {
+  readCodexProcessIdentity,
+  requireCodexProcessIdentity,
+} from "./codex-process-identity.js";
 
 const WORK_KINDS = new Set(["review_run", "waiver_adjudication"]);
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const PROCESS_TERMINATION_GRACE_MILLISECONDS = 5_000;
+const PROCESS_TERMINATION_POLL_MILLISECONDS = 50;
+const WAIT_SIGNAL = new Int32Array(new SharedArrayBuffer(4));
 const RECOVERY_WORK_QUERY = `
   SELECT queue.work_id, queue.work_kind, queue.started_at,
          queue.process_group_id, queue.process_group_finished_at,
+         queue.process_boot_identity, queue.process_namespace_identity,
+         queue.process_start_identity,
          CASE queue.work_kind
            WHEN 'review_run' THEN review_runs.execution_status
            WHEN 'waiver_adjudication' THEN waiver_adjudications.execution_status
@@ -70,36 +79,122 @@ function processGroupAbsent(error) {
   );
 }
 
+/** @param {unknown} error */
+function processGroupPermissionDenied(error) {
+  return (
+    error instanceof Error && "code" in error && String(error.code) === "EPERM"
+  );
+}
+
+/** @param {() => boolean} isActive */
+function waitForTrackedProcessGroupExit(isActive) {
+  const deadline = Date.now() + PROCESS_TERMINATION_GRACE_MILLISECONDS;
+  while (Date.now() < deadline) {
+    Atomics.wait(
+      WAIT_SIGNAL,
+      0,
+      0,
+      Math.min(PROCESS_TERMINATION_POLL_MILLISECONDS, deadline - Date.now()),
+    );
+    if (!isActive()) {
+      return true;
+    }
+  }
+  return !isActive();
+}
+
 /**
- * @param {number} processGroupId
- * @param {(processId: number, signal: NodeJS.Signals | 0) => unknown} [killProcessGroup]
+ * @param {{bootIdentity: string, namespaceIdentity: string, startIdentity: string}} expected
+ * @param {{bootIdentity: string, namespaceIdentity: string, startIdentity: string}} actual
+ */
+function sameProcessIdentity(expected, actual) {
+  return (
+    expected.bootIdentity === actual.bootIdentity &&
+    expected.namespaceIdentity === actual.namespaceIdentity &&
+    expected.startIdentity === actual.startIdentity
+  );
+}
+
+/**
+ * @param {{processGroupId: number, bootIdentity: string, namespaceIdentity: string, startIdentity: string}} tracked
+ * @param {{
+ *   killProcessGroup?: (processId: number, signal: NodeJS.Signals | 0) => unknown,
+ *   readProcessIdentity?: typeof readCodexProcessIdentity,
+ *   waitForExit?: (isActive: () => boolean) => boolean
+ * }} [options]
  */
 export function terminateTrackedCodexProcessGroup(
-  processGroupId,
-  killProcessGroup = process.kill,
+  tracked,
+  {
+    killProcessGroup = process.kill,
+    readProcessIdentity = readCodexProcessIdentity,
+    waitForExit = waitForTrackedProcessGroupExit,
+  } = {},
 ) {
+  const processGroupId = tracked?.processGroupId;
   if (
     !Number.isSafeInteger(processGroupId) ||
     processGroupId < 1 ||
-    typeof killProcessGroup !== "function"
+    typeof killProcessGroup !== "function" ||
+    typeof readProcessIdentity !== "function" ||
+    typeof waitForExit !== "function"
   ) {
     throw new TypeError("Tracked Codex process group is invalid");
   }
+  const expectedIdentity = requireCodexProcessIdentity(tracked);
   const target = -processGroupId;
-  try {
-    killProcessGroup(target, 0);
-  } catch (error) {
-    if (processGroupAbsent(error)) {
-      return null;
+  let terminationRequested = false;
+
+  function isActive() {
+    try {
+      killProcessGroup(target, 0);
+    } catch (error) {
+      if (processGroupAbsent(error)) {
+        return false;
+      }
+      if (terminationRequested && processGroupPermissionDenied(error)) {
+        return false;
+      }
+      throw new DurableCoreError(
+        "codex_execution_process_group_termination_failed",
+        "Tracked Codex process group could not be inspected",
+        { cause: error },
+      );
     }
-    throw new DurableCoreError(
-      "codex_execution_process_group_termination_failed",
-      "Tracked Codex process group could not be inspected",
-      { cause: error },
-    );
+    let actualIdentity;
+    try {
+      actualIdentity = requireCodexProcessIdentity(
+        readProcessIdentity(processGroupId),
+      );
+    } catch (error) {
+      try {
+        killProcessGroup(target, 0);
+      } catch (inspectionError) {
+        if (processGroupAbsent(inspectionError)) {
+          return false;
+        }
+      }
+      throw new DurableCoreError(
+        "codex_execution_process_identity_unavailable",
+        "Tracked Codex process identity could not be verified",
+        { cause: error },
+      );
+    }
+    if (!sameProcessIdentity(expectedIdentity, actualIdentity)) {
+      throw new DurableCoreError(
+        "codex_execution_process_identity_changed",
+        "Tracked Codex process identity changed before recovery",
+      );
+    }
+    return true;
+  }
+
+  if (!isActive()) {
+    return null;
   }
   try {
     killProcessGroup(target, "SIGTERM");
+    terminationRequested = true;
   } catch (error) {
     if (processGroupAbsent(error)) {
       return null;
@@ -109,6 +204,9 @@ export function terminateTrackedCodexProcessGroup(
       "Tracked Codex process group could not be terminated",
       { cause: error },
     );
+  }
+  if (waitForExit(isActive)) {
+    return "SIGTERM";
   }
   try {
     killProcessGroup(target, "SIGKILL");
@@ -132,7 +230,7 @@ export function terminateTrackedCodexProcessGroup(
  * }} durableCore
  * @param {{
  *   now?: () => number,
- *   terminateProcessGroup?: (processGroupId: number) => NodeJS.Signals | null
+ *   terminateProcessGroup?: (tracked: {processGroupId: number, bootIdentity: string, namespaceIdentity: string, startIdentity: string}) => NodeJS.Signals | null
  * }} [options]
  */
 export function recoverCodexExecutions(
@@ -158,7 +256,12 @@ export function recoverCodexExecutions(
       recovery !== "queued" &&
       item.process_group_finished_at === null &&
       Number.isSafeInteger(item.process_group_id)
-        ? terminateProcessGroup(item.process_group_id)
+        ? terminateProcessGroup({
+            bootIdentity: item.process_boot_identity,
+            namespaceIdentity: item.process_namespace_identity,
+            processGroupId: item.process_group_id,
+            startIdentity: item.process_start_identity,
+          })
         : null;
     return { ...item, recovery, terminationSignal };
   });

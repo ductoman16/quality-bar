@@ -13,6 +13,20 @@ import { createWaiverAdjudicationResultService } from "../src/waiver-adjudicatio
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
+const PROCESS_IDENTITY = Object.freeze({
+  bootIdentity: "boot-1",
+  namespaceIdentity: "namespace-1",
+  startIdentity: "start-1",
+});
+
+/** @param {any} core @param {Parameters<typeof createCodexExecutionClaimService>[1]} options */
+function createRecoveryClaims(core, options) {
+  return createCodexExecutionClaimService(core, {
+    ...options,
+    readProcessIdentity: () => PROCESS_IDENTITY,
+  });
+}
+
 /** @param {import("node:test").TestContext} context */
 function createCore(context) {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-recovery-"));
@@ -25,7 +39,7 @@ function createCore(context) {
 test("restart releases an abandoned pre-start claim without consuming queued work", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claim = createCodexExecutionClaimService(core, {
+  const claim = createRecoveryClaims(core, {
     createWorkerId: () => "pre-start-worker",
     now: () => 20,
   }).claimNext();
@@ -56,7 +70,7 @@ test("restart releases an abandoned pre-start claim without consuming queued wor
 test("restart fails an interrupted Review Run exactly without a partial Result or retry", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "started-review-worker",
     now: () => 20,
   });
@@ -111,7 +125,7 @@ test("restart fails an interrupted Waiver Adjudication without Decisions or auto
     adjudicationReadyAt: 10,
     reviewRunReadyAt: 40,
   });
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "started-waiver-worker",
     now: () => 20,
   });
@@ -152,7 +166,7 @@ test("restart fails an interrupted Waiver Adjudication without Decisions or auto
 test("a started execution durably tracks exactly one detached process group", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "process-group-worker",
     now: () => 20,
   });
@@ -196,7 +210,7 @@ test("a started execution durably tracks exactly one detached process group", as
 test("an accepted Review Run submission wins restart recovery exactly", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "submitted-review-worker",
     now: () => 20,
   });
@@ -220,8 +234,11 @@ test("an accepted Review Run submission wins restart recovery exactly", async (c
 
   recoverCodexExecutions(core, {
     now: () => 30,
-    terminateProcessGroup(processGroupId) {
-      assert.equal(processGroupId, 4321);
+    terminateProcessGroup(tracked) {
+      assert.deepEqual(tracked, {
+        ...PROCESS_IDENTITY,
+        processGroupId: 4321,
+      });
       return "SIGTERM";
     },
   });
@@ -252,7 +269,7 @@ test("an accepted Review Run submission wins restart recovery exactly", async (c
 test("restart never signals a process group already observed terminal", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "finished-process-worker",
     now: () => 20,
   });
@@ -299,7 +316,7 @@ test("restart never signals a process group already observed terminal", async (c
 test("durable Evaluation cancellation wins restart recovery exactly", async (context) => {
   const core = createCore(context);
   await createQueuedReviewRun(core);
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "cancelled-review-worker",
     now: () => 20,
   });
@@ -351,7 +368,7 @@ test("an accepted Waiver Decision set wins restart recovery exactly", (context) 
     adjudicationReadyAt: 10,
     reviewRunReadyAt: 40,
   });
-  const claims = createCodexExecutionClaimService(core, {
+  const claims = createRecoveryClaims(core, {
     createWorkerId: () => "submitted-waiver-worker",
     now: () => 20,
   });

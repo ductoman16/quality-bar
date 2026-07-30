@@ -90,13 +90,24 @@ export const CODEX_EXECUTION_QUEUE_TRIGGERS = `
     )
     BEGIN SELECT RAISE(ABORT, 'review_run_claim_invalid'); END;
   CREATE TRIGGER IF NOT EXISTS codex_execution_queue_process_group_update
-    BEFORE UPDATE OF process_group_id, process_group_recorded_at
+    BEFORE UPDATE OF
+      process_group_id,
+      process_group_recorded_at,
+      process_boot_identity,
+      process_namespace_identity,
+      process_start_identity
     ON codex_execution_queue
     WHEN (
       OLD.process_group_id IS NOT NULL
       OR NEW.process_group_id IS NULL
       OR NEW.process_group_id <= 0
       OR NEW.process_group_recorded_at IS NULL
+      OR NEW.process_boot_identity IS NULL
+      OR length(trim(NEW.process_boot_identity)) = 0
+      OR NEW.process_namespace_identity IS NULL
+      OR length(trim(NEW.process_namespace_identity)) = 0
+      OR NEW.process_start_identity IS NULL
+      OR length(trim(NEW.process_start_identity)) = 0
       OR NEW.started_at IS NULL
       OR NEW.process_group_recorded_at < NEW.started_at
     )
@@ -131,5 +142,107 @@ export const CODEX_EXECUTION_QUEUE_TRIGGERS = `
     )
     BEGIN
       SELECT RAISE(ABORT, 'codex_execution_recovery_invalid');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_recovery_integrity_insert
+    BEFORE INSERT ON codex_execution_queue
+    WHEN NOT (
+      (
+        (NEW.process_group_id IS NULL
+          AND NEW.process_group_recorded_at IS NULL
+          AND NEW.process_boot_identity IS NULL
+          AND NEW.process_namespace_identity IS NULL
+          AND NEW.process_start_identity IS NULL)
+        OR
+        (NEW.process_group_id IS NOT NULL
+          AND NEW.process_group_id > 0
+          AND NEW.process_group_recorded_at IS NOT NULL
+          AND NEW.process_boot_identity IS NOT NULL
+          AND length(trim(NEW.process_boot_identity)) > 0
+          AND NEW.process_namespace_identity IS NOT NULL
+          AND length(trim(NEW.process_namespace_identity)) > 0
+          AND NEW.process_start_identity IS NOT NULL
+          AND length(trim(NEW.process_start_identity)) > 0
+          AND NEW.started_at IS NOT NULL
+          AND NEW.process_group_recorded_at >= NEW.started_at)
+      )
+      AND (
+        NEW.process_group_finished_at IS NULL
+        OR
+        (NEW.process_group_id IS NOT NULL
+          AND NEW.process_group_recorded_at IS NOT NULL
+          AND NEW.process_group_finished_at
+            >= NEW.process_group_recorded_at)
+      )
+      AND (
+        (NEW.recovered_at IS NULL
+          AND NEW.recovery_termination_signal IS NULL)
+        OR
+        (NEW.recovered_at IS NOT NULL
+          AND NEW.started_at IS NOT NULL
+          AND NEW.recovered_at >= NEW.started_at
+          AND (
+            NEW.recovery_termination_signal IS NULL
+            OR NEW.recovery_termination_signal IN ('SIGTERM', 'SIGKILL')
+          ))
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'codex_execution_recovery_integrity_invalid');
+    END;
+  CREATE TRIGGER IF NOT EXISTS codex_execution_queue_recovery_integrity_update
+    BEFORE UPDATE OF
+      started_at,
+      process_group_id,
+      process_group_recorded_at,
+      process_boot_identity,
+      process_namespace_identity,
+      process_start_identity,
+      process_group_finished_at,
+      recovery_termination_signal,
+      recovered_at
+    ON codex_execution_queue
+    WHEN NOT (
+      (
+        (NEW.process_group_id IS NULL
+          AND NEW.process_group_recorded_at IS NULL
+          AND NEW.process_boot_identity IS NULL
+          AND NEW.process_namespace_identity IS NULL
+          AND NEW.process_start_identity IS NULL)
+        OR
+        (NEW.process_group_id IS NOT NULL
+          AND NEW.process_group_id > 0
+          AND NEW.process_group_recorded_at IS NOT NULL
+          AND NEW.process_boot_identity IS NOT NULL
+          AND length(trim(NEW.process_boot_identity)) > 0
+          AND NEW.process_namespace_identity IS NOT NULL
+          AND length(trim(NEW.process_namespace_identity)) > 0
+          AND NEW.process_start_identity IS NOT NULL
+          AND length(trim(NEW.process_start_identity)) > 0
+          AND NEW.started_at IS NOT NULL
+          AND NEW.process_group_recorded_at >= NEW.started_at)
+      )
+      AND (
+        NEW.process_group_finished_at IS NULL
+        OR
+        (NEW.process_group_id IS NOT NULL
+          AND NEW.process_group_recorded_at IS NOT NULL
+          AND NEW.process_group_finished_at
+            >= NEW.process_group_recorded_at)
+      )
+      AND (
+        (NEW.recovered_at IS NULL
+          AND NEW.recovery_termination_signal IS NULL)
+        OR
+        (NEW.recovered_at IS NOT NULL
+          AND NEW.started_at IS NOT NULL
+          AND NEW.recovered_at >= NEW.started_at
+          AND (
+            NEW.recovery_termination_signal IS NULL
+            OR NEW.recovery_termination_signal IN ('SIGTERM', 'SIGKILL')
+          ))
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'codex_execution_recovery_integrity_invalid');
     END;
 `;

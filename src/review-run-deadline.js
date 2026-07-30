@@ -1,5 +1,7 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
+export const REVIEW_RUN_DEADLINE_MILLISECONDS = 15 * 60 * 1_000;
+
 /** @param {unknown} recordDeadline */
 export function requireDeadlineRecorder(recordDeadline) {
   if (typeof recordDeadline !== "function") {

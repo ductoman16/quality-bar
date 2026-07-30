@@ -75,7 +75,9 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
   assert.deepEqual(
     migrated.get(
       `SELECT work_kind, started_at, process_group_id,
-              process_group_recorded_at, process_group_finished_at,
+              process_group_recorded_at, process_boot_identity,
+              process_namespace_identity, process_start_identity,
+              process_group_finished_at,
               recovery_termination_signal, recovered_at
        FROM codex_execution_queue WHERE work_id = 'review-run-1'`,
     ),
@@ -83,10 +85,23 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
       process_group_finished_at: null,
       process_group_id: null,
       process_group_recorded_at: null,
+      process_boot_identity: null,
+      process_namespace_identity: null,
+      process_start_identity: null,
       recovered_at: null,
       recovery_termination_signal: null,
       started_at: null,
       work_kind: "review_run",
     },
+  );
+  assert.throws(
+    () =>
+      migrated.run(
+        `INSERT INTO codex_execution_queue (
+           work_id, work_kind, ready_at, accepted_at, started_at,
+           process_group_recorded_at
+         ) VALUES ('invalid-recovery-row', 'review_run', 20, 20, NULL, 99)`,
+      ),
+    /codex_execution_recovery_integrity_invalid/,
   );
 });

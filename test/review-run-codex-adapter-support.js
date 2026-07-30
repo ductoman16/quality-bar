@@ -45,10 +45,12 @@ export function runningProcess(pid) {
   });
 }
 
-/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "recordDeadline" | "startRun"> & {recordDeadline?: Parameters<typeof runCodexAdapter>[0]["recordDeadline"], startRun?: () => unknown}} options */
+/** @param {Omit<Parameters<typeof runCodexAdapter>[0], "finishProcessGroup" | "recordDeadline" | "startRun" | "trackProcessGroup"> & {finishProcessGroup?: () => unknown, recordDeadline?: Parameters<typeof runCodexAdapter>[0]["recordDeadline"], startRun?: () => unknown, trackProcessGroup?: (processGroupId: number) => unknown}} options */
 export const runReviewRunCodex = (options) =>
   runCodexAdapter({
     ...options,
+    finishProcessGroup: options.finishProcessGroup ?? (() => {}),
     recordDeadline: options.recordDeadline ?? (() => {}),
     startRun: options.startRun ?? (() => {}),
+    trackProcessGroup: options.trackProcessGroup ?? (() => {}),
   });

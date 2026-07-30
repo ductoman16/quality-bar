@@ -77,7 +77,7 @@ test("restart terminates a tracked surviving process group and retains its parti
     {
       process_group_id: child.pid,
       recovered_at: 30,
-      recovery_termination_signal: "SIGKILL",
+      recovery_termination_signal: "SIGTERM",
     },
   );
   assert.deepEqual(

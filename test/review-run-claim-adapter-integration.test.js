@@ -8,6 +8,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
 import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
+import { runReviewRunCodex as runProductionReviewRunCodex } from "../src/review-run-codex-adapter.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 import {
   acceptedChannel,
@@ -16,6 +17,28 @@ import {
   runReviewRunCodex,
   runningProcess,
 } from "./review-run-codex-adapter-support.js";
+
+test("process-group tracking is required before opening submission", async () => {
+  let opened = false;
+  await assert.rejects(
+    () =>
+      runProductionReviewRunCodex(
+        /** @type {any} */ ({
+          checkoutPath: "/checkout",
+          claim: adapterClaim,
+          openSubmissionChannel: async () => {
+            opened = true;
+            return acceptedChannel();
+          },
+          recordDeadline() {},
+          resultService: { prepare() {} },
+          run: adapterRun,
+        }),
+      ),
+    new TypeError("Codex process-group tracking dependencies are invalid"),
+  );
+  assert.equal(opened, false);
+});
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-claim-adapter-"));

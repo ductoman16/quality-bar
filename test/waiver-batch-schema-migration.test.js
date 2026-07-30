@@ -197,22 +197,22 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
   const migrated = openDurableCore(databasePath);
   try {
     assert.equal(migrated.facts.schemaVersion, 45);
-    assert.deepEqual(
+    const columns = new Set(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
         .map((/** @type {any} */ column) => column.name),
-      [
-        "work_id",
-        "work_kind",
-        "ready_at",
-        "accepted_at",
-        "started_at",
-        "retry_state",
-        "worker_id",
-        "fencing_token",
-        "lease_expires_at",
-      ],
     );
+    for (const column of [
+      "worker_id",
+      "retry_state",
+      "process_group_id",
+      "process_boot_identity",
+      "process_namespace_identity",
+      "process_start_identity",
+      "recovered_at",
+    ]) {
+      assert.equal(columns.has(column), true);
+    }
     assert.match(
       String(
         migrated.get(

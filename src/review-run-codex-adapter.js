@@ -19,14 +19,12 @@ import {
   createTranscriptFailureController,
   observeCodexProcess,
 } from "./review-run-codex-process.js";
-import { trackSpawnedCodexProcessGroup } from "./codex-execution-process-group-tracking.js";
+import * as group from "./codex-execution-process-group-tracking.js";
 import * as deadline from "./review-run-deadline.js";
 import * as evidence from "./review-run-evidence.js";
 import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
-
-const REVIEW_RUN_DEADLINE_MILLISECONDS = 15 * 60 * 1_000;
 
 /**
  * @param {string} code
@@ -83,8 +81,8 @@ export function reviewRunCodexEnvironment(
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},
  *   recordDeadline: (failure: ReviewRunExecutionError) => unknown,
  *   startRun: () => unknown,
- *   finishProcessGroup?: () => unknown,
- *   trackProcessGroup?: (processGroupId: number) => unknown,
+ *   finishProcessGroup: () => unknown,
+ *   trackProcessGroup: (processGroupId: number) => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   clearDeadlineTimer?: (timer: any) => void,
@@ -119,10 +117,11 @@ export async function runReviewRunCodex({
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
   startRun,
-  finishProcessGroup = () => {},
-  trackProcessGroup = () => {},
+  finishProcessGroup,
+  trackProcessGroup,
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
+  group.requireTracking(finishProcessGroup, trackProcessGroup);
   const channel = await openSubmissionChannel(claim, resultService);
   /** @type {Promise<void> | undefined} */
   let channelClose;
@@ -146,7 +145,7 @@ export async function runReviewRunCodex({
     });
     const deadlineTimer = setDeadlineTimer(
       signalDeadline,
-      REVIEW_RUN_DEADLINE_MILLISECONDS,
+      deadline.REVIEW_RUN_DEADLINE_MILLISECONDS,
     );
     /** @type {import("node:child_process").ChildProcess} */
     let child;
@@ -204,7 +203,7 @@ export async function runReviewRunCodex({
         transcript.stop(error);
       }
     });
-    await trackSpawnedCodexProcessGroup(
+    await group.trackSpawnedCodexProcessGroup(
       child,
       trackProcessGroup,
       closeSubmissionChannel,

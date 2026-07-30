@@ -1,5 +1,14 @@
 import { ReviewRunExecutionError } from "./review-run-result.js";
 
+/** @param {unknown} finish @param {unknown} track */
+export function requireTracking(finish, track) {
+  if (typeof finish !== "function" || typeof track !== "function") {
+    throw new TypeError(
+      "Codex process-group tracking dependencies are invalid",
+    );
+  }
+}
+
 /**
  * @param {import("node:child_process").ChildProcess} child
  * @param {(processGroupId: number) => unknown} track
