@@ -32,4 +32,77 @@ test("the browser preserves queued state and the exact owning execution failure"
     }),
     "Waiver Adjudication adjudication-failed failed. Error result_not_submitted: Codex exited without an accepted Decision set",
   );
+  assert.equal(
+    describeStatus({
+      error: {
+        code: "result_not_submitted",
+        detail: " Exact failure detail retained. ",
+      },
+      execution_status: "failed",
+      id: "adjudication-exact-failure",
+    }),
+    "Waiver Adjudication adjudication-exact-failure failed. Error result_not_submitted:  Exact failure detail retained. ",
+  );
+  assert.equal(
+    describeStatus({
+      decisions: [
+        {
+          explanation:
+            "The inspected evidence proves this exact exception is justified.",
+          id: "decision-accepted",
+          outcome: "accepted",
+          request_id: "request-accepted",
+        },
+        {
+          explanation:
+            "The rationale is uncertain and does not justify an exception.",
+          id: "decision-denied",
+          outcome: "denied",
+          request_id: "request-denied",
+        },
+        {
+          error: {
+            code: "required_evidence_unavailable",
+            detail: "The frozen generated file cannot be inspected.",
+          },
+          id: "decision-error",
+          outcome: "error",
+          request_id: "request-error",
+        },
+      ],
+      execution_status: "completed",
+      id: "adjudication-completed",
+    }),
+    "Waiver Adjudication adjudication-completed completed. Decisions: request-accepted accepted: The inspected evidence proves this exact exception is justified. request-denied denied: The rationale is uncertain and does not justify an exception. request-error error required_evidence_unavailable: The frozen generated file cannot be inspected.",
+  );
+  for (const invalidDecision of [
+    {
+      error: { code: " ", detail: "Exact detail." },
+      id: "decision-error",
+      outcome: "error",
+      request_id: "request-error",
+    },
+    {
+      error: { code: "required_evidence_unavailable", detail: " " },
+      id: "decision-error",
+      outcome: "error",
+      request_id: "request-error",
+    },
+    {
+      explanation: "Accepted.",
+      id: " ",
+      outcome: "accepted",
+      request_id: "request-accepted",
+    },
+  ]) {
+    assert.throws(
+      () =>
+        describeStatus({
+          decisions: [invalidDecision],
+          execution_status: "completed",
+          id: "adjudication-invalid",
+        }),
+      /waiver_adjudication_invalid/,
+    );
+  }
 });

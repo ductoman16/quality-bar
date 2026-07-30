@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createEvaluationCollectionReader } from "../src/evaluation-collection-reader.js";
 import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
@@ -193,6 +194,112 @@ test("SQLite rejects a raw partial Decision set as completed", () => {
         "SELECT execution_status FROM waiver_adjudications WHERE id = 'adjudication-1'",
       )?.execution_status,
       "running",
+    );
+  } finally {
+    core.close();
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("current immutable waiver facts control only the exact Evaluation outcome", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-outcome-"));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  try {
+    seedCompletedEvaluation(core);
+    preparedAdjudication(core);
+    const evaluations = createEvaluationCollectionReader(
+      core,
+      Buffer.alloc(32, 7),
+    );
+    assert.equal(evaluations.read("evaluation-1").effective_outcome, "pending");
+
+    const decisionIds = ["decision-error", "decision-accepted"];
+    createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => decisionIds.shift() ?? assert.fail("missing id"),
+      now: () => 12,
+    }).prepare(
+      {
+        fencingToken: 1,
+        workerId: "worker-1",
+        workId: "adjudication-1",
+      },
+      {
+        decisions: [
+          {
+            error: {
+              code: "required_evidence_unavailable",
+              detail: "The frozen generated file is unavailable.",
+            },
+            outcome: "error",
+            request_id: "request-1",
+          },
+          {
+            explanation: "The exact second exception is justified.",
+            outcome: "accepted",
+            request_id: "request-2",
+          },
+        ],
+      },
+    );
+    assert.equal(evaluations.read("evaluation-1").effective_outcome, "error");
+
+    core.run(
+      `INSERT INTO waiver_adjudications (
+         id, evaluation_id, base_commit, head_commit, model,
+         reasoning_effort, service_tier, execution_status, created_at
+       ) SELECT 'adjudication-2', evaluation_id, base_commit, head_commit,
+                model, reasoning_effort, service_tier, 'queued', 5
+         FROM waiver_adjudications WHERE id = 'adjudication-1'`,
+    );
+    core.run(
+      `INSERT INTO waiver_adjudication_requests (
+         waiver_adjudication_id, waiver_request_id, position
+       ) VALUES ('adjudication-2', 'request-1', 1)`,
+    );
+    core.run(
+      `INSERT INTO codex_execution_queue (
+         work_id, work_kind, ready_at, accepted_at, started_at,
+         worker_id, fencing_token, lease_expires_at
+       ) VALUES (
+         'adjudication-2', 'waiver_adjudication', 5, 5, 5,
+         'worker-2', 1, 100
+       )`,
+    );
+    core.run(
+      `UPDATE waiver_adjudications
+       SET execution_status = 'running', started_at = 5,
+           codex_cli_version = '0.114.0'
+       WHERE id = 'adjudication-2'`,
+    );
+    assert.equal(evaluations.read("evaluation-1").effective_outcome, "pending");
+    createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => "decision-retry-accepted",
+      now: () => 6,
+    }).prepare(
+      {
+        fencingToken: 1,
+        workerId: "worker-2",
+        workId: "adjudication-2",
+      },
+      {
+        decisions: [
+          {
+            explanation: "The newly available evidence proves the exception.",
+            outcome: "accepted",
+            request_id: "request-1",
+          },
+        ],
+      },
+    );
+    assert.equal(
+      evaluations.read("evaluation-1").effective_outcome,
+      "blocking",
+    );
+    assert.equal(
+      core.get(
+        "SELECT outcome FROM evaluation_results WHERE evaluation_id = 'evaluation-1'",
+      )?.outcome,
+      "advisory",
     );
   } finally {
     core.close();

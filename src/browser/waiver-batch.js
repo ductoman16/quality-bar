@@ -1,9 +1,21 @@
 (() => {
+  /** @param {unknown} value */
+  const canonicalNonblank = (value) =>
+    typeof value === "string" && value.length > 0 && value === value.trim();
+
+  /** @param {unknown} value */
+  const nonblank = (value) =>
+    typeof value === "string" && value.trim().length > 0;
+
+  /** @param {unknown} value */
+  const stableCode = (value) =>
+    typeof value === "string" && /^[a-z][a-z0-9_]*$/.test(value);
+
   /** @param {any} adjudication */
   function describeStatus(adjudication) {
     if (
       !adjudication ||
-      typeof adjudication.id !== "string" ||
+      !canonicalNonblank(adjudication.id) ||
       !["queued", "running", "completed", "failed", "cancelled"].includes(
         adjudication.execution_status,
       )
@@ -18,13 +30,57 @@
       ".";
     if (adjudication.execution_status === "failed") {
       if (
-        typeof adjudication.error?.code !== "string" ||
-        typeof adjudication.error?.detail !== "string"
+        !stableCode(adjudication.error?.code) ||
+        !nonblank(adjudication.error?.detail)
       ) {
         throw new Error("waiver_adjudication_invalid");
       }
       status +=
         " Error " + adjudication.error.code + ": " + adjudication.error.detail;
+    }
+    if (adjudication.execution_status === "completed") {
+      if (
+        !Array.isArray(adjudication.decisions) ||
+        adjudication.decisions.length === 0
+      ) {
+        throw new Error("waiver_adjudication_invalid");
+      }
+      status += " Decisions:";
+      for (const decision of adjudication.decisions) {
+        if (
+          !canonicalNonblank(decision?.id) ||
+          !canonicalNonblank(decision.request_id) ||
+          !["accepted", "denied", "error"].includes(decision.outcome)
+        ) {
+          throw new Error("waiver_adjudication_invalid");
+        }
+        if (decision.outcome === "error") {
+          if (
+            !stableCode(decision.error?.code) ||
+            !canonicalNonblank(decision.error.detail)
+          ) {
+            throw new Error("waiver_adjudication_invalid");
+          }
+          status +=
+            " " +
+            decision.request_id +
+            " error " +
+            decision.error.code +
+            ": " +
+            decision.error.detail;
+        } else {
+          if (!canonicalNonblank(decision.explanation)) {
+            throw new Error("waiver_adjudication_invalid");
+          }
+          status +=
+            " " +
+            decision.request_id +
+            " " +
+            decision.outcome +
+            ": " +
+            decision.explanation;
+        }
+      }
     }
     return status;
   }
