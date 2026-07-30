@@ -23,63 +23,70 @@ test("Evaluation detail makes an unavailable success status exact attention with
     published_at: null,
     state: "success",
   };
+  const context = {
+    crypto: { randomUUID: () => "idempotency-key" },
+    document: { createElement: () => browserElement() },
+    /** @param {string} path */
+    async fetch(path) {
+      if (path === "/api/v1/evaluations") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              items: [
+                evaluation({
+                  commit_status: commitStatus,
+                  effective_outcome: "clear",
+                  execution_status: "completed",
+                }),
+              ],
+              next_cursor: null,
+            };
+          },
+        };
+      }
+      throw new Error(`unexpected fetch: ${path}`);
+    },
+    window: {
+      location: { search: "" },
+      qualityBarEvaluationFeedback: {
+        correction(/** @type {any} */ evaluationResource) {
+          return {
+            href: "/?view=repositories#github-connection-details",
+            text:
+              "GitHub Connection " +
+              evaluationResource.commit_status.connection_identity,
+          };
+        },
+        hasUnavailable: () => false,
+        render() {},
+        valid: () => true,
+        validCommitStatus: () => true,
+      },
+      qualityBarEvaluationResult: { async render() {} },
+      qualityBarOperator: {
+        csrfToken: () => "csrf",
+        async readRepositoryCollection() {
+          return { failure: null, items: [] };
+        },
+        /** @param {string} id */
+        requiredElement(id) {
+          return controls.get(id);
+        },
+      },
+    },
+  };
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-active-controls.js",
+    readBrowserAsset("/assets/evaluation-active-controls.js"),
+    context,
+  );
   executeServedBrowserAsset(
     resolve("."),
     "src/browser/evaluation.js",
     readBrowserAsset("/assets/evaluation.js"),
-    {
-      crypto: { randomUUID: () => "idempotency-key" },
-      document: { createElement: () => browserElement() },
-      /** @param {string} path */
-      async fetch(path) {
-        if (path === "/api/v1/evaluations") {
-          return {
-            ok: true,
-            async json() {
-              return {
-                items: [
-                  evaluation({
-                    commit_status: commitStatus,
-                    effective_outcome: "clear",
-                    execution_status: "completed",
-                  }),
-                ],
-                next_cursor: null,
-              };
-            },
-          };
-        }
-        throw new Error(`unexpected fetch: ${path}`);
-      },
-      window: {
-        location: { search: "" },
-        qualityBarEvaluationFeedback: {
-          correction(/** @type {any} */ evaluationResource) {
-            return {
-              href: "/?view=repositories#github-connection-details",
-              text:
-                "GitHub Connection " +
-                evaluationResource.commit_status.connection_identity,
-            };
-          },
-          hasUnavailable: () => false,
-          render() {},
-          valid: () => true,
-          validCommitStatus: () => true,
-        },
-        qualityBarEvaluationResult: { async render() {} },
-        qualityBarOperator: {
-          csrfToken: () => "csrf",
-          async readRepositoryCollection() {
-            return { failure: null, items: [] };
-          },
-          /** @param {string} id */
-          requiredElement(id) {
-            return controls.get(id);
-          },
-        },
-      },
-    },
+    context,
   );
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
 

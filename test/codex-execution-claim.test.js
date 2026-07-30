@@ -13,6 +13,9 @@ test("Codex execution claims use one oldest-ready-first selection across work ki
     {
       transaction(callback) {
         return callback({
+          all() {
+            return [];
+          },
           /** @param {string} sql */
           get(sql) {
             if (sql.includes("codex_execution_settings")) {

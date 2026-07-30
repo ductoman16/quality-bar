@@ -258,6 +258,7 @@ export function createApplication({
         masterKey: installation.masterKey,
         now,
         storageReserve,
+        validateCodexAuthentication,
       });
     } finally {
       installation.masterKey.fill(0);

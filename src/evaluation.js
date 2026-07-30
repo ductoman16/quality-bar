@@ -33,6 +33,9 @@ import { createWaiverBatchService } from "./waiver-batch.js";
 import { createWaiverResourceReader } from "./waiver-resource.js";
 import { readEvaluationWaiverAdjudications } from "./waiver-adjudication-resource.js";
 import { createAnalyticsService } from "./analytics.js";
+import { createEvaluationPreStartRetryService } from "./evaluation-pre-start-retry.js";
+import { createAutomaticEvaluationAdmission } from "./evaluation-automatic-admission.js";
+import { readLiveCodexCapabilityFailure as readCapabilityFailure } from "./codex-capability-gate.js";
 
 export { EvaluationError };
 export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
@@ -57,7 +60,8 @@ export { createUnavailableEvaluationService } from "./evaluation-unavailable.js"
  *   masterKey: Buffer,
  *   now?: () => number,
  *   signalCancellations?: (workIds: string[]) => void,
- *   storageReserve: {assertWorkAdmissionAvailable: () => unknown}
+ *   storageReserve: {assertWorkAdmissionAvailable: () => unknown},
+ *   validateCodexAuthentication?: () => unknown
  * }} options
  */
 export function createEvaluationService(
@@ -73,6 +77,7 @@ export function createEvaluationService(
     now = () => Date.now(),
     signalCancellations = signalReviewRunCancellations,
     storageReserve,
+    validateCodexAuthentication = () => {},
   },
 ) {
   if (
@@ -85,7 +90,8 @@ export function createEvaluationService(
     masterKey.length !== 32 ||
     typeof now !== "function" ||
     typeof signalCancellations !== "function" ||
-    typeof storageReserve?.assertWorkAdmissionAvailable !== "function"
+    typeof storageReserve?.assertWorkAdmissionAvailable !== "function" ||
+    typeof validateCodexAuthentication !== "function"
   ) {
     throw new TypeError("Evaluation dependencies are invalid");
   }
@@ -93,17 +99,27 @@ export function createEvaluationService(
     durableCore,
     masterKey,
   );
+  const readLiveCodexCapabilityFailure = () =>
+    readCapabilityFailure(
+      readCodexCapabilityFailure(),
+      validateCodexAuthentication,
+    );
 
   const resultResources = createEvaluationResultResourceReader(durableCore);
   const waiverBatches = createWaiverBatchService(durableCore, {
     createAdjudicationId: createWaiverAdjudicationId,
     createRequestId: createWaiverRequestId,
     now,
-    readCodexCapabilityFailure,
+    readCodexCapabilityFailure: readLiveCodexCapabilityFailure,
     storageReserve,
   });
   const waiverResources = createWaiverResourceReader(durableCore);
   const analytics = createAnalyticsService(durableCore);
+  const preStartRetries = createEvaluationPreStartRetryService(durableCore, {
+    now,
+    readCodexCapabilityFailure: readLiveCodexCapabilityFailure,
+    storageReserve,
+  });
 
   /**
    * @param {any} transaction
@@ -183,7 +199,7 @@ export function createEvaluationService(
       transaction,
       repositoryId,
       createReviewRunId,
-      readCodexCapabilityFailure,
+      readLiveCodexCapabilityFailure,
       changeset,
       typeof changeset.matches_path === "function"
         ? changeset.matches_path
@@ -263,35 +279,10 @@ export function createEvaluationService(
   }
 
   return {
-    /**
-     * @param {any} transaction
-     * @param {{changeset: any, pullRequestNumber: number, repositoryId: string}} input
-     */
-    admitAutomatic(transaction, input) {
-      if (
-        !transaction ||
-        typeof transaction.get !== "function" ||
-        typeof transaction.run !== "function" ||
-        typeof input?.repositoryId !== "string" ||
-        input.repositoryId.length === 0
-      ) {
-        throw new TypeError("Automatic Evaluation admission is invalid");
-      }
-      const admitted = admitFrozenEvaluation(transaction, {
-        ...input,
-        provenance: "automatic",
-        selectors: {
-          base: { type: "commit", value: input.changeset?.base_commit },
-          head: { type: "commit", value: input.changeset?.head_commit },
-        },
-      });
-      return {
-        afterCommit() {
-          signalCancellations(admitted.cancelledRunningReviewRunIds);
-        },
-        resource: admitted.resource,
-      };
-    },
+    admitAutomatic: createAutomaticEvaluationAdmission(
+      admitFrozenEvaluation,
+      signalCancellations,
+    ),
     /** @param {string} id */
     cancel(id) {
       cancelEvaluation(
@@ -315,6 +306,21 @@ export function createEvaluationService(
       };
     },
     read,
+    /**
+     * @param {{
+     *   channel: "browser_session" | "implementer_token" | "mcp",
+     *   evaluationId: string,
+     *   idempotencyKey: unknown
+     * }} input
+     */
+    retryPreStart({ channel, evaluationId, idempotencyKey }) {
+      const retried = preStartRetries.retry({
+        channel,
+        evaluationId,
+        idempotencyKey,
+      });
+      return retried;
+    },
     readAnalytics: analytics.read,
     /** @param {string} id */
     readWaiverAdjudications(id) {

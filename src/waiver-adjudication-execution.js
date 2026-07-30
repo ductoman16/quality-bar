@@ -1,5 +1,4 @@
 import { CODEX_CAPABILITY_CATALOG } from "./codex-capabilities.js";
-import { IoExecutionPoolError } from "./io-execution-pool.js";
 import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { runReviewRunCodex } from "./review-run-codex-adapter.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
@@ -243,12 +242,15 @@ export async function executeWaiverAdjudication(
   );
   try {
     let checkout;
+    let preStartAttemptBegan = false;
     try {
       checkout = await ioPool.run(
         "acquisition",
         /** @param {AbortSignal | undefined} signal */
         async (signal) => {
           signal?.throwIfAborted();
+          claimService.beginPreStartAttempt(claim);
+          preStartAttemptBegan = true;
           const credential = await acquireCheckoutCredential();
           signal?.throwIfAborted();
           const prepared = await prepareCheckout({
@@ -266,10 +268,7 @@ export async function executeWaiverAdjudication(
         },
       );
     } catch (error) {
-      if (
-        error instanceof IoExecutionPoolError &&
-        error.code === "io_execution_capacity_unavailable"
-      ) {
+      if (!preStartAttemptBegan) {
         claimService.release(claim);
         throw owningFailure(error);
       }

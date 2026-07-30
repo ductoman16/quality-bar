@@ -1,6 +1,7 @@
 import { DurableCoreError } from "./durable-error.js";
 import { completeEvaluationIfTerminal } from "./evaluation-aggregation.js";
 import { terminateTrackedCodexProcessGroup } from "./codex-execution-process-recovery.js";
+import { recoverInterruptedCodexPreStartAttempt } from "./codex-execution-pre-start.js";
 
 export { terminateTrackedCodexProcessGroup };
 
@@ -176,6 +177,11 @@ export function recoverCodexExecutions(
     for (const item of work) {
       if (item.recovery === "queued") {
         queued += 1;
+        if (
+          recoverInterruptedCodexPreStartAttempt(transaction, item, recoveredAt)
+        ) {
+          continue;
+        }
         transaction.run(
           `UPDATE codex_execution_queue
            SET lease_expires_at = ?

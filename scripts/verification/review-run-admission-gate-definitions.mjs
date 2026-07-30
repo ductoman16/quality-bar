@@ -10,6 +10,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
     failureCode: "review_run_execution_unit_tests_failed",
     arguments: [
       "--test",
+      "test/codex-execution-pre-start.test.js",
       "test/review-run-codex-adapter.test.js",
       "test/review-run-codex-failure.test.js",
       "test/review-run-submission-failure.test.js",
@@ -17,6 +18,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/review-run-codex-termination.test.js",
       "test/review-run-deadline.test.js",
       "test/review-run-evidence-adapter.test.js",
+      "test/review-run-execution-pre-start.test.js",
       "test/review-run-execution.test.js",
       "test/review-run-inspect-on-demand.test.js",
       "test/review-run-evidence.test.js",
@@ -58,6 +60,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/evaluation-aggregation-sqlite-integration.test.js",
       "test/evaluation-cancellation-schema-migration.test.js",
       "test/evaluation-cancellation-sqlite-integration.test.js",
+      "test/evaluation-cancellation-pre-start-sqlite-integration.test.js",
       "test/review-run-deadline-sqlite-integration.test.js",
       "test/review-run-result-sqlite-integration.test.js",
       "test/review-run-submission-failure-sqlite-integration.test.js",
@@ -76,21 +79,37 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
     ],
   },
   {
+    name: "review-run-pre-start-sqlite-failure-integration",
+    testGroup:
+      "accepted-review-run-initial-one-minute-five-minute-transient-retry-definitive-exhaustion-lost-claim-zero-attempt-same-identity-v45-migration-no-partial-result",
+    failureCode: "review_run_pre_start_sqlite_failure_integration_tests_failed",
+    arguments: [
+      "--test",
+      "test/review-run-pre-start-sqlite-failure-integration.test.js",
+      "test/review-run-pre-start-schema-migration.test.js",
+    ],
+  },
+  {
     name: "adapter-integration",
-    testGroup: "review-run-admission-codex-adapter-dependency-boundary",
+    testGroup:
+      "review-run-admission-codex-adapter-dependency-and-browser-same-identity-pre-start-retry-boundaries",
     failureCode: "adapter_integration_tests_failed",
     arguments: [
       "--test",
       "test/review-run-admission-adapter-integration.test.js",
+      "test/evaluation-pre-start-retry-adapter-integration.test.js",
+      "test/evaluation-pre-start-retry-browser-component.test.js",
     ],
   },
   {
     name: "process-integration",
-    testGroup: "review-run-admission-cross-process-capacity-boundary",
+    testGroup:
+      "review-run-admission-cross-process-capacity-and-durable-pre-start-retry-boundaries",
     failureCode: "process_integration_tests_failed",
     arguments: [
       "--test",
       "test/review-run-admission-process-integration.test.js",
+      "test/review-run-pre-start-process-integration.test.js",
     ],
   },
   ...REVIEW_RUN_CLAIM_GATE_DEFINITIONS,

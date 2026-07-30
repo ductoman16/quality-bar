@@ -65,6 +65,9 @@ export function createUnavailableEvaluationService(error) {
     retryWaiverErrors() {
       failEvaluation(failure.code, failure.message, error);
     },
+    retryPreStart() {
+      failEvaluation(failure.code, failure.message, error);
+    },
     submitWaiverBatch() {
       failEvaluation(failure.code, failure.message, error);
     },

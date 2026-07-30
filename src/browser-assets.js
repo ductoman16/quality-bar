@@ -47,6 +47,11 @@ const browserAssets = [
     url: new URL("./browser/evaluation-feedback.js", import.meta.url),
   },
   {
+    route: "/assets/evaluation-active-controls.js",
+    sourcePath: "src/browser/evaluation-active-controls.js",
+    url: new URL("./browser/evaluation-active-controls.js", import.meta.url),
+  },
+  {
     route: "/assets/evaluation.js",
     sourcePath: "src/browser/evaluation.js",
     url: new URL("./browser/evaluation.js", import.meta.url),
