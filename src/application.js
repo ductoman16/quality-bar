@@ -1,4 +1,5 @@
 import { openDurableCore } from "./durable-core.js";
+import { createApplicationIoPool } from "./application-io-pool.js";
 import {
   loadInstallationConfiguration,
   verifyInstallationKey,
@@ -12,7 +13,6 @@ import {
 import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
-  removeExpiredBrowserSessions,
 } from "./browser-session.js";
 import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import { requireCodedError } from "./coded-error.js";
@@ -110,6 +110,7 @@ export function createApplication({
   }
 
   const storageBoundary = createHardStorageBoundary(writeLog);
+  const ioPool = createApplicationIoPool();
   /** @type {ReturnType<typeof openDurableCore> | null} */
   let durableCore = null;
   let browserSessions = null;
@@ -146,15 +147,12 @@ export function createApplication({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    storageReserve = createStorageReserve({
-      cleanupEligibleData() {
-        if (!durableCore) {
-          throw new TypeError("durable core is required for storage cleanup");
-        }
-        removeExpiredBrowserSessions(durableCore, { now });
-      },
-      reserveBytes: installation.freeSpaceReserveBytes,
-    });
+    storageReserve = ioPool.createStorageReserve(
+      createStorageReserve,
+      () => durableCore,
+      now,
+      installation.freeSpaceReserveBytes,
+    );
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(requireCodedError(error));
@@ -226,9 +224,7 @@ export function createApplication({
       });
       evaluations = createEvaluations(durableCore, {
         acquireChangeset: (repositoryId, request) =>
-          /** @type {ReturnType<typeof createRepositoryService>} */ (
-            repositories
-          ).resolvePushedSelectors(repositoryId, request),
+          ioPool.acquireChangeset(repositories, repositoryId, request),
         readCodexCapabilityFailure: () => codexCapabilityFailure,
         masterKey: installation.masterKey,
         now,
@@ -430,6 +426,7 @@ export function createApplication({
       repositories?.destroy?.();
       githubConnections?.destroy?.();
       forgejoConnections?.destroy?.();
+      await ioPool.close();
       durableCore?.close();
       releaseInstallationLock?.();
       releaseInstallationLock = null;

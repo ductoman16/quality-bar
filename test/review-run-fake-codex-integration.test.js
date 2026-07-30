@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
@@ -181,6 +182,7 @@ async function proveFakeCodexResult(context, outcome) {
 
   const execution = () =>
     executeReviewRun(core, claim, {
+      ioPool: createIoExecutionPool(),
       checkoutRoot,
       claimService: claims,
       codexCommand: process.execPath,

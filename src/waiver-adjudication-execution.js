@@ -188,10 +188,10 @@ function owningFailure(error) {
   );
 }
 
-/** @param {{remove(): void}} checkout @param {unknown} failure */
-function removeCheckout(checkout, failure) {
+/** @param {{run: (duty: "cleanup", operation: () => unknown) => Promise<unknown>}} ioPool @param {{remove(): void}} checkout @param {unknown} failure */
+async function removeCheckout(ioPool, checkout, failure) {
   try {
-    checkout.remove();
+    await ioPool.run("cleanup", () => checkout.remove());
   } catch (cleanupFailure) {
     if (!(failure instanceof Error)) {
       throw cleanupFailure;
@@ -212,12 +212,16 @@ export async function executeWaiverAdjudication(
     checkoutRoot = "/var/cache/quality-bar/checkouts",
     claimService,
     evidenceService = createWaiverAdjudicationEvidenceService(durableCore),
+    ioPool,
     prepareCheckout = prepareReviewRunCheckout,
     resultService,
     runCodex = runReviewRunCodex,
     ...codexOptions
   },
 ) {
+  if (typeof ioPool?.run !== "function") {
+    throw new TypeError("Waiver Adjudication I/O pool is required");
+  }
   const adjudication = readAdjudication(durableCore, claim.workId);
   let claimFailure = null;
   const stopRenewal = claimService.startRenewal(
@@ -230,15 +234,17 @@ export async function executeWaiverAdjudication(
     },
   );
   try {
-    const checkout = await prepareCheckout({
-      baseCommit: adjudication.baseCommit,
-      checkoutRoot,
-      credential: checkoutCredential,
-      fencingToken: claim.fencingToken,
-      headCommit: adjudication.headCommit,
-      repositoryUrl: adjudication.repositoryUrl,
-      workId: claim.workId,
-    });
+    const checkout = await ioPool.run("acquisition", () =>
+      prepareCheckout({
+        baseCommit: adjudication.baseCommit,
+        checkoutRoot,
+        credential: checkoutCredential,
+        fencingToken: claim.fencingToken,
+        headCommit: adjudication.headCommit,
+        repositoryUrl: adjudication.repositoryUrl,
+        workId: claim.workId,
+      }),
+    );
     let executionFailure;
     let started = false;
     let terminalFailureRecorded = false;
@@ -282,7 +288,7 @@ export async function executeWaiverAdjudication(
       }
       throw executionFailure;
     } finally {
-      removeCheckout(checkout, executionFailure);
+      await removeCheckout(ioPool, checkout, executionFailure);
     }
   } finally {
     stopRenewal();

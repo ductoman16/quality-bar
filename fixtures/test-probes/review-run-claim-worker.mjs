@@ -60,9 +60,11 @@ try {
       if (
         error instanceof Error &&
         "code" in error &&
-        ["review_run_claim_lost", "waiver_adjudication_claim_lost"].includes(
-          String(error.code),
-        )
+        [
+          "codex_execution_concurrency_unavailable",
+          "review_run_claim_lost",
+          "waiver_adjudication_claim_lost",
+        ].includes(String(error.code))
       ) {
         process.stdout.write(
           `${JSON.stringify({ code: error.code, outcome: "rejected" })}\n`,

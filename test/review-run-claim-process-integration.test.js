@@ -120,4 +120,58 @@ test("separate processes cannot claim beyond the durable concurrency setting", a
   assert.deepEqual(setting, { maximumRunning: 2 });
   const second = await runWorker([databasePath, "claim", "worker-c", "1000"]);
   assert.ok(second.claim);
+
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "set-concurrency",
+      "worker-setting",
+      "1001",
+      "1",
+    ]),
+    { maximumRunning: 1 },
+  );
+  const firstClaim = racers.find((result) => result.claim !== null).claim;
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      firstClaim.workerId,
+      "1001",
+      firstClaim.workId,
+      firstClaim.workKind,
+      String(firstClaim.fencingToken),
+    ]),
+    { outcome: "started" },
+  );
+  assert.deepEqual(
+    await runWorker([
+      databasePath,
+      "start",
+      second.claim.workerId,
+      "1001",
+      second.claim.workId,
+      second.claim.workKind,
+      String(second.claim.fencingToken),
+    ]),
+    {
+      code: "codex_execution_concurrency_unavailable",
+      outcome: "rejected",
+    },
+  );
+  const verified = openDurableCore(databasePath);
+  assert.equal(
+    verified.get(
+      "SELECT count(*) AS count FROM codex_execution_queue WHERE started_at IS NOT NULL",
+    )?.count,
+    1,
+  );
+  assert.equal(
+    verified.get(
+      "SELECT lease_expires_at FROM codex_execution_queue WHERE work_id = ?",
+      second.claim.workId,
+    )?.lease_expires_at,
+    1_001,
+  );
+  verified.close();
 });

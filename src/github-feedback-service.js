@@ -13,7 +13,7 @@ import {
   readInlineDeliveryTarget,
 } from "./github-feedback-delivery-target.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
-import { createIoExecutionPool } from "./io-execution-pool.js";
+import { createIoDutyScheduler } from "./io-execution-pool.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -22,7 +22,7 @@ const PUBLICATION_INTERVAL_MS = 1_000;
  * @param {{
  *   cipher: {decrypt: (connection: {appId: number, id: string}, encrypted: string) => any},
  *   externalOrigin: string,
- *   ioPool?: ReturnType<typeof createIoExecutionPool>,
+ *   ioPool: {run: (duty: "delivery", operation: () => unknown) => Promise<unknown>},
  *   now?: () => number,
  *   verifier: {
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
@@ -34,13 +34,7 @@ const PUBLICATION_INTERVAL_MS = 1_000;
  */
 export function createGitHubFeedbackService(
   durableCore,
-  {
-    cipher,
-    externalOrigin,
-    ioPool = createIoExecutionPool(),
-    now = () => Date.now(),
-    verifier,
-  },
+  { cipher, externalOrigin, ioPool, now = () => Date.now(), verifier },
 ) {
   if (
     typeof durableCore?.all !== "function" ||
@@ -397,22 +391,27 @@ export function createGitHubFeedbackService(
     }
   }
 
+  const schedulePublication = createIoDutyScheduler(
+    ioPool,
+    "delivery",
+    publishWaiting,
+  );
+
   return {
     destroy() {
       if (timer) {
         clearInterval(timer);
         timer = null;
       }
+      schedulePublication.cancel();
     },
     publishWaiting,
     start() {
       if (timer) {
         return;
       }
-      void ioPool.run("delivery", publishWaiting);
-      timer = setInterval(() => {
-        void ioPool.run("delivery", publishWaiting);
-      }, PUBLICATION_INTERVAL_MS);
+      void schedulePublication();
+      timer = setInterval(schedulePublication, PUBLICATION_INTERVAL_MS);
       timer.unref?.();
     },
   };

@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -173,6 +174,7 @@ async function runFocusedAdjudication(context, failProcess) {
   });
   const checkoutRoot = join(directory, "checkouts");
   const execution = executeWaiverAdjudication(core, claim, {
+    ioPool: createIoExecutionPool(),
     checkoutRoot,
     claimService: claims,
     codexCommand: process.execPath,
@@ -300,6 +302,7 @@ test("one focused fake Codex process atomically persists a mixed valid Decision 
   const retryClaim = retryClaims.claimNext();
   assert.ok(retryClaim);
   await executeWaiverAdjudication(core, retryClaim, {
+    ioPool: createIoExecutionPool(),
     checkoutRoot,
     claimService: retryClaims,
     codexCommand: process.execPath,

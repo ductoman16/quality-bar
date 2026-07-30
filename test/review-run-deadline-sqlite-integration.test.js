@@ -1,3 +1,4 @@
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,6 +34,7 @@ test("the Review Run deadline persists one exact terminal failure and no partial
   await assert.rejects(
     () =>
       executeReviewRun(core, claim, {
+        ioPool: createIoExecutionPool(),
         claimService: claims,
         prepareCheckout: async () => ({
           path: "/discarded-checkout",

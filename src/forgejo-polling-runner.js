@@ -15,9 +15,9 @@ import {
   createStorageReservePollingCore,
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
-import { scheduleIoDuty } from "./io-execution-pool.js";
+import { createIoDutyScheduler } from "./io-execution-pool.js";
 
-/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
   { cipher, storageReserve, timestamp, verifier },
@@ -25,6 +25,7 @@ export function createForgejoPollingRunner(
   if (
     !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
+    typeof storageReserve?.ioPool?.run !== "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function"
   ) {
@@ -370,7 +371,11 @@ export function createForgejoPollingRunner(
     timer.unref();
   }
 
-  const scheduleRun = scheduleIoDuty("polling", runScheduled);
+  const scheduleRun = createIoDutyScheduler(
+    storageReserve.ioPool,
+    "polling",
+    runScheduled,
+  );
 
   return {
     commitFailure: polling.commitFailure,
@@ -390,6 +395,7 @@ export function createForgejoPollingRunner(
       }
       timer = null;
       started = false;
+      scheduleRun.cancel();
     },
     prepareBaseline,
     requireFreshBaseline,

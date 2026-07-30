@@ -15,9 +15,9 @@ import {
   createStorageReservePollingCore,
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
-import { scheduleIoDuty } from "./io-execution-pool.js";
+import { createIoDutyScheduler } from "./io-execution-pool.js";
 
-/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
   durableCore,
   {
@@ -32,6 +32,7 @@ export function createGitHubPollingRunner(
   if (
     !hasStorageReservePollingDependencies(durableCore, storageReserve) ||
     typeof cipher?.decrypt !== "function" ||
+    typeof storageReserve?.ioPool?.run !== "function" ||
     typeof timestamp !== "function" ||
     typeof verifier?.listPullRequests !== "function" ||
     typeof verifier.verifyRepositories !== "function" ||
@@ -389,15 +390,11 @@ export function createGitHubPollingRunner(
     }
   }
 
-  async function pollScheduled() {
-    try {
-      await pollDue();
-    } catch (error) {
-      requireStorageReservePause(error);
-    }
-  }
-
-  const schedulePoll = scheduleIoDuty("polling", pollScheduled);
+  const schedulePoll = createIoDutyScheduler(
+    storageReserve.ioPool,
+    "polling",
+    () => pollDue().catch(requireStorageReservePause),
+  );
 
   return {
     commitConnectionBaseline,
@@ -405,6 +402,8 @@ export function createGitHubPollingRunner(
       if (timer !== null) {
         clearInterval(timer);
       }
+      timer = null;
+      schedulePoll.cancel();
     },
     start() {
       if (timer !== null) {
