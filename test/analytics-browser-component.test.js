@@ -74,7 +74,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     context,
   );
 
-  context.window.qualityBarAnalytics.render({
+  const analyticsDocument = {
     criterion_outcomes: [
       {
         clear: 3,
@@ -127,6 +127,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
           total_ms: 400,
         },
         successful: { execution_count: 1, median_ms: 100, total_ms: 100 },
+        superseded: { execution_count: 0, median_ms: null, total_ms: null },
         terminal: { execution_count: 3, median_ms: 300, total_ms: 800 },
       },
       failed: 1,
@@ -136,6 +137,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
       operator_cancelled_rate: { denominator: 3, numerator: 1 },
       successful: 1,
       successful_rate: { denominator: 3, numerator: 1 },
+      superseded: 0,
+      superseded_rate: { denominator: 3, numerator: 0 },
       token_counters: {
         cached_input_tokens: {
           coverage: { denominator: 3, numerator: 0 },
@@ -202,7 +205,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
         },
       },
     },
-  });
+  };
+  context.window.qualityBarAnalytics.render(analyticsDocument);
 
   assert.deepEqual(
     applicability.options[0].options.map(
@@ -244,7 +248,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     reviewRunReliability.options[0].options.map(
       (/** @type {{textContent: string}} */ { textContent }) => textContent,
     ),
-    ["1", "1", "1", "2", "1/3", "1/3", "1/3"],
+    ["1", "1", "1", "0", "2", "1/3", "1/3", "1/3", "0/3"],
   );
   assert.deepEqual(
     waiverAdjudicationReliability.options[0].options.map(
@@ -280,5 +284,19 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ),
     ["Review Run", "Cached input tokens", "Unavailable", "Unavailable", "0/3"],
   );
+  const renderedEvaluation = evaluationOutcomes.options[0];
+  assert.throws(
+    () =>
+      context.window.qualityBarAnalytics.render({
+        ...analyticsDocument,
+        review_run_reliability: {
+          ...analyticsDocument.review_run_reliability,
+          duration: null,
+          token_counters: null,
+        },
+      }),
+    { message: "analytics_document_invalid" },
+  );
+  assert.equal(evaluationOutcomes.options[0], renderedEvaluation);
   assert.equal(error.hidden, true);
 });

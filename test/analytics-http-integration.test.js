@@ -51,6 +51,7 @@ const document = {
         total_ms: null,
       },
       successful: { execution_count: 1, median_ms: 120, total_ms: 120 },
+      superseded: { execution_count: 0, median_ms: null, total_ms: null },
       terminal: { execution_count: 1, median_ms: 120, total_ms: 120 },
     },
     failed: 0,
@@ -60,6 +61,8 @@ const document = {
     operator_cancelled_rate: { denominator: 1, numerator: 0 },
     successful: 1,
     successful_rate: { denominator: 1, numerator: 1 },
+    superseded: 0,
+    superseded_rate: { denominator: 1, numerator: 0 },
     token_counters: {
       cached_input_tokens: {
         coverage: { denominator: 1, numerator: 0 },

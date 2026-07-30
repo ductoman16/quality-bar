@@ -10,6 +10,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
         return [
           {
             cached_input_tokens: null,
+            cancellation_code: null,
             completed_at: null,
             error_code: null,
             execution_status: "queued",
@@ -19,6 +20,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: null,
+            cancellation_code: null,
             completed_at: null,
             error_code: null,
             execution_status: "running",
@@ -28,6 +30,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: null,
+            cancellation_code: null,
             completed_at: 200,
             error_code: null,
             execution_status: "completed",
@@ -37,6 +40,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: 5,
+            cancellation_code: null,
             completed_at: 500,
             error_code: "codex_process_failed",
             execution_status: "failed",
@@ -46,6 +50,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: null,
+            cancellation_code: "cancelled_by_operator",
             completed_at: null,
             error_code: null,
             execution_status: "cancelled",
@@ -55,6 +60,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
           },
           {
             cached_input_tokens: 0,
+            cancellation_code: "cancelled_by_operator",
             completed_at: 800,
             error_code: null,
             execution_status: "cancelled",
@@ -123,6 +129,7 @@ test("Analytics derives execution reliability, duration, and supplied token cove
         total_ms: 400,
       },
       successful: { execution_count: 1, median_ms: 100, total_ms: 100 },
+      superseded: { execution_count: 0, median_ms: null, total_ms: null },
       terminal: { execution_count: 3, median_ms: 300, total_ms: 800 },
     },
     failed: 1,
@@ -132,6 +139,8 @@ test("Analytics derives execution reliability, duration, and supplied token cove
     operator_cancelled_rate: { denominator: 3, numerator: 1 },
     successful: 1,
     successful_rate: { denominator: 3, numerator: 1 },
+    superseded: 0,
+    superseded_rate: { denominator: 3, numerator: 0 },
     token_counters: {
       cached_input_tokens: {
         coverage: { denominator: 3, numerator: 2 },
@@ -194,6 +203,7 @@ test("Analytics counts stable execution failure codes deterministically", () => 
       return [
         {
           cached_input_tokens: null,
+          cancellation_code: null,
           completed_at: 20,
           error_code: "z_failure",
           execution_status: "failed",
@@ -203,6 +213,7 @@ test("Analytics counts stable execution failure codes deterministically", () => 
         },
         {
           cached_input_tokens: null,
+          cancellation_code: null,
           completed_at: 30,
           error_code: "a_failure",
           execution_status: "failed",
@@ -212,6 +223,7 @@ test("Analytics counts stable execution failure codes deterministically", () => 
         },
         {
           cached_input_tokens: null,
+          cancellation_code: null,
           completed_at: 40,
           error_code: "z_failure",
           execution_status: "failed",
@@ -236,6 +248,7 @@ test("Analytics rejects an invalid execution fact with its exact owning error", 
         ? [
             {
               cached_input_tokens: null,
+              cancellation_code: null,
               completed_at: 20,
               error_code: null,
               execution_status: "completed",
@@ -251,5 +264,59 @@ test("Analytics rejects an invalid execution fact with its exact owning error", 
   assert.throws(() => analytics.read(), {
     code: "analytics_fact_invalid",
     message: "Canonical analytics fact is invalid",
+  });
+});
+
+test("Analytics keeps superseded Review Runs separate from operator cancellation", () => {
+  const analytics = createAnalyticsService({
+    all(sql) {
+      if (!sql.includes("FROM review_runs AS analytics_review_runs")) {
+        return [];
+      }
+      return [
+        {
+          cached_input_tokens: null,
+          cancellation_code: "cancelled_by_operator",
+          completed_at: 30,
+          error_code: null,
+          execution_status: "cancelled",
+          input_tokens: null,
+          output_tokens: null,
+          started_at: 10,
+        },
+        {
+          cached_input_tokens: null,
+          cancellation_code: "cancelled_by_supersession",
+          completed_at: 50,
+          error_code: null,
+          execution_status: "cancelled",
+          input_tokens: null,
+          output_tokens: null,
+          started_at: 20,
+        },
+      ];
+    },
+  });
+
+  const reliability = analytics.read().review_run_reliability;
+  assert.equal(reliability.operator_cancelled, 1);
+  assert.deepEqual(reliability.operator_cancelled_rate, {
+    denominator: 2,
+    numerator: 1,
+  });
+  assert.equal(reliability.superseded, 1);
+  assert.deepEqual(reliability.superseded_rate, {
+    denominator: 2,
+    numerator: 1,
+  });
+  assert.deepEqual(reliability.duration.operator_cancelled, {
+    execution_count: 1,
+    median_ms: 20,
+    total_ms: 20,
+  });
+  assert.deepEqual(reliability.duration.superseded, {
+    execution_count: 1,
+    median_ms: 30,
+    total_ms: 30,
   });
 });

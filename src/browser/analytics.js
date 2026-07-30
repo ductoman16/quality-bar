@@ -46,6 +46,71 @@ function row(values) {
   return element;
 }
 
+/** @param {unknown} value */
+function validCount(value) {
+  return Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0;
+}
+
+/** @param {any} candidate */
+function validRate(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.numerator) &&
+    validCount(candidate?.denominator)
+  );
+}
+
+/** @param {any} candidate */
+function validDuration(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.execution_count) &&
+    (candidate?.median_ms === null ||
+      (typeof candidate?.median_ms === "number" &&
+        Number.isFinite(candidate.median_ms) &&
+        candidate.median_ms >= 0)) &&
+    (candidate?.total_ms === null || validCount(candidate?.total_ms))
+  );
+}
+
+/** @param {any} candidate */
+function validTokenCounter(candidate) {
+  return (
+    typeof candidate === "object" &&
+    validRate(candidate?.coverage) &&
+    (candidate?.median === null ||
+      (typeof candidate?.median === "number" &&
+        Number.isFinite(candidate.median) &&
+        candidate.median >= 0)) &&
+    (candidate?.sum === null || validCount(candidate?.sum))
+  );
+}
+
+/** @param {any} candidate @param {string[]} outcomes */
+function validExecutionReliability(candidate, outcomes) {
+  return (
+    typeof candidate === "object" &&
+    validCount(candidate?.active) &&
+    outcomes.every(
+      (outcome) =>
+        validCount(candidate?.[outcome]) &&
+        validRate(candidate?.[`${outcome}_rate`]) &&
+        validDuration(candidate?.duration?.[outcome]),
+    ) &&
+    validDuration(candidate?.duration?.terminal) &&
+    Array.isArray(candidate?.failure_codes) &&
+    candidate.failure_codes.every(
+      (/** @type {any} */ failure) =>
+        typeof failure?.code === "string" &&
+        /^[a-z][a-z0-9_]*$/.test(failure.code) &&
+        validCount(failure?.count),
+    ) &&
+    ["input_tokens", "cached_input_tokens", "output_tokens"].every((counter) =>
+      validTokenCounter(candidate?.token_counters?.[counter]),
+    )
+  );
+}
+
 /** @param {any} document */
 function render(document) {
   if (
@@ -65,12 +130,19 @@ function render(document) {
     !Array.isArray(document?.criterion_outcomes) ||
     typeof document?.evaluation_outcomes !== "object" ||
     typeof document?.finding_impact !== "object" ||
-    typeof document?.review_run_reliability !== "object" ||
     typeof document?.waiver_analytics !== "object" ||
     typeof document?.waiver_analytics?.decision_history !== "object" ||
-    typeof document?.waiver_adjudication_reliability !== "object" ||
-    !Array.isArray(document?.review_run_reliability?.failure_codes) ||
-    !Array.isArray(document?.waiver_adjudication_reliability?.failure_codes)
+    !validExecutionReliability(document?.review_run_reliability, [
+      "successful",
+      "failed",
+      "operator_cancelled",
+      "superseded",
+    ]) ||
+    !validExecutionReliability(document?.waiver_adjudication_reliability, [
+      "completed",
+      "failed",
+      "cancelled",
+    ])
   ) {
     throw new Error("analytics_document_invalid");
   }
@@ -161,10 +233,12 @@ function render(document) {
       reviewRuns.successful,
       reviewRuns.failed,
       reviewRuns.operator_cancelled,
+      reviewRuns.superseded,
       reviewRuns.active,
       rateText(reviewRuns.successful_rate),
       rateText(reviewRuns.failed_rate),
       rateText(reviewRuns.operator_cancelled_rate),
+      rateText(reviewRuns.superseded_rate),
     ]),
   );
   const adjudications = document.waiver_adjudication_reliability;
@@ -198,6 +272,7 @@ function render(document) {
         ["successful", "Successful"],
         ["failed", "Failed"],
         ["operator_cancelled", "Operator-cancelled"],
+        ["superseded", "Superseded"],
       ],
     ],
     [

@@ -23,9 +23,9 @@ function rate(numerator, denominator) {
 }
 
 /** @param {number[]} values */
-function summary(values) {
+function numericSummary(values) {
   if (values.length === 0) {
-    return { execution_count: 0, median_ms: null, total_ms: null };
+    return null;
   }
   const sorted = values.toSorted((left, right) => left - right);
   let total = 0;
@@ -44,49 +44,47 @@ function summary(values) {
       ? sorted[middle]
       : sorted[middle - 1] / 2 + sorted[middle] / 2;
   return {
+    median,
+    total,
+  };
+}
+
+/** @param {number[]} values */
+function durationSummary(values) {
+  const facts = numericSummary(values);
+  return {
     execution_count: values.length,
-    median_ms: median,
-    total_ms: total,
+    median_ms: facts?.median ?? null,
+    total_ms: facts?.total ?? null,
   };
 }
 
 /** @param {number[]} values @param {number} population */
 function tokenSummary(values, population) {
-  if (values.length === 0) {
-    return {
-      coverage: rate(0, population),
-      median: null,
-      sum: null,
-    };
-  }
-  const sorted = values.toSorted((left, right) => left - right);
-  let sum = 0;
-  for (const value of values) {
-    sum += value;
-    if (!Number.isSafeInteger(sum)) {
-      throw new AnalyticsError(
-        "analytics_fact_invalid",
-        "Canonical analytics fact is invalid",
-      );
-    }
-  }
-  const middle = Math.floor(sorted.length / 2);
+  const facts = numericSummary(values);
   return {
     coverage: rate(values.length, population),
-    median:
-      sorted.length % 2 === 1
-        ? sorted[middle]
-        : sorted[middle - 1] / 2 + sorted[middle] / 2,
-    sum,
+    median: facts?.median ?? null,
+    sum: facts?.total ?? null,
   };
 }
 
 /**
  * @param {Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>} rows
  * @param {Record<string, string>} terminalOutcomes
+ * @param {Record<string, string>} [cancellationOutcomes]
  */
-export function deriveExecutionReliability(rows, terminalOutcomes) {
-  const outcomeNames = Object.values(terminalOutcomes);
+export function deriveExecutionReliability(
+  rows,
+  terminalOutcomes,
+  cancellationOutcomes,
+) {
+  const outcomeNames = [
+    ...new Set([
+      ...Object.values(terminalOutcomes),
+      ...Object.values(cancellationOutcomes ?? {}),
+    ]),
+  ];
   const durations = /** @type {Record<string, number[]>} */ (
     Object.fromEntries(
       ["terminal", ...outcomeNames].map((outcome) => [outcome, []]),
@@ -107,6 +105,7 @@ export function deriveExecutionReliability(rows, terminalOutcomes) {
     const startedAt = row?.started_at;
     const completedAt = row?.completed_at;
     const errorCode = row?.error_code;
+    const cancellationCode = row?.cancellation_code;
     const timestampsValid =
       (startedAt === null ||
         (typeof startedAt === "number" &&
@@ -139,11 +138,20 @@ export function deriveExecutionReliability(rows, terminalOutcomes) {
         typeof errorCode === "string" &&
         /^[a-z][a-z0-9_]*$/.test(errorCode)) ||
       (status !== "failed" && errorCode === null);
+    const cancellationValid =
+      cancellationOutcomes === undefined ||
+      (status === "cancelled"
+        ? typeof cancellationCode === "string" &&
+          Object.hasOwn(cancellationOutcomes, cancellationCode)
+        : cancellationCode === null ||
+          (typeof cancellationCode === "string" &&
+            Object.hasOwn(cancellationOutcomes, cancellationCode)));
     if (
       !timestampsValid ||
       !countersValid ||
       !stateValid ||
       !failureValid ||
+      !cancellationValid ||
       (typeof startedAt === "number" &&
         typeof completedAt === "number" &&
         completedAt < startedAt)
@@ -160,7 +168,10 @@ export function deriveExecutionReliability(rows, terminalOutcomes) {
     if (startedAt === null || completedAt === null) {
       continue;
     }
-    const outcome = terminalOutcomes[/** @type {string} */ (status)];
+    const outcome =
+      status === "cancelled" && cancellationOutcomes !== undefined
+        ? cancellationOutcomes[/** @type {string} */ (cancellationCode)]
+        : terminalOutcomes[/** @type {string} */ (status)];
     if (typeof outcome !== "string") {
       throw new AnalyticsError(
         "analytics_fact_invalid",
@@ -190,7 +201,7 @@ export function deriveExecutionReliability(rows, terminalOutcomes) {
     duration: Object.fromEntries(
       Object.entries(durations).map(([outcome, values]) => [
         outcome,
-        summary(values),
+        durationSummary(values),
       ]),
     ),
     ...Object.fromEntries(

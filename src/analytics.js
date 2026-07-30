@@ -180,10 +180,18 @@ export function createAnalyticsService(durableCore) {
             ORDER BY rowid`,
         );
         const reviewRunRows = durableCore.all(
-          `SELECT execution_status, started_at, completed_at, error_code,
-                  input_tokens, cached_input_tokens, output_tokens
+          `SELECT analytics_review_runs.execution_status,
+                  analytics_review_runs.started_at,
+                  analytics_review_runs.completed_at,
+                  analytics_review_runs.error_code,
+                  analytics_review_runs.input_tokens,
+                  analytics_review_runs.cached_input_tokens,
+                  analytics_review_runs.output_tokens,
+                  evaluations.cancellation_code
              FROM review_runs AS analytics_review_runs
-            ORDER BY rowid`,
+             JOIN evaluations
+               ON evaluations.id = analytics_review_runs.evaluation_id
+            ORDER BY analytics_review_runs.rowid`,
         );
         const waiverAdjudicationRows = durableCore.all(
           `SELECT execution_status, started_at, completed_at, error_code,
@@ -304,11 +312,17 @@ export function createAnalyticsService(durableCore) {
               review_id: reviewId,
             };
           }),
-          review_run_reliability: deriveExecutionReliability(reviewRunRows, {
-            cancelled: "operator_cancelled",
-            completed: "successful",
-            failed: "failed",
-          }),
+          review_run_reliability: deriveExecutionReliability(
+            reviewRunRows,
+            {
+              completed: "successful",
+              failed: "failed",
+            },
+            {
+              cancelled_by_operator: "operator_cancelled",
+              cancelled_by_supersession: "superseded",
+            },
+          ),
           waiver_analytics: {
             advisory_findings: waiverRows.length,
             decision_history: {
