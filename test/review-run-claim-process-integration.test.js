@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 /** @param {string[]} arguments_ */
 function runWorker(arguments_) {
@@ -35,12 +35,15 @@ function runWorker(arguments_) {
   });
 }
 
-test("separate processes claim once and fence an expired worker after replacement", async (context) => {
+test("separate processes share ordering and fence an expired worker across work kinds", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-claim-race-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const core = openDurableCore(databasePath);
-  await createQueuedReviewRun(core);
+  seedQueuedCodexExecutionKinds(core, {
+    adjudicationReadyAt: 1_000,
+    reviewRunReadyAt: 300_000,
+  });
   core.close();
 
   const racers = await Promise.all([
@@ -51,6 +54,8 @@ test("separate processes claim once and fence an expired worker after replacemen
   assert.ok(claimed);
   assert.equal(racers.filter((result) => result.claim !== null).length, 1);
   assert.equal(claimed.fencingToken, 1);
+  assert.equal(claimed.workId, "adjudication-a");
+  assert.equal(claimed.workKind, "waiver_adjudication");
 
   const replacement = await runWorker([
     databasePath,
@@ -67,9 +72,10 @@ test("separate processes claim once and fence an expired worker after replacemen
       claimed.workerId,
       "121000",
       claimed.workId,
+      claimed.workKind,
       String(claimed.fencingToken),
     ]),
-    { code: "review_run_claim_lost", outcome: "rejected" },
+    { code: "waiver_adjudication_claim_lost", outcome: "rejected" },
   );
   assert.deepEqual(
     await runWorker([
@@ -78,6 +84,7 @@ test("separate processes claim once and fence an expired worker after replacemen
       replacement.claim.workerId,
       "121000",
       replacement.claim.workId,
+      replacement.claim.workKind,
       String(replacement.claim.fencingToken),
     ]),
     { outcome: "started" },

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
@@ -47,13 +47,12 @@ test("one transaction creates every immutable Request and its queued Adjudicatio
       ["finding-1", "finding-2"],
     );
     assert.equal(accepted.resource.adjudication.execution_status, "queued");
-    assert.equal(
-      createReviewRunClaimService(core, {
-        createWorkerId: () => "review-worker",
-        now: () => 1_753_800_000_001,
-      }).claimNext(),
-      undefined,
-    );
+    const sharedClaim = createCodexExecutionClaimService(core, {
+      createWorkerId: () => "shared-worker",
+      now: () => 1_753_800_000_001,
+    }).claimNext();
+    assert.equal(sharedClaim?.workId, "adjudication-1");
+    assert.equal(sharedClaim?.workKind, "waiver_adjudication");
     assert.deepEqual(
       core.get(
         "SELECT work_kind, work_id FROM codex_execution_queue WHERE work_id = ?",

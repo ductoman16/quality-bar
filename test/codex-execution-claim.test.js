@@ -1,0 +1,80 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  CODEX_EXECUTION_LEASE_MILLISECONDS,
+  CODEX_EXECUTION_RENEWAL_MILLISECONDS,
+  createCodexExecutionClaimService,
+} from "../src/codex-execution-claim.js";
+
+test("Codex execution claims use one oldest-ready-first selection across work kinds", () => {
+  let selection = "";
+  const service = createCodexExecutionClaimService(
+    {
+      transaction(callback) {
+        return callback({
+          /** @param {string} sql */
+          get(sql) {
+            selection = sql;
+            return {
+              fencing_token: 0,
+              work_id: "adjudication-1",
+              work_kind: "waiver_adjudication",
+            };
+          },
+          run() {
+            return { changes: 1, lastInsertRowid: 0 };
+          },
+        });
+      },
+    },
+    {
+      createWorkerId: () => "worker-1",
+      now: () => 1_000,
+    },
+  );
+
+  assert.deepEqual(service.claimNext(), {
+    fencingToken: 1,
+    leaseExpiresAt: 121_000,
+    workerId: "worker-1",
+    workId: "adjudication-1",
+    workKind: "waiver_adjudication",
+  });
+  assert.match(selection, /ORDER BY ready_at, work_id/);
+  assert.doesNotMatch(selection, /work_kind\s*=/);
+  assert.equal(CODEX_EXECUTION_RENEWAL_MILLISECONDS, 30_000);
+  assert.equal(CODEX_EXECUTION_LEASE_MILLISECONDS, 120_000);
+});
+
+test("claim identities and owner-specific CLI versions must be nonblank", () => {
+  const service = createCodexExecutionClaimService(
+    {
+      transaction() {
+        assert.fail("invalid input must fail before a transaction");
+      },
+    },
+    {
+      createWorkerId: () => " ",
+      now: () => 1_000,
+    },
+  );
+  assert.throws(
+    () => service.claimNext(),
+    /Codex execution worker identity is invalid/,
+  );
+  assert.throws(
+    () =>
+      service.start(
+        {
+          fencingToken: 1,
+          leaseExpiresAt: 121_000,
+          workerId: "worker-1",
+          workId: "review-run-1",
+          workKind: "review_run",
+        },
+        " ",
+      ),
+    /Review Run Codex CLI version is invalid/,
+  );
+});

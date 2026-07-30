@@ -272,6 +272,8 @@ export const WAIVER_QUEUE_MIGRATION = `
     ready_at INTEGER NOT NULL,
     accepted_at INTEGER NOT NULL,
     started_at INTEGER,
+    retry_state TEXT NOT NULL DEFAULT 'ready'
+      CHECK (retry_state IN ('ready', 'exhausted')),
     worker_id TEXT CHECK (worker_id IS NULL OR length(worker_id) > 0),
     fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
     lease_expires_at INTEGER,
@@ -284,10 +286,10 @@ export const WAIVER_QUEUE_MIGRATION = `
   ) STRICT;
   INSERT INTO codex_execution_queue (
     work_id, work_kind, ready_at, accepted_at, started_at,
-    worker_id, fencing_token, lease_expires_at
+    retry_state, worker_id, fencing_token, lease_expires_at
   )
   SELECT work_id, work_kind, ready_at, accepted_at, started_at,
-         worker_id, fencing_token, lease_expires_at
+         retry_state, worker_id, fencing_token, lease_expires_at
   FROM codex_execution_queue_v34;
   DROP TABLE codex_execution_queue_v34;
 `;

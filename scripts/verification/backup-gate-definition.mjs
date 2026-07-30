@@ -1,7 +1,7 @@
 export const SQLITE_BACKUP_FAILURE_GATE = {
   name: "sqlite-failure-integration",
   testGroup:
-    "runtime-storage-reserve-validated-backup-and-review-run-admission-and-claim-sqlite-failure-boundary",
+    "runtime-storage-reserve-validated-backup-review-run-admission-and-shared-codex-execution-claim-sqlite-failure-boundary",
   failureCode: "sqlite_failure_integration_tests_failed",
   arguments: [
     "--test",
@@ -9,5 +9,6 @@ export const SQLITE_BACKUP_FAILURE_GATE = {
     "test/sqlite-backup-failure-integration.test.js",
     "test/review-run-admission-sqlite-failure-integration.test.js",
     "test/review-run-claim-sqlite-failure-integration.test.js",
+    "test/codex-execution-ordering-sqlite-failure-integration.test.js",
   ],
 };

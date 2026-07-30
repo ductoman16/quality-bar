@@ -38,6 +38,7 @@ test("the focused worker claims and starts only Waiver Adjudications", () => {
       leaseExpiresAt: 120_011,
       workerId: "waiver-worker",
       workId: "adjudication-1",
+      workKind: "waiver_adjudication",
     });
     service.start(claim, "0.114.0");
     assert.deepEqual(

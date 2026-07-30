@@ -64,6 +64,11 @@ export function migrateSchema(
     queueNeedsWaiverKind &&
     !queueColumns.has("worker_id") &&
     !statements.includes("ADD COLUMN worker_id");
+  const queueNeedsRetryState =
+    schemaVersion === CURRENT_SCHEMA_VERSION &&
+    typeof queueSchema === "string" &&
+    !queueColumns.has("retry_state") &&
+    !statements.includes("ADD COLUMN retry_state");
   database.function(
     "quality_bar_legacy_file_change_modified",
     { deterministic: true },
@@ -96,6 +101,13 @@ export function migrateSchema(
              ADD COLUMN lease_expires_at INTEGER;`
         : ""
     }
+    ${
+      queueNeedsRetryState
+        ? `ALTER TABLE codex_execution_queue
+             ADD COLUMN retry_state TEXT NOT NULL DEFAULT 'ready'
+             CHECK (retry_state IN ('ready', 'exhausted'));`
+        : ""
+    }
     ${queueNeedsWaiverKind ? WAIVER_QUEUE_MIGRATION : ""}
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
@@ -113,7 +125,7 @@ export function finalizeSchemaMigration(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
   /** @type {number} */ version,
 ) {
-  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40].includes(version)) {
+  if (![29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41].includes(version)) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   if (version === 35) {
@@ -136,7 +148,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 41;
+export const CURRENT_SCHEMA_VERSION = 42;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";

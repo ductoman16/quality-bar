@@ -49,6 +49,7 @@ test("an active Review Run claim schedules renewal every 30 seconds and reports 
     leaseExpiresAt: 120_000,
     workerId: "worker-1",
     workId: "review-run-1",
+    workKind: /** @type {const} */ ("review_run"),
   };
   /** @type {{code?: string}[]} */
   const losses = [];
