@@ -33,7 +33,9 @@ test("the application observes exact recurring-duty saturation without skipping 
   const queued = Array.from({ length: IO_EXECUTION_QUEUE_CAPACITY }, () =>
     runtime.ioPool.run("cleanup", () => {}),
   );
-  createIoDutyScheduler(runtime.ioPool, "polling", assert.fail).background();
+  createIoDutyScheduler(runtime.ioPool, "polling", () =>
+    assert.fail("polling ran"),
+  ).background();
   assert.deepEqual(logs.at(-1), {
     timestamp: logs.at(-1).timestamp,
     severity: "warning",

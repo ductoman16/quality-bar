@@ -44,6 +44,7 @@ export function secureGitConfiguration(
  *   credential: {token: string, username: string} | undefined,
  *   cwd: string,
  *   onStderr?: (chunk: string) => void,
+ *   signal?: AbortSignal,
  *   spawnProcess: typeof import("node:child_process").spawn
  * }} input
  */
@@ -53,12 +54,14 @@ export function runGitCommand({
   credential,
   cwd,
   onStderr = () => {},
+  signal,
   spawnProcess,
 }) {
   return new Promise((resolve, reject) => {
     /** @type {import("node:child_process").ChildProcess} */
     let child;
     try {
+      signal?.throwIfAborted();
       child = spawnProcess("git", arguments_, {
         cwd,
         env: {
@@ -78,6 +81,10 @@ export function runGitCommand({
       return;
     }
     let completed = false;
+    const abort = () => {
+      child.kill("SIGTERM");
+      complete(signal?.reason, true);
+    };
     /** @type {Buffer[]} */
     const stdoutChunks = [];
     let stderr = "";
@@ -87,12 +94,18 @@ export function runGitCommand({
         return;
       }
       completed = true;
+      signal?.removeEventListener("abort", abort);
       if (failed) {
         reject(result);
       } else {
         resolve(result);
       }
     }
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
     if (captureStdout && !child.stdout) {
       child.kill();
       complete(new Error("Git stdout pipe is unavailable"), true);

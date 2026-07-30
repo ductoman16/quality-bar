@@ -145,12 +145,45 @@ test("hard shutdown aborts active duties and rejects queued duties with its owni
   const failure = Object.assign(new Error("SQLite durable write failed"), {
     code: "storage_unavailable",
   });
+  const activeRejections = Promise.all(
+    active.map((completion) =>
+      assert.rejects(completion, (error) => error === failure),
+    ),
+  );
 
   pool.shutdown(failure);
 
   await assert.rejects(queued, (error) => error === failure);
-  await Promise.all(active);
+  await activeRejections;
   assert.equal(queuedRuns, 0);
+});
+
+test("hard shutdown settles an active production scheduler with its owning error", async () => {
+  const pool = createIoExecutionPool();
+  let observedReason;
+  const schedule = createIoDutyScheduler(pool, "polling", (signal) => {
+    assert.ok(signal);
+    return new Promise((resolve) =>
+      signal.addEventListener(
+        "abort",
+        () => {
+          observedReason = signal.reason;
+          resolve(undefined);
+        },
+        { once: true },
+      ),
+    );
+  });
+  const scheduled = schedule();
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  pool.shutdown(failure);
+
+  await assert.rejects(scheduled, (error) => error === failure);
+  assert.equal(observedReason, failure);
 });
 
 test("a saturated production scheduler reports its exact admission failure", async () => {

@@ -161,8 +161,9 @@ function classifyGitFailure(failure, arguments_) {
  * @param {string} cwd
  * @param {typeof spawn} spawnProcess
  * @param {{token: string, username: string} | undefined} credential
+ * @param {AbortSignal | undefined} signal
  */
-async function runGit(arguments_, cwd, spawnProcess, credential) {
+async function runGit(arguments_, cwd, spawnProcess, credential, signal) {
   let result;
   try {
     result =
@@ -172,10 +173,14 @@ async function runGit(arguments_, cwd, spawnProcess, credential) {
           captureStdout: false,
           credential,
           cwd,
+          signal,
           spawnProcess,
         })
       );
   } catch (failure) {
+    if (signal?.aborted && failure === signal.reason) {
+      throw failure;
+    }
     throw classifyGitFailure(
       /** @type {Error & {stderr?: string}} */ (failure),
       arguments_,
@@ -194,6 +199,7 @@ async function runGit(arguments_, cwd, spawnProcess, credential) {
  *   fencingToken: number,
  *   headCommit: string,
  *   repositoryUrl: string,
+ *   signal?: AbortSignal,
  *   spawnProcess?: typeof spawn,
  *   workId: string
  * }} input
@@ -205,6 +211,7 @@ export async function prepareReviewRunCheckout({
   fencingToken,
   headCommit,
   repositoryUrl,
+  signal,
   spawnProcess = spawn,
   workId,
 }) {
@@ -225,6 +232,7 @@ export async function prepareReviewRunCheckout({
   const claimRoot = join(checkoutRoot, workId, String(fencingToken));
   const checkoutPath = join(claimRoot, "checkout");
   try {
+    signal?.throwIfAborted();
     mkdirSync(join(checkoutRoot, workId), { recursive: true });
     mkdirSync(claimRoot, { recursive: false });
     await runGit(
@@ -245,36 +253,49 @@ export async function prepareReviewRunCheckout({
       claimRoot,
       spawnProcess,
       credential,
+      signal,
     );
+    signal?.throwIfAborted();
     await runGit(
       ["-C", checkoutPath, "cat-file", "-e", `${baseCommit}^{commit}`],
       claimRoot,
       spawnProcess,
       undefined,
+      signal,
     );
+    signal?.throwIfAborted();
     await runGit(
       ["-C", checkoutPath, "cat-file", "-e", `${headCommit}^{commit}`],
       claimRoot,
       spawnProcess,
       undefined,
+      signal,
     );
+    signal?.throwIfAborted();
     await runGit(
       ["-C", checkoutPath, "checkout", "--quiet", "--detach", headCommit],
       claimRoot,
       spawnProcess,
       undefined,
+      signal,
     );
+    signal?.throwIfAborted();
     await runGit(
       ["-C", checkoutPath, "remote", "remove", "origin"],
       claimRoot,
       spawnProcess,
       undefined,
+      signal,
     );
+    signal?.throwIfAborted();
   } catch (cause) {
     try {
       rmSync(claimRoot, { force: true, recursive: true });
     } catch (cleanupCause) {
       throw checkoutFailed(cleanupCause);
+    }
+    if (signal?.aborted && cause === signal.reason) {
+      throw cause;
     }
     throw cause instanceof ReviewRunCheckoutError
       ? cause

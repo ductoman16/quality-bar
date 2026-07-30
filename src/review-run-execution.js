@@ -76,13 +76,17 @@ export function createReviewRunPrompt(run) {
 }
 
 /**
- * @param {{run: (duty: "cleanup", operation: () => unknown) => Promise<unknown>}} ioPool
+ * @param {{run: (duty: "cleanup", operation: (signal?: AbortSignal) => unknown) => Promise<unknown>}} ioPool
  * @param {{remove(): void}} checkout
  * @param {unknown} executionFailure
  */
 async function removeCheckout(ioPool, checkout, executionFailure) {
   try {
-    await ioPool.run("cleanup", () => checkout.remove());
+    await ioPool.run("cleanup", (signal) => {
+      signal?.throwIfAborted();
+      checkout.remove();
+      signal?.throwIfAborted();
+    });
   } catch (cleanupFailure) {
     if (executionFailure instanceof Error) {
       Object.defineProperty(executionFailure, "checkoutCleanupFailure", {
@@ -230,7 +234,7 @@ function readRun(durableCore, workId) {
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
  *   evidenceService?: ReturnType<typeof createReviewRunEvidenceService>,
- *   ioPool: {run: (duty: "acquisition" | "cleanup", operation: () => unknown) => Promise<any>},
+ *   ioPool: {run: (duty: "acquisition" | "cleanup", operation: (signal?: AbortSignal) => unknown) => Promise<any>},
  *   processEnvironment?: NodeJS.ProcessEnv,
  *   prepareCheckout?: typeof prepareReviewRunCheckout,
  *   readFileChanges?: typeof readReviewRunFileChanges,
@@ -278,17 +282,23 @@ export async function executeReviewRun(
         : new TypeError("Review Run claim renewal failed");
   });
   try {
-    const checkout = await ioPool.run("acquisition", async () =>
-      prepareCheckout({
+    const checkout = await ioPool.run("acquisition", async (signal) => {
+      signal?.throwIfAborted();
+      const credential = await acquireCheckoutCredential();
+      signal?.throwIfAborted();
+      const prepared = await prepareCheckout({
         baseCommit: run.baseCommit,
         checkoutRoot,
-        credential: await acquireCheckoutCredential(),
+        credential,
         fencingToken: claim.fencingToken,
         headCommit: run.headCommit,
         repositoryUrl: run.repositoryUrl,
+        signal,
         workId: claim.workId,
-      }),
-    );
+      });
+      signal?.throwIfAborted();
+      return prepared;
+    });
     let executionFailure;
     /** @type {Error[]} */
     let diagnosticFailures = [];

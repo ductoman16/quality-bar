@@ -222,7 +222,10 @@ export async function createInstalledApplication({
           }
         },
         async (error) => {
-          if (application.workerSignal.aborted) {
+          if (
+            application.workerSignal.aborted &&
+            error === application.workerSignal.reason
+          ) {
             return;
           }
           const failure = codedBackupFailure(error);

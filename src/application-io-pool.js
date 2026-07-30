@@ -14,9 +14,15 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
       if (typeof repositories?.resolvePushedSelectors !== "function") {
         throw new TypeError("Repository service is unavailable");
       }
-      return ioPool.run("acquisition", () =>
-        repositories.resolvePushedSelectors(repositoryId, request),
-      );
+      return ioPool.run("acquisition", (signal) => {
+        signal?.throwIfAborted();
+        const changeset = repositories.resolvePushedSelectors(
+          repositoryId,
+          request,
+        );
+        signal?.throwIfAborted();
+        return changeset;
+      });
     },
     /** @param {Function} createStorageReserve @param {() => any} readDurableCore @param {() => number} now @param {number} reserveBytes */
     createStorageReserve(
@@ -31,9 +37,12 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
           if (!durableCore) {
             throw new TypeError("durable core is required for storage cleanup");
           }
-          return ioPool.runImmediate("retention", () =>
-            removeExpiredBrowserSessions(durableCore, { now }),
-          );
+          return ioPool.runImmediate("retention", (signal) => {
+            signal?.throwIfAborted();
+            const result = removeExpiredBrowserSessions(durableCore, { now });
+            signal?.throwIfAborted();
+            return result;
+          });
         },
         reserveBytes,
       });

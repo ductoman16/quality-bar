@@ -112,6 +112,17 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
       "code" in error &&
       error.code === "storage_unavailable",
   );
+  const activeIoRejections = Promise.all(
+    activeIo.map((completion) =>
+      assert.rejects(
+        completion,
+        (error) =>
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "storage_unavailable",
+      ),
+    ),
+  );
 
   assert.ok(application.durableCore);
   application.durableCore.run("PRAGMA query_only = ON");
@@ -132,7 +143,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
 
   await codexExited;
   await queuedIoRejection;
-  await Promise.all(activeIo);
+  await activeIoRejections;
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(application.workerSignal.aborted, true);
   assert.equal(queuedIoRuns, 0);

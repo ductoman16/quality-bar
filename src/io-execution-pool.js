@@ -46,10 +46,25 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
         throw new Error("I/O execution pool queue is invalid");
       }
       active += 1;
-      Promise.resolve()
-        .then(() => task.operation(workers.signal))
+      let stopCancellation = () => {};
+      const cancellation = new Promise((resolve, reject) => {
+        void resolve;
+        const cancel = () => reject(workers.signal.reason);
+        if (workers.signal.aborted) {
+          cancel();
+          return;
+        }
+        workers.signal.addEventListener("abort", cancel, { once: true });
+        stopCancellation = () =>
+          workers.signal.removeEventListener("abort", cancel);
+      });
+      Promise.race([
+        Promise.resolve().then(() => task.operation(workers.signal)),
+        cancellation,
+      ])
         .then(task.resolve, task.reject)
         .finally(() => {
+          stopCancellation();
           active -= 1;
           drain();
           finishDrain();
@@ -163,9 +178,9 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
 }
 
 /**
- * @param {{run: (duty: any, operation: () => unknown) => Promise<any>, runInBackground?: (operation: () => unknown) => boolean}} ioPool
+ * @param {{run: (duty: any, operation: (signal?: AbortSignal) => unknown) => Promise<any>, runInBackground?: (operation: () => unknown) => boolean}} ioPool
  * @param {"polling" | "acquisition" | "delivery" | "retention" | "cleanup"} duty
- * @param {() => unknown} operation
+ * @param {(signal?: AbortSignal) => unknown} operation
  */
 export function createIoDutyScheduler(ioPool, duty, operation) {
   if (typeof ioPool?.run !== "function" || typeof operation !== "function") {
@@ -185,9 +200,15 @@ export function createIoDutyScheduler(ioPool, duty, operation) {
     scheduled = entry;
     try {
       entry.completion = ioPool
-        .run(duty, () =>
-          entry.generation === generation ? operation() : undefined,
-        )
+        .run(duty, async (signal) => {
+          if (entry.generation !== generation) {
+            return;
+          }
+          signal?.throwIfAborted();
+          const result = await operation(signal);
+          signal?.throwIfAborted();
+          return result;
+        })
         .finally(() => {
           if (scheduled === entry) {
             scheduled = null;
