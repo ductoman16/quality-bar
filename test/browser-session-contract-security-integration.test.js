@@ -318,6 +318,16 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
+    codex_execution: {
+      concurrency: {
+        maximum_running: 1,
+        running_count: 0,
+        start_gate: "available",
+      },
+      failures: [],
+      queue: { count: 0, rows: [] },
+      running: { count: 0, rows: [] },
+    },
     durable_core: { schema_version: 47, status: "ready" },
     implementer_token: { status: "active" },
     storage: availableStorageReserve.readFacts(),

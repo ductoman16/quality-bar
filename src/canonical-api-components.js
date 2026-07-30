@@ -5,6 +5,8 @@ import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiv
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
 import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-api.js";
+import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
+import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
 import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /**
@@ -75,6 +77,8 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       ...canonicalGitHubConnectionSchemas(),
       ...canonicalCodexExecutionConcurrencySchemas(),
+      ...canonicalSystemExecutionSchemas(),
+      ...canonicalSystemFactSchemas(codexCapabilityCatalog),
       CurrentPasswordRequest: closedObject({ password: { type: "string" } }, [
         "password",
       ]),
@@ -315,6 +319,9 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
             $ref: "#/components/schemas/BrowserSessionsFact",
           },
           codex: { $ref: "#/components/schemas/CodexFact" },
+          codex_execution: {
+            $ref: "#/components/schemas/CodexExecutionSystemFact",
+          },
           durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
           implementer_token: {
             $ref: "#/components/schemas/ImplementerTokenFact",
@@ -325,6 +332,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "bootstrap",
           "browser_sessions",
           "codex",
+          "codex_execution",
           "durable_core",
           "implementer_token",
           "storage",
@@ -333,73 +341,6 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ...canonicalStorageReserveSchemas(),
       ...canonicalEvaluationSchemas(),
       ...canonicalAnalyticsSchemas(),
-      BootstrapFact: openObject(
-        { status: { enum: ["complete", "required"], type: "string" } },
-        ["status"],
-      ),
-      BrowserSessionsFact: openObject(
-        {
-          active_count: { minimum: 0, type: "integer" },
-          status: { const: "available", type: "string" },
-        },
-        ["active_count", "status"],
-      ),
-      CodexFact: openObject(
-        {
-          catalog: { $ref: "#/components/schemas/CodexCapabilityCatalog" },
-          error: { type: "string" },
-          status: { enum: ["available", "unavailable"], type: "string" },
-        },
-        ["catalog", "status"],
-      ),
-      CodexCapabilityCatalog: {
-        ...closedObject(
-          {
-            codex_cli_version: {
-              const: codexCapabilityCatalog.codex_cli_version,
-              type: "string",
-            },
-            models: {
-              items: { $ref: "#/components/schemas/CodexModelCapability" },
-              minItems: 1,
-              type: "array",
-            },
-          },
-          ["codex_cli_version", "models"],
-        ),
-        const: codexCapabilityCatalog,
-      },
-      CodexModelCapability: {
-        oneOf: codexCapabilityCatalog.models.map((model) =>
-          closedObject(
-            {
-              id: { const: model.id, type: "string" },
-              reasoning_efforts: {
-                items: { enum: model.reasoning_efforts, type: "string" },
-                minItems: 1,
-                type: "array",
-              },
-              service_tiers: {
-                items: { enum: model.service_tiers, type: "string" },
-                minItems: 1,
-                type: "array",
-              },
-            },
-            ["id", "reasoning_efforts", "service_tiers"],
-          ),
-        ),
-      },
-      DurableCoreFact: openObject(
-        {
-          schema_version: { minimum: 1, type: "integer" },
-          status: { const: "ready", type: "string" },
-        },
-        ["schema_version", "status"],
-      ),
-      ImplementerTokenFact: openObject(
-        { status: { enum: ["active", "revoked"], type: "string" } },
-        ["status"],
-      ),
     },
     securitySchemes: {
       browser_session: {
