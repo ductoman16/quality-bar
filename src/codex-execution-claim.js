@@ -5,7 +5,11 @@ import {
   requireCodexProcessIdentity,
 } from "./codex-process-identity.js";
 import { startCodexExecution } from "./codex-execution-start.js";
-import { recordWaiverPreStartFailure } from "./waiver-adjudication-pre-start.js";
+import {
+  beginCodexPreStartAttempt,
+  recordCodexPreStartFailure,
+  recoverInterruptedCodexPreStartAttempt,
+} from "./codex-execution-pre-start.js";
 
 export const CODEX_EXECUTION_RENEWAL_MILLISECONDS = 30_000;
 export const CODEX_EXECUTION_LEASE_MILLISECONDS = 120_000;
@@ -116,6 +120,25 @@ export function createCodexExecutionClaimService(
       const leaseExpiresAt = claimedAt + CODEX_EXECUTION_LEASE_MILLISECONDS;
       requireTimestamp(leaseExpiresAt);
       return durableCore.transaction((transaction) => {
+        const expiredAttempts = transaction.all(
+          `SELECT DISTINCT queue.work_id, queue.work_kind
+           FROM codex_execution_queue AS queue
+           JOIN codex_execution_pre_start_attempts AS attempt
+             ON attempt.work_id = queue.work_id
+            AND attempt.work_kind = queue.work_kind
+           WHERE queue.started_at IS NULL
+             AND queue.retry_state = 'ready'
+             AND queue.worker_id IS NOT NULL
+             AND queue.lease_expires_at <= ?`,
+          claimedAt,
+        );
+        for (const expired of expiredAttempts) {
+          recoverInterruptedCodexPreStartAttempt(
+            transaction,
+            expired,
+            claimedAt,
+          );
+        }
         const maximumRunning = readCodexExecutionConcurrency(transaction);
         const queued = transaction.get(
           `SELECT work_id, work_kind, fencing_token
@@ -219,12 +242,12 @@ export function createCodexExecutionClaimService(
     /** @param {CodexExecutionClaim} claim @param {unknown} failure */
     recordPreStartFailure(claim, failure) {
       assertClaim(claim);
-      if (claim.workKind !== "waiver_adjudication") {
-        throw new TypeError(
-          "Only Waiver Adjudication claims own pre-start retry",
-        );
-      }
-      return recordWaiverPreStartFailure(durableCore, claim, failure, now);
+      return recordCodexPreStartFailure(durableCore, claim, failure, now);
+    },
+    /** @param {CodexExecutionClaim} claim */
+    beginPreStartAttempt(claim) {
+      assertClaim(claim);
+      return beginCodexPreStartAttempt(durableCore, claim, now);
     },
     /** @param {CodexExecutionClaim} claim @param {number} processGroupId */
     trackProcessGroup(claim, processGroupId) {

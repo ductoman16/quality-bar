@@ -1,4 +1,5 @@
 import { canonicalWaiverRecoveryOperation } from "./canonical-waiver-recovery-api.js";
+import { canonicalEvaluationPreStartRetryOperation } from "./canonical-evaluation-pre-start-retry.js";
 
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
@@ -150,6 +151,13 @@ export function canonicalEvaluationPaths(errorResponse) {
         },
         security: authenticated,
       },
+    },
+    "/api/v1/evaluations/{evaluation_id}/retry": {
+      ...canonicalEvaluationPreStartRetryOperation(
+        errorResponse,
+        evaluationResponse,
+        identityParameter,
+      ),
     },
     "/api/v1/evaluations/{evaluation_id}/waiver-adjudications": {
       get: {

@@ -11,6 +11,7 @@ export function evaluationFailureStatus(failure) {
       "csrf_invalid",
       "origin_invalid",
       "waiver_adjudication_recovery_forbidden",
+      "evaluation_pre_start_retry_forbidden",
     ].includes(code)
   ) {
     return 403;
@@ -42,6 +43,8 @@ export function evaluationFailureStatus(failure) {
     [
       "evaluation_result_not_ready",
       "evaluation_not_cancellable",
+      "evaluation_pre_start_retry_conflict",
+      "evaluation_pre_start_retry_not_exhausted",
       "idempotency_conflict",
       "waiver_adjudication_active",
       "waiver_adjudication_decision_retry_required",

@@ -130,6 +130,16 @@ function owningExecutionFailure(error) {
   );
 }
 
+/** @param {unknown} error */
+function owningPreStartFailure(error) {
+  return error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^[a-z][a-z0-9_]*$/.test(error.code)
+    ? error
+    : owningExecutionFailure(error);
+}
+
 /**
  * @param {(failure: Error) => unknown} reportDiagnostic
  * @param {Error[]} diagnosticFailures
@@ -236,7 +246,10 @@ function readRun(durableCore, workId) {
  *   checkoutCredential?: {token: string, username: string},
  *   checkoutRoot?: string,
  *   claimService: {
+ *     beginPreStartAttempt?(claim: any): unknown,
  *     finishProcessGroup?(claim: any): unknown,
+ *     recordPreStartFailure?(claim: any, failure: Error): unknown,
+ *     release?(claim: any): unknown,
  *     startTracked(claim: any, codexCliVersion: string, processGroupId: number): unknown,
  *     startRenewal(claim: any, onClaimLost: (error: unknown) => void): () => void,
  *   },
@@ -291,23 +304,37 @@ export async function executeReviewRun(
         : new TypeError("Review Run claim renewal failed");
   });
   try {
-    const checkout = await ioPool.run("acquisition", async (signal) => {
-      signal?.throwIfAborted();
-      const credential = await acquireCheckoutCredential();
-      signal?.throwIfAborted();
-      const prepared = await prepareCheckout({
-        baseCommit: run.baseCommit,
-        checkoutRoot,
-        credential,
-        fencingToken: claim.fencingToken,
-        headCommit: run.headCommit,
-        repositoryUrl: run.repositoryUrl,
-        signal,
-        workId: claim.workId,
+    let checkout;
+    let preStartAttemptBegan = false;
+    try {
+      checkout = await ioPool.run("acquisition", async (signal) => {
+        signal?.throwIfAborted();
+        callClaimService(claimService, "beginPreStartAttempt", claim);
+        preStartAttemptBegan = true;
+        const credential = await acquireCheckoutCredential();
+        signal?.throwIfAborted();
+        const prepared = await prepareCheckout({
+          baseCommit: run.baseCommit,
+          checkoutRoot,
+          credential,
+          fencingToken: claim.fencingToken,
+          headCommit: run.headCommit,
+          repositoryUrl: run.repositoryUrl,
+          signal,
+          workId: claim.workId,
+        });
+        signal?.throwIfAborted();
+        return prepared;
       });
-      signal?.throwIfAborted();
-      return prepared;
-    });
+    } catch (error) {
+      if (!preStartAttemptBegan) {
+        callClaimService(claimService, "release", claim);
+        throw owningExecutionFailure(error);
+      }
+      const failure = owningPreStartFailure(error);
+      callClaimService(claimService, "recordPreStartFailure", claim, failure);
+      throw failure;
+    }
     let executionFailure;
     /** @type {Error[]} */
     let diagnosticFailures = [];
@@ -396,6 +423,8 @@ export async function executeReviewRun(
             value: persistenceFailure,
           });
         }
+      } else if (!started) {
+        callClaimService(claimService, "recordPreStartFailure", claim, failure);
       }
       throw failure;
     } finally {

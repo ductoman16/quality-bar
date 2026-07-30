@@ -27,6 +27,9 @@ export function matchEvaluationRoute(method, path) {
   const cancellationMatch = path.match(
     /^\/api\/v1\/evaluations\/([^/]+)\/cancel$/,
   );
+  const preStartRetryMatch = path.match(
+    /^\/api\/v1\/evaluations\/([^/]+)\/retry$/,
+  );
   const diagnosticsMatch = path.match(
     /^\/api\/v1\/evaluations\/([^/]+)\/review-runs\/([^/]+)\/diagnostics$/,
   );
@@ -83,11 +86,13 @@ export function matchEvaluationRoute(method, path) {
       (method === "POST" &&
         (createMatch !== null ||
           cancellationMatch !== null ||
+          preStartRetryMatch !== null ||
           waiverBatchMatch !== null ||
           waiverErrorRetryMatch !== null ||
           waiverRecoveryMatch !== null)) ||
       (method === "GET" && diagnosticsMatch !== null),
     resultMatch,
+    preStartRetryMatch,
     reviewRunMatch,
     waiverAdjudicationMatch,
     waiverBatchMatch,
@@ -135,6 +140,7 @@ export function createEvaluationRoute({
       evaluationMatch,
       findingMatch,
       resultMatch,
+      preStartRetryMatch,
       reviewRunMatch,
       waiverAdjudicationMatch,
       waiverBatchMatch,
@@ -269,6 +275,16 @@ export function createEvaluationRoute({
           200,
           evaluations.cancel(decodeEvaluationPathSegment(cancellationMatch[1])),
         );
+        return true;
+      }
+      if (preStartRetryMatch) {
+        const retried = evaluations.retryPreStart({
+          channel:
+            authority === "machine" ? "implementer_token" : "browser_session",
+          evaluationId: decodeEvaluationPathSegment(preStartRetryMatch[1]),
+          idempotencyKey: request.headers["idempotency-key"],
+        });
+        writeJson(response, retried.status, retried.resource);
         return true;
       }
       if (waiverBatchMatch) {

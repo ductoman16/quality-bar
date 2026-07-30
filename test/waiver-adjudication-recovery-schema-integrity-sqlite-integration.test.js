@@ -22,6 +22,12 @@ function assertMalformedRetryStateRejected(retryStateDefinition) {
       DROP TABLE waiver_adjudication_pre_start_attempts;
       DROP TRIGGER waiver_adjudication_retry_transition;
       DROP TRIGGER waiver_adjudication_exhausted_start;
+      DROP TRIGGER review_run_pre_start_attempt_insert;
+      DROP TRIGGER review_run_pre_start_attempt_exhaust;
+      DROP TRIGGER review_run_retry_cycle_transition;
+      DROP TRIGGER review_run_retry_transition;
+      DROP TRIGGER review_run_exhausted_start;
+      DROP TABLE codex_execution_pre_start_attempts;
       ALTER TABLE waiver_adjudications DROP COLUMN retry_cycle;
       DROP INDEX codex_execution_queue_ready;
       ALTER TABLE codex_execution_queue DROP COLUMN retry_state;

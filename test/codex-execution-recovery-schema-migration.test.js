@@ -13,6 +13,7 @@ import {
   ReviewRunExecutionError,
 } from "../src/review-run-result.js";
 import { WAIVER_ADJUDICATION_RECOVERY_SCHEMA } from "../src/waiver-adjudication-recovery-schema.js";
+import { REVIEW_RUN_PRE_START_SCHEMA } from "../src/review-run-pre-start-schema.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 /** @param {string} databasePath */
@@ -21,6 +22,10 @@ function downgradeToVersion44(databasePath) {
   deployed.exec(`
     PRAGMA foreign_keys = OFF;
     PRAGMA legacy_alter_table = ON;
+    DROP TRIGGER IF EXISTS review_run_pre_start_attempt_insert;
+    DROP TRIGGER IF EXISTS review_run_pre_start_attempt_exhaust;
+    DROP TRIGGER IF EXISTS review_run_retry_transition;
+    DROP TRIGGER IF EXISTS review_run_exhausted_start;
     BEGIN IMMEDIATE;
     ALTER TABLE codex_execution_queue RENAME TO codex_execution_queue_v44;
     CREATE TABLE codex_execution_queue (
@@ -66,6 +71,7 @@ function downgradeToVersion44(databasePath) {
     DROP TRIGGER IF EXISTS waiver_adjudication_exhausted_start;
   `);
   deployed.exec(WAIVER_ADJUDICATION_RECOVERY_SCHEMA);
+  deployed.exec(REVIEW_RUN_PRE_START_SCHEMA);
   deployed.exec(CODEX_EXECUTION_QUEUE_TRIGGERS);
   deployed.close();
 }
@@ -81,7 +87,7 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 45);
+  assert.equal(migrated.facts.schemaVersion, 46);
   assert.deepEqual(
     migrated.get(
       `SELECT work_kind, started_at, process_group_id,

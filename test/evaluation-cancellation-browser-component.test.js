@@ -114,6 +114,10 @@ test("the operator cancels active work and reads one complete cancelled Result",
   for (const [sourcePath, route] of [
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
     ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
+    [
+      "src/browser/evaluation-active-controls.js",
+      "/assets/evaluation-active-controls.js",
+    ],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
     executeServedBrowserAsset(
@@ -236,6 +240,10 @@ test("superseded pull-request work exposes its exact cancellation state", async 
   for (const [sourcePath, route] of [
     ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
     ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
+    [
+      "src/browser/evaluation-active-controls.js",
+      "/assets/evaluation-active-controls.js",
+    ],
     ["src/browser/evaluation.js", "/assets/evaluation.js"],
   ]) {
     executeServedBrowserAsset(
@@ -337,6 +345,12 @@ test("each explicit browser rerun of one Changeset owns a fresh key", async () =
       },
     },
   };
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-active-controls.js",
+    readBrowserAsset("/assets/evaluation-active-controls.js"),
+    context,
+  );
   executeServedBrowserAsset(
     resolve("."),
     "src/browser/evaluation.js",

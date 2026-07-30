@@ -54,6 +54,10 @@ test("Evaluations distinguishes an empty workspace from a hard dependency gate",
       ["src/browser/waiver-batch.js", "/assets/waiver-batch.js"],
       ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
       ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
+      [
+        "src/browser/evaluation-active-controls.js",
+        "/assets/evaluation-active-controls.js",
+      ],
       ["src/browser/evaluation.js", "/assets/evaluation.js"],
     ]) {
       executeServedBrowserAsset(

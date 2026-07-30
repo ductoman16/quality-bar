@@ -1,6 +1,11 @@
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import { githubDeliveryResource as delivery } from "./github-delivery-resource.js";
 import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
+import {
+  EVALUATION_PRE_START_RETRY_SELECTION,
+  readEvaluationPreStartRetry,
+  validEvaluationPreStartRetryRow,
+} from "./evaluation-pre-start-retry-resource.js";
 
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
@@ -38,7 +43,8 @@ export function readEvaluation(row) {
     !(
       row.next_attempt_at === null || Number.isSafeInteger(row.next_attempt_at)
     ) ||
-    !Number.isSafeInteger(row.created_at)
+    !Number.isSafeInteger(row.created_at) ||
+    !validEvaluationPreStartRetryRow(row)
   ) {
     throw new TypeError("Evaluation row is invalid");
   }
@@ -282,10 +288,7 @@ export function readEvaluation(row) {
       value: row.head_selector_value,
     },
     id: row.id,
-    next_attempt_at:
-      row.next_attempt_at === null
-        ? null
-        : timestamp(/** @type {number} */ (row.next_attempt_at)),
+    ...readEvaluationPreStartRetry(row),
     provenance: row.resource_provenance,
     ...(row.resource_provenance === "automatic"
       ? {
@@ -299,6 +302,7 @@ export function readEvaluation(row) {
 }
 
 export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
+  ${EVALUATION_PRE_START_RETRY_SELECTION}
   github_commit_statuses.evaluation_id AS commit_status_evaluation_id,
   github_commit_statuses.head_commit AS commit_status_head_commit,
   github_commit_statuses.desired_state AS commit_status_state,

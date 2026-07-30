@@ -9,6 +9,7 @@ test("credential acquisition failure stays inside the claimed execution lifecycl
     code: "repository_git_credentials_unavailable",
   });
   let stoppedRenewal = false;
+  let recordedFailure;
   await assert.rejects(
     executeReviewRun(
       {
@@ -36,6 +37,15 @@ test("credential acquisition failure stays inside the claimed execution lifecycl
           throw failure;
         },
         claimService: {
+          beginPreStartAttempt() {},
+          recordPreStartFailure(claim, recorded) {
+            assert.deepEqual(claim, {
+              fencingToken: 1,
+              workerId: "worker-1",
+              workId: "run-1",
+            });
+            recordedFailure = recorded;
+          },
           startTracked: assert.fail,
           startRenewal() {
             return () => {
@@ -52,5 +62,6 @@ test("credential acquisition failure stays inside the claimed execution lifecycl
     ),
     (error) => error === failure,
   );
+  assert.equal(recordedFailure, failure);
   assert.equal(stoppedRenewal, true);
 });

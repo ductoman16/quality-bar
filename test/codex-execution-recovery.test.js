@@ -228,6 +228,9 @@ test("recovery releases queued work and fails an interrupted waiver without retr
     },
     transaction(/** @type {any} */ callback) {
       return callback({
+        get() {
+          return undefined;
+        },
         /** @param {string} sql @param {any[]} parameters */
         run(sql, ...parameters) {
           writes.push({ parameters, sql });

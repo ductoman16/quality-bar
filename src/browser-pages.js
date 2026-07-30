@@ -115,7 +115,7 @@ export function operatorPage({ view }) {
       : "";
   if (evaluationSection) {
     evaluationSection +=
-      '<script src="/assets/waiver-batch.js"></script><script src="/assets/evaluation-result.js"></script><script src="/assets/evaluation-feedback.js"></script>';
+      '<script src="/assets/waiver-batch.js"></script><script src="/assets/evaluation-result.js"></script><script src="/assets/evaluation-feedback.js"></script><script src="/assets/evaluation-active-controls.js"></script>';
   }
   let reviewSection =
     view === "reviews"

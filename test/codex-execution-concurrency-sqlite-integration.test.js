@@ -79,7 +79,7 @@ test("schema 43 migrates to the default durable concurrency without changing que
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 45);
+  assert.equal(migrated.facts.schemaVersion, 46);
   assert.equal(createCodexExecutionConcurrencyService(migrated).read(), 1);
   assert.equal(
     migrated.get(

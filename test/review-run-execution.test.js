@@ -56,6 +56,9 @@ test("prepares checkout before starting the Review Run timer", async () => {
     ioPool: createIoExecutionPool(),
     checkoutCredential,
     claimService: {
+      beginPreStartAttempt() {
+        events.push("attempt");
+      },
       startTracked() {
         events.push("start");
       },
@@ -94,6 +97,7 @@ test("prepares checkout before starting the Review Run timer", async () => {
   });
 
   assert.deepEqual(events, [
+    "attempt",
     "checkout",
     "file-changes",
     "start",
@@ -156,6 +160,7 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
   const execution = await executeReviewRun(durableCore(), claim, {
     ioPool: createIoExecutionPool(),
     claimService: {
+      beginPreStartAttempt() {},
       startTracked() {},
       startRenewal() {
         return () => {};
@@ -185,41 +190,6 @@ test("diagnostic sink failure cannot overturn accepted Result authority", async 
   });
 });
 
-test("checkout failure remains pre-start and does not launch Codex", async () => {
-  const failure = new ReviewRunCheckoutError(
-    "review_run_checkout_failed",
-    "Review Run checkout preparation failed",
-  );
-  let started = false;
-  let launched = false;
-  await assert.rejects(
-    () =>
-      executeReviewRun(durableCore(), claim, {
-        ioPool: createIoExecutionPool(),
-        claimService: {
-          startTracked() {
-            started = true;
-          },
-          startRenewal() {
-            return () => {};
-          },
-        },
-        async prepareCheckout() {
-          throw failure;
-        },
-        readFileChanges: () => [],
-        resultService: { fail() {}, prepare() {} },
-        async runCodex() {
-          launched = true;
-          return { diagnosticFailures: [] };
-        },
-      }),
-    (error) => error === failure,
-  );
-  assert.equal(started, false);
-  assert.equal(launched, false);
-});
-
 test("cleanup failure cannot replace the exact owning execution failure", async () => {
   const executionFailure = new ReviewRunExecutionError(
     "configuration_unavailable",
@@ -234,6 +204,7 @@ test("cleanup failure cannot replace the exact owning execution failure", async 
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
+          beginPreStartAttempt() {},
           startTracked() {},
           startRenewal() {
             return () => {};
@@ -278,6 +249,7 @@ test("cleanup failure after an accepted Result remains an exact hard failure", a
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
+          beginPreStartAttempt() {},
           startTracked() {},
           startRenewal() {
             return () => {};
@@ -316,6 +288,7 @@ test("an unexpected started failure has one stable safe owning detail", async ()
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
+          beginPreStartAttempt() {},
           startTracked() {},
           startRenewal() {
             return () => {};
@@ -367,6 +340,7 @@ test("a contradictory File Change authority failure remains exact through execut
       executeReviewRun(durableCore(), claim, {
         ioPool: createIoExecutionPool(),
         claimService: {
+          beginPreStartAttempt() {},
           startTracked() {},
           startRenewal() {
             return () => {};

@@ -7,6 +7,10 @@ import {
 } from "./canonical-github-feedback-components.js";
 import { canonicalReviewRunSchemas } from "./canonical-review-run-components.js";
 import { canonicalWaiverSchemas } from "./canonical-waiver-components.js";
+import {
+  evaluationPreStartRetryProperties,
+  evaluationPreStartRetryRequired,
+} from "./canonical-evaluation-pre-start-retry.js";
 
 export function canonicalEvaluationSchemas() {
   return {
@@ -110,6 +114,7 @@ export function canonicalEvaluationSchemas() {
           ],
         ),
         created_at: { format: "date-time", type: "string" },
+        ...evaluationPreStartRetryProperties,
         effective_outcome: {
           enum: ["pending", "clear", "advisory", "blocking", "error"],
           type: "string",
@@ -151,6 +156,7 @@ export function canonicalEvaluationSchemas() {
       [
         "id",
         "next_attempt_at",
+        ...evaluationPreStartRetryRequired,
         "repository",
         "provenance",
         "base_selector",

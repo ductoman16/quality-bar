@@ -5,6 +5,9 @@ const resultRenderer = /** @type {any} */ (
 const feedbackRenderer = /** @type {any} */ (
   Reflect.get(window, "qualityBarEvaluationFeedback")
 );
+const activeControls = /** @type {any} */ (
+  Reflect.get(window, "qualityBarEvaluationActiveControls")
+);
 if (
   !operator ||
   typeof operator.requiredElement !== "function" ||
@@ -24,6 +27,15 @@ if (
   typeof feedbackRenderer.render !== "function"
 ) {
   throw new Error("evaluation_feedback_boundary_unavailable");
+}
+if (
+  !activeControls ||
+  typeof activeControls.valid !== "function" ||
+  typeof activeControls.status !== "function" ||
+  typeof activeControls.appendCancel !== "function" ||
+  typeof activeControls.appendRetry !== "function"
+) {
+  throw new Error("evaluation_pre_start_retry_boundary_unavailable");
 }
 
 const form = operator.requiredElement("evaluation-create-form");
@@ -87,7 +99,8 @@ async function renderEvaluation(evaluation) {
     ) ||
     typeof evaluation.execution_status !== "string" ||
     typeof evaluation.effective_outcome !== "string" ||
-    !nullableString(evaluation.next_attempt_at ?? null)
+    !nullableString(evaluation.next_attempt_at ?? null) ||
+    !activeControls.valid(evaluation)
   ) {
     throw new Error("evaluation_collection_invalid");
   }
@@ -115,12 +128,14 @@ async function renderEvaluation(evaluation) {
     " (" +
     evaluation.head_commit +
     ") — " +
-    (evaluation.execution_status === "queued" && evaluation.next_attempt_at
-      ? "delayed until " + evaluation.next_attempt_at
-      : evaluation.execution_status) +
+    (activeControls.status(evaluation) ??
+      (evaluation.execution_status === "queued" && evaluation.next_attempt_at
+        ? "delayed until " + evaluation.next_attempt_at
+        : evaluation.execution_status)) +
     " — " +
     evaluation.effective_outcome;
   const target =
+    activeControls.status(evaluation) !== null ||
     evaluation.commit_status?.publication_status === "unavailable" ||
     evaluation.commit_status?.error ||
     evaluation.commit_status?.reconciliation_required ||
@@ -200,24 +215,8 @@ async function renderEvaluation(evaluation) {
   target.append(row);
   if (["queued", "running"].includes(evaluation.execution_status)) {
     resultState.textContent = "Result not ready";
-    const cancel = document.createElement("button");
-    cancel.type = "button";
-    cancel.textContent = "Cancel " + evaluation.id;
-    cancel.addEventListener("click", async () => {
-      const response = await fetch(
-        "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/cancel",
-        {
-          headers: { "x-quality-bar-csrf": operator.csrfToken() },
-          method: "POST",
-        },
-      );
-      if (!response.ok) {
-        await operator.displayMutationFailure(response);
-        return;
-      }
-      await loadEvaluations();
-    });
-    row.append(cancel);
+    activeControls.appendCancel(row, evaluation, loadEvaluations, operator);
+    activeControls.appendRetry(row, evaluation, loadEvaluations, operator);
     return;
   }
   if (!["completed", "cancelled"].includes(evaluation.execution_status)) {

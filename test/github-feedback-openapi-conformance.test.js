@@ -22,6 +22,7 @@ test("runtime conformance accepts exact aggregate and per-Finding feedback state
       created_at: "2026-07-29T11:00:00.000Z",
       effective_outcome: "blocking",
       execution_status: "completed",
+      exhausted_at: null,
       feedback: {
         aggregate: {
           attempt_count: 1,
@@ -64,8 +65,11 @@ test("runtime conformance accepts exact aggregate and per-Finding feedback state
       head_selector: { type: "commit", value: head },
       id: "evaluation-1",
       next_attempt_at: null,
+      pre_start_attempt_count: 0,
       provenance: "automatic",
       pull_request: { number: 17 },
+      retry_error: null,
+      retry_state: "ready",
       repository: {
         id: "repository-1",
         url: "https://github.com/operator/repository.git",

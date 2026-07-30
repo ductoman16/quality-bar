@@ -16,6 +16,7 @@ export function assertEvaluationPage(page) {
     /id="evaluation-more"/,
     /<script src="\/assets\/evaluation-result\.js"><\/script>/,
     /<script src="\/assets\/evaluation-feedback\.js"><\/script>/,
+    /<script src="\/assets\/evaluation-active-controls\.js"><\/script>/,
     /<script src="\/assets\/evaluation\.js"><\/script>/,
   ]) {
     assert.match(page, pattern);
@@ -42,12 +43,16 @@ export const evaluation = (overrides = {}) => {
     completed_at: "2026-07-28T12:00:00.000Z",
     created_at: "2026-07-28T12:00:00.000Z",
     effective_outcome: "clear",
+    exhausted_at: null,
     execution_status: "completed",
     head_commit: oid("2"),
     head_selector: { type: "branch", value: "topic" },
     id: "evaluation-complete",
     next_attempt_at: null,
+    pre_start_attempt_count: 0,
     provenance: "explicit",
+    retry_error: null,
+    retry_state: "ready",
     repository: {
       id: "repository-1",
       url: "https://example.invalid/repository.git",

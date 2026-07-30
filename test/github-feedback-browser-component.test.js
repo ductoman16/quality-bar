@@ -98,6 +98,12 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
   );
   executeServedBrowserAsset(
     resolve("."),
+    "src/browser/evaluation-active-controls.js",
+    readBrowserAsset("/assets/evaluation-active-controls.js"),
+    browserContext,
+  );
+  executeServedBrowserAsset(
+    resolve("."),
     "src/browser/evaluation.js",
     readBrowserAsset("/assets/evaluation.js"),
     browserContext,
