@@ -85,3 +85,60 @@ test("claim identities and owner-specific CLI versions must be nonblank", () => 
     /Review Run Codex CLI version is invalid/,
   );
 });
+
+test("renewal loss preserves the exact owner error for both work kinds", () => {
+  for (const [workKind, expectedCode, expectedMessage] of [
+    [
+      "review_run",
+      "review_run_claim_lost",
+      "Review Run claim is no longer authoritative",
+    ],
+    [
+      "waiver_adjudication",
+      "waiver_adjudication_claim_lost",
+      "Waiver Adjudication claim is no longer authoritative",
+    ],
+  ]) {
+    let renewal = () => {};
+    const service = createCodexExecutionClaimService(
+      {
+        transaction(callback) {
+          return callback({
+            run() {
+              return { changes: 0, lastInsertRowid: 0 };
+            },
+          });
+        },
+      },
+      {
+        clearInterval() {},
+        createWorkerId: () => "unused",
+        now: () => 60_000,
+        setInterval(callback) {
+          renewal = callback;
+          return "renewal";
+        },
+      },
+    );
+    /** @type {{code?: string, message?: string}[]} */
+    const losses = [];
+    service.startRenewal(
+      {
+        fencingToken: 1,
+        leaseExpiresAt: 120_000,
+        workerId: "expired-worker",
+        workId: `${workKind}-1`,
+        workKind: /** @type {"review_run" | "waiver_adjudication"} */ (
+          workKind
+        ),
+      },
+      (error) =>
+        losses.push(/** @type {{code?: string, message?: string}} */ (error)),
+    );
+    renewal();
+    assert.deepEqual(
+      losses.map(({ code, message }) => ({ code, message })),
+      [{ code: expectedCode, message: expectedMessage }],
+    );
+  }
+});

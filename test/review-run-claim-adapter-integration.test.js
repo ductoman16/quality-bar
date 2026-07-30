@@ -190,6 +190,51 @@ test("a long owning Codex adapter cannot starve an independent I/O duty", async 
   await codexStarted;
 });
 
+test("only the replacement Review Run claim reaches its owning adapter", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-adapter-race-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  seedQueuedCodexExecutionKinds(core, {
+    adjudicationReadyAt: 300_000,
+    reviewRunReadyAt: 10,
+  });
+  let now = 10;
+  let worker = 0;
+  const claims = createCodexExecutionClaimService(core, {
+    createWorkerId: () => `adapter-worker-${++worker}`,
+    now: () => now,
+  });
+  const expired = claims.claimNext();
+  assert.ok(expired);
+  assert.equal(expired.workKind, "review_run");
+  now = 120_010;
+  const replacement = claims.claimNext();
+  assert.ok(replacement);
+  assert.equal(replacement.fencingToken, 2);
+  assert.throws(
+    () => claims.start(expired, "0.145.0"),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "review_run_claim_lost",
+  );
+  claims.start(replacement, "0.145.0");
+  let reviewLaunches = 0;
+  executeClaimWithOwningAdapter(replacement, {
+    executeReviewRun(claim) {
+      reviewLaunches += 1;
+      assert.deepEqual(claim, replacement);
+    },
+    executeWaiverAdjudication() {
+      assert.fail(
+        "stale Review Run must not reach the Waiver Adjudication adapter",
+      );
+    },
+  });
+  assert.equal(reviewLaunches, 1);
+});
+
 test("the Codex adapter tracks the detached process group before observing its terminal result", async () => {
   const child = runningProcess(4321);
   /** @type {string[]} */

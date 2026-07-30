@@ -1,4 +1,7 @@
-import { WAIVER_ADJUDICATION_EXECUTION_INTEGRITY } from "./waiver-adjudication-schema-migration.js";
+import {
+  WAIVER_ADJUDICATION_EXECUTION_INTEGRITY,
+  WAIVER_ADJUDICATION_TERMINAL_INTEGRITY,
+} from "./waiver-adjudication-schema-migration.js";
 
 export const WAIVER_BATCH_SCHEMA = `
   CREATE TABLE IF NOT EXISTS waiver_adjudications (
@@ -332,23 +335,17 @@ export const WAIVER_BATCH_SCHEMA = `
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_not_started'); END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_complete_decisions
     BEFORE UPDATE OF execution_status ON waiver_adjudications
-    WHEN (
-      NEW.execution_status = 'completed'
-      AND (
-        SELECT count(*) FROM waiver_decisions
-        WHERE waiver_adjudication_id = NEW.id
-      ) <> (
-        SELECT count(*) FROM waiver_adjudication_requests
-        WHERE waiver_adjudication_id = NEW.id
-      )
-    ) OR (
+    WHEN (NEW.execution_status = 'completed'
+      AND (SELECT count(*) FROM waiver_decisions
+           WHERE waiver_adjudication_id = NEW.id) <> (SELECT count(*)
+             FROM waiver_adjudication_requests
+             WHERE waiver_adjudication_id = NEW.id)) OR (
       NEW.execution_status = 'failed'
-      AND EXISTS (
-        SELECT 1 FROM waiver_decisions
-        WHERE waiver_adjudication_id = NEW.id
-      )
+      AND EXISTS (SELECT 1 FROM waiver_decisions
+                  WHERE waiver_adjudication_id = NEW.id)
     )
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_decisions_invalid'); END;
+  ${WAIVER_ADJUDICATION_TERMINAL_INTEGRITY}
   ${WAIVER_ADJUDICATION_EXECUTION_INTEGRITY}
   CREATE TRIGGER IF NOT EXISTS waiver_batch_idempotency_immutable_update
     BEFORE UPDATE ON waiver_batch_idempotency

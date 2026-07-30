@@ -73,6 +73,8 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/io-execution-pool.test.js",
   "test/review-run-execution-pre-start.test.js",
   "test/review-run-claim.test.js",
+  "test/codex-execution-race-sqlite-integration.test.js",
+  "test/codex-execution-race-sqlite-failure-integration.test.js",
   "test/review-run-result.test.js",
   "test/review-run-codex-adapter.test.js",
   "test/review-run-codex-failure.test.js",

@@ -104,7 +104,7 @@ for (const version of /** @type {const} */ ([40, 41])) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 46);
+      assert.equal(migrated.facts.schemaVersion, 47);
       assert.deepEqual(
         migrated
           .all(
