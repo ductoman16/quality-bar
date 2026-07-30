@@ -1,3 +1,5 @@
+import { WAIVER_ADJUDICATION_EXECUTION_INTEGRITY } from "./waiver-adjudication-schema-migration.js";
+
 export const WAIVER_BATCH_SCHEMA = `
   CREATE TABLE IF NOT EXISTS waiver_adjudications (
     id TEXT PRIMARY KEY,
@@ -14,8 +16,28 @@ export const WAIVER_BATCH_SCHEMA = `
     created_at INTEGER NOT NULL,
     started_at INTEGER,
     completed_at INTEGER,
+    error_code TEXT,
+    error_detail TEXT,
+    codex_cli_version TEXT,
+    process_exit_code INTEGER,
+    process_signal TEXT,
+    input_tokens INTEGER CHECK (input_tokens IS NULL OR input_tokens >= 0),
+    cached_input_tokens INTEGER
+      CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
+    output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
+    execution_evidence_recorded INTEGER NOT NULL DEFAULT 0
+      CHECK (execution_evidence_recorded IN (0, 1)),
     CHECK (length(base_commit) = length(head_commit)),
-    CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at)
+    CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at),
+    CHECK (
+      (execution_status = 'failed'
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+      OR
+      (execution_status <> 'failed' AND error_code IS NULL AND error_detail IS NULL)
+    )
   ) STRICT;
   CREATE UNIQUE INDEX IF NOT EXISTS waiver_adjudication_active_evaluation
     ON waiver_adjudications (evaluation_id)
@@ -35,6 +57,36 @@ export const WAIVER_BATCH_SCHEMA = `
     position INTEGER NOT NULL CHECK (position > 0),
     PRIMARY KEY (waiver_adjudication_id, waiver_request_id),
     UNIQUE (waiver_adjudication_id, position)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS waiver_decisions (
+    id TEXT PRIMARY KEY,
+    waiver_adjudication_id TEXT NOT NULL REFERENCES waiver_adjudications(id),
+    waiver_request_id TEXT NOT NULL REFERENCES waiver_requests(id),
+    outcome TEXT NOT NULL CHECK (outcome IN ('accepted', 'denied', 'error')),
+    explanation TEXT,
+    error_code TEXT,
+    error_detail TEXT,
+    created_at INTEGER NOT NULL,
+    CHECK (
+      (outcome IN ('accepted', 'denied')
+        AND explanation IS NOT NULL AND length(trim(explanation)) > 0
+        AND error_code IS NULL AND error_detail IS NULL)
+      OR
+      (outcome = 'error'
+        AND explanation IS NULL
+        AND error_code IS NOT NULL AND length(error_code) > 0
+        AND error_code NOT GLOB '*[^a-z0-9_]*'
+        AND substr(error_code, 1, 1) GLOB '[a-z]'
+        AND error_detail IS NOT NULL AND length(trim(error_detail)) > 0)
+    ),
+    UNIQUE (waiver_adjudication_id, waiver_request_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS waiver_adjudication_transcript_chunks (
+    waiver_adjudication_id TEXT NOT NULL REFERENCES waiver_adjudications(id),
+    sequence INTEGER NOT NULL CHECK (sequence > 0),
+    stream TEXT NOT NULL CHECK (stream IN ('stdout', 'stderr')),
+    content TEXT NOT NULL CHECK (length(content) > 0),
+    PRIMARY KEY (waiver_adjudication_id, sequence)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS waiver_batch_idempotency (
     channel TEXT NOT NULL
@@ -137,6 +189,60 @@ export const WAIVER_BATCH_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_request_immutable_delete
     BEFORE DELETE ON waiver_adjudication_requests
     BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_request_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_decision_request_insert
+    BEFORE INSERT ON waiver_decisions
+    WHEN NOT EXISTS (
+      SELECT 1
+      FROM waiver_adjudication_requests
+      JOIN waiver_adjudications
+        ON waiver_adjudications.id =
+           waiver_adjudication_requests.waiver_adjudication_id
+      WHERE waiver_adjudication_requests.waiver_adjudication_id =
+            NEW.waiver_adjudication_id
+        AND waiver_adjudication_requests.waiver_request_id =
+            NEW.waiver_request_id
+        AND waiver_adjudications.execution_status = 'running'
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_decision_request_invalid'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_decision_immutable_update
+    BEFORE UPDATE ON waiver_decisions
+    BEGIN SELECT RAISE(ABORT, 'waiver_decision_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_decision_immutable_delete
+    BEFORE DELETE ON waiver_decisions
+    BEGIN SELECT RAISE(ABORT, 'waiver_decision_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_transcript_immutable_update
+    BEFORE UPDATE ON waiver_adjudication_transcript_chunks
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_transcript_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_transcript_immutable_delete
+    BEFORE DELETE ON waiver_adjudication_transcript_chunks
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_transcript_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_transcript_requires_started
+    BEFORE INSERT ON waiver_adjudication_transcript_chunks
+    WHEN (
+      SELECT started_at FROM waiver_adjudications
+      WHERE id = NEW.waiver_adjudication_id
+    ) IS NULL
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_not_started'); END;
+  CREATE TRIGGER IF NOT EXISTS waiver_adjudication_complete_decisions
+    BEFORE UPDATE OF execution_status ON waiver_adjudications
+    WHEN (
+      NEW.execution_status = 'completed'
+      AND (
+        SELECT count(*) FROM waiver_decisions
+        WHERE waiver_adjudication_id = NEW.id
+      ) <> (
+        SELECT count(*) FROM waiver_adjudication_requests
+        WHERE waiver_adjudication_id = NEW.id
+      )
+    ) OR (
+      NEW.execution_status = 'failed'
+      AND EXISTS (
+        SELECT 1 FROM waiver_decisions
+        WHERE waiver_adjudication_id = NEW.id
+      )
+    )
+    BEGIN SELECT RAISE(ABORT, 'waiver_adjudication_decisions_invalid'); END;
+  ${WAIVER_ADJUDICATION_EXECUTION_INTEGRITY}
   CREATE TRIGGER IF NOT EXISTS waiver_batch_idempotency_immutable_update
     BEFORE UPDATE ON waiver_batch_idempotency
     BEGIN SELECT RAISE(ABORT, 'waiver_batch_idempotency_immutable'); END;

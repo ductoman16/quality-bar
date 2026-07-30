@@ -1,7 +1,15 @@
-/** @param {any} core */
-export function seedCompletedEvaluation(core) {
+/** @param {any} core @param {{baseCommit?: string, headCommit?: string, repositoryUrl?: string}} [options] */
+export function seedCompletedEvaluation(
+  core,
+  {
+    baseCommit = "a".repeat(40),
+    headCommit = "b".repeat(40),
+    repositoryUrl = "https://example.invalid/repository.git",
+  } = {},
+) {
   core.run(
-    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES ('repository-1', 'https://example.invalid/repository.git', 1, 1)",
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES ('repository-1', ?, 1, 1)",
+    repositoryUrl,
   );
   core.transaction((/** @type {any} */ transaction) => {
     transaction.run(
@@ -33,10 +41,10 @@ export function seedCompletedEvaluation(core) {
   core.run("UPDATE review_versions SET sealed_at = 1 WHERE id = 'version-1'");
   core.run(
     "INSERT INTO evaluations (id, repository_id, provenance, base_selector_type, base_selector_value, head_selector_type, head_selector_value, base_commit, head_commit, execution_status, applicability_sealed_at, next_attempt_at, created_at, completed_at) VALUES ('evaluation-1', 'repository-1', 'explicit', 'commit', ?, 'commit', ?, ?, ?, 'completed', NULL, NULL, 1, 2)",
-    "a".repeat(40),
-    "b".repeat(40),
-    "a".repeat(40),
-    "b".repeat(40),
+    baseCommit,
+    headCommit,
+    baseCommit,
+    headCommit,
   );
   core.run(
     "UPDATE evaluations SET applicability_sealed_at = 1 WHERE id = 'evaluation-1'",

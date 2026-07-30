@@ -124,11 +124,13 @@ test("durable waiver identities cannot cross Evaluations and one Request may be 
       ["recovery-adjudication", "queued"],
     ]) {
       core.run(
-        "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at) VALUES (?, 'evaluation-1', ?, ?, 'gpt-5.6-terra', 'high', 'standard', ?, 3)",
+        "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at, error_code, error_detail) VALUES (?, 'evaluation-1', ?, ?, 'gpt-5.6-terra', 'high', 'standard', ?, 3, ?, ?)",
         id,
         "a".repeat(40),
         "b".repeat(40),
         status,
+        status === "failed" ? "codex_process_failed" : null,
+        status === "failed" ? "Codex process failed" : null,
       );
       core.run(
         "INSERT INTO waiver_adjudication_requests (waiver_adjudication_id, waiver_request_id, position) VALUES (?, 'recoverable-request', 1)",
@@ -136,7 +138,7 @@ test("durable waiver identities cannot cross Evaluations and one Request may be 
       );
     }
     core.run(
-      "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at) VALUES ('cross-adjudication', 'evaluation-2', ?, ?, 'gpt-5.6-terra', 'high', 'standard', 'failed', 3)",
+      "INSERT INTO waiver_adjudications (id, evaluation_id, base_commit, head_commit, model, reasoning_effort, service_tier, execution_status, created_at, error_code, error_detail) VALUES ('cross-adjudication', 'evaluation-2', ?, ?, 'gpt-5.6-terra', 'high', 'standard', 'failed', 3, 'codex_process_failed', 'Codex process failed')",
       "c".repeat(40),
       "d".repeat(40),
     );

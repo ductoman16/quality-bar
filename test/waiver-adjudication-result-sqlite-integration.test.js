@@ -1,0 +1,201 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { openDurableCore } from "../src/durable-core.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
+
+/** @param {any} core */
+function preparedAdjudication(core) {
+  const ids = ["request-1", "request-2"];
+  createWaiverBatchService(core, {
+    createAdjudicationId: () => "adjudication-1",
+    createRequestId: () => ids.shift() ?? assert.fail("missing id"),
+    now: () => 10,
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  }).submit({
+    channel: "browser_session",
+    evaluationId: "evaluation-1",
+    idempotencyKey: "waiver-key",
+    request: {
+      requests: [
+        { finding_id: "finding-1", rationale: "Exact first exception." },
+        { finding_id: "finding-2", rationale: "Exact second exception." },
+      ],
+    },
+  });
+  core.run(
+    `UPDATE codex_execution_queue
+     SET worker_id = 'worker-1', fencing_token = 1,
+         lease_expires_at = 100, started_at = 11
+     WHERE work_id = 'adjudication-1'`,
+  );
+  core.run(
+    `UPDATE waiver_adjudications
+     SET execution_status = 'running', started_at = 11,
+         codex_cli_version = '0.114.0'
+     WHERE id = 'adjudication-1'`,
+  );
+}
+
+test("the first complete submission atomically stores every immutable Decision", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-result-"));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  try {
+    seedCompletedEvaluation(core);
+    preparedAdjudication(core);
+    const decisionIds = ["decision-1", "decision-2"];
+    const service = createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => decisionIds.shift() ?? assert.fail("missing id"),
+      now: () => 12,
+    });
+    service.prepare(
+      {
+        fencingToken: 1,
+        workerId: "worker-1",
+        workId: "adjudication-1",
+      },
+      {
+        decisions: [
+          {
+            explanation: "The exact first exception is justified.",
+            outcome: "accepted",
+            request_id: "request-1",
+          },
+          {
+            explanation: "The second rationale is insufficient.",
+            outcome: "denied",
+            request_id: "request-2",
+          },
+        ],
+      },
+    );
+
+    assert.deepEqual(
+      core.all(
+        `SELECT id, waiver_request_id, outcome, explanation
+         FROM waiver_decisions ORDER BY id`,
+      ),
+      [
+        {
+          explanation: "The exact first exception is justified.",
+          id: "decision-1",
+          outcome: "accepted",
+          waiver_request_id: "request-1",
+        },
+        {
+          explanation: "The second rationale is insufficient.",
+          id: "decision-2",
+          outcome: "denied",
+          waiver_request_id: "request-2",
+        },
+      ],
+    );
+    assert.deepEqual(
+      core.get(
+        "SELECT execution_status, completed_at FROM waiver_adjudications WHERE id = 'adjudication-1'",
+      ),
+      { completed_at: 12, execution_status: "completed" },
+    );
+    assert.throws(
+      () =>
+        core.run(
+          "UPDATE waiver_decisions SET explanation = 'changed' WHERE id = 'decision-1'",
+        ),
+      /waiver_decision_immutable/,
+    );
+  } finally {
+    core.close();
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("an invalid partial candidate stores no Decisions and leaves the submission open", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-partial-"));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  try {
+    seedCompletedEvaluation(core);
+    preparedAdjudication(core);
+    const service = createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => "decision-unused",
+      now: () => 12,
+    });
+    assert.throws(
+      () =>
+        service.prepare(
+          {
+            fencingToken: 1,
+            workerId: "worker-1",
+            workId: "adjudication-1",
+          },
+          {
+            decisions: [
+              {
+                explanation: "Only one Decision.",
+                outcome: "accepted",
+                request_id: "request-1",
+              },
+            ],
+          },
+        ),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "waiver_adjudication_submission_invalid",
+    );
+    assert.equal(
+      core.get("SELECT count(*) AS count FROM waiver_decisions")?.count,
+      0,
+    );
+    assert.equal(
+      core.get(
+        "SELECT execution_status FROM waiver_adjudications WHERE id = 'adjudication-1'",
+      )?.execution_status,
+      "running",
+    );
+  } finally {
+    core.close();
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("SQLite rejects a raw partial Decision set as completed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-raw-"));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  try {
+    seedCompletedEvaluation(core);
+    preparedAdjudication(core);
+    core.run(
+      `INSERT INTO waiver_decisions (
+         id, waiver_adjudication_id, waiver_request_id, outcome,
+         explanation, created_at
+       ) VALUES (
+         'decision-raw', 'adjudication-1', 'request-1', 'accepted',
+         'Only one raw Decision.', 12
+       )`,
+    );
+    assert.throws(
+      () =>
+        core.run(
+          `UPDATE waiver_adjudications
+           SET execution_status = 'completed', completed_at = 12
+           WHERE id = 'adjudication-1'`,
+        ),
+      /waiver_adjudication_decisions_invalid/,
+    );
+    assert.equal(
+      core.get(
+        "SELECT execution_status FROM waiver_adjudications WHERE id = 'adjudication-1'",
+      )?.execution_status,
+      "running",
+    );
+  } finally {
+    core.close();
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
