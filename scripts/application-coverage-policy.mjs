@@ -16,6 +16,7 @@ export const APPLICATION_COVERAGE_BOUNDARY = Object.freeze({
 });
 
 export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
+  "test/application-hard-storage-shutdown.test.js",
   "test/application-readiness.test.js",
   "test/application-recovery-startup.test.js",
   "test/application-execution-runtime.test.js",
@@ -151,6 +152,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/repository-guidance-http-integration.test.js",
   "test/mcp-http-integration.test.js",
   "test/mcp-security-integration.test.js",
+  "test/durable-write-shutdown-security-integration.test.js",
   "test/review-schema-migration.test.js",
   "test/authority-attribution-schema-migration.test.js",
   "test/review-criterion-identity.test.js",
@@ -187,6 +189,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-run-admission-process-integration.test.js",
   "test/review-run-admission-sqlite-integration.test.js",
   "test/review-run-admission-sqlite-failure-integration.test.js",
+  "test/review-run-transcript-sqlite-failure-integration.test.js",
   "test/review-run-claim-adapter-integration.test.js",
   "test/codex-execution-recovery-sqlite-integration.test.js",
   "test/codex-execution-recovery-schema-migration.test.js",

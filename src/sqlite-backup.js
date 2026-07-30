@@ -66,6 +66,8 @@ function synchronize(path) {
  *   kind: "daily" | "pre-migration",
  *   now?: () => number,
  *   performBackup?: typeof backup,
+ *   removeBackupOutput?: typeof rmSync,
+ *   signal?: AbortSignal,
  * }} input
  */
 export async function createValidatedBackup({
@@ -76,6 +78,8 @@ export async function createValidatedBackup({
   kind,
   now = () => Date.now(),
   performBackup = backup,
+  removeBackupOutput = rmSync,
+  signal,
 }) {
   if (!/^\d+\.\d+\.\d+$/.test(applicationVersion)) {
     throw new TypeError("Application version must be semantic");
@@ -105,6 +109,7 @@ export async function createValidatedBackup({
   let manifestCommitted = false;
 
   try {
+    signal?.throwIfAborted();
     mkdirSync(backupsPath, { recursive: true, mode: 0o700 });
     readValidatedBackups({ backupsPath });
     if (existsSync(databasePath) || existsSync(manifestPath)) {
@@ -114,7 +119,11 @@ export async function createValidatedBackup({
       );
     }
 
-    await performBackup(database, incompleteDatabasePath);
+    await performBackup(database, incompleteDatabasePath, {
+      progress: () => signal?.throwIfAborted(),
+      rate: 100,
+    });
+    signal?.throwIfAborted();
     try {
       try {
         validatedDatabase = new DatabaseSync(incompleteDatabasePath, {
@@ -186,6 +195,7 @@ export async function createValidatedBackup({
         `${JSON.stringify(manifest, null, 2)}\n`,
         { encoding: "utf8", flag: "wx", mode: 0o600 },
       );
+      signal?.throwIfAborted();
       renameSync(incompleteDatabasePath, databasePath);
       databaseCommitted = true;
       renameSync(incompleteManifestPath, manifestPath);
@@ -227,16 +237,30 @@ export async function createValidatedBackup({
       ...(manifestCommitted ? [manifestPath] : []),
     ]) {
       try {
-        rmSync(path, { force: true });
+        removeBackupOutput(path, { force: true });
       } catch (cleanupError) {
         cleanupFailures.push(cleanupError);
       }
     }
-    const failure = owningBackupError(
-      error,
-      "backup_failed",
-      "SQLite online backup could not complete",
-    );
+    if (
+      signal?.aborted &&
+      error === signal.reason &&
+      cleanupFailures.length > 0
+    ) {
+      failBackup(
+        "backup_invalid_output_cleanup_failed",
+        "Canceled SQLite backup output could not be discarded",
+        new AggregateError([error, ...cleanupFailures]),
+      );
+    }
+    const failure =
+      signal?.aborted && error === signal.reason
+        ? /** @type {Error} */ (error)
+        : owningBackupError(
+            error,
+            "backup_failed",
+            "SQLite online backup could not complete",
+          );
     if (cleanupFailures.length > 0) {
       failure.cause = new AggregateError(
         [failure.cause ?? failure, ...cleanupFailures],

@@ -1,5 +1,4 @@
 import { createServer } from "node:http";
-
 import { readBrowserAsset } from "./browser-assets.js";
 import { createApiRoute } from "./api-route.js";
 import { createBrowserAssetRoute } from "./browser-asset-route.js";
@@ -19,17 +18,10 @@ import { writeError, writeJson } from "./http-response.js";
 import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
 import { createEvaluationRoute } from "./evaluation-route.js";
 import { createCodexExecutionConcurrencyRoute } from "./codex-execution-concurrency-route.js";
-
-/**
- * @param {unknown} value
- * @param {string} message
- * @returns {asserts value is (...arguments_: never[]) => unknown}
- */
-function requireFunction(value, message) {
-  if (typeof value !== "function") {
-    throw new TypeError(message);
-  }
-}
+import {
+  createProductRequestRunner,
+  requireRequestFunction as requireFunction,
+} from "./product-request-runtime.js";
 
 /**
  * @param {unknown} value
@@ -101,7 +93,7 @@ const TOKEN_METHODS = [
  *     requestId: string,
  *     resourceIds: string[]
  *   }) => void,
- *   secureBrowserCookie?: boolean
+ *   secureBrowserCookie?: boolean, workerSignal: AbortSignal
  * }} options
  */
 export function createApplicationServer({
@@ -124,8 +116,10 @@ export function createApplicationServer({
   recordAuthorityAttribution,
   recordMcpOperation,
   secureBrowserCookie = false,
+  workerSignal,
 }) {
   requireFunction(readDurableCoreStatus, "readDurableCoreStatus is required");
+  const runProductRequest = createProductRequestRunner(workerSignal);
   requireFunction(browserAssetReader, "browserAssetReader must be a function");
   requireFunction(
     listAuthorityAttributions,
@@ -428,9 +422,8 @@ export function createApplicationServer({
     }
     writeError(response, 404, "not_found", "Resource was not found");
   };
-
   return createServer((request, response) => {
-    handleRequest(request, response).catch((error) => {
+    runProductRequest(request, response, handleRequest).catch((error) => {
       const failure =
         error instanceof Error
           ? error

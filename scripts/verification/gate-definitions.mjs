@@ -209,6 +209,7 @@ export function createGateDefinitions(metadata) {
       failureCode: "unit_tests_failed",
       arguments: [
         "--test",
+        "test/application-hard-storage-shutdown.test.js",
         "test/application-readiness.test.js",
         "test/codex-capabilities.test.js",
         "test/configuration.test.js",

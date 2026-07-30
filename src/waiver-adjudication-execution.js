@@ -191,10 +191,14 @@ function owningFailure(error) {
   );
 }
 
-/** @param {{run: (duty: "cleanup", operation: () => unknown) => Promise<unknown>}} ioPool @param {{remove(): void}} checkout @param {unknown} failure */
+/** @param {{run: (duty: "cleanup", operation: (signal?: AbortSignal) => unknown) => Promise<unknown>}} ioPool @param {{remove(): void}} checkout @param {unknown} failure */
 async function removeCheckout(ioPool, checkout, failure) {
   try {
-    await ioPool.run("cleanup", () => checkout.remove());
+    await ioPool.run("cleanup", (signal) => {
+      signal?.throwIfAborted();
+      checkout.remove();
+      signal?.throwIfAborted();
+    });
   } catch (cleanupFailure) {
     if (!(failure instanceof Error)) {
       throw cleanupFailure;
@@ -240,16 +244,26 @@ export async function executeWaiverAdjudication(
   try {
     let checkout;
     try {
-      checkout = await ioPool.run("acquisition", async () =>
-        prepareCheckout({
-          baseCommit: adjudication.baseCommit,
-          checkoutRoot,
-          credential: await acquireCheckoutCredential(),
-          fencingToken: claim.fencingToken,
-          headCommit: adjudication.headCommit,
-          repositoryUrl: adjudication.repositoryUrl,
-          workId: claim.workId,
-        }),
+      checkout = await ioPool.run(
+        "acquisition",
+        /** @param {AbortSignal | undefined} signal */
+        async (signal) => {
+          signal?.throwIfAborted();
+          const credential = await acquireCheckoutCredential();
+          signal?.throwIfAborted();
+          const prepared = await prepareCheckout({
+            baseCommit: adjudication.baseCommit,
+            checkoutRoot,
+            credential,
+            fencingToken: claim.fencingToken,
+            headCommit: adjudication.headCommit,
+            repositoryUrl: adjudication.repositoryUrl,
+            signal,
+            workId: claim.workId,
+          });
+          signal?.throwIfAborted();
+          return prepared;
+        },
       );
     } catch (error) {
       if (

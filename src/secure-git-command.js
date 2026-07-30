@@ -1,5 +1,8 @@
+import { currentIoOperationSignal } from "./io-operation-context.js";
+
 const GIT_CREDENTIAL_HELPER =
   'credential.helper=!f() { IFS= read -r username <&3; IFS= read -r password <&3; printf \'username=%s\\npassword=%s\\n\' "$username" "$password"; }; f';
+const GIT_TERMINATION_GRACE_MS = 5_000;
 
 /** @param {{token: string, username: string} | undefined} credential */
 export function gitCredentialIsValid(credential) {
@@ -44,7 +47,9 @@ export function secureGitConfiguration(
  *   credential: {token: string, username: string} | undefined,
  *   cwd: string,
  *   onStderr?: (chunk: string) => void,
- *   spawnProcess: typeof import("node:child_process").spawn
+ *   signal?: AbortSignal,
+ *   spawnProcess: typeof import("node:child_process").spawn,
+ *   terminationGraceMs?: number
  * }} input
  */
 export function runGitCommand({
@@ -53,12 +58,19 @@ export function runGitCommand({
   credential,
   cwd,
   onStderr = () => {},
+  signal,
   spawnProcess,
+  terminationGraceMs = GIT_TERMINATION_GRACE_MS,
 }) {
+  if (!Number.isSafeInteger(terminationGraceMs) || terminationGraceMs < 0) {
+    throw new TypeError("Git termination grace must be a nonnegative integer");
+  }
+  signal ??= currentIoOperationSignal();
   return new Promise((resolve, reject) => {
     /** @type {import("node:child_process").ChildProcess} */
     let child;
     try {
+      signal?.throwIfAborted();
       child = spawnProcess("git", arguments_, {
         cwd,
         env: {
@@ -78,21 +90,110 @@ export function runGitCommand({
       return;
     }
     let completed = false;
+    /** @type {unknown} */
+    let abortReason;
+    /** @type {unknown[]} */
+    const terminationEvidence = [];
+    /** @type {(AggregateError & {code: string}) | undefined} */
+    let terminationFailure;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let forceKill;
+    /** @returns {Error & {code: string}} */
+    function gitTerminationFailure() {
+      terminationFailure ??= Object.assign(
+        new AggregateError(
+          terminationEvidence,
+          "Git process termination failed",
+        ),
+        { code: "git_termination_failed" },
+      );
+      terminationFailure.errors = terminationEvidence;
+      return terminationFailure;
+    }
+    /** @param {NodeJS.Signals} killSignal */
+    function attemptKill(killSignal) {
+      try {
+        child.kill(killSignal);
+      } catch (cause) {
+        childError(cause);
+      }
+    }
+    const abort = () => {
+      abortReason = signal?.reason;
+      terminationEvidence.push(abortReason);
+      attemptKill("SIGTERM");
+      forceKill = setTimeout(() => attemptKill("SIGKILL"), terminationGraceMs);
+      forceKill.unref();
+    };
     /** @type {Buffer[]} */
     const stdoutChunks = [];
     let stderr = "";
-    /** @param {unknown} result @param {boolean} failed */
-    function complete(result, failed) {
+    function cleanup() {
+      if (forceKill) {
+        clearTimeout(forceKill);
+      }
+      signal?.removeEventListener("abort", abort);
+      child.removeListener("error", childError);
+    }
+    /**
+     * @param {unknown} result
+     * @param {boolean} failed
+     * @param {boolean} [cleanupResources]
+     */
+    function complete(result, failed, cleanupResources = true) {
       if (completed) {
+        if (cleanupResources) {
+          cleanup();
+        }
         return;
       }
       completed = true;
+      if (cleanupResources) {
+        cleanup();
+      }
       if (failed) {
         reject(result);
       } else {
         resolve(result);
       }
     }
+    /** @param {unknown} cause */
+    function childError(cause) {
+      if (abortReason !== undefined) {
+        terminationEvidence.push(cause);
+        complete(gitTerminationFailure(), true, false);
+        return;
+      }
+      complete(cause, true, false);
+    }
+    child.on("error", childError);
+    child.once("close", (code, exitSignal) => {
+      if (abortReason !== undefined) {
+        complete(
+          terminationEvidence.length === 1
+            ? abortReason
+            : gitTerminationFailure(),
+          true,
+        );
+        return;
+      }
+      const stdoutBuffer = Buffer.concat(stdoutChunks);
+      complete(
+        {
+          code,
+          signal: exitSignal,
+          stderr,
+          stdout: stdoutBuffer.toString("utf8"),
+          stdoutBuffer,
+        },
+        false,
+      );
+    });
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
     if (captureStdout && !child.stdout) {
       child.kill();
       complete(new Error("Git stdout pipe is unavailable"), true);
@@ -123,21 +224,5 @@ export function runGitCommand({
       credentialPipe.on("error", () => {});
       credentialPipe.end(`${credential.username}\n${credential.token}\n`);
     }
-    child.once("error", (cause) => {
-      complete(cause, true);
-    });
-    child.once("close", (code, signal) => {
-      const stdoutBuffer = Buffer.concat(stdoutChunks);
-      complete(
-        {
-          code,
-          signal,
-          stderr,
-          stdout: stdoutBuffer.toString("utf8"),
-          stdoutBuffer,
-        },
-        false,
-      );
-    });
   });
 }

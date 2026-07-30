@@ -116,6 +116,7 @@ export function readImplementerTokenRequest(request) {
 export function isProductSurface(path) {
   return (
     path === "/" ||
+    path.startsWith("/assets/") ||
     path === "/api/v1" ||
     path.startsWith("/api/v1/") ||
     path === "/mcp/v1" ||

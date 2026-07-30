@@ -1,6 +1,11 @@
 import { assertAllowedQueryParameters } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
-import { createErrorDocument, writeError, writeJson } from "./http-response.js";
+import {
+  createErrorDocument,
+  writeError,
+  writeJson,
+  writeStatus,
+} from "./http-response.js";
 import {
   MCP_RESOURCE_TEMPLATES,
   MCP_PROTOCOL_VERSION,
@@ -87,8 +92,7 @@ function writeProtocolErrorWithData(response, id, code, message, data) {
 
 /** @param {import("node:http").ServerResponse} response */
 function writeAccepted(response) {
-  response.writeHead(202);
-  response.end();
+  writeStatus(response, 202);
 }
 
 /**

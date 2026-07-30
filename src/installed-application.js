@@ -189,6 +189,7 @@ export async function createInstalledApplication({
     databasePath,
     keyIdentity,
     now,
+    signal: application.workerSignal,
   };
   try {
     await runDailyBackup(dailyBackupInput);
@@ -201,8 +202,19 @@ export async function createInstalledApplication({
   let stopped = false;
   /** @type {BackupTimer | undefined} */
   let timer;
+  function stopBackupChecks() {
+    stopped = true;
+    if (timer) {
+      clearBackupTimer(timer);
+      timer = undefined;
+    }
+  }
   function scheduleBackupCheck() {
     timer = setBackupTimer(() => {
+      if (stopped) {
+        return;
+      }
+      timer = undefined;
       void runDailyBackup(dailyBackupInput).then(
         () => {
           if (!stopped) {
@@ -210,6 +222,12 @@ export async function createInstalledApplication({
           }
         },
         async (error) => {
+          if (
+            application.workerSignal.aborted &&
+            error === application.workerSignal.reason
+          ) {
+            return;
+          }
           const failure = codedBackupFailure(error);
           logBackupFailure(writeLog, failure);
           stopped = true;
@@ -224,13 +242,17 @@ export async function createInstalledApplication({
     timer.unref();
   }
   scheduleBackupCheck();
+  application.workerSignal.addEventListener("abort", stopBackupChecks, {
+    once: true,
+  });
+  if (application.workerSignal.aborted) {
+    stopBackupChecks();
+  }
 
   const closeApplication = application.close.bind(application);
   application.close = async () => {
-    stopped = true;
-    if (timer) {
-      clearBackupTimer(timer);
-    }
+    application.workerSignal.removeEventListener("abort", stopBackupChecks);
+    stopBackupChecks();
     await closeApplication();
   };
   return application;

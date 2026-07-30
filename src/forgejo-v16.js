@@ -11,6 +11,10 @@ import {
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
 } from "./forgejo-v16-repository.js";
 import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
+import {
+  currentIoOperationSignal,
+  throwIfIoOperationAborted,
+} from "./io-operation-context.js";
 
 const PROFILE = "forgejo-v16";
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
@@ -178,11 +182,14 @@ export function createForgejoV16Verifier({
           "Forgejo verification request is invalid",
         );
       }
+      const signal = currentIoOperationSignal();
+      signal?.throwIfAborted();
       const origin = normalizedForgejoBaseUrl(baseUrl);
       const verificationEvidence =
         createForgejoVerificationEvidence(repositoryIds);
       /** @param {string} path */
       const get = async (path) => {
+        signal?.throwIfAborted();
         let response;
         try {
           response = await fetchRequest(`${origin}${path}`, {
@@ -191,15 +198,20 @@ export function createForgejoV16Verifier({
               authorization: `token ${token}`,
             },
             redirect: "error",
+            ...(signal ? { signal } : {}),
           });
         } catch (cause) {
+          throwIfIoOperationAborted(cause);
           fail(
             "forgejo_api_unavailable",
             `Forgejo required route is unavailable: ${path}`,
             cause,
           );
         }
-        return { body: await responseJson(path, response) };
+        signal?.throwIfAborted();
+        const body = await responseJson(path, response);
+        signal?.throwIfAborted();
+        return { body };
       };
       try {
         verificationEvidence.reported_version = version(
@@ -208,6 +220,7 @@ export function createForgejoV16Verifier({
         openApi((await get("/swagger.v1.json")).body);
         beginForgejoCapabilityEvidence(verificationEvidence);
       } catch (error) {
+        throwIfIoOperationAborted(error);
         throwWithForgejoEvidence(error, verificationEvidence);
       }
       const capabilityEvidence = verificationEvidence.capabilities;
@@ -266,6 +279,7 @@ export function createForgejoV16Verifier({
             break;
           }
         } catch (error) {
+          throwIfIoOperationAborted(error);
           capabilityEvidence.enumeration = "error";
           throwWithForgejoEvidence(error, verificationEvidence);
         }
@@ -374,6 +388,7 @@ export function createForgejoV16Verifier({
             outcome: "success",
           };
         } catch (error) {
+          throwIfIoOperationAborted(error);
           if (
             !(error instanceof Error) ||
             !("code" in error) ||

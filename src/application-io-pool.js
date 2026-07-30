@@ -1,5 +1,6 @@
 import { removeExpiredBrowserSessions } from "./browser-session.js";
 import { createIoExecutionPool } from "./io-execution-pool.js";
+import { throwIoTerminationFailure } from "./io-operation-context.js";
 
 /** @param {{reportBackgroundFailure: (error: unknown) => unknown}} options */
 export function createApplicationIoPool({ reportBackgroundFailure }) {
@@ -14,9 +15,21 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
       if (typeof repositories?.resolvePushedSelectors !== "function") {
         throw new TypeError("Repository service is unavailable");
       }
-      return ioPool.run("acquisition", () =>
-        repositories.resolvePushedSelectors(repositoryId, request),
-      );
+      return ioPool.run("acquisition", async (signal) => {
+        signal?.throwIfAborted();
+        try {
+          const changeset = await repositories.resolvePushedSelectors(
+            repositoryId,
+            request,
+          );
+          signal?.throwIfAborted();
+          return changeset;
+        } catch (error) {
+          throwIoTerminationFailure(error);
+          signal?.throwIfAborted();
+          throw error;
+        }
+      });
     },
     /** @param {Function} createStorageReserve @param {() => any} readDurableCore @param {() => number} now @param {number} reserveBytes */
     createStorageReserve(
@@ -31,9 +44,12 @@ export function createApplicationIoPool({ reportBackgroundFailure }) {
           if (!durableCore) {
             throw new TypeError("durable core is required for storage cleanup");
           }
-          return ioPool.runImmediate("retention", () =>
-            removeExpiredBrowserSessions(durableCore, { now }),
-          );
+          return ioPool.runImmediate("retention", (signal) => {
+            signal?.throwIfAborted();
+            const result = removeExpiredBrowserSessions(durableCore, { now });
+            signal?.throwIfAborted();
+            return result;
+          });
         },
         reserveBytes,
       });

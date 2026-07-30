@@ -40,34 +40,113 @@ export function structuredLog(
   writeLog(`${JSON.stringify(record)}\n`);
 }
 
-/** @param {(line: string) => unknown} writeLog */
-export function createHardStorageBoundary(writeLog) {
+/**
+ * @param {(line: string) => unknown} writeLog
+ * @param {(error: CodedError) => unknown} stopProductWork
+ */
+export function createHardStorageBoundary(writeLog, stopProductWork) {
+  if (typeof stopProductWork !== "function") {
+    throw new TypeError("hard storage shutdown is required");
+  }
   const workers = new AbortController();
   const codexProcesses = new Set(
-    /** @type {import("node:child_process").ChildProcess[]} */ ([]),
+    /** @type {{childProcess: import("node:child_process").ChildProcess, processGroup: boolean}[]} */ ([]),
   );
   /** @type {CodedError | null} */
   let failure = null;
 
-  /** @param {import("node:child_process").ChildProcess} childProcess */
-  function terminateCodexProcess(childProcess) {
-    if (childProcess.exitCode !== null || childProcess.signalCode !== null) {
-      return;
+  /** @param {unknown} error */
+  function processGroupAbsent(error) {
+    return error instanceof Error && "code" in error && error.code === "ESRCH";
+  }
+
+  /** @param {unknown} cause */
+  function reportTerminationFailure(cause) {
+    structuredLog(
+      writeLog,
+      "error",
+      "codex_termination_failed",
+      "codex",
+      "failure",
+      Object.assign(new Error("Codex process termination failed", { cause }), {
+        code: "codex_termination_failed",
+      }),
+    );
+  }
+
+  /** @param {{childProcess: import("node:child_process").ChildProcess, processGroup: boolean}} registered */
+  function processActive({ childProcess, processGroup }) {
+    if (!processGroup) {
+      return childProcess.exitCode === null && childProcess.signalCode === null;
     }
-    childProcess.kill("SIGTERM");
+    try {
+      process.kill(-(/** @type {number} */ (childProcess.pid)), 0);
+      return true;
+    } catch (error) {
+      if (processGroupAbsent(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * @param {{childProcess: import("node:child_process").ChildProcess, processGroup: boolean}} registered
+   * @param {NodeJS.Signals} signal
+   */
+  function signalCodexProcess({ childProcess, processGroup }, signal) {
+    if (processGroup) {
+      process.kill(-(/** @type {number} */ (childProcess.pid)), signal);
+    } else {
+      childProcess.kill(signal);
+    }
+  }
+
+  /** @param {{childProcess: import("node:child_process").ChildProcess, processGroup: boolean}} registered */
+  function terminateCodexProcess(registered) {
+    try {
+      if (!processActive(registered)) {
+        return;
+      }
+      signalCodexProcess(registered, "SIGTERM");
+    } catch (error) {
+      if (processGroupAbsent(error)) {
+        return;
+      }
+      reportTerminationFailure(error);
+    }
     const forceKill = setTimeout(() => {
-      if (childProcess.exitCode === null && childProcess.signalCode === null) {
-        childProcess.kill("SIGKILL");
+      try {
+        if (processActive(registered)) {
+          signalCodexProcess(registered, "SIGKILL");
+        }
+      } catch (error) {
+        if (!processGroupAbsent(error)) {
+          reportTerminationFailure(error);
+        }
       }
     }, CODEX_TERMINATION_GRACE_MS);
     forceKill.unref();
-    childProcess.once("exit", () => clearTimeout(forceKill));
+    registered.childProcess.once("exit", () => {
+      try {
+        if (!processActive(registered)) {
+          clearTimeout(forceKill);
+        }
+      } catch (error) {
+        reportTerminationFailure(error);
+      }
+    });
   }
 
   return {
     signal: workers.signal,
     get failure() {
       return failure;
+    },
+    assertAvailable() {
+      if (failure) {
+        throw failure;
+      }
     },
     /** @param {CodedError} error */
     enter(error) {
@@ -76,9 +155,10 @@ export function createHardStorageBoundary(writeLog) {
       }
       failure = error;
       workers.abort(error);
-      for (const childProcess of codexProcesses) {
-        terminateCodexProcess(childProcess);
+      for (const registered of codexProcesses) {
+        terminateCodexProcess(registered);
       }
+      stopProductWork(error);
       structuredLog(
         writeLog,
         "error",
@@ -88,20 +168,28 @@ export function createHardStorageBoundary(writeLog) {
         error,
       );
     },
-    /** @param {import("node:child_process").ChildProcess} childProcess */
-    registerCodexProcess(childProcess) {
+    /**
+     * @param {import("node:child_process").ChildProcess} childProcess
+     * @param {{processGroup?: boolean}} [options]
+     */
+    registerCodexProcess(childProcess, { processGroup = false } = {}) {
       if (
         typeof childProcess?.kill !== "function" ||
-        typeof childProcess?.once !== "function"
+        typeof childProcess?.once !== "function" ||
+        typeof processGroup !== "boolean" ||
+        (processGroup &&
+          (!Number.isSafeInteger(childProcess.pid) ||
+            /** @type {number} */ (childProcess.pid) < 1))
       ) {
         throw new TypeError("a running child process is required");
       }
+      const registered = { childProcess, processGroup };
       if (failure) {
-        terminateCodexProcess(childProcess);
+        terminateCodexProcess(registered);
         return;
       }
-      codexProcesses.add(childProcess);
-      childProcess.once("exit", () => codexProcesses.delete(childProcess));
+      codexProcesses.add(registered);
+      childProcess.once("exit", () => codexProcesses.delete(registered));
     },
   };
 }

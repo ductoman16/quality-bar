@@ -15,6 +15,7 @@ import {
   runGitCommand,
   secureGitConfiguration,
 } from "./secure-git-command.js";
+import { throwIoTerminationFailure } from "./io-operation-context.js";
 import { createFrozenFileContentReader } from "./frozen-file-content.js";
 import { createGitPathMatcher } from "./git-path-matcher.js";
 import { proveMergeBase } from "./repository-git-merge-base.js";
@@ -128,6 +129,9 @@ export function verifyRepositoryRead(
           })
         );
     } catch (cause) {
+      throwIoTerminationFailure(cause, () =>
+        removeDirectory(verificationDirectory),
+      );
       throw cleanupUnavailable(cause, false);
     }
     let error =
@@ -341,6 +345,9 @@ export async function resolvePushedCommitSelectors(
     acquisitionFailure = error;
   }
   if (acquisitionFailure) {
+    throwIoTerminationFailure(acquisitionFailure, () =>
+      removeDirectory(objectDatabase),
+    );
     try {
       removeDirectory(objectDatabase);
     } catch (cause) {

@@ -14,11 +14,14 @@ let origin;
 
 /** @param {object} options */
 function callApplicationServer(options) {
-  return Reflect.apply(createApplicationServer, undefined, [options]);
+  return Reflect.apply(createApplicationServer, undefined, [
+    { workerSignal: new AbortController().signal, ...options },
+  ]);
 }
 
 function applicationServerOptions() {
   return {
+    workerSignal: new AbortController().signal,
     codexExecutionConcurrency: {
       read: () => 1,
       set: (/** @type {unknown} */ value) => value,

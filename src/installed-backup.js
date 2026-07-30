@@ -112,6 +112,7 @@ export function finalizePreMigrationBackup(backupsPath) {
  *   databasePath: string,
  *   keyIdentity: string,
  *   now?: () => number,
+ *   signal?: AbortSignal,
  * }} input
  */
 export async function runDailyBackupIfDue({
@@ -120,7 +121,9 @@ export async function runDailyBackupIfDue({
   databasePath,
   keyIdentity,
   now = () => Date.now(),
+  signal,
 }) {
+  signal?.throwIfAborted();
   const timestamp = now();
   const utcDate = new Date(timestamp).toISOString().slice(0, 10);
   const current = readValidatedBackups({
@@ -134,6 +137,7 @@ export async function runDailyBackupIfDue({
   if (current) {
     return { status: "current" };
   }
+  signal?.throwIfAborted();
   const database = openBackupSource(databasePath);
   try {
     const backup = await createValidatedBackup({
@@ -143,7 +147,9 @@ export async function runDailyBackupIfDue({
       keyIdentity,
       kind: "daily",
       now: () => timestamp,
+      signal,
     });
+    signal?.throwIfAborted();
     return { backup, status: "created" };
   } finally {
     database.close();

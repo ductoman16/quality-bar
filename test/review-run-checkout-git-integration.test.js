@@ -216,6 +216,63 @@ test("credentialed checkout keeps credentials out of Git arguments, environment,
   prepared.remove();
 });
 
+test("hard shutdown terminates an active Git checkout with its owning error", async (context) => {
+  const checkoutRoot = mkdtempSync(
+    join(tmpdir(), "quality-bar-checkout-stop-"),
+  );
+  context.after(() => rmSync(checkoutRoot, { force: true, recursive: true }));
+  const workers = new AbortController();
+  const failure = Object.assign(new Error("SQLite durable write failed"), {
+    code: "storage_unavailable",
+  });
+  /** @type {import("node:child_process").ChildProcess | undefined} */
+  let gitChild;
+  const checkout = prepareReviewRunCheckout({
+    baseCommit: "a".repeat(40),
+    checkoutRoot,
+    fencingToken: 1,
+    headCommit: "b".repeat(40),
+    repositoryUrl: "https://example.invalid/repository.git",
+    signal: workers.signal,
+    spawnProcess: /** @type {typeof spawn} */ (
+      /** @type {unknown} */ (
+        /**
+         * @param {string} _command
+         * @param {string[]} _arguments
+         * @param {import("node:child_process").SpawnOptions} options
+         */
+        (_command, _arguments, options) => {
+          void _command;
+          void _arguments;
+          gitChild = spawn(
+            process.execPath,
+            [
+              join(
+                import.meta.dirname,
+                "../fixtures/test-probes/idle-child.mjs",
+              ),
+            ],
+            options,
+          );
+          return gitChild;
+        }
+      )
+    ),
+    workId: "stopped-review-run",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  workers.abort(failure);
+
+  await assert.rejects(checkout, (error) => error === failure);
+  assert.ok(gitChild);
+  assert.ok(gitChild.exitCode !== null || gitChild.signalCode !== null);
+  assert.equal(
+    existsSync(join(checkoutRoot, "stopped-review-run", "1")),
+    false,
+  );
+});
+
 test("missing Git checkout capability is a definitive owning failure", async (context) => {
   const checkoutRoot = mkdtempSync(join(tmpdir(), "quality-bar-checkout-git-"));
   context.after(() => rmSync(checkoutRoot, { force: true, recursive: true }));

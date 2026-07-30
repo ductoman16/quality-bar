@@ -89,6 +89,18 @@
  *     postBackupFactsAbsent?: boolean,
  *     snapshotPasswordRejected?: boolean,
  *   },
+ *   durableWriteFailure?: {
+ *     api?: {errorCode?: string, status?: number},
+ *     browser?: {errorCode?: string, status?: number},
+ *     browserAsset?: {errorCode?: string, status?: number},
+ *     failedWrite?: {errorCode?: string, status?: number},
+ *     liveness?: {body?: {status?: string}, status?: number},
+ *     mcp?: {errorCode?: string, status?: number},
+ *     readiness?: {
+ *       body?: {error?: string, status?: string},
+ *       status?: number
+ *     },
+ *   },
  * }} PackageFacts
  */
 
@@ -158,6 +170,31 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.readiness?.response?.status === "ready",
       "readiness.response.status must equal ready",
+    ],
+    [
+      packageFacts?.durableWriteFailure?.failedWrite?.errorCode ===
+        "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.failedWrite?.status === 503 &&
+        packageFacts?.durableWriteFailure?.browser?.errorCode ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.browser?.status === 503 &&
+        packageFacts?.durableWriteFailure?.browserAsset?.errorCode ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.browserAsset?.status === 503 &&
+        packageFacts?.durableWriteFailure?.api?.errorCode ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.api?.status === 503 &&
+        packageFacts?.durableWriteFailure?.mcp?.errorCode ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.mcp?.status === 503 &&
+        packageFacts?.durableWriteFailure?.liveness?.body?.status === "live" &&
+        packageFacts?.durableWriteFailure?.liveness?.status === 200 &&
+        packageFacts?.durableWriteFailure?.readiness?.body?.error ===
+          "storage_unavailable" &&
+        packageFacts?.durableWriteFailure?.readiness?.body?.status ===
+          "not_ready" &&
+        packageFacts?.durableWriteFailure?.readiness?.status === 503,
+      "durableWriteFailure must prove hard packaged product-surface shutdown",
     ],
     [
       packageFacts?.storage?.databasePath ===
