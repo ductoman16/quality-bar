@@ -6,6 +6,7 @@ import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mj
 import { proveRetention } from "./retention.mjs";
 import { proveInstallationDeletion } from "./installation-deletion.mjs";
 import { assertFilesystemFacts } from "./filesystem-facts.mjs";
+import { proveUpgrade, withOfflineRestoreProof } from "./upgrade.mjs";
 import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
 const serviceFixtureImage =
@@ -54,6 +55,7 @@ const serviceFixtureImage =
  * }} BackupFacts
  */
 /** @typedef {ReturnType<typeof proveInstallationDeletion>} InstallationDeletionFacts */
+/** @typedef {ReturnType<typeof proveUpgrade>} UpgradeFacts */
 
 /**
  * @param {{
@@ -78,6 +80,7 @@ const serviceFixtureImage =
  *     snapshotAuthenticated: boolean,
  *   },
  *   toolVersions: {codex: string, git: string},
+ *   upgradeFacts: UpgradeFacts,
  *   uid: number,
  * }} facts
  */
@@ -97,13 +100,13 @@ function packageFacts({
   restoredDatabaseFacts,
   restorePasswordStatus,
   toolVersions,
+  upgradeFacts,
   uid,
 }) {
   if (restoredDatabaseFacts.operatorPasswordVerifier === null) {
     throw new Error("package_operator_password_verifier_missing");
   }
   const service = configuration.services[fixture.serviceName];
-  const serviceVolumes = service.volumes;
   return {
     serviceCount: Object.keys(configuration.services).length,
     companionServiceCount: 0,
@@ -134,7 +137,7 @@ function packageFacts({
         (facts) => facts.gid === 10001 && facts.uid === 10001,
       ),
       persistedAcrossRecreate: true,
-      volumeTarget: serviceVolumes[0].target,
+      volumeTarget: service.volumes[0].target,
     },
     installation: {
       freeSpaceReserveBytes: authenticatedHttpSmoke.storage.reserve_bytes,
@@ -190,6 +193,7 @@ function packageFacts({
       status: "restored",
     },
     backup: backupFacts,
+    upgrade: withOfflineRestoreProof(upgradeFacts, restoredDatabaseFacts),
     database: {
       ...restoredDatabaseFacts,
       installationKeyVerifier: undefined,
@@ -342,6 +346,9 @@ export function proveComposeService({ configuration, fixture }) {
     recreatedDatabaseFacts.operatorPasswordVerifier,
     new RegExp(bootstrapPassword),
   );
+  const upgradeFacts = /** @type {UpgradeFacts} */ (
+    proveUpgrade(fixture, serviceName)
+  );
   const initialAuthenticatedHttpSmoke = /** @type {AuthenticatedHttpSmoke} */ (
     jsonPackageProbe(
       fixture,
@@ -464,6 +471,7 @@ export function proveComposeService({ configuration, fixture }) {
     restoredDatabaseFacts,
     restorePasswordStatus,
     toolVersions,
+    upgradeFacts,
     uid,
   });
   assert.doesNotMatch(JSON.stringify(facts), new RegExp(fixture.masterKey));

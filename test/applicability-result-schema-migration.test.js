@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { finalizeSchemaMigration } from "../src/durable-schema-migration.js";
+import {
+  EXPECTED_SCHEMA_TABLES,
+  finalizeSchemaMigration,
+} from "../src/durable-schema-migration.js";
 
 test("schema v30 adds Applicability Results without inventing historical facts", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-applicability-"));
@@ -99,17 +102,26 @@ test("schema v30 adds Applicability Results without inventing historical facts",
 
 test("schema v30 migration adds the Applicability authority seal when absent", () => {
   let migration = "";
+  let metadataReads = 0;
   finalizeSchemaMigration(
     /** @type {any} */ ({
       /** @param {string} statements */
       exec(statements) {
-        migration = statements;
+        if (
+          statements.includes("ALTER TABLE") ||
+          statements.includes("UPDATE evaluations")
+        ) {
+          migration = statements;
+        }
       },
       function() {},
       /** @param {string} sql */
       prepare(sql) {
         return {
           all() {
+            if (sql.includes("name NOT LIKE 'sqlite_%'")) {
+              return [...EXPECTED_SCHEMA_TABLES].map((name) => ({ name }));
+            }
             return sql.includes("evaluations") ||
               sql.includes("review_run_pre_start_") ||
               sql.includes("evaluation_pre_start_") ||
@@ -119,8 +131,17 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
               : [{ name: "has_been_used" }];
           },
           get() {
+            if (sql.includes("PRAGMA user_version")) {
+              return { user_version: 48 };
+            }
+            if (sql.includes("PRAGMA integrity_check")) {
+              return { integrity_check: "ok" };
+            }
+            if (sql.includes("PRAGMA foreign_key_check")) {
+              return undefined;
+            }
             return sql.includes("quality_bar_metadata")
-              ? { value: "30" }
+              ? { value: metadataReads++ === 0 ? "30" : "48" }
               : undefined;
           },
         };

@@ -216,7 +216,7 @@ export function createGateDefinitions(metadata) {
         "test/durable-core.test.js",
         "test/durable-core-transaction.test.js",
         // prettier-ignore
-        ...["test/retention.test.js", "test/health-live.test.js", "test/installed-application-retention-failure.test.js"],
+        ...["test/retention.test.js", "test/health-live.test.js", "test/installed-application-retention-failure.test.js", "test/upgrade.test.js"],
         "test/http-port.test.js",
         "test/installation-environment.test.js",
         "test/storage-reserve.test.js",

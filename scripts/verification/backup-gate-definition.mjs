@@ -7,6 +7,7 @@ export const SQLITE_BACKUP_FAILURE_GATE = {
     "--test",
     "test/storage-reserve-sqlite-integration.test.js",
     "test/sqlite-backup-failure-integration.test.js",
+    "test/upgrade-sqlite-failure-integration.test.js",
     "test/review-run-admission-sqlite-failure-integration.test.js",
     "test/review-run-transcript-sqlite-failure-integration.test.js",
     "test/review-run-claim-sqlite-failure-integration.test.js",

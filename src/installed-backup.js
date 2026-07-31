@@ -52,7 +52,6 @@ function backupSourceExists(databasePath) {
 
 /**
  * @param {{
- *   applicationVersion: string,
  *   backupsPath: string,
  *   databasePath: string,
  *   keyIdentity: string,
@@ -61,7 +60,6 @@ function backupSourceExists(databasePath) {
  * }} input
  */
 export async function preparePreMigrationBackup({
-  applicationVersion,
   backupsPath,
   databasePath,
   keyIdentity,
@@ -83,8 +81,21 @@ export async function preparePreMigrationBackup({
     ) {
       return null;
     }
+    const previousBackup = readValidatedBackups({
+      backupsPath,
+      kind: "daily",
+    })
+      .filter((backup) => backup.keyIdentity === keyIdentity)
+      .filter((backup) => backup.schemaVersion === schemaVersion)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    if (!previousBackup) {
+      failBackup(
+        "prior_image_backup_unavailable",
+        "A validated prior-image backup is required before migration",
+      );
+    }
     return await createValidatedBackup({
-      applicationVersion,
+      applicationVersion: previousBackup.applicationVersion,
       backupsPath,
       database,
       keyIdentity,
@@ -112,6 +123,7 @@ export function finalizePreMigrationBackup(backupsPath) {
  *   databasePath: string,
  *   keyIdentity: string,
  *   now?: () => number,
+ *   schemaVersion: number,
  *   signal?: AbortSignal,
  * }} input
  */
@@ -121,6 +133,7 @@ export async function runDailyBackupIfDue({
   databasePath,
   keyIdentity,
   now = () => Date.now(),
+  schemaVersion,
   signal,
 }) {
   signal?.throwIfAborted();
@@ -132,7 +145,8 @@ export async function runDailyBackupIfDue({
   }).find(
     (backup) =>
       backup.createdAt.slice(0, 10) === utcDate &&
-      backup.keyIdentity === keyIdentity,
+      backup.keyIdentity === keyIdentity &&
+      backup.schemaVersion === schemaVersion,
   );
   if (current) {
     return { status: "current" };
