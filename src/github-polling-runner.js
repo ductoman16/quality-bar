@@ -16,6 +16,7 @@ import {
   hasStorageReservePollingDependencies,
 } from "./storage-reserve-polling-core.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
+import { requireCodedError } from "./coded-error.js";
 
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
@@ -224,29 +225,25 @@ export function createGitHubPollingRunner(
             }
           }
         } catch (error) {
-          if (
-            !(error instanceof GitHubConnectionError) &&
-            error instanceof Error &&
-            "code" in error &&
-            typeof error.code === "string"
-          ) {
+          const failure = requireCodedError(error);
+          if (failure.code === "application_shutting_down") {
+            throw failure;
+          }
+          if (!(failure instanceof GitHubConnectionError)) {
             polling.recordFailure({
               connectionId: row.connection_id,
-              error: new GitHubConnectionError(error.code, error.message, {
-                cause: error,
+              error: new GitHubConnectionError(failure.code, failure.message, {
+                cause: failure,
                 repositoryId: row.forge_repository_id,
               }),
               forgeRepositoryId: row.forge_repository_id,
             });
             continue;
           }
-          if (!(error instanceof GitHubConnectionError)) {
-            throw error;
+          if (failure.code === "github_polling_conflict") {
+            throw failure;
           }
-          if (error.code === "github_polling_conflict") {
-            throw error;
-          }
-          if (baseline || error.nextAttemptAt !== undefined) {
+          if (baseline || failure.nextAttemptAt !== undefined) {
             gatedConnections.add(row.connection_id);
           }
         }

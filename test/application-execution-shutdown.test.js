@@ -32,15 +32,21 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
       return {
         ...unavailableForgejoConnectionService(connectionFailure),
         destroy() {
-          order.push("forgejo-stop");
+          order.push("forgejo-destroy");
         },
         requireFreshBaseline() {},
+        stopPolling() {
+          order.push("forgejo-stop");
+        },
       };
     },
     createGitHubConnections() {
       return {
         ...createUnavailableGitHubConnectionService(connectionFailure),
         destroy() {
+          order.push("github-destroy");
+        },
+        stopPolling() {
           order.push("github-stop");
         },
       };
@@ -65,6 +71,7 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
     assert.deepEqual(order, ["codex-drain", "github-stop", "forgejo-stop"]);
     releaseCodex();
     await closing;
+    assert.deepEqual(order.slice(3), ["github-destroy", "forgejo-destroy"]);
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }

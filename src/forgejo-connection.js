@@ -330,8 +330,9 @@ export function createForgejoConnectionService(
     runPolling: polling.runDue,
     requireFreshBaseline: polling.requireFreshBaseline,
     startPolling: polling.start,
+    stopPolling: polling.destroy,
     destroy() {
-      polling.destroy();
+      this.stopPolling();
       cipher.destroy();
     },
   };
@@ -374,6 +375,7 @@ export function unavailableForgejoConnectionService(error) {
       throw error;
     },
     startPolling() {},
+    stopPolling() {},
     destroy() {},
   };
 }

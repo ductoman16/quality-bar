@@ -17,6 +17,7 @@ import {
 } from "./storage-reserve-polling-core.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
 import { createIoDutyTimer } from "./io-duty-timer.js";
+import { requireCodedError } from "./coded-error.js";
 /** @param {any} durableCore @param {any} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
@@ -276,22 +277,19 @@ export function createForgejoPollingRunner(
             completedBaselines.add(row.connection_id);
           }
         } catch (error) {
-          if (error instanceof StorageReserveError) {
-            throw error;
-          }
+          const failure = requireCodedError(error);
           if (
-            !(error instanceof Error) ||
-            !("code" in error) ||
-            typeof error.code !== "string"
+            failure instanceof StorageReserveError ||
+            failure.code === "application_shutting_down"
           ) {
-            throw error;
+            throw failure;
           }
-          if (error.code === "forgejo_polling_conflict") {
-            throw error;
+          if (failure.code === "forgejo_polling_conflict") {
+            throw failure;
           }
           if (
-            "attemptedAt" in error &&
-            Number.isSafeInteger(error.attemptedAt)
+            "attemptedAt" in failure &&
+            Number.isSafeInteger(failure.attemptedAt)
           ) {
             const committed = pollingCore.transaction(
               (/** @type {any} */ transaction) => {
@@ -300,9 +298,9 @@ export function createForgejoPollingRunner(
                   row.connection_id,
                   forgeRepositoryIds,
                   /** @type {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} */ (
-                    error
+                    failure
                   ),
-                  Number(error.attemptedAt),
+                  Number(failure.attemptedAt),
                   baseline,
                   generation,
                 );
@@ -316,18 +314,20 @@ export function createForgejoPollingRunner(
             if (
               baseline ||
               (isDefinitiveForgejoPollingFailure(
-                /** @type {{code: string}} */ (error),
+                /** @type {{code: string}} */ (failure),
               ) &&
                 !isRepositoryOwnedDefinitiveForgejoPollingFailure(
-                  /** @type {{code: string, repositoryId?: number}} */ (error),
+                  /** @type {{code: string, repositoryId?: number}} */ (
+                    failure
+                  ),
                 ))
             ) {
               gatedConnections.add(row.connection_id);
             }
           }
           if (
-            "nextAttemptAt" in error &&
-            Number.isSafeInteger(error.nextAttemptAt)
+            "nextAttemptAt" in failure &&
+            Number.isSafeInteger(failure.nextAttemptAt)
           ) {
             gatedConnections.add(row.connection_id);
           }

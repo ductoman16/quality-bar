@@ -144,14 +144,14 @@ function codedShutdownFailure(error) {
  *   codexRuntime: {close: () => Promise<unknown>} | null,
  *   durableCore: {close: () => unknown} | null,
  *   evaluations: {destroy?: () => unknown} | null,
- *   forgejoConnections: {destroy?: () => unknown} | null,
- *   githubConnections: {destroy?: () => unknown} | null,
- *   ioPool: {close: () => Promise<unknown>},
+ *   forgejoConnections: {destroy?: () => unknown, stopPolling?: () => unknown} | null,
+ *   githubConnections: {destroy?: () => unknown, stopPolling?: () => unknown} | null,
+ *   ioPool: {close: () => Promise<unknown>, shutdown: (reason: unknown) => unknown},
  *   releaseInstallationLock: (() => unknown) | null,
  *   repositories: {destroy?: () => unknown} | null,
  *   server: import("node:http").Server,
  *   shutdownBoundary: ReturnType<typeof createApplicationShutdownBoundary>,
- *   writeLog: (line: string) => unknown,
+ *   writeLog: ((line: string) => unknown) & {host: (line: string) => unknown},
  * }} dependencies
  */
 export function createApplicationClose({
@@ -173,7 +173,7 @@ export function createApplicationClose({
     if (closing) {
       return closing;
     }
-    shutdownBoundary.begin();
+    const shutdownFailure = shutdownBoundary.begin();
     writeLog(
       `${JSON.stringify({
         timestamp: new Date().toISOString(),
@@ -184,6 +184,7 @@ export function createApplicationClose({
       })}\n`,
     );
     closing = (async () => {
+      let durableClosed = false;
       try {
         const codexDrain = codexRuntime?.close();
         const serverDrain = server.listening
@@ -193,13 +194,18 @@ export function createApplicationClose({
               })
             )
           : Promise.resolve();
-        githubConnections?.destroy?.();
-        forgejoConnections?.destroy?.();
-        await Promise.all([serverDrain, codexDrain]);
-        await ioPool.close();
+        githubConnections?.stopPolling?.();
+        forgejoConnections?.stopPolling?.();
+        ioPool.shutdown(shutdownFailure);
+        await Promise.all([serverDrain, codexDrain, ioPool.close()]);
         evaluations?.destroy?.();
         repositories?.destroy?.();
-        writeLog(
+        githubConnections?.destroy?.();
+        forgejoConnections?.destroy?.();
+        durableClosed = durableCore !== null;
+        durableCore?.close();
+        releaseInstallationLock?.();
+        writeLog.host(
           `${JSON.stringify({
             timestamp: new Date().toISOString(),
             severity: "info",
@@ -208,11 +214,9 @@ export function createApplicationClose({
             outcome: "success",
           })}\n`,
         );
-        durableCore?.close();
-        releaseInstallationLock?.();
       } catch (error) {
         const failure = codedShutdownFailure(error);
-        writeLog(
+        (durableClosed ? writeLog.host : writeLog)(
           `${JSON.stringify({
             timestamp: new Date().toISOString(),
             severity: "error",

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ApplicationShutdownError,
+  createApplicationClose,
   createApplicationShutdownBoundary,
 } from "../src/application-shutdown.js";
 import { evaluationFailureStatus } from "../src/evaluation-route-failure.js";
@@ -80,4 +81,113 @@ test("graceful shutdown aborts only its application-work signal", () => {
   assert.equal(shutdown.signal.reason, failure);
   assert.equal(isUnavailableError(failure), true);
   assert.equal(evaluationFailureStatus(failure), 503);
+});
+
+test("graceful close aborts bounded I/O and retains credentials until accepted work drains", async () => {
+  /** @type {string[]} */
+  const order = [];
+  const codexDrain = /** @type {PromiseWithResolvers<void>} */ (
+    Promise.withResolvers()
+  );
+  const ioDrain = /** @type {PromiseWithResolvers<void>} */ (
+    Promise.withResolvers()
+  );
+  const shutdownBoundary = createApplicationShutdownBoundary();
+  const close = createApplicationClose({
+    codexRuntime: {
+      close() {
+        order.push("codex-drain");
+        return codexDrain.promise;
+      },
+    },
+    durableCore: { close: () => order.push("core-close") },
+    evaluations: { destroy: () => order.push("evaluations-destroy") },
+    forgejoConnections: {
+      destroy: () => order.push("forgejo-destroy"),
+      stopPolling: () => order.push("forgejo-stop-polling"),
+    },
+    githubConnections: {
+      destroy: () => order.push("github-destroy"),
+      stopPolling: () => order.push("github-stop-polling"),
+    },
+    ioPool: {
+      close() {
+        order.push("io-drain");
+        return ioDrain.promise;
+      },
+      shutdown(error) {
+        assert.equal(error, shutdownBoundary.failure);
+        order.push("io-abort");
+      },
+    },
+    releaseInstallationLock: () => order.push("lock-release"),
+    repositories: { destroy: () => order.push("repositories-destroy") },
+    server: /** @type {any} */ ({ listening: false }),
+    shutdownBoundary,
+    writeLog: Object.assign(() => order.push("durable-log"), {
+      host: () => order.push("host-log"),
+    }),
+  });
+
+  const closing = close();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(order, [
+    "durable-log",
+    "codex-drain",
+    "github-stop-polling",
+    "forgejo-stop-polling",
+    "io-abort",
+    "io-drain",
+  ]);
+
+  ioDrain.resolve(undefined);
+  codexDrain.resolve(undefined);
+  await closing;
+  assert.deepEqual(order.slice(6), [
+    "evaluations-destroy",
+    "repositories-destroy",
+    "github-destroy",
+    "forgejo-destroy",
+    "core-close",
+    "lock-release",
+    "host-log",
+  ]);
+});
+
+test("graceful close never reports completion when a finalizer fails", async () => {
+  const failure = Object.assign(new Error("installation lock release failed"), {
+    code: "installation_lock_release_failed",
+  });
+  /** @type {Record<string, any>[]} */
+  const hostLogs = [];
+  const close = createApplicationClose({
+    codexRuntime: null,
+    durableCore: { close() {} },
+    evaluations: null,
+    forgejoConnections: null,
+    githubConnections: null,
+    ioPool: { async close() {}, shutdown() {} },
+    releaseInstallationLock() {
+      throw failure;
+    },
+    repositories: null,
+    server: /** @type {any} */ ({ listening: false }),
+    shutdownBoundary: createApplicationShutdownBoundary(),
+    writeLog: Object.assign(() => {}, {
+      host: (/** @type {string} */ line) => hostLogs.push(JSON.parse(line)),
+    }),
+  });
+
+  await assert.rejects(close(), (error) => error === failure);
+  assert.equal(
+    hostLogs.some(
+      (record) => record.event === "application_shutdown_completed",
+    ),
+    false,
+  );
+  assert.equal(
+    hostLogs.find((record) => record.event === "application_shutdown_failed")
+      ?.error,
+    "installation_lock_release_failed",
+  );
 });

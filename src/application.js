@@ -408,7 +408,7 @@ export function createApplication({
     repositories,
     server,
     shutdownBoundary,
-    writeLog,
+    writeLog: /** @type {ReturnType<typeof createApplicationLog>} */ (writeLog),
   });
 
   return {

@@ -87,3 +87,42 @@ test("the scheduled GitHub runner surfaces a polling generation conflict", async
   runner.destroy();
   core.close();
 });
+
+test("graceful shutdown interruption records no GitHub polling failure", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-stop-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  seedDueGitHubPoll(core);
+  const shutdown = Object.assign(new Error("Quality Bar is shutting down"), {
+    code: "application_shutting_down",
+  });
+  const runner = createAvailableGitHubPollingRunner(core, {
+    cipher: { decrypt: () => ({ client_id: null, pem: "private-key" }) },
+    timestamp: () => 65_000,
+    verifier: {
+      async listPullRequests() {
+        throw shutdown;
+      },
+      async verifyRepositories() {
+        throw new Error("Repository selection is not exercised");
+      },
+    },
+  });
+
+  await assert.rejects(runner.runDue(), (error) => error === shutdown);
+  assert.deepEqual(
+    core.get(
+      `SELECT last_success_at, next_attempt_at, snapshot
+       FROM github_repository_polls`,
+    ),
+    { last_success_at: 5_000, next_attempt_at: 65_000, snapshot: "[]" },
+  );
+  assert.equal(
+    core.get(
+      "SELECT COUNT(*) AS count FROM quality_bar_metadata WHERE key LIKE 'github_poll_%'",
+    )?.count,
+    0,
+  );
+  runner.destroy();
+  core.close();
+});

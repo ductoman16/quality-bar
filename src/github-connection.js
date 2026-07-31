@@ -28,6 +28,7 @@ import {
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
+import { stopFor as stop } from "./github-connection-shutdown.js";
 import { createGitHubPublicationServices } from "./github-publication-services.js";
 import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
 import { assertGitHubVerifier } from "./github-connection-dependencies.js";
@@ -102,6 +103,11 @@ export function createGitHubConnectionService(
     durableCore,
     { cipher, verifier },
   );
+  const shutdown = stop(polling, publications)(
+    pending,
+    callbackFailures,
+    cipher,
+  );
   const take = takeGitHubConnectionFlow.bind(null, { pending, timestamp });
   return {
     read: () => readGitHubConnection(durableCore),
@@ -110,6 +116,7 @@ export function createGitHubConnectionService(
       polling.start();
       publications.start();
     },
+    ...shutdown,
     start: () =>
       startGitHubConnection({
         durableCore,
@@ -395,13 +402,6 @@ export function createGitHubConnectionService(
       retireGitHubConnection(durableCore, request),
     remove: () => removeNeverUsedGitHubConnection(durableCore),
     selectRepositories,
-    destroy() {
-      polling.destroy();
-      publications.destroy();
-      pending.clear();
-      callbackFailures.destroy();
-      cipher.destroy();
-    },
   };
 }
 export { createUnavailableGitHubConnectionService } from "./github-connection-unavailable.js";
