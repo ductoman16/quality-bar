@@ -19,10 +19,12 @@ test("schema v45 migrates to durable Review Run pre-start retry without changing
     DROP TRIGGER evaluation_pre_start_retry_immutable_update;
     DROP TABLE evaluation_pre_start_retries;
     DROP TRIGGER review_run_exhausted_start;
+    DROP TRIGGER review_run_retry_cycle_summary_reset;
     DROP TRIGGER review_run_retry_cycle_transition;
     DROP TRIGGER review_run_retry_transition;
     DROP TRIGGER review_run_pre_start_attempt_immutable_delete;
     DROP TRIGGER review_run_pre_start_attempt_immutable_update;
+    DROP TRIGGER review_run_pre_start_attempt_summary;
     DROP TRIGGER review_run_pre_start_attempt_exhaust;
     DROP TRIGGER review_run_pre_start_attempt_insert;
     DROP TABLE review_run_pre_start_attempts;
@@ -37,13 +39,13 @@ test("schema v45 migrates to durable Review Run pre-start retry without changing
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 47);
+  assert.equal(migrated.facts.schemaVersion, 48);
   const retryCycle = migrated
     .all("PRAGMA table_info(review_runs)")
     .find((row) => row?.name === "retry_cycle");
   assert.ok(retryCycle);
   assert.deepEqual(retryCycle, {
-    cid: 17,
+    cid: 27,
     dflt_value: "1",
     name: "retry_cycle",
     notnull: 1,
@@ -111,7 +113,7 @@ test("schema v46 gains terminal Waiver Adjudication immutability", (context) => 
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 47);
+  assert.equal(migrated.facts.schemaVersion, 48);
   assert.ok(
     migrated.get(
       "SELECT 1 AS present FROM sqlite_schema WHERE type = 'trigger' AND name = 'waiver_adjudication_terminal_immutable'",

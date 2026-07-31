@@ -357,6 +357,7 @@ test("canonical schema v43 migrates queued Adjudications to validated recovery s
     DROP TABLE waiver_recovery_idempotency;
     DROP TABLE waiver_adjudication_pre_start_attempts;
     DROP TRIGGER waiver_adjudication_retry_transition;
+    DROP TRIGGER waiver_adjudication_retry_cycle_summary_reset;
     DROP TRIGGER waiver_adjudication_exhausted_start;
     ALTER TABLE waiver_adjudications DROP COLUMN retry_cycle;
     UPDATE quality_bar_metadata
@@ -368,7 +369,7 @@ test("canonical schema v43 migrates queued Adjudications to validated recovery s
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 47);
+  assert.equal(migrated.facts.schemaVersion, 48);
   assert.deepEqual(
     migrated.get(
       `SELECT waiver_adjudications.execution_status,

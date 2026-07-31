@@ -9,6 +9,15 @@ const CODEX_TERMINATION_GRACE_MS = 5_000;
  * @param {string} component
  * @param {string} outcome
  * @param {CodedError} [error]
+ * @param {{
+ *   requestId?: string,
+ *   repositoryId?: string,
+ *   changesetId?: string,
+ *   evaluationId?: string,
+ *   reviewRunId?: string,
+ *   waiverAdjudicationId?: string,
+ *   deliverySourceId?: string
+ * }} [correlation]
  */
 export function structuredLog(
   writeLog,
@@ -17,6 +26,7 @@ export function structuredLog(
   component,
   outcome,
   error,
+  correlation = {},
 ) {
   const record = /** @type {{
    *   component: string,
@@ -37,7 +47,76 @@ export function structuredLog(
     record.error = error.code;
     record.detail = error.message;
   }
+  Object.assign(record, {
+    ...(correlation.requestId === undefined
+      ? {}
+      : { request_id: correlation.requestId }),
+    ...(correlation.repositoryId === undefined
+      ? {}
+      : { repository_id: correlation.repositoryId }),
+    ...(correlation.changesetId === undefined
+      ? {}
+      : { changeset_id: correlation.changesetId }),
+    ...(correlation.evaluationId === undefined
+      ? {}
+      : { evaluation_id: correlation.evaluationId }),
+    ...(correlation.reviewRunId === undefined
+      ? {}
+      : { review_run_id: correlation.reviewRunId }),
+    ...(correlation.waiverAdjudicationId === undefined
+      ? {}
+      : { waiver_adjudication_id: correlation.waiverAdjudicationId }),
+    ...(correlation.deliverySourceId === undefined
+      ? {}
+      : { delivery_source_id: correlation.deliverySourceId }),
+  });
   writeLog(`${JSON.stringify(record)}\n`);
+}
+
+/**
+ * @param {{assertAvailable: () => unknown}} storageBoundary
+ * @param {{assertCodexStartAvailable: () => unknown, assertWorkAdmissionAvailable: () => unknown, cleanupEligibleData: () => unknown} | null} storageReserve
+ * @param {CodedError | null} startupFailure
+ */
+export function requireAvailableStorageReserve(
+  storageBoundary,
+  storageReserve,
+  startupFailure,
+) {
+  storageBoundary.assertAvailable();
+  if (!storageReserve) {
+    throw startupFailure;
+  }
+  return storageReserve;
+}
+
+/** @param {() => CodedError | null} readFailure */
+export function createUnavailableCodexConcurrency(readFailure) {
+  const unavailable = () => {
+    throw readFailure();
+  };
+  return { read: unavailable, set: unavailable };
+}
+
+/**
+ * @param {{failure: CodedError | null}} storageBoundary
+ * @param {{failure: CodedError | null}} executionRuntime
+ * @param {() => CodedError | null} readStartupFailure
+ */
+export function createDurableCoreStatusReader(
+  storageBoundary,
+  executionRuntime,
+  readStartupFailure,
+) {
+  return () => {
+    const error =
+      storageBoundary.failure ??
+      executionRuntime.failure ??
+      readStartupFailure();
+    return error
+      ? { error: error.code, status: "not_ready" }
+      : { status: "ready" };
+  };
 }
 
 /**

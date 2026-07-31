@@ -1,4 +1,7 @@
+import * as retentionSchema from "./retention-schema.js";
+
 export const WAIVER_ADJUDICATION_RECOVERY_SCHEMA = `
+  ${retentionSchema.WAIVER_PRE_START_RETENTION_REBUILD}
   CREATE TABLE IF NOT EXISTS waiver_adjudication_pre_start_attempts (
     waiver_adjudication_id TEXT NOT NULL
       REFERENCES waiver_adjudications(id),
@@ -37,6 +40,7 @@ export const WAIVER_ADJUDICATION_RECOVERY_SCHEMA = `
     BEGIN
       SELECT RAISE(ABORT, 'waiver_adjudication_pre_start_attempt_invalid');
     END;
+  ${retentionSchema.WAIVER_PRE_START_SUMMARY_TRIGGER_SQL}
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_pre_start_attempt_exhaust
     AFTER INSERT ON waiver_adjudication_pre_start_attempts
     WHEN NEW.exhausted = 1
@@ -53,6 +57,7 @@ export const WAIVER_ADJUDICATION_RECOVERY_SCHEMA = `
     END;
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_pre_start_attempt_immutable_delete
     BEFORE DELETE ON waiver_adjudication_pre_start_attempts
+    WHEN quality_bar_retention_cleanup() = 0
     BEGIN
       SELECT RAISE(ABORT, 'waiver_adjudication_pre_start_attempt_immutable');
     END;
@@ -74,6 +79,7 @@ export const WAIVER_ADJUDICATION_RECOVERY_SCHEMA = `
     BEGIN
       SELECT RAISE(ABORT, 'waiver_adjudication_retry_transition_invalid');
     END;
+  ${retentionSchema.WAIVER_PRE_START_RESET_TRIGGER_SQL}
   CREATE TRIGGER IF NOT EXISTS waiver_adjudication_exhausted_start
     BEFORE UPDATE OF started_at ON codex_execution_queue
     WHEN OLD.work_kind = 'waiver_adjudication'
@@ -131,6 +137,7 @@ const RECOVERY_OBJECTS = {
   waiver_adjudication_pre_start_attempt_immutable_delete: {
     signatures: [
       "before delete on waiver_adjudication_pre_start_attempts",
+      "when quality_bar_retention_cleanup() = 0",
       "raise(abort, 'waiver_adjudication_pre_start_attempt_immutable')",
     ],
     type: "trigger",
@@ -139,6 +146,14 @@ const RECOVERY_OBJECTS = {
     signatures: [
       "before update on waiver_adjudication_pre_start_attempts",
       "raise(abort, 'waiver_adjudication_pre_start_attempt_immutable')",
+    ],
+    type: "trigger",
+  },
+  waiver_adjudication_pre_start_attempt_summary: {
+    signatures: [
+      "after insert on waiver_adjudication_pre_start_attempts",
+      "pre_start_attempt_count = pre_start_attempt_count + 1",
+      "pre_start_retry_error_detail = new.error_detail",
     ],
     type: "trigger",
   },
@@ -170,6 +185,14 @@ const RECOVERY_OBJECTS = {
     ],
     type: "trigger",
   },
+  waiver_adjudication_retry_cycle_summary_reset: {
+    signatures: [
+      "after update of retry_cycle on waiver_adjudications",
+      "pre_start_cycle_attempt_count = 0",
+      "pre_start_cycle_retry_error_detail = null",
+    ],
+    type: "trigger",
+  },
   waiver_recovery_idempotency: {
     signatures: [
       "check (response_status in (200, 201))",
@@ -195,6 +218,11 @@ const RECOVERY_OBJECTS = {
     type: "trigger",
   },
 };
+
+const RETENTION_OBJECT_NAMES = new Set([
+  "waiver_adjudication_pre_start_attempt_summary",
+  "waiver_adjudication_retry_cycle_summary_reset",
+]);
 
 const RECOVERY_TABLE_COLUMNS = {
   waiver_adjudication_pre_start_attempts: [
@@ -244,6 +272,28 @@ function tableShapeMatches(database, table) {
   );
 }
 
+/**
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @param {{name: string, type: string, sql?: string}[]} objects
+ * @param {string} name
+ * @param {{type: string, signatures: string[]}} expected
+ */
+function objectMatches(database, objects, name, expected) {
+  const object = objects.find((candidate) => candidate.name === name);
+  const sql = normalizeSql(object?.sql);
+  return (
+    object?.type === expected.type &&
+    expected.signatures.every((signature) =>
+      sql.includes(normalizeSql(signature)),
+    ) &&
+    (expected.type !== "table" ||
+      tableShapeMatches(
+        database,
+        /** @type {keyof typeof RECOVERY_TABLE_COLUMNS} */ (name),
+      ))
+  );
+}
+
 /** @param {import("node:sqlite").DatabaseSync} database */
 export function waiverAdjudicationRecoveryMigration(database) {
   const storedSchemaVersion = Number(
@@ -270,15 +320,17 @@ export function waiverAdjudicationRecoveryMigration(database) {
       )
       .get()?.sql,
   );
-  const objects = database
-    .prepare(
-      `SELECT name, type, sql FROM sqlite_schema
-         WHERE name LIKE 'waiver_adjudication_pre_start_attempt%'
-            OR name LIKE 'waiver_adjudication_retry_%'
-            OR name = 'waiver_adjudication_exhausted_start'
-            OR name LIKE 'waiver_recovery_idempotency%'`,
-    )
-    .all();
+  const objects = /** @type {{name: string, type: string, sql?: string}[]} */ (
+    database
+      .prepare(
+        `SELECT name, type, sql FROM sqlite_schema
+           WHERE name LIKE 'waiver_adjudication_pre_start_attempt%'
+              OR name LIKE 'waiver_adjudication_retry_%'
+              OR name = 'waiver_adjudication_exhausted_start'
+              OR name LIKE 'waiver_recovery_idempotency%'`,
+      )
+      .all()
+  );
   const hasCompleteQueueRetryState =
     queueRetryState?.type === "TEXT" &&
     queueRetryState.notnull === 1 &&
@@ -289,23 +341,22 @@ export function waiverAdjudicationRecoveryMigration(database) {
     retryCycle.notnull === 1 &&
     retryCycle.dflt_value === "1" &&
     hasCompleteQueueRetryState;
-  const hasCompleteObjects = Object.entries(RECOVERY_OBJECTS).every(
-    ([name, expected]) => {
-      const object = objects.find((candidate) => candidate.name === name);
-      const sql = normalizeSql(object?.sql);
-      return (
-        object?.type === expected.type &&
-        expected.signatures.every((signature) =>
-          sql.includes(normalizeSql(signature)),
-        ) &&
-        (expected.type !== "table" ||
-          tableShapeMatches(
-            database,
-            /** @type {keyof typeof RECOVERY_TABLE_COLUMNS} */ (name),
-          ))
-      );
-    },
-  );
+  const hasCompleteObjects = Object.entries(RECOVERY_OBJECTS)
+    .filter(([name]) => !RETENTION_OBJECT_NAMES.has(name))
+    .every(([name, expected]) =>
+      objectMatches(database, objects, name, expected),
+    );
+  const hasCompleteRetentionObjects = Object.entries(RECOVERY_OBJECTS)
+    .filter(([name]) => RETENTION_OBJECT_NAMES.has(name))
+    .every(([name, expected]) =>
+      objectMatches(database, objects, name, expected),
+    );
+  const retentionTableExists = retentionSchema.hasRetentionSchema(database);
+  const retentionRepairRequired =
+    !retentionTableExists || !hasCompleteRetentionObjects;
+  if (hasCompleteColumns && hasCompleteObjects && retentionRepairRequired) {
+    return WAIVER_ADJUDICATION_RECOVERY_SCHEMA;
+  }
   if (hasCompleteColumns && hasCompleteObjects) {
     return "";
   }

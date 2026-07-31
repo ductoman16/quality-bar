@@ -21,6 +21,7 @@ function assertMalformedRetryStateRejected(retryStateDefinition) {
       DROP TABLE waiver_recovery_idempotency;
       DROP TABLE waiver_adjudication_pre_start_attempts;
       DROP TRIGGER waiver_adjudication_retry_transition;
+      DROP TRIGGER waiver_adjudication_retry_cycle_summary_reset;
       DROP TRIGGER waiver_adjudication_exhausted_start;
       DROP TRIGGER review_run_pre_start_attempt_insert;
       DROP TRIGGER review_run_pre_start_attempt_exhaust;
@@ -68,4 +69,51 @@ test("canonical schema v43 rejects a missing shared retry constraint", () => {
   assertMalformedRetryStateRejected(
     "retry_state TEXT NOT NULL DEFAULT 'ready'",
   );
+});
+
+test("schema v47 repairs waiver recovery before retention objects existed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-v47-"));
+  const databasePath = join(directory, "quality-bar.sqlite");
+  try {
+    const current = openDurableCore(databasePath);
+    current.close();
+    const legacy = new DatabaseSync(databasePath);
+    legacy.exec(`
+      DROP TRIGGER waiver_adjudication_pre_start_attempt_summary;
+      DROP TRIGGER waiver_adjudication_retry_cycle_summary_reset;
+      DROP TRIGGER review_run_pre_start_attempt_summary;
+      DROP TRIGGER review_run_retry_cycle_summary_reset;
+      DROP INDEX application_logs_occurred_at;
+      DROP TABLE application_logs;
+      UPDATE quality_bar_metadata SET value = '47'
+      WHERE key = 'schema_version';
+      PRAGMA user_version = 47;
+    `);
+    legacy.close();
+
+    const migrated = openDurableCore(databasePath);
+    assert.equal(migrated.facts.schemaVersion, 48);
+    assert.ok(
+      migrated.get(
+        `SELECT 1 FROM sqlite_schema
+         WHERE type = 'trigger'
+           AND name = 'waiver_adjudication_pre_start_attempt_summary'`,
+      ),
+    );
+    assert.ok(
+      migrated.get(
+        `SELECT 1 FROM sqlite_schema
+         WHERE type = 'trigger'
+           AND name = 'waiver_adjudication_retry_cycle_summary_reset'`,
+      ),
+    );
+    assert.ok(
+      migrated.get(
+        "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'application_logs'",
+      ),
+    );
+    migrated.close();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });

@@ -11,6 +11,10 @@ test("one application pool owns explicit acquisition and eligible cleanup", asyn
       assert.equal(typeof durableCore.all, "function");
       return { removed: 3 };
     },
+    cleanupRetentionData({ now }) {
+      assert.equal(now(), 1_000_000);
+      return { applicationLogs: { changes: 0 } };
+    },
     reportBackgroundFailure: (error) =>
       assert.fail(/** @type {Error} */ (error)),
   });
@@ -71,6 +75,7 @@ test("one application pool owns explicit acquisition and eligible cleanup", asyn
 test("required eligible cleanup keeps one bounded slot under ordinary I/O saturation", async () => {
   const ioPool = createApplicationIoPool({
     cleanupOwnedArtifacts: () => ({ removed: 1 }),
+    cleanupRetentionData: () => ({ applicationLogs: { changes: 0 } }),
     reportBackgroundFailure: (error) =>
       assert.fail(/** @type {Error} */ (error)),
   });

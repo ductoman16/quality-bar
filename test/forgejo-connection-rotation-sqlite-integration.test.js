@@ -31,7 +31,10 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   let timestamp = 1_000;
+  /** @type {string[]} */
+  const registeredSecrets = [];
   const service = createForgejoConnectionService(core, {
+    registerSecret: (secret) => registeredSecrets.push(secret),
     storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
@@ -49,6 +52,7 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
         return [];
       },
       async verify({ token }) {
+        assert.ok(registeredSecrets.includes(token));
         return {
           capabilities: { private_git_read: "verified" },
           principal: {

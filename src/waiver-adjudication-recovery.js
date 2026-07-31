@@ -321,7 +321,11 @@ export function createWaiverAdjudicationRecoveryService(
             current.queue_started_at !== null ||
             transaction.run(
               `UPDATE waiver_adjudications
-               SET retry_cycle = retry_cycle + 1
+               SET retry_cycle = retry_cycle + 1,
+                   pre_start_cycle_attempt_count = 0,
+                   pre_start_cycle_retry_error_code = NULL,
+                   pre_start_cycle_retry_error_detail = NULL,
+                   pre_start_cycle_exhausted_at = NULL
                WHERE id = ? AND execution_status = 'queued'
                  AND started_at IS NULL`,
               adjudicationId,

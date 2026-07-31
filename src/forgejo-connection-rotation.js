@@ -59,14 +59,24 @@ export function verifiedForgejoRepositories(verification, repositoryIds) {
 }
 
 /**
- * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: Function, prepareBaseline: Function}, read: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
+ * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: Function, prepareBaseline: Function}, read: () => unknown, registerSecret?: (secret: string) => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
  * @param {unknown} input
  */
 export async function rotateForgejoConnection(
-  { cipher, createId, durableCore, now, polling, read, verifier },
+  {
+    cipher,
+    createId,
+    durableCore,
+    now,
+    polling,
+    read,
+    registerSecret,
+    verifier,
+  },
   input,
 ) {
   const selected = rotationRequest(input);
+  registerSecret?.(selected.token);
   const [connection] = durableCore.all(
     `SELECT forgejo_connections.*, forgejo_connection_credentials.encrypted_credential
      FROM forgejo_connections

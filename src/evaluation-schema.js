@@ -18,6 +18,7 @@ import {
 import { GITHUB_AUTOMATIC_EVALUATION_SCHEMA } from "./github-automatic-evaluation-schema.js";
 import { GITHUB_COMMIT_STATUS_SCHEMA } from "./github-commit-status-schema.js";
 import { REVIEW_RUN_PRE_START_SCHEMA } from "./review-run-pre-start-schema.js";
+import { RETRY_SUMMARY_COLUMNS_SQL } from "./retention-schema.js";
 
 export { EVALUATION_FILE_CHANGE_KIND_MIGRATION } from "./evaluation-file-change-schema.js";
 export { evaluationCancellationMigration } from "./evaluation-cancellation-schema.js";
@@ -98,6 +99,7 @@ export const EVALUATION_SCHEMA = `
     execution_evidence_recorded INTEGER NOT NULL DEFAULT 0
       CHECK (execution_evidence_recorded IN (0, 1)),
     retry_cycle INTEGER NOT NULL DEFAULT 1 CHECK (retry_cycle > 0),
+    ${RETRY_SUMMARY_COLUMNS_SQL}
     created_at INTEGER NOT NULL,
     CHECK (started_at IS NULL OR started_at >= created_at),
     CHECK (completed_at IS NULL OR (started_at IS NOT NULL AND completed_at >= started_at)),

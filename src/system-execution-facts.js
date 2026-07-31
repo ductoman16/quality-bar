@@ -156,17 +156,9 @@ const ACTIVE_EXECUTIONS = `
          review_runs.evaluation_id, review_runs.id AS review_run_id,
          NULL AS waiver_adjudication_id, review_runs.execution_status,
          review_runs.retry_cycle,
-         (SELECT count(*) FROM review_run_pre_start_attempts
-          WHERE review_run_id = review_runs.id
-            AND retry_cycle = review_runs.retry_cycle) AS pre_start_attempt_count,
-         (SELECT error_code FROM review_run_pre_start_attempts
-          WHERE review_run_id = review_runs.id
-            AND retry_cycle = review_runs.retry_cycle
-          ORDER BY attempt_number DESC LIMIT 1) AS retry_error_code,
-         (SELECT error_detail FROM review_run_pre_start_attempts
-          WHERE review_run_id = review_runs.id
-            AND retry_cycle = review_runs.retry_cycle
-          ORDER BY attempt_number DESC LIMIT 1) AS retry_error_detail
+         review_runs.pre_start_cycle_attempt_count AS pre_start_attempt_count,
+         review_runs.pre_start_cycle_retry_error_code AS retry_error_code,
+         review_runs.pre_start_cycle_retry_error_detail AS retry_error_detail
     FROM codex_execution_queue AS queue
     JOIN review_runs ON queue.work_kind = 'review_run'
                  AND review_runs.id = queue.work_id
@@ -177,17 +169,9 @@ const ACTIVE_EXECUTIONS = `
          NULL AS evaluation_id, NULL AS review_run_id,
          waiver_adjudications.id AS waiver_adjudication_id,
          waiver_adjudications.execution_status, waiver_adjudications.retry_cycle,
-         (SELECT count(*) FROM waiver_adjudication_pre_start_attempts
-          WHERE waiver_adjudication_id = waiver_adjudications.id
-            AND retry_cycle = waiver_adjudications.retry_cycle) AS pre_start_attempt_count,
-         (SELECT error_code FROM waiver_adjudication_pre_start_attempts
-          WHERE waiver_adjudication_id = waiver_adjudications.id
-            AND retry_cycle = waiver_adjudications.retry_cycle
-          ORDER BY attempt_number DESC LIMIT 1) AS retry_error_code,
-         (SELECT error_detail FROM waiver_adjudication_pre_start_attempts
-          WHERE waiver_adjudication_id = waiver_adjudications.id
-            AND retry_cycle = waiver_adjudications.retry_cycle
-          ORDER BY attempt_number DESC LIMIT 1) AS retry_error_detail
+         waiver_adjudications.pre_start_cycle_attempt_count AS pre_start_attempt_count,
+         waiver_adjudications.pre_start_cycle_retry_error_code AS retry_error_code,
+         waiver_adjudications.pre_start_cycle_retry_error_detail AS retry_error_detail
     FROM codex_execution_queue AS queue
     JOIN waiver_adjudications
       ON queue.work_kind = 'waiver_adjudication'

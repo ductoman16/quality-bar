@@ -18,6 +18,7 @@ import { isUniqueConstraintFailure } from "./sqlite-error.js";
  *   },
  *   find: (id: string) => Record<string, import("node:sqlite").SQLInputValue> | undefined,
  *   now: () => number,
+ *   registerSecret?: (secret: string) => unknown,
  *   verifyRead: (url: string, credential?: {token: string, username: string}) => Promise<void>
  * }} dependencies
  */
@@ -27,11 +28,16 @@ export function createRepositoryRegistration({
   durableCore,
   find,
   now,
+  registerSecret,
   verifyRead,
 }) {
   /** @param {unknown} request */
   return async function registerRepository(request) {
     const { credential, url } = normalizeRepositoryRegistration(request);
+    if (credential) {
+      registerSecret?.(credential.token);
+      registerSecret?.(credential.username);
+    }
     const [existing] = durableCore.all(
       `SELECT repositories.id, repositories.lifecycle,
               repositories.lifecycle_revision,

@@ -1,6 +1,8 @@
 import { CODEX_EXECUTION_PRE_START_SCHEMA } from "./codex-execution-pre-start-schema.js";
+import * as retentionSchema from "./retention-schema.js";
 
 export const REVIEW_RUN_PRE_START_SCHEMA = `
+  ${retentionSchema.REVIEW_RUN_PRE_START_RETENTION_REBUILD}
   ${CODEX_EXECUTION_PRE_START_SCHEMA}
   CREATE TABLE IF NOT EXISTS review_run_pre_start_attempts (
     review_run_id TEXT NOT NULL REFERENCES review_runs(id),
@@ -42,6 +44,7 @@ export const REVIEW_RUN_PRE_START_SCHEMA = `
     BEGIN
       SELECT RAISE(ABORT, 'review_run_pre_start_attempt_invalid');
     END;
+  ${retentionSchema.REVIEW_RUN_PRE_START_SUMMARY_TRIGGER_SQL}
   CREATE TRIGGER IF NOT EXISTS review_run_pre_start_attempt_exhaust
     AFTER INSERT ON review_run_pre_start_attempts
     WHEN NEW.exhausted = 1
@@ -57,6 +60,7 @@ export const REVIEW_RUN_PRE_START_SCHEMA = `
     END;
   CREATE TRIGGER IF NOT EXISTS review_run_pre_start_attempt_immutable_delete
     BEFORE DELETE ON review_run_pre_start_attempts
+    WHEN quality_bar_retention_cleanup() = 0
     BEGIN
       SELECT RAISE(ABORT, 'review_run_pre_start_attempt_immutable');
     END;
@@ -80,11 +84,12 @@ export const REVIEW_RUN_PRE_START_SCHEMA = `
           WHERE review_runs.id = OLD.work_id
             AND review_runs.execution_status = 'queued'
             AND review_runs.started_at IS NULL
-            AND review_runs.retry_cycle = (
-              SELECT max(retry_cycle) + 1
-              FROM review_run_pre_start_attempts
-              WHERE review_run_id = OLD.work_id AND exhausted = 1
-            )
+            AND review_runs.pre_start_cycle_attempt_count = 0
+            AND review_runs.pre_start_cycle_retry_error_code IS NULL
+            AND review_runs.pre_start_cycle_retry_error_detail IS NULL
+            AND review_runs.pre_start_cycle_exhausted_at IS NULL
+            AND review_runs.pre_start_exhausted_cycle IS NOT NULL
+            AND review_runs.retry_cycle = review_runs.pre_start_exhausted_cycle + 1
         ))
       OR NEW.retry_state = OLD.retry_state
     )
@@ -104,17 +109,18 @@ export const REVIEW_RUN_PRE_START_SCHEMA = `
           WHERE work_id = OLD.id AND work_kind = 'review_run'
             AND started_at IS NULL AND retry_state = 'exhausted'
         )
-        AND EXISTS (
-          SELECT 1 FROM review_run_pre_start_attempts
-          WHERE review_run_id = OLD.id
-            AND retry_cycle = OLD.retry_cycle
-            AND exhausted = 1
-        )
+        AND OLD.pre_start_cycle_exhausted_at IS NOT NULL
+        AND OLD.pre_start_exhausted_cycle = OLD.retry_cycle
+        AND NEW.pre_start_cycle_attempt_count = 0
+        AND NEW.pre_start_cycle_retry_error_code IS NULL
+        AND NEW.pre_start_cycle_retry_error_detail IS NULL
+        AND NEW.pre_start_cycle_exhausted_at IS NULL
       )
     )
     BEGIN
       SELECT RAISE(ABORT, 'review_run_retry_cycle_transition_invalid');
     END;
+  ${retentionSchema.REVIEW_RUN_PRE_START_RESET_TRIGGER_SQL}
   CREATE TRIGGER IF NOT EXISTS review_run_exhausted_start
     BEFORE UPDATE OF started_at ON codex_execution_queue
     WHEN OLD.work_kind = 'review_run'
@@ -133,20 +139,11 @@ export const REVIEW_RUN_PRE_START_SCHEMA = `
     created_at INTEGER NOT NULL,
     PRIMARY KEY (route, idempotency_key)
   ) STRICT;
-  CREATE TRIGGER IF NOT EXISTS evaluation_pre_start_retry_immutable_update
-    BEFORE UPDATE ON evaluation_pre_start_retries
-    BEGIN SELECT RAISE(ABORT, 'evaluation_pre_start_retry_immutable'); END;
-  CREATE TRIGGER IF NOT EXISTS evaluation_pre_start_retry_immutable_delete
-    BEFORE DELETE ON evaluation_pre_start_retries
-    BEGIN SELECT RAISE(ABORT, 'evaluation_pre_start_retry_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS evaluation_pre_start_retry_immutable_update BEFORE UPDATE ON evaluation_pre_start_retries BEGIN SELECT RAISE(ABORT, 'evaluation_pre_start_retry_immutable'); END;
+  CREATE TRIGGER IF NOT EXISTS evaluation_pre_start_retry_immutable_delete BEFORE DELETE ON evaluation_pre_start_retries BEGIN SELECT RAISE(ABORT, 'evaluation_pre_start_retry_immutable'); END;
 `;
 
-export const REVIEW_RUN_PRE_START_MIGRATION = `
-  ALTER TABLE review_runs
-    ADD COLUMN retry_cycle INTEGER NOT NULL DEFAULT 1
-    CHECK (retry_cycle > 0);
-  ${REVIEW_RUN_PRE_START_SCHEMA}
-`;
+export const REVIEW_RUN_PRE_START_MIGRATION = `ALTER TABLE review_runs ADD COLUMN retry_cycle INTEGER NOT NULL DEFAULT 1 CHECK (retry_cycle > 0); ${REVIEW_RUN_PRE_START_SCHEMA}`;
 
 const OBJECTS = {
   codex_execution_pre_start_attempt_insert: {
@@ -160,6 +157,7 @@ const OBJECTS = {
   codex_execution_pre_start_attempt_immutable_delete: {
     signatures: [
       "before delete on codex_execution_pre_start_attempts",
+      "when quality_bar_retention_cleanup() = 0",
       "raise(abort, 'codex_execution_pre_start_attempt_immutable')",
     ],
     type: "trigger",
@@ -224,6 +222,7 @@ const OBJECTS = {
   review_run_pre_start_attempt_immutable_delete: {
     signatures: [
       "before delete on review_run_pre_start_attempts",
+      "when quality_bar_retention_cleanup() = 0",
       "raise(abort, 'review_run_pre_start_attempt_immutable')",
     ],
     type: "trigger",
@@ -333,13 +332,6 @@ function tableShapeMatches(database, table) {
  * @param {string} [pendingStatements]
  */
 export function reviewRunPreStartMigration(database, pendingStatements = "") {
-  const reviewRunsExist = Boolean(
-    database
-      .prepare(
-        "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'review_runs'",
-      )
-      .get(),
-  );
   const reviewRunsSchema = normalizeSql(
     database
       .prepare(
@@ -357,13 +349,22 @@ export function reviewRunPreStartMigration(database, pendingStatements = "") {
        WHERE name LIKE 'codex_execution_pre_start_attempt%'
           OR name LIKE 'review_run_pre_start_attempt%'
           OR name LIKE 'evaluation_pre_start_retr%'
-          OR name IN (
-            'review_run_retry_transition',
-            'review_run_retry_cycle_transition',
-            'review_run_exhausted_start'
-          )`,
+          OR name LIKE 'review_run_retry_%'
+          OR name = 'review_run_exhausted_start'`,
     )
     .all();
+  const summarySql = new Map(
+    objects.map(({ name, sql }) => [name, normalizeSql(sql)]),
+  );
+  const summaryObjectsComplete =
+    summarySql
+      .get("review_run_pre_start_attempt_summary")
+      ?.includes("pre_start_attempt_count = pre_start_attempt_count + 1") &&
+    summarySql
+      .get("review_run_retry_cycle_summary_reset")
+      ?.includes("pre_start_cycle_attempt_count = 0");
+  const retentionRepairRequired =
+    !retentionSchema.hasRetentionSchema(database) || !summaryObjectsComplete;
   const retryCycleComplete =
     retryCycle?.type === "INTEGER" &&
     retryCycle.notnull === 1 &&
@@ -386,14 +387,14 @@ export function reviewRunPreStartMigration(database, pendingStatements = "") {
         ))
     );
   });
+  if (retryCycleComplete && objectsComplete && retentionRepairRequired) {
+    return REVIEW_RUN_PRE_START_SCHEMA;
+  }
   if (retryCycleComplete && objectsComplete) {
     return "";
   }
   if (objects.length === 0) {
-    if (!reviewRunsExist) {
-      return REVIEW_RUN_PRE_START_SCHEMA;
-    }
-    if (retryCycleComplete) {
+    if (!reviewRunsSchema || retryCycleComplete) {
       return REVIEW_RUN_PRE_START_SCHEMA;
     }
     if (!retryCycle) {

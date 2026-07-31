@@ -8,33 +8,10 @@ export function readEvaluationWaiverAdjudications(durableCore, evaluationId) {
       `SELECT waiver_adjudications.*,
               codex_execution_queue.ready_at,
               codex_execution_queue.retry_state,
-              (
-                SELECT count(*)
-                FROM waiver_adjudication_pre_start_attempts
-                WHERE waiver_adjudication_id = waiver_adjudications.id
-              ) AS pre_start_attempt_count,
-              (
-                SELECT error_code
-                FROM waiver_adjudication_pre_start_attempts
-                WHERE waiver_adjudication_id = waiver_adjudications.id
-                ORDER BY retry_cycle DESC, attempt_number DESC
-                LIMIT 1
-              ) AS retry_error_code,
-              (
-                SELECT error_detail
-                FROM waiver_adjudication_pre_start_attempts
-                WHERE waiver_adjudication_id = waiver_adjudications.id
-                ORDER BY retry_cycle DESC, attempt_number DESC
-                LIMIT 1
-              ) AS retry_error_detail,
-              (
-                SELECT failed_at
-                FROM waiver_adjudication_pre_start_attempts
-                WHERE waiver_adjudication_id = waiver_adjudications.id
-                  AND exhausted = 1
-                ORDER BY retry_cycle DESC, attempt_number DESC
-                LIMIT 1
-              ) AS exhausted_at
+              waiver_adjudications.pre_start_attempt_count,
+              waiver_adjudications.pre_start_retry_error_code AS retry_error_code,
+              waiver_adjudications.pre_start_retry_error_detail AS retry_error_detail,
+              waiver_adjudications.pre_start_exhausted_at AS exhausted_at
        FROM waiver_adjudications
        JOIN codex_execution_queue
          ON codex_execution_queue.work_id = waiver_adjudications.id

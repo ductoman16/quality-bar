@@ -1,9 +1,15 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-/** @param {Buffer} masterKey */
-export function createForgejoConnectionCredentialCipher(masterKey) {
+/** @param {Buffer} masterKey @param {{onSecret?: (secret: string) => unknown}} [options] */
+export function createForgejoConnectionCredentialCipher(
+  masterKey,
+  { onSecret } = {},
+) {
   if (!Buffer.isBuffer(masterKey) || masterKey.length !== 32) {
     throw new TypeError("a 32-byte installation master key is required");
+  }
+  if (onSecret !== undefined && typeof onSecret !== "function") {
+    throw new TypeError("onSecret must be a function");
   }
   const key = Buffer.from(masterKey);
   /** @param {string} id */
@@ -13,6 +19,7 @@ export function createForgejoConnectionCredentialCipher(masterKey) {
     /** @param {string} id @param {string} token */
     encrypt(id, token) {
       try {
+        onSecret?.(token);
         const iv = randomBytes(12);
         const cipher = createCipheriv("aes-256-gcm", key, iv);
         cipher.setAAD(aad(id));
@@ -54,6 +61,7 @@ export function createForgejoConnectionCredentialCipher(masterKey) {
         if (!token) {
           throw new Error("credential plaintext is invalid");
         }
+        onSecret?.(token);
         return token;
       } catch (cause) {
         throw Object.assign(

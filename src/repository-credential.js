@@ -20,11 +20,11 @@ function additionalAuthenticatedData(repository) {
 
 /**
  * @param {Buffer} masterKey
- * @param {{randomBytes?: (size: number) => Buffer}} [options]
+ * @param {{randomBytes?: (size: number) => Buffer, onSecret?: (secret: string) => unknown}} [options]
  */
 export function createRepositoryCredentialCipher(
   masterKey,
-  { randomBytes = createRandomBytes } = {},
+  { randomBytes = createRandomBytes, onSecret } = {},
 ) {
   if (!Buffer.isBuffer(masterKey) || masterKey.length !== 32) {
     throw new TypeError("a 32-byte installation master key is required");
@@ -32,7 +32,16 @@ export function createRepositoryCredentialCipher(
   if (typeof randomBytes !== "function") {
     throw new TypeError("randomBytes must be a function");
   }
+  if (onSecret !== undefined && typeof onSecret !== "function") {
+    throw new TypeError("onSecret must be a function");
+  }
   const key = Buffer.from(masterKey);
+
+  /** @param {{token: string, username: string}} credential */
+  function rememberCredential(credential) {
+    onSecret?.(credential.token);
+    onSecret?.(credential.username);
+  }
 
   return {
     /**
@@ -41,6 +50,7 @@ export function createRepositoryCredentialCipher(
      */
     encrypt(repository, credential) {
       try {
+        rememberCredential(credential);
         const initializationVector = randomBytes(12);
         if (
           !Buffer.isBuffer(initializationVector) ||
@@ -126,7 +136,9 @@ export function createRepositoryCredentialCipher(
         ) {
           throw new Error("credential plaintext is invalid");
         }
-        return { token: value.token, username: value.username };
+        const credential = { token: value.token, username: value.username };
+        rememberCredential(credential);
+        return credential;
       } catch (cause) {
         fail(
           "repository_credential_undecryptable",

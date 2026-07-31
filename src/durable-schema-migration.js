@@ -146,7 +146,7 @@ export function migrateSchema(
     }
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${RETENTION_BACKFILL}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -163,12 +163,17 @@ export function finalizeSchemaMigration(
   if (
     ![
       29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
+      47,
     ].includes(version)
   ) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
   }
   if (version === 35) {
     migrateEvaluationCancellationReason(database, migrateSchema);
+    return;
+  }
+  if (version === 47) {
+    migrateSchema(database, "", CURRENT_SCHEMA_VERSION);
     return;
   }
   if (
@@ -204,7 +209,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 47;
+export const CURRENT_SCHEMA_VERSION = 48;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -236,6 +241,12 @@ import { WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION } from "./waiver-request-
 import { waiverAdjudicationExecutionMigration } from "./waiver-adjudication-schema-migration.js";
 import { waiverAdjudicationRecoveryMigration } from "./waiver-adjudication-recovery-schema.js";
 import { reviewRunPreStartMigration } from "./review-run-pre-start-schema.js";
+import {
+  RETENTION_BACKFILL,
+  RETENTION_SCHEMA,
+  retrySummaryColumnMigration,
+} from "./retention-schema.js";
+export { RETENTION_SCHEMA } from "./retention-schema.js";
 export { WAIVER_ADJUDICATION_RECOVERY_MIGRATION } from "./waiver-adjudication-recovery-schema.js";
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `

@@ -118,9 +118,12 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   /** @type {any[]} */
   const inputs = [];
+  /** @type {string[]} */
+  const registeredSecrets = [];
   let timestamp = 1_000;
   const masterKey = Buffer.alloc(32, 12);
   const service = createForgejoConnectionService(core, {
+    registerSecret: (secret) => registeredSecrets.push(secret),
     storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
@@ -141,6 +144,7 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
       },
       async verify(input) {
         inputs.push(input);
+        assert.ok(registeredSecrets.includes(input.token));
         if (input.token === "unavailable-pat") {
           throw Object.assign(new Error("Forgejo verification unavailable"), {
             code: "forgejo_verification_unavailable",

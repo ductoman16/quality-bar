@@ -178,14 +178,24 @@ export function removeNeverUsedForgejoConnection(durableCore) {
 }
 
 /**
- * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: (transaction: any, connectionId: string, prepared: any) => void, prepareBaseline: (connection: any, token: string, repositories: any[], options?: {ignoreGate?: boolean}) => Promise<any>}, readConnection: () => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
+ * @param {{cipher: {encrypt: (id: string, token: string) => string}, createId: () => string | undefined, durableCore: any, now: () => number, polling: {commitBaseline: (transaction: any, connectionId: string, prepared: any) => void, prepareBaseline: (connection: any, token: string, repositories: any[], options?: {ignoreGate?: boolean}) => Promise<any>}, readConnection: () => unknown, registerSecret?: (secret: string) => unknown, verifier: {verify: (input: any) => Promise<any>}}} dependencies
  * @param {unknown} input
  */
 export async function reactivateForgejoConnection(
-  { cipher, createId, durableCore, now, polling, readConnection, verifier },
+  {
+    cipher,
+    createId,
+    durableCore,
+    now,
+    polling,
+    readConnection,
+    registerSecret,
+    verifier,
+  },
   input,
 ) {
   const { token } = reactivationRequest(input);
+  registerSecret?.(token);
   const [connection] = durableCore.all(
     `SELECT id, base_url, lifecycle, principal_id, principal_login
      FROM forgejo_connections LIMIT 1`,
