@@ -50,6 +50,7 @@ export { RepositoryError };
  *   createId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
+ *   registerSecret?: (secret: string) => unknown,
  *   objectDatabaseRoot?: string,
  *   verifyRead?: (
  *     normalizedUrl: string,
@@ -72,6 +73,7 @@ export function createRepositoryService(
     masterKey,
     now = () => Date.now(),
     objectDatabaseRoot = CHECKOUTS_PATH,
+    registerSecret,
     verifyRead = verifyRepositoryRead,
     verifyForgeRepository,
     resolveForgeCredential,
@@ -94,7 +96,9 @@ export function createRepositoryService(
   ) {
     throw new TypeError("Repository dependencies must be functions");
   }
-  const credentialCipher = createRepositoryCredentialCipher(masterKey);
+  const credentialCipher = createRepositoryCredentialCipher(masterKey, {
+    onSecret: registerSecret,
+  });
   try {
     for (const row of durableCore.all(
       `SELECT
@@ -208,6 +212,7 @@ export function createRepositoryService(
     durableCore,
     find,
     now,
+    registerSecret,
     verifyRead,
   });
 
@@ -275,6 +280,8 @@ export function createRepositoryService(
         );
       }
       const url = /** @type {string} */ (row.normalized_url);
+      // prettier-ignore
+      [credential.token, credential.username].forEach((secret) => registerSecret?.(secret));
       await verifyRead(url, credential);
       const timestamp = now();
       if (!Number.isSafeInteger(timestamp)) {

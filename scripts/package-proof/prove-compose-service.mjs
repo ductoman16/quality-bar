@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { provePackageOfflineRestore } from "./offline-restore.mjs";
 import { proveOwnedArtifactCleanup } from "./owned-artifact-cleanup.mjs";
 import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
+import { proveRetention } from "./retention.mjs";
 import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
 const serviceFixtureImage =
@@ -397,6 +398,7 @@ export function proveComposeService({ configuration, fixture }) {
     },
   });
   proveOwnedArtifactCleanup({ fixture, serviceName });
+  proveRetention({ fixture, serviceName });
   const { recoveryDatabaseFacts, recoveryPassword, recoveryPasswordStatus } =
     proveOperatorAuthorityRecovery({
       fixture,

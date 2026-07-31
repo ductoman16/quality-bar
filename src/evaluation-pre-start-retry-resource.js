@@ -45,24 +45,17 @@ export const EVALUATION_PRE_START_RETRY_SELECTION = `
     WHERE retry_run.evaluation_id = evaluations.id
       AND retry_queue.retry_state = 'exhausted'
   ) THEN 'exhausted' ELSE 'ready' END AS pre_start_retry_state,
-  (SELECT count(*) FROM review_run_pre_start_attempts AS retry_attempt
-   JOIN review_runs AS retry_attempt_run
-     ON retry_attempt_run.id = retry_attempt.review_run_id
-   WHERE retry_attempt_run.evaluation_id = evaluations.id
-  ) AS pre_start_attempt_count,
-  (SELECT retry_attempt.failed_at FROM review_run_pre_start_attempts AS retry_attempt
-   JOIN review_runs AS retry_attempt_run
-     ON retry_attempt_run.id = retry_attempt.review_run_id
-   WHERE retry_attempt_run.evaluation_id = evaluations.id
-     AND retry_attempt.exhausted = 1
-   ORDER BY retry_attempt.failed_at DESC, retry_attempt.review_run_id DESC,
-            retry_attempt.retry_cycle DESC, retry_attempt.attempt_number DESC
-   LIMIT 1
+  COALESCE((SELECT sum(retry_run.pre_start_attempt_count)
+            FROM review_runs AS retry_run
+            WHERE retry_run.evaluation_id = evaluations.id), 0)
+    AS pre_start_attempt_count,
+  (SELECT max(retry_run.pre_start_exhausted_at)
+   FROM review_runs AS retry_run
+   WHERE retry_run.evaluation_id = evaluations.id
   ) AS pre_start_exhausted_at,
-  (SELECT retry_attempt.error_code FROM review_run_pre_start_attempts AS retry_attempt
-   JOIN review_runs AS retry_attempt_run
-     ON retry_attempt_run.id = retry_attempt.review_run_id
-   WHERE retry_attempt_run.evaluation_id = evaluations.id
+  (SELECT retry_run.pre_start_retry_error_code
+   FROM review_runs AS retry_run
+   WHERE retry_run.evaluation_id = evaluations.id
      AND (
        NOT EXISTS (
          SELECT 1 FROM review_runs AS exhausted_error_run
@@ -72,16 +65,14 @@ export const EVALUATION_PRE_START_RETRY_SELECTION = `
          WHERE exhausted_error_run.evaluation_id = evaluations.id
            AND exhausted_error_queue.retry_state = 'exhausted'
        )
-       OR retry_attempt.exhausted = 1
+       OR retry_run.pre_start_cycle_exhausted_at IS NOT NULL
      )
-   ORDER BY retry_attempt.failed_at DESC, retry_attempt.review_run_id DESC,
-            retry_attempt.retry_cycle DESC, retry_attempt.attempt_number DESC
+   ORDER BY retry_run.pre_start_last_attempt_at DESC, retry_run.id DESC
    LIMIT 1
   ) AS pre_start_retry_error_code,
-  (SELECT retry_attempt.error_detail FROM review_run_pre_start_attempts AS retry_attempt
-   JOIN review_runs AS retry_attempt_run
-     ON retry_attempt_run.id = retry_attempt.review_run_id
-   WHERE retry_attempt_run.evaluation_id = evaluations.id
+  (SELECT retry_run.pre_start_retry_error_detail
+   FROM review_runs AS retry_run
+   WHERE retry_run.evaluation_id = evaluations.id
      AND (
        NOT EXISTS (
          SELECT 1 FROM review_runs AS exhausted_error_run
@@ -91,18 +82,15 @@ export const EVALUATION_PRE_START_RETRY_SELECTION = `
          WHERE exhausted_error_run.evaluation_id = evaluations.id
            AND exhausted_error_queue.retry_state = 'exhausted'
        )
-       OR retry_attempt.exhausted = 1
+       OR retry_run.pre_start_cycle_exhausted_at IS NOT NULL
      )
-   ORDER BY retry_attempt.failed_at DESC, retry_attempt.review_run_id DESC,
-            retry_attempt.retry_cycle DESC, retry_attempt.attempt_number DESC
+   ORDER BY retry_run.pre_start_last_attempt_at DESC, retry_run.id DESC
    LIMIT 1
   ) AS pre_start_retry_error_detail,
-  CASE WHEN NOT EXISTS (
-    SELECT 1 FROM review_run_pre_start_attempts AS any_retry_attempt
-    JOIN review_runs AS any_retry_run
-      ON any_retry_run.id = any_retry_attempt.review_run_id
-    WHERE any_retry_run.evaluation_id = evaluations.id
-  ) OR EXISTS (
+  CASE WHEN COALESCE((SELECT sum(retry_run.pre_start_attempt_count)
+                      FROM review_runs AS retry_run
+                      WHERE retry_run.evaluation_id = evaluations.id), 0) = 0
+    OR EXISTS (
     SELECT 1 FROM review_runs AS exhausted_run
     JOIN codex_execution_queue AS exhausted_queue
       ON exhausted_queue.work_id = exhausted_run.id

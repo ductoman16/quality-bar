@@ -11,5 +11,6 @@ export const SQLITE_BACKUP_FAILURE_GATE = {
     "test/review-run-transcript-sqlite-failure-integration.test.js",
     "test/review-run-claim-sqlite-failure-integration.test.js",
     "test/codex-execution-ordering-sqlite-failure-integration.test.js",
+    "test/retention-sqlite-failure-integration.test.js",
   ],
 };

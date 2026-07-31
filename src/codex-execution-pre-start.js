@@ -1,4 +1,5 @@
 import { DurableCoreError } from "./durable-error.js";
+import { redactOrdinaryDetail } from "./application-log.js";
 
 export const CODEX_PRE_START_RETRY_DELAYS = Object.freeze([60_000, 300_000]);
 export const CODEX_PRE_START_ATTEMPT_LIMIT = 3;
@@ -46,7 +47,8 @@ function requireFailure(failure) {
 function readAttemptState(transaction, claim, at, requireActiveLease) {
   const owner = OWNERS[/** @type {keyof typeof OWNERS} */ (claim.workKind)];
   const state = transaction.get(
-    `SELECT owner.retry_cycle, codex_execution_queue.ready_at
+    `SELECT owner.retry_cycle, owner.pre_start_cycle_attempt_count,
+            codex_execution_queue.ready_at
      FROM ${owner.ownerTable} AS owner
      JOIN codex_execution_queue
        ON codex_execution_queue.work_id = owner.id
@@ -68,13 +70,7 @@ function readAttemptState(transaction, claim, at, requireActiveLease) {
   if (!state) {
     throw new DurableCoreError(owner.claimLostCode, owner.claimLostMessage);
   }
-  const consumed = transaction.get(
-    `SELECT count(*) AS count
-     FROM ${owner.attemptTable}
-     WHERE ${owner.attemptOwnerColumn} = ? AND retry_cycle = ?`,
-    claim.workId,
-    state.retry_cycle,
-  )?.count;
+  const consumed = state.pre_start_cycle_attempt_count;
   if (!Number.isSafeInteger(consumed) || consumed < 0) {
     throw new TypeError("Codex execution attempt history is invalid");
   }
@@ -191,7 +187,7 @@ function appendFailure(
     state.attemptNumber,
     failedAt,
     owningFailure.code,
-    owningFailure.message,
+    redactOrdinaryDetail(owningFailure.message),
     exhausted ? 1 : 0,
   );
   if (
@@ -261,13 +257,11 @@ export function recoverInterruptedCodexPreStartAttempt(
        AND attempt_number = (
          CASE ?
            WHEN 'review_run' THEN
-             (SELECT count(*) + 1 FROM review_run_pre_start_attempts
-              WHERE review_run_id = ? AND retry_cycle =
-                (SELECT retry_cycle FROM review_runs WHERE id = ?))
+             (SELECT pre_start_cycle_attempt_count + 1
+              FROM review_runs WHERE id = ?)
            ELSE
-             (SELECT count(*) + 1 FROM waiver_adjudication_pre_start_attempts
-              WHERE waiver_adjudication_id = ? AND retry_cycle =
-                (SELECT retry_cycle FROM waiver_adjudications WHERE id = ?))
+             (SELECT pre_start_cycle_attempt_count + 1
+              FROM waiver_adjudications WHERE id = ?)
          END
        )`,
     work.work_id,
@@ -276,8 +270,6 @@ export function recoverInterruptedCodexPreStartAttempt(
     work.work_id,
     work.work_id,
     work.work_kind,
-    work.work_id,
-    work.work_id,
     work.work_id,
     work.work_id,
   );

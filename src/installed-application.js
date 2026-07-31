@@ -20,35 +20,51 @@ const DAILY_BACKUP_CHECK_INTERVAL_MS = 60 * 60 * 1_000;
 
 /**
  * @param {unknown} error
+ * @param {string} [fallbackCode]
  * @returns {Error & {code: string}}
  */
-function codedBackupFailure(error) {
-  if (
-    error instanceof Error &&
-    "code" in error &&
-    typeof error.code === "string"
-  ) {
-    return /** @type {Error & {code: string}} */ (error);
+function codedBackupFailure(error, fallbackCode = "backup_failed") {
+  if (!(error instanceof Error)) {
+    return Object.assign(new TypeError("Maintenance failure is not an Error"), {
+      code: fallbackCode,
+    });
   }
-  throw error;
+  if (!("code" in error) || typeof error.code !== "string") {
+    Object.defineProperty(error, "code", {
+      configurable: true,
+      value: fallbackCode,
+    });
+  }
+  return /** @type {Error & {code: string}} */ (error);
 }
 
 /**
  * @param {(line: string) => unknown} writeLog
  * @param {Error & {code: string}} error
+ * @param {string} event
  */
-function logBackupFailure(writeLog, error) {
+function logMaintenanceFailure(writeLog, error, event) {
   writeLog(
     `${JSON.stringify({
       timestamp: new Date().toISOString(),
       severity: "error",
-      event: "backup_failed",
+      event,
       component: "backup",
       outcome: "failure",
       error: error.code,
       detail: error.message,
     })}\n`,
   );
+}
+
+/** @param {(line: string) => unknown} writeLog @param {Error & {code: string}} error */
+function logBackupFailure(writeLog, error) {
+  logMaintenanceFailure(writeLog, error, "backup_failed");
+}
+
+/** @param {(line: string) => unknown} writeLog @param {Error & {code: string}} error */
+function logRetentionCleanupFailure(writeLog, error) {
+  logMaintenanceFailure(writeLog, error, "retention_cleanup_failed");
 }
 
 /**
@@ -215,29 +231,50 @@ export async function createInstalledApplication({
         return;
       }
       timer = undefined;
-      void runDailyBackup(dailyBackupInput).then(
-        () => {
-          if (!stopped) {
-            scheduleBackupCheck();
+      let maintenance = "backup";
+      void runDailyBackup(dailyBackupInput)
+        .then(async () => {
+          maintenance = "retention_cleanup";
+          if (typeof application.cleanupEligibleData !== "function") {
+            throw Object.assign(
+              new Error("Retention cleanup capability is unavailable"),
+              { code: "retention_cleanup_unavailable" },
+            );
           }
-        },
-        async (error) => {
-          if (
-            application.workerSignal.aborted &&
-            error === application.workerSignal.reason
-          ) {
-            return;
-          }
-          const failure = codedBackupFailure(error);
-          logBackupFailure(writeLog, failure);
-          stopped = true;
-          const surfacedFailure = await closeAfterBackupFailure(
-            application,
-            failure,
-          );
-          surfaceBackupFailure(surfacedFailure);
-        },
-      );
+          await application.cleanupEligibleData();
+        })
+        .then(
+          () => {
+            if (!stopped) {
+              scheduleBackupCheck();
+            }
+          },
+          async (error) => {
+            if (
+              application.workerSignal.aborted &&
+              error === application.workerSignal.reason
+            ) {
+              return;
+            }
+            const failure = codedBackupFailure(
+              error,
+              maintenance === "retention_cleanup"
+                ? "retention_cleanup_failed"
+                : "backup_failed",
+            );
+            if (maintenance === "retention_cleanup") {
+              logRetentionCleanupFailure(writeLog, failure);
+            } else {
+              logBackupFailure(writeLog, failure);
+            }
+            stopped = true;
+            const surfacedFailure = await closeAfterBackupFailure(
+              application,
+              failure,
+            );
+            surfaceBackupFailure(surfacedFailure);
+          },
+        );
     }, DAILY_BACKUP_CHECK_INTERVAL_MS);
     timer.unref();
   }

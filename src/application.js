@@ -59,9 +59,16 @@ import {
 } from "./waiver-adjudicator-configuration.js";
 import { createStorageReserveGate } from "./storage-reserve.js";
 import {
+  createUnavailableCodexConcurrency,
+  createDurableCoreStatusReader,
   createHardStorageBoundary,
+  requireAvailableStorageReserve,
   structuredLog,
 } from "./application-runtime.js";
+import {
+  createApplicationLog,
+  createApplicationSecretRegistry,
+} from "./application-log.js";
 import {
   createEvaluationService,
   createUnavailableEvaluationService,
@@ -118,10 +125,12 @@ export function createApplication({
 
   /** @type {ReturnType<typeof openDurableCore> | null} */
   let durableCore = null;
-  let browserSessions = null;
-  let implementerTokens = null;
-  let browserOrigin = "";
-  let requestSecurity = null;
+  const { knownSecrets, registerSecret } = createApplicationSecretRegistry();
+  writeLog = createApplicationLog(writeLog, () => durableCore, knownSecrets);
+  let browserSessions = null,
+    implementerTokens = null;
+  let browserOrigin = "",
+    requestSecurity = null;
   let reviews = null;
   /** @type {ReturnType<typeof createRepositoryService> | null} */
   let repositories = null;
@@ -132,6 +141,7 @@ export function createApplication({
   let repositoryGuidance = null;
   let waiverAdjudicatorConfiguration = null;
   let systemResource = null;
+  /** @type {ReturnType<typeof createStorageReserveGate> | null} */
   let storageReserve = null;
   /** @type {ReturnType<typeof createEvaluationService> | null} */
   let evaluations = null;
@@ -144,8 +154,7 @@ export function createApplication({
     githubConnections?.destroy?.();
     forgejoConnections?.destroy?.();
     void codexRuntime?.close();
-    const stopped = error ? ioPool.shutdown(error) : ioPool.close();
-    void stopped;
+    void (error ? ioPool.shutdown(error) : ioPool.close());
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({
@@ -156,7 +165,6 @@ export function createApplication({
     writeLog,
   });
   const { ioPool } = executionRuntime;
-  let secureBrowserCookie = false;
   /** @type {CodedError | null} */
   let codexCapabilityFailure = null;
   /** @type {(() => void) | null} */
@@ -169,7 +177,6 @@ export function createApplication({
     const installation = loadInstallation();
     browserOrigin = installation.externalOrigin;
     requestSecurity = createRequestSecurityBoundary(installation);
-    secureBrowserCookie = installation.externalOrigin.startsWith("https:");
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
@@ -189,7 +196,9 @@ export function createApplication({
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       recoverExecutions(durableCore, { now });
-      storageReserve.cleanupEligibleData();
+      /** @type {ReturnType<typeof createStorageReserveGate>} */ (
+        storageReserve
+      ).cleanupEligibleData();
       githubConnections = createGitHubConnections(durableCore, {
         acquirePullRequestChangeset: (
           /** @type {{pullRequest: any, repositoryId: string}} */ {
@@ -217,16 +226,22 @@ export function createApplication({
         externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
-        storageReserve,
+        registerSecret,
+        storageReserve:
+          /** @type {ReturnType<typeof createStorageReserveGate>} */ (
+            storageReserve
+          ),
       });
       forgejoConnections = createForgejoConnections(durableCore, {
         masterKey: installation.masterKey,
         now,
+        registerSecret,
         storageReserve,
       });
       repositories = createRepositories(durableCore, {
         masterKey: installation.masterKey,
         now,
+        registerSecret,
         resolveForgeCredential(
           /** @type {string} */ connectionId,
           /** @type {"github" | "forgejo"} */ provider,
@@ -239,16 +254,15 @@ export function createApplication({
           /** @type {number} */ forgeRepositoryId,
           /** @type {"github" | "forgejo"} */ provider,
         ) {
-          if (provider === "forgejo") {
-            return prepareForgejoRepositoryEnablement(
-              forgejoConnections,
-              forgeRepositoryId,
-            );
-          }
-          return prepareGitHubRepositoryEnablement(
-            githubConnections,
-            forgeRepositoryId,
-          );
+          return provider === "forgejo"
+            ? prepareForgejoRepositoryEnablement(
+                forgejoConnections,
+                forgeRepositoryId,
+              )
+            : prepareGitHubRepositoryEnablement(
+                githubConnections,
+                forgeRepositoryId,
+              );
         },
       });
       evaluations = createEvaluations(durableCore, {
@@ -257,7 +271,10 @@ export function createApplication({
         readCodexCapabilityFailure: () => codexCapabilityFailure,
         masterKey: installation.masterKey,
         now,
-        storageReserve,
+        storageReserve:
+          /** @type {ReturnType<typeof createStorageReserveGate>} */ (
+            storageReserve
+          ),
         validateCodexAuthentication,
       });
     } finally {
@@ -303,14 +320,9 @@ export function createApplication({
   } catch (error) {
     void codexRuntime?.close();
     codexRuntime = null;
-    codexExecutionConcurrency = {
-      read() {
-        throw startupFailure;
-      },
-      set() {
-        throw startupFailure;
-      },
-    };
+    codexExecutionConcurrency = createUnavailableCodexConcurrency(
+      () => startupFailure,
+    );
     evaluations?.destroy?.();
     repositories?.destroy?.();
     githubConnections?.destroy?.();
@@ -344,13 +356,10 @@ export function createApplication({
     );
   }
 
-  function readDurableCoreStatus() {
-    const error =
-      storageBoundary.failure ?? executionRuntime.failure ?? startupFailure;
-    return error
-      ? { error: error.code, status: "not_ready" }
-      : { status: "ready" };
-  }
+  // prettier-ignore
+  const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, storageReserve, startupFailure);
+  // prettier-ignore
+  const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, () => startupFailure);
 
   const server = createApplicationRuntimeServer({
     browserSessions,
@@ -375,7 +384,7 @@ export function createApplication({
     systemResource,
     workerSignal: storageBoundary.signal,
     writeLog,
-    secureBrowserCookie,
+    secureBrowserCookie: browserOrigin.startsWith("https:"),
   });
   githubConnections.startPolling();
   forgejoConnections.startPolling();
@@ -396,11 +405,7 @@ export function createApplication({
       if (typeof admit !== "function") {
         throw new TypeError("work admission transition is required");
       }
-      storageBoundary.assertAvailable();
-      if (!storageReserve) {
-        throw startupFailure;
-      }
-      storageReserve.assertWorkAdmissionAvailable();
+      requireStorageReserve().assertWorkAdmissionAvailable();
       return admit();
     },
     /** @param {() => import("node:child_process").ChildProcess} start */
@@ -408,15 +413,12 @@ export function createApplication({
       if (typeof start !== "function") {
         throw new TypeError("Codex start transition is required");
       }
-      storageBoundary.assertAvailable();
-      if (!storageReserve) {
-        throw startupFailure;
-      }
-      storageReserve.assertCodexStartAvailable();
+      requireStorageReserve().assertCodexStartAvailable();
       const childProcess = start();
       storageBoundary.registerCodexProcess(childProcess);
       return childProcess;
     },
+    cleanupEligibleData: () => requireStorageReserve().cleanupEligibleData(),
     freezeWaiverAdjudicatorConfiguration() {
       return waiverAdjudicatorConfiguration.freezeForAdjudication();
     },

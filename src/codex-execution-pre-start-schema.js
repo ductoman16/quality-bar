@@ -33,6 +33,7 @@ export const CODEX_EXECUTION_PRE_START_SCHEMA = `
     END;
   CREATE TRIGGER IF NOT EXISTS codex_execution_pre_start_attempt_immutable_delete
     BEFORE DELETE ON codex_execution_pre_start_attempts
+    WHEN quality_bar_retention_cleanup() = 0
     BEGIN
       SELECT RAISE(ABORT, 'codex_execution_pre_start_attempt_immutable');
     END;

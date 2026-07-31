@@ -98,7 +98,7 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 47);
+    assert.equal(migrated.facts.schemaVersion, 48);
     assert.ok(
       migrated.get(
         "SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = 'github_finding_feedback'",
@@ -107,18 +107,19 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
     assert.deepEqual(
       migrated
         .all("PRAGMA table_info(waiver_adjudications)")
-        .slice(-10)
+        .slice(-11)
         .map((/** @type {any} */ column) => column.name),
       [
-        "error_code",
-        "error_detail",
-        "codex_cli_version",
-        "process_exit_code",
-        "process_signal",
-        "input_tokens",
-        "cached_input_tokens",
-        "output_tokens",
-        "execution_evidence_recorded",
+        "pre_start_attempt_count",
+        "pre_start_cycle_attempt_count",
+        "pre_start_last_attempt_at",
+        "pre_start_retry_error_code",
+        "pre_start_retry_error_detail",
+        "pre_start_cycle_retry_error_code",
+        "pre_start_cycle_retry_error_detail",
+        "pre_start_exhausted_at",
+        "pre_start_cycle_exhausted_at",
+        "pre_start_exhausted_cycle",
         "retry_cycle",
       ],
     );
@@ -196,7 +197,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 47);
+    assert.equal(migrated.facts.schemaVersion, 48);
     const columns = new Set(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -342,7 +343,7 @@ for (const version of [28, 36, 37]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 47);
+      assert.equal(migrated.facts.schemaVersion, 48);
       assert.match(
         String(
           migrated.get(

@@ -193,7 +193,12 @@ export function createEvaluationPreStartRetryService(
           }
           if (
             transaction.run(
-              `UPDATE review_runs SET retry_cycle = retry_cycle + 1
+              `UPDATE review_runs
+               SET retry_cycle = retry_cycle + 1,
+                   pre_start_cycle_attempt_count = 0,
+                   pre_start_cycle_retry_error_code = NULL,
+                   pre_start_cycle_retry_error_detail = NULL,
+                   pre_start_cycle_exhausted_at = NULL
                WHERE id = ? AND retry_cycle = ?
                  AND execution_status = 'queued' AND started_at IS NULL`,
               run.id,

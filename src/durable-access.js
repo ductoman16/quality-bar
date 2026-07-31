@@ -15,9 +15,15 @@ function cloneRow(row) {
 
 /**
  * @param {import("node:sqlite").DatabaseSync} database
- * @param {{ onStorageUnavailable?: (error: DurableCoreError) => void }} options
+ * @param {{
+ *   onStorageUnavailable?: (error: DurableCoreError) => void,
+ *   retentionCleanupState?: { active: boolean }
+ * }} options
  */
-export function createDurableAccess(database, { onStorageUnavailable } = {}) {
+export function createDurableAccess(
+  database,
+  { onStorageUnavailable, retentionCleanupState } = {},
+) {
   /** @type {DurableCoreError | undefined} */
   let storageFailure;
 
@@ -211,6 +217,27 @@ export function createDurableAccess(database, { onStorageUnavailable } = {}) {
         }
         throw error;
       }
+    },
+    /**
+     * @template Result
+     * @param {(transaction: ReturnType<typeof transactionAccess>) => Result} callback
+     * @returns {Result}
+     */
+    retentionTransaction(callback) {
+      if (!retentionCleanupState) {
+        throw new DurableCoreError(
+          "retention_transaction_unavailable",
+          "SQLite retention transaction is unavailable",
+        );
+      }
+      return this.transaction((transaction) => {
+        retentionCleanupState.active = true;
+        try {
+          return callback(transaction);
+        } finally {
+          retentionCleanupState.active = false;
+        }
+      });
     },
     close() {
       database.close();

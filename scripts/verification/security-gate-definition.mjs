@@ -20,5 +20,6 @@ export const SECURITY_INTEGRATION_GATE = {
     "test/browser-session-contract-security-integration.test.js",
     "test/durable-write-shutdown-security-integration.test.js",
     "test/owned-artifact-cleanup-security-integration.test.js",
+    "test/retention-security-integration.test.js",
   ],
 };

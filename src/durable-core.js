@@ -31,6 +31,7 @@ function readFacts(database) {
  */
 export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   let database;
+  const retentionCleanupState = { active: false };
   try {
     database = new DatabaseSync(databasePath, {
       timeout: SQLITE_LOCK_WAIT_MILLISECONDS,
@@ -41,6 +42,9 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
 
   try {
     configureDatabase(database);
+    database.function("quality_bar_retention_cleanup", () =>
+      retentionCleanupState.active ? 1 : 0,
+    );
     validateIntegrity(database);
     initializeOrValidateSchema(database);
   } catch (error) {
@@ -53,6 +57,9 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
 
   return {
     facts: readFacts(database),
-    ...createDurableAccess(database, { onStorageUnavailable }),
+    ...createDurableAccess(database, {
+      onStorageUnavailable,
+      retentionCleanupState,
+    }),
   };
 }

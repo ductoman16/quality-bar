@@ -19,6 +19,43 @@ function codedRuntimeFailure(error) {
   return /** @type {Error & {code: string}} */ (error);
 }
 
+/** @param {any} durableCore @param {any} claim */
+function readExecutionCorrelation(durableCore, claim) {
+  if (
+    (claim?.workKind !== "review_run" &&
+      claim?.workKind !== "waiver_adjudication") ||
+    typeof durableCore?.get !== "function"
+  ) {
+    return {};
+  }
+  const ownerCorrelation =
+    claim.workKind === "review_run"
+      ? { reviewRunId: claim.workId }
+      : { waiverAdjudicationId: claim.workId };
+  const table =
+    claim.workKind === "review_run" ? "review_runs" : "waiver_adjudications";
+  try {
+    const row = durableCore.get(
+      `SELECT ${table}.evaluation_id, evaluations.repository_id
+       FROM ${table}
+       JOIN evaluations ON evaluations.id = ${table}.evaluation_id
+       WHERE ${table}.id = ?`,
+      claim.workId,
+    );
+    return {
+      ...ownerCorrelation,
+      ...(typeof row?.repository_id === "string"
+        ? { repositoryId: row.repository_id }
+        : {}),
+      ...(typeof row?.evaluation_id === "string"
+        ? { evaluationId: row.evaluation_id }
+        : {}),
+    };
+  } catch {
+    return ownerCorrelation;
+  }
+}
+
 /**
  * @param {{
  *   createCodexRuntime: (...parameters: any[]) => any,
@@ -84,6 +121,7 @@ export function createApplicationExecutionRuntime({
             "codex",
             "failure",
             codexFailure,
+            readExecutionCorrelation(durableCore, claim),
           );
           if (!claim) {
             if (!failure) {

@@ -30,6 +30,9 @@ test("pre-migration finalization precedes the initial daily backup and next chec
   const timerCallbacks = [];
   const runtime = /** @type {any} */ ({
     durableCore: {},
+    cleanupEligibleData() {
+      events.push("cleanup");
+    },
     async close() {
       events.push("close");
     },
@@ -98,7 +101,12 @@ test("pre-migration finalization precedes the initial daily backup and next chec
 
   timerCallbacks[0]();
   await nextTurn(() => {});
-  assert.deepEqual(events.slice(-3), ["daily", "set-timer", "unref-timer"]);
+  assert.deepEqual(events.slice(-4), [
+    "daily",
+    "cleanup",
+    "set-timer",
+    "unref-timer",
+  ]);
 
   await application.close();
   assert.deepEqual(events.slice(-2), ["clear-timer", "close"]);

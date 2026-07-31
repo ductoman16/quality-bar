@@ -3,20 +3,24 @@ import { createIoExecutionPool } from "./io-execution-pool.js";
 import { throwIoTerminationFailure } from "./io-operation-context.js";
 import { CHECKOUTS_PATH } from "./installation-environment.js";
 import { cleanupOwnedTemporaryArtifacts } from "./owned-artifact-cleanup.js";
+import { cleanupEligibleRetentionData } from "./retention.js";
 
 /**
  * @param {{
  *   cleanupOwnedArtifacts?: typeof cleanupOwnedTemporaryArtifacts,
+ *   cleanupRetentionData?: typeof cleanupEligibleRetentionData,
  *   reportBackgroundFailure: (error: unknown) => unknown
  * }} options
  */
 export function createApplicationIoPool({
   cleanupOwnedArtifacts = cleanupOwnedTemporaryArtifacts,
+  cleanupRetentionData = cleanupEligibleRetentionData,
   reportBackgroundFailure,
 }) {
   if (
     typeof reportBackgroundFailure !== "function" ||
-    typeof cleanupOwnedArtifacts !== "function"
+    typeof cleanupOwnedArtifacts !== "function" ||
+    typeof cleanupRetentionData !== "function"
   ) {
     throw new TypeError("Application I/O failure reporter is required");
   }
@@ -59,6 +63,7 @@ export function createApplicationIoPool({
         return ioPool.runImmediate("cleanup", (signal) => {
           signal?.throwIfAborted();
           const sessions = removeExpiredBrowserSessions(durableCore, { now });
+          cleanupRetentionData({ durableCore, now });
           const artifacts = cleanupOwnedArtifacts({
             checkoutRoot: CHECKOUTS_PATH,
             durableCore,

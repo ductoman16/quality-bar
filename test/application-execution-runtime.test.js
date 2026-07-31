@@ -112,3 +112,86 @@ test("the application registers a detached Codex supervisor as a process group",
   assert.deepEqual(registrations, [[child, { processGroup: true }]]);
   await runtime.ioPool.close();
 });
+
+test("a Codex execution failure keeps its owning resource correlation", async () => {
+  const failure = Object.assign(new Error("Codex failed"), {
+    code: "codex_failed",
+  });
+  /** @type {any[]} */
+  const logs = [];
+  /** @type {any} */
+  let codexDependencies;
+  const runtime = createApplicationExecutionRuntime({
+    createCodexRuntime(durableCore, dependencies) {
+      assert.equal(typeof durableCore.get, "function");
+      codexDependencies = dependencies;
+      return {};
+    },
+    now: () => 0,
+    stopIoDuties() {},
+    storageBoundary: /** @type {any} */ ({}),
+    writeLog: (line) => logs.push(JSON.parse(line)),
+  });
+  runtime.createCodexRuntime(
+    {
+      get() {
+        return {
+          evaluation_id: "evaluation-1",
+          repository_id: "repository-1",
+        };
+      },
+    },
+    {},
+    {},
+  );
+
+  codexDependencies.reportFailure(failure, {
+    workId: "review-run-1",
+    workKind: "review_run",
+  });
+
+  assert.equal(logs[0].repository_id, "repository-1");
+  assert.equal(logs[0].evaluation_id, "evaluation-1");
+  assert.equal(logs[0].review_run_id, "review-run-1");
+  assert.equal(logs[0].error, "codex_failed");
+  await runtime.ioPool.close();
+});
+
+test("a Codex correlation lookup failure preserves the owning failure log", async () => {
+  const failure = Object.assign(new Error("Codex failed exactly"), {
+    code: "codex_failed",
+  });
+  /** @type {any[]} */
+  const logs = [];
+  /** @type {any} */
+  let codexDependencies;
+  const runtime = createApplicationExecutionRuntime({
+    createCodexRuntime(durableCore, dependencies) {
+      void durableCore;
+      codexDependencies = dependencies;
+      return {};
+    },
+    now: () => 0,
+    stopIoDuties: assert.fail,
+    storageBoundary: /** @type {any} */ ({}),
+    writeLog: (line) => logs.push(JSON.parse(line)),
+  });
+  runtime.createCodexRuntime(
+    {
+      get() {
+        throw new Error("correlation read failed");
+      },
+    },
+    {},
+    {},
+  );
+
+  codexDependencies.reportFailure(failure, {
+    workId: "review-run-1",
+    workKind: "review_run",
+  });
+
+  assert.equal(logs[0].review_run_id, "review-run-1");
+  assert.equal(logs[0].error, "codex_failed");
+  await runtime.ioPool.close();
+});

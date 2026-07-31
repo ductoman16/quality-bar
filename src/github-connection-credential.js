@@ -17,16 +17,27 @@ function authenticatedData(connection) {
 
 /**
  * @param {Buffer} masterKey
- * @param {{randomBytes?: (size: number) => Buffer}} [options]
+ * @param {{randomBytes?: (size: number) => Buffer, onSecret?: (secret: string) => unknown}} [options]
  */
 export function createGitHubConnectionCredentialCipher(
   masterKey,
-  { randomBytes = createRandomBytes } = {},
+  { randomBytes = createRandomBytes, onSecret } = {},
 ) {
   if (!Buffer.isBuffer(masterKey) || masterKey.length !== 32) {
     throw new TypeError("a 32-byte installation master key is required");
   }
+  if (onSecret !== undefined && typeof onSecret !== "function") {
+    throw new TypeError("onSecret must be a function");
+  }
   const key = Buffer.from(masterKey);
+
+  /** @param {{client_id: string | null, installation_id: number, pem: string}} credential */
+  function rememberCredential(credential) {
+    if (credential.client_id !== null) {
+      onSecret?.(credential.client_id);
+    }
+    onSecret?.(credential.pem);
+  }
   return {
     /**
      * @param {{appId: number, id: string}} connection
@@ -34,6 +45,7 @@ export function createGitHubConnectionCredentialCipher(
      */
     encrypt(connection, credential) {
       try {
+        rememberCredential(credential);
         const initializationVector = randomBytes(12);
         if (
           !Buffer.isBuffer(initializationVector) ||
@@ -105,11 +117,13 @@ export function createGitHubConnectionCredentialCipher(
         ) {
           throw new Error("credential plaintext is invalid");
         }
-        return {
+        const credential = {
           client_id: value.client_id,
           installation_id: /** @type {number} */ (value.installation_id),
           pem: value.pem,
         };
+        rememberCredential(credential);
+        return credential;
       } catch (cause) {
         throw Object.assign(
           new Error("GitHub Connection credential cannot be decrypted", {

@@ -2,6 +2,7 @@ import {
   WAIVER_ADJUDICATION_EXECUTION_INTEGRITY,
   WAIVER_ADJUDICATION_TERMINAL_INTEGRITY,
 } from "./waiver-adjudication-schema-migration.js";
+import { RETRY_SUMMARY_COLUMNS_SQL } from "./retention-schema.js";
 
 export const WAIVER_BATCH_SCHEMA = `
   CREATE TABLE IF NOT EXISTS waiver_adjudications (
@@ -28,6 +29,7 @@ export const WAIVER_BATCH_SCHEMA = `
     cached_input_tokens INTEGER CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
     output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
     execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1)),
+    ${RETRY_SUMMARY_COLUMNS_SQL}
     CHECK (length(base_commit) = length(head_commit)),
     CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at),
     CHECK (

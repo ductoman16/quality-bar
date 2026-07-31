@@ -77,7 +77,7 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
+ * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
@@ -85,6 +85,7 @@ export function createForgejoConnectionService(
     createId = randomUUID,
     masterKey,
     now = () => Date.now(),
+    registerSecret,
     storageReserve,
     verifier = createForgejoV16Verifier(),
   },
@@ -103,7 +104,9 @@ export function createForgejoConnectionService(
   ) {
     throw new TypeError("Forgejo Connection dependencies are invalid");
   }
-  const cipher = createForgejoConnectionCredentialCipher(masterKey);
+  const cipher = createForgejoConnectionCredentialCipher(masterKey, {
+    onSecret: registerSecret,
+  });
   for (const row of durableCore.all(
     "SELECT connection_id, encrypted_credential FROM forgejo_connection_credentials",
   )) {
@@ -155,12 +158,14 @@ export function createForgejoConnectionService(
     /** @param {unknown} input */
     async discover(input) {
       const selected = discoveryRequest(input);
+      registerSecret?.(selected.token);
       const verification = await verifier.verify(selected);
       return verification.repositories;
     },
     /** @param {unknown} input */
     async connect(input) {
       const selected = request(input);
+      registerSecret?.(selected.token);
       const verification = await verifier.verify(selected);
       verifiedForgejoRepositories(verification, selected.repositoryIds);
       const id = createId();
@@ -281,6 +286,7 @@ export function createForgejoConnectionService(
           now,
           polling,
           read: () => this.read(),
+          registerSecret,
           verifier,
         },
         input,
@@ -308,6 +314,7 @@ export function createForgejoConnectionService(
           now,
           polling,
           readConnection: () => this.read(),
+          registerSecret,
           verifier,
         },
         input,
