@@ -1,5 +1,36 @@
 export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
   {
+    name: "application-shutdown-unit",
+    testGroup:
+      "graceful-admission-polling-worker-claim-gates-running-drain-and-existing-pre-start-retry-contract",
+    failureCode: "application_shutdown_unit_tests_failed",
+    arguments: [
+      "--test",
+      "test/application-shutdown.test.js",
+      "test/application-execution-shutdown.test.js",
+      "test/codex-execution-pre-start.test.js",
+    ],
+  },
+  {
+    name: "application-shutdown-sqlite-failure-integration",
+    testGroup:
+      "shutdown-raced-admission-and-pre-start-claim-durability-without-partial-results-or-idempotency",
+    failureCode: "application_shutdown_sqlite_failure_tests_failed",
+    arguments: [
+      "--test",
+      "test/application-shutdown-sqlite-failure-integration.test.js",
+    ],
+  },
+  {
+    name: "application-shutdown-process-integration",
+    testGroup: "first-signal-graceful-drain-and-second-signal-forced-stop",
+    failureCode: "application_shutdown_process_tests_failed",
+    arguments: [
+      "--test",
+      "test/application-shutdown-process-integration.test.js",
+    ],
+  },
+  {
     name: "codex-execution-claim-unit",
     testGroup:
       "shared-review-run-and-waiver-adjudication-oldest-ready-first-selection-renewal-expiration-and-restart-classification-contract",

@@ -21,6 +21,14 @@ test("only temporary checkout preparation uses the timed pre-start budget", () =
     ),
     true,
   );
+  assert.equal(
+    isTransientCodexPreStartFailure(
+      Object.assign(new Error("Quality Bar is shutting down"), {
+        code: "application_shutting_down",
+      }),
+    ),
+    true,
+  );
   for (const code of [
     "repository_permission_denied",
     "codex_authentication_unavailable",

@@ -11,6 +11,11 @@
  *     executable?: string,
  *     entrypoint?: string,
  *   },
+ *   gracefulShutdown?: {
+ *     completed?: boolean,
+ *     started?: boolean,
+ *     stopGracePeriod?: string,
+ *   },
  *   liveness?: {path?: string, httpStatus?: number, response?: {status?: string}},
  *   readiness?: {path?: string, httpStatus?: number, response?: {status?: string}},
  *   storage?: {
@@ -178,6 +183,12 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.applicationProcess?.entrypoint === "src/main.js",
       "applicationProcess.entrypoint must equal src/main.js",
+    ],
+    [
+      packageFacts?.gracefulShutdown?.started === true &&
+        packageFacts?.gracefulShutdown?.completed === true &&
+        packageFacts?.gracefulShutdown?.stopGracePeriod === "15m5s",
+      "gracefulShutdown must prove signal handling and the existing deadline plus termination grace",
     ],
     [
       packageFacts?.liveness?.path === "/health/live",

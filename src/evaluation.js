@@ -164,8 +164,8 @@ export function createEvaluationService(
           ...automatic.existing,
         };
       }
-      storageReserve.assertWorkAdmissionAvailable();
     }
+    storageReserve.assertWorkAdmissionAvailable();
     const { createdAt, evaluationId } =
       identity ?? createEvaluationIdentity(createId, now);
     if (
