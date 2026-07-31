@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
@@ -7,6 +8,7 @@ import { afterEach, test } from "node:test";
 import { createApplication } from "../src/application.js";
 import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
+import { acquireInstallationLock } from "../src/installation-environment.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
@@ -138,6 +140,45 @@ test("the ready application starts and closes its composed Codex runtime", async
   await application.close();
   applications.splice(applications.indexOf(application), 1);
   assert.equal(closed, 1);
+});
+
+test("a startup failure retains the SQLite installation lock until close", async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-application-startup-lock-"),
+  );
+  const lockPath = join(directory, "installation.lock");
+  const createLock = () => new DatabaseSync(lockPath);
+  const application = createApplication({
+    databasePath: join(directory, "quality-bar.sqlite3"),
+    loadInstallation: validInstallation,
+    validateCodexAuthentication() {},
+    validateInstallation: () => ({
+      releaseInstallationLock: acquireInstallationLock(createLock),
+    }),
+    validateSources() {},
+    validateTools() {},
+    createStorageReserve() {
+      throw Object.assign(new Error("storage reserve unavailable"), {
+        code: "storage_reserve_unavailable",
+      });
+    },
+    writeLog() {},
+  });
+
+  try {
+    assert.throws(
+      () => acquireInstallationLock(createLock),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "installation_locked",
+    );
+    await application.close();
+    const releaseInstallationLock = acquireInstallationLock(createLock);
+    releaseInstallationLock();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test("SQLite startup failure keeps liveness distinct from exact not-ready state", async () => {

@@ -158,19 +158,40 @@ export async function createInstalledApplication({
     });
   } catch (error) {
     preflightFailure = error;
-    releaseInstallationLock?.();
-    releaseInstallationLock = undefined;
   }
 
   if (preflightFailure) {
     installation?.masterKey.fill(0);
-    return createRuntime({
-      databasePath,
-      validateSources() {
-        throw preflightFailure;
-      },
-      writeLog,
-    });
+    let application;
+    try {
+      application = createRuntime({
+        databasePath,
+        validateSources() {
+          throw preflightFailure;
+        },
+        writeLog,
+      });
+    } catch (error) {
+      releaseInstallationLock?.();
+      releaseInstallationLock = undefined;
+      throw error;
+    }
+    if (releaseInstallationLock) {
+      const closeApplication = application.close.bind(application);
+      let lockReleased = false;
+      application.close = async () => {
+        try {
+          return await closeApplication();
+        } finally {
+          if (!lockReleased) {
+            lockReleased = true;
+            releaseInstallationLock?.();
+            releaseInstallationLock = undefined;
+          }
+        }
+      };
+    }
+    return application;
   }
 
   const application = createRuntime({

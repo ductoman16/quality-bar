@@ -21,5 +21,6 @@ export const SECURITY_INTEGRATION_GATE = {
     "test/durable-write-shutdown-security-integration.test.js",
     "test/owned-artifact-cleanup-security-integration.test.js",
     "test/retention-security-integration.test.js",
+    "test/installation-deletion-security-integration.test.js",
   ],
 };

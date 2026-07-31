@@ -4,6 +4,8 @@ import { provePackageOfflineRestore } from "./offline-restore.mjs";
 import { proveOwnedArtifactCleanup } from "./owned-artifact-cleanup.mjs";
 import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
 import { proveRetention } from "./retention.mjs";
+import { proveInstallationDeletion } from "./installation-deletion.mjs";
+import { assertFilesystemFacts } from "./filesystem-facts.mjs";
 import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
 const serviceFixtureImage =
@@ -51,24 +53,7 @@ const serviceFixtureImage =
  *   schemaVersion: number,
  * }} BackupFacts
  */
-
-/** @param {FilesystemFacts} filesystemFacts */
-function assertFilesystemFacts(filesystemFacts) {
-  assert.equal(filesystemFacts.localFilesystems, true);
-  assert.ok(filesystemFacts.stateFreeBytes >= 5 * 1024 ** 3);
-  assert.ok(filesystemFacts.checkoutsFreeBytes >= 5 * 1024 ** 3);
-  for (const [path, facts] of Object.entries(filesystemFacts.pathFacts)) {
-    assert.deepEqual(facts, {
-      gid: 10001,
-      mode:
-        path === "/etc/quality-bar/config.env" ||
-        path === "/run/secrets/quality-bar-master-key"
-          ? 0o400
-          : 0o700,
-      uid: 10001,
-    });
-  }
-}
+/** @typedef {ReturnType<typeof proveInstallationDeletion>} InstallationDeletionFacts */
 
 /**
  * @param {{
@@ -80,6 +65,7 @@ function assertFilesystemFacts(filesystemFacts) {
  *   filesystemFacts: FilesystemFacts,
  *   httpFacts: HttpFacts,
  *   imagePlatform: string,
+ *   installationDeletion: InstallationDeletionFacts,
  *   processArguments: string[],
  *   recoveryDatabaseFacts: DatabaseFacts,
  *   recoveryPasswordStatus: {
@@ -104,6 +90,7 @@ function packageFacts({
   filesystemFacts,
   httpFacts,
   imagePlatform,
+  installationDeletion,
   processArguments,
   recoveryDatabaseFacts,
   recoveryPasswordStatus,
@@ -115,7 +102,8 @@ function packageFacts({
   if (restoredDatabaseFacts.operatorPasswordVerifier === null) {
     throw new Error("package_operator_password_verifier_missing");
   }
-  const serviceVolumes = configuration.services[fixture.serviceName].volumes;
+  const service = configuration.services[fixture.serviceName];
+  const serviceVolumes = service.volumes;
   return {
     serviceCount: Object.keys(configuration.services).length,
     companionServiceCount: 0,
@@ -153,9 +141,10 @@ function packageFacts({
       freeSpaceReserveMet:
         authenticatedHttpSmoke.storage.status === "available",
     },
+    installationDeletion,
     network: {
       httpBindAddress: "127.0.0.1",
-      mode: configuration.services[fixture.serviceName].network_mode,
+      mode: service.network_mode,
     },
     tools: { ...toolVersions, persistentCodexLogin: false },
     configuration: {
@@ -454,6 +443,10 @@ export function proveComposeService({ configuration, fixture }) {
     body: { status: "ready" },
     status: 200,
   });
+  const installationDeletion = proveInstallationDeletion({
+    fixture,
+    serviceName,
+  });
 
   const facts = packageFacts({
     authenticatedHttpSmoke,
@@ -464,6 +457,7 @@ export function proveComposeService({ configuration, fixture }) {
     filesystemFacts,
     httpFacts,
     imagePlatform,
+    installationDeletion,
     processArguments,
     recoveryDatabaseFacts: /** @type {DatabaseFacts} */ (recoveryDatabaseFacts),
     recoveryPasswordStatus,

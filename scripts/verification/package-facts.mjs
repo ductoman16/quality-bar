@@ -26,6 +26,16 @@
  *     freeSpaceReserveBytes?: number,
  *     freeSpaceReserveMet?: boolean,
  *   },
+ *   installationDeletion?: {
+ *     applicationStateRemoved?: boolean,
+ *     codexAuthenticationPathRemoved?: boolean,
+ *     disposableWorkRemoved?: boolean,
+ *     localBackupsRemoved?: boolean,
+ *     externalSourcesPreserved?: boolean,
+ *     paths?: string[],
+ *     status?: string,
+ *     stoppedRequired?: boolean,
+ *   },
  *   tools?: {git?: string, codex?: string, persistentCodexLogin?: boolean},
  *   configuration?: {
  *     configPath?: string,
@@ -234,6 +244,24 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.installation?.freeSpaceReserveMet === true,
       "installation.freeSpaceReserveMet must equal true",
+    ],
+    [
+      packageFacts?.installationDeletion?.status === "installation_deleted" &&
+        JSON.stringify(packageFacts.installationDeletion.paths) ===
+          JSON.stringify([
+            "/var/lib/quality-bar/codex-home",
+            "/var/lib/quality-bar",
+            "/var/cache/quality-bar/checkouts",
+            "/var/backups/quality-bar",
+          ]) &&
+        packageFacts.installationDeletion.stoppedRequired === true &&
+        packageFacts.installationDeletion.applicationStateRemoved === true &&
+        packageFacts.installationDeletion.codexAuthenticationPathRemoved ===
+          true &&
+        packageFacts.installationDeletion.disposableWorkRemoved === true &&
+        packageFacts.installationDeletion.localBackupsRemoved === true &&
+        packageFacts.installationDeletion.externalSourcesPreserved === true,
+      "installationDeletion must prove stopped complete owned-path deletion",
     ],
     [packageFacts?.tools?.git === "2.54.0", "tools.git must equal 2.54.0"],
     [
