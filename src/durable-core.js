@@ -7,6 +7,7 @@ import {
   initializeOrValidateSchema,
   SCHEMA_VERSION,
 } from "./durable-schema.js";
+import { validateResultingSchema } from "./durable-schema-migration.js";
 
 export { DurableCoreError } from "./durable-error.js";
 const SQLITE_LOCK_WAIT_MILLISECONDS = 1_000;
@@ -47,6 +48,7 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
     );
     validateIntegrity(database);
     initializeOrValidateSchema(database);
+    validateResultingSchema(database, SCHEMA_VERSION);
   } catch (error) {
     database.close();
     if (error instanceof DurableCoreError) {

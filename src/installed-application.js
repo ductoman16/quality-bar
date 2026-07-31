@@ -149,7 +149,6 @@ export async function createInstalledApplication({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
     preMigrationBackup = await prepareBackup({
-      applicationVersion,
       backupsPath,
       databasePath,
       keyIdentity,
@@ -226,6 +225,7 @@ export async function createInstalledApplication({
     databasePath,
     keyIdentity,
     now,
+    schemaVersion: SCHEMA_VERSION,
     signal: application.workerSignal,
   };
   try {

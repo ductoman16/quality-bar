@@ -90,6 +90,27 @@
  *     masterKeyCopied?: boolean,
  *     schemaVersion?: number,
  *   },
+ *   upgrade?: {
+ *     explicitImage?: boolean,
+ *     noAutomaticUpdate?: boolean,
+ *     forwardMigration?: {
+ *       afterSchemaVersion?: number,
+ *       beforeSchemaVersion?: number,
+ *       exclusive?: boolean,
+ *       restoredTable?: boolean,
+ *     },
+ *     preMigrationSnapshot?: {
+ *       applicationVersion?: string,
+ *       kind?: string,
+ *       schemaVersion?: number,
+ *     },
+ *     rollback?: {
+ *       downgradeMigration?: boolean,
+ *       offlineRestore?: boolean,
+ *       priorImageRequired?: boolean,
+ *       priorImageVersion?: string,
+ *     },
+ *   },
  *   restore?: {
  *     browserSessionsRevoked?: boolean,
  *     implementerTokenRevoked?: boolean,
@@ -375,6 +396,44 @@ export function validatePackageFacts(facts, applicationVersion) {
     [
       packageFacts?.backup?.schemaVersion === SCHEMA_VERSION,
       `backup.schemaVersion must equal ${SCHEMA_VERSION}`,
+    ],
+    [
+      packageFacts?.upgrade?.explicitImage === true,
+      "upgrade.explicitImage must equal true",
+    ],
+    [
+      packageFacts?.upgrade?.noAutomaticUpdate === true,
+      "upgrade.noAutomaticUpdate must equal true",
+    ],
+    [
+      packageFacts?.upgrade?.forwardMigration?.afterSchemaVersion ===
+        SCHEMA_VERSION &&
+        packageFacts?.upgrade?.forwardMigration?.beforeSchemaVersion ===
+          SCHEMA_VERSION - 1 &&
+        packageFacts?.upgrade?.forwardMigration?.exclusive === true &&
+        packageFacts?.upgrade?.forwardMigration?.restoredTable === true,
+      "upgrade.forwardMigration must prove an exclusive forward migration",
+    ],
+    [
+      typeof packageFacts?.upgrade?.preMigrationSnapshot?.applicationVersion ===
+        "string" &&
+        packageFacts.upgrade.preMigrationSnapshot.applicationVersion !==
+          applicationVersion &&
+        packageFacts.upgrade.preMigrationSnapshot.applicationVersion ===
+          packageFacts.upgrade.rollback?.priorImageVersion &&
+        packageFacts?.upgrade?.preMigrationSnapshot?.kind === "pre-migration" &&
+        packageFacts?.upgrade?.preMigrationSnapshot?.schemaVersion ===
+          SCHEMA_VERSION - 1,
+      "upgrade.preMigrationSnapshot must prove the validated prior schema",
+    ],
+    [
+      packageFacts?.upgrade?.rollback?.downgradeMigration === false &&
+        packageFacts?.upgrade?.rollback?.offlineRestore === true &&
+        packageFacts?.upgrade?.rollback?.priorImageRequired === true &&
+        typeof packageFacts?.upgrade?.rollback?.priorImageVersion ===
+          "string" &&
+        packageFacts.upgrade.rollback.priorImageVersion !== applicationVersion,
+      "upgrade.rollback must prove offline restore with the prior image",
     ],
     [
       packageFacts?.restore?.status === "restored",

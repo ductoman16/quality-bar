@@ -53,7 +53,6 @@ function throwExactly(failure) {
  * @returns {Promise<Result>}
  */
 export async function runOperatorPasswordHostMutation({
-  applicationVersion,
   backupsPath,
   databasePath,
   loadInstallation,
@@ -78,7 +77,6 @@ export async function runOperatorPasswordHostMutation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
     const preMigrationBackup = await preparePreMigrationBackup({
-      applicationVersion: /** @type {string} */ (applicationVersion),
       backupsPath,
       databasePath,
       keyIdentity: installationKeyIdentity(installation.masterKey),
