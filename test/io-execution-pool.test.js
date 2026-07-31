@@ -159,6 +159,38 @@ test("hard shutdown aborts active duties and rejects queued duties with its owni
   assert.equal(queuedRuns, 0);
 });
 
+test("graceful I/O drain preserves only cleanup for accepted execution", async () => {
+  const pool = createIoExecutionPool();
+  const failure = Object.assign(new Error("Quality Bar is shutting down"), {
+    code: "application_shutting_down",
+  });
+  const polling = pool.run("polling", (signal) => {
+    assert.ok(signal);
+    const stopped = Promise.withResolvers();
+    signal.addEventListener("abort", () => stopped.reject(signal.reason), {
+      once: true,
+    });
+    return stopped.promise;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  pool.drainCleanup(failure);
+
+  await assert.rejects(polling, (error) => error === failure);
+  assert.throws(() => pool.run("acquisition", () => {}), {
+    code: "io_execution_pool_closed",
+  });
+  let cleaned = false;
+  await pool.run("cleanup", () => {
+    cleaned = true;
+  });
+  assert.equal(cleaned, true);
+  await pool.close();
+  assert.throws(() => pool.run("cleanup", () => {}), {
+    code: "io_execution_pool_closed",
+  });
+});
+
 test("hard shutdown settles an active production scheduler with its owning error", async () => {
   const pool = createIoExecutionPool();
   let observedReason;

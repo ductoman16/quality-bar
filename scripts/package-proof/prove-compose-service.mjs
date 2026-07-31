@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 
+import { proveBundledTools } from "./bundled-tools.mjs";
 import { provePackageOfflineRestore } from "./offline-restore.mjs";
 import { proveOwnedArtifactCleanup } from "./owned-artifact-cleanup.mjs";
 import { proveOperatorAuthorityRecovery } from "./operator-authority-recovery.mjs";
 import { proveRetention } from "./retention.mjs";
 import { proveInstallationDeletion } from "./installation-deletion.mjs";
 import { assertFilesystemFacts } from "./filesystem-facts.mjs";
+import { proveGracefulShutdown } from "./graceful-shutdown.mjs";
 import { proveUpgrade, withOfflineRestoreProof } from "./upgrade.mjs";
 import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
 
@@ -56,6 +58,7 @@ const serviceFixtureImage =
  */
 /** @typedef {ReturnType<typeof proveInstallationDeletion>} InstallationDeletionFacts */
 /** @typedef {ReturnType<typeof proveUpgrade>} UpgradeFacts */
+/** @typedef {ReturnType<typeof proveGracefulShutdown>} GracefulShutdownFacts */
 
 /**
  * @param {{
@@ -65,6 +68,7 @@ const serviceFixtureImage =
  *   durableWriteFailure: DurableWriteFailureFacts,
  *   fixture: PackageFixture,
  *   filesystemFacts: FilesystemFacts,
+ *   gracefulShutdown: GracefulShutdownFacts,
  *   httpFacts: HttpFacts,
  *   imagePlatform: string,
  *   installationDeletion: InstallationDeletionFacts,
@@ -91,6 +95,7 @@ function packageFacts({
   durableWriteFailure,
   fixture,
   filesystemFacts,
+  gracefulShutdown,
   httpFacts,
   imagePlatform,
   installationDeletion,
@@ -118,6 +123,7 @@ function packageFacts({
       executable: processArguments[0],
       entrypoint: processArguments.at(-1),
     },
+    gracefulShutdown,
     liveness: {
       path: "/health/live",
       httpStatus: httpFacts.liveness.status,
@@ -277,16 +283,7 @@ export function proveComposeService({ configuration, fixture }) {
     errorCode: "authentication_required",
     status: 401,
   });
-  const toolVersions = {
-    codex: fixture
-      .runCompose(["exec", "-T", serviceName, "codex", "--version"])
-      .replace("codex-cli ", ""),
-    git: fixture
-      .runCompose(["exec", "-T", serviceName, "git", "--version"])
-      .replace("git version ", ""),
-  };
-  assert.equal(toolVersions.git, "2.54.0");
-  assert.equal(toolVersions.codex, "0.145.0");
+  const toolVersions = proveBundledTools({ fixture, serviceName });
 
   const initialDatabaseFacts = /** @type {DatabaseFacts} */ (
     jsonPackageProbe(fixture, "database-facts.mjs")
@@ -297,7 +294,11 @@ export function proveComposeService({ configuration, fixture }) {
   runPackageProbe(fixture, "write-database-marker.mjs");
 
   const bootstrapPassword = "a package supplied operator password";
-  fixture.runCompose(["stop", serviceName]);
+  const gracefulShutdown = proveGracefulShutdown({
+    configuration,
+    fixture,
+    serviceName,
+  });
   assert.equal(
     fixture.runCompose(
       [
@@ -462,6 +463,7 @@ export function proveComposeService({ configuration, fixture }) {
     durableWriteFailure,
     fixture,
     filesystemFacts,
+    gracefulShutdown,
     httpFacts,
     imagePlatform,
     installationDeletion,

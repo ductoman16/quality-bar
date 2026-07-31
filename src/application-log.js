@@ -230,6 +230,15 @@ export function sanitizeStructuredLogLine(line, { knownSecrets = [] } = {}) {
   return normalizeStructuredLogLine(line, knownSecrets).line;
 }
 
+/** @param {(line: string) => unknown} hostWriter @param {string[]} [knownSecrets] */
+export function createApplicationHostLog(hostWriter, knownSecrets = []) {
+  if (typeof hostWriter !== "function") {
+    throw new TypeError("ordinary host log writer is invalid");
+  }
+  return (/** @type {string} */ line) =>
+    hostWriter(sanitizeStructuredLogLine(line, { knownSecrets }));
+}
+
 /**
  * @param {{
  *   hostWriter: (line: string) => unknown,
@@ -313,9 +322,11 @@ export function createApplicationLog(
   readDurableCore,
   knownSecrets = [],
 ) {
-  return createApplicationLogWriter({
+  const host = createApplicationHostLog(hostWriter, knownSecrets);
+  const persisted = createApplicationLogWriter({
     hostWriter,
     readDurableCore,
     knownSecrets,
   });
+  return Object.assign(persisted, { host });
 }

@@ -98,20 +98,38 @@ export function createUnavailableCodexConcurrency(readFailure) {
   return { read: unavailable, set: unavailable };
 }
 
+/** @param {CodedError | null} failure */
+export function readCodexCapability(failure) {
+  return failure
+    ? { error: failure.code, status: "unavailable" }
+    : { status: "available" };
+}
+
+/**
+ * @param {{signal: AbortSignal}} storageBoundary
+ * @param {{signal: AbortSignal}} shutdownBoundary
+ */
+export function createWorkerSignal(storageBoundary, shutdownBoundary) {
+  return AbortSignal.any([storageBoundary.signal, shutdownBoundary.signal]);
+}
+
 /**
  * @param {{failure: CodedError | null}} storageBoundary
  * @param {{failure: CodedError | null}} executionRuntime
+ * @param {{failure: CodedError | null}} shutdownBoundary
  * @param {() => CodedError | null} readStartupFailure
  */
 export function createDurableCoreStatusReader(
   storageBoundary,
   executionRuntime,
+  shutdownBoundary,
   readStartupFailure,
 ) {
   return () => {
     const error =
       storageBoundary.failure ??
       executionRuntime.failure ??
+      shutdownBoundary.failure ??
       readStartupFailure();
     return error
       ? { error: error.code, status: "not_ready" }

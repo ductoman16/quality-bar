@@ -1,7 +1,7 @@
 export const SECURITY_INTEGRATION_GATE = {
   name: "security-integration",
   testGroup:
-    "backup-restore-browser-authority-request-and-durable-write-shutdown-security-integration",
+    "backup-restore-browser-authority-request-durable-write-and-graceful-shutdown-security-integration",
   failureCode: "security_integration_tests_failed",
   arguments: [
     "--test",
@@ -20,6 +20,7 @@ export const SECURITY_INTEGRATION_GATE = {
     "test/browser-session-bearer-security-integration.test.js",
     "test/browser-session-contract-security-integration.test.js",
     "test/durable-write-shutdown-security-integration.test.js",
+    "test/application-shutdown-security-integration.test.js",
     "test/owned-artifact-cleanup-security-integration.test.js",
     "test/retention-security-integration.test.js",
     "test/installation-deletion-security-integration.test.js",

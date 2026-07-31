@@ -79,6 +79,9 @@ export function createApplicationExecutionRuntime({
   const ioPool = createApplicationIoPool({
     reportBackgroundFailure(error) {
       const backgroundFailure = codedRuntimeFailure(error);
+      if (backgroundFailure.code === "application_shutting_down") {
+        return;
+      }
       structuredLog(
         writeLog,
         backgroundFailure.code === "io_execution_capacity_unavailable"

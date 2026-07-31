@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
  *     profiles?: unknown,
  *     depends_on?: unknown,
  *     network_mode: string,
+ *     stop_grace_period?: string,
  *     ports?: unknown,
  *     volumes: ComposeVolume[],
  *   }>,
@@ -45,6 +46,7 @@ export function assertComposeConfiguration(fixture) {
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
   assert.equal(configuration.services[serviceName].network_mode, "host");
+  assert.equal(configuration.services[serviceName].stop_grace_period, "15m5s");
   assert.equal(configuration.services[serviceName].ports, undefined);
 
   const serviceVolumes = configuration.services[serviceName].volumes;

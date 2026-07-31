@@ -60,11 +60,17 @@ import {
 import { createStorageReserveGate } from "./storage-reserve.js";
 import {
   createUnavailableCodexConcurrency,
+  createWorkerSignal,
   createDurableCoreStatusReader,
   createHardStorageBoundary,
+  readCodexCapability,
   requireAvailableStorageReserve,
   structuredLog,
 } from "./application-runtime.js";
+import {
+  createApplicationClose,
+  createApplicationShutdownBoundary,
+} from "./application-shutdown.js";
 import {
   createApplicationLog,
   createApplicationSecretRegistry,
@@ -149,6 +155,7 @@ export function createApplication({
   let codexRuntime = null;
   /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
   let codexExecutionConcurrency = null;
+  const shutdownBoundary = createApplicationShutdownBoundary();
   /** @param {CodedError} [error] */
   function stopProductWork(error) {
     githubConnections?.destroy?.();
@@ -180,11 +187,13 @@ export function createApplication({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    storageReserve = ioPool.createStorageReserve(
-      createStorageReserve,
-      () => durableCore,
-      now,
-      installation.freeSpaceReserveBytes,
+    storageReserve = shutdownBoundary.guardStorageReserve(
+      ioPool.createStorageReserve(
+        createStorageReserve,
+        () => durableCore,
+        now,
+        installation.freeSpaceReserveBytes,
+      ),
     );
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
@@ -357,7 +366,8 @@ export function createApplication({
   // prettier-ignore
   const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, storageReserve, startupFailure);
   // prettier-ignore
-  const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, () => startupFailure);
+  const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, shutdownBoundary, () => startupFailure);
+  const workerSignal = createWorkerSignal(storageBoundary, shutdownBoundary);
 
   const server = createApplicationRuntimeServer({
     browserSessions,
@@ -380,24 +390,35 @@ export function createApplication({
     startupFailure,
     storageReserve,
     systemResource,
-    workerSignal: storageBoundary.signal,
+    workerSignal,
     writeLog,
     secureBrowserCookie: browserOrigin.startsWith("https:"),
   });
   githubConnections.startPolling();
   forgejoConnections.startPolling();
   codexRuntime?.start();
+  const close = createApplicationClose({
+    codexRuntime,
+    durableCore,
+    evaluations,
+    forgejoConnections,
+    githubConnections,
+    ioPool,
+    releaseInstallationLock,
+    repositories,
+    server,
+    shutdownBoundary,
+    writeLog: /** @type {ReturnType<typeof createApplicationLog>} */ (writeLog),
+  });
 
   return {
     server,
     durableCore,
     implementerTokens,
     get codexCapability() {
-      return codexCapabilityFailure
-        ? { error: codexCapabilityFailure.code, status: "unavailable" }
-        : { status: "available" };
+      return readCodexCapability(codexCapabilityFailure);
     },
-    workerSignal: storageBoundary.signal,
+    workerSignal,
     /** @param {() => unknown} admit */
     admitWork(admit) {
       if (typeof admit !== "function") {
@@ -420,24 +441,6 @@ export function createApplication({
     freezeWaiverAdjudicatorConfiguration() {
       return waiverAdjudicatorConfiguration.freezeForAdjudication();
     },
-    async close() {
-      if (server.listening) {
-        await /** @type {Promise<void>} */ (
-          new Promise((resolve, reject) => {
-            server.close((error) => (error ? reject(error) : resolve()));
-          })
-        );
-      }
-      githubConnections?.destroy?.();
-      forgejoConnections?.destroy?.();
-      evaluations?.destroy?.();
-      await codexRuntime?.close();
-      codexRuntime = null;
-      repositories?.destroy?.();
-      await ioPool.close();
-      durableCore?.close();
-      releaseInstallationLock?.();
-      releaseInstallationLock = null;
-    },
+    close,
   };
 }

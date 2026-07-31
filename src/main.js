@@ -1,4 +1,5 @@
 import { createInstalledApplication } from "./installed-application.js";
+import { installApplicationSignalHandlers } from "./application-shutdown.js";
 import { readHttpPort } from "./http-port.js";
 
 process.umask(0o077);
@@ -10,6 +11,7 @@ const application = await createInstalledApplication({
   databasePath,
 });
 const { server } = application;
+installApplicationSignalHandlers(application);
 
 server.listen(port, "127.0.0.1", () => {
   process.stdout.write(

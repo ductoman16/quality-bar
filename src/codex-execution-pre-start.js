@@ -8,7 +8,8 @@ export const CODEX_PRE_START_ATTEMPT_LIMIT = 3;
 export function isTransientCodexPreStartFailure(failure) {
   return (
     failure.code === "review_run_checkout_failed" ||
-    failure.code === "codex_pre_start_interrupted"
+    failure.code === "codex_pre_start_interrupted" ||
+    failure.code === "application_shutting_down"
   );
 }
 

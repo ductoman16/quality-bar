@@ -32,15 +32,21 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
       return {
         ...unavailableForgejoConnectionService(connectionFailure),
         destroy() {
-          order.push("forgejo-stop");
+          order.push("forgejo-destroy");
         },
         requireFreshBaseline() {},
+        stopPolling() {
+          order.push("forgejo-stop");
+        },
       };
     },
     createGitHubConnections() {
       return {
         ...createUnavailableGitHubConnectionService(connectionFailure),
         destroy() {
+          order.push("github-destroy");
+        },
+        stopPolling() {
           order.push("github-stop");
         },
       };
@@ -62,8 +68,85 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
   try {
     const closing = application.close();
     await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(order, ["github-stop", "forgejo-stop", "codex-drain"]);
+    assert.deepEqual(order, ["codex-drain", "github-stop", "forgejo-stop"]);
     releaseCodex();
+    await closing;
+    assert.deepEqual(order.slice(3), ["github-destroy", "forgejo-destroy"]);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("shutdown gates admission, polling advancement, and Codex starts before draining active work", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-shutdown-gate-"));
+  const codexDrain = Promise.withResolvers();
+  /** @type {any} */
+  let guardedStorageReserve;
+  const application = createApplication({
+    createCodexRuntime(durableCore, dependencies) {
+      void durableCore;
+      guardedStorageReserve = dependencies.storageReserve;
+      return {
+        close() {
+          for (const transition of [
+            () => guardedStorageReserve.assertWorkAdmissionAvailable(),
+            () =>
+              guardedStorageReserve.assertPollingObservationAdvanceAvailable(),
+            () => guardedStorageReserve.preparePollingObservationAdvance(),
+            () => guardedStorageReserve.assertCodexStartAvailable(),
+          ]) {
+            assert.throws(
+              transition,
+              (error) =>
+                error instanceof Error &&
+                "code" in error &&
+                error.code === "application_shutting_down",
+            );
+          }
+          return codexDrain.promise;
+        },
+        start() {},
+      };
+    },
+    createStorageReserve: () => availableStorageReserve,
+    databasePath: join(directory, "quality-bar.sqlite3"),
+    loadInstallation: () => ({
+      externalOrigin: "http://127.0.0.1:3000",
+      freeSpaceReserveBytes: 5 * 1024 ** 3,
+      masterKey: Buffer.alloc(32, 7),
+      trustedProxyAddresses: [],
+    }),
+    validateCodexAuthentication() {},
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
+    validateSources() {},
+    validateTools() {},
+    writeLog() {},
+  });
+  try {
+    const closing = application.close();
+    assert.equal(application.workerSignal.aborted, true);
+    assert.equal(
+      /** @type {any} */ (application.workerSignal.reason).code,
+      "application_shutting_down",
+    );
+    assert.throws(
+      () => application.admitWork(() => assert.fail("work was admitted")),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "application_shutting_down",
+    );
+    assert.throws(
+      () =>
+        application.startCodexProcess(() =>
+          assert.fail("new Codex execution started"),
+        ),
+      (error) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "application_shutting_down",
+    );
+    codexDrain.resolve(undefined);
     await closing;
   } finally {
     rmSync(directory, { force: true, recursive: true });
