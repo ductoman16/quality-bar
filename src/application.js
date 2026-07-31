@@ -329,8 +329,6 @@ export function createApplication({
     forgejoConnections?.destroy?.();
     durableCore?.close();
     durableCore = null;
-    releaseInstallationLock?.();
-    releaseInstallationLock = null;
     startupFailure = requireCodedError(error);
     requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
     browserSessions = createUnavailableBrowserSessionService(startupFailure);

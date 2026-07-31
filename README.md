@@ -36,3 +36,14 @@ docker compose run --rm --no-deps quality-bar node src/recover-operator-authorit
 Enter the replacement password at the terminal, or pipe it on standard input. The command takes no password argument and reads no password environment variable. It atomically replaces the password verifier, revokes every browser session and the active implementer token, and clears the failed-login delay. Machine access remains disabled until the operator creates a new implementer token through the authenticated product surface.
 
 The host firewall must allow valid-TLS egress only to OpenAI/Codex, configured Forge APIs, and registered HTTPS Git endpoints. A private Forge may use the single operator-mounted CA bundle; Quality Bar does not add an outbound proxy or trust another certificate source.
+
+## Complete installation deletion
+
+To remove all Quality Bar-owned application state, stop the service first and run the explicit deletion command:
+
+```sh
+docker compose stop quality-bar
+docker compose run --rm --no-deps quality-bar node src/delete-installation.js
+```
+
+The command fails while the service holds the installation lock. On success it clears the SQLite state and persistent Codex login, disposable checkouts, and local backup contents. Configuration, the installation master-key file, and operator-managed off-host copies are outside the deletion boundary and remain the operator's responsibility.

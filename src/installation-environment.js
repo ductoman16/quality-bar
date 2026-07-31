@@ -23,6 +23,12 @@ export const STATE_PATH = "/var/lib/quality-bar";
 export const CODEX_HOME_PATH = `${STATE_PATH}/codex-home`;
 export const CHECKOUTS_PATH = "/var/cache/quality-bar/checkouts";
 export const BACKUPS_PATH = "/var/backups/quality-bar";
+export const OWNED_INSTALLATION_PATHS = Object.freeze([
+  STATE_PATH,
+  CODEX_HOME_PATH,
+  CHECKOUTS_PATH,
+  BACKUPS_PATH,
+]);
 export const INSTALLATION_LOCK_PATH = `${STATE_PATH}/installation.lock`;
 export const REQUIRED_FREE_SPACE_BYTES = DEFAULT_FREE_SPACE_RESERVE_BYTES;
 export const BUNDLED_GIT_VERSION = "2.54.0";
@@ -57,6 +63,17 @@ const LOCAL_FILESYSTEM_TYPES = new Set([
  * }} InstallationFilesystem
  */
 /** @typedef {{close: () => unknown, exec: (sql: string) => unknown}} InstallationLock */
+/**
+ * @typedef {{
+ *   lstat: (path: string) => {
+ *     gid: number,
+ *     isDirectory: () => boolean,
+ *     isSymbolicLink: () => boolean,
+ *     mode: number,
+ *     uid: number,
+ *   },
+ * }} OwnedDirectoryFilesystem
+ */
 
 export class InstallationEnvironmentError extends Error {
   /**
@@ -82,7 +99,7 @@ function fail(code, message, cause) {
 }
 
 /**
- * @param {InstallationFilesystem} filesystem
+ * @param {OwnedDirectoryFilesystem} filesystem
  * @param {string} path
  */
 function validateOwnedDirectory(filesystem, path) {
@@ -357,12 +374,7 @@ export function validateInstallationFilesystem({
   if (!Number.isSafeInteger(reserveBytes) || reserveBytes <= 0) {
     throw new TypeError("free-space reserve is invalid");
   }
-  for (const path of [
-    STATE_PATH,
-    CODEX_HOME_PATH,
-    CHECKOUTS_PATH,
-    BACKUPS_PATH,
-  ]) {
+  for (const path of OWNED_INSTALLATION_PATHS) {
     validateOwnedDirectory(filesystem, path);
   }
   validateInstallationSources({ filesystem });
@@ -378,6 +390,32 @@ export function validateInstallationFilesystem({
     ])) {
       validateFilesystem(filesystem, path, filesystemReserve);
       validateDurableWriteSemantics(filesystem, path);
+    }
+  } catch (error) {
+    releaseInstallationLock();
+    throw error;
+  }
+  return { releaseInstallationLock };
+}
+
+/**
+ * Validate the exact owned roots before a stopped-installation deletion.
+ * Deletion deliberately does not require a storage reserve, bundled tools, or
+ * the operator's external configuration and master-key files.
+ *
+ * @param {{
+ *   createLock?: (path: string) => InstallationLock,
+ *   filesystem?: OwnedDirectoryFilesystem,
+ * }} [options]
+ */
+export function validateInstallationDeletion({
+  createLock = createInstallationLock,
+  filesystem = createFilesystem(),
+} = {}) {
+  const releaseInstallationLock = acquireInstallationLock(createLock);
+  try {
+    for (const path of OWNED_INSTALLATION_PATHS) {
+      validateOwnedDirectory(filesystem, path);
     }
   } catch (error) {
     releaseInstallationLock();
