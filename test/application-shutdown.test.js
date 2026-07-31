@@ -6,6 +6,8 @@ import {
   createApplicationClose,
   createApplicationShutdownBoundary,
 } from "../src/application-shutdown.js";
+import { createIoExecutionPool } from "../src/io-execution-pool.js";
+import { executeReviewRun } from "../src/review-run-execution.js";
 import { evaluationFailureStatus } from "../src/evaluation-route-failure.js";
 import { isUnavailableError } from "../src/http-request.js";
 
@@ -115,7 +117,7 @@ test("graceful close aborts bounded I/O and retains credentials until accepted w
         order.push("io-drain");
         return ioDrain.promise;
       },
-      shutdown(error) {
+      drainCleanup(error) {
         assert.equal(error, shutdownBoundary.failure);
         order.push("io-abort");
       },
@@ -137,11 +139,12 @@ test("graceful close aborts bounded I/O and retains credentials until accepted w
     "github-stop-polling",
     "forgejo-stop-polling",
     "io-abort",
-    "io-drain",
   ]);
 
-  ioDrain.resolve(undefined);
   codexDrain.resolve(undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(order.at(-1), "io-drain");
+  ioDrain.resolve(undefined);
   await closing;
   assert.deepEqual(order.slice(6), [
     "evaluations-destroy",
@@ -166,7 +169,7 @@ test("graceful close never reports completion when a finalizer fails", async () 
     evaluations: null,
     forgejoConnections: null,
     githubConnections: null,
-    ioPool: { async close() {}, shutdown() {} },
+    ioPool: { async close() {}, drainCleanup() {} },
     releaseInstallationLock() {
       throw failure;
     },
@@ -190,4 +193,65 @@ test("graceful close never reports completion when a finalizer fails", async () 
       ?.error,
     "installation_lock_release_failed",
   );
+});
+
+test("a running Review Run completes required checkout cleanup during graceful drain", async () => {
+  const ioPool = createIoExecutionPool();
+  const started = Promise.withResolvers();
+  const finish = Promise.withResolvers();
+  let removed = 0;
+  const execution = executeReviewRun(
+    {
+      all: () => [
+        {
+          criterion_id: "criterion-1",
+          impact: "blocking",
+          instruction: "Reject broken changes",
+        },
+      ],
+      get: () => ({
+        applicability_rule: null,
+        base_commit: "a".repeat(40),
+        execution_status: "queued",
+        head_commit: "b".repeat(40),
+        model: "gpt-5.3-codex",
+        name: "Correctness",
+        normalized_url: "https://example.test/repository.git",
+        reasoning_effort: "high",
+        service_tier: "priority",
+      }),
+    },
+    { fencingToken: 7, workerId: "worker-1", workId: "run-1" },
+    {
+      claimService: {
+        beginPreStartAttempt() {},
+        startRenewal: () => () => {},
+        startTracked() {},
+      },
+      ioPool,
+      prepareCheckout: async () => ({
+        path: "/checkout",
+        remove() {
+          removed += 1;
+        },
+      }),
+      readFileChanges: () => [],
+      resultService: { fail: assert.fail, prepare() {} },
+      async runCodex(input) {
+        input.startProcessGroup?.(4321);
+        started.resolve(undefined);
+        await finish.promise;
+        return { diagnosticFailures: [] };
+      },
+    },
+  );
+  await started.promise;
+  const shutdown = new ApplicationShutdownError();
+
+  ioPool.drainCleanup(shutdown);
+  finish.resolve(undefined);
+
+  await execution;
+  assert.equal(removed, 1);
+  await ioPool.close();
 });

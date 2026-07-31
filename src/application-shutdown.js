@@ -146,7 +146,7 @@ function codedShutdownFailure(error) {
  *   evaluations: {destroy?: () => unknown} | null,
  *   forgejoConnections: {destroy?: () => unknown, stopPolling?: () => unknown} | null,
  *   githubConnections: {destroy?: () => unknown, stopPolling?: () => unknown} | null,
- *   ioPool: {close: () => Promise<unknown>, shutdown: (reason: unknown) => unknown},
+ *   ioPool: {close: () => Promise<unknown>, drainCleanup: (reason: unknown) => unknown},
  *   releaseInstallationLock: (() => unknown) | null,
  *   repositories: {destroy?: () => unknown} | null,
  *   server: import("node:http").Server,
@@ -196,8 +196,9 @@ export function createApplicationClose({
           : Promise.resolve();
         githubConnections?.stopPolling?.();
         forgejoConnections?.stopPolling?.();
-        ioPool.shutdown(shutdownFailure);
-        await Promise.all([serverDrain, codexDrain, ioPool.close()]);
+        ioPool.drainCleanup(shutdownFailure);
+        await Promise.all([serverDrain, codexDrain]);
+        await ioPool.close();
         evaluations?.destroy?.();
         repositories?.destroy?.();
         githubConnections?.destroy?.();

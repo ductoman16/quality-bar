@@ -29,8 +29,10 @@ export class IoExecutionPoolError extends Error {
 export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
   let active = 0;
   let accepting = true;
+  let cleanupOnly = false;
   const workers = new AbortController();
-  /** @type {{operation: (signal?: AbortSignal) => unknown, reject: (reason?: unknown) => void, resolve: (value: unknown) => void}[]} */
+  const cleanupWorkers = new AbortController();
+  /** @type {{duty: string, operation: (signal?: AbortSignal) => unknown, reject: (reason?: unknown) => void, resolve: (value: unknown) => void}[]} */
   const waiting = [];
   /** @type {((value?: void) => void)[]} */
   const drainWaiters = [];
@@ -50,22 +52,24 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
       if (!task) {
         throw new Error("I/O execution pool queue is invalid");
       }
+      const signal =
+        task.duty === "cleanup" ? cleanupWorkers.signal : workers.signal;
       active += 1;
       Promise.resolve()
         .then(() =>
-          runIoOperation(workers.signal, () => {
-            workers.signal.throwIfAborted();
-            return task.operation(workers.signal);
+          runIoOperation(signal, () => {
+            signal.throwIfAborted();
+            return task.operation(signal);
           }),
         )
         .then(
           (result) => {
-            workers.signal.throwIfAborted();
+            signal.throwIfAborted();
             return result;
           },
           (error) => {
             throwIoTerminationFailure(error);
-            workers.signal.throwIfAborted();
+            signal.throwIfAborted();
             throw error;
           },
         )
@@ -86,7 +90,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
     if (typeof operation !== "function") {
       throw new TypeError("I/O execution operation is invalid");
     }
-    if (!accepting) {
+    if (!accepting && (!cleanupOnly || duty !== "cleanup")) {
       throw new IoExecutionPoolError(
         "io_execution_pool_closed",
         "I/O execution pool is closed",
@@ -108,7 +112,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
         );
       }
       const completion = new Promise((resolve, reject) => {
-        waiting.push({ operation, reject, resolve });
+        waiting.push({ duty, operation, reject, resolve });
       });
       drain();
       return completion;
@@ -131,8 +135,10 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
         );
       }
       active += 1;
+      const signal =
+        duty === "cleanup" ? cleanupWorkers.signal : workers.signal;
       try {
-        const result = operation(workers.signal);
+        const result = operation(signal);
         if (
           result &&
           typeof (/** @type {any} */ (result).then) === "function"
@@ -166,6 +172,7 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
     },
     close() {
       accepting = false;
+      cleanupOnly = false;
       if (active === 0 && waiting.length === 0) {
         return Promise.resolve();
       }
@@ -174,10 +181,30 @@ export function createIoExecutionPool({ reportBackgroundFailure } = {}) {
     /** @param {unknown} reason */
     shutdown(reason) {
       accepting = false;
+      cleanupOnly = false;
       workers.abort(reason);
+      cleanupWorkers.abort(reason);
       for (const task of waiting.splice(0)) {
         task.reject(reason);
       }
+      finishDrain();
+    },
+    /** @param {unknown} reason */
+    drainCleanup(reason) {
+      if (!accepting && !cleanupOnly) {
+        return;
+      }
+      accepting = false;
+      cleanupOnly = true;
+      workers.abort(reason);
+      const cleanup = waiting.filter((task) => task.duty === "cleanup");
+      for (const task of waiting.splice(0)) {
+        if (task.duty !== "cleanup") {
+          task.reject(reason);
+        }
+      }
+      waiting.push(...cleanup);
+      drain();
       finishDrain();
     },
   };
