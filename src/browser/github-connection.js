@@ -20,7 +20,6 @@ const {
  * validConnection: (connection: unknown) => boolean,
  * verificationTime: (timestamp: number) => string
  * }} */ (Reflect.get(window, "qualityBarGitHubConnectionContract"));
-
 const githubForm = /** @type {HTMLFormElement} */ (
   requiredElement("github-connection-form")
 );
@@ -58,9 +57,10 @@ const githubRepositoryOptions = requiredElement(
 const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
   requiredElement("github-repository-selection-submit")
 );
+// prettier-ignore
+const githubRotationForm = /** @type {HTMLFormElement} */ (requiredElement("github-connection-rotation-form")), githubRotationPem = /** @type {HTMLTextAreaElement} */ (requiredElement("github-connection-rotation-pem")), githubRotationSubmit = /** @type {HTMLButtonElement} */ (requiredElement("github-connection-rotation-submit"));
 /** @type {{affected_repository_ids: number[], id: string, outcome: string, trigger: string, verified_at: number}[]} */
 let githubVerificationHistory = [];
-
 /** @param {string} message */
 function showGitHubError(message) {
   githubStatus.textContent = "";
@@ -68,7 +68,6 @@ function showGitHubError(message) {
   githubError.hidden = false;
   githubError.focus();
 }
-
 /** @param {any} value */
 function renderGitHubConnection(value) {
   if (value === null) {
@@ -84,6 +83,8 @@ function renderGitHubConnection(value) {
     githubRetire.hidden = true;
     githubDelete.hidden = true;
     githubRepositoryForm.hidden = true;
+    githubRotationForm.hidden = true;
+    githubRotationPem.value = "";
     githubStatus.textContent = "";
     return;
   }
@@ -173,6 +174,7 @@ function renderGitHubConnection(value) {
   githubRepositoryForm.hidden =
     value.lifecycle === "retired" ||
     githubRepositoryOptions.children.length === 0;
+  githubRotationForm.hidden = value.lifecycle === "retired";
   githubDetails.hidden = false;
   githubForm.hidden = value.lifecycle !== "retired";
   githubPem.hidden = value.lifecycle !== "retired";
@@ -207,6 +209,59 @@ bindLifecycleConfirmation({
   retire: githubRetire,
   showError: showGitHubError,
   status: githubStatus,
+});
+githubRotationForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  githubError.hidden = true;
+  if (!githubRotationPem.value) {
+    showGitHubError("Replacement GitHub App private key is required");
+    githubRotationPem.focus();
+    return;
+  }
+  if (
+    !window.confirm(
+      "Rotate GitHub App credentials? Quality Bar will replace its old copy after verification. Revoke the predecessor in GitHub.",
+    )
+  ) {
+    githubRotationPem.focus();
+    return;
+  }
+  githubStatus.textContent = "Verifying replacement GitHub App credentials.";
+  githubRotationSubmit.disabled = true;
+  try {
+    const response = await fetch(
+      "/api/v1/github-connections/credential/rotate",
+      {
+        body: JSON.stringify({ pem: githubRotationPem.value }),
+        headers: {
+          "content-type": "application/json",
+          "x-quality-bar-csrf": csrfToken(),
+        },
+        method: "POST",
+      },
+    );
+    if (!response.ok) {
+      showGitHubError(await responseErrorMessage(response));
+      return;
+    }
+    const connection = /** @type {unknown} */ (await response.json());
+    if (
+      !validateGitHubConnection(connection) ||
+      /** @type {any} */ (connection).health !== "healthy"
+    ) {
+      showGitHubError("GitHub App credential rotation response is invalid");
+      return;
+    }
+    renderGitHubConnection(connection);
+    githubRotationPem.value = "";
+    githubStatus.textContent =
+      "GitHub App credentials rotated. Revoke the predecessor in GitHub.";
+    githubStatus.focus();
+  } catch {
+    showGitHubError("GitHub App credential rotation failed");
+  } finally {
+    githubRotationSubmit.disabled = false;
+  }
 });
 
 githubRepositoryForm.addEventListener("submit", async (event) => {

@@ -49,11 +49,16 @@ export function createGitHubPollingService(
 
   /**
    * @param {{connection: any, credential: any, repositories: any[]}} input
-   * @param {{baseline?: boolean, recordFailure?: boolean, onFailure?: (failure: GitHubConnectionError, commit: (transaction: any) => boolean) => void}} [options]
+   * @param {{baseline?: boolean, ignoreGate?: boolean, recordFailure?: boolean, onFailure?: (failure: GitHubConnectionError, commit: (transaction: any) => boolean) => void}} [options]
    */
   async function prepare(
     input,
-    { baseline = false, recordFailure = true, onFailure } = {},
+    {
+      baseline = false,
+      ignoreGate = false,
+      recordFailure = true,
+      onFailure,
+    } = {},
   ) {
     if (
       !input ||
@@ -93,59 +98,61 @@ export function createGitHubPollingService(
           ) => id,
         ),
     );
-    const [storedGate] = durableCore.all(
-      "SELECT value FROM quality_bar_metadata WHERE key = ?",
-      metadataKey,
-    );
-    if (storedGate) {
-      let gate;
-      try {
-        gate = JSON.parse(storedGate.value);
-      } catch (cause) {
-        throw new TypeError("GitHub polling rate gate is invalid", { cause });
-      }
-      if (
-        !gate ||
-        typeof gate.code !== "string" ||
-        typeof gate.message !== "string" ||
-        (gate.nextAttemptAt !== null &&
-          !Number.isSafeInteger(gate.nextAttemptAt)) ||
-        (gate.rateGateUntil !== null &&
-          !Number.isSafeInteger(gate.rateGateUntil)) ||
-        typeof gate.hasUnrepresentedFailureOwner !== "boolean" ||
-        (gate.forgeRepositoryId !== null &&
-          !Number.isSafeInteger(gate.forgeRepositoryId))
-      ) {
-        throw new TypeError("GitHub polling rate gate is invalid");
-      }
-      if (gate.nextAttemptAt !== null && gate.nextAttemptAt > attemptedAt) {
-        throw new GitHubConnectionError(gate.code, gate.message, {
-          ...(gate.nextAttemptAt === null
-            ? {}
-            : { nextAttemptAt: gate.nextAttemptAt }),
-          ...(gate.forgeRepositoryId === null
-            ? {}
-            : { repositoryId: gate.forgeRepositoryId }),
-        });
-      }
-    }
-    const [repositoryGate] = durableCore.all(
-      `SELECT forge_repository_id, error_code, error_message, rate_gate_until
-         FROM github_repository_polls
-        WHERE connection_id = ? AND rate_gate_until > ?
-        ORDER BY rate_gate_until DESC LIMIT 1`,
-      input.connection.id,
-      attemptedAt,
-    );
-    if (repositoryGate) {
-      throw new GitHubConnectionError(
-        repositoryGate.error_code,
-        repositoryGate.error_message,
-        {
-          nextAttemptAt: repositoryGate.rate_gate_until,
-          repositoryId: repositoryGate.forge_repository_id,
-        },
+    if (!ignoreGate) {
+      const [storedGate] = durableCore.all(
+        "SELECT value FROM quality_bar_metadata WHERE key = ?",
+        metadataKey,
       );
+      if (storedGate) {
+        let gate;
+        try {
+          gate = JSON.parse(storedGate.value);
+        } catch (cause) {
+          throw new TypeError("GitHub polling rate gate is invalid", { cause });
+        }
+        if (
+          !gate ||
+          typeof gate.code !== "string" ||
+          typeof gate.message !== "string" ||
+          (gate.nextAttemptAt !== null &&
+            !Number.isSafeInteger(gate.nextAttemptAt)) ||
+          (gate.rateGateUntil !== null &&
+            !Number.isSafeInteger(gate.rateGateUntil)) ||
+          typeof gate.hasUnrepresentedFailureOwner !== "boolean" ||
+          (gate.forgeRepositoryId !== null &&
+            !Number.isSafeInteger(gate.forgeRepositoryId))
+        ) {
+          throw new TypeError("GitHub polling rate gate is invalid");
+        }
+        if (gate.nextAttemptAt !== null && gate.nextAttemptAt > attemptedAt) {
+          throw new GitHubConnectionError(gate.code, gate.message, {
+            ...(gate.nextAttemptAt === null
+              ? {}
+              : { nextAttemptAt: gate.nextAttemptAt }),
+            ...(gate.forgeRepositoryId === null
+              ? {}
+              : { repositoryId: gate.forgeRepositoryId }),
+          });
+        }
+      }
+      const [repositoryGate] = durableCore.all(
+        `SELECT forge_repository_id, error_code, error_message, rate_gate_until
+           FROM github_repository_polls
+          WHERE connection_id = ? AND rate_gate_until > ?
+          ORDER BY rate_gate_until DESC LIMIT 1`,
+        input.connection.id,
+        attemptedAt,
+      );
+      if (repositoryGate) {
+        throw new GitHubConnectionError(
+          repositoryGate.error_code,
+          repositoryGate.error_message,
+          {
+            nextAttemptAt: repositoryGate.rate_gate_until,
+            repositoryId: repositoryGate.forge_repository_id,
+          },
+        );
+      }
     }
     /** @type {{forgeRepositoryId: number, snapshot: unknown[]}[]} */
     const snapshots = [];

@@ -183,13 +183,13 @@ export function createApplicationServer({
     typeof githubConnections.start !== "function" ||
     typeof githubConnections.completeManifest !== "function" ||
     typeof githubConnections.completeInstallation !== "function" ||
+    typeof githubConnections.rotate !== "function" ||
     typeof githubConnections.selectRepositories !== "function" ||
     typeof githubConnections.recordCallbackFailure !== "function" ||
     typeof githubConnections.consumeCallbackFailure !== "function"
   ) {
-    throw new TypeError(
-      "githubConnections must provide the GitHub Connection resource",
-    );
+    // prettier-ignore
+    throw new TypeError("githubConnections must provide the GitHub Connection resource");
   }
   if (typeof repositoryGuidance?.read !== "function") {
     throw new TypeError(

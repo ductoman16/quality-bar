@@ -323,8 +323,16 @@ export function createGitHubPollingRunner(
     );
   }
 
-  /** @param {any} credential @param {number} installationId */
-  async function prepareConnectionBaseline(credential, installationId) {
+  /** @param {any} credential @param {number} installationId @param {{includeUnhealthy?: boolean, ignoreGate?: boolean, deferFailures?: boolean}} [options] */
+  async function prepareConnectionBaseline(
+    credential,
+    installationId,
+    {
+      includeUnhealthy = false,
+      ignoreGate = false,
+      deferFailures = false,
+    } = {},
+  ) {
     storageReserve.preparePollingObservationAdvance();
     const [connection] = durableCore.all(
       `SELECT id, app_id, app_slug, installation_id, principal_id, principal_login
@@ -342,13 +350,20 @@ export function createGitHubPollingRunner(
            ON repositories.id = github_repositories.repository_id
         WHERE github_repositories.connection_id = ?
           AND repositories.lifecycle = 'enabled'
-          AND repositories.health = 'healthy'
+          ${includeUnhealthy ? "" : "AND repositories.health = 'healthy'"}
         ORDER BY forge_repository_id`,
       connection.id,
     );
     return polling.prepare(
       { connection, credential, repositories },
-      { baseline: true },
+      deferFailures
+        ? {
+            baseline: true,
+            ignoreGate,
+            onFailure: () => {},
+            recordFailure: false,
+          }
+        : { baseline: true, ignoreGate },
     );
   }
 

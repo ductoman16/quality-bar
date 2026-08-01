@@ -118,7 +118,11 @@ export function canonicalGitHubConnectionSchemas() {
       ["lifecycle"],
     ),
     GitHubConnectionReactivationRequest: closedObject(
-      { pem: { minLength: 1, type: "string" } },
+      { pem: { minLength: 1, type: "string", writeOnly: true } },
+      ["pem"],
+    ),
+    GitHubConnectionCredentialRotationRequest: closedObject(
+      { pem: { minLength: 1, type: "string", writeOnly: true } },
       ["pem"],
     ),
     GitHubConnectionVerification: {
@@ -174,7 +178,12 @@ export function canonicalGitHubConnectionSchemas() {
             type: "array",
           },
           trigger: {
-            enum: ["onboarding", "repository_selection", "enablement"],
+            enum: [
+              "onboarding",
+              "repository_selection",
+              "enablement",
+              "rotation",
+            ],
             type: "string",
           },
           verified_at: { minimum: 0, type: "integer" },

@@ -254,7 +254,8 @@ export function createGateDefinitions(metadata) {
         "test/repository-validation.test.js",
         "test/github-app-manifest.test.js",
         "test/github-callback-failure.test.js",
-        "test/github-connection.test.js",
+        // prettier-ignore
+        ...["test/github-connection.test.js", "test/github-connection-rotation.test.js"],
         "test/github-repository-selection.test.js",
         "test/github-automatic-evaluation.test.js",
         "test/github-commit-status.test.js",
@@ -298,7 +299,8 @@ export function createGateDefinitions(metadata) {
         "test/browser-session-authentication-browser-component.test.js",
         "test/browser-session-protection-browser-component.test.js",
         "test/browser-session-operator-browser-component.test.js",
-        "test/github-connection-browser-component.test.js",
+        // prettier-ignore
+        ...["test/github-connection-browser-component.test.js", "test/github-connection-rotation-browser-component.test.js"],
         "test/github-repository-reconciliation-browser-component.test.js",
         "test/github-repository-browser-component.test.js",
         "test/forgejo-connection-browser-component.test.js",
@@ -338,7 +340,8 @@ export function createGateDefinitions(metadata) {
         "test/review-version-reactivation-sqlite-integration.test.js",
         ...["test/review.test.js", "test/analytics-sqlite-integration.test.js"],
         ...repositoryGateTests.sqlite,
-        "test/github-connection-sqlite-integration.test.js",
+        // prettier-ignore
+        ...["test/github-connection-sqlite-integration.test.js", "test/github-connection-rotation-sqlite-integration.test.js", "test/github-connection-rotation-schema-sqlite-integration.test.js"],
         "test/github-connection-verification-sqlite-integration.test.js",
         "test/github-repository-migration-sqlite-integration.test.js",
         "test/github-repository-selection-sqlite-integration.test.js",

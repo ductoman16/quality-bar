@@ -210,6 +210,41 @@ export function canonicalGitHubConnectionPaths(
         security: [{ browser_session: [] }],
       },
     },
+    "/api/v1/github-connections/credential/rotate": {
+      post: {
+        operationId: "rotateGitHubConnectionCredentials",
+        parameters: mutationParameters,
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/GitHubConnectionCredentialRotationRequest",
+              },
+            },
+          },
+          required: true,
+        },
+        responses: {
+          200: {
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/GitHubConnection" },
+              },
+            },
+            description: "GitHub Connection after atomic credential rotation",
+          },
+          400: errorResponse,
+          401: errorResponse,
+          403: errorResponse,
+          404: errorResponse,
+          409: errorResponse,
+          422: errorResponse,
+          500: errorResponse,
+          503: errorResponse,
+        },
+        security: [{ browser_session: [] }],
+      },
+    },
     "/api/v1/github-connections/callback-error": {
       get: {
         operationId: "consumeGitHubCallbackFailure",

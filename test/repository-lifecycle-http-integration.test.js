@@ -252,6 +252,9 @@ test("failed GitHub lifecycle verification returns its exact error and records R
         async completeInstallation() {
           throw new Error("unexpected");
         },
+        async rotate() {
+          throw new Error("unexpected");
+        },
         recordCallbackFailure() {
           throw new Error("unexpected");
         },
