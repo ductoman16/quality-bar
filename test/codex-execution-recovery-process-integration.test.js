@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +12,43 @@ import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+
+/** @param {number} processGroupId @returns {number[]} */
+function readLiveProcessGroupMembers(processGroupId) {
+  const snapshot = execFileSync("ps", ["-eo", "pid=,pgid=,stat="], {
+    encoding: "utf8",
+  });
+  const liveMembers = [];
+  for (const line of snapshot.split("\n")) {
+    const trimmedLine = line.trim();
+    if (trimmedLine.length === 0) {
+      continue;
+    }
+    const match = trimmedLine.match(/^(\d+)\s+(\d+)\s+(\S+)$/);
+    if (!match) {
+      throw new Error("ps returned a malformed process row");
+    }
+    if (Number(match[2]) !== processGroupId || match[3].startsWith("Z")) {
+      continue;
+    }
+    liveMembers.push(Number(match[1]));
+  }
+  return liveMembers;
+}
+
+/** @param {number} processGroupId @returns {Promise<void>} */
+async function assertProcessGroupHasNoLiveMembers(processGroupId) {
+  const deadline = Date.now() + 2_000;
+  let liveMembers;
+  do {
+    liveMembers = readLiveProcessGroupMembers(processGroupId);
+    if (liveMembers.length === 0) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  } while (Date.now() < deadline);
+  assert.deepEqual(liveMembers, []);
+}
 
 test("hard storage failure terminates the supervised Codex process group", async (context) => {
   const directory = mkdtempSync(
@@ -161,13 +198,7 @@ test("hard storage failure force-kills a resistant supervised process group", as
   );
 
   assert.deepEqual(await exited, { code: null, signal: "SIGKILL" });
-  assert.throws(
-    () => process.kill(-(/** @type {number} */ (child.pid)), 0),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      String(error.code) === "ESRCH",
-  );
+  await assertProcessGroupHasNoLiveMembers(/** @type {number} */ (child.pid));
 });
 
 test("restart terminates a tracked surviving process group and retains its partial transcript", async (context) => {

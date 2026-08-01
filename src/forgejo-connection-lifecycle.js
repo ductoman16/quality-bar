@@ -3,6 +3,7 @@ import {
   failedForgejoReactivationVerification,
 } from "./forgejo-connection-reactivation-verification.js";
 import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
+import { retireForgejoPublicationRows } from "./forgejo-publication-retirement.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -100,6 +101,7 @@ export function retireForgejoConnection(durableCore, input, readConnection) {
     );
   }
   durableCore.transaction((/** @type {any} */ transaction) => {
+    retireForgejoPublicationRows(transaction, connection.id);
     const credential = transaction.run(
       "DELETE FROM forgejo_connection_credentials WHERE connection_id = ?",
       connection.id,

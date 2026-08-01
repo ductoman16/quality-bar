@@ -11,10 +11,15 @@ import {
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
 } from "./forgejo-v16-repository.js";
 import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
+import { createForgejoV16Publisher } from "./forgejo-v16-publication.js";
+import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
 import {
   currentIoOperationSignal,
   throwIfIoOperationAborted,
 } from "./io-operation-context.js";
+
+export { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
+export { createForgejoV16Publisher };
 
 const PROFILE = "forgejo-v16";
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
@@ -105,28 +110,6 @@ function routeArray(value, route, field) {
   }
 }
 
-/** @param {string} baseUrl */
-export function normalizedForgejoBaseUrl(baseUrl) {
-  let url;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    fail("forgejo_url_invalid", "Forgejo URL is invalid");
-  }
-  if (
-    !url ||
-    !["http:", "https:"].includes(url.protocol) ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash ||
-    url.username ||
-    url.password
-  ) {
-    fail("forgejo_url_invalid", "Forgejo URL is invalid");
-  }
-  return url.toString().replace(/\/$/, "");
-}
-
 /** @param {string} path @param {Response} response */
 async function responseJson(path, response) {
   if (!response.ok) {
@@ -163,8 +146,10 @@ export function createForgejoV16Verifier({
     normalizeBaseUrl: normalizedForgejoBaseUrl,
     now,
   });
+  const publisher = createForgejoV16Publisher({ fetch: fetchRequest });
   return {
     listPullRequests,
+    ...publisher,
     /** @param {{baseUrl: string, repositoryIds?: number[], token: string}} input */
     async verify({ baseUrl, repositoryIds, token }) {
       if (

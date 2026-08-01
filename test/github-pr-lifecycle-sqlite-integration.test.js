@@ -272,6 +272,16 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
     DROP TABLE github_automatic_evaluation_pull_requests;
     DROP TRIGGER github_automatic_evaluation_matches_evaluation;
     DROP TRIGGER forgejo_automatic_evaluation_matches_evaluation;
+    DROP TRIGGER forgejo_commit_status_admit;
+    DROP TRIGGER forgejo_commit_status_complete;
+    DROP TRIGGER forgejo_feedback_bundle_admit;
+    DROP TRIGGER forgejo_feedback_bundle_identity_update;
+    DROP TRIGGER forgejo_feedback_bundle_publication_update;
+    DROP TRIGGER forgejo_feedback_bundle_delete;
+    DROP TRIGGER forgejo_finding_feedback_insert;
+    DROP TRIGGER forgejo_finding_feedback_identity_update;
+    DROP TRIGGER forgejo_finding_feedback_materialization_update;
+    DROP TRIGGER forgejo_finding_feedback_delete;
     DROP TRIGGER applicability_selection_closed_insert;
     DROP TRIGGER applicability_result_closed_insert;
     DROP TRIGGER waiver_adjudication_evaluation_insert;
@@ -342,7 +352,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 49);
+  assert.equal(migrated.facts.schemaVersion, 50);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

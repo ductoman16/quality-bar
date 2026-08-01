@@ -124,13 +124,13 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
         ariaLive: "polite",
         role: "status",
         textContent:
-          'Aggregate feedback — succeeded — Source source-1 — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — GitHub comment 701 — Published 2026-07-29T12:00:00.000Z',
+          'Aggregate feedback — succeeded — Source source-1 — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — comment 701 — Published 2026-07-29T12:00:00.000Z',
       },
       {
         ariaLive: "polite",
         role: "status",
         textContent:
-          'Finding finding-inline inline feedback — succeeded — Source finding-inline — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — GitHub comment 702 — Published 2026-07-29T12:00:00.000Z',
+          'Finding finding-inline inline feedback — succeeded — Source finding-inline — Target {"repository_id":101} — Attempts 1 — Last attempt 2026-07-28T12:00:00.000Z — comment 702 — Published 2026-07-29T12:00:00.000Z',
       },
       {
         ariaLive: "polite",

@@ -1,11 +1,10 @@
-import { validateIntegrity } from "./durable-integrity.js";
 import { currentGitHubConnectionRotationMigration } from "./github-connection-schema-migration.js";
-
-export const EXPECTED_SCHEMA_TABLES = new Set(
-  "applicability_results,applicability_selections,application_logs,authority_attributions,browser_sessions,codex_execution_pre_start_attempts,codex_execution_queue,codex_execution_settings,criteria,criterion_results,evaluation_file_changes,evaluation_idempotency,evaluation_pre_start_retries,evaluation_results,evaluations,findings,forgejo_automatic_evaluation_pull_requests,forgejo_automatic_evaluations,forgejo_connection_credentials,forgejo_connection_verifications,forgejo_connections,forgejo_repositories,forgejo_repository_polls,github_automatic_evaluation_pull_requests,github_automatic_evaluations,github_commit_statuses,github_connection_credentials,github_connection_verifications,github_connections,github_delivery_attempts,github_delivery_provider_gates,github_feedback_bundles,github_finding_feedback,github_repositories,github_repository_polls,quality_bar_metadata,repositories,repository_credentials,review_assignment_repositories,review_assignments,review_run_pre_start_attempts,review_run_transcript_chunks,review_runs,review_version_criteria,review_versions,reviews,waiver_adjudication_pre_start_attempts,waiver_adjudication_requests,waiver_adjudication_transcript_chunks,waiver_adjudications,waiver_adjudicator_configuration,waiver_batch_idempotency,waiver_decisions,waiver_recovery_idempotency,waiver_requests".split(
-    ",",
-  ),
-);
+import { fail } from "./durable-error.js";
+import { validateResultingSchema } from "./durable-schema-validation.js";
+export {
+  EXPECTED_SCHEMA_TABLES,
+  validateResultingSchema,
+} from "./durable-schema-validation.js";
 
 /**
  * @param {import("node:sqlite").DatabaseSync} database
@@ -118,7 +117,17 @@ export function migrateSchema(
       schemaVersion === CURRENT_SCHEMA_VERSION
         ? `DROP TRIGGER IF EXISTS review_run_queue_reference_delete;
            DROP TRIGGER IF EXISTS waiver_adjudication_queue_reference_delete;
-           DROP TRIGGER IF EXISTS github_finding_feedback_insert;`
+           DROP TRIGGER IF EXISTS github_finding_feedback_insert;
+           DROP TRIGGER IF EXISTS forgejo_commit_status_admit;
+           DROP TRIGGER IF EXISTS forgejo_commit_status_complete;
+           DROP TRIGGER IF EXISTS forgejo_feedback_bundle_admit;
+           DROP TRIGGER IF EXISTS forgejo_feedback_bundle_identity_update;
+           DROP TRIGGER IF EXISTS forgejo_feedback_bundle_publication_update;
+           DROP TRIGGER IF EXISTS forgejo_feedback_bundle_delete;
+           DROP TRIGGER IF EXISTS forgejo_finding_feedback_insert;
+           DROP TRIGGER IF EXISTS forgejo_finding_feedback_identity_update;
+           DROP TRIGGER IF EXISTS forgejo_finding_feedback_materialization_update;
+           DROP TRIGGER IF EXISTS forgejo_finding_feedback_delete;`
         : ""
     }
     ${statements}
@@ -169,7 +178,7 @@ export function migrateSchema(
     }
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${RETENTION_BACKFILL}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${FORGEJO_FEEDBACK_SCHEMA}${RETENTION_BACKFILL}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -177,7 +186,7 @@ export function migrateSchema(
     WHERE key = 'schema_version';
     PRAGMA user_version = ${schemaVersion};
   `);
-    validateResultingSchema(database, schemaVersion);
+    validateResultingSchema(database, schemaVersion, CURRENT_SCHEMA_VERSION);
     database.exec("COMMIT");
     migrationOpen = false;
   } catch (error) {
@@ -208,7 +217,7 @@ export function finalizeSchemaMigration(
   if (
     ![
       29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
-      47, 48,
+      47, 48, 49,
     ].includes(version)
   ) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
@@ -254,7 +263,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 49;
+export const CURRENT_SCHEMA_VERSION = 50;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -278,6 +287,7 @@ import {
 } from "./review-deletion-schema.js";
 import { reviewRunEvidenceMigration } from "./review-run-evidence.js";
 import { GITHUB_FEEDBACK_SCHEMA } from "./github-feedback-schema.js";
+import { FORGEJO_FEEDBACK_SCHEMA } from "./forgejo-feedback-schema.js";
 import {
   WAIVER_BATCH_SCHEMA,
   WAIVER_QUEUE_MIGRATION,
@@ -293,78 +303,6 @@ import {
 } from "./retention-schema.js";
 export { RETENTION_SCHEMA } from "./retention-schema.js";
 export { WAIVER_ADJUDICATION_RECOVERY_MIGRATION } from "./waiver-adjudication-recovery-schema.js";
-
-/**
- * Validate the schema state that is about to become authoritative. This runs
- * while the forward migration transaction is still open so a failed check
- * cannot leave a partially migrated database behind.
- *
- * @param {import("node:sqlite").DatabaseSync} database
- * @param {number} schemaVersion
- */
-export function validateResultingSchema(database, schemaVersion) {
-  const userVersion = database
-    .prepare("PRAGMA user_version")
-    .get()?.user_version;
-  if (userVersion !== schemaVersion) {
-    fail(
-      "schema_invalid",
-      `SQLite schema version ${String(userVersion)} is not ${schemaVersion}`,
-    );
-  }
-
-  let storedVersion;
-  try {
-    storedVersion = database
-      .prepare(
-        "SELECT value FROM quality_bar_metadata WHERE key='schema_version'",
-      )
-      .get()?.value;
-  } catch (error) {
-    fail("schema_invalid", "SQLite schema metadata is invalid", error);
-  }
-  if (storedVersion !== String(schemaVersion)) {
-    fail(
-      "schema_invalid",
-      `SQLite schema metadata is ${storedVersion ?? "missing"}, not ${schemaVersion}`,
-    );
-  }
-
-  if (schemaVersion === CURRENT_SCHEMA_VERSION) {
-    const actualTables = new Set(
-      database
-        .prepare(
-          "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-        )
-        .all()
-        .map((table) => table.name),
-    );
-    const missingTable = [...EXPECTED_SCHEMA_TABLES].find(
-      (table) => !actualTables.has(table),
-    );
-    if (missingTable) {
-      fail("schema_invalid", `SQLite schema table ${missingTable} is missing`);
-    }
-  }
-
-  validateIntegrity(database);
-  let foreignKeyViolation;
-  try {
-    foreignKeyViolation = database.prepare("PRAGMA foreign_key_check").get();
-  } catch (error) {
-    fail(
-      "foreign_key_check_failed",
-      "SQLite foreign-key integrity check could not complete",
-      error,
-    );
-  }
-  if (foreignKeyViolation) {
-    fail(
-      "foreign_key_check_failed",
-      "SQLite foreign-key check found violation",
-    );
-  }
-}
 
 export const REVIEW_RUN_REBUILD_CLEANUP = `
   DROP TRIGGER IF EXISTS review_run_transcript_chunk_immutable_update;
@@ -419,4 +357,3 @@ export const HOST_ATTRIBUTION_MIGRATION = `
   CREATE INDEX authority_attributions_keyset
     ON authority_attributions (occurred_at DESC, id DESC);
 `;
-import { fail } from "./durable-error.js";

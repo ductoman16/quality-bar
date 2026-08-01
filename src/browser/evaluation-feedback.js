@@ -185,16 +185,29 @@ function correction(evaluation) {
       "github_installation_scope_invalid",
       "github_permissions_mismatch",
       "github_principal_mismatch",
+      "forgejo_api_request_failed",
+      "forgejo_api_response_invalid",
+      "forgejo_api_unavailable",
+      "forgejo_connection_credential_undecryptable",
+      "forgejo_connection_retired",
+      "forgejo_credential_undecryptable",
+      "forgejo_publication_capability_unavailable",
     ].includes(unavailable.error.code) ||
     (unavailable.error.code === "github_api_request_failed" &&
       [
         "GitHub API request failed with HTTP 401",
         "GitHub API request failed with HTTP 403",
       ].includes(unavailable.error.detail));
+  const forgejoConnectionOwned = unavailable.error.code.startsWith("forgejo_");
   return connectionOwned && unavailable.connection_identity
     ? {
-        href: "/?view=repositories#github-connection-details",
-        text: "GitHub Connection " + unavailable.connection_identity,
+        href: forgejoConnectionOwned
+          ? "/?view=repositories#forgejo-connection-details"
+          : "/?view=repositories#github-connection-details",
+        text:
+          (forgejoConnectionOwned ? "Forgejo" : "GitHub") +
+          " Connection " +
+          unavailable.connection_identity,
       }
     : {
         href:
@@ -219,7 +232,7 @@ function render(row, feedback) {
         ": " +
         feedback.aggregate.error.detail
       : feedback.aggregate.external_id !== null
-        ? " — GitHub comment " +
+        ? " — comment " +
           feedback.aggregate.external_id +
           " — Published " +
           feedback.aggregate.published_at
@@ -240,7 +253,7 @@ function render(row, feedback) {
       (finding.error
         ? " — Error " + finding.error.code + ": " + finding.error.detail
         : finding.external_id !== null
-          ? " — GitHub comment " +
+          ? " — comment " +
             finding.external_id +
             " — Published " +
             finding.published_at

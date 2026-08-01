@@ -190,7 +190,7 @@ async function renderEvaluation(evaluation) {
         ? " — Next attempt " + evaluation.commit_status.next_attempt_at
         : "") +
       (evaluation.commit_status.external_id !== null
-        ? " — GitHub status " + evaluation.commit_status.external_id
+        ? " — status " + evaluation.commit_status.external_id
         : "") +
       (evaluation.commit_status.error
         ? " — Error " +
