@@ -1,0 +1,113 @@
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { test } from "node:test";
+
+import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+
+test("Forgejo v16 fixture accepts the exact status, aggregate, and inline publication routes", async (context) => {
+  const head = "a".repeat(40);
+  /** @type {any[]} */
+  const requests = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+    });
+    request.on("end", () => {
+      const url = new URL(request.url ?? "/", "http://fixture.invalid");
+      requests.push({
+        authorization: request.headers.authorization,
+        body: body === "" ? null : JSON.parse(body),
+        method: request.method,
+        path: url.pathname,
+      });
+      response.setHeader("content-type", "application/json");
+      if (url.pathname.endsWith(`/statuses/${head}`)) {
+        response.statusCode = 201;
+        response.end(
+          JSON.stringify({
+            context: "Quality Bar",
+            id: 901,
+            sha: head,
+            state: "failure",
+            target_url: "https://quality-bar.example/evaluation-1",
+          }),
+        );
+        return;
+      }
+      if (url.pathname.endsWith("/issues/17/comments")) {
+        response.statusCode = 201;
+        response.end(JSON.stringify({ body: "aggregate", id: 902 }));
+        return;
+      }
+      response.statusCode = 200;
+      response.end(
+        JSON.stringify({ commit_id: head, comments_count: 1, id: 903 }),
+      );
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve(undefined));
+  });
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const verifier = createForgejoV16Verifier();
+  const connection = {
+    base_url: `http://127.0.0.1:${address.port}`,
+    token: "operator-pat",
+  };
+  const repository = { full_name: "operator/repository", id: 101 };
+  assert.equal(
+    await verifier.publishCommitStatus(connection, repository, {
+      description: "Quality Bar Evaluation is blocking",
+      head,
+      state: "failure",
+      targetUrl: "https://quality-bar.example/evaluation-1",
+    }),
+    901,
+  );
+  assert.equal(
+    await verifier.publishAggregateFeedback(
+      connection,
+      repository,
+      17,
+      "aggregate",
+    ),
+    902,
+  );
+  assert.equal(
+    await verifier.publishInlineFeedback(connection, repository, 17, {
+      body: "inline",
+      commit_id: head,
+      line: 2,
+      path: "src/example.js",
+      side: "RIGHT",
+    }),
+    903,
+  );
+  assert.deepEqual(
+    requests.map(({ method, path }) => ({ method, path })),
+    [
+      {
+        method: "POST",
+        path: `/api/v1/repos/operator/repository/statuses/${head}`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/repos/operator/repository/issues/17/comments",
+      },
+      {
+        method: "POST",
+        path: "/api/v1/repos/operator/repository/pulls/17/reviews",
+      },
+    ],
+  );
+  assert.ok(
+    requests.every(
+      ({ authorization }) => authorization === "token operator-pat",
+    ),
+  );
+});

@@ -35,6 +35,7 @@ function applicationServerOptions() {
         throw new Error("unused Forgejo Connection");
       },
       async runPolling() {},
+      async publishWaiting() {},
       requireFreshBaseline() {},
       startPolling() {},
       stopPolling() {},

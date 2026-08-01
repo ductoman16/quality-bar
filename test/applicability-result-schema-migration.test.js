@@ -52,7 +52,7 @@ test("schema v30 adds Applicability Results without inventing historical facts",
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 49);
+  assert.equal(migrated.facts.schemaVersion, 50);
   assert.deepEqual(
     migrated.get("SELECT count(*) AS count FROM applicability_results"),
     { count: 0 },
@@ -132,7 +132,7 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
           },
           get() {
             if (sql.includes("PRAGMA user_version")) {
-              return { user_version: 49 };
+              return { user_version: 50 };
             }
             if (sql.includes("PRAGMA integrity_check")) {
               return { integrity_check: "ok" };
@@ -141,7 +141,7 @@ test("schema v30 migration adds the Applicability authority seal when absent", (
               return undefined;
             }
             return sql.includes("quality_bar_metadata")
-              ? { value: metadataReads++ === 0 ? "30" : "49" }
+              ? { value: metadataReads++ === 0 ? "30" : "50" }
               : undefined;
           },
         };

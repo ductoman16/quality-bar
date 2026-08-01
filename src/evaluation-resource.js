@@ -1,11 +1,10 @@
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import { githubDeliveryResource as delivery } from "./github-delivery-resource.js";
-import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
 import {
-  EVALUATION_PRE_START_RETRY_SELECTION,
   readEvaluationPreStartRetry,
   validEvaluationPreStartRetryRow,
 } from "./evaluation-pre-start-retry-resource.js";
+export { EVALUATION_SELECTION } from "./evaluation-resource-selection.js";
 
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
@@ -103,12 +102,12 @@ export function readEvaluation(row) {
       ) ||
       typeof row.finding_feedback_json !== "string"
     ) {
-      throw new TypeError("Evaluation GitHub feedback row is invalid");
+      throw new TypeError("Evaluation feedback row is invalid");
     }
     try {
       findingFeedback = JSON.parse(row.finding_feedback_json);
     } catch {
-      throw new TypeError("Evaluation GitHub Finding feedback is invalid");
+      throw new TypeError("Evaluation Finding feedback is invalid");
     }
     if (
       !Array.isArray(findingFeedback) ||
@@ -132,7 +131,7 @@ export function readEvaluation(row) {
           ),
       )
     ) {
-      throw new TypeError("Evaluation GitHub Finding feedback is invalid");
+      throw new TypeError("Evaluation Finding feedback is invalid");
     }
   }
   const feedbackError =
@@ -300,104 +299,3 @@ export function readEvaluation(row) {
     repository: { id: row.repository_id, url: row.normalized_url },
   };
 }
-
-export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
-  ${EVALUATION_PRE_START_RETRY_SELECTION}
-  github_commit_statuses.evaluation_id AS commit_status_evaluation_id,
-  github_commit_statuses.head_commit AS commit_status_head_commit,
-  github_commit_statuses.desired_state AS commit_status_state,
-  github_commit_statuses.publication_status AS commit_status_publication_status,
-  github_commit_statuses.published_at AS commit_status_published_at,
-  github_commit_statuses.error_code AS commit_status_error_code, github_commit_statuses.error_detail AS commit_status_error_detail,
-  status_delivery.source_id AS commit_status_source_identity, COALESCE(status_delivery.connection_id, CASE WHEN github_commit_statuses.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS commit_status_connection_identity,
-  status_delivery.target AS commit_status_target,
-  status_delivery.attempt_count AS commit_status_attempt_count,
-  status_delivery.last_attempt_at AS commit_status_last_attempt_at,
-  status_delivery.next_attempt_at AS commit_status_delivery_next_attempt_at,
-  status_delivery.reconciliation_required AS commit_status_reconciliation_required,
-  status_delivery.external_id AS commit_status_external_id,
-  status_delivery.error_code AS commit_status_delivery_error_code, status_delivery.error_detail AS commit_status_delivery_error_detail,
-  delivery_gate.gate_until AS commit_status_provider_gate_until,
-  delivery_gate.error_code AS commit_status_provider_gate_error_code,
-  delivery_gate.error_detail AS commit_status_provider_gate_error_detail,
-  github_feedback_bundles.evaluation_id AS feedback_evaluation_id,
-  github_feedback_bundles.publication_status AS feedback_publication_status,
-  github_feedback_bundles.external_id AS feedback_external_id,
-  github_feedback_bundles.published_at AS feedback_published_at,
-  github_feedback_bundles.error_code AS feedback_error_code, github_feedback_bundles.error_detail AS feedback_error_detail,
-  aggregate_delivery.source_id AS feedback_source_identity, COALESCE(aggregate_delivery.connection_id, CASE WHEN github_feedback_bundles.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS feedback_connection_identity,
-  aggregate_delivery.target AS feedback_target,
-  aggregate_delivery.attempt_count AS feedback_attempt_count,
-  aggregate_delivery.last_attempt_at AS feedback_last_attempt_at,
-  aggregate_delivery.next_attempt_at AS feedback_delivery_next_attempt_at,
-  aggregate_delivery.reconciliation_required AS feedback_reconciliation_required,
-  aggregate_delivery.error_code AS feedback_delivery_error_code, aggregate_delivery.error_detail AS feedback_delivery_error_detail,
-  delivery_gate.gate_until AS feedback_provider_gate_until,
-  delivery_gate.error_code AS feedback_provider_gate_error_code,
-  delivery_gate.error_detail AS feedback_provider_gate_error_detail,
-  CASE WHEN github_feedback_bundles.evaluation_id IS NULL THEN NULL ELSE (
-    SELECT json_group_array(json_object(
-      'finding_id', finding_id,
-      'publication_status', publication_status,
-      'external_id', external_id,
-      'published_at', published_at,
-      'error_code', error_code,
-      'error_detail', error_detail,
-      'source_identity', source_identity, 'target', target,
-      'attempt_count', attempt_count, 'connection_identity', connection_identity,
-      'last_attempt_at', last_attempt_at, 'delivery_next_attempt_at', delivery_next_attempt_at,
-      'reconciliation_required', reconciliation_required, 'delivery_error_code', delivery_error_code,
-      'delivery_error_detail', delivery_error_detail,
-      'provider_gate_until', provider_gate_until,
-      'provider_gate_error_code', provider_gate_error_code,
-      'provider_gate_error_detail', provider_gate_error_detail
-    ))
-    FROM (
-      SELECT github_finding_feedback.finding_id,
-             github_finding_feedback.publication_status,
-             github_finding_feedback.external_id,
-             github_finding_feedback.published_at,
-             github_finding_feedback.error_code,
-             github_finding_feedback.error_detail,
-             inline_delivery.source_id AS source_identity, COALESCE(inline_delivery.connection_id, CASE WHEN github_finding_feedback.error_code = 'github_connection_retired' THEN delivery_repository.connection_id END) AS connection_identity,
-             inline_delivery.target,
-             inline_delivery.attempt_count,
-             inline_delivery.last_attempt_at,
-             inline_delivery.next_attempt_at AS delivery_next_attempt_at,
-             inline_delivery.reconciliation_required,
-             inline_delivery.error_code AS delivery_error_code, inline_delivery.error_detail AS delivery_error_detail,
-             delivery_gate.gate_until AS provider_gate_until,
-             delivery_gate.error_code AS provider_gate_error_code,
-             delivery_gate.error_detail AS provider_gate_error_detail
-      FROM github_finding_feedback
-      LEFT JOIN github_delivery_attempts AS inline_delivery
-        ON inline_delivery.surface = 'inline_feedback'
-       AND inline_delivery.source_id = github_finding_feedback.finding_id
-      WHERE evaluation_id = evaluations.id
-      ORDER BY finding_id
-    )
-  ) END AS finding_feedback_json
-  FROM evaluations
-  JOIN repositories ON repositories.id = evaluations.repository_id
-  LEFT JOIN github_automatic_evaluations
-    ON github_automatic_evaluations.evaluation_id = evaluations.id
-  LEFT JOIN forgejo_automatic_evaluations
-    ON forgejo_automatic_evaluations.evaluation_id = evaluations.id
-  LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id
-  LEFT JOIN github_commit_statuses
-    ON github_commit_statuses.evaluation_id = evaluations.id
-  LEFT JOIN github_delivery_attempts AS status_delivery
-    ON status_delivery.surface = 'commit_status'
-   AND status_delivery.source_id =
-         github_commit_statuses.evaluation_id || ':' ||
-         github_commit_statuses.desired_state
-  LEFT JOIN github_feedback_bundles
-    ON github_feedback_bundles.evaluation_id = evaluations.id
-  LEFT JOIN github_delivery_attempts AS aggregate_delivery
-    ON aggregate_delivery.surface = 'aggregate_feedback'
-   AND aggregate_delivery.source_id =
-         github_feedback_bundles.evaluation_id
-  LEFT JOIN github_repositories AS delivery_repository
-    ON delivery_repository.repository_id = evaluations.repository_id
-  LEFT JOIN github_delivery_provider_gates AS delivery_gate
-    ON delivery_gate.connection_id = delivery_repository.connection_id`;

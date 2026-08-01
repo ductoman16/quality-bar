@@ -244,6 +244,7 @@ export function createApplication({
           getEvaluations: () => evaluations,
           getRepositories: () => repositories,
         }),
+        externalOrigin: installation.externalOrigin,
         masterKey: installation.masterKey,
         now,
         registerSecret,

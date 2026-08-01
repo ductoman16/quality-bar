@@ -10,6 +10,7 @@ export const forgejoGateDefinitions = [
       "test/forgejo-v16-integration.test.js",
       "test/forgejo-automatic-evaluation-fixture-integration.test.js",
       "test/forgejo-polling-fixture-integration.test.js",
+      "test/forgejo-v16-publication-fixture-integration.test.js",
     ],
   },
   {
@@ -33,11 +34,15 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-polling-sqlite-integration.test.js",
   "test/forgejo-repository-reactivation-sqlite-integration.test.js",
   "test/forgejo-repository-enablement-race-sqlite-integration.test.js",
+  "test/forgejo-publication.test.js",
 ];
 
 export const FORGEJO_UNIT_TESTS = [
   "test/forgejo-connection-lifecycle.test.js",
   "test/forgejo-connection.test.js",
+  "test/forgejo-commit-status.test.js",
+  "test/forgejo-feedback.test.js",
+  "test/forgejo-v16-publication.test.js",
   "test/forgejo-automatic-evaluation.test.js",
   "test/forgejo-polling.test.js",
 ];
@@ -45,4 +50,5 @@ export const FORGEJO_UNIT_TESTS = [
 export const FORGEJO_BROWSER_TESTS = [
   "test/forgejo-connection-browser-component.test.js",
   "test/forgejo-automatic-evaluation-browser-component.test.js",
+  "test/forgejo-feedback-browser-component.test.js",
 ];

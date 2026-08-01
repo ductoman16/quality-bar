@@ -17,6 +17,7 @@ import {
 } from "./forgejo-v16.js";
 import { createForgejoPollingRunner } from "./forgejo-polling-runner.js";
 import { prepareForgejoRepositoryEnablement } from "./forgejo-repository-enablement.js";
+import { createForgejoPublicationServices } from "./forgejo-publication-services.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -77,7 +78,7 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "forgejo", pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
+ * @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "forgejo", pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin?: string, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, publishAggregateFeedback?: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number>, publishCommitStatus?: (connection: any, repository: any, status: any) => Promise<number>, publishInlineFeedback?: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
@@ -85,6 +86,7 @@ export function createForgejoConnectionService(
     acquirePullRequestChangeset,
     admitAutomaticEvaluation,
     createId = randomUUID,
+    externalOrigin = "http://quality-bar.example",
     masterKey,
     now = () => Date.now(),
     registerSecret,
@@ -131,6 +133,28 @@ export function createForgejoConnectionService(
     storageReserve,
     timestamp: now,
     verifier,
+  });
+  const missingPublicationCapability = async () => {
+    throw Object.assign(
+      new Error("Forgejo publication capability is unavailable"),
+      { code: "forgejo_publication_capability_unavailable" },
+    );
+  };
+  const publicationVerifier = {
+    ...verifier,
+    publishAggregateFeedback:
+      verifier.publishAggregateFeedback ?? missingPublicationCapability,
+    publishCommitStatus:
+      verifier.publishCommitStatus ?? missingPublicationCapability,
+    publishInlineFeedback:
+      verifier.publishInlineFeedback ?? missingPublicationCapability,
+  };
+  const publications = createForgejoPublicationServices(durableCore, {
+    cipher,
+    externalOrigin,
+    ioPool: storageReserve.ioPool,
+    now,
+    verifier: publicationVerifier,
   });
   return {
     read() {
@@ -334,9 +358,16 @@ export function createForgejoConnectionService(
       removeNeverUsedForgejoConnection(durableCore);
     },
     runPolling: polling.runDue,
+    publishWaiting: publications.publishWaiting,
     requireFreshBaseline: polling.requireFreshBaseline,
-    startPolling: polling.start,
-    stopPolling: polling.destroy,
+    startPolling() {
+      polling.start();
+      publications.start();
+    },
+    stopPolling() {
+      publications.stop();
+      polling.destroy();
+    },
     destroy() {
       this.stopPolling();
       cipher.destroy();
@@ -375,6 +406,9 @@ export function unavailableForgejoConnectionService(error) {
       throw error;
     },
     async runPolling() {
+      throw error;
+    },
+    async publishWaiting() {
       throw error;
     },
     requireFreshBaseline() {

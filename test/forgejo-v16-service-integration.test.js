@@ -16,6 +16,7 @@ import { resolvePushedCommitSelectors } from "../src/repository-git.js";
 import { createRepositoryService } from "../src/repository.js";
 import { createReviewService } from "../src/review.js";
 import { proveForgejoV16AutomaticEvaluation } from "./forgejo-v16-automatic-evaluation-support.js";
+import { assertForgejoPublication } from "./forgejo-v16-publication-service-support.js";
 
 const FORGEJO_IMAGE =
   "codeberg.org/forgejo/forgejo@sha256:3eb3107bc9de4e9d6d9e539044e6c802dc0b7be351919a145540d4cb5422bf07";
@@ -354,6 +355,14 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       repositories,
       service,
       setCurrentTime: (value) => (currentTime = value),
+      token: setupToken,
+    });
+    await assertForgejoPublication({
+      api,
+      baseUrl,
+      core,
+      currentTime,
+      service,
       token: setupToken,
     });
   } catch (error) {
