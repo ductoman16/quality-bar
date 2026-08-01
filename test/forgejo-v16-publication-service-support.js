@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-/** @param {{api: Function, baseUrl: string, core: any, currentTime: number, service: any, token: string}} input */
+/** @param {{api: Function, baseUrl: string, core: any, currentTime: number, service: any, token: string, verifier: any}} input */
 export async function assertForgejoPublication({
   api,
   baseUrl,
@@ -8,6 +8,7 @@ export async function assertForgejoPublication({
   currentTime,
   service,
   token,
+  verifier,
 }) {
   const completedEvaluation = core.get(
     `SELECT evaluations.id, evaluations.head_commit,
@@ -53,5 +54,25 @@ export async function assertForgejoPublication({
   assert.match(
     comments.at(-1).body,
     new RegExp(completedEvaluation.head_commit),
+  );
+  const connection = { base_url: baseUrl, token };
+  const repository = { full_name: "operator/private", id: 1 };
+  assert.equal(
+    await verifier.reconcileCommitStatus(connection, repository, {
+      description: statuses[0].description,
+      head: completedEvaluation.head_commit,
+      state: statuses[0].status,
+      targetUrl: statuses[0].target_url,
+    }),
+    statuses[0].id,
+  );
+  assert.equal(
+    await verifier.reconcileAggregateFeedback(
+      connection,
+      repository,
+      completedEvaluation.pull_request_number,
+      comments.at(-1).body,
+    ),
+    comments.at(-1).id,
   );
 }

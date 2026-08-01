@@ -111,6 +111,8 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/github-commit-status.test.js",
   "test/forgejo-commit-status.test.js",
   "test/forgejo-feedback.test.js",
+  "test/forgejo-delivery.test.js",
+  "test/forgejo-delivery-sqlite-integration.test.js",
   "test/github-delivery.test.js",
   "test/github-delivery-concurrency.test.js",
   "test/github-delivery-schema-migration.test.js",

@@ -15,34 +15,7 @@ import {
   assertForgejoPartialFailure,
   assertForgejoVerificationRows,
 } from "./forgejo-v16-integration-support.js";
-
-function forgejoOpenApi() {
-  return {
-    paths: Object.fromEntries([
-      ["/repos/search", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}/branches", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}/pulls", { get: { responses: { 200: {} } } }],
-      [
-        "/repos/{owner}/{repo}/issues/comments",
-        { get: { responses: { 200: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/statuses/{sha}",
-        { post: { responses: { 201: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/issues/{index}/comments",
-        { post: { responses: { 201: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/pulls/{index}/reviews",
-        { post: { responses: { 200: {} } } },
-      ],
-    ]),
-    swagger: "2.0",
-  };
-}
+import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
 
 test("Forgejo v16 verification proves the fixed profile without provider writes", async (context) => {
   /** @type {{method: string | undefined, path: string}[]} */
@@ -66,7 +39,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       return send({ version: "16.0.4" });
     }
     if (url.pathname === "/swagger.v1.json") {
-      return send(forgejoOpenApi());
+      return send(forgejoV16OpenApi());
     }
     if (url.pathname === "/api/v1/repos/search") {
       return send({
@@ -377,7 +350,7 @@ test("Forgejo v16 fixture exhausts pagination before selecting a later Repositor
         path === "/api/v1/version"
           ? { version: "16.1.0" }
           : path === "/swagger.v1.json"
-            ? forgejoOpenApi()
+            ? forgejoV16OpenApi()
             : path === "/api/v1/repos/search?page=1&limit=50&private=true"
               ? {
                   data: Array.from({ length: 50 }, (value, index) => {

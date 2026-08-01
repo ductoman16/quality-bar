@@ -23,16 +23,21 @@ function evaluationTargetIdentity(value) {
   }
 }
 
-/** @param {string} serialized @param {any} fallback @param {number} repositoryId */
-export function readStatusTarget(serialized, fallback, repositoryId) {
+/** @param {string} serialized @param {any} fallback @param {number} repositoryId @param {"Forgejo" | "GitHub"} [provider] */
+export function readStatusTarget(
+  serialized,
+  fallback,
+  repositoryId,
+  provider = "GitHub",
+) {
   let target;
   try {
     target = JSON.parse(serialized);
   } catch {
-    throw new TypeError("GitHub commit status delivery target is invalid");
+    throw new TypeError(`${provider} commit status delivery target is invalid`);
   }
   if (!target || typeof target !== "object" || Array.isArray(target)) {
-    throw new TypeError("GitHub commit status delivery target is invalid");
+    throw new TypeError(`${provider} commit status delivery target is invalid`);
   }
   const keys = Object.keys(target).sort().join(",");
   if (
@@ -57,7 +62,7 @@ export function readStatusTarget(serialized, fallback, repositoryId) {
     evaluationTargetIdentity(target.target_url) !==
       evaluationTargetIdentity(fallback.targetUrl)
   ) {
-    throw new TypeError("GitHub commit status delivery target is invalid");
+    throw new TypeError(`${provider} commit status delivery target is invalid`);
   }
   return {
     description: target.description,

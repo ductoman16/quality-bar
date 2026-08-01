@@ -48,6 +48,15 @@ test("Forgejo publishes one aggregate, the stable status, and only valid frozen 
         inlines.push(parameters);
         return 903;
       },
+      async reconcileAggregateFeedback() {
+        throw new Error("successful aggregate must not reconcile");
+      },
+      async reconcileCommitStatus() {
+        throw new Error("successful status must not reconcile");
+      },
+      async reconcileInlineFeedback() {
+        throw new Error("successful inline must not reconcile");
+      },
     },
   });
 
@@ -222,7 +231,7 @@ test("Forgejo retirement makes waiting publication surfaces unavailable without 
   );
 });
 
-test("Forgejo keeps provider failures exact and does not retry an unavailable surface", async (context) => {
+test("Forgejo stops definitive failures while transient sibling surfaces retain their persisted retry", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-feedback-"),
   );
@@ -241,8 +250,8 @@ test("Forgejo keeps provider failures exact and does not retry an unavailable su
       async publishCommitStatus() {
         statusCalls += 1;
         throw Object.assign(
-          new Error("Forgejo publication route failed with HTTP 503"),
-          { code: "forgejo_api_request_failed" },
+          new Error("Forgejo publication route failed with HTTP 403"),
+          { code: "forgejo_api_request_failed", responseStatus: 403 },
         );
       },
       async publishAggregateFeedback() {
@@ -258,6 +267,15 @@ test("Forgejo keeps provider failures exact and does not retry an unavailable su
           code: "forgejo_api_unavailable",
         });
       },
+      async reconcileAggregateFeedback() {
+        return null;
+      },
+      async reconcileCommitStatus() {
+        return null;
+      },
+      async reconcileInlineFeedback() {
+        return null;
+      },
     },
   });
 
@@ -271,7 +289,7 @@ test("Forgejo keeps provider failures exact and does not retry an unavailable su
     ),
     {
       error_code: "forgejo_api_request_failed",
-      error_detail: "Forgejo publication route failed with HTTP 503",
+      error_detail: "Forgejo publication route failed with HTTP 403",
       publication_status: "unavailable",
     },
   );
@@ -281,9 +299,9 @@ test("Forgejo keeps provider failures exact and does not retry an unavailable su
        FROM forgejo_feedback_bundles`,
     ),
     {
-      error_code: "forgejo_api_unavailable",
-      error_detail: "Forgejo publication route is unavailable",
-      publication_status: "unavailable",
+      error_code: null,
+      error_detail: null,
+      publication_status: "waiting",
     },
   );
   assert.deepEqual(
@@ -293,9 +311,9 @@ test("Forgejo keeps provider failures exact and does not retry an unavailable su
        WHERE finding_id = 'finding-inline'`,
     ),
     {
-      error_code: "forgejo_api_unavailable",
-      error_detail: "Forgejo inline route is unavailable",
-      publication_status: "unavailable",
+      error_code: null,
+      error_detail: null,
+      publication_status: "waiting",
     },
   );
   assert.equal(statusCalls, 1);

@@ -2,28 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
-
-function forgejoOpenApi() {
-  const operations = [
-    ["/repos/search", "get", "200"],
-    ["/repos/{owner}/{repo}", "get", "200"],
-    ["/repos/{owner}/{repo}/branches", "get", "200"],
-    ["/repos/{owner}/{repo}/pulls", "get", "200"],
-    ["/repos/{owner}/{repo}/issues/comments", "get", "200"],
-    ["/repos/{owner}/{repo}/statuses/{sha}", "post", "201"],
-    ["/repos/{owner}/{repo}/issues/{index}/comments", "post", "201"],
-    ["/repos/{owner}/{repo}/pulls/{index}/reviews", "post", "200"],
-  ];
-  return {
-    paths: Object.fromEntries(
-      operations.map(([path, method, status]) => [
-        path,
-        { [method]: { responses: { [status]: {} } } },
-      ]),
-    ),
-    swagger: "2.0",
-  };
-}
+import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
 
 test("Forgejo v16 fixture rejects redirects and reports transport failures with owned codes", async () => {
   const verifier = createForgejoV16Verifier({
@@ -77,7 +56,7 @@ test("Forgejo v16 fixture rejects ambiguous principal enumeration", async () => 
         path === "/api/v1/version"
           ? { version: "16.0.4" }
           : path === "/swagger.v1.json"
-            ? forgejoOpenApi()
+            ? forgejoV16OpenApi()
             : {
                 data: [7, 8].map((id) => ({
                   clone_url: `https://forgejo.example/operator/repository-${id}.git`,
@@ -133,7 +112,7 @@ test("Forgejo v16 fixture preserves exact evidence when pagination fails", async
         url.pathname === "/api/v1/version"
           ? { version: "16.0.4" }
           : url.pathname === "/swagger.v1.json"
-            ? forgejoOpenApi()
+            ? forgejoV16OpenApi()
             : { data: repositories, ok: true };
       return new Response(JSON.stringify(body), {
         headers: { "content-type": "application/json" },

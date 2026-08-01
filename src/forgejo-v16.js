@@ -29,8 +29,12 @@ const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
   ["/repos/{owner}/{repo}/pulls", "get", "200"],
   ["/repos/{owner}/{repo}/issues/comments", "get", "200"],
   ["/repos/{owner}/{repo}/statuses/{sha}", "post", "201"],
+  ["/repos/{owner}/{repo}/statuses/{sha}", "get", "200"],
   ["/repos/{owner}/{repo}/issues/{index}/comments", "post", "201"],
+  ["/repos/{owner}/{repo}/issues/{index}/comments", "get", "200"],
   ["/repos/{owner}/{repo}/pulls/{index}/reviews", "post", "200"],
+  ["/repos/{owner}/{repo}/pulls/{index}/reviews", "get", "200"],
+  ["/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/comments", "get", "200"],
 ]);
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */

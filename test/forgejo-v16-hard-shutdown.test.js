@@ -3,34 +3,7 @@ import { test } from "node:test";
 
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 import { runIoOperation } from "../src/io-operation-context.js";
-
-function forgejoOpenApi() {
-  return {
-    paths: Object.fromEntries([
-      ["/repos/search", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}/branches", { get: { responses: { 200: {} } } }],
-      ["/repos/{owner}/{repo}/pulls", { get: { responses: { 200: {} } } }],
-      [
-        "/repos/{owner}/{repo}/issues/comments",
-        { get: { responses: { 200: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/statuses/{sha}",
-        { post: { responses: { 201: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/issues/{index}/comments",
-        { post: { responses: { 201: {} } } },
-      ],
-      [
-        "/repos/{owner}/{repo}/pulls/{index}/reviews",
-        { post: { responses: { 200: {} } } },
-      ],
-    ]),
-    swagger: "2.0",
-  };
-}
+import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
 
 /** @param {string} path */
 function forgejoVerificationBody(path) {
@@ -38,7 +11,7 @@ function forgejoVerificationBody(path) {
     return { version: "16.0.4" };
   }
   if (path === "/swagger.v1.json") {
-    return forgejoOpenApi();
+    return forgejoV16OpenApi();
   }
   if (path === "/api/v1/repos/search?page=1&limit=50&private=true") {
     return {

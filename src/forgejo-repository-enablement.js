@@ -3,6 +3,7 @@ import {
   failedForgejoReactivationVerification,
 } from "./forgejo-connection-reactivation-verification.js";
 import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
+import { resumeForgejoDeliveries as resumeDelivery } from "./forgejo-delivery-recovery.js";
 import {
   codedForgejoRepositoryFailure,
   commitForgejoRepositoryFailure,
@@ -20,15 +21,7 @@ function fail(code, message) {
   throw Object.assign(new Error(message), { code });
 }
 
-/**
- * @param {{all: Function, transaction: Function}} durableCore
- * @param {{decrypt: (id: string, encrypted: string) => string}} cipher
- * @param {{verify: (input: any) => Promise<any>}} verifier
- * @param {{commitBaseline: Function, commitFailure: Function, prepareBaseline: Function}} polling
- * @param {() => string | undefined} createId
- * @param {() => number} now
- * @param {number} forgeRepositoryId
- */
+/** @param {{all: Function, transaction: Function}} durableCore @param {{decrypt: (id: string, encrypted: string) => string}} cipher @param {{verify: (input: any) => Promise<any>}} verifier @param {{commitBaseline: Function, commitFailure: Function, prepareBaseline: Function}} polling @param {() => string | undefined} createId @param {() => number} now @param {number} forgeRepositoryId */
 export async function prepareForgejoRepositoryEnablement(
   durableCore,
   cipher,
@@ -272,6 +265,7 @@ export async function prepareForgejoRepositoryEnablement(
               );
             }
           }
+          resumeDelivery(transaction, connection.id, verifiedAt, repositoryIds);
           if (
             !polling.commitBaseline(
               transaction,

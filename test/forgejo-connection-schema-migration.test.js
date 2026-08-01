@@ -31,7 +31,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 50);
+  assert.equal(migrated.facts.schemaVersion, 51);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -153,7 +153,7 @@ test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (
   canonicalV20.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 50);
+  assert.equal(migrated.facts.schemaVersion, 51);
   migrated.run(
     `INSERT INTO authority_attributions
       (id, channel, action, outcome, error_code, occurred_at)
@@ -302,6 +302,12 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
     DROP TRIGGER forgejo_finding_feedback_identity_update;
     DROP TRIGGER forgejo_finding_feedback_materialization_update;
     DROP TRIGGER forgejo_finding_feedback_delete;
+    DROP TRIGGER forgejo_commit_status_delivery_admit;
+    DROP TRIGGER forgejo_commit_status_delivery_update_admit;
+    DROP TRIGGER forgejo_feedback_bundle_delivery_admit;
+    DROP TRIGGER forgejo_finding_feedback_delivery_admit;
+    DROP TABLE forgejo_delivery_provider_gates;
+    DROP TABLE forgejo_delivery_attempts;
     DROP TABLE forgejo_repositories;
     ALTER TABLE forgejo_connection_verifications
       RENAME TO forgejo_connection_verifications_v18;
@@ -348,7 +354,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 50);
+  assert.equal(migrated.facts.schemaVersion, 51);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",

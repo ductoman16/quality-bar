@@ -3,6 +3,7 @@ import {
   throwIfIoOperationAborted,
 } from "./io-operation-context.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
+import { createForgejoV16Reconciler } from "./forgejo-v16-reconciliation.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
 function fail(code, message, cause) {
@@ -96,11 +97,42 @@ async function forgejoPublicationRequest(
   }
   signal?.throwIfAborted();
   if (response.status !== expectedStatus) {
+    const retryAfter = response.headers.get("retry-after");
+    const rateReset = response.headers.get("x-ratelimit-reset");
+    const now = Date.now();
+    const retryAfterAt =
+      retryAfter !== null && /^\d+$/.test(retryAfter)
+        ? now + Number(retryAfter) * 1_000
+        : retryAfter === null
+          ? null
+          : Date.parse(retryAfter);
+    const rateResetAt =
+      rateReset !== null && /^\d+$/.test(rateReset)
+        ? Number(rateReset) * 1_000
+        : null;
+    const nextAttemptAt = [retryAfterAt, rateResetAt]
+      .filter(
+        (value) =>
+          Number.isSafeInteger(value) && /** @type {number} */ (value) > now,
+      )
+      .sort(
+        (left, right) =>
+          /** @type {number} */ (left) - /** @type {number} */ (right),
+      )[0];
     throw Object.assign(
       new Error(
         `Forgejo publication route failed with HTTP ${response.status}: ${path}`,
       ),
-      { code: "forgejo_api_request_failed", responseStatus: response.status },
+      {
+        code:
+          response.status === 429
+            ? "forgejo_api_rate_limited"
+            : response.status >= 500
+              ? "forgejo_api_transient_failure"
+              : "forgejo_api_request_failed",
+        ...(nextAttemptAt === undefined ? {} : { nextAttemptAt }),
+        responseStatus: response.status,
+      },
     );
   }
   try {
@@ -131,6 +163,7 @@ export function createForgejoV16Publisher({
   }
 
   return {
+    ...createForgejoV16Reconciler({ fetch: fetchRequest }),
     /**
      * @param {{base_url: string, token: string}} connection
      * @param {{full_name: string, id: number}} repository

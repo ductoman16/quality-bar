@@ -139,7 +139,7 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
     ),
     (error) =>
       error instanceof Error &&
-      /** @type {any} */ (error).code === "forgejo_api_request_failed" &&
+      /** @type {any} */ (error).code === "forgejo_api_transient_failure" &&
       error.message ===
         "Forgejo publication route failed with HTTP 503: /api/v1/repos/operator/repository/issues/17/comments",
   );
@@ -200,5 +200,28 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
       },
     ),
     { code: "forgejo_publication_request_invalid" },
+  );
+});
+
+test("Forgejo reconciliation preserves provider rate-limit delay", async () => {
+  const now = Date.now();
+  const publisher = createForgejoV16Publisher({
+    fetch: async () =>
+      new Response("rate limited", {
+        headers: { "retry-after": "120" },
+        status: 429,
+      }),
+  });
+  await assert.rejects(
+    publisher.reconcileAggregateFeedback(
+      { base_url: "https://forgejo.example", token: "operator-pat" },
+      { full_name: "operator/repository", id: 101 },
+      17,
+      "aggregate",
+    ),
+    (error) =>
+      error instanceof Error &&
+      /** @type {any} */ (error).code === "forgejo_api_rate_limited" &&
+      /** @type {any} */ (error).nextAttemptAt >= now + 120_000,
   );
 });

@@ -23,6 +23,55 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
         path: url.pathname,
       });
       response.setHeader("content-type", "application/json");
+      if (
+        request.method === "GET" &&
+        url.pathname.endsWith(`/statuses/${head}`)
+      ) {
+        response.end(
+          JSON.stringify([
+            {
+              context: "Quality Bar",
+              description: "Quality Bar Evaluation is blocking",
+              id: 901,
+              status: "failure",
+              target_url: "https://quality-bar.example/evaluation-1",
+            },
+          ]),
+        );
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        url.pathname.endsWith("/issues/17/comments")
+      ) {
+        response.end(JSON.stringify([{ body: "aggregate", id: 902 }]));
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        url.pathname.endsWith("/pulls/17/reviews")
+      ) {
+        response.end(JSON.stringify([{ id: 903 }]));
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        url.pathname.endsWith("/reviews/903/comments")
+      ) {
+        response.end(
+          JSON.stringify([
+            {
+              body: "inline",
+              commit_id: head,
+              id: 904,
+              original_position: 0,
+              path: "src/example.js",
+              position: 2,
+            },
+          ]),
+        );
+        return;
+      }
       if (url.pathname.endsWith(`/statuses/${head}`)) {
         response.statusCode = 201;
         response.end(
@@ -88,6 +137,34 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
     }),
     903,
   );
+  assert.equal(
+    await verifier.reconcileCommitStatus(connection, repository, {
+      description: "Quality Bar Evaluation is blocking",
+      head,
+      state: "failure",
+      targetUrl: "https://quality-bar.example/evaluation-1",
+    }),
+    901,
+  );
+  assert.equal(
+    await verifier.reconcileAggregateFeedback(
+      connection,
+      repository,
+      17,
+      "aggregate",
+    ),
+    902,
+  );
+  assert.equal(
+    await verifier.reconcileInlineFeedback(connection, repository, 17, {
+      body: "inline",
+      commit_id: head,
+      line: 2,
+      path: "src/example.js",
+      side: "RIGHT",
+    }),
+    903,
+  );
   assert.deepEqual(
     requests.map(({ method, path }) => ({ method, path })),
     [
@@ -102,6 +179,22 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
       {
         method: "POST",
         path: "/api/v1/repos/operator/repository/pulls/17/reviews",
+      },
+      {
+        method: "GET",
+        path: `/api/v1/repos/operator/repository/statuses/${head}`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/repos/operator/repository/issues/17/comments",
+      },
+      {
+        method: "GET",
+        path: "/api/v1/repos/operator/repository/pulls/17/reviews",
+      },
+      {
+        method: "GET",
+        path: "/api/v1/repos/operator/repository/pulls/17/reviews/903/comments",
       },
     ],
   );
