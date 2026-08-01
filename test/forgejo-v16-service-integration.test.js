@@ -11,7 +11,9 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { prepareForgejoRepositoryEnablement } from "../src/repository-provider-verification.js";
 import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { createRepositoryService } from "../src/repository.js";
 import { createReviewService } from "../src/review.js";
 import { proveForgejoV16AutomaticEvaluation } from "./forgejo-v16-automatic-evaluation-support.js";
 
@@ -42,8 +44,9 @@ async function reservePort() {
   return address.port;
 }
 
-/** @param {string} baseUrl @param {string} route @param {string} authorization @param {unknown} [body] */
-async function api(baseUrl, route, authorization, body) {
+/** @param {string} baseUrl @param {string} route @param {string} authorization @param {unknown} [body] @param {string} [method] */
+async function api(baseUrl, route, authorization, body, method) {
+  const requestMethod = method ?? (body === undefined ? "GET" : "POST");
   const response = await fetch(`${baseUrl}${route}`, {
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: {
@@ -51,7 +54,7 @@ async function api(baseUrl, route, authorization, body) {
       authorization,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
-    method: body === undefined ? "GET" : "POST",
+    method: requestMethod,
     redirect: "error",
   });
   if (!response.ok) {
@@ -60,7 +63,8 @@ async function api(baseUrl, route, authorization, body) {
       `Forgejo fixture setup failed: ${route} (${response.status}): ${detail}`,
     );
   }
-  return response.json();
+  const responseBody = await response.text();
+  return responseBody === "" ? null : JSON.parse(responseBody);
 }
 
 test("pinned Forgejo v16 service verifies retirement and reactivation", async () => {
@@ -74,6 +78,8 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
   let core;
   /** @type {any} */
   let evaluations;
+  /** @type {any} */
+  let repositories;
   let primaryFailure;
   /** @type {unknown[]} */
   const cleanupFailures = [];
@@ -254,6 +260,12 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       now: () => currentTime,
       verifier: createForgejoV16Verifier(),
     });
+    repositories = createRepositoryService(core, {
+      masterKey: Buffer.alloc(32, 7),
+      now: () => currentTime,
+      verifyForgeRepository: (forgeRepositoryId) =>
+        prepareForgejoRepositoryEnablement(service, forgeRepositoryId),
+    });
     const connected = await service.connect({
       base_url: baseUrl,
       repository_ids: [repository.id],
@@ -329,11 +341,17 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     );
 
     core.run("UPDATE repositories SET lifecycle = 'enabled'");
+    const localRepositoryId = core.get(
+      "SELECT id FROM repositories LIMIT 1",
+    )?.id;
+    assert.equal(typeof localRepositoryId, "string");
     await proveForgejoV16AutomaticEvaluation({
       api,
       baseUrl,
       core,
       repository,
+      repositoryId: /** @type {string} */ (localRepositoryId),
+      repositories,
       service,
       setCurrentTime: (value) => (currentTime = value),
       token: setupToken,
@@ -348,6 +366,11 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     }
     try {
       evaluations?.destroy();
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    try {
+      repositories?.destroy();
     } catch (error) {
       cleanupFailures.push(error);
     }

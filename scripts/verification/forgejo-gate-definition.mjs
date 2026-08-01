@@ -24,6 +24,7 @@ export const forgejoGateDefinitions = [
 export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-automatic-evaluation-failure-sqlite-integration.test.js",
   "test/forgejo-automatic-evaluation-sqlite-integration.test.js",
+  "test/forgejo-automatic-evaluation-supersession-sqlite-integration.test.js",
   "test/forgejo-connection-rotation-sqlite-integration.test.js",
   "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
   "test/forgejo-connection-schema-migration.test.js",

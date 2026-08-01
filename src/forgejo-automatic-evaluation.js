@@ -67,7 +67,11 @@ export function newlyEligibleForgejoPullRequests(
     }
     const observed = previousByNumber.get(pullRequest.number);
     return (
-      observed === undefined || (observed.state === "open" && observed.draft)
+      observed === undefined ||
+      observed.state !== "open" ||
+      observed.draft ||
+      observed.merge_base !== pullRequest.merge_base ||
+      observed.head.sha !== pullRequest.head.sha
     );
   });
 }

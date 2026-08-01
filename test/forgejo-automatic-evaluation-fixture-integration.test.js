@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { acquireForgejoAutomaticEvaluations } from "../src/forgejo-automatic-evaluation-admission.js";
+import { newlyEligibleForgejoPullRequests } from "../src/forgejo-automatic-evaluation.js";
 import { ApplicationShutdownError } from "../src/application-shutdown.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 import { StorageReserveError } from "../src/storage-reserve.js";
 
-/** @param {boolean} draft */
-function pullRequest(draft, number = 17) {
+/** @param {boolean} draft @param {number} [number] @param {object} [overrides] */
+function pullRequest(draft, number = 17, overrides = {}) {
   return {
     base: { sha: "a".repeat(40) },
     draft,
@@ -17,6 +18,7 @@ function pullRequest(draft, number = 17) {
     merged_at: null,
     number,
     state: "open",
+    ...overrides,
   };
 }
 
@@ -65,6 +67,41 @@ test("Forgejo v16 fixture turns a newly ready provider snapshot into acquisition
       repositoryId: "repository-1",
     },
   ]);
+});
+
+test("Forgejo v16 fixture preserves reopen and pair changes while ignoring target-tip-only changes", async () => {
+  let response = [
+    pullRequest(false, 17, { state: "closed" }),
+    pullRequest(false, 19),
+  ];
+  const verifier = createForgejoV16Verifier({
+    async fetch(url) {
+      return Response.json(
+        new URL(url).searchParams.get("page") === "1" ? response : [],
+      );
+    },
+  });
+  const repository = { full_name: "operator/private", id: 101 };
+  const connection = { baseUrl: "https://forgejo.example", token: "pat" };
+  const previous = await verifier.listPullRequests(connection, repository);
+
+  response = [
+    pullRequest(false, 17, { head: { sha: "d".repeat(40) } }),
+    pullRequest(false, 19, { base: { sha: "e".repeat(40) } }),
+    pullRequest(false, 20, { merge_base: "f".repeat(40) }),
+  ];
+  const current = await verifier.listPullRequests(connection, repository);
+
+  assert.deepEqual(
+    newlyEligibleForgejoPullRequests(previous, current).map(
+      ({ number }) => number,
+    ),
+    [17, 20],
+  );
+  assert.equal(current[0].merge_base, "c".repeat(40));
+  assert.equal(current[0].head.sha, "d".repeat(40));
+  assert.equal(current[1].merge_base, "c".repeat(40));
+  assert.equal(current[1].base.sha, "e".repeat(40));
 });
 
 test("a Forgejo acquisition failure does not skip a later eligible Changeset", async () => {

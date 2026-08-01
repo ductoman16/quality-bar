@@ -1,0 +1,13 @@
+{
+  "ticket": 89,
+  "acceptance_scenarios": ["ACC-04", "ACC-08"],
+  "proof": {
+    "unit": "test/forgejo-automatic-evaluation.test.js",
+    "browser_component": "test/forgejo-automatic-evaluation-browser-component.test.js",
+    "forgejo_fixture_integration": "test/forgejo-automatic-evaluation-fixture-integration.test.js",
+    "forgejo_v16_integration": "test/forgejo-v16-service-integration.test.js",
+    "sqlite_integration": "test/forgejo-automatic-evaluation-supersession-sqlite-integration.test.js"
+  },
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}
