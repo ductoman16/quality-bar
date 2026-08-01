@@ -49,7 +49,7 @@ const GITHUB_CONNECTION_VERIFICATION_SCHEMA = `
     id TEXT PRIMARY KEY,
     connection_id TEXT NOT NULL REFERENCES github_connections(id),
     trigger TEXT NOT NULL CHECK (
-      trigger IN ('onboarding', 'repository_selection', 'enablement')
+      trigger IN ('onboarding', 'repository_selection', 'enablement', 'rotation')
     ),
     outcome TEXT NOT NULL DEFAULT 'success'
       CHECK (outcome IN ('success', 'error')),
@@ -230,6 +230,29 @@ export const GITHUB_CONNECTION_HEALTH_MIGRATION = `
   FROM github_connection_verifications_v13
   ORDER BY rowid;
   DROP TABLE github_connection_verifications_v13;
+`;
+
+export const GITHUB_CONNECTION_ROTATION_MIGRATION = `
+  DROP TRIGGER IF EXISTS github_connection_verification_checks_valid;
+  DROP TRIGGER IF EXISTS github_connection_verification_immutable_update;
+  DROP TRIGGER IF EXISTS github_connection_verification_immutable_delete;
+  ALTER TABLE github_connection_verifications
+    RENAME TO github_connection_verifications_v48;
+  ${GITHUB_CONNECTION_VERIFICATION_SCHEMA}
+  INSERT INTO github_connection_verifications (
+    id, connection_id, trigger, outcome, error_code, error_message,
+    error_repository_id, api_profile, principal_id, principal_login,
+    permissions, capabilities, affected_repository_ids, repository_checks,
+    repositories, verified_at
+  )
+  SELECT
+    id, connection_id, trigger, outcome, error_code, error_message,
+    error_repository_id, api_profile, principal_id, principal_login,
+    permissions, capabilities, affected_repository_ids, repository_checks,
+    repositories, verified_at
+  FROM github_connection_verifications_v48
+  ORDER BY rowid;
+  DROP TABLE github_connection_verifications_v48;
 `;
 
 export const GITHUB_CONNECTION_SCHEMA = `

@@ -1,4 +1,5 @@
 import { validateIntegrity } from "./durable-integrity.js";
+import { currentGitHubConnectionRotationMigration } from "./github-connection-schema-migration.js";
 
 export const EXPECTED_SCHEMA_TABLES = new Set(
   "applicability_results,applicability_selections,application_logs,authority_attributions,browser_sessions,codex_execution_pre_start_attempts,codex_execution_queue,codex_execution_settings,criteria,criterion_results,evaluation_file_changes,evaluation_idempotency,evaluation_pre_start_retries,evaluation_results,evaluations,findings,forgejo_connection_credentials,forgejo_connection_verifications,forgejo_connections,forgejo_repositories,forgejo_repository_polls,github_automatic_evaluation_pull_requests,github_automatic_evaluations,github_commit_statuses,github_connection_credentials,github_connection_verifications,github_connections,github_delivery_attempts,github_delivery_provider_gates,github_feedback_bundles,github_finding_feedback,github_repositories,github_repository_polls,quality_bar_metadata,repositories,repository_credentials,review_assignment_repositories,review_assignments,review_run_pre_start_attempts,review_run_transcript_chunks,review_runs,review_version_criteria,review_versions,reviews,waiver_adjudication_pre_start_attempts,waiver_adjudication_requests,waiver_adjudication_transcript_chunks,waiver_adjudications,waiver_adjudicator_configuration,waiver_batch_idempotency,waiver_decisions,waiver_recovery_idempotency,waiver_requests".split(
@@ -88,6 +89,16 @@ export function migrateSchema(
     typeof queueSchema === "string" &&
     !queueColumns.has("process_group_id") &&
     !statements.includes("ADD COLUMN process_group_id");
+  const githubRotationMigration = currentGitHubConnectionRotationMigration(
+    database,
+    schemaVersion,
+    CURRENT_SCHEMA_VERSION,
+  );
+  // prettier-ignore
+  const rotationPragmas = githubRotationMigration ? [database.prepare("PRAGMA foreign_keys").get()?.foreign_keys, database.prepare("PRAGMA legacy_alter_table").get()?.legacy_alter_table] : [];
+  if (githubRotationMigration) {
+    database.exec("PRAGMA foreign_keys = OFF; PRAGMA legacy_alter_table = ON;");
+  }
   database.function(
     "quality_bar_legacy_file_change_modified",
     { deterministic: true },
@@ -111,6 +122,7 @@ export function migrateSchema(
         : ""
     }
     ${statements}
+    ${githubRotationMigration}
     ${
       queueNeedsClaimColumns
         ? `ALTER TABLE codex_execution_queue
@@ -182,6 +194,11 @@ export function migrateSchema(
       }
     }
     throw error;
+  } finally {
+    if (githubRotationMigration) {
+      // prettier-ignore
+      database.exec(`PRAGMA foreign_keys = ${rotationPragmas[0] ? "ON" : "OFF"}; PRAGMA legacy_alter_table = ${rotationPragmas[1] ? "ON" : "OFF"};`);
+    }
   }
 }
 export function finalizeSchemaMigration(

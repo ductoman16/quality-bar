@@ -7,6 +7,7 @@ import {
   GITHUB_REPOSITORY_SCHEMA,
 } from "./github-connection-schema.js";
 import * as schemaMigration from "./durable-schema-migration.js";
+import { migrateGitHubConnectionRotationIfNeeded } from "./github-connection-schema-migration.js";
 import {
   GITHUB_POLLING_MIGRATION,
   GITHUB_POLLING_SCHEMA,
@@ -90,13 +91,13 @@ const REVIEW_SCHEMA = `
     WHEN (SELECT sealed_at FROM review_versions WHERE id = NEW.review_version_id) IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'review_version_criterion_immutable'); END;
 `;
-
 export function initializeOrValidateSchema(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
 ) {
-  const version = /** @type {{ user_version: number }} */ (
-    database.prepare("PRAGMA user_version").get()
-  ).user_version;
+  // prettier-ignore
+  const version = /** @type {{ user_version: number }} */ (database.prepare("PRAGMA user_version").get()).user_version;
+  // prettier-ignore
+  migrateGitHubConnectionRotationIfNeeded(database, schemaMigration.migrateSchema, version, SCHEMA_VERSION);
   if ([16, 17, 18].includes(version)) {
     database.function(
       "quality_bar_normalize_forgejo_url",

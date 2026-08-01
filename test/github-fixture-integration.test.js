@@ -14,6 +14,8 @@ const permissions = {
 test("GitHub fixture verifies the pinned profile and reactivated installation credential", async (context) => {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const pem = privateKey.export({ format: "pem", type: "pkcs8" }).toString();
+  // prettier-ignore
+  const replacementPem = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ format: "pem", type: "pkcs8" }).toString();
   /** @type {any[]} */
   const requests = [];
   let duplicateEnumeration = false,
@@ -243,6 +245,9 @@ test("GitHub fixture verifies the pinned profile and reactivated installation cr
     gitReads.map(({ url }) => url),
     [verified.repositories[0].clone_url],
   );
+  gitReads.length = 0;
+  // prettier-ignore
+  assert.equal((await verifier.verifyInstallation({ ...credential, pem: replacementPem }, 73, [101])).repositories[0].id, 101);
   gitReads.length = 0;
   const selectedPublic = await verifier.verifyRepositories(
     credential,

@@ -18,6 +18,9 @@ export function createUnavailableGitHubConnectionService(error) {
     async completeInstallation() {
       throw error;
     },
+    async rotate() {
+      throw error;
+    },
     async reactivate() {
       throw error;
     },

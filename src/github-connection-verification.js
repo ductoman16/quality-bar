@@ -15,8 +15,9 @@
  *   permissions: object | null,
  *   principal: {id: number, login: string} | null,
  *   profile: string | null,
+ *   repositoryCount?: number,
  *   timestamp: () => number,
- *   trigger: "enablement" | "repository_selection"
+ *   trigger: "enablement" | "repository_selection" | "rotation"
  * }} input
  * @param {{defer?: boolean}} [options]
  */
@@ -107,7 +108,7 @@ export function recordGitHubConnectionVerification(
              repository_count = ?,
              verified_at = ?
          WHERE id = ?`,
-        input.evidence.length,
+        input.repositoryCount ?? input.evidence.length,
         verifiedAt,
         input.id,
       );

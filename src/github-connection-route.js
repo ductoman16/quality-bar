@@ -203,6 +203,33 @@ export function createGitHubConnectionRoute({
       return true;
     }
     if (
+      method === "POST" &&
+      path === "/api/v1/github-connections/credential/rotate" &&
+      authority === "operator"
+    ) {
+      await writeBrowserJsonMutation(request, response, {
+        browserOrigin,
+        browserSessions,
+        failureCode: "github_connection_rotation_failed",
+        mutate: (body) => githubConnections.rotate(body),
+        requestUrl,
+        statusFor: (code, error) =>
+          code === "github_connection_not_found"
+            ? 404
+            : code === "github_connection_rotation_conflict"
+              ? 409
+              : isUnavailableError(error) ||
+                  code === "github_api_unavailable" ||
+                  code === "github_api_transient_failure" ||
+                  code === "github_git_verification_failed" ||
+                  code === "github_private_git_read_failed"
+                ? 503
+                : 422,
+        unexpectedMessage: "GitHub App credential rotation failed",
+      });
+      return true;
+    }
+    if (
       method === "DELETE" &&
       path === "/api/v1/github-connections/lifecycle" &&
       authority === "operator"

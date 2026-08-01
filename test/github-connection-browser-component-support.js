@@ -110,6 +110,9 @@ export function githubElements(form, submit, status, error) {
     },
   });
   const repositorySubmit = element();
+  const rotationForm = element({ hidden: true });
+  const rotationPem = element({ value: "" });
+  const rotationSubmit = element();
   const retire = element();
   const remove = element();
   const confirmation = element({
@@ -163,6 +166,9 @@ export function githubElements(form, submit, status, error) {
       ["github-repository-selection-form", repositoryForm],
       ["github-repository-selection-options", repositoryOptions],
       ["github-repository-selection-submit", repositorySubmit],
+      ["github-connection-rotation-form", rotationForm],
+      ["github-connection-rotation-pem", rotationPem],
+      ["github-connection-rotation-submit", rotationSubmit],
     ]),
     health,
     history,
@@ -174,6 +180,9 @@ export function githubElements(form, submit, status, error) {
     repositoryForm,
     repositoryOptions,
     repositorySubmit,
+    rotationForm,
+    rotationPem,
+    rotationSubmit,
   };
 }
 
@@ -182,12 +191,14 @@ export function githubElements(form, submit, status, error) {
  * @param {number[]} [registeredForgeRepositoryIds]
  * @param {boolean} [repositoryRefreshResult]
  * @param {string} [registeredVerificationId]
+ * @param {boolean} [confirmResult]
  */
 export function browserContext(
   fetch,
   registeredForgeRepositoryIds = [],
   repositoryRefreshResult = true,
   registeredVerificationId = selectionRequestId,
+  confirmResult = true,
 ) {
   const form = element();
   const submit = element();
@@ -220,6 +231,7 @@ export function browserContext(
         search: "",
       },
       window: {
+        confirm: () => confirmResult,
         qualityBarOperator: {
           csrfToken: () => "csrf-token",
           /** @param {string} id */

@@ -53,6 +53,14 @@ function connectionService() {
           );
         },
         /** @param {any} input */
+        async rotate(input) {
+          calls.push(["rotate", input]);
+          throw new GitHubConnectionError(
+            "github_connection_rotation_conflict",
+            "GitHub App credentials changed during rotation",
+          );
+        },
+        /** @param {any} input */
         async selectRepositories(input) {
           calls.push(["selection", input]);
           return [
@@ -139,6 +147,23 @@ test("GitHub Connection lifecycle routes preserve the owning mutation and failur
   );
   assert.deepEqual(service.calls.at(-1), [
     "reactivate",
+    { pem: "replacement-private-key" },
+  ]);
+  const rotated = await request(
+    "/api/v1/github-connections/credential/rotate",
+    {
+      body: JSON.stringify({ pem: "replacement-private-key" }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(rotated.status, 409);
+  assert.equal(
+    await responseErrorCode(rotated),
+    "github_connection_rotation_conflict",
+  );
+  assert.deepEqual(service.calls.at(-1), [
+    "rotate",
     { pem: "replacement-private-key" },
   ]);
 });
@@ -271,6 +296,9 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
           "GitHub App permissions do not match the required profile",
         );
       },
+      async rotate() {
+        throw new Error("not used");
+      },
       async selectRepositories() {
         throw new Error("not used");
       },
@@ -342,6 +370,9 @@ test("transient GitHub Repository verification failures retain their exact ownin
           throw new Error("not used");
         },
         async completeInstallation() {
+          throw new Error("not used");
+        },
+        async rotate() {
           throw new Error("not used");
         },
         async selectRepositories() {

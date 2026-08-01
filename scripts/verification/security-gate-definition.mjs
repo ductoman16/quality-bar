@@ -24,5 +24,6 @@ export const SECURITY_INTEGRATION_GATE = {
     "test/owned-artifact-cleanup-security-integration.test.js",
     "test/retention-security-integration.test.js",
     "test/installation-deletion-security-integration.test.js",
+    "test/github-connection-rotation-security-integration.test.js",
   ],
 };

@@ -1,10 +1,8 @@
 import { randomBytes as createRandomBytes, randomUUID } from "node:crypto";
 import { createGitHubVerifier } from "./github-api.js";
 import { createGitHubCallbackFailureStore } from "./github-callback-failure.js";
-import {
-  GITHUB_API_PROFILE,
-  GITHUB_REQUIRED_PERMISSIONS,
-} from "./github-app-manifest.js";
+// prettier-ignore
+import { GITHUB_API_PROFILE, GITHUB_REQUIRED_PERMISSIONS } from "./github-app-manifest.js";
 import {
   createGitHubConnectionCredentialCipher,
   validatePersistedGitHubCredentials,
@@ -28,6 +26,7 @@ import {
 import { createGitHubRepositorySelector } from "./github-repository-registration.js";
 import { createGitHubRepositoryGitCredential } from "./github-repository-git-credential.js";
 import { createGitHubPollingRunner } from "./github-polling-runner.js";
+import { createGitHubConnectionRotation } from "./github-connection-rotation.js";
 import { stopFor as stop } from "./github-connection-shutdown.js";
 import { createGitHubPublicationServices } from "./github-publication-services.js";
 import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
@@ -401,6 +400,8 @@ export function createGitHubConnectionService(
     retire: (/** @type {unknown} */ request) =>
       retireGitHubConnection(durableCore, request),
     remove: () => removeNeverUsedGitHubConnection(durableCore),
+    // prettier-ignore
+    rotate: createGitHubConnectionRotation({ cipher, createId, durableCore, now: timestamp, polling, read: () => readGitHubConnection(durableCore), registerSecret, verifier }),
     selectRepositories,
   };
 }
