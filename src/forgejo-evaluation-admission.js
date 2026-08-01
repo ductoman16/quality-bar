@@ -1,4 +1,5 @@
 import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
+import { cancelSupersededForgejoEvaluations } from "./forgejo-evaluation-supersession.js";
 
 /** @param {any} transaction @param {string} evaluationId @param {{changeset: {base_commit: string, head_commit: string}, pullRequestNumber: number, repositoryId: string}} input */
 export function recordForgejoPullRequestEvaluation(
@@ -35,14 +36,30 @@ export function recordForgejoPullRequestEvaluation(
   );
 }
 
-/** @param {any} transaction @param {{changeset: {base_commit: string, head_commit: string}, pullRequestNumber: number, repositoryId: string}} input */
-export function prepareForgejoAutomaticEvaluation(transaction, input) {
+/** @param {any} transaction @param {{changeset: {base_commit: string, head_commit: string}, pullRequestNumber: number, repositoryId: string}} input @param {() => number} now @param {(code: string, detail: string) => never} fail */
+export function prepareForgejoAutomaticEvaluation(
+  transaction,
+  input,
+  now,
+  fail,
+) {
   if (
     !Number.isSafeInteger(input.pullRequestNumber) ||
     input.pullRequestNumber <= 0
   ) {
     throw new TypeError("Automatic Forgejo Evaluation provenance is invalid");
   }
+  const cancelledRunningReviewRunIds = cancelSupersededForgejoEvaluations(
+    transaction,
+    {
+      baseCommit: input.changeset.base_commit,
+      headCommit: input.changeset.head_commit,
+      pullRequestNumber: input.pullRequestNumber,
+      repositoryId: input.repositoryId,
+    },
+    now,
+    fail,
+  );
   const existing = transaction.get(
     `SELECT evaluation_id FROM forgejo_automatic_evaluations
       WHERE repository_id = ? AND base_commit = ? AND head_commit = ?`,
@@ -51,7 +68,7 @@ export function prepareForgejoAutomaticEvaluation(transaction, input) {
     input.changeset.head_commit,
   );
   if (!existing) {
-    return { cancelledRunningReviewRunIds: [], existing: null };
+    return { cancelledRunningReviewRunIds, existing: null };
   }
   recordForgejoPullRequestEvaluation(
     transaction,
@@ -63,7 +80,7 @@ export function prepareForgejoAutomaticEvaluation(transaction, input) {
     existing.evaluation_id,
   );
   return {
-    cancelledRunningReviewRunIds: [],
+    cancelledRunningReviewRunIds,
     existing: {
       createdAt: row.created_at,
       evaluationId: existing.evaluation_id,

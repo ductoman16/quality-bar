@@ -49,16 +49,35 @@ test("Forgejo drafts, closed pull requests, and merged pull requests create no w
   );
 });
 
-test("Forgejo reopen remains outside newly-ready observation", () => {
+test("Forgejo observation selects reopen, force-push, and retarget transitions", () => {
   assert.deepEqual(
     newlyEligibleForgejoPullRequests(
       [
-        pullRequest(1, { state: "closed" }),
-        pullRequest(2, { draft: true, state: "closed" }),
+        pullRequest(1),
+        pullRequest(2, { state: "closed" }),
+        pullRequest(3, { draft: true }),
+        pullRequest(4),
+        pullRequest(5, {
+          merged: true,
+          merged_at: "2026-08-01T12:00:00.000Z",
+        }),
       ],
-      [pullRequest(1), pullRequest(2)],
+      [
+        pullRequest(1, { head: { sha: "d".repeat(40) } }),
+        pullRequest(2),
+        pullRequest(3),
+        pullRequest(4, {
+          base: { sha: "e".repeat(40) },
+          merge_base: "c".repeat(40),
+        }),
+        pullRequest(5),
+      ],
     ),
-    [],
+    [
+      pullRequest(1, { head: { sha: "d".repeat(40) } }),
+      pullRequest(2),
+      pullRequest(3),
+    ],
   );
 });
 

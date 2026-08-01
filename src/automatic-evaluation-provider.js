@@ -25,7 +25,7 @@ export function prepareAutomaticEvaluation(transaction, input, now, fail) {
   };
   return provider === "github"
     ? prepareGitHubAutomaticEvaluation(transaction, automaticInput, now, fail)
-    : prepareForgejoAutomaticEvaluation(transaction, automaticInput);
+    : prepareForgejoAutomaticEvaluation(transaction, automaticInput, now, fail);
 }
 
 /** @param {any} transaction @param {string} evaluationId @param {any} input */
