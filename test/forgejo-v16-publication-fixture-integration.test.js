@@ -63,6 +63,7 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
             {
               body: "inline",
               commit_id: head,
+              extra_lines_count: 0,
               id: 904,
               original_position: 0,
               path: "src/example.js",

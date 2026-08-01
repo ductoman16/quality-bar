@@ -3,6 +3,7 @@ import {
   throwIfIoOperationAborted,
 } from "./io-operation-context.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
+import { forgejoV16ResponseFailure } from "./forgejo-v16-response-failure.js";
 
 /** @param {string} code @param {string} message @param {Record<string, unknown>} [facts] @returns {never} */
 function fail(code, message, facts = {}) {
@@ -16,43 +17,14 @@ function object(value) {
     : null;
 }
 
-/** @param {Response} response @param {string} path */
-async function responseArray(response, path) {
+/** @param {Response} response @param {string} path @param {number} repositoryId */
+async function responseArray(response, path, repositoryId) {
   if (!response.ok) {
-    const responseStatus = response.status;
-    const retryAfter = response.headers.get("retry-after");
-    const rateReset = response.headers.get("x-ratelimit-reset");
-    const now = Date.now();
-    const retryAfterAt =
-      retryAfter !== null && /^\d+$/.test(retryAfter)
-        ? now + Number(retryAfter) * 1_000
-        : retryAfter === null
-          ? null
-          : Date.parse(retryAfter);
-    const rateResetAt =
-      rateReset !== null && /^\d+$/.test(rateReset)
-        ? Number(rateReset) * 1_000
-        : null;
-    const nextAttemptAt = [retryAfterAt, rateResetAt]
-      .filter(
-        (value) =>
-          Number.isSafeInteger(value) && /** @type {number} */ (value) > now,
-      )
-      .sort(
-        (left, right) =>
-          /** @type {number} */ (left) - /** @type {number} */ (right),
-      )[0];
-    fail(
-      responseStatus === 429
-        ? "forgejo_api_rate_limited"
-        : responseStatus >= 500
-          ? "forgejo_api_transient_failure"
-          : "forgejo_api_request_failed",
-      `Forgejo reconciliation route failed with HTTP ${responseStatus}: ${path}`,
-      {
-        ...(nextAttemptAt === undefined ? {} : { nextAttemptAt }),
-        responseStatus,
-      },
+    throw forgejoV16ResponseFailure(
+      response,
+      path,
+      "reconciliation",
+      repositoryId,
     );
   }
   try {
@@ -75,8 +47,8 @@ async function responseArray(response, path) {
   }
 }
 
-/** @param {typeof fetch} fetchRequest @param {{base_url: string, token: string}} connection @param {string} path */
-async function get(fetchRequest, connection, path) {
+/** @param {typeof fetch} fetchRequest @param {{base_url: string, token: string}} connection @param {string} path @param {number} repositoryId */
+async function get(fetchRequest, connection, path, repositoryId) {
   if (typeof connection?.token !== "string" || connection.token.length === 0) {
     fail(
       "forgejo_publication_request_invalid",
@@ -96,7 +68,7 @@ async function get(fetchRequest, connection, path) {
       ...(signal ? { signal } : {}),
     });
     signal?.throwIfAborted();
-    return await responseArray(response, path);
+    return await responseArray(response, path, repositoryId);
   } catch (cause) {
     throwIfIoOperationAborted(cause);
     if (cause instanceof Error && "code" in cause) {
@@ -109,8 +81,8 @@ async function get(fetchRequest, connection, path) {
   }
 }
 
-/** @param {typeof fetch} fetchRequest @param {any} connection @param {string} path */
-async function pages(fetchRequest, connection, path) {
+/** @param {typeof fetch} fetchRequest @param {any} connection @param {string} path @param {number} repositoryId */
+async function pages(fetchRequest, connection, path, repositoryId) {
   const records = [];
   const identities = new Set();
   for (let page = 1; ; page += 1) {
@@ -119,6 +91,7 @@ async function pages(fetchRequest, connection, path) {
       fetchRequest,
       connection,
       `${path}${separator}limit=50&page=${page}`,
+      repositoryId,
     );
     for (const candidate of batch) {
       const record = object(candidate);
@@ -148,19 +121,24 @@ async function pages(fetchRequest, connection, path) {
 }
 
 /** @param {unknown} repository */
-function encodedRepository(repository) {
+function selectedRepository(repository) {
   const candidate = object(repository);
   if (
     !candidate ||
     typeof candidate.full_name !== "string" ||
-    candidate.full_name.split("/").length !== 2
+    candidate.full_name.split("/").length !== 2 ||
+    !Number.isSafeInteger(candidate.id) ||
+    /** @type {number} */ (candidate.id) <= 0
   ) {
     fail(
       "forgejo_publication_request_invalid",
       "Forgejo reconciliation Repository is invalid",
     );
   }
-  return candidate.full_name.split("/").map(encodeURIComponent).join("/");
+  return {
+    encoded: candidate.full_name.split("/").map(encodeURIComponent).join("/"),
+    id: /** @type {number} */ (candidate.id),
+  };
 }
 
 /** @param {Record<string, unknown>[]} matches */
@@ -181,12 +159,13 @@ export function createForgejoV16Reconciler({
   return {
     /** @param {any} connection @param {any} repository @param {any} status */
     async reconcileCommitStatus(connection, repository, status) {
-      const encoded = encodedRepository(repository);
+      const selected = selectedRepository(repository);
       const matches = (
         await pages(
           fetchRequest,
           connection,
-          `/api/v1/repos/${encoded}/statuses/${encodeURIComponent(status.head)}`,
+          `/api/v1/repos/${selected.encoded}/statuses/${encodeURIComponent(status.head)}`,
+          selected.id,
         )
       ).filter(
         (candidate) =>
@@ -203,12 +182,13 @@ export function createForgejoV16Reconciler({
       /** @type {number} */ pullRequestNumber,
       /** @type {string} */ body,
     ) {
-      const encoded = encodedRepository(repository);
+      const selected = selectedRepository(repository);
       const matches = (
         await pages(
           fetchRequest,
           connection,
-          `/api/v1/repos/${encoded}/issues/${pullRequestNumber}/comments`,
+          `/api/v1/repos/${selected.encoded}/issues/${pullRequestNumber}/comments`,
+          selected.id,
         )
       ).filter((candidate) => candidate.body === body);
       return reconciledIdentity(matches);
@@ -219,18 +199,20 @@ export function createForgejoV16Reconciler({
       /** @type {number} */ pullRequestNumber,
       /** @type {any} */ comment,
     ) {
-      const encoded = encodedRepository(repository);
+      const selected = selectedRepository(repository);
       const reviews = await pages(
         fetchRequest,
         connection,
-        `/api/v1/repos/${encoded}/pulls/${pullRequestNumber}/reviews`,
+        `/api/v1/repos/${selected.encoded}/pulls/${pullRequestNumber}/reviews`,
+        selected.id,
       );
       const matches = [];
       for (const review of reviews) {
         const comments = await pages(
           fetchRequest,
           connection,
-          `/api/v1/repos/${encoded}/pulls/${pullRequestNumber}/reviews/${review.id}/comments`,
+          `/api/v1/repos/${selected.encoded}/pulls/${pullRequestNumber}/reviews/${review.id}/comments`,
+          selected.id,
         );
         if (
           comments.some(
@@ -241,7 +223,11 @@ export function createForgejoV16Reconciler({
               candidate.position ===
                 (comment.side === "RIGHT" ? comment.line : 0) &&
               candidate.original_position ===
-                (comment.side === "LEFT" ? comment.line : 0),
+                (comment.side === "LEFT" ? comment.line : 0) &&
+              candidate.extra_lines_count ===
+                (comment.start_line === undefined
+                  ? 0
+                  : comment.line - comment.start_line),
           )
         ) {
           matches.push(review);

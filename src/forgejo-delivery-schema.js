@@ -45,6 +45,65 @@ export const FORGEJO_DELIVERY_SCHEMA = `
     error_code TEXT NOT NULL CHECK (length(error_code) > 0),
     error_detail TEXT NOT NULL CHECK (length(trim(error_detail)) > 0)
   ) STRICT;
+  DROP TRIGGER IF EXISTS forgejo_feedback_bundle_publication_update;
+  CREATE TRIGGER forgejo_feedback_bundle_publication_update
+    BEFORE UPDATE OF
+      publication_status, external_id, published_at, error_code, error_detail
+    ON forgejo_feedback_bundles
+    WHEN NOT (
+      (
+        OLD.publication_status = 'waiting'
+        AND NEW.publication_status IN ('succeeded', 'unavailable')
+      )
+      OR (
+        OLD.publication_status = 'unavailable'
+        AND NEW.publication_status = 'waiting'
+        AND NEW.external_id IS NULL AND NEW.published_at IS NULL
+        AND NEW.error_code IS NULL AND NEW.error_detail IS NULL
+        AND EXISTS (
+          SELECT 1 FROM forgejo_delivery_attempts
+          WHERE surface = 'aggregate_feedback'
+            AND source_id = OLD.evaluation_id
+            AND definitive = 0
+            AND (error_code IS NULL OR reconciliation_required = 1)
+        )
+      )
+    )
+    BEGIN SELECT RAISE(ABORT, 'forgejo_feedback_bundle_immutable'); END;
+  DROP TRIGGER IF EXISTS forgejo_finding_feedback_materialization_update;
+  CREATE TRIGGER forgejo_finding_feedback_materialization_update
+    BEFORE UPDATE OF
+      publication_status, path, side, start_line, start_side, line,
+      external_id, published_at, error_code, error_detail
+    ON forgejo_finding_feedback
+    WHEN
+      NEW.path IS NOT OLD.path
+      OR NEW.side IS NOT OLD.side
+      OR NEW.start_line IS NOT OLD.start_line
+      OR NEW.start_side IS NOT OLD.start_side
+      OR NEW.line IS NOT OLD.line
+      OR NOT (
+        (
+          OLD.publication_status = 'waiting'
+          AND NEW.publication_status IN ('succeeded', 'unavailable')
+        )
+        OR (
+          OLD.publication_status = 'unavailable'
+          AND NEW.publication_status = 'waiting'
+          AND NEW.external_id IS NULL AND NEW.published_at IS NULL
+          AND NEW.error_code IS NULL AND NEW.error_detail IS NULL
+          AND EXISTS (
+            SELECT 1 FROM forgejo_delivery_attempts
+            WHERE surface = 'inline_feedback'
+              AND source_id = OLD.finding_id
+              AND definitive = 0
+              AND (error_code IS NULL OR reconciliation_required = 1)
+          )
+        )
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'forgejo_finding_feedback_immutable');
+    END;
   CREATE TRIGGER IF NOT EXISTS forgejo_commit_status_delivery_admit
     AFTER INSERT ON forgejo_commit_statuses
     BEGIN

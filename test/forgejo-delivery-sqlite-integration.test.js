@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { readForgejoConnection } from "../src/forgejo-connection-read.js";
 import {
   attemptForgejoDelivery,
   recordForgejoDeliveryHealth,
@@ -12,149 +13,44 @@ import {
 import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
-test("uncertain Forgejo delivery reconciles persisted state after restart and recreates only after proven absence", async (context) => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-forgejo-delivery-"),
-  );
-  const path = join(directory, "quality-bar.sqlite3");
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  let core = openDurableCore(path);
-  arrangeForgejoFeedback(core);
-  let now = 10;
-  /** @type {[string, string][]} */
-  const operations = [];
-  const input = {
-    connectionId: "connection-1",
-    create: async (/** @type {string} */ target) => {
-      operations.push(["create", target]);
-      if (operations.length === 1) {
-        throw Object.assign(new Error("Forgejo response was lost"), {
-          code: "forgejo_api_unavailable",
-        });
-      }
-      return 901;
-    },
-    now: () => now,
-    onDefinitive() {},
-    onSuccess() {},
-    reconcile: async (/** @type {string} */ target) => {
-      operations.push(["reconcile", target]);
-      return null;
-    },
-    sourceId: "evaluation-1:blocking",
-    surface: /** @type {const} */ ("commit_status"),
-    target: '{"state":"blocking"}',
-  };
-  await attemptForgejoDelivery(core, input);
-  assert.deepEqual(
-    core.get(
-      `SELECT attempt_count, reconciliation_required, next_attempt_at
-       FROM forgejo_delivery_attempts
-       WHERE surface = 'commit_status' AND source_id = ?`,
-      input.sourceId,
-    ),
-    { attempt_count: 1, next_attempt_at: 60_010, reconciliation_required: 1 },
-  );
-  core.close();
-
-  core = openDurableCore(path);
-  context.after(() => core.close());
-  now = 60_010;
-  await attemptForgejoDelivery(core, {
-    ...input,
-    target: '{"state":"changed"}',
-  });
-  assert.deepEqual(operations, [
-    ["create", '{"state":"blocking"}'],
-    ["reconcile", '{"state":"blocking"}'],
-    ["create", '{"state":"changed"}'],
-  ]);
-  assert.deepEqual(
-    core.get(
-      `SELECT attempt_count, external_id, reconciliation_required, target
-       FROM forgejo_delivery_attempts
-       WHERE surface = 'commit_status' AND source_id = ?`,
-      input.sourceId,
-    ),
-    {
-      attempt_count: 3,
-      external_id: 901,
-      reconciliation_required: 0,
-      target: '{"state":"changed"}',
-    },
-  );
-});
-
-test("Forgejo delivery surfaces retry independently", async (context) => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-forgejo-surfaces-"),
-  );
+test("HTTP 408 persists an uncertain retry instead of stopping the Forgejo surface", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-408-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
   arrangeForgejoFeedback(core);
-  const deliveries = /** @type {const} */ ([
-    {
-      externalId: 902,
-      sourceId: "evaluation-1",
-      surface: "aggregate_feedback",
+  await attemptForgejoDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => {
+      throw Object.assign(new Error("Forgejo publication HTTP 408"), {
+        code: "forgejo_api_transient_failure",
+        responseStatus: 408,
+      });
     },
-    {
-      externalId: null,
-      sourceId: "finding-inline",
-      surface: "inline_feedback",
-    },
-  ]);
-  for (const { externalId, sourceId, surface } of deliveries) {
-    await attemptForgejoDelivery(core, {
-      connectionId: "connection-1",
-      create: async () => {
-        if (externalId === null) {
-          throw Object.assign(new Error("Forgejo rate limit is active"), {
-            code: "forgejo_api_rate_limited",
-            nextAttemptAt: 125_000,
-            responseStatus: 429,
-          });
-        }
-        return externalId;
-      },
-      now: () => 10,
-      onDefinitive() {},
-      onSuccess() {},
-      reconcile: async () => null,
-      sourceId,
-      surface: /** @type {any} */ (surface),
-      target: `target-${sourceId}`,
-    });
-  }
-  assert.deepEqual(
-    core.all(
-      `SELECT surface, external_id, error_code, next_attempt_at
-       FROM forgejo_delivery_attempts
-       WHERE surface != 'commit_status'
-       ORDER BY surface`,
-    ),
-    [
-      {
-        error_code: null,
-        external_id: 902,
-        next_attempt_at: 0,
-        surface: "aggregate_feedback",
-      },
-      {
-        error_code: "forgejo_api_rate_limited",
-        external_id: null,
-        next_attempt_at: 125_000,
-        surface: "inline_feedback",
-      },
-    ],
-  );
-  assert.deepEqual(core.get("SELECT * FROM forgejo_delivery_provider_gates"), {
-    connection_id: "connection-1",
-    error_code: "forgejo_api_rate_limited",
-    error_detail: "Forgejo rate limit is active",
-    gate_until: 125_000,
+    now: () => 10,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async () => null,
+    sourceId: "evaluation-1:blocking",
+    surface: "commit_status",
+    target: '{"state":"blocking"}',
   });
+  assert.deepEqual(
+    core.get(
+      `SELECT definitive, error_code, next_attempt_at,
+              reconciliation_required, response_status
+       FROM forgejo_delivery_attempts
+       WHERE surface = 'commit_status' AND source_id = ?`,
+      "evaluation-1:blocking",
+    ),
+    {
+      definitive: 0,
+      error_code: "forgejo_api_transient_failure",
+      next_attempt_at: 60_010,
+      reconciliation_required: 1,
+      response_status: 408,
+    },
+  );
 });
 
 test("a definitive delivery identity conflict does not misdiagnose connection health", async (context) => {
@@ -242,10 +138,29 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
   context.after(() => core.close());
   arrangeForgejoFeedback(core);
   core.run(
+    `INSERT INTO forgejo_finding_feedback (
+       finding_id, evaluation_id, publication_status, path, side, line
+     ) VALUES (
+       'finding-inline', 'evaluation-1', 'waiting',
+       'src/example.js', 'RIGHT', 2
+     )`,
+  );
+  core.run(
     `UPDATE forgejo_commit_statuses
      SET publication_status = 'unavailable',
          error_code = 'forgejo_api_request_failed',
          error_detail = 'Forgejo publication route failed with HTTP 403'`,
+  );
+  core.run(
+    `UPDATE forgejo_feedback_bundles
+     SET publication_status = 'unavailable',
+         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'`,
+  );
+  core.run(
+    `UPDATE forgejo_finding_feedback
+     SET publication_status = 'unavailable',
+         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'
+     WHERE publication_status = 'waiting'`,
   );
   core.run(
     `UPDATE forgejo_delivery_attempts
@@ -256,6 +171,15 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
          error_code = 'forgejo_api_request_failed',
          error_detail = 'Forgejo publication route failed with HTTP 403'
      WHERE surface = 'commit_status'`,
+  );
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET connection_id = 'connection-1', authority_verified_at = 1,
+         attempt_count = 1, last_attempt_at = 10,
+         reconciliation_required = 1, definitive = 1,
+         response_status = 403,
+         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'
+     WHERE surface IN ('aggregate_feedback', 'inline_feedback')`,
   );
   core.run(
     `INSERT INTO forgejo_delivery_provider_gates
@@ -273,6 +197,20 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
        FROM forgejo_commit_statuses`,
     ),
     { error_code: null, error_detail: null, publication_status: "waiting" },
+  );
+  assert.deepEqual(
+    core.all(
+      `SELECT publication_status, error_code
+       FROM forgejo_feedback_bundles
+       UNION ALL
+       SELECT publication_status, error_code
+       FROM forgejo_finding_feedback
+       WHERE publication_status != 'aggregate_only'`,
+    ),
+    [
+      { error_code: null, publication_status: "waiting" },
+      { error_code: null, publication_status: "waiting" },
+    ],
   );
   assert.deepEqual(
     core.get(
@@ -297,4 +235,167 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
       ?.count,
     0,
   );
+});
+
+test("schema v51 resumes legacy uncertain Forgejo feedback without violating immutability", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-v51-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const path = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(path);
+  arrangeForgejoFeedback(prior);
+  prior.run(
+    `INSERT INTO forgejo_finding_feedback (
+       finding_id, evaluation_id, publication_status, path, side, line
+     ) VALUES (
+       'finding-inline', 'evaluation-1', 'waiting',
+       'src/example.js', 'RIGHT', 2
+     )`,
+  );
+  prior.run(
+    `UPDATE forgejo_feedback_bundles
+     SET publication_status = 'unavailable', error_code = 'forgejo_api_unavailable',
+         error_detail = 'response lost'`,
+  );
+  prior.run(
+    `UPDATE forgejo_finding_feedback
+     SET publication_status = 'unavailable', error_code = 'forgejo_api_unavailable',
+         error_detail = 'response lost'
+     WHERE publication_status = 'waiting'`,
+  );
+  for (const statement of [
+    "DROP TRIGGER forgejo_commit_status_delivery_admit",
+    "DROP TRIGGER forgejo_commit_status_delivery_update_admit",
+    "DROP TRIGGER forgejo_feedback_bundle_delivery_admit",
+    "DROP TRIGGER forgejo_finding_feedback_delivery_admit",
+    "DROP TABLE forgejo_delivery_provider_gates",
+    "DROP TABLE forgejo_delivery_attempts",
+    "UPDATE quality_bar_metadata SET value = '50' WHERE key = 'schema_version'",
+    "PRAGMA user_version = 50",
+  ]) {
+    prior.run(statement);
+  }
+  prior.close();
+
+  const migrated = openDurableCore(path);
+  context.after(() => migrated.close());
+  assert.deepEqual(
+    migrated.all(
+      `SELECT surface, reconciliation_required, definitive
+       FROM forgejo_delivery_attempts
+       WHERE surface IN ('aggregate_feedback', 'inline_feedback')
+       ORDER BY surface`,
+    ),
+    [
+      {
+        definitive: 0,
+        reconciliation_required: 1,
+        surface: "aggregate_feedback",
+      },
+      {
+        definitive: 0,
+        reconciliation_required: 1,
+        surface: "inline_feedback",
+      },
+    ],
+  );
+  assert.equal(
+    migrated.get(
+      `SELECT count(*) AS count FROM (
+         SELECT publication_status FROM forgejo_feedback_bundles
+         UNION ALL
+         SELECT publication_status FROM forgejo_finding_feedback
+         WHERE publication_status != 'aggregate_only'
+       ) WHERE publication_status = 'waiting'`,
+    )?.count,
+    2,
+  );
+});
+
+test("delivery failure health remains exact and scoped to its owning Forgejo resource", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-health-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeForgejoFeedback(core);
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES ('repository-2', 'https://forgejo.example/operator/sibling.git', 1, 1)",
+  );
+  core.run(
+    `INSERT INTO forgejo_repositories (
+       repository_id, connection_id, verification_id, forge_repository_id,
+       name, api_url, web_url
+     ) VALUES (
+       'repository-2', 'connection-1', 'verification-1', 102,
+       'operator/sibling', 'https://forgejo.example/api/v1/repos/operator/sibling',
+       'https://forgejo.example/operator/sibling'
+     )`,
+  );
+  core.transaction((transaction) =>
+    recordForgejoDeliveryHealth(transaction, "connection-1", 20, {
+      code: "forgejo_repository_permission_denied",
+      definitive: true,
+      detail: "Forgejo Repository permission denied",
+      repositoryId: 101,
+      responseStatus: 403,
+    }),
+  );
+  assert.deepEqual(
+    core.all("SELECT id, health FROM repositories ORDER BY id"),
+    [
+      { health: "error", id: "repository-1" },
+      { health: "healthy", id: "repository-2" },
+    ],
+  );
+  await attemptForgejoDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => 990,
+    now: () => 21,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async () => null,
+    sourceId: "sibling-delivery",
+    surface: "aggregate_feedback",
+    target: '{"repository_id":102}',
+  });
+  assert.equal(
+    core.get(
+      `SELECT external_id FROM forgejo_delivery_attempts
+       WHERE source_id = 'sibling-delivery'`,
+    )?.external_id,
+    990,
+  );
+  core.run(
+    "DELETE FROM forgejo_repositories WHERE repository_id = 'repository-2'",
+  );
+  core.run("DELETE FROM repositories WHERE id = 'repository-2'");
+
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET connection_id = 'connection-1', authority_verified_at = 1,
+         attempt_count = 1, last_attempt_at = 20, definitive = 1,
+         error_code = 'forgejo_connection_credential_invalid',
+         error_detail = 'Forgejo PAT rejected'
+     WHERE surface = 'commit_status'`,
+  );
+  core.run("UPDATE forgejo_connections SET health = 'error'");
+  assert.deepEqual(readForgejoConnection(core)?.health_error, {
+    code: "forgejo_connection_credential_invalid",
+    message: "Forgejo PAT rejected",
+  });
+  core.transaction((transaction) => {
+    transaction.run("UPDATE forgejo_connections SET health = 'healthy'");
+    resumeForgejoDeliveries(transaction, "connection-1", 30);
+  });
+  assert.deepEqual(
+    core.get(
+      `SELECT definitive, error_code FROM forgejo_delivery_attempts
+       WHERE surface = 'commit_status'`,
+    ),
+    { definitive: 0, error_code: null },
+  );
+  assert.equal(
+    core.get("SELECT health FROM forgejo_connections")?.health,
+    "healthy",
+  );
+  assert.equal(readForgejoConnection(core)?.health_error, null);
 });

@@ -45,7 +45,7 @@ export function recordForgejoDeliveryHealth(
       "forgejo_required_route_unavailable",
       "forgejo_version_unsupported",
     ].includes(failure.code) ||
-      [401, 403, 404].includes(failure.responseStatus));
+      failure.responseStatus === 401);
   if (!connectionOwned) {
     return;
   }

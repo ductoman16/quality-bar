@@ -33,7 +33,7 @@ export function forgejoDeliveryFailure(error, input) {
     Number.isSafeInteger(failure.responseStatus) &&
     /** @type {number} */ (failure.responseStatus) >= 400 &&
     /** @type {number} */ (failure.responseStatus) < 500 &&
-    failure.responseStatus !== 429;
+    ![408, 425, 429].includes(/** @type {number} */ (failure.responseStatus));
   const definitive = DEFINITIVE_FAILURES.has(failure.code) || clientFailure;
   const rateLimited =
     failure.code === "forgejo_api_rate_limited" ||

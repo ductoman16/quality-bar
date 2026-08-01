@@ -35,6 +35,7 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-repository-reactivation-sqlite-integration.test.js",
   "test/forgejo-repository-enablement-race-sqlite-integration.test.js",
   "test/forgejo-publication.test.js",
+  "test/forgejo-delivery-core-sqlite-integration.test.js",
   "test/forgejo-delivery-sqlite-integration.test.js",
 ];
 

@@ -81,4 +81,22 @@ test("Forgejo delivery distinguishes definitive failures and uncertain creates",
       uncertain: false,
     },
   );
+  for (const responseStatus of [408, 425]) {
+    assert.deepEqual(
+      forgejoDeliveryFailure(
+        Object.assign(new Error(`Forgejo HTTP ${responseStatus}`), {
+          code: "forgejo_api_transient_failure",
+          responseStatus,
+        }),
+        { operation: "create" },
+      ),
+      {
+        code: "forgejo_api_transient_failure",
+        definitive: false,
+        detail: `Forgejo HTTP ${responseStatus}`,
+        responseStatus,
+        uncertain: true,
+      },
+    );
+  }
 });

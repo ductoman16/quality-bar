@@ -72,7 +72,9 @@ export function readForgejoConnection(durableCore) {
   const [row] = durableCore.all(
     `SELECT forgejo_connections.*,
        latest_verification.error_code AS health_error_code,
-       latest_verification.error_message AS health_error_message
+       latest_verification.error_message AS health_error_message,
+       latest_delivery.error_code AS delivery_health_error_code,
+       latest_delivery.error_detail AS delivery_health_error_message
      FROM forgejo_connections
      LEFT JOIN forgejo_connection_verifications AS latest_verification
        ON latest_verification.rowid = (
@@ -80,6 +82,48 @@ export function readForgejoConnection(durableCore) {
          FROM forgejo_connection_verifications
          WHERE connection_id = forgejo_connections.id
          ORDER BY rowid DESC
+         LIMIT 1
+       )
+     LEFT JOIN forgejo_delivery_attempts AS latest_delivery
+       ON latest_delivery.rowid = (
+         SELECT rowid FROM forgejo_delivery_attempts
+         WHERE connection_id = forgejo_connections.id
+           AND definitive = 1
+           AND (
+             response_status = 401
+             OR error_code IN (
+               'forgejo_connection_credential_invalid',
+               'forgejo_connection_credential_undecryptable',
+               'forgejo_publication_capability_unavailable',
+               'forgejo_required_route_unavailable',
+               'forgejo_version_unsupported'
+             )
+           )
+           AND (
+             (
+               surface = 'commit_status'
+               AND EXISTS (
+                 SELECT 1 FROM forgejo_commit_statuses
+                 WHERE source_id =
+                       evaluation_id || ':' || desired_state
+               )
+             )
+             OR (
+               surface = 'aggregate_feedback'
+               AND EXISTS (
+                 SELECT 1 FROM forgejo_feedback_bundles
+                 WHERE evaluation_id = source_id
+               )
+             )
+             OR (
+               surface = 'inline_feedback'
+               AND EXISTS (
+                 SELECT 1 FROM forgejo_finding_feedback
+                 WHERE finding_id = source_id
+               )
+             )
+           )
+         ORDER BY last_attempt_at DESC, rowid DESC
          LIMIT 1
        )
      LIMIT 1`,
@@ -111,12 +155,23 @@ export function readForgejoConnection(durableCore) {
     ) === "connection"
       ? { code: row.health_error_code, message: row.health_error_message }
       : null;
+  const deliveryHealthError =
+    typeof row.delivery_health_error_code === "string" &&
+    typeof row.delivery_health_error_message === "string"
+      ? {
+          code: row.delivery_health_error_code,
+          message: row.delivery_health_error_message,
+        }
+      : null;
   const healthError =
     row.health === "error"
-      ? (connectionVerificationError ?? pollingGate?.error)
+      ? (connectionVerificationError ??
+        deliveryHealthError ??
+        pollingGate?.error)
       : null;
   if (
-    (row.health === "healthy" && connectionVerificationError !== null) ||
+    (row.health === "healthy" &&
+      (connectionVerificationError !== null || deliveryHealthError !== null)) ||
     (row.health === "error" &&
       (typeof healthError?.code !== "string" ||
         healthError.code.length === 0 ||
