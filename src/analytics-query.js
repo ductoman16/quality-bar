@@ -8,6 +8,7 @@ import {
   analyticsWaiverFilters,
 } from "./analytics-query-window.js";
 import { EVALUATION_WAIVER_SELECTION } from "./evaluation-waiver-selection.js";
+import { readAutomaticEvaluationProgressionRows } from "./analytics-automatic-progression-query.js";
 
 /**
  * @param {{
@@ -24,49 +25,13 @@ export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
      JOIN repositories ON repositories.id = evaluations.repository_id
      LEFT JOIN github_automatic_evaluations
        ON github_automatic_evaluations.evaluation_id = evaluations.id
+     LEFT JOIN forgejo_automatic_evaluations
+       ON forgejo_automatic_evaluations.evaluation_id = evaluations.id
      LEFT JOIN evaluation_results
        ON evaluation_results.evaluation_id = evaluations.id
      ORDER BY evaluations.rowid`,
   );
-  const progressionRows = durableCore.all(
-    `SELECT
-       evaluations.id AS evaluation_id,
-       evaluations.repository_id,
-       evaluations.created_at AS evaluation_created_at,
-       github_automatic_evaluation_pull_requests.pull_request_number,
-       review_runs.review_id,
-       review_runs.review_version_id,
-       review_version_criteria.criterion_id,
-       review_versions.model,
-       review_versions.reasoning_effort,
-       review_versions.service_tier,
-       criterion_results.outcome
-     FROM
-       evaluations /* AS analytics_transition_rows */
-     JOIN github_automatic_evaluation_pull_requests
-       ON github_automatic_evaluation_pull_requests.evaluation_id =
-            evaluations.id
-     LEFT JOIN applicability_selections
-       ON applicability_selections.evaluation_id = evaluations.id
-     LEFT JOIN review_versions
-       ON review_versions.id = applicability_selections.review_version_id
-     LEFT JOIN review_version_criteria
-       ON review_version_criteria.review_version_id =
-            applicability_selections.review_version_id
-     LEFT JOIN review_runs
-       ON review_runs.evaluation_id = evaluations.id
-      AND review_runs.review_id = applicability_selections.review_id
-     LEFT JOIN criterion_results
-       ON criterion_results.review_run_id = review_runs.id
-      AND criterion_results.criterion_id =
-            review_version_criteria.criterion_id
-    ORDER BY
-      evaluations.repository_id,
-      github_automatic_evaluation_pull_requests.pull_request_number,
-      review_version_criteria.criterion_id,
-      evaluations.created_at,
-      evaluations.id`,
-  );
+  const progressionRows = readAutomaticEvaluationProgressionRows(durableCore);
   const filterFactRows = durableCore.all(
     `SELECT
        evaluations.id AS evaluation_id,
@@ -309,7 +274,10 @@ export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
               evaluations.repository_id,
               evaluations.base_commit,
               evaluations.head_commit,
-              github_automatic_evaluation_pull_requests.pull_request_number
+              COALESCE(
+                github_automatic_evaluation_pull_requests.pull_request_number,
+                forgejo_automatic_evaluation_pull_requests.pull_request_number
+              ) AS pull_request_number
          FROM review_runs AS analytics_review_runs
          JOIN evaluations
            ON evaluations.id = analytics_review_runs.evaluation_id
@@ -317,6 +285,9 @@ export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
            ON review_versions.id = analytics_review_runs.review_version_id
          LEFT JOIN github_automatic_evaluation_pull_requests
            ON github_automatic_evaluation_pull_requests.evaluation_id =
+                evaluations.id
+         LEFT JOIN forgejo_automatic_evaluation_pull_requests
+           ON forgejo_automatic_evaluation_pull_requests.evaluation_id =
                 evaluations.id
         ORDER BY analytics_review_runs.rowid`,
   );

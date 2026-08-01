@@ -80,6 +80,8 @@ test("the actual Forgejo one-shot scheduler remains due after I/O saturation", a
         }),
     },
     {
+      acquirePullRequestChangeset: assert.fail,
+      admitAutomaticEvaluation: assert.fail,
       cipher: { decrypt: assert.fail },
       /** @param {() => void} callback @param {number} delay */
       setTimer(callback, delay) {

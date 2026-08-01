@@ -76,6 +76,7 @@ test("automatic Evaluation admission is durably unique for one frozen Changeset"
       base_commit: "1".repeat(40),
       head_commit: "2".repeat(40),
     },
+    provider: /** @type {const} */ ("github"),
     pullRequestNumber: 17,
     repositoryId: "repository-1",
   };
@@ -151,7 +152,7 @@ test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", 
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.equal(
     migrated.get(
       `SELECT count(*) AS count FROM sqlite_schema

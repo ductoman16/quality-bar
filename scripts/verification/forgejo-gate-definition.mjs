@@ -8,6 +8,7 @@ export const forgejoGateDefinitions = [
       "--test",
       "test/forgejo-v16-failure-integration.test.js",
       "test/forgejo-v16-integration.test.js",
+      "test/forgejo-automatic-evaluation-fixture-integration.test.js",
       "test/forgejo-polling-fixture-integration.test.js",
     ],
   },
@@ -21,6 +22,8 @@ export const forgejoGateDefinitions = [
 ];
 
 export const FORGEJO_SQLITE_TESTS = [
+  "test/forgejo-automatic-evaluation-failure-sqlite-integration.test.js",
+  "test/forgejo-automatic-evaluation-sqlite-integration.test.js",
   "test/forgejo-connection-rotation-sqlite-integration.test.js",
   "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
   "test/forgejo-connection-schema-migration.test.js",
@@ -29,4 +32,16 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-polling-sqlite-integration.test.js",
   "test/forgejo-repository-reactivation-sqlite-integration.test.js",
   "test/forgejo-repository-enablement-race-sqlite-integration.test.js",
+];
+
+export const FORGEJO_UNIT_TESTS = [
+  "test/forgejo-connection-lifecycle.test.js",
+  "test/forgejo-connection.test.js",
+  "test/forgejo-automatic-evaluation.test.js",
+  "test/forgejo-polling.test.js",
+];
+
+export const FORGEJO_BROWSER_TESTS = [
+  "test/forgejo-connection-browser-component.test.js",
+  "test/forgejo-automatic-evaluation-browser-component.test.js",
 ];

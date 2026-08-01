@@ -13,7 +13,10 @@ import {
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
 import { assertForgejoSiblingRecovery } from "./forgejo-repository-enablement-race-support.js";
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 
 test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomically", async (context) => {
   const directory = mkdtempSync(
@@ -33,6 +36,7 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
   let newerSiblingHealthAndFailure = false;
   let retireSiblingDuringVerification = false;
   const forgejo = createForgejoConnectionService(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: (() => {
       const ids = [
         "connection-1",

@@ -8,8 +8,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
+import { createEvaluationService } from "../src/evaluation.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { createReviewService } from "../src/review.js";
+import { proveForgejoV16AutomaticEvaluation } from "./forgejo-v16-automatic-evaluation-support.js";
 
 const FORGEJO_IMAGE =
   "codeberg.org/forgejo/forgejo@sha256:3eb3107bc9de4e9d6d9e539044e6c802dc0b7be351919a145540d4cb5422bf07";
@@ -68,6 +72,8 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
   let service;
   /** @type {any} */
   let core;
+  /** @type {any} */
+  let evaluations;
   let primaryFailure;
   /** @type {unknown[]} */
   const cleanupFailures = [];
@@ -191,10 +197,61 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       },
     );
     assert.equal(excluded.status, 404);
+    let currentTime = 1_000;
     core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+    createReviewService(core, {
+      now: () => 1_000,
+    }).create({
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [
+        {
+          impact: "blocking",
+          instruction: "Review the newly ready Forgejo pull request.",
+        },
+      ],
+      description: "Pinned Forgejo v16 automatic Evaluation proof",
+      name: "Pinned Forgejo Review",
+    });
+    evaluations = createEvaluationService(core, {
+      acquireChangeset: async () => {
+        throw new Error("automatic polling owns acquisition");
+      },
+      readCodexCapabilityFailure: () => null,
+      masterKey: Buffer.alloc(32, 7),
+      now: () => currentTime,
+      storageReserve: availableStorageReserve,
+    });
     service = createForgejoConnectionService(core, {
+      async acquirePullRequestChangeset({ pullRequest, repositoryId }) {
+        const stored = core.get(
+          "SELECT normalized_url FROM repositories WHERE id = ?",
+          repositoryId,
+        );
+        assert.equal(typeof stored?.normalized_url, "string");
+        return resolvePushedCommitSelectors(
+          /** @type {string} */ (stored.normalized_url),
+          { token: reactivationToken, username: "oauth2" },
+          {
+            base: { type: "commit", value: pullRequest.merge_base },
+            head: { type: "commit", value: pullRequest.head.sha },
+          },
+          {
+            objectDatabaseRoot: directory,
+            pullRequestProvider: "forgejo",
+            useMergeBase: false,
+          },
+        );
+      },
+      admitAutomaticEvaluation: (transaction, input) =>
+        evaluations.admitAutomatic(transaction, input),
       storageReserve: availableStorageReserve,
       masterKey: Buffer.alloc(32, 7),
+      now: () => currentTime,
       verifier: createForgejoV16Verifier(),
     });
     const connected = await service.connect({
@@ -246,6 +303,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     core.run("UPDATE repositories SET lifecycle = 'retired'");
     const retired = service.retire({ lifecycle: "retired" });
     assert.equal(retired.lifecycle, "retired");
+    currentTime = 61_000;
     const reactivated = await service.reactivate({
       token: reactivationToken,
     });
@@ -269,11 +327,27 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       ),
       ["onboarding", "enablement"],
     );
+
+    core.run("UPDATE repositories SET lifecycle = 'enabled'");
+    await proveForgejoV16AutomaticEvaluation({
+      api,
+      baseUrl,
+      core,
+      repository,
+      service,
+      setCurrentTime: (value) => (currentTime = value),
+      token: setupToken,
+    });
   } catch (error) {
     primaryFailure = error;
   } finally {
     try {
       service?.destroy();
+    } catch (error) {
+      cleanupFailures.push(error);
+    }
+    try {
+      evaluations?.destroy();
     } catch (error) {
       cleanupFailures.push(error);
     }

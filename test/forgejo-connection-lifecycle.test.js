@@ -1,4 +1,7 @@
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -48,6 +51,7 @@ test("Forgejo lifecycle rejects malformed input before durable access", async ()
       },
     },
     {
+      ...forgejoAutomaticEvaluationTestDependencies,
       storageReserve: availableStorageReserve,
       masterKey: Buffer.alloc(32),
       verifier: {

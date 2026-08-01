@@ -62,7 +62,7 @@ export { RepositoryError };
  *     normalizedUrl: string,
  *     credential: {token: string, username: string} | undefined,
  *     request: unknown,
- *     options: {objectDatabaseRoot: string}
+ *     options: {objectDatabaseRoot: string, pullRequestProvider?: "forgejo" | "github", useMergeBase?: boolean}
  *   ) => Promise<import("./repository-git.js").ResolvedPushedCommitSelectors>
  * }} options
  */
@@ -336,7 +336,18 @@ export function createRepositoryService(
           base: { type: "commit", value: pullRequest?.baseSha },
           head: { type: "commit", value: pullRequest?.headSha },
         },
-        { useMergeBase: true },
+        { pullRequestProvider: "github", useMergeBase: true },
+      );
+    },
+    /** @param {string} id @param {{baseSha: string, headSha: string}} pullRequest */
+    resolveForgejoPullRequestChangeset(id, pullRequest) {
+      return resolvePushedSelectors(
+        id,
+        {
+          base: { type: "commit", value: pullRequest?.baseSha },
+          head: { type: "commit", value: pullRequest?.headSha },
+        },
+        { pullRequestProvider: "forgejo", useMergeBase: false },
       );
     },
     resolvePushedSelectors,

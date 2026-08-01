@@ -1,50 +1,14 @@
-export const FORGEJO_POLL_INTERVAL_MS = 60_000;
-
-const DEFINITIVE_FAILURES = new Set([
-  "forgejo_connection_credential_invalid",
-  "forgejo_connection_credential_undecryptable",
-  "forgejo_credential_undecryptable",
-  "forgejo_poll_response_invalid",
-  "forgejo_repository_api_access_failed",
-  "forgejo_repository_permission_denied",
-  "forgejo_version_unsupported",
-]);
-const REPOSITORY_OWNED_DEFINITIVE_FAILURES = new Set([
-  "forgejo_poll_response_invalid",
-  "forgejo_repository_api_access_failed",
-  "forgejo_repository_permission_denied",
-]);
-
-/** @param {{code?: string}} failure */
-export function isDefinitiveForgejoPollingFailure(failure) {
-  return (
-    typeof failure.code === "string" && DEFINITIVE_FAILURES.has(failure.code)
-  );
-}
-
-/** @param {{code?: string, repositoryId?: number}} failure */
-export function isRepositoryOwnedDefinitiveForgejoPollingFailure(failure) {
-  return (
-    Number.isSafeInteger(failure.repositoryId) &&
-    typeof failure.code === "string" &&
-    REPOSITORY_OWNED_DEFINITIVE_FAILURES.has(failure.code)
-  );
-}
-
-/** @param {number} attemptedAt @param {{code?: string, nextAttemptAt?: number}} failure */
-export function nextForgejoAttemptAt(attemptedAt, failure) {
-  if (!Number.isSafeInteger(attemptedAt) || attemptedAt < 0) {
-    throw new TypeError("Forgejo polling attempt time is invalid");
-  }
-  if (isDefinitiveForgejoPollingFailure(failure)) {
-    return null;
-  }
-  const providerAttemptAt = failure.nextAttemptAt;
-  return Number.isSafeInteger(providerAttemptAt) &&
-    Number(providerAttemptAt) >= attemptedAt
-    ? Number(providerAttemptAt)
-    : attemptedAt + FORGEJO_POLL_INTERVAL_MS;
-}
+import {
+  FORGEJO_POLL_INTERVAL_MS,
+  isRepositoryOwnedForgejoPollingFailure,
+  nextForgejoAttemptAt,
+} from "./forgejo-polling-failure.js";
+export {
+  FORGEJO_POLL_INTERVAL_MS,
+  isDefinitiveForgejoPollingFailure,
+  isRepositoryOwnedDefinitiveForgejoPollingFailure,
+  nextForgejoAttemptAt,
+} from "./forgejo-polling-failure.js";
 
 /** @param {unknown} error */
 function codedFailure(error) {
@@ -251,7 +215,12 @@ export function createForgejoPollingService(
       }
       throw failure;
     }
-    return { completedAt: timestamp(), expectedGeneration, snapshots };
+    return {
+      attemptedAt,
+      completedAt: timestamp(),
+      expectedGeneration,
+      snapshots,
+    };
   }
 
   /**
@@ -291,6 +260,7 @@ export function createForgejoPollingService(
    * @param {number} attemptedAt
    * @param {boolean} baseline
    * @param {number} [expectedGeneration]
+   * @param {() => void} [beforeOwningFailure]
    */
   function commitFailure(
     transaction,
@@ -300,6 +270,7 @@ export function createForgejoPollingService(
     attemptedAt,
     baseline,
     expectedGeneration,
+    beforeOwningFailure,
   ) {
     if (
       !claimForgejoPollingGeneration(
@@ -345,7 +316,7 @@ export function createForgejoPollingService(
       );
     }
     const repositoryOwnedFailure =
-      isRepositoryOwnedDefinitiveForgejoPollingFailure(failure);
+      isRepositoryOwnedForgejoPollingFailure(failure);
     if (!baseline && !repositoryOwnedFailure) {
       transaction.run(
         `UPDATE forgejo_repository_polls
@@ -369,6 +340,7 @@ export function createForgejoPollingService(
         }),
       );
     }
+    beforeOwningFailure?.();
     recordOwningFailure(
       transaction,
       connectionId,

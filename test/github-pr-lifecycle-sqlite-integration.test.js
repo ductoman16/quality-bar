@@ -133,6 +133,7 @@ test("a different GitHub pull-request pair durably supersedes nonterminal work",
   const admit = (pair, pullRequestNumber = 17) =>
     core.transaction((transaction) =>
       evaluations.admitAutomatic(transaction, {
+        provider: "github",
         changeset: pair,
         pullRequestNumber,
         repositoryId: "repository-1",
@@ -270,6 +271,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
     DROP TABLE github_feedback_bundles;
     DROP TABLE github_automatic_evaluation_pull_requests;
     DROP TRIGGER github_automatic_evaluation_matches_evaluation;
+    DROP TRIGGER forgejo_automatic_evaluation_matches_evaluation;
     DROP TRIGGER applicability_selection_closed_insert;
     DROP TRIGGER applicability_result_closed_insert;
     DROP TRIGGER waiver_adjudication_evaluation_insert;
@@ -340,7 +342,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

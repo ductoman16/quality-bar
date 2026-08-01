@@ -1,4 +1,7 @@
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,7 +31,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -48,6 +51,7 @@ test("SQLite restore migration requires a fresh Forgejo baseline before polling"
   const databasePath = join(directory, "quality-bar.sqlite3");
   const current = openDurableCore(databasePath);
   const service = createForgejoConnectionService(current, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
@@ -149,7 +153,7 @@ test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (
   canonicalV20.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   migrated.run(
     `INSERT INTO authority_attributions
       (id, channel, action, outcome, error_code, occurred_at)
@@ -227,6 +231,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   const databasePath = join(directory, "quality-bar.sqlite3");
   const current = openDurableCore(databasePath);
   const service = createForgejoConnectionService(current, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
@@ -319,7 +324,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",

@@ -39,7 +39,7 @@ test("schema v45 migrates to durable Review Run pre-start retry without changing
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   const retryCycle = migrated
     .all("PRAGMA table_info(review_runs)")
     .find((row) => row?.name === "retry_cycle");
@@ -113,7 +113,7 @@ test("schema v46 gains terminal Waiver Adjudication immutability", (context) => 
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.ok(
     migrated.get(
       "SELECT 1 AS present FROM sqlite_schema WHERE type = 'trigger' AND name = 'waiver_adjudication_terminal_immutable'",

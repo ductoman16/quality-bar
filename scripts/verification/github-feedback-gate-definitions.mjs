@@ -23,6 +23,7 @@ export const GIT_GATE = {
     "test/evaluation-git-object-format-integration.test.js",
     "test/repository-git-integration.test.js",
     "test/github-git-integration.test.js",
+    "test/forgejo-automatic-evaluation-git-integration.test.js",
     "test/github-feedback-git-integration.test.js",
     "test/repository-git-credential-integration.test.js",
   ],

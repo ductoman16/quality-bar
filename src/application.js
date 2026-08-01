@@ -31,6 +31,7 @@ import {
   createForgejoConnectionService,
   unavailableForgejoConnectionService,
 } from "./forgejo-connection.js";
+import { createForgejoAutomaticApplicationDependencies } from "./forgejo-automatic-application-dependencies.js";
 import { createApplicationRuntimeServer } from "./application-server-runtime.js";
 import {
   createRequestSecurityBoundary,
@@ -44,10 +45,7 @@ import {
   createRepositoryService,
   createUnavailableRepositoryService,
 } from "./repository.js";
-import {
-  prepareForgejoRepositoryEnablement,
-  prepareGitHubRepositoryEnablement,
-} from "./repository-provider-verification.js";
+import { createRepositoryProviderApplicationDependencies } from "./repository-provider-application-dependencies.js";
 import {
   createRepositoryGuidanceService,
   createUnavailableRepositoryGuidanceService,
@@ -134,19 +132,19 @@ export function createApplication({
   const { knownSecrets, registerSecret } = createApplicationSecretRegistry();
   writeLog = createApplicationLog(writeLog, () => durableCore, knownSecrets);
   let browserSessions = null,
-    implementerTokens = null;
+    implementerTokens = null,
+    reviews = null;
   let browserOrigin = "",
     requestSecurity = null;
-  let reviews = null;
   /** @type {ReturnType<typeof createRepositoryService> | null} */
   let repositories = null;
   /** @type {any} */
   let githubConnections = null;
   /** @type {any} */
   let forgejoConnections = null;
-  let repositoryGuidance = null;
-  let waiverAdjudicatorConfiguration = null;
-  let systemResource = null;
+  let repositoryGuidance = null,
+    waiverAdjudicatorConfiguration = null,
+    systemResource = null;
   /** @type {ReturnType<typeof createStorageReserveGate> | null} */
   let storageReserve = null;
   /** @type {ReturnType<typeof createEvaluationService> | null} */
@@ -242,37 +240,23 @@ export function createApplication({
           ),
       });
       forgejoConnections = createForgejoConnections(durableCore, {
+        ...createForgejoAutomaticApplicationDependencies({
+          getEvaluations: () => evaluations,
+          getRepositories: () => repositories,
+        }),
         masterKey: installation.masterKey,
         now,
         registerSecret,
         storageReserve,
       });
       repositories = createRepositories(durableCore, {
+        ...createRepositoryProviderApplicationDependencies({
+          getForgejoConnections: () => forgejoConnections,
+          getGitHubConnections: () => githubConnections,
+        }),
         masterKey: installation.masterKey,
         now,
         registerSecret,
-        resolveForgeCredential(
-          /** @type {string} */ connectionId,
-          /** @type {"github" | "forgejo"} */ provider,
-        ) {
-          const service =
-            provider === "github" ? githubConnections : forgejoConnections;
-          return service.acquireRepositoryGitCredential(connectionId);
-        },
-        async verifyForgeRepository(
-          /** @type {number} */ forgeRepositoryId,
-          /** @type {"github" | "forgejo"} */ provider,
-        ) {
-          return provider === "forgejo"
-            ? prepareForgejoRepositoryEnablement(
-                forgejoConnections,
-                forgeRepositoryId,
-              )
-            : prepareGitHubRepositoryEnablement(
-                githubConnections,
-                forgeRepositoryId,
-              );
-        },
       });
       evaluations = createEvaluations(durableCore, {
         acquireChangeset: (repositoryId, request) =>

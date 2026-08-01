@@ -381,6 +381,8 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
   JOIN repositories ON repositories.id = evaluations.repository_id
   LEFT JOIN github_automatic_evaluations
     ON github_automatic_evaluations.evaluation_id = evaluations.id
+  LEFT JOIN forgejo_automatic_evaluations
+    ON forgejo_automatic_evaluations.evaluation_id = evaluations.id
   LEFT JOIN evaluation_results ON evaluation_results.evaluation_id = evaluations.id
   LEFT JOIN github_commit_statuses
     ON github_commit_statuses.evaluation_id = evaluations.id

@@ -13,6 +13,7 @@ function pullRequest(number) {
     base: { sha: number.toString(16).padStart(40, "a") },
     draft: false,
     head: { sha: number.toString(16).padStart(40, "b") },
+    merge_base: number.toString(16).padStart(40, "c"),
     merged: false,
     merged_at: null,
     number,

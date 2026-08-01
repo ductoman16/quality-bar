@@ -8,7 +8,7 @@ export function createAutomaticEvaluationAdmission(
 ) {
   /**
    * @param {any} transaction
-   * @param {{changeset: any, pullRequestNumber: number, repositoryId: string}} input
+   * @param {{changeset: any, provider: "forgejo" | "github", pullRequestNumber: number, repositoryId: string}} input
    */
   return (transaction, input) => {
     if (
@@ -16,7 +16,8 @@ export function createAutomaticEvaluationAdmission(
       typeof transaction.get !== "function" ||
       typeof transaction.run !== "function" ||
       typeof input?.repositoryId !== "string" ||
-      input.repositoryId.length === 0
+      input.repositoryId.length === 0 ||
+      !["forgejo", "github"].includes(input.provider)
     ) {
       throw new TypeError("Automatic Evaluation admission is invalid");
     }

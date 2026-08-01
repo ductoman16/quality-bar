@@ -7,9 +7,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 import {
+  createAvailableForgejoConnectionService,
   assertForgejoFailedReactivationHistory,
   assertForgejoMissingRepositoryId,
   assertForgejoPartialFailure,
@@ -285,7 +285,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   );
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  const service = createForgejoConnectionService(core, {
+  const service = createAvailableForgejoConnectionService(core, {
     storageReserve: availableStorageReserve,
     createId: (() => {
       const ids = [
