@@ -25,6 +25,7 @@ import {
 import {
   availableStorageReserve,
   createAvailableGitHubConnectionService,
+  forgejoAutomaticEvaluationTestDependencies,
 } from "./storage-reserve-support.js";
 
 const masterKey = Buffer.alloc(32, 29);
@@ -97,6 +98,7 @@ async function establishGitHubRepository(core) {
 async function establishForgejoRepository(core) {
   const evidence = repositoryEvidence(11, "private");
   const service = createForgejoConnectionService(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: (() => {
       const ids = ["forgejo-connection", "forgejo-verification", "repository"];
       return () => ids.shift();

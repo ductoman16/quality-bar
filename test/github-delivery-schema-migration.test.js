@@ -81,7 +81,7 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 48);
+  assert.equal(migrated.facts.schemaVersion, 49);
   assert.deepEqual(
     migrated.all(
       `SELECT surface, source_id, connection_id, authority_verified_at,

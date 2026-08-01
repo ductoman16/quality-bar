@@ -121,6 +121,9 @@ function applicationServerOptions() {
       async register() {
         throw new Error("unused Repository service operation");
       },
+      async resolveForgejoPullRequestChangeset() {
+        throw new Error("unused Repository service operation");
+      },
       remove() {
         throw new Error("unused Repository service operation");
       },

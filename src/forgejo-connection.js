@@ -77,11 +77,13 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{createId?: () => string | undefined, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
+ * @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "forgejo", pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
   {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
     createId = randomUUID,
     masterKey,
     now = () => Date.now(),
@@ -94,6 +96,8 @@ export function createForgejoConnectionService(
     typeof durableCore?.all !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof createId !== "function" ||
+    typeof acquirePullRequestChangeset !== "function" ||
+    typeof admitAutomaticEvaluation !== "function" ||
     typeof storageReserve?.ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof storageReserve?.assertPollingObservationAdvanceAvailable !==
@@ -121,6 +125,8 @@ export function createForgejoConnectionService(
     cipher.decrypt(row.connection_id, row.encrypted_credential);
   }
   const polling = createForgejoPollingRunner(durableCore, {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
     cipher,
     storageReserve,
     timestamp: now,

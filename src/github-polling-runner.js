@@ -1,10 +1,10 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
+import { acquireAutomaticEvaluations } from "./github-automatic-evaluation-admission.js";
 import {
-  acquireAutomaticEvaluations,
   admitAutomaticEvaluations,
   completeAutomaticEvaluationAdmissions,
   releaseAutomaticEvaluationChangesets,
-} from "./github-automatic-evaluation-admission.js";
+} from "./automatic-evaluation-admission-batch.js";
 import {
   GITHUB_POLL_INTERVAL_MS,
   createGitHubPollingService,
@@ -18,7 +18,7 @@ import {
 import { createIoDutyScheduler } from "./io-execution-pool.js";
 import { requireCodedError } from "./coded-error.js";
 
-/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
+/** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "github", pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
   durableCore,
   {

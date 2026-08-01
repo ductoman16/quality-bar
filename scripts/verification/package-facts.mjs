@@ -420,7 +420,7 @@ export function validatePackageFacts(facts, applicationVersion) {
       packageFacts?.upgrade?.forwardMigration?.afterSchemaVersion ===
         SCHEMA_VERSION &&
         packageFacts?.upgrade?.forwardMigration?.beforeSchemaVersion ===
-          SCHEMA_VERSION - 1 &&
+          PACKAGE_UPGRADE_SOURCE_SCHEMA_VERSION &&
         packageFacts?.upgrade?.forwardMigration?.exclusive === true &&
         packageFacts?.upgrade?.forwardMigration?.restoredTable === true,
       "upgrade.forwardMigration must prove an exclusive forward migration",
@@ -434,7 +434,7 @@ export function validatePackageFacts(facts, applicationVersion) {
           packageFacts.upgrade.rollback?.priorImageVersion &&
         packageFacts?.upgrade?.preMigrationSnapshot?.kind === "pre-migration" &&
         packageFacts?.upgrade?.preMigrationSnapshot?.schemaVersion ===
-          SCHEMA_VERSION - 1,
+          PACKAGE_UPGRADE_SOURCE_SCHEMA_VERSION,
       "upgrade.preMigrationSnapshot must prove the validated prior schema",
     ],
     [
@@ -476,3 +476,5 @@ export function validatePackageFacts(facts, applicationVersion) {
   return requirements.find(([valid]) => !valid)?.[1] ?? null;
 }
 import { SCHEMA_VERSION } from "../../src/durable-schema.js";
+
+const PACKAGE_UPGRADE_SOURCE_SCHEMA_VERSION = 47;

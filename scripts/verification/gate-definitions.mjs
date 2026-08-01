@@ -5,7 +5,9 @@ import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
 import { formattingGateDefinition } from "./format-gate-definition.mjs";
 import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
 import {
+  FORGEJO_BROWSER_TESTS,
   FORGEJO_SQLITE_TESTS,
+  FORGEJO_UNIT_TESTS,
   forgejoGateDefinitions,
 } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
@@ -264,9 +266,7 @@ export function createGateDefinitions(metadata) {
         "test/github-feedback.test.js",
         "test/github-feedback-api.test.js",
         "test/github-polling-state.test.js",
-        "test/forgejo-connection-lifecycle.test.js",
-        "test/forgejo-connection.test.js",
-        "test/forgejo-polling.test.js",
+        ...FORGEJO_UNIT_TESTS,
         "test/waiver-adjudicator-configuration.test.js",
         "test/waiver-batch.test.js",
         "test/sqlite-backup.test.js",
@@ -303,7 +303,7 @@ export function createGateDefinitions(metadata) {
         ...["test/github-connection-browser-component.test.js", "test/github-connection-rotation-browser-component.test.js"],
         "test/github-repository-reconciliation-browser-component.test.js",
         "test/github-repository-browser-component.test.js",
-        "test/forgejo-connection-browser-component.test.js",
+        ...FORGEJO_BROWSER_TESTS,
         "test/waiver-adjudicator-configuration-browser-component.test.js",
         "test/storage-reserve-browser-component.test.js",
         "test/system-execution-browser-component.test.js",

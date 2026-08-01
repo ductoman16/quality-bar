@@ -7,6 +7,22 @@ function object(value) {
     : null;
 }
 
+/** @param {unknown} value */
+function validGitObjectId(value) {
+  return (
+    typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value)
+  );
+}
+
+/** @param {unknown[]} values */
+function oneGitObjectFormat(...values) {
+  return (
+    values.every(validGitObjectId) &&
+    new Set(values.map((value) => /** @type {string} */ (value).length))
+      .size === 1
+  );
+}
+
 /** @param {string | null} value @param {number} attemptedAt */
 function retryAfterAt(value, attemptedAt) {
   if (value === null) {
@@ -206,11 +222,12 @@ export function createForgejoV16PullRequestReader({
           !["closed", "open"].includes(/** @type {string} */ (pull.state)) ||
           typeof pull.draft !== "boolean" ||
           typeof pull.merged !== "boolean" ||
-          (pull.merged_at !== null && typeof pull.merged_at !== "string") ||
-          typeof base?.sha !== "string" ||
-          !/^[0-9a-f]{40,64}$/.test(base.sha) ||
-          typeof head?.sha !== "string" ||
-          !/^[0-9a-f]{40,64}$/.test(head.sha)
+          !oneGitObjectFormat(pull.merge_base, base?.sha, head?.sha) ||
+          (pull.merged_at !== null &&
+            (typeof pull.merged_at !== "string" ||
+              !Number.isSafeInteger(Date.parse(pull.merged_at)))) ||
+          !base ||
+          !head
         ) {
           fail(
             "forgejo_poll_response_invalid",

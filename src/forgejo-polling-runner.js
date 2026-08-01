@@ -18,10 +18,15 @@ import {
 import { createIoDutyScheduler } from "./io-execution-pool.js";
 import { createIoDutyTimer } from "./io-duty-timer.js";
 import { requireCodedError } from "./coded-error.js";
+import { reconcileForgejoAutomaticEvaluations } from "./forgejo-automatic-reconciliation.js";
+import { gatesForgejoConnection } from "./forgejo-reconciliation-failure.js";
+import { recordForgejoPollingOwningFailure } from "./forgejo-polling-owning-failure.js";
 /** @param {any} durableCore @param {any} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
   {
+    acquirePullRequestChangeset,
+    admitAutomaticEvaluation,
     cipher,
     clearTimer: cancelTimer = clearTimeout,
     setTimer = setTimeout,
@@ -35,7 +40,9 @@ export function createForgejoPollingRunner(
     typeof cipher?.decrypt !== "function" ||
     typeof storageReserve?.ioPool?.run !== "function" ||
     typeof timestamp !== "function" ||
-    typeof verifier?.listPullRequests !== "function"
+    typeof verifier?.listPullRequests !== "function" ||
+    typeof acquirePullRequestChangeset !== "function" ||
+    typeof admitAutomaticEvaluation !== "function"
   ) {
     throw new TypeError("Forgejo polling runner dependencies are invalid");
   }
@@ -50,7 +57,7 @@ export function createForgejoPollingRunner(
         repository,
       ),
     now: timestamp,
-    recordOwningFailure,
+    recordOwningFailure: recordForgejoPollingOwningFailure,
   });
   let [started, running] = [false, false];
 
@@ -90,52 +97,6 @@ export function createForgejoPollingRunner(
     });
   }
 
-  /** @param {any} transaction @param {string} connectionId @param {number[]} forgeRepositoryIds @param {Error & {code: string, repositoryId?: number}} failure @param {number} attemptedAt */
-  function recordOwningFailure(
-    transaction,
-    connectionId,
-    forgeRepositoryIds,
-    failure,
-    attemptedAt,
-  ) {
-    if (!isDefinitiveForgejoPollingFailure(failure)) {
-      return;
-    }
-    const repositoryFailure = new Set([
-      "forgejo_poll_response_invalid",
-      "forgejo_repository_api_access_failed",
-      "forgejo_repository_permission_denied",
-    ]);
-    const repositoryId =
-      repositoryFailure.has(failure.code) &&
-      Number.isSafeInteger(failure.repositoryId) &&
-      forgeRepositoryIds.includes(Number(failure.repositoryId))
-        ? Number(failure.repositoryId)
-        : null;
-    if (repositoryId !== null) {
-      transaction.run(
-        `UPDATE repositories
-            SET health = 'error', health_error_code = ?,
-                health_error_message = ?, verified_at = ?
-          WHERE id = (
-            SELECT repository_id FROM forgejo_repositories
-             WHERE connection_id = ? AND forge_repository_id = ?
-          )`,
-        failure.code,
-        failure.message,
-        attemptedAt,
-        connectionId,
-        repositoryId,
-      );
-      return;
-    }
-    transaction.run(
-      "UPDATE forgejo_connections SET health = 'error', verified_at = ? WHERE id = ?",
-      attemptedAt,
-      connectionId,
-    );
-  }
-
   async function runDue() {
     if (running) {
       return;
@@ -150,6 +111,8 @@ export function createForgejoPollingRunner(
                 forgejo_connections.base_url,
                 forgejo_connection_credentials.encrypted_credential,
                 forgejo_repositories.name,
+                forgejo_repositories.repository_id,
+                forgejo_repository_polls.snapshot,
                 (
                   SELECT value FROM quality_bar_metadata
                    WHERE key = 'forgejo_poll_generation:' ||
@@ -219,6 +182,7 @@ export function createForgejoPollingRunner(
         }
         let baseline = false;
         let forgeRepositoryIds = [row.forge_repository_id];
+        let attemptedAt;
         try {
           let prepared;
           if (baselineConnections.has(row.connection_id)) {
@@ -258,20 +222,39 @@ export function createForgejoPollingRunner(
               { recordFailure: false },
             );
           }
-          const committed = pollingCore.transaction(
-            (/** @type {any} */ transaction) => {
-              return polling.commitSuccess(
-                transaction,
-                row.connection_id,
+          attemptedAt = prepared.attemptedAt;
+          if (baseline) {
+            const committed = pollingCore.transaction(
+              (/** @type {any} */ transaction) =>
+                polling.commitSuccess(
+                  transaction,
+                  row.connection_id,
+                  prepared,
+                  generation,
+                ),
+            );
+            requireForgejoPollingCommit(
+              committed,
+              "Forgejo polling changed during reconciliation",
+            );
+          } else {
+            const reconciliationFailure =
+              await reconcileForgejoAutomaticEvaluations({
+                pollingCore,
+                polling,
+                row,
                 prepared,
                 generation,
-              );
-            },
-          );
-          requireForgejoPollingCommit(
-            committed,
-            "Forgejo polling changed during reconciliation",
-          );
+                acquirePullRequestChangeset,
+                admitAutomaticEvaluation,
+              });
+            if (
+              reconciliationFailure &&
+              gatesForgejoConnection(reconciliationFailure)
+            ) {
+              gatedConnections.add(row.connection_id);
+            }
+          }
           currentGenerations.set(row.connection_id, generation + 1);
           if (baseline) {
             completedBaselines.add(row.connection_id);
@@ -286,6 +269,15 @@ export function createForgejoPollingRunner(
           }
           if (failure.code === "forgejo_polling_conflict") {
             throw failure;
+          }
+          if (
+            !("attemptedAt" in failure) &&
+            Number.isSafeInteger(attemptedAt)
+          ) {
+            Object.assign(failure, {
+              attemptedAt,
+              repositoryId: row.forge_repository_id,
+            });
           }
           if (
             "attemptedAt" in failure &&
@@ -324,6 +316,12 @@ export function createForgejoPollingRunner(
             ) {
               gatedConnections.add(row.connection_id);
             }
+          } else {
+            polling.recordFailure({
+              connectionId: row.connection_id,
+              error: failure,
+              forgeRepositoryId: row.forge_repository_id,
+            });
           }
           if (
             "nextAttemptAt" in failure &&

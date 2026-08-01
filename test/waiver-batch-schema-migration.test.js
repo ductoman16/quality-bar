@@ -98,7 +98,7 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 48);
+    assert.equal(migrated.facts.schemaVersion, 49);
     assert.ok(
       migrated.get(
         "SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = 'github_finding_feedback'",
@@ -197,7 +197,7 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
 
   const migrated = openDurableCore(databasePath);
   try {
-    assert.equal(migrated.facts.schemaVersion, 48);
+    assert.equal(migrated.facts.schemaVersion, 49);
     const columns = new Set(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -343,7 +343,7 @@ for (const version of [28, 36, 37]) {
 
     const migrated = openDurableCore(databasePath);
     try {
-      assert.equal(migrated.facts.schemaVersion, 48);
+      assert.equal(migrated.facts.schemaVersion, 49);
       assert.match(
         String(
           migrated.get(

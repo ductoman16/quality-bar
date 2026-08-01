@@ -9,6 +9,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService } from "../src/repository.js";
 import {
   forgejoVerification,
+  pullRequest,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
 
@@ -75,19 +76,6 @@ test("SQLite admits exactly one Forgejo Connection when simultaneous verificatio
   service.destroy();
   core.close();
 });
-
-/** @param {number} number */
-function pullRequest(number) {
-  return {
-    base: { sha: number.toString(16).padStart(40, "a") },
-    draft: false,
-    head: { sha: number.toString(16).padStart(40, "b") },
-    merged: false,
-    merged_at: null,
-    number,
-    state: "open",
-  };
-}
 
 test("a corrected Forgejo baseline fences an older in-flight poll", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-race-"));

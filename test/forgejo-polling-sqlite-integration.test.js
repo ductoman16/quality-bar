@@ -13,7 +13,10 @@ import {
   pullRequest,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 
 test("SQLite onboarding advances nothing when the complete Forgejo baseline fails", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-polling-"));
@@ -24,6 +27,7 @@ test("SQLite onboarding advances nothing when the complete Forgejo baseline fail
     { code: "forgejo_poll_response_invalid", repositoryId: 11 },
   );
   const service = createForgejoConnectionService(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: () => "connection-1",
     masterKey: Buffer.alloc(32, 15),
     now: () => 1_000,
@@ -84,6 +88,7 @@ test("SQLite polling preserves the last Forgejo success through an exact rate ga
   /** @type {Error & {code: string, nextAttemptAt: number, repositoryId: number} | null} */
   let failure = null;
   const service = createForgejoConnectionService(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: (() => {
       const ids = ["connection-1", "verification-1", "repository-1"];
       return () => ids.shift();
@@ -187,6 +192,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
   let currentTime = 1_000;
   const initial = openDurableCore(databasePath);
   const onboarding = createForgejoConnectionService(initial, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: (() => {
       const ids = [
         "connection-1",
@@ -221,6 +227,7 @@ test("a current-schema restart atomically rebaselines every Forgejo Repository",
   const baselineFailure = createOneShotForgejoBaselineFailure([11, 22], 22);
   const restoredCore = openDurableCore(databasePath);
   const restored = createForgejoConnectionService(restoredCore, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     masterKey,
     now: () => currentTime,
     storageReserve: availableStorageReserve,

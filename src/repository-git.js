@@ -19,6 +19,10 @@ import { throwIoTerminationFailure } from "./io-operation-context.js";
 import { createFrozenFileContentReader } from "./frozen-file-content.js";
 import { createGitPathMatcher } from "./git-path-matcher.js";
 import { proveMergeBase } from "./repository-git-merge-base.js";
+import {
+  failRepositoryGitReadLoss,
+  resolveExactEvaluationSelector,
+} from "./pull-request-acquisition-error.js";
 
 /**
  * @typedef {{
@@ -172,6 +176,7 @@ export function verifyPublicRepositoryRead(normalizedUrl, options) {
  * @param {{
  *   certificateAuthorityPath?: string,
  *   objectDatabaseRoot: string,
+ *   pullRequestProvider?: "forgejo" | "github",
  *   removeDirectory?: (path: string) => void,
  *   spawnProcess?: typeof spawn, useMergeBase?: boolean
  * }} options
@@ -186,6 +191,7 @@ export async function resolvePushedCommitSelectors(
     removeDirectory = (path) => rmSync(path, { force: true, recursive: true }),
     spawnProcess = spawn,
     useMergeBase = false,
+    pullRequestProvider = useMergeBase ? "github" : undefined,
   },
 ) {
   const selectors = canonicalExplicitEvaluationRequest(request);
@@ -272,7 +278,11 @@ export async function resolvePushedCommitSelectors(
     if (!objectIdPattern) {
       throw new TypeError("Repository object format is unsupported");
     }
-    if (typeof useMergeBase !== "boolean") {
+    if (
+      typeof useMergeBase !== "boolean" ||
+      (pullRequestProvider !== undefined &&
+        !["forgejo", "github"].includes(pullRequestProvider))
+    ) {
       throw new TypeError("Evaluation merge-base mode is invalid");
     }
     const resolved = [];
@@ -284,33 +294,14 @@ export async function resolvePushedCommitSelectors(
           "Commit selector does not match the Repository object format",
         );
       }
-      const revision =
-        selector.type === "branch"
-          ? `refs/heads/${selector.value}^{commit}`
-          : `${selector.value}^{commit}`;
-      try {
-        resolved.push(
-          /** @type {{stdout: string}} */ (
-            await runGit(
-              ["rev-parse", "--verify", "--end-of-options", revision],
-              false,
-            )
-          ).stdout.trim(),
-        );
-      } catch (cause) {
-        if (useMergeBase && selectorIndex === 1) {
-          failEvaluation(
-            "github_pull_request_head_inaccessible",
-            "GitHub pull request head is inaccessible",
-            cause,
-          );
-        }
-        failEvaluation(
-          "evaluation_selector_not_found",
-          "An Evaluation selector does not identify a fetchable pushed commit",
-          cause,
-        );
-      }
+      resolved.push(
+        await resolveExactEvaluationSelector(
+          runGit,
+          pullRequestProvider,
+          selectorIndex,
+          /** @type {{type: "branch" | "commit", value: string}} */ (selector),
+        ),
+      );
     }
     if (
       resolved.length !== 2 ||
@@ -390,6 +381,7 @@ export async function resolvePushedCommitSelectors(
         "Repository permission denied during Evaluation acquisition",
       );
     }
+    failRepositoryGitReadLoss(stderr, acquisitionFailure);
     failEvaluation(
       "evaluation_git_acquisition_failed",
       "Evaluation Git acquisition failed",

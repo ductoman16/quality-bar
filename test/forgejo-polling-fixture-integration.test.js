@@ -9,6 +9,7 @@ function pullRequest(number) {
     base: { sha: number.toString(16).padStart(40, "a") },
     draft: false,
     head: { sha: number.toString(16).padStart(40, "b") },
+    merge_base: number.toString(16).padStart(40, "c"),
     merged: false,
     merged_at: null,
     number,
@@ -95,6 +96,33 @@ test("Forgejo polling fixture rejects an incomplete later page", async () => {
       "code" in error &&
       error.code === "forgejo_poll_response_invalid",
   );
+});
+
+test("Forgejo polling fixture rejects inexact object IDs and timestamps", async () => {
+  const invalidPullRequests = [
+    { ...pullRequest(1), merge_base: "a".repeat(41) },
+    { ...pullRequest(1), base: { sha: "a".repeat(63) } },
+    { ...pullRequest(1), head: { sha: "a".repeat(42) } },
+    { ...pullRequest(1), head: { sha: "a".repeat(64) } },
+    { ...pullRequest(1), merged_at: "not-a-timestamp" },
+  ];
+  for (const invalid of invalidPullRequests) {
+    const verifier = createForgejoV16Verifier({
+      async fetch(url) {
+        return Response.json(
+          new URL(url).searchParams.get("page") === "1" ? [invalid] : [],
+        );
+      },
+    });
+    await assert.rejects(
+      () =>
+        verifier.listPullRequests(
+          { baseUrl: "https://forgejo.example", token: "pat" },
+          { full_name: "operator/private", id: 101 },
+        ),
+      { code: "forgejo_poll_response_invalid" },
+    );
+  }
 });
 
 test("Forgejo polling fixture preserves Retry-After without a hidden fallback", async () => {

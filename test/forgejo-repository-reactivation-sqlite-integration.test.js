@@ -14,7 +14,10 @@ import {
   pullRequest,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
-import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 
 test("Forgejo Repository re-enablement commits exact failure health or one fresh baseline with lifecycle", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-enable-"));
@@ -29,6 +32,7 @@ test("Forgejo Repository re-enablement commits exact failure health or one fresh
   /** @type {Error & {code: string} | null} */
   let verificationFailure = null;
   const forgejo = createForgejoConnectionService(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     createId: (() => {
       const ids = [
         "connection-1",

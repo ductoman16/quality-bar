@@ -43,7 +43,22 @@ export const githubAutomaticEvaluationTestDependencies = Object.freeze({
       release() {},
     };
   },
-  admitAutomaticEvaluation() {},
+  admitAutomaticEvaluation() {
+    return { afterCommit() {}, resource: { id: "test-automatic-evaluation" } };
+  },
+});
+
+export const forgejoAutomaticEvaluationTestDependencies = Object.freeze({
+  async acquirePullRequestChangeset() {
+    return {
+      base_commit: "a".repeat(40),
+      head_commit: "b".repeat(40),
+      release() {},
+    };
+  },
+  admitAutomaticEvaluation() {
+    return { afterCommit() {}, resource: { id: "test-automatic-evaluation" } };
+  },
 });
 
 /** @param {number} number */
@@ -60,10 +75,11 @@ export function githubPullRequest(number) {
 
 /**
  * @param {Parameters<typeof createForgejoService>[0]} durableCore
- * @param {Omit<Parameters<typeof createForgejoService>[1], "storageReserve">} options
+ * @param {Omit<Parameters<typeof createForgejoService>[1], "acquirePullRequestChangeset" | "admitAutomaticEvaluation" | "storageReserve">} options
  */
 export function createAvailableForgejoConnectionService(durableCore, options) {
   return createForgejoService(durableCore, {
+    ...forgejoAutomaticEvaluationTestDependencies,
     ...options,
     storageReserve: availableStorageReserve,
   });

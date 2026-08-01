@@ -17,9 +17,9 @@ import {
 } from "./evaluation-validation.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 import {
-  prepareGitHubAutomaticEvaluation,
-  recordGitHubPullRequestEvaluation,
-} from "./github-evaluation-supersession.js";
+  prepareAutomaticEvaluation,
+  recordAutomaticEvaluation,
+} from "./automatic-evaluation-provider.js";
 import { createEvaluationResultResourceReader } from "./evaluation-result-resource.js";
 import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
 import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
@@ -127,31 +127,21 @@ export function createEvaluationService(
    *   changeset: any,
    *   identity?: {createdAt: number, evaluationId: string},
    *   provenance: "automatic" | "explicit",
+   *   provider?: "forgejo" | "github",
    *   pullRequestNumber?: number,
    *   repositoryId: string,
    *   selectors: {base: {type: "branch" | "commit", value: string}, head: {type: "branch" | "commit", value: string}}
    * }} input
    */
   function admitFrozenEvaluation(transaction, input) {
-    const {
-      changeset,
-      identity,
-      provenance,
-      pullRequestNumber,
-      repositoryId,
-      selectors,
-    } = input;
+    const { changeset, identity, provenance, repositoryId, selectors } = input;
     /** @type {string[]} */
     const cancelledRunningReviewRunIds = [];
     requireFrozenChangeset(changeset);
     if (provenance === "automatic") {
-      const automatic = prepareGitHubAutomaticEvaluation(
+      const automatic = prepareAutomaticEvaluation(
         transaction,
-        {
-          changeset,
-          pullRequestNumber: /** @type {number} */ (pullRequestNumber),
-          repositoryId,
-        },
+        input,
         now,
         failEvaluation,
       );
@@ -234,18 +224,7 @@ export function createEvaluationService(
       completedAt,
     );
     if (provenance === "automatic") {
-      transaction.run(
-        `INSERT INTO github_automatic_evaluations (
-           evaluation_id, repository_id, pull_request_number,
-           base_commit, head_commit
-         ) VALUES (?, ?, ?, ?, ?)`,
-        evaluationId,
-        repositoryId,
-        pullRequestNumber,
-        changeset.base_commit,
-        changeset.head_commit,
-      );
-      recordGitHubPullRequestEvaluation(transaction, evaluationId, input);
+      recordAutomaticEvaluation(transaction, evaluationId, input);
     }
     insertApplicabilityResults(transaction, evaluationId, applicabilityResults);
     sealApplicabilityResults(transaction, evaluationId, createdAt);

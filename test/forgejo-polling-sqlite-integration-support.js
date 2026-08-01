@@ -12,16 +12,18 @@ export function repositoryEvidence(id, name) {
   };
 }
 
-/** @param {number} number */
-export function pullRequest(number) {
+/** @param {number} number @param {Partial<{draft: boolean, head: {sha: string}}>} [overrides] */
+export function pullRequest(number, overrides = {}) {
   return {
     base: { sha: number.toString(16).padStart(40, "a") },
     draft: false,
     head: { sha: number.toString(16).padStart(40, "b") },
+    merge_base: number.toString(16).padStart(40, "c"),
     merged: false,
     merged_at: null,
     number,
     state: "open",
+    ...overrides,
   };
 }
 

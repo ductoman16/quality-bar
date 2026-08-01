@@ -28,6 +28,9 @@ export function createUnavailableRepositoryService(error) {
     async resolvePullRequestChangeset() {
       throw error;
     },
+    async resolveForgejoPullRequestChangeset() {
+      throw error;
+    },
     async setLifecycle() {
       throw error;
     },

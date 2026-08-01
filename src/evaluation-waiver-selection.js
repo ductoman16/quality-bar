@@ -10,9 +10,12 @@ export const EVALUATION_WAIVER_SELECTION = `WITH evaluation_finding_impacts AS (
 )
 SELECT evaluations.*, repositories.normalized_url,
   CASE WHEN github_automatic_evaluations.evaluation_id IS NULL
+              AND forgejo_automatic_evaluations.evaluation_id IS NULL
     THEN evaluations.provenance ELSE 'automatic' END AS resource_provenance,
-  github_automatic_evaluations.pull_request_number
-    AS automatic_pull_request_number,
+  COALESCE(
+    github_automatic_evaluations.pull_request_number,
+    forgejo_automatic_evaluations.pull_request_number
+  ) AS automatic_pull_request_number,
   evaluation_results.outcome AS result_outcome,
   (
     SELECT count(*) FROM waiver_adjudications

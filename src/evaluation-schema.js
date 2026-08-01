@@ -16,6 +16,7 @@ import {
   CODEX_EXECUTION_RECOVERY_COLUMNS,
 } from "./codex-execution-recovery-schema.js";
 import { GITHUB_AUTOMATIC_EVALUATION_SCHEMA } from "./github-automatic-evaluation-schema.js";
+import { FORGEJO_AUTOMATIC_EVALUATION_SCHEMA } from "./forgejo-automatic-evaluation-schema.js";
 import { GITHUB_COMMIT_STATUS_SCHEMA } from "./github-commit-status-schema.js";
 import { REVIEW_RUN_PRE_START_SCHEMA } from "./review-run-pre-start-schema.js";
 import { RETRY_SUMMARY_COLUMNS_SQL } from "./retention-schema.js";
@@ -55,6 +56,7 @@ export const EVALUATION_SCHEMA = `
   CREATE INDEX IF NOT EXISTS evaluations_newest
     ON evaluations (created_at DESC, id DESC);
   ${GITHUB_AUTOMATIC_EVALUATION_SCHEMA}
+  ${FORGEJO_AUTOMATIC_EVALUATION_SCHEMA}
   CREATE TABLE IF NOT EXISTS evaluation_results (
     evaluation_id TEXT PRIMARY KEY REFERENCES evaluations(id),
     outcome TEXT NOT NULL

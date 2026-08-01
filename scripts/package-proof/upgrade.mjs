@@ -16,7 +16,7 @@ export function proveUpgrade(fixture, serviceName) {
   assert.equal(facts.explicitImage, true);
   assert.equal(facts.noAutomaticUpdate, true);
   assert.deepEqual(facts.forwardMigration, {
-    afterSchemaVersion: 48,
+    afterSchemaVersion: 49,
     beforeSchemaVersion: 47,
     exclusive: true,
     restoredTable: true,
