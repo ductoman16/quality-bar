@@ -112,6 +112,11 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
               async function publishInlineFeedback() {
                 return 1;
               },
+            publishReviewCommentReply:
+              options.verifier.publishReviewCommentReply ??
+              async function publishReviewCommentReply() {
+                return 1;
+              },
             reconcileAggregateFeedback:
               options.verifier.reconcileAggregateFeedback ??
               async function reconcileAggregateFeedback() {
@@ -125,6 +130,11 @@ export function createAvailableGitHubConnectionService(durableCore, options) {
             reconcileInlineFeedback:
               options.verifier.reconcileInlineFeedback ??
               async function reconcileInlineFeedback() {
+                return null;
+              },
+            reconcileReviewCommentReply:
+              options.verifier.reconcileReviewCommentReply ??
+              async function reconcileReviewCommentReply() {
                 return null;
               },
           },

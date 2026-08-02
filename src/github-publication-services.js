@@ -1,5 +1,6 @@
 import { createGitHubCommitStatusService } from "./github-commit-status-service.js";
 import { createGitHubFeedbackService } from "./github-feedback-service.js";
+import { createGitHubWaiverFollowupService } from "./github-waiver-followup-service.js";
 
 /**
  * @param {any} durableCore
@@ -44,14 +45,23 @@ export function createGitHubPublicationServices(
       reconcileInlineFeedback: verifier.reconcileInlineFeedback,
     },
   });
+  const waiverFollowups = createGitHubWaiverFollowupService(durableCore, {
+    cipher,
+    externalOrigin,
+    ioPool,
+    now,
+    verifier,
+  });
   return {
     destroy() {
       commitStatuses.destroy();
       feedback.destroy();
+      waiverFollowups.destroy();
     },
     start() {
       commitStatuses.start();
       feedback.start();
+      waiverFollowups.start();
     },
   };
 }

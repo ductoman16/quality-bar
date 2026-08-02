@@ -227,9 +227,74 @@ export function createGitHubFeedbackPublisher(dependencies) {
     return /** @type {number} */ (response.id);
   }
 
+  /**
+   * @param {any} credential
+   * @param {number} installationId
+   * @param {{full_name: string, id: number}} repository
+   * @param {number} pullRequestNumber
+   * @param {number} originalCommentId
+   * @param {string} body
+   */
+  async function publishReply(
+    credential,
+    installationId,
+    repository,
+    pullRequestNumber,
+    originalCommentId,
+    body,
+  ) {
+    if (
+      !Number.isSafeInteger(installationId) ||
+      installationId <= 0 ||
+      !validRepository(repository) ||
+      !Number.isSafeInteger(pullRequestNumber) ||
+      pullRequestNumber <= 0 ||
+      !Number.isSafeInteger(originalCommentId) ||
+      originalCommentId <= 0 ||
+      typeof body !== "string" ||
+      body.length === 0
+    ) {
+      throw new TypeError("GitHub review-comment reply input is invalid");
+    }
+    const authorization = await dependencies.installationToken(
+      credential,
+      installationId,
+    );
+    const fullName = repository.full_name
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    const response = object(
+      await dependencies.request(
+        `/repos/${fullName}/pulls/${pullRequestNumber}/comments/${originalCommentId}/replies`,
+        {
+          affectedRepositoryIds: [repository.id],
+          authorization,
+          body: { body },
+          method: "POST",
+          repositoryId: repository.id,
+        },
+      ),
+    );
+    if (
+      !response ||
+      !Number.isSafeInteger(response.id) ||
+      /** @type {number} */ (response.id) <= 0 ||
+      response.body !== body ||
+      response.in_reply_to_id !== originalCommentId
+    ) {
+      dependencies.fail(
+        "github_api_response_invalid",
+        "GitHub review-comment reply response is invalid",
+      );
+    }
+    return /** @type {number} */ (response.id);
+  }
+
   return {
     publishAggregate,
     publishInline,
+    publishReply,
     /**
      * @param {any} credential
      * @param {number} installationId
@@ -296,6 +361,39 @@ export function createGitHubFeedbackPublisher(dependencies) {
           (comment.start_side === undefined
             ? item.start_side === null
             : item.start_side === comment.start_side),
+      );
+    },
+    /**
+     * @param {any} credential
+     * @param {number} installationId
+     * @param {{full_name: string, id: number}} repository
+     * @param {number} pullRequestNumber
+     * @param {number} originalCommentId
+     * @param {string} body
+     */
+    reconcileReply(
+      credential,
+      installationId,
+      repository,
+      pullRequestNumber,
+      originalCommentId,
+      body,
+    ) {
+      const adjudicationId = sourceIdentity(body, "Adjudication");
+      const findingId = sourceIdentity(body, "Finding");
+      return reconcile(
+        credential,
+        installationId,
+        repository,
+        pullRequestNumber,
+        "pulls",
+        (item) =>
+          typeof item?.body === "string" &&
+          item.in_reply_to_id === originalCommentId &&
+          (adjudicationId && findingId
+            ? sourceIdentity(item.body, "Adjudication") === adjudicationId &&
+              sourceIdentity(item.body, "Finding") === findingId
+            : item.body === body),
       );
     },
   };

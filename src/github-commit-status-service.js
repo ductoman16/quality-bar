@@ -4,6 +4,7 @@ import {
   recordGitHubDeliveryHealth,
 } from "./github-delivery-service.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
+import { readEffectiveWaiverOutcome } from "./waiver-followup-outcome.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -161,7 +162,10 @@ export function createGitHubCommitStatusService(
         }
         for (const row of rows) {
           attemptedSources.add(`${row.evaluation_id}:${row.desired_state}`);
-          const outcome = row.result_outcome ?? "pending";
+          const outcome = readEffectiveWaiverOutcome(
+            durableCore,
+            row.evaluation_id,
+          );
           const status = githubCommitStatusForEvaluation(outcome);
           if (status.state !== row.desired_state) {
             throw new TypeError(

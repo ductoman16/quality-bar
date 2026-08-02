@@ -8,15 +8,16 @@ import test from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../src/waiver-followup-schema.js";
 import { removeWaiverAdjudicationRecoverySchema } from "./support/waiver-adjudication-recovery-schema.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 
 test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudication work", () => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-waiver-v39-migrate-"),
   );
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const prior = openDurableCore(databasePath);
+  const prior = openDurableCore(join(directory, "quality-bar.sqlite"));
   seedCompletedEvaluation(prior);
   createWaiverBatchService(prior, {
     createAdjudicationId: () => "queued-adjudication",
@@ -39,10 +40,11 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
   });
   prior.close();
 
-  const deployed = new DatabaseSync(databasePath);
+  const deployed = new DatabaseSync(join(directory, "quality-bar.sqlite"));
   deployed.exec(`
     PRAGMA foreign_keys = OFF;
     BEGIN IMMEDIATE;
+    ${WAIVER_FOLLOWUP_REBUILD_CLEANUP}
     DROP TRIGGER codex_execution_queue_reference_insert;
     DROP TRIGGER codex_execution_queue_waiver_requests_insert;
     DROP TRIGGER codex_execution_queue_waiver_lifecycle_insert;
@@ -96,9 +98,9 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
   `);
   deployed.close();
 
-  const migrated = openDurableCore(databasePath);
+  const migrated = openDurableCore(join(directory, "quality-bar.sqlite"));
   try {
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     assert.ok(
       migrated.get(
         "SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = 'github_finding_feedback'",
@@ -149,9 +151,9 @@ test("deployed schema v39 preserves GitHub feedback and queued Waiver Adjudicati
 
 test("schema v23 adds claim columns before widening the fixed queue", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-migrate-"));
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const prior = openDurableCore(databasePath);
+  const prior = openDurableCore(join(directory, "quality-bar.sqlite"));
   prior.transaction((transaction) => {
+    removeWaiverFollowupSchema(transaction);
     removeWaiverAdjudicationRecoverySchema(transaction);
     transaction.run("DROP INDEX codex_execution_queue_ready");
     transaction.run("DROP INDEX codex_execution_queue_worker");
@@ -195,9 +197,9 @@ test("schema v23 adds claim columns before widening the fixed queue", () => {
   });
   prior.close();
 
-  const migrated = openDurableCore(databasePath);
+  const migrated = openDurableCore(join(directory, "quality-bar.sqlite"));
   try {
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     const columns = new Set(
       migrated
         .all("PRAGMA table_info(codex_execution_queue)")
@@ -233,8 +235,7 @@ for (const version of [28, 36, 37]) {
     const directory = mkdtempSync(
       join(tmpdir(), "quality-bar-waiver-migrate-"),
     );
-    const databasePath = join(directory, "quality-bar.sqlite");
-    const prior = openDurableCore(databasePath);
+    const prior = openDurableCore(join(directory, "quality-bar.sqlite"));
     if (version === 37) {
       seedCompletedEvaluation(prior);
       prior.run(
@@ -286,6 +287,7 @@ for (const version of [28, 36, 37]) {
       );
     }
     prior.transaction((transaction) => {
+      removeWaiverFollowupSchema(transaction);
       removeWaiverAdjudicationRecoverySchema(transaction);
       transaction.run("DROP INDEX codex_execution_queue_ready");
       transaction.run("DROP INDEX codex_execution_queue_worker");
@@ -341,9 +343,9 @@ for (const version of [28, 36, 37]) {
     });
     prior.close();
 
-    const migrated = openDurableCore(databasePath);
+    const migrated = openDurableCore(join(directory, "quality-bar.sqlite"));
     try {
-      assert.equal(migrated.facts.schemaVersion, 51);
+      assert.equal(migrated.facts.schemaVersion, 52);
       assert.match(
         String(
           migrated.get(

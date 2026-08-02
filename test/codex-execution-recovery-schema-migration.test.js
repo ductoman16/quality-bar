@@ -87,7 +87,7 @@ test("schema v44 preserves queued work while adding restart process facts", asyn
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.deepEqual(
     migrated.get(
       `SELECT work_kind, started_at, process_group_id,

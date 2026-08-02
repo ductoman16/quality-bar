@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { readGitHubConnection } from "../src/github-connection-read.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 
 const capabilities = {
   aggregate_feedback: "verified",
@@ -84,6 +85,11 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   );
   prior.run("DROP TRIGGER github_commit_status_admit");
   prior.run("DROP TRIGGER github_commit_status_complete");
+  removeWaiverFollowupSchema(prior);
+  prior.run("DROP TABLE github_waiver_decision_followups");
+  prior.run("DROP TABLE github_waiver_adjudication_followups");
+  prior.run("DROP TABLE forgejo_waiver_decision_followups");
+  prior.run("DROP TABLE forgejo_waiver_adjudication_followups");
   prior.run("DROP TABLE github_commit_statuses");
   prior.run("DROP TRIGGER github_feedback_bundle_admit");
   prior.run("DROP TRIGGER github_feedback_bundle_identity_update");
@@ -151,7 +157,7 @@ test("SQLite migrates completed GitHub Connection history to stable Forge Reposi
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.deepEqual(
     migrated.get(
       "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'github_repositories'",

@@ -1,4 +1,4 @@
-/** @param {unknown} body @param {"Evaluation" | "Finding"} label */
+/** @param {unknown} body @param {"Adjudication" | "Evaluation" | "Finding"} label */
 export function githubFeedbackSourceIdentity(body, label) {
   if (typeof body !== "string") {
     return null;

@@ -11,11 +11,21 @@ export function readEvaluationWaiverAdjudications(durableCore, evaluationId) {
               waiver_adjudications.pre_start_attempt_count,
               waiver_adjudications.pre_start_retry_error_code AS retry_error_code,
               waiver_adjudications.pre_start_retry_error_detail AS retry_error_detail,
-              waiver_adjudications.pre_start_exhausted_at AS exhausted_at
+              waiver_adjudications.pre_start_exhausted_at AS exhausted_at,
+              COALESCE(github_followup.publication_status,
+                       forgejo_followup.publication_status) AS followup_status,
+              COALESCE(github_followup.error_code,
+                       forgejo_followup.error_code) AS followup_error_code,
+              COALESCE(github_followup.error_detail,
+                       forgejo_followup.error_detail) AS followup_error_detail
        FROM waiver_adjudications
        JOIN codex_execution_queue
          ON codex_execution_queue.work_id = waiver_adjudications.id
         AND codex_execution_queue.work_kind = 'waiver_adjudication'
+       LEFT JOIN github_waiver_adjudication_followups AS github_followup
+         ON github_followup.waiver_adjudication_id = waiver_adjudications.id
+       LEFT JOIN forgejo_waiver_adjudication_followups AS forgejo_followup
+         ON forgejo_followup.waiver_adjudication_id = waiver_adjudications.id
        WHERE waiver_adjudications.evaluation_id = ?
        ORDER BY waiver_adjudications.rowid`,
       evaluationId,
@@ -65,6 +75,20 @@ export function readEvaluationWaiverAdjudications(durableCore, evaluationId) {
           row.id,
         )
         .map((/** @type {any} */ request) => request.waiver_request_id);
+      const localFollowups = durableCore.all(
+        `SELECT waiver_decision_id, publication_status,
+                error_code, error_detail
+         FROM github_waiver_decision_followups
+         WHERE waiver_adjudication_id = ?
+         UNION ALL
+         SELECT waiver_decision_id, publication_status,
+                error_code, error_detail
+         FROM forgejo_waiver_decision_followups
+         WHERE waiver_adjudication_id = ?
+         ORDER BY waiver_decision_id`,
+        row.id,
+        row.id,
+      );
       return {
         completed_at:
           row.completed_at === null ? null : timestamp(row.completed_at),
@@ -78,6 +102,32 @@ export function readEvaluationWaiverAdjudications(durableCore, evaluationId) {
             }
           : {}),
         execution_status: row.execution_status,
+        followup:
+          row.followup_status === null
+            ? null
+            : {
+                aggregate: {
+                  error:
+                    row.followup_error_code === null
+                      ? null
+                      : {
+                          code: row.followup_error_code,
+                          detail: row.followup_error_detail,
+                        },
+                  publication_status: row.followup_status,
+                },
+                local: localFollowups.map((/** @type {any} */ local) => ({
+                  decision_id: local.waiver_decision_id,
+                  error:
+                    local.error_code === null
+                      ? null
+                      : {
+                          code: local.error_code,
+                          detail: local.error_detail,
+                        },
+                  publication_status: local.publication_status,
+                })),
+              },
         exhausted_at:
           row.retry_state === "exhausted" ? timestamp(row.exhausted_at) : null,
         id: row.id,

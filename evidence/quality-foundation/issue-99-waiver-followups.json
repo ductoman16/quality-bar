@@ -1,0 +1,14 @@
+{
+  "ticket": 99,
+  "acceptance_scenarios": ["ACC-07"],
+  "proof": {
+    "unit": "test/waiver-followup.test.js",
+    "browser_component": "test/waiver-adjudication-browser-component.test.js",
+    "sqlite_integration": "test/waiver-followup-sqlite-integration.test.js",
+    "github_fixture_integration": "test/github-feedback-fixture-integration.test.js",
+    "forgejo_fixture_integration": "test/forgejo-v16-publication-fixture-integration.test.js",
+    "forgejo_v16_integration": "test/forgejo-v16-publication-fixture-integration.test.js"
+  },
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}

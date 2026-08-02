@@ -6,9 +6,11 @@ export function assertGitHubVerifier(verifier) {
     "publishAggregateFeedback",
     "publishCommitStatus",
     "publishInlineFeedback",
+    "publishReviewCommentReply",
     "reconcileAggregateFeedback",
     "reconcileCommitStatus",
     "reconcileInlineFeedback",
+    "reconcileReviewCommentReply",
     "verifyInstallation",
     "verifyRepositories",
   ]) {

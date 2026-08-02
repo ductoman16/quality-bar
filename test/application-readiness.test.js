@@ -335,7 +335,7 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       queue: { count: 0, rows: [] },
       running: { count: 0, rows: [] },
     },
-    durable_core: { schema_version: 51, status: "ready" },
+    durable_core: { schema_version: 52, status: "ready" },
     implementer_token: {
       status: "revoked",
     },

@@ -71,9 +71,19 @@ test("the browser preserves queued state and the exact owning execution failure"
         },
       ],
       execution_status: "completed",
+      followup: {
+        aggregate: { error: null, publication_status: "succeeded" },
+        local: [
+          {
+            decision_id: "decision-accepted",
+            error: null,
+            publication_status: "succeeded",
+          },
+        ],
+      },
       id: "adjudication-completed",
     }),
-    "Waiver Adjudication adjudication-completed completed. Decisions: request-accepted accepted: The inspected evidence proves this exact exception is justified. request-denied denied: The rationale is uncertain and does not justify an exception. request-error error required_evidence_unavailable: The frozen generated file cannot be inspected.",
+    "Waiver Adjudication adjudication-completed completed. Decisions: request-accepted accepted: The inspected evidence proves this exact exception is justified. request-denied denied: The rationale is uncertain and does not justify an exception. request-error error required_evidence_unavailable: The frozen generated file cannot be inspected. Aggregate follow-up succeeded. Accepted local follow-up decision-accepted succeeded.",
   );
   for (const invalidDecision of [
     {

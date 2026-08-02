@@ -140,6 +140,41 @@ export function retireGitHubConnection(durableCore, request) {
       connection.id,
       connection.id,
     );
+    for (const table of [
+      "github_waiver_adjudication_followups",
+      "github_waiver_decision_followups",
+    ]) {
+      transaction.run(
+        `UPDATE ${table}
+         SET publication_status = 'unavailable',
+             error_code = 'github_connection_retired',
+             error_detail =
+               'GitHub waiver follow-up publication is unavailable because the GitHub Connection is retired'
+         WHERE publication_status = 'waiting'
+           AND waiver_adjudication_id IN (
+             SELECT waiver_adjudications.id
+             FROM waiver_adjudications
+             JOIN github_automatic_evaluations
+               ON github_automatic_evaluations.evaluation_id =
+                    waiver_adjudications.evaluation_id
+             JOIN github_repositories
+               ON github_repositories.repository_id =
+                    github_automatic_evaluations.repository_id
+             WHERE github_repositories.connection_id = ?
+           )`,
+        connection.id,
+      );
+    }
+    transaction.run(
+      `UPDATE github_delivery_attempts
+       SET generation = generation + 1, next_attempt_at = 0,
+           error_code = 'github_connection_retired',
+           error_detail =
+             'GitHub delivery is unavailable because the GitHub Connection is retired',
+           response_status = NULL, definitive = 1
+       WHERE connection_id = ? AND source_id GLOB 'waiver-*'`,
+      connection.id,
+    );
     const credential = transaction.run(
       "DELETE FROM github_connection_credentials WHERE connection_id = ?",
       connection.id,

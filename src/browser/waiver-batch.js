@@ -101,6 +101,55 @@
             decision.explanation;
         }
       }
+      const followup = adjudication.followup;
+      if (followup === null || followup === undefined) {
+        return status;
+      }
+      if (
+        !["waiting", "succeeded", "unavailable"].includes(
+          followup.aggregate?.publication_status,
+        ) ||
+        !Array.isArray(followup.local)
+      ) {
+        throw new Error("waiver_adjudication_invalid");
+      }
+      status +=
+        " Aggregate follow-up " + followup.aggregate.publication_status + ".";
+      if (followup.aggregate.error) {
+        if (
+          !stableCode(followup.aggregate.error.code) ||
+          !nonblank(followup.aggregate.error.detail)
+        ) {
+          throw new Error("waiver_adjudication_invalid");
+        }
+        status +=
+          " Error " +
+          followup.aggregate.error.code +
+          ": " +
+          followup.aggregate.error.detail;
+      }
+      for (const local of followup.local) {
+        if (
+          !canonicalNonblank(local?.decision_id) ||
+          !["waiting", "succeeded", "unavailable"].includes(
+            local.publication_status,
+          )
+        ) {
+          throw new Error("waiver_adjudication_invalid");
+        }
+        status +=
+          " Accepted local follow-up " +
+          local.decision_id +
+          " " +
+          local.publication_status +
+          ".";
+        if (local.error) {
+          if (!stableCode(local.error.code) || !nonblank(local.error.detail)) {
+            throw new Error("waiver_adjudication_invalid");
+          }
+          status += " Error " + local.error.code + ": " + local.error.detail;
+        }
+      }
     }
     return status;
   }

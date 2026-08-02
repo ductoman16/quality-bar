@@ -54,6 +54,12 @@ export function canonicalWaiverSchemas() {
     decisions,
     exhausted_at: nullableTimestamp,
     execution_status: { type: "string" },
+    followup: {
+      oneOf: [
+        { $ref: "#/components/schemas/WaiverFollowupPublication" },
+        nullValue,
+      ],
+    },
     id: identifier,
     next_attempt_at: nullableTimestamp,
     pre_start_attempt_count: { minimum: 0, type: "integer" },
@@ -76,6 +82,37 @@ export function canonicalWaiverSchemas() {
       operationalRequired,
     );
   return {
+    WaiverFollowupSurface: closedObject(
+      {
+        error: nullableError,
+        publication_status: {
+          enum: ["waiting", "succeeded", "unavailable"],
+          type: "string",
+        },
+      },
+      ["publication_status", "error"],
+    ),
+    WaiverLocalFollowupSurface: closedObject(
+      {
+        decision_id: identifier,
+        error: nullableError,
+        publication_status: {
+          enum: ["waiting", "succeeded", "unavailable"],
+          type: "string",
+        },
+      },
+      ["decision_id", "publication_status", "error"],
+    ),
+    WaiverFollowupPublication: closedObject(
+      {
+        aggregate: { $ref: "#/components/schemas/WaiverFollowupSurface" },
+        local: {
+          items: { $ref: "#/components/schemas/WaiverLocalFollowupSurface" },
+          type: "array",
+        },
+      },
+      ["aggregate", "local"],
+    ),
     WaiverOperationalError: closedObject(
       {
         code: {

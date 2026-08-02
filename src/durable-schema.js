@@ -36,6 +36,7 @@ import { FORGEJO_FEEDBACK_SCHEMA } from "./forgejo-feedback-schema.js";
 import { FORGEJO_DELIVERY_SCHEMA } from "./forgejo-delivery-schema.js";
 import * as reviewDeletionSchema from "./review-deletion-schema.js";
 import { WAIVER_BATCH_SCHEMA } from "./waiver-batch-schema.js";
+import { WAIVER_FOLLOWUP_SCHEMA } from "./waiver-followup-schema.js";
 import { REVIEW_SCHEMA } from "./review-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 export function initializeOrValidateSchema(
@@ -96,6 +97,7 @@ export function initializeOrValidateSchema(
       ${GITHUB_FEEDBACK_SCHEMA}
       ${FORGEJO_FEEDBACK_SCHEMA}
       ${FORGEJO_DELIVERY_SCHEMA}
+      ${WAIVER_FOLLOWUP_SCHEMA}
       ${reviewDeletionSchema.REVIEW_DELETION_LINEAGE_INTEGRITY}
       ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
       INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');

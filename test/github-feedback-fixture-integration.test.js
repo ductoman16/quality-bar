@@ -53,6 +53,20 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       }
       if (
         request.method === "POST" &&
+        request.url ===
+          "/repos/operator/repository/pulls/17/comments/702/replies"
+      ) {
+        response.end(
+          JSON.stringify({
+            body: parsed.body,
+            id: 705,
+            in_reply_to_id: 702,
+          }),
+        );
+        return;
+      }
+      if (
+        request.method === "POST" &&
         request.url === "/repos/operator/repository/pulls/17/comments"
       ) {
         response.end(
@@ -146,6 +160,17 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     }),
     702,
   );
+  assert.equal(
+    await verifier.publishReviewCommentReply(
+      credential,
+      73,
+      repository,
+      17,
+      702,
+      "waiver accepted\nFinding: `finding-1`\nAdjudication: `adjudication-1`",
+    ),
+    705,
+  );
   duplicate = true;
   for (const reconcile of [
     () =>
@@ -190,13 +215,12 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     },
   );
   assert.deepEqual(
-    requests
-      .filter(
-        (request) =>
-          request.method === "POST" &&
-          request.authorization === "Bearer installation-token",
-      )
-      .at(-1),
+    requests.find(
+      (request) =>
+        request.method === "POST" &&
+        request.authorization === "Bearer installation-token" &&
+        request.path === "/repos/operator/repository/pulls/17/comments",
+    ),
     {
       authorization: "Bearer installation-token",
       body: {
@@ -208,6 +232,17 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       },
       method: "POST",
       path: "/repos/operator/repository/pulls/17/comments",
+    },
+  );
+  assert.deepEqual(
+    requests.find((request) => request.path.endsWith("/comments/702/replies")),
+    {
+      authorization: "Bearer installation-token",
+      body: {
+        body: "waiver accepted\nFinding: `finding-1`\nAdjudication: `adjudication-1`",
+      },
+      method: "POST",
+      path: "/repos/operator/repository/pulls/17/comments/702/replies",
     },
   );
   assert.equal(

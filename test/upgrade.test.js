@@ -70,12 +70,12 @@ test("resulting-schema validation rejects a missing expected table", () => {
       value TEXT NOT NULL
     ) STRICT;
     INSERT INTO quality_bar_metadata (key, value)
-    VALUES ('schema_version', '51');
-    PRAGMA user_version = 51;
+    VALUES ('schema_version', '52');
+    PRAGMA user_version = 52;
   `);
 
   assert.throws(
-    () => validateResultingSchema(database, 51),
+    () => validateResultingSchema(database, 52),
     (error) => {
       assert.ok(error instanceof Error && "code" in error);
       assert.equal(error.code, "schema_invalid");

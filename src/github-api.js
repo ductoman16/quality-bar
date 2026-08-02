@@ -429,9 +429,11 @@ export function createGitHubVerifier({
     publishAggregateFeedback: feedback.publishAggregate,
     publishCommitStatus: commitStatus.publishCommitStatus,
     publishInlineFeedback: feedback.publishInline,
+    publishReviewCommentReply: feedback.publishReply,
     reconcileAggregateFeedback: feedback.reconcileAggregate,
     reconcileCommitStatus: commitStatus.reconcileCommitStatus,
     reconcileInlineFeedback: feedback.reconcileInline,
+    reconcileReviewCommentReply: feedback.reconcileReply,
     listPullRequests: createGitHubPullRequestReader({
       installationToken,
       request,

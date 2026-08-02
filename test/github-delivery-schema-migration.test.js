@@ -11,6 +11,7 @@ import {
   readStatusTarget,
 } from "../src/github-commit-status-service.js";
 import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 import {
   EVALUATION_SELECTION,
   readEvaluation,
@@ -62,6 +63,7 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
      )`,
   );
   prior.transaction((transaction) => {
+    removeWaiverFollowupSchema(transaction);
     for (const trigger of [
       "github_commit_status_delivery_admit",
       "github_commit_status_delivery_update_admit",
@@ -81,7 +83,7 @@ test("schema 40 preserves successful identities and reconciles uncertain deliver
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.deepEqual(
     migrated.all(
       `SELECT surface, source_id, connection_id, authority_verified_at,

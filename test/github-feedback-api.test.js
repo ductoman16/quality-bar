@@ -19,6 +19,13 @@ function publisher() {
         if (path.endsWith("/issues/17/comments")) {
           return { body: options.body.body, id: 701 };
         }
+        if (path.endsWith("/comments/702/replies")) {
+          return {
+            body: options.body.body,
+            id: 703,
+            in_reply_to_id: 702,
+          };
+        }
         return {
           body: options.body.body,
           commit_id: options.body.commit_id,
@@ -93,6 +100,24 @@ test("GitHub inline publication preserves exact frozen head and coordinate", asy
       repositoryId: 101,
     },
     path: "/repos/operator/repository/pulls/17/comments",
+  });
+});
+
+test("GitHub waiver follow-up replies on the original review-comment thread", async () => {
+  const { publish, requests } = publisher();
+  assert.equal(
+    await publish.publishReply({}, 73, repository, 17, 702, "waiver accepted"),
+    703,
+  );
+  assert.deepEqual(requests[0], {
+    options: {
+      affectedRepositoryIds: [101],
+      authorization: "installation-token",
+      body: { body: "waiver accepted" },
+      method: "POST",
+      repositoryId: 101,
+    },
+    path: "/repos/operator/repository/pulls/17/comments/702/replies",
   });
 });
 

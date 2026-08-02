@@ -9,6 +9,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
 import { restoreOfflineBackup } from "../src/offline-restore.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 import {
   createValidatedBackup,
   installationKeyIdentity,
@@ -17,6 +18,7 @@ import {
 /** @param {ReturnType<typeof openDurableCore>} current */
 function returnSchemaToVersionSix(current) {
   current.transaction((transaction) => {
+    removeWaiverFollowupSchema(transaction);
     for (const trigger of [
       "evaluation_applicability_seal_complete_update",
       "applicability_selection_rule_insert",
@@ -93,7 +95,7 @@ test("restores a compatible current snapshot produced by the genuine v6 migratio
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     assert.match(
       String(
         migrated.get(
