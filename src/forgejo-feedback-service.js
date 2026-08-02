@@ -1,8 +1,8 @@
 import {
   formatForgejoAggregateFeedback,
   formatForgejoInlineFeedback,
-  projectForgejoDiffLineRange,
 } from "./forgejo-feedback.js";
+import { materializeForgejoFindingFeedback } from "./forgejo-finding-feedback-materialization.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
 import {
   attemptForgejoDelivery,
@@ -14,76 +14,6 @@ import {
 } from "./forgejo-delivery-target.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
 const PUBLICATION_INTERVAL_MS = 1_000;
-
-/** @param {any} durableCore @param {any} bundle @param {any[]} findings */
-function materializeFindingFeedback(durableCore, bundle, findings) {
-  const fileChanges = new Map(
-    durableCore
-      .all(
-        `SELECT id, before_path, after_path, patch
-         FROM evaluation_file_changes
-         WHERE evaluation_id = ?`,
-        bundle.evaluation_id,
-      )
-      .map((/** @type {any} */ fileChange) => [fileChange?.id, fileChange]),
-  );
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    const existing = transaction.all(
-      `SELECT finding_id
-       FROM forgejo_finding_feedback
-       WHERE evaluation_id = ?`,
-      bundle.evaluation_id,
-    );
-    if (existing.length !== 0) {
-      if (
-        existing.length !== findings.length ||
-        existing.some(
-          (/** @type {any} */ { finding_id: findingId }) =>
-            !findings.some(({ id }) => id === findingId),
-        )
-      ) {
-        throw new TypeError("Forgejo Finding feedback set is invalid");
-      }
-      return;
-    }
-    for (const finding of findings) {
-      const fileChange =
-        finding.location.file_change_id === undefined
-          ? undefined
-          : fileChanges.get(finding.location.file_change_id);
-      const coordinate = fileChange
-        ? projectForgejoDiffLineRange(finding.location, fileChange)
-        : null;
-      const unavailable =
-        coordinate && bundle.publication_status === "unavailable";
-      const errorDetail =
-        bundle.error_code === "forgejo_connection_retired"
-          ? "Forgejo inline feedback publication is unavailable because the Forgejo Connection is retired"
-          : bundle.error_detail;
-      transaction.run(
-        `INSERT INTO forgejo_finding_feedback (
-           finding_id, evaluation_id, publication_status,
-           path, side, start_line, start_side, line,
-           error_code, error_detail
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        finding.id,
-        bundle.evaluation_id,
-        coordinate
-          ? unavailable
-            ? "unavailable"
-            : "waiting"
-          : "aggregate_only",
-        coordinate?.path ?? null,
-        coordinate?.side ?? null,
-        coordinate?.start_line ?? null,
-        coordinate?.start_side ?? null,
-        coordinate?.line ?? null,
-        unavailable ? bundle.error_code : null,
-        unavailable ? errorDetail : null,
-      );
-    }
-  });
-}
 
 /**
  * @param {any} durableCore
@@ -155,7 +85,7 @@ export function createForgejoFeedbackService(
       );
       for (const bundle of missingFindingFeedback) {
         const evaluationId = /** @type {string} */ (bundle.evaluation_id);
-        materializeFindingFeedback(
+        materializeForgejoFindingFeedback(
           durableCore,
           bundle,
           readEvaluationFindings(durableCore, evaluationId),
@@ -191,7 +121,8 @@ export function createForgejoFeedbackService(
          JOIN forgejo_connection_credentials
            ON forgejo_connection_credentials.connection_id =
                 forgejo_connections.id
-         WHERE forgejo_feedback_bundles.publication_status = 'waiting'
+         WHERE (
+           forgejo_feedback_bundles.publication_status = 'waiting'
             OR EXISTS (
               SELECT 1
               FROM forgejo_finding_feedback
@@ -199,12 +130,19 @@ export function createForgejoFeedbackService(
                     forgejo_feedback_bundles.evaluation_id
                 AND forgejo_finding_feedback.publication_status = 'waiting'
             )
+         )
+           AND forgejo_connections.lifecycle = 'enabled'
+           AND EXISTS (
+             SELECT 1 FROM repositories
+             WHERE repositories.id = evaluations.repository_id
+               AND repositories.lifecycle = 'enabled'
+           )
          ORDER BY evaluations.created_at, evaluations.id`,
       );
       for (const bundle of bundles) {
         const evaluationId = /** @type {string} */ (bundle.evaluation_id);
         const findings = readEvaluationFindings(durableCore, evaluationId);
-        materializeFindingFeedback(durableCore, bundle, findings);
+        materializeForgejoFindingFeedback(durableCore, bundle, findings);
         const identity = {
           base_commit: /** @type {string} */ (bundle.base_commit),
           details_url: detailsUrl(evaluationId),

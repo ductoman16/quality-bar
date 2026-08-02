@@ -165,11 +165,9 @@ test("Forgejo reactivation requires complete proof and records failure", async (
     ),
     "enabled",
   );
-  assert.ok(
+  assert.equal(
     successWrites.some((sql) => sql.includes("forgejo_delivery_attempts")),
-  );
-  assert.ok(
-    successWrites.some((sql) => sql.includes("forgejo_commit_statuses")),
+    false,
   );
   for (const malformed of [
     { ...completeVerification(), reported_version: "17.0.0" },

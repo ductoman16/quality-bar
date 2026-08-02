@@ -75,6 +75,12 @@ export function createForgejoCommitStatusService(
            ON evaluation_results.evaluation_id =
                 forgejo_commit_statuses.evaluation_id
          WHERE forgejo_commit_statuses.publication_status = 'waiting'
+           AND forgejo_connections.lifecycle = 'enabled'
+           AND EXISTS (
+             SELECT 1 FROM repositories
+             WHERE repositories.id = forgejo_commit_statuses.repository_id
+               AND repositories.lifecycle = 'enabled'
+           )
          ORDER BY forgejo_commit_statuses.repository_id,
                   forgejo_commit_statuses.head_commit`,
       );

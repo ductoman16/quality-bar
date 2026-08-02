@@ -4,7 +4,6 @@ import {
 } from "./forgejo-connection-reactivation-verification.js";
 import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
 import { retireForgejoPublicationRows } from "./forgejo-publication-retirement.js";
-import { resumeForgejoDeliveries } from "./forgejo-delivery-recovery.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -331,12 +330,6 @@ export async function reactivateForgejoConnection(
           "Forgejo Connection changed during reactivation",
         );
       }
-      resumeForgejoDeliveries(
-        transaction,
-        connection.id,
-        verifiedAt,
-        "connection_reactivation",
-      );
       polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {

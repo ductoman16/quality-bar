@@ -66,7 +66,7 @@ test("Forgejo feedback retry state identifies its source, schedule, gate, and ow
                   feedback: {
                     aggregate: {
                       error: {
-                        code: "forgejo_api_request_failed",
+                        code: "forgejo_repository_permission_denied",
                         detail:
                           "Forgejo publication route failed with HTTP 403",
                       },
@@ -146,9 +146,6 @@ test("Forgejo feedback retry state identifies its source, schedule, gate, and ow
   const correction = definitive.options.find(
     (/** @type {any} */ option) => option.href,
   );
-  assert.equal(
-    correction.href,
-    "/?view=repositories#forgejo-connection-details",
-  );
-  assert.equal(correction.textContent, "Forgejo Connection connection-1");
+  assert.equal(correction.href, "/?view=repositories#repository-repository-1");
+  assert.equal(correction.textContent, "Repository repository-1");
 });

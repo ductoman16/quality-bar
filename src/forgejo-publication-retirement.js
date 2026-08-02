@@ -65,7 +65,9 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
        (surface = 'commit_status' AND source_id IN (
          SELECT evaluation_id || ':' || desired_state
          FROM forgejo_commit_statuses
-         WHERE repository_id IN (
+         WHERE publication_status = 'unavailable'
+           AND error_code = 'forgejo_connection_retired'
+           AND repository_id IN (
            SELECT repository_id FROM forgejo_repositories
            WHERE connection_id = ?
          )
@@ -76,7 +78,13 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
          JOIN forgejo_repositories
            ON forgejo_repositories.repository_id =
                 forgejo_automatic_evaluations.repository_id
+         JOIN forgejo_feedback_bundles
+           ON forgejo_feedback_bundles.evaluation_id =
+                forgejo_automatic_evaluations.evaluation_id
          WHERE forgejo_repositories.connection_id = ?
+           AND forgejo_feedback_bundles.publication_status = 'unavailable'
+           AND forgejo_feedback_bundles.error_code =
+                 'forgejo_connection_retired'
        ))
        OR (surface = 'inline_feedback' AND source_id IN (
          SELECT forgejo_finding_feedback.finding_id
@@ -88,6 +96,9 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
            ON forgejo_repositories.repository_id =
                 forgejo_automatic_evaluations.repository_id
          WHERE forgejo_repositories.connection_id = ?
+           AND forgejo_finding_feedback.publication_status = 'unavailable'
+           AND forgejo_finding_feedback.error_code =
+                 'forgejo_connection_retired'
        ))`,
     connectionId,
     connectionId,

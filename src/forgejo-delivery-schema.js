@@ -1,3 +1,20 @@
+const DEFINITIVE_FAILURE_CODES = [
+  "forgejo_api_request_failed",
+  "forgejo_connection_credential_invalid",
+  "forgejo_connection_credential_undecryptable",
+  "forgejo_connection_retired",
+  "forgejo_delivery_identity_conflict",
+  "forgejo_publication_capability_unavailable",
+  "forgejo_publication_request_invalid",
+  "forgejo_repository_api_access_failed",
+  "forgejo_repository_capability_missing",
+  "forgejo_repository_permission_denied",
+  "forgejo_required_route_unavailable",
+  "forgejo_version_unsupported",
+]
+  .map((code) => `'${code}'`)
+  .join(", ");
+
 export const FORGEJO_DELIVERY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS forgejo_delivery_attempts (
     surface TEXT NOT NULL CHECK (
@@ -107,8 +124,11 @@ export const FORGEJO_DELIVERY_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS forgejo_commit_status_delivery_admit
     AFTER INSERT ON forgejo_commit_statuses
     BEGIN
-      INSERT INTO forgejo_delivery_attempts (surface, source_id, target)
-      VALUES (
+      INSERT INTO forgejo_delivery_attempts (
+        surface, source_id, target, connection_id, authority_verified_at,
+        error_code, error_detail, definitive
+      )
+      SELECT
         'commit_status', NEW.evaluation_id || ':' || NEW.desired_state,
         json_object(
           'context', 'Quality Bar', 'head_commit', NEW.head_commit,
@@ -116,14 +136,27 @@ export const FORGEJO_DELIVERY_SCHEMA = `
             SELECT forge_repository_id FROM forgejo_repositories
             WHERE repository_id = NEW.repository_id
           ), 'state', NEW.desired_state
-        )
-      ) ON CONFLICT (surface, source_id) DO NOTHING;
+        ),
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+          THEN forgejo_connections.id ELSE NULL END,
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+          THEN forgejo_connections.verified_at ELSE NULL END,
+        NEW.error_code, NEW.error_detail,
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired' THEN 1 ELSE 0 END
+      FROM forgejo_repositories
+      JOIN forgejo_connections
+        ON forgejo_connections.id = forgejo_repositories.connection_id
+      WHERE forgejo_repositories.repository_id = NEW.repository_id
+      ON CONFLICT (surface, source_id) DO NOTHING;
     END;
   CREATE TRIGGER IF NOT EXISTS forgejo_commit_status_delivery_update_admit
     AFTER UPDATE OF evaluation_id, desired_state ON forgejo_commit_statuses
     BEGIN
-      INSERT INTO forgejo_delivery_attempts (surface, source_id, target)
-      VALUES (
+      INSERT INTO forgejo_delivery_attempts (
+        surface, source_id, target, connection_id, authority_verified_at,
+        error_code, error_detail, definitive
+      )
+      SELECT
         'commit_status', NEW.evaluation_id || ':' || NEW.desired_state,
         json_object(
           'context', 'Quality Bar', 'head_commit', NEW.head_commit,
@@ -131,23 +164,53 @@ export const FORGEJO_DELIVERY_SCHEMA = `
             SELECT forge_repository_id FROM forgejo_repositories
             WHERE repository_id = NEW.repository_id
           ), 'state', NEW.desired_state
-        )
-      ) ON CONFLICT (surface, source_id) DO NOTHING;
+        ),
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+          THEN forgejo_connections.id ELSE NULL END,
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+          THEN forgejo_connections.verified_at ELSE NULL END,
+        NEW.error_code, NEW.error_detail,
+        CASE WHEN NEW.error_code = 'forgejo_connection_retired' THEN 1 ELSE 0 END
+      FROM forgejo_repositories
+      JOIN forgejo_connections
+        ON forgejo_connections.id = forgejo_repositories.connection_id
+      WHERE forgejo_repositories.repository_id = NEW.repository_id
+      ON CONFLICT (surface, source_id) DO UPDATE SET
+        target = excluded.target,
+        connection_id = excluded.connection_id,
+        authority_verified_at = excluded.authority_verified_at,
+        error_code = excluded.error_code,
+        error_detail = excluded.error_detail,
+        definitive = excluded.definitive
+      WHERE forgejo_delivery_attempts.attempt_count = 0
+        AND forgejo_delivery_attempts.external_id IS NULL;
     END;
   CREATE TRIGGER IF NOT EXISTS forgejo_feedback_bundle_delivery_admit
     AFTER INSERT ON forgejo_feedback_bundles
     BEGIN
-      INSERT INTO forgejo_delivery_attempts (surface, source_id, target)
+      INSERT INTO forgejo_delivery_attempts (
+        surface, source_id, target, connection_id, authority_verified_at,
+        error_code, error_detail, definitive
+      )
       SELECT 'aggregate_feedback', NEW.evaluation_id,
              json_object(
                'pull_request_number',
                  forgejo_automatic_evaluations.pull_request_number,
                'repository_id', forgejo_repositories.forge_repository_id
-             )
+             ),
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN forgejo_connections.id ELSE NULL END,
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN forgejo_connections.verified_at ELSE NULL END,
+             NEW.error_code, NEW.error_detail,
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN 1 ELSE 0 END
       FROM forgejo_automatic_evaluations
       JOIN forgejo_repositories
         ON forgejo_repositories.repository_id =
              forgejo_automatic_evaluations.repository_id
+      JOIN forgejo_connections
+        ON forgejo_connections.id = forgejo_repositories.connection_id
       WHERE forgejo_automatic_evaluations.evaluation_id = NEW.evaluation_id
       ON CONFLICT (surface, source_id) DO NOTHING;
     END;
@@ -155,7 +218,10 @@ export const FORGEJO_DELIVERY_SCHEMA = `
     AFTER INSERT ON forgejo_finding_feedback
     WHEN NEW.publication_status != 'aggregate_only'
     BEGIN
-      INSERT INTO forgejo_delivery_attempts (surface, source_id, target)
+      INSERT INTO forgejo_delivery_attempts (
+        surface, source_id, target, connection_id, authority_verified_at,
+        error_code, error_detail, definitive
+      )
       SELECT 'inline_feedback', NEW.finding_id,
              json_object(
                'line', NEW.line, 'path', NEW.path,
@@ -164,11 +230,20 @@ export const FORGEJO_DELIVERY_SCHEMA = `
                'repository_id', forgejo_repositories.forge_repository_id,
                'side', NEW.side, 'start_line', NEW.start_line,
                'start_side', NEW.start_side
-             )
+             ),
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN forgejo_connections.id ELSE NULL END,
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN forgejo_connections.verified_at ELSE NULL END,
+             NEW.error_code, NEW.error_detail,
+             CASE WHEN NEW.error_code = 'forgejo_connection_retired'
+               THEN 1 ELSE 0 END
       FROM forgejo_automatic_evaluations
       JOIN forgejo_repositories
         ON forgejo_repositories.repository_id =
              forgejo_automatic_evaluations.repository_id
+      JOIN forgejo_connections
+        ON forgejo_connections.id = forgejo_repositories.connection_id
       WHERE forgejo_automatic_evaluations.evaluation_id = NEW.evaluation_id
       ON CONFLICT (surface, source_id) DO NOTHING;
     END;
@@ -182,28 +257,27 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            'context', 'Quality Bar', 'head_commit', head_commit,
            'repository_id', forgejo_repositories.forge_repository_id,
            'state', desired_state
-         ), forgejo_connections.id, forgejo_connections.verified_at,
-         1, published_at,
+         ),
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.id END,
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.verified_at END,
+         CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
+         published_at,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code NOT IN (
-                 'forgejo_connection_retired',
-                 'forgejo_publication_capability_unavailable',
-                 'forgejo_publication_request_invalid'
-               ) THEN 1 ELSE 0 END,
+               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
+              THEN 1 ELSE 0 END,
          external_id, error_code, error_detail,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code IN (
-                 'forgejo_connection_retired',
-                 'forgejo_publication_capability_unavailable',
-                 'forgejo_publication_request_invalid'
-               ) THEN 1 ELSE 0 END
+               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+              THEN 1 ELSE 0 END
   FROM forgejo_commit_statuses
   JOIN forgejo_repositories
     ON forgejo_repositories.repository_id =
          forgejo_commit_statuses.repository_id
   JOIN forgejo_connections
     ON forgejo_connections.id = forgejo_repositories.connection_id
-  WHERE publication_status IN ('succeeded', 'unavailable')
+  WHERE publication_status IN ('waiting', 'succeeded', 'unavailable')
   ON CONFLICT (surface, source_id) DO NOTHING;
   INSERT INTO forgejo_delivery_attempts (
     surface, source_id, target, connection_id, authority_verified_at,
@@ -215,15 +289,22 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            'pull_request_number',
              forgejo_automatic_evaluations.pull_request_number,
            'repository_id', forgejo_repositories.forge_repository_id
-         ), forgejo_connections.id, forgejo_connections.verified_at,
-         1, forgejo_feedback_bundles.published_at,
+         ),
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.id END,
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.verified_at END,
+         CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
+         forgejo_feedback_bundles.published_at,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code != 'forgejo_connection_retired'
+               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
               THEN 1 ELSE 0 END,
          forgejo_feedback_bundles.external_id,
          forgejo_feedback_bundles.error_code,
          forgejo_feedback_bundles.error_detail,
-         CASE WHEN error_code = 'forgejo_connection_retired' THEN 1 ELSE 0 END
+         CASE WHEN publication_status = 'unavailable'
+               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+              THEN 1 ELSE 0 END
   FROM forgejo_feedback_bundles
   JOIN forgejo_automatic_evaluations
     ON forgejo_automatic_evaluations.evaluation_id =
@@ -233,7 +314,7 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          forgejo_automatic_evaluations.repository_id
   JOIN forgejo_connections
     ON forgejo_connections.id = forgejo_repositories.connection_id
-  WHERE publication_status IN ('succeeded', 'unavailable')
+  WHERE publication_status IN ('waiting', 'succeeded', 'unavailable')
   ON CONFLICT (surface, source_id) DO NOTHING;
   INSERT INTO forgejo_delivery_attempts (
     surface, source_id, target, connection_id, authority_verified_at,
@@ -250,15 +331,22 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            'side', forgejo_finding_feedback.side,
            'start_line', forgejo_finding_feedback.start_line,
            'start_side', forgejo_finding_feedback.start_side
-         ), forgejo_connections.id, forgejo_connections.verified_at,
-         1, forgejo_finding_feedback.published_at,
+         ),
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.id END,
+         CASE WHEN publication_status = 'waiting'
+           THEN NULL ELSE forgejo_connections.verified_at END,
+         CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
+         forgejo_finding_feedback.published_at,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code != 'forgejo_connection_retired'
+               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
               THEN 1 ELSE 0 END,
          forgejo_finding_feedback.external_id,
          forgejo_finding_feedback.error_code,
          forgejo_finding_feedback.error_detail,
-         CASE WHEN error_code = 'forgejo_connection_retired' THEN 1 ELSE 0 END
+         CASE WHEN publication_status = 'unavailable'
+               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+              THEN 1 ELSE 0 END
   FROM forgejo_finding_feedback
   JOIN forgejo_automatic_evaluations
     ON forgejo_automatic_evaluations.evaluation_id =
@@ -268,7 +356,7 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          forgejo_automatic_evaluations.repository_id
   JOIN forgejo_connections
     ON forgejo_connections.id = forgejo_repositories.connection_id
-  WHERE publication_status IN ('succeeded', 'unavailable')
+  WHERE publication_status IN ('waiting', 'succeeded', 'unavailable')
   ON CONFLICT (surface, source_id) DO NOTHING;
   UPDATE forgejo_commit_statuses
   SET publication_status = 'waiting', published_state = NULL,

@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { readForgejoConnection } from "../src/forgejo-connection-read.js";
+import { createRepositoryService, RepositoryError } from "../src/repository.js";
 import {
   attemptForgejoDelivery,
   recordForgejoDeliveryHealth,
@@ -155,15 +156,28 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
        (connection_id, gate_until, error_code, error_detail)
      VALUES ('connection-1', 3_600_000, 'forgejo_api_rate_limited', 'rate')`,
   );
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'forgejo_repository_permission_denied',
+         health_error_message = 'Forgejo Repository permission denied'`,
+  );
 
-  core.transaction((transaction) =>
+  core.transaction((transaction) => {
     resumeForgejoDeliveries(
       transaction,
       "connection-1",
       20,
       "connection_authority",
-    ),
-  );
+    );
+    resumeForgejoDeliveries(
+      transaction,
+      "connection-1",
+      20,
+      "repository_authority",
+      [101],
+    );
+  });
 
   assert.deepEqual(
     core.get(
@@ -216,79 +230,16 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
       ?.count,
     1,
   );
-});
-
-test("schema v51 resumes legacy uncertain Forgejo feedback without violating immutability", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-v51-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const path = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(path);
-  arrangeForgejoFeedback(prior);
-  prior.run(
-    `INSERT INTO forgejo_finding_feedback (
-       finding_id, evaluation_id, publication_status, path, side, line
-     ) VALUES (
-       'finding-inline', 'evaluation-1', 'waiting',
-       'src/example.js', 'RIGHT', 2
-     )`,
-  );
-  prior.run(
-    `UPDATE forgejo_feedback_bundles
-     SET publication_status = 'unavailable', error_code = 'forgejo_api_unavailable',
-         error_detail = 'response lost'`,
-  );
-  prior.run(
-    `UPDATE forgejo_finding_feedback
-     SET publication_status = 'unavailable', error_code = 'forgejo_api_unavailable',
-         error_detail = 'response lost'
-     WHERE publication_status = 'waiting'`,
-  );
-  for (const statement of [
-    "DROP TRIGGER forgejo_commit_status_delivery_admit",
-    "DROP TRIGGER forgejo_commit_status_delivery_update_admit",
-    "DROP TRIGGER forgejo_feedback_bundle_delivery_admit",
-    "DROP TRIGGER forgejo_finding_feedback_delivery_admit",
-    "DROP TABLE forgejo_delivery_provider_gates",
-    "DROP TABLE forgejo_delivery_attempts",
-    "UPDATE quality_bar_metadata SET value = '50' WHERE key = 'schema_version'",
-    "PRAGMA user_version = 50",
-  ]) {
-    prior.run(statement);
-  }
-  prior.close();
-
-  const migrated = openDurableCore(path);
-  context.after(() => migrated.close());
   assert.deepEqual(
-    migrated.all(
-      `SELECT surface, reconciliation_required, definitive
-       FROM forgejo_delivery_attempts
-       WHERE surface IN ('aggregate_feedback', 'inline_feedback')
-       ORDER BY surface`,
+    core.get(
+      `SELECT health, health_error_code, health_error_message
+       FROM repositories`,
     ),
-    [
-      {
-        definitive: 0,
-        reconciliation_required: 1,
-        surface: "aggregate_feedback",
-      },
-      {
-        definitive: 0,
-        reconciliation_required: 1,
-        surface: "inline_feedback",
-      },
-    ],
-  );
-  assert.equal(
-    migrated.get(
-      `SELECT count(*) AS count FROM (
-         SELECT publication_status FROM forgejo_feedback_bundles
-         UNION ALL
-         SELECT publication_status FROM forgejo_finding_feedback
-         WHERE publication_status != 'aggregate_only'
-       ) WHERE publication_status = 'waiting'`,
-    )?.count,
-    2,
+    {
+      health: "healthy",
+      health_error_code: null,
+      health_error_message: null,
+    },
   );
 });
 
@@ -384,4 +335,37 @@ test("delivery failure health remains exact and scoped to its owning Forgejo res
     "healthy",
   );
   assert.equal(readForgejoConnection(core)?.health_error, null);
+});
+
+test("Repository admission surfaces its delivery-owned Forgejo Connection failure", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-admission-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeForgejoFeedback(core);
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET connection_id = 'connection-1', authority_verified_at = 1,
+         attempt_count = 1, last_attempt_at = 10, definitive = 1,
+         error_code = 'forgejo_connection_credential_invalid',
+         error_detail = 'Forgejo PAT rejected'
+     WHERE surface = 'commit_status'`,
+  );
+  core.run("UPDATE forgejo_connections SET health = 'error'");
+  const repositories = createRepositoryService(core, {
+    createId: () => "unused",
+    masterKey: Buffer.alloc(32, 3),
+    now: () => 20,
+    async verifyRead() {},
+  });
+  context.after(() => repositories.destroy());
+  assert.throws(
+    () => repositories.requireAcceptsNewWork("repository-1"),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "forgejo_connection_credential_invalid" &&
+      error.message === "Forgejo PAT rejected",
+  );
 });

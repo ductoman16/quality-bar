@@ -2,9 +2,7 @@ const CORRECTABLE_FAILURES = Object.freeze({
   connection_authority: [
     "forgejo_connection_credential_invalid",
     "forgejo_connection_credential_undecryptable",
-    "forgejo_repository_api_access_failed",
-    "forgejo_repository_capability_missing",
-    "forgejo_repository_permission_denied",
+    "forgejo_publication_capability_unavailable",
     "forgejo_required_route_unavailable",
     "forgejo_version_unsupported",
   ],
@@ -19,9 +17,14 @@ const CORRECTABLE_FAILURES = Object.freeze({
     "forgejo_version_unsupported",
   ],
   repository_authority: [
+    "forgejo_connection_credential_invalid",
+    "forgejo_connection_credential_undecryptable",
+    "forgejo_connection_retired",
     "forgejo_repository_api_access_failed",
     "forgejo_repository_capability_missing",
     "forgejo_repository_permission_denied",
+    "forgejo_required_route_unavailable",
+    "forgejo_version_unsupported",
   ],
 });
 
@@ -65,6 +68,24 @@ export function resumeForgejoDeliveries(
     connectionId,
     ...parameters,
   );
+  if (repositoryIds) {
+    transaction.run(
+      `UPDATE repositories
+       SET health = 'healthy', health_error_code = NULL,
+           health_error_message = NULL, verified_at = ?
+       WHERE id IN (
+         SELECT repository_id FROM forgejo_repositories
+         WHERE connection_id = ?
+           AND forge_repository_id IN (${repositoryIds.map(() => "?").join(", ")})
+       )
+         AND health = 'error'
+         AND health_error_code IN (${correctableFailures.map(() => "?").join(", ")})`,
+      readyAt,
+      connectionId,
+      ...repositoryIds,
+      ...correctableFailures,
+    );
+  }
   transaction.run(
     `UPDATE forgejo_commit_statuses
      SET publication_status = 'waiting', published_state = NULL,
