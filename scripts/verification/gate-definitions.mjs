@@ -12,11 +12,7 @@ import {
 } from "./forgejo-gate-definition.mjs";
 import { requireExactToolVersion } from "./tool-version.mjs";
 import { CODEX_GATE_DEFINITIONS } from "./fake-codex-gate-definition.mjs";
-import {
-  NODE_OWNERSHIP_LINT_PROOF_GATE,
-  PRODUCTION_TYPE_CHECK_PROOF_GATE,
-  PROOF_CODE_TYPE_CHECK_PROOF_GATE,
-} from "./proof-gate-definitions.mjs";
+import { STATIC_PROOF_GATE_DEFINITIONS } from "./proof-gate-definitions.mjs";
 import * as evaluationGate from "./openapi-runtime-conformance-gate.mjs";
 import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
 import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
@@ -27,6 +23,7 @@ import {
   GITHUB_FIXTURE_GATE,
   GIT_GATE,
 } from "./github-feedback-gate-definitions.mjs";
+import { PERFORMANCE_BUDGET_GATE } from "./performance-gate-definition.mjs";
 /**
  * @typedef {{
  *   name: string,
@@ -43,6 +40,7 @@ import {
  *   tools?: Record<string, string>,
  *   factsMarker?: string,
  *   validateFacts?: (facts: unknown) => string | null,
+ *   factsMustPass?: boolean,
  * }} GateDefinition
  */
 /**
@@ -270,7 +268,8 @@ export function createGateDefinitions(metadata) {
         "test/waiver-adjudicator-configuration.test.js",
         "test/waiver-batch.test.js",
         "test/sqlite-backup.test.js",
-        "test/verification-harness.test.js",
+        // prettier-ignore
+        ...["test/verification-harness.test.js", "test/verification-aggregation.test.js"],
       ],
     },
     {
@@ -429,9 +428,8 @@ export function createGateDefinitions(metadata) {
       failureCode: "correctness_lint_proof_failed",
       arguments: ["--test", "test/core-js-lint-gate.test.js"],
     },
-    NODE_OWNERSHIP_LINT_PROOF_GATE,
-    PRODUCTION_TYPE_CHECK_PROOF_GATE,
-    PROOF_CODE_TYPE_CHECK_PROOF_GATE,
+    ...STATIC_PROOF_GATE_DEFINITIONS,
     APPLICATION_COVERAGE_PROOF_GATE,
+    PERFORMANCE_BUDGET_GATE,
   ];
 }

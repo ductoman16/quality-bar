@@ -72,10 +72,25 @@ export function canonicalSystemFactSchemas(codexCapabilityCatalog) {
     },
     DurableCoreFact: openObject(
       {
+        database_version: { minLength: 1, type: "string" },
+        foreign_keys: { const: true, type: "boolean" },
+        integrity: { const: "ok", type: "string" },
+        journal_mode: { const: "wal", type: "string" },
         schema_version: { minimum: 1, type: "integer" },
+        schema_version_before_migration: { minimum: 0, type: "integer" },
         status: { const: "ready", type: "string" },
+        synchronous: { const: "full", type: "string" },
       },
-      ["schema_version", "status"],
+      [
+        "database_version",
+        "foreign_keys",
+        "integrity",
+        "journal_mode",
+        "schema_version",
+        "schema_version_before_migration",
+        "status",
+        "synchronous",
+      ],
     ),
     ImplementerTokenFact: openObject(
       { status: { enum: ["active", "revoked"], type: "string" } },

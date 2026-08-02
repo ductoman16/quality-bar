@@ -41,6 +41,7 @@ jobs:
           test "$(uname -m)" = "x86_64"
           docker version
           docker compose version
+          docker run --rm --platform linux/amd64 --cpus 4 --memory 8589934592 node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc node --version
           firefox --version
           sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0
           test "$(sysctl --values kernel.apparmor_restrict_unprivileged_userns)" = "0"

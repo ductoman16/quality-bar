@@ -8,6 +8,7 @@
     "operator.js",
     "system-polling-delivery-contract.js",
     "system-polling-delivery.js",
+    "system-storage.js",
     "waiver-adjudicator-configuration.js",
     "github-connection-contract.js",
     "github-connection-lifecycle-confirmation.js",

@@ -21,18 +21,28 @@ const facts = {
   reserve_bytes: 5 * 1024 ** 3,
   status: "available",
 };
+const cleanupFacts = {
+  artifacts_removed: 0,
+  error: null,
+  last_run_at: "2026-08-02T12:00:00.000Z",
+  sessions_removed: 0,
+  status: "available",
+};
 
 export const availableStorageReserve =
   /** @type {ReturnType<typeof import("../src/storage-reserve.js").createStorageReserveGate> & {ioPool: ReturnType<typeof createIoExecutionPool>}} */ (
-    Object.freeze({
-      assertCodexStartAvailable: () => facts,
-      assertPollingObservationAdvanceAvailable: () => facts,
-      cleanupEligibleData() {},
-      ioPool: createIoExecutionPool(),
-      preparePollingObservationAdvance: () => facts,
-      assertWorkAdmissionAvailable: () => facts,
-      readFacts: () => facts,
-    })
+    /** @type {unknown} */ (
+      Object.freeze({
+        assertCodexStartAvailable: () => facts,
+        assertPollingObservationAdvanceAvailable: () => facts,
+        cleanupEligibleData() {},
+        ioPool: createIoExecutionPool(),
+        preparePollingObservationAdvance: () => facts,
+        assertWorkAdmissionAvailable: () => facts,
+        readCleanupFacts: () => cleanupFacts,
+        readFacts: () => ({ ...facts, cleanup: cleanupFacts }),
+      })
+    )
   );
 
 export const githubAutomaticEvaluationTestDependencies = Object.freeze({

@@ -1,0 +1,24 @@
+{
+  "ticket": 112,
+  "acceptance_scenarios": ["ACC-01", "ACC-10"],
+  "proof": {
+    "unit": {
+      "system-storage-facts-unit": [
+        "test/system-storage-facts.test.js",
+        "test/system-storage-verification.test.js"
+      ]
+    },
+    "browser_component": {
+      "system-storage-facts-browser-component": [
+        "test/system-storage-browser-component.test.js"
+      ]
+    },
+    "http_integration": {
+      "system-storage-facts-http-integration": [
+        "test/system-storage-http-integration.test.js"
+      ]
+    }
+  },
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}

@@ -8,6 +8,7 @@ import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-exe
 import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
 import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
 import { canonicalSystemPollingDeliverySchemas } from "./canonical-system-polling-delivery-components.js";
+import { canonicalSystemStorageSchemas } from "./canonical-system-storage-components.js";
 import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /**
@@ -81,6 +82,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ...canonicalSystemExecutionSchemas(),
       ...canonicalSystemFactSchemas(codexCapabilityCatalog),
       ...canonicalSystemPollingDeliverySchemas(),
+      ...canonicalSystemStorageSchemas(),
       CurrentPasswordRequest: closedObject({ password: { type: "string" } }, [
         "password",
       ]),
@@ -316,6 +318,8 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       System: openObject(
         {
+          application: { $ref: "#/components/schemas/SystemApplicationFact" },
+          backup: { $ref: "#/components/schemas/SystemBackupFact" },
           bootstrap: { $ref: "#/components/schemas/BootstrapFact" },
           browser_sessions: {
             $ref: "#/components/schemas/BrowserSessionsFact",
@@ -331,8 +335,11 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           },
           polling: { $ref: "#/components/schemas/SystemPollingFact" },
           storage: { $ref: "#/components/schemas/StorageReserveFact" },
+          migration: { $ref: "#/components/schemas/SystemMigrationFact" },
         },
         [
+          "application",
+          "backup",
           "bootstrap",
           "browser_sessions",
           "codex",
@@ -342,6 +349,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "implementer_token",
           "polling",
           "storage",
+          "migration",
         ],
       ),
       ...canonicalStorageReserveSchemas(),

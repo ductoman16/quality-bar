@@ -37,7 +37,14 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   storage: {
  *     filesystems: {available_bytes: number, filesystem: string, path: string, status: string}[],
  *     reserve_bytes: number,
- *     status: string
+ *     status: string,
+ *     cleanup: {
+ *       artifacts_removed: number,
+ *       error: {code: string, detail: string} | null,
+ *       last_run_at: string | null,
+ *       sessions_removed: number,
+ *       status: string
+ *     }
  *   },
  *   tokenStatus: number,
  * }} AuthenticatedHttpSmoke

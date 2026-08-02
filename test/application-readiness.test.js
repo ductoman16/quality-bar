@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createApplication } from "../src/application.js";
@@ -10,6 +10,12 @@ import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
 import { acquireInstallationLock } from "../src/installation-environment.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import {
+  expectedSystemApplication,
+  expectedSystemBackup,
+  expectedSystemDurableCore,
+  expectedSystemMigration,
+} from "./system-storage-expected.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
 /** @type {Application[]} */
@@ -46,13 +52,21 @@ function availableStorageReserve() {
     reserve_bytes: 5 * 1024 ** 3,
     status: "available",
   };
+  const cleanupFacts = {
+    artifacts_removed: 0,
+    error: null,
+    last_run_at: "2026-08-02T12:00:00.000Z",
+    sessions_removed: 0,
+    status: "available",
+  };
   return /** @type {any} */ ({
     assertCodexStartAvailable: () => facts,
     assertPollingObservationAdvanceAvailable: () => facts,
     cleanupEligibleData() {},
     preparePollingObservationAdvance: () => facts,
     assertWorkAdmissionAvailable: () => facts,
-    readFacts: () => facts,
+    readCleanupFacts: () => cleanupFacts,
+    readFacts: () => ({ ...facts, cleanup: cleanupFacts }),
   });
 }
 
@@ -62,6 +76,8 @@ function availableStorageReserve() {
  */
 async function startApplication(databasePath, options = {}) {
   const application = createApplication({
+    applicationVersion: "1.2.3",
+    backupsPath: options.backupsPath ?? join(dirname(databasePath), "backups"),
     databasePath,
     createStorageReserve:
       options.createStorageReserve ?? availableStorageReserve,
@@ -317,7 +333,10 @@ test("unavailable Codex authentication leaves the durable System surface ready",
     headers: { cookie },
   });
   assert.equal(systemResponse.status, 200);
-  assert.deepEqual(await systemResponse.json(), {
+  const system = /** @type {any} */ (await systemResponse.json());
+  assert.deepEqual(system, {
+    application: expectedSystemApplication,
+    backup: expectedSystemBackup,
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: {
@@ -336,11 +355,12 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       running: { count: 0, rows: [] },
     },
     delivery: { surfaces: [] },
-    durable_core: { schema_version: 52, status: "ready" },
+    durable_core: expectedSystemDurableCore(system.durable_core),
     implementer_token: {
       status: "revoked",
     },
     polling: { connections: [] },
+    migration: expectedSystemMigration,
     storage: availableStorageReserve().readFacts(),
   });
 });

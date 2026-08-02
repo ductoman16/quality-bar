@@ -8,6 +8,7 @@ import {
   verifyInstallationKey,
 } from "./installation-configuration.js";
 import {
+  BACKUPS_PATH,
   validateBundledTools,
   validateCodexLogin,
   validateInstallationFilesystem,
@@ -77,10 +78,13 @@ import {
   createEvaluationService,
   createUnavailableEvaluationService,
 } from "./evaluation.js";
+import { installationKeyIdentity as computeInstallationKeyIdentity } from "./sqlite-backup.js";
 
 /** @typedef {ReturnType<typeof requireCodedError>} CodedError */
 /**
  * @param {{
+ *   applicationVersion?: string,
+ *   backupsPath?: string,
  *   databasePath: string,
  *   loadInstallation?: typeof loadInstallationConfiguration,
  *   validateInstallation?: typeof validateInstallationFilesystem,
@@ -96,6 +100,7 @@ import {
  *   createStorageReserve?: typeof createStorageReserveGate,
  *   createEvaluations?: typeof createEvaluationService,
  *   createCodexRuntime?: typeof createCodexExecutionRuntime,
+ *   installationKeyIdentity?: string,
  *   recoverExecutions?: typeof recoverCodexExecutions,
  *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
@@ -103,6 +108,8 @@ import {
  * }} options
  */
 export function createApplication({
+  applicationVersion,
+  backupsPath = BACKUPS_PATH,
   databasePath,
   loadInstallation = loadInstallationConfiguration,
   validateInstallation = validateInstallationFilesystem,
@@ -118,6 +125,7 @@ export function createApplication({
   createStorageReserve = createStorageReserveGate,
   createEvaluations = createEvaluationService,
   createCodexRuntime = createCodexExecutionRuntime,
+  installationKeyIdentity,
   recoverExecutions = recoverCodexExecutions,
   readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
@@ -176,6 +184,7 @@ export function createApplication({
   let releaseInstallationLock = null;
   /** @type {CodedError | null} */
   let startupFailure = null;
+  let runtimeKeyIdentity = installationKeyIdentity;
 
   try {
     validateSources();
@@ -202,6 +211,9 @@ export function createApplication({
       createCodexExecutionConcurrencyService(durableCore);
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
+      runtimeKeyIdentity ??= computeInstallationKeyIdentity(
+        installation.masterKey,
+      );
       recoverExecutions(durableCore, { now });
       /** @type {ReturnType<typeof createStorageReserveGate>} */ (
         storageReserve
@@ -282,7 +294,12 @@ export function createApplication({
       durableCore,
       { now },
     );
-    systemResource = createSystemResource(durableCore, { now });
+    systemResource = createSystemResource(durableCore, {
+      applicationVersion,
+      backupsPath,
+      installationKeyIdentity: runtimeKeyIdentity,
+      now,
+    });
     validateTools();
     try {
       validateCodexAuthentication();

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
+import { validatePerformanceFacts } from "./performance-budget.mjs";
 
 /**
  * @typedef {{
@@ -22,6 +23,14 @@ import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 /** @typedef {{code: string, detail: string}} VerificationFailure */
 /**
  * @typedef {{
+ *   kind: "cost-free",
+ *   ownership: import("./verification-aggregation.mjs").VerificationAggregation["ownership"],
+ *   groups: import("./verification-aggregation.mjs").VerificationAggregation["groups"],
+ *   crossProcessSmokes: import("./verification-aggregation.mjs").VerificationAggregation["crossProcessSmokes"],
+ * }} VerificationEvidence
+ */
+/**
+ * @typedef {{
  *   name: string,
  *   command: string,
  *   testGroups: {name: string, count: number | null}[],
@@ -34,38 +43,139 @@ import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
  *     tools?: {git?: string, codex?: string},
  *     authenticatedHttpSmoke?: {codexCapabilityCatalogVersion?: string},
  *     executableVersion?: string,
- *   },
+ *   } | import("./performance-budget.mjs").PerformanceFacts,
  * }} VerificationGate
  */
 /**
  * @typedef {{
  *   invokedGates: VerificationGate[],
+ *   verification?: VerificationEvidence | null,
+ *   performance?: import("./performance-budget.mjs").PerformanceFacts | null,
  *   outcome: "pass" | "fail",
  *   failures: VerificationFailure[],
  * }} VerificationManifest
  */
 
 /**
+ * @param {VerificationGate["facts"] | undefined} facts
+ * @returns {facts is import("./performance-budget.mjs").PerformanceFacts}
+ */
+function isPerformanceFacts(facts) {
+  return (
+    typeof facts === "object" &&
+    facts !== null &&
+    "outcome" in facts &&
+    (facts.outcome === "pass" || facts.outcome === "fail")
+  );
+}
+
+/** @param {VerificationGate} gate @returns {VerificationGate} */
+function withoutFacts(gate) {
+  const copy = { ...gate };
+  delete copy.facts;
+  return copy;
+}
+
+/**
  * @param {{
  *   metadata: VerificationMetadata,
  *   gates: VerificationGate[],
  *   failures: VerificationFailure[],
+ *   verificationAggregation?: import("./verification-aggregation.mjs").VerificationAggregation | null,
  *   startedAt: number,
  * }} input
  */
-export function createManifest({ metadata, gates, failures, startedAt }) {
-  const packageFacts = gates.find(
-    (gate) => gate.name === "package-integration",
-  )?.facts;
-  const operatorBrowserFacts = gates.find(
-    (gate) => gate.name === "operator-browser-smoke",
-  )?.facts;
+export function createManifest({
+  metadata,
+  gates,
+  failures,
+  startedAt,
+  verificationAggregation,
+}) {
+  /** @typedef {{
+   *   database?: {schemaVersion?: number, databaseVersion?: string},
+   *   tools?: {git?: string, codex?: string},
+   *   authenticatedHttpSmoke?: {codexCapabilityCatalogVersion?: string},
+   *   executableVersion?: string,
+   * }} RuntimeFacts */
+  const packageFacts = /** @type {RuntimeFacts | undefined} */ (
+    gates.find((gate) => gate.name === "package-integration")?.facts
+  );
+  const operatorBrowserFacts = /** @type {RuntimeFacts | undefined} */ (
+    gates.find((gate) => gate.name === "operator-browser-smoke")?.facts
+  );
   const applicationCoverageFacts = gates.find(
     (gate) => gate.name === "application-coverage",
   )?.facts;
+  const performanceGate = gates.find(
+    (gate) => gate.name === "performance-budgets",
+  );
+  const performanceGateRequired =
+    verificationAggregation?.groups.local.includes("performance-budgets") ??
+    (gates.length === 0 && failures.length === 0);
+  const performanceGateMissing =
+    performanceGateRequired && performanceGate === undefined;
+  const performanceFactError = performanceGateMissing
+    ? "performance gate was not invoked"
+    : performanceGate === undefined
+      ? null
+      : performanceGate.facts === undefined
+        ? "performance gate has no performance facts"
+        : validatePerformanceFacts(performanceGate.facts);
+  const performanceFacts =
+    performanceFactError === null && isPerformanceFacts(performanceGate?.facts)
+      ? performanceGate.facts
+      : null;
+  const performanceOutcomeMismatch =
+    performanceFacts !== null &&
+    performanceGate !== undefined &&
+    performanceGate.outcome !== performanceFacts.outcome;
+  /** @type {VerificationFailure[]} */
+  const manifestFailures = [...failures];
+  const performanceFailureReported = failures.some(
+    (failure) => failure.code === "performance_budgets_failed",
+  );
+  if (
+    (performanceGateMissing || performanceGate?.outcome === "fail") &&
+    !performanceFailureReported
+  ) {
+    manifestFailures.push({
+      code: "performance_budgets_failed",
+      detail: performanceGateMissing
+        ? "performance gate was not invoked"
+        : "performance gate failed",
+    });
+  }
+  if (performanceFactError) {
+    manifestFailures.push({
+      code: "verification_evidence_invalid",
+      detail: `QUALITY_BAR_PERFORMANCE_FACTS ${performanceFactError}`,
+    });
+  } else if (performanceOutcomeMismatch) {
+    manifestFailures.push({
+      code: "performance_budgets_failed",
+      detail: "performance gate and facts outcomes differ",
+    });
+  }
+  if (performanceGate?.outcome === "pass" && performanceFailureReported) {
+    manifestFailures.push({
+      code: "verification_evidence_invalid",
+      detail: "performance gate passed but its owning failure was reported",
+    });
+  }
+  const invalidPerformanceEvidence =
+    performanceGateMissing ||
+    performanceFactError !== null ||
+    performanceOutcomeMismatch ||
+    (performanceGate?.outcome === "pass" && performanceFailureReported);
+  const manifestGates = invalidPerformanceEvidence
+    ? gates.map((gate) =>
+        gate.name === "performance-budgets" ? withoutFacts(gate) : gate,
+      )
+    : gates;
 
   const outcome = /** @type {"pass" | "fail"} */ (
-    failures.length === 0 ? "pass" : "fail"
+    manifestFailures.length === 0 ? "pass" : "fail"
   );
   return {
     evidenceVersion: 1,
@@ -132,10 +242,19 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
       git: metadata.runnerGitVersion,
     },
     applicationCoverage: applicationCoverageFacts ?? null,
-    invokedGates: gates,
+    invokedGates: manifestGates,
+    verification: verificationAggregation
+      ? {
+          kind: /** @type {"cost-free"} */ ("cost-free"),
+          ownership: verificationAggregation.ownership,
+          groups: verificationAggregation.groups,
+          crossProcessSmokes: verificationAggregation.crossProcessSmokes,
+        }
+      : null,
+    performance: invalidPerformanceEvidence ? null : performanceFacts,
     totalDurationMs: Math.round(performance.now() - startedAt),
     outcome,
-    failures,
+    failures: manifestFailures,
   };
 }
 
