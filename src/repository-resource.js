@@ -20,20 +20,66 @@ export const REPOSITORY_SELECTION = `SELECT
     WHEN github_repositories.repository_id IS NOT NULL
       THEN github_connections.health_error_code
     WHEN forgejo_repositories.repository_id IS NOT NULL
-      THEN json_extract((
-        SELECT value FROM quality_bar_metadata
-         WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id
-      ), '$.code')
+      THEN COALESCE(
+        (SELECT error_code FROM forgejo_delivery_attempts
+         WHERE connection_id = forgejo_connections.id AND definitive = 1
+           AND error_code IN (
+             'forgejo_connection_credential_invalid',
+             'forgejo_connection_credential_undecryptable',
+             'forgejo_publication_capability_unavailable',
+             'forgejo_required_route_unavailable',
+             'forgejo_version_unsupported'
+           )
+         ORDER BY last_attempt_at DESC, rowid DESC LIMIT 1),
+        (SELECT CASE
+           WHEN error_code IS NULL OR error_code IN (
+             'forgejo_poll_response_invalid',
+             'forgejo_repository_api_access_failed',
+             'forgejo_repository_capability_missing',
+             'forgejo_repository_permission_denied',
+             'forgejo_repository_selection_unavailable',
+             'repository_git_read_failed',
+             'repository_git_verification_unavailable'
+           ) THEN NULL ELSE error_code END
+         FROM forgejo_connection_verifications
+         WHERE connection_id = forgejo_connections.id
+         ORDER BY rowid DESC LIMIT 1),
+        json_extract((SELECT value FROM quality_bar_metadata
+          WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id), '$.code')
+      )
     ELSE NULL
   END AS forge_connection_health_error_code,
   CASE
     WHEN github_repositories.repository_id IS NOT NULL
       THEN github_connections.health_error_message
     WHEN forgejo_repositories.repository_id IS NOT NULL
-      THEN json_extract((
-        SELECT value FROM quality_bar_metadata
-         WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id
-      ), '$.message')
+      THEN COALESCE(
+        (SELECT error_detail FROM forgejo_delivery_attempts
+         WHERE connection_id = forgejo_connections.id AND definitive = 1
+           AND error_code IN (
+             'forgejo_connection_credential_invalid',
+             'forgejo_connection_credential_undecryptable',
+             'forgejo_publication_capability_unavailable',
+             'forgejo_required_route_unavailable',
+             'forgejo_version_unsupported'
+           )
+         ORDER BY last_attempt_at DESC, rowid DESC LIMIT 1),
+        (SELECT CASE
+           WHEN error_code IS NULL OR error_code IN (
+             'forgejo_poll_response_invalid',
+             'forgejo_repository_api_access_failed',
+             'forgejo_repository_capability_missing',
+             'forgejo_repository_permission_denied',
+             'forgejo_repository_selection_unavailable',
+             'repository_git_read_failed',
+             'repository_git_verification_unavailable'
+           ) THEN NULL ELSE error_message END
+         FROM forgejo_connection_verifications
+         WHERE connection_id = forgejo_connections.id
+         ORDER BY rowid DESC LIMIT 1),
+        json_extract((SELECT value FROM quality_bar_metadata
+          WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id), '$.message')
+      )
     ELSE NULL
   END AS forge_connection_health_error_message,
   (

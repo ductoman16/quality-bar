@@ -139,7 +139,7 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
     ),
     (error) =>
       error instanceof Error &&
-      /** @type {any} */ (error).code === "forgejo_api_request_failed" &&
+      /** @type {any} */ (error).code === "forgejo_api_transient_failure" &&
       error.message ===
         "Forgejo publication route failed with HTTP 503: /api/v1/repos/operator/repository/issues/17/comments",
   );
@@ -200,5 +200,117 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
       },
     ),
     { code: "forgejo_publication_request_invalid" },
+  );
+});
+
+test("Forgejo reconciliation preserves provider rate-limit delay", async () => {
+  const now = Date.now();
+  const rateReset = Math.ceil((now + 240_000) / 1_000);
+  const publisher = createForgejoV16Publisher({
+    fetch: async () =>
+      new Response("rate limited", {
+        headers: {
+          "retry-after": "120",
+          "x-ratelimit-reset": String(rateReset),
+        },
+        status: 429,
+      }),
+  });
+  await assert.rejects(
+    publisher.reconcileAggregateFeedback(
+      { base_url: "https://forgejo.example", token: "operator-pat" },
+      { full_name: "operator/repository", id: 101 },
+      17,
+      "aggregate",
+    ),
+    (error) =>
+      error instanceof Error &&
+      /** @type {any} */ (error).code === "forgejo_api_rate_limited" &&
+      /** @type {any} */ (error).nextAttemptAt >= now + 239_000,
+  );
+});
+
+test("Forgejo response ownership distinguishes transient, Connection, and Repository failures", async () => {
+  const connection = {
+    base_url: "https://forgejo.example",
+    token: "operator-pat",
+  };
+  const repository = { full_name: "operator/repository", id: 101 };
+  for (const [responseStatus, code, repositoryId] of /** @type {const} */ ([
+    [408, "forgejo_api_transient_failure", undefined],
+    [425, "forgejo_api_transient_failure", undefined],
+    [401, "forgejo_connection_credential_invalid", undefined],
+    [403, "forgejo_repository_permission_denied", 101],
+    [404, "forgejo_repository_api_access_failed", 101],
+  ])) {
+    const publisher = createForgejoV16Publisher({
+      fetch: async () => new Response("failure", { status: responseStatus }),
+    });
+    await assert.rejects(
+      publisher.publishAggregateFeedback(
+        connection,
+        repository,
+        17,
+        "aggregate",
+      ),
+      (error) =>
+        error instanceof Error &&
+        /** @type {any} */ (error).code === code &&
+        /** @type {any} */ (error).repositoryId === repositoryId,
+    );
+  }
+});
+
+test("Forgejo inline reconciliation requires the exact persisted range", async () => {
+  const head = "a".repeat(40);
+  const connection = {
+    base_url: "https://forgejo.example",
+    token: "operator-pat",
+  };
+  const repository = { full_name: "operator/repository", id: 101 };
+  const comment = {
+    body: "inline",
+    commit_id: head,
+    line: 5,
+    path: "src/example.js",
+    side: "RIGHT",
+    start_line: 2,
+    start_side: "RIGHT",
+  };
+  const responseComment = {
+    body: "inline",
+    commit_id: head,
+    id: 902,
+    original_position: 0,
+    path: "src/example.js",
+    position: 5,
+  };
+  const publisher = createForgejoV16Publisher({
+    fetch: async (url) =>
+      String(url).endsWith("/reviews?limit=50&page=1")
+        ? Response.json([{ id: 901 }])
+        : Response.json([{ ...responseComment, extra_lines_count: 1 }]),
+  });
+  assert.equal(
+    await publisher.reconcileInlineFeedback(
+      connection,
+      repository,
+      17,
+      comment,
+    ),
+    null,
+  );
+  const duplicate = createForgejoV16Publisher({
+    fetch: async (url) =>
+      String(url).endsWith("/reviews?limit=50&page=1")
+        ? Response.json([{ id: 901 }])
+        : Response.json([
+            { ...responseComment, extra_lines_count: 3 },
+            { ...responseComment, extra_lines_count: 3, id: 904 },
+          ]),
+  });
+  await assert.rejects(
+    duplicate.reconcileInlineFeedback(connection, repository, 17, comment),
+    { code: "forgejo_delivery_identity_conflict" },
   );
 });

@@ -185,13 +185,13 @@ function correction(evaluation) {
       "github_installation_scope_invalid",
       "github_permissions_mismatch",
       "github_principal_mismatch",
-      "forgejo_api_request_failed",
-      "forgejo_api_response_invalid",
-      "forgejo_api_unavailable",
+      "forgejo_connection_credential_invalid",
       "forgejo_connection_credential_undecryptable",
       "forgejo_connection_retired",
       "forgejo_credential_undecryptable",
       "forgejo_publication_capability_unavailable",
+      "forgejo_required_route_unavailable",
+      "forgejo_version_unsupported",
     ].includes(unavailable.error.code) ||
     (unavailable.error.code === "github_api_request_failed" &&
       [

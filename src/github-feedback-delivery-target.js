@@ -1,24 +1,25 @@
-/** @param {string} serialized */
-function parseTarget(serialized) {
+/** @param {string} serialized @param {"Forgejo" | "GitHub"} provider */
+function parseTarget(serialized, provider) {
   let target;
   try {
     target = JSON.parse(serialized);
   } catch {
-    throw new TypeError("GitHub feedback delivery target is invalid");
+    throw new TypeError(`${provider} feedback delivery target is invalid`);
   }
   if (!target || typeof target !== "object" || Array.isArray(target)) {
-    throw new TypeError("GitHub feedback delivery target is invalid");
+    throw new TypeError(`${provider} feedback delivery target is invalid`);
   }
   return target;
 }
 
-/** @param {string} serialized @param {any} fallback @param {number} repositoryId */
+/** @param {string} serialized @param {any} fallback @param {number} repositoryId @param {"Forgejo" | "GitHub"} [provider] */
 export function readAggregateDeliveryTarget(
   serialized,
   fallback,
   repositoryId,
+  provider = "GitHub",
 ) {
-  const target = parseTarget(serialized);
+  const target = parseTarget(serialized, provider);
   const keys = Object.keys(target).sort().join(",");
   if (
     keys === "pull_request_number,repository_id" &&
@@ -45,7 +46,7 @@ export function readAggregateDeliveryTarget(
     target.pull_request_number !== fallback.pull_request_number ||
     target.repository_id !== repositoryId
   ) {
-    throw new TypeError("GitHub feedback delivery target is invalid");
+    throw new TypeError(`${provider} feedback delivery target is invalid`);
   }
   return {
     body: target.body,
@@ -53,9 +54,14 @@ export function readAggregateDeliveryTarget(
   };
 }
 
-/** @param {string} serialized @param {any} fallback @param {number} repositoryId */
-export function readInlineDeliveryTarget(serialized, fallback, repositoryId) {
-  const target = parseTarget(serialized);
+/** @param {string} serialized @param {any} fallback @param {number} repositoryId @param {"Forgejo" | "GitHub"} [provider] */
+export function readInlineDeliveryTarget(
+  serialized,
+  fallback,
+  repositoryId,
+  provider = "GitHub",
+) {
+  const target = parseTarget(serialized, provider);
   const keys = Object.keys(target).sort().join(",");
   const legacy =
     keys ===
@@ -125,7 +131,7 @@ export function readInlineDeliveryTarget(serialized, fallback, repositoryId) {
         target.start_line <= 0 ||
         !["LEFT", "RIGHT"].includes(target.start_side)))
   ) {
-    throw new TypeError("GitHub feedback delivery target is invalid");
+    throw new TypeError(`${provider} feedback delivery target is invalid`);
   }
   return {
     comment: {

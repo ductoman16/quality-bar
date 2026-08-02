@@ -1,102 +1,19 @@
 import {
   formatForgejoAggregateFeedback,
   formatForgejoInlineFeedback,
-  projectForgejoDiffLineRange,
 } from "./forgejo-feedback.js";
+import { materializeForgejoFindingFeedback } from "./forgejo-finding-feedback-materialization.js";
 import { readEvaluationFindings } from "./evaluation-result-children.js";
+import {
+  attemptForgejoDelivery,
+  recordForgejoDeliveryHealth,
+} from "./forgejo-delivery-service.js";
+import {
+  readForgejoAggregateTarget,
+  readForgejoInlineTarget,
+} from "./forgejo-delivery-target.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
-
 const PUBLICATION_INTERVAL_MS = 1_000;
-
-/** @param {unknown} error */
-function codedPublicationFailure(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw error;
-  }
-  return { code: error.code, detail: error.message };
-}
-
-/** @param {number} value */
-function timestamp(value) {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new TypeError("now must return a nonnegative safe integer");
-  }
-  return value;
-}
-
-/** @param {any} durableCore @param {any} bundle @param {any[]} findings */
-function materializeFindingFeedback(durableCore, bundle, findings) {
-  const fileChanges = new Map(
-    durableCore
-      .all(
-        `SELECT id, before_path, after_path, patch
-         FROM evaluation_file_changes
-         WHERE evaluation_id = ?`,
-        bundle.evaluation_id,
-      )
-      .map((/** @type {any} */ fileChange) => [fileChange?.id, fileChange]),
-  );
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    const existing = transaction.all(
-      `SELECT finding_id
-       FROM forgejo_finding_feedback
-       WHERE evaluation_id = ?`,
-      bundle.evaluation_id,
-    );
-    if (existing.length !== 0) {
-      if (
-        existing.length !== findings.length ||
-        existing.some(
-          (/** @type {any} */ { finding_id: findingId }) =>
-            !findings.some(({ id }) => id === findingId),
-        )
-      ) {
-        throw new TypeError("Forgejo Finding feedback set is invalid");
-      }
-      return;
-    }
-    for (const finding of findings) {
-      const fileChange =
-        finding.location.file_change_id === undefined
-          ? undefined
-          : fileChanges.get(finding.location.file_change_id);
-      const coordinate = fileChange
-        ? projectForgejoDiffLineRange(finding.location, fileChange)
-        : null;
-      const unavailable =
-        coordinate && bundle.publication_status === "unavailable";
-      const errorDetail =
-        bundle.error_code === "forgejo_connection_retired"
-          ? "Forgejo inline feedback publication is unavailable because the Forgejo Connection is retired"
-          : bundle.error_detail;
-      transaction.run(
-        `INSERT INTO forgejo_finding_feedback (
-           finding_id, evaluation_id, publication_status,
-           path, side, start_line, start_side, line,
-           error_code, error_detail
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        finding.id,
-        bundle.evaluation_id,
-        coordinate
-          ? unavailable
-            ? "unavailable"
-            : "waiting"
-          : "aggregate_only",
-        coordinate?.path ?? null,
-        coordinate?.side ?? null,
-        coordinate?.start_line ?? null,
-        coordinate?.start_side ?? null,
-        coordinate?.line ?? null,
-        unavailable ? bundle.error_code : null,
-        unavailable ? errorDetail : null,
-      );
-    }
-  });
-}
 
 /**
  * @param {any} durableCore
@@ -107,7 +24,9 @@ function materializeFindingFeedback(durableCore, bundle, findings) {
  *   now?: () => number,
  *   verifier: {
  *     publishAggregateFeedback: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number>,
- *     publishInlineFeedback: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number>
+ *     publishInlineFeedback: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number>,
+ *     reconcileAggregateFeedback: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number | null>,
+ *     reconcileInlineFeedback: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number | null>
  *   }
  * }} dependencies
  */
@@ -122,7 +41,9 @@ export function createForgejoFeedbackService(
     typeof ioPool?.run !== "function" ||
     typeof now !== "function" ||
     typeof verifier?.publishAggregateFeedback !== "function" ||
-    typeof verifier.publishInlineFeedback !== "function"
+    typeof verifier.publishInlineFeedback !== "function" ||
+    typeof verifier.reconcileAggregateFeedback !== "function" ||
+    typeof verifier.reconcileInlineFeedback !== "function"
   ) {
     throw new TypeError("Forgejo feedback dependencies are invalid");
   }
@@ -140,24 +61,6 @@ export function createForgejoFeedbackService(
     target.searchParams.set("view", "evaluations");
     target.searchParams.set("evaluation_id", evaluationId);
     return target.toString();
-  }
-
-  /** @param {any} bundle @param {{code: string, detail: string}} failure */
-  function markBundleUnavailable(bundle, failure) {
-    durableCore.transaction((/** @type {any} */ transaction) => {
-      transaction.run(
-        `UPDATE forgejo_feedback_bundles
-         SET publication_status = 'unavailable',
-             external_id = NULL,
-             published_at = NULL,
-             error_code = ?,
-             error_detail = ?
-         WHERE evaluation_id = ? AND publication_status = 'waiting'`,
-        failure.code,
-        failure.detail,
-        bundle.evaluation_id,
-      );
-    });
   }
 
   async function publishWaiting() {
@@ -182,7 +85,7 @@ export function createForgejoFeedbackService(
       );
       for (const bundle of missingFindingFeedback) {
         const evaluationId = /** @type {string} */ (bundle.evaluation_id);
-        materializeFindingFeedback(
+        materializeForgejoFindingFeedback(
           durableCore,
           bundle,
           readEvaluationFindings(durableCore, evaluationId),
@@ -218,7 +121,8 @@ export function createForgejoFeedbackService(
          JOIN forgejo_connection_credentials
            ON forgejo_connection_credentials.connection_id =
                 forgejo_connections.id
-         WHERE forgejo_feedback_bundles.publication_status = 'waiting'
+         WHERE (
+           forgejo_feedback_bundles.publication_status = 'waiting'
             OR EXISTS (
               SELECT 1
               FROM forgejo_finding_feedback
@@ -226,12 +130,19 @@ export function createForgejoFeedbackService(
                     forgejo_feedback_bundles.evaluation_id
                 AND forgejo_finding_feedback.publication_status = 'waiting'
             )
+         )
+           AND forgejo_connections.lifecycle = 'enabled'
+           AND EXISTS (
+             SELECT 1 FROM repositories
+             WHERE repositories.id = evaluations.repository_id
+               AND repositories.lifecycle != 'retired'
+           )
          ORDER BY evaluations.created_at, evaluations.id`,
       );
       for (const bundle of bundles) {
         const evaluationId = /** @type {string} */ (bundle.evaluation_id);
         const findings = readEvaluationFindings(durableCore, evaluationId);
-        materializeFindingFeedback(durableCore, bundle, findings);
+        materializeForgejoFindingFeedback(durableCore, bundle, findings);
         const identity = {
           base_commit: /** @type {string} */ (bundle.base_commit),
           details_url: detailsUrl(evaluationId),
@@ -255,20 +166,51 @@ export function createForgejoFeedbackService(
             identity,
             /** @type {any[]} */ (findings),
           );
-          try {
-            const externalId = await verifier.publishAggregateFeedback(
+          const aggregateTarget = {
+            body: aggregate,
+            pull_request_number: bundle.pull_request_number,
+            repository_id: bundle.forge_repository_id,
+          };
+          const deliverAggregate = (
+            /** @type {any} */ method,
+            /** @type {string} */ deliveryTarget,
+          ) => {
+            const target = readForgejoAggregateTarget(
+              deliveryTarget,
+              aggregateTarget,
+              repository.id,
+            );
+            return method(
               authentication(),
               repository,
-              /** @type {number} */ (bundle.pull_request_number),
-              aggregate,
+              target.pullRequestNumber,
+              target.body,
             );
-            const publishedAt = timestamp(now());
-            if (!Number.isSafeInteger(externalId) || externalId <= 0) {
-              throw new TypeError(
-                "Forgejo aggregate feedback identity is invalid",
+          };
+          await attemptForgejoDelivery(durableCore, {
+            connectionId: /** @type {string} */ (bundle.connection_id),
+            create: (target) =>
+              deliverAggregate(verifier.publishAggregateFeedback, target),
+            now,
+            onDefinitive: (transaction, failure, attemptedAt) => {
+              transaction.run(
+                `UPDATE forgejo_feedback_bundles
+                 SET publication_status = 'unavailable',
+                     external_id = NULL, published_at = NULL,
+                     error_code = ?, error_detail = ?
+                 WHERE evaluation_id = ? AND publication_status = 'waiting'`,
+                failure.code,
+                failure.detail,
+                evaluationId,
               );
-            }
-            durableCore.transaction((/** @type {any} */ transaction) => {
+              recordForgejoDeliveryHealth(
+                transaction,
+                /** @type {string} */ (bundle.connection_id),
+                attemptedAt,
+                failure,
+              );
+            },
+            onSuccess: (transaction, externalId, publishedAt) =>
               transaction.run(
                 `UPDATE forgejo_feedback_bundles
                  SET publication_status = 'succeeded',
@@ -278,12 +220,13 @@ export function createForgejoFeedbackService(
                 externalId,
                 publishedAt,
                 evaluationId,
-              );
-            });
-          } catch (error) {
-            const failure = codedPublicationFailure(error);
-            markBundleUnavailable(bundle, failure);
-          }
+              ),
+            reconcile: (target) =>
+              deliverAggregate(verifier.reconcileAggregateFeedback, target),
+            sourceId: evaluationId,
+            surface: "aggregate_feedback",
+            target: JSON.stringify(aggregateTarget),
+          });
         }
         const inlineRows = durableCore.all(
           `SELECT forgejo_finding_feedback.*,
@@ -321,34 +264,33 @@ export function createForgejoFeedbackService(
                   start_side: /** @type {"LEFT" | "RIGHT"} */ (row?.start_side),
                 }),
           };
-          try {
-            const externalId = await verifier.publishInlineFeedback(
+          const inlineTarget = {
+            ...comment,
+            pull_request_number: bundle.pull_request_number,
+            repository_id: bundle.forge_repository_id,
+          };
+          const deliverInline = (
+            /** @type {any} */ method,
+            /** @type {string} */ deliveryTarget,
+          ) => {
+            const target = readForgejoInlineTarget(
+              deliveryTarget,
+              inlineTarget,
+              repository.id,
+            );
+            return method(
               authentication(),
               repository,
-              /** @type {number} */ (bundle.pull_request_number),
-              comment,
+              target.pullRequestNumber,
+              target.comment,
             );
-            const publishedAt = timestamp(now());
-            if (!Number.isSafeInteger(externalId) || externalId <= 0) {
-              throw new TypeError(
-                "Forgejo inline feedback identity is invalid",
-              );
-            }
-            durableCore.transaction((/** @type {any} */ transaction) => {
-              transaction.run(
-                `UPDATE forgejo_finding_feedback
-                 SET publication_status = 'succeeded',
-                     external_id = ?, published_at = ?,
-                     error_code = NULL, error_detail = NULL
-                 WHERE finding_id = ? AND publication_status = 'waiting'`,
-                externalId,
-                publishedAt,
-                row.finding_id,
-              );
-            });
-          } catch (error) {
-            const failure = codedPublicationFailure(error);
-            durableCore.transaction((/** @type {any} */ transaction) => {
+          };
+          await attemptForgejoDelivery(durableCore, {
+            connectionId: /** @type {string} */ (bundle.connection_id),
+            create: (target) =>
+              deliverInline(verifier.publishInlineFeedback, target),
+            now,
+            onDefinitive: (transaction, failure, attemptedAt) => {
               transaction.run(
                 `UPDATE forgejo_finding_feedback
                  SET publication_status = 'unavailable',
@@ -359,8 +301,30 @@ export function createForgejoFeedbackService(
                 failure.detail,
                 row.finding_id,
               );
-            });
-          }
+              recordForgejoDeliveryHealth(
+                transaction,
+                /** @type {string} */ (bundle.connection_id),
+                attemptedAt,
+                failure,
+              );
+            },
+            onSuccess: (transaction, externalId, publishedAt) =>
+              transaction.run(
+                `UPDATE forgejo_finding_feedback
+                 SET publication_status = 'succeeded',
+                     external_id = ?, published_at = ?,
+                     error_code = NULL, error_detail = NULL
+                 WHERE finding_id = ? AND publication_status = 'waiting'`,
+                externalId,
+                publishedAt,
+                row.finding_id,
+              ),
+            reconcile: (target) =>
+              deliverInline(verifier.reconcileInlineFeedback, target),
+            sourceId: /** @type {string} */ (row.finding_id),
+            surface: "inline_feedback",
+            target: JSON.stringify(inlineTarget),
+          });
         }
       }
     } finally {

@@ -120,7 +120,7 @@ test("schema 48 adds the Forgejo automatic Evaluation boundary", (context) => {
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 50);
+  assert.equal(migrated.facts.schemaVersion, 51);
   assert.deepEqual(
     migrated.all(
       `SELECT name FROM sqlite_schema

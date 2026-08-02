@@ -3,6 +3,8 @@ import {
   throwIfIoOperationAborted,
 } from "./io-operation-context.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
+import { createForgejoV16Reconciler } from "./forgejo-v16-reconciliation.js";
+import { forgejoV16ResponseFailure } from "./forgejo-v16-response-failure.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
 function fail(code, message, cause) {
@@ -59,6 +61,7 @@ function publicationRepository(value) {
  * @param {string} path
  * @param {Record<string, unknown>} body
  * @param {number} expectedStatus
+ * @param {number} repositoryId
  */
 async function forgejoPublicationRequest(
   fetchRequest,
@@ -66,6 +69,7 @@ async function forgejoPublicationRequest(
   path,
   body,
   expectedStatus,
+  repositoryId,
 ) {
   const { origin, token } = publicationConnection(
     connection?.base_url,
@@ -96,11 +100,11 @@ async function forgejoPublicationRequest(
   }
   signal?.throwIfAborted();
   if (response.status !== expectedStatus) {
-    throw Object.assign(
-      new Error(
-        `Forgejo publication route failed with HTTP ${response.status}: ${path}`,
-      ),
-      { code: "forgejo_api_request_failed", responseStatus: response.status },
+    throw forgejoV16ResponseFailure(
+      response,
+      path,
+      "publication",
+      repositoryId,
     );
   }
   try {
@@ -131,6 +135,7 @@ export function createForgejoV16Publisher({
   }
 
   return {
+    ...createForgejoV16Reconciler({ fetch: fetchRequest }),
     /**
      * @param {{base_url: string, token: string}} connection
      * @param {{full_name: string, id: number}} repository
@@ -171,6 +176,7 @@ export function createForgejoV16Publisher({
           target_url: selectedStatus.targetUrl,
         },
         201,
+        selectedRepository.id,
       );
       const response = object(body);
       const responseId = response
@@ -230,6 +236,7 @@ export function createForgejoV16Publisher({
           `/api/v1/repos/${encoded}/issues/${pullRequestNumber}/comments`,
           { body },
           201,
+          selectedRepository.id,
         ),
       );
       if (
@@ -314,6 +321,7 @@ export function createForgejoV16Publisher({
             event: "COMMENT",
           },
           200,
+          selectedRepository.id,
         ),
       );
       if (

@@ -1,27 +1,12 @@
 import { forgejoCommitStatusForEvaluation } from "./forgejo-commit-status.js";
+import {
+  attemptForgejoDelivery,
+  recordForgejoDeliveryHealth,
+} from "./forgejo-delivery-service.js";
+import { readForgejoStatusTarget } from "./forgejo-delivery-target.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
-
-/** @param {unknown} error */
-function codedPublicationFailure(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw error;
-  }
-  return { code: error.code, detail: error.message };
-}
-
-/** @param {number} value */
-function timestamp(value) {
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new TypeError("now must return a nonnegative safe integer");
-  }
-  return value;
-}
 
 /**
  * @param {any} durableCore
@@ -31,7 +16,8 @@ function timestamp(value) {
  *   ioPool: {run: (duty: "delivery", operation: () => unknown) => Promise<unknown>},
  *   now?: () => number,
  *   verifier: {
- *     publishCommitStatus: (connection: any, repository: any, status: any) => Promise<number>
+ *     publishCommitStatus: (connection: any, repository: any, status: any) => Promise<number>,
+ *     reconcileCommitStatus: (connection: any, repository: any, status: any) => Promise<number | null>
  *   }
  * }} dependencies
  */
@@ -45,7 +31,8 @@ export function createForgejoCommitStatusService(
     typeof cipher?.decrypt !== "function" ||
     typeof ioPool?.run !== "function" ||
     typeof now !== "function" ||
-    typeof verifier?.publishCommitStatus !== "function"
+    typeof verifier?.publishCommitStatus !== "function" ||
+    typeof verifier.reconcileCommitStatus !== "function"
   ) {
     throw new TypeError("Forgejo commit status dependencies are invalid");
   }
@@ -88,6 +75,12 @@ export function createForgejoCommitStatusService(
            ON evaluation_results.evaluation_id =
                 forgejo_commit_statuses.evaluation_id
          WHERE forgejo_commit_statuses.publication_status = 'waiting'
+           AND forgejo_connections.lifecycle = 'enabled'
+           AND EXISTS (
+             SELECT 1 FROM repositories
+             WHERE repositories.id = forgejo_commit_statuses.repository_id
+               AND repositories.lifecycle != 'retired'
+           )
          ORDER BY forgejo_commit_statuses.repository_id,
                   forgejo_commit_statuses.head_commit`,
       );
@@ -107,61 +100,43 @@ export function createForgejoCommitStatusService(
           full_name: /** @type {string} */ (row.name),
           id: /** @type {number} */ (row.forge_repository_id),
         };
-        try {
-          const token = cipher.decrypt(
+        const statusTarget = {
+          description: status.description,
+          head: /** @type {string} */ (row.head_commit),
+          state: status.state,
+          targetUrl: target.toString(),
+        };
+        const authentication = () => ({
+          base_url: /** @type {string} */ (row.base_url),
+          token: cipher.decrypt(
             /** @type {string} */ (row.connection_id),
             /** @type {string} */ (row.encrypted_credential),
-          );
-          const externalId = await verifier.publishCommitStatus(
-            {
-              base_url: /** @type {string} */ (row.base_url),
-              token,
-            },
+          ),
+        });
+        const deliver = (
+          /** @type {any} */ method,
+          /** @type {string} */ deliveryTarget,
+        ) =>
+          method(
+            authentication(),
             repository,
-            {
-              description: status.description,
-              head: /** @type {string} */ (row.head_commit),
-              state: status.state,
-              targetUrl: target.toString(),
-            },
+            readForgejoStatusTarget(
+              deliveryTarget,
+              statusTarget,
+              repository.id,
+            ),
           );
-          const publishedAt = timestamp(now());
-          if (!Number.isSafeInteger(externalId) || externalId <= 0) {
-            throw new TypeError("Forgejo status identity is invalid");
-          }
-          durableCore.transaction((/** @type {any} */ transaction) => {
+        await attemptForgejoDelivery(durableCore, {
+          connectionId: /** @type {string} */ (row.connection_id),
+          create: (deliveryTarget) =>
+            deliver(verifier.publishCommitStatus, deliveryTarget),
+          now,
+          onDefinitive: (transaction, failure, attemptedAt) => {
             transaction.run(
               `UPDATE forgejo_commit_statuses
-               SET publication_status = 'succeeded',
-                   published_state = desired_state,
-                   published_at = ?,
-                   external_id = ?,
-                   error_code = NULL,
-                   error_detail = NULL
-               WHERE repository_id = ?
-                 AND head_commit = ?
-                 AND evaluation_id = ?
-                 AND desired_state = ?
-                 AND publication_status = 'waiting'`,
-              publishedAt,
-              externalId,
-              row.repository_id,
-              row.head_commit,
-              row.evaluation_id,
-              row.desired_state,
-            );
-          });
-        } catch (error) {
-          const failure = codedPublicationFailure(error);
-          durableCore.transaction((/** @type {any} */ transaction) => {
-            transaction.run(
-              `UPDATE forgejo_commit_statuses
-               SET publication_status = 'unavailable',
-                   published_state = NULL,
-                   published_at = NULL,
-                   external_id = NULL,
-                   error_code = ?,
-                   error_detail = ?
+               SET publication_status = 'unavailable', published_state = NULL,
+                   published_at = NULL, external_id = NULL,
+                   error_code = ?, error_detail = ?
                WHERE repository_id = ?
                  AND head_commit = ?
                  AND evaluation_id = ?
@@ -174,8 +149,44 @@ export function createForgejoCommitStatusService(
               row.evaluation_id,
               row.desired_state,
             );
-          });
-        }
+            recordForgejoDeliveryHealth(
+              transaction,
+              /** @type {string} */ (row.connection_id),
+              attemptedAt,
+              failure,
+            );
+          },
+          onSuccess: (transaction, externalId, publishedAt) =>
+            transaction.run(
+              `UPDATE forgejo_commit_statuses
+               SET publication_status = 'succeeded',
+                   published_state = desired_state, published_at = ?,
+                   external_id = ?, error_code = NULL, error_detail = NULL
+               WHERE repository_id = ?
+                 AND head_commit = ?
+                 AND evaluation_id = ?
+                 AND desired_state = ?
+                 AND publication_status = 'waiting'`,
+              publishedAt,
+              externalId,
+              row.repository_id,
+              row.head_commit,
+              row.evaluation_id,
+              row.desired_state,
+            ),
+          reconcile: (deliveryTarget) =>
+            deliver(verifier.reconcileCommitStatus, deliveryTarget),
+          sourceId: `${row.evaluation_id}:${row.desired_state}`,
+          surface: "commit_status",
+          target: JSON.stringify({
+            context: "Quality Bar",
+            description: status.description,
+            head: row.head_commit,
+            repository_id: row.forge_repository_id,
+            state: row.desired_state,
+            target_url: target.toString(),
+          }),
+        });
       }
     } finally {
       running = false;

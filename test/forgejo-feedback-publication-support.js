@@ -34,7 +34,8 @@ export function arrangeForgejoFeedback(
        'verification-1', 'connection-1', 'onboarding', 'forgejo-v16',
        '16.0.4', '{"id":91,"login":"operator"}', '["read:repository"]',
        '{"aggregate_feedback":"verified","commit_status":"verified","inline_feedback":"verified"}',
-       '[{"id":101,"full_name":"operator/repository"}]', NULL, NULL, 1
+       '[{"api_url":"https://forgejo.example/api/v1/repos/operator/repository","clone_url":"https://forgejo.example/operator/repository.git","full_name":"operator/repository","html_url":"https://forgejo.example/operator/repository","id":101,"outcome":"success","permissions":{"admin":true,"pull":true,"push":true},"private":true}]',
+       NULL, NULL, 1
      )`,
   );
   core.run(

@@ -1,3 +1,5 @@
+import { resumeForgejoDeliveries } from "./forgejo-delivery-recovery.js";
+
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -258,6 +260,19 @@ export async function rotateForgejoConnection(
           );
         }
       }
+      resumeForgejoDeliveries(
+        transaction,
+        connection.id,
+        verifiedAt,
+        "connection_authority",
+      );
+      resumeForgejoDeliveries(
+        transaction,
+        connection.id,
+        verifiedAt,
+        "repository_authority",
+        activeRepositoryIds,
+      );
       polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {

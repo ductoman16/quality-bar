@@ -233,6 +233,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       now: () => currentTime,
       storageReserve: availableStorageReserve,
     });
+    const verifier = createForgejoV16Verifier();
     service = createForgejoConnectionService(core, {
       async acquirePullRequestChangeset({ pullRequest, repositoryId }) {
         const stored = core.get(
@@ -259,7 +260,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       storageReserve: availableStorageReserve,
       masterKey: Buffer.alloc(32, 7),
       now: () => currentTime,
-      verifier: createForgejoV16Verifier(),
+      verifier,
     });
     repositories = createRepositoryService(core, {
       masterKey: Buffer.alloc(32, 7),
@@ -364,6 +365,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       currentTime,
       service,
       token: setupToken,
+      verifier,
     });
   } catch (error) {
     primaryFailure = error;
