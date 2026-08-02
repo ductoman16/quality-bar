@@ -22,6 +22,14 @@ import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 /** @typedef {{code: string, detail: string}} VerificationFailure */
 /**
  * @typedef {{
+ *   kind: "cost-free",
+ *   ownership: import("./verification-aggregation.mjs").VerificationAggregation["ownership"],
+ *   groups: import("./verification-aggregation.mjs").VerificationAggregation["groups"],
+ *   crossProcessSmokes: import("./verification-aggregation.mjs").VerificationAggregation["crossProcessSmokes"],
+ * }} VerificationEvidence
+ */
+/**
+ * @typedef {{
  *   name: string,
  *   command: string,
  *   testGroups: {name: string, count: number | null}[],
@@ -40,6 +48,7 @@ import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 /**
  * @typedef {{
  *   invokedGates: VerificationGate[],
+ *   verification?: VerificationEvidence | null,
  *   outcome: "pass" | "fail",
  *   failures: VerificationFailure[],
  * }} VerificationManifest
@@ -50,10 +59,17 @@ import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
  *   metadata: VerificationMetadata,
  *   gates: VerificationGate[],
  *   failures: VerificationFailure[],
+ *   verificationAggregation?: import("./verification-aggregation.mjs").VerificationAggregation | null,
  *   startedAt: number,
  * }} input
  */
-export function createManifest({ metadata, gates, failures, startedAt }) {
+export function createManifest({
+  metadata,
+  gates,
+  failures,
+  startedAt,
+  verificationAggregation,
+}) {
   const packageFacts = gates.find(
     (gate) => gate.name === "package-integration",
   )?.facts;
@@ -133,6 +149,14 @@ export function createManifest({ metadata, gates, failures, startedAt }) {
     },
     applicationCoverage: applicationCoverageFacts ?? null,
     invokedGates: gates,
+    verification: verificationAggregation
+      ? {
+          kind: /** @type {"cost-free"} */ ("cost-free"),
+          ownership: verificationAggregation.ownership,
+          groups: verificationAggregation.groups,
+          crossProcessSmokes: verificationAggregation.crossProcessSmokes,
+        }
+      : null,
     totalDurationMs: Math.round(performance.now() - startedAt),
     outcome,
     failures,

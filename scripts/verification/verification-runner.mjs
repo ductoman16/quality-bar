@@ -4,6 +4,10 @@ import { createGateDefinitions } from "./gate-definitions.mjs";
 import { runCommand } from "./command-executor.mjs";
 import { runGate } from "./gate-execution.mjs";
 import {
+  createVerificationAggregation,
+  readVerificationOwnership,
+} from "./verification-aggregation.mjs";
+import {
   createManifest,
   formatReport,
   writeManifest,
@@ -39,6 +43,7 @@ export function collectVerificationEvidence({
   const gates = [];
   /** @type {import("./manifest-reporting.mjs").VerificationFailure[]} */
   const failures = [];
+  let verificationAggregation = null;
   /** @type {import("./manifest-reporting.mjs").VerificationMetadata} */
   let metadata = {
     applicationVersion: null,
@@ -65,24 +70,47 @@ export function collectVerificationEvidence({
   }
 
   if (failures.length === 0) {
-    const definitions = gateDefinitions ?? createGateDefinitions(metadata);
-    for (const definition of definitions) {
-      const result = gateRunner(repositoryRoot, definition, {
-        commandExecutor,
-      });
-      gates.push(result.evidence);
-      if (result.failure) {
-        failures.push(result.failure);
-        if (result.output) {
-          failureOutputWriter(`${result.output}\n`);
+    let definitions = gateDefinitions;
+    if (!definitions) {
+      try {
+        const ownership = readVerificationOwnership(repositoryRoot);
+        definitions = createGateDefinitions(metadata);
+        verificationAggregation = createVerificationAggregation({
+          definitions,
+          ownership,
+        });
+      } catch (error) {
+        failures.push({
+          code: "verification_aggregation_failed",
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (failures.length === 0 && definitions) {
+      for (const definition of definitions) {
+        const result = gateRunner(repositoryRoot, definition, {
+          commandExecutor,
+        });
+        gates.push(result.evidence);
+        if (result.failure) {
+          failures.push(result.failure);
+          if (result.output) {
+            failureOutputWriter(`${result.output}\n`);
+          }
+          break;
         }
-        break;
       }
     }
   }
 
   return {
-    manifest: createManifest({ metadata, gates, failures, startedAt }),
+    manifest: createManifest({
+      metadata,
+      gates,
+      failures,
+      startedAt,
+      verificationAggregation,
+    }),
     gates,
     failures,
   };
