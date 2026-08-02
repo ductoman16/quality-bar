@@ -18,3 +18,9 @@ export const PROOF_CODE_TYPE_CHECK_PROOF_GATE = {
   failureCode: "proof_code_type_check_proof_failed",
   arguments: ["--test", "test/test-verification-type-check-gate.test.js"],
 };
+
+export const STATIC_PROOF_GATE_DEFINITIONS = [
+  NODE_OWNERSHIP_LINT_PROOF_GATE,
+  PRODUCTION_TYPE_CHECK_PROOF_GATE,
+  PROOF_CODE_TYPE_CHECK_PROOF_GATE,
+];
