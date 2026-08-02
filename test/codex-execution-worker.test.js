@@ -47,8 +47,22 @@ test("the application worker fills durable claims without serializing long execu
   timers.shift()?.();
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(started, ["review-run-1", "waiver-1"]);
-  releases.splice(0).forEach((release) => release());
-  await worker.close();
+  let closed = false;
+  const closing = worker.close().then(() => {
+    closed = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(closed, false);
+  const reviewRelease = releases.shift();
+  assert.ok(reviewRelease);
+  reviewRelease();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(closed, false);
+  const waiverRelease = releases.shift();
+  assert.ok(waiverRelease);
+  waiverRelease();
+  await closing;
+  assert.equal(closed, true);
 });
 
 test("the application worker surfaces the exact claim owner failure", async () => {
