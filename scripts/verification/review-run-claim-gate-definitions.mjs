@@ -9,6 +9,7 @@ export const REVIEW_RUN_CLAIM_GATE_DEFINITIONS = [
       "test/application-shutdown.test.js",
       "test/application-execution-shutdown.test.js",
       "test/codex-execution-pre-start.test.js",
+      "test/execution-race-verification.test.js",
     ],
   },
   {

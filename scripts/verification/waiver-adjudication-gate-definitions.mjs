@@ -46,6 +46,7 @@ export const WAIVER_ADJUDICATION_GATE_DEFINITIONS = [
       "test/waiver-request-lifecycle-schema-integrity-sqlite-integration.test.js",
       "test/waiver-request-lifecycle-sqlite-integration.test.js",
       "test/waiver-error-retry-lifecycle-sqlite-integration.test.js",
+      "test/waiver-supersession-sqlite-integration.test.js",
     ],
   },
 ];

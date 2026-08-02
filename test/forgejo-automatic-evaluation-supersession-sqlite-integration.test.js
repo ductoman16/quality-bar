@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewService } from "../src/review.js";
+import { assertSupersessionFencesRunningWorker } from "./automatic-evaluation-supersession-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @param {string} base @param {string} head */
@@ -138,6 +139,8 @@ test("a different Forgejo pair supersedes only the target PR's nonterminal work"
     ),
     { completed_at: 12, outcome: "error" },
   );
+  assertSupersessionFencesRunningWorker(core);
+  assert.deepEqual(signalled, []);
   second.afterCommit();
   assert.deepEqual(signalled, ["review-run-1"]);
 
