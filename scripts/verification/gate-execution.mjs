@@ -4,6 +4,22 @@ import { runCommand } from "./command-executor.mjs";
 /** @typedef {import("./manifest-reporting.mjs").VerificationGate} GateEvidence */
 
 /**
+ * @param {GateEvidence["facts"] | null} facts
+ * @returns {"pass" | "fail" | null}
+ */
+function readFactsOutcome(facts) {
+  if (
+    typeof facts !== "object" ||
+    facts === null ||
+    !("outcome" in facts) ||
+    (facts.outcome !== "pass" && facts.outcome !== "fail")
+  ) {
+    return null;
+  }
+  return facts.outcome;
+}
+
+/**
  * @param {string} repositoryRoot
  * @param {import("./gate-definitions.mjs").GateDefinition} definition
  * @param {{ commandExecutor?: import("./command-executor.mjs").CommandExecutor }} [options]
@@ -36,12 +52,57 @@ export function runGate(repositoryRoot, definition, options = {}) {
     : null;
   /** @type {GateEvidence["facts"] | null} */
   let facts = null;
-  let failure;
+  let factsFailure;
+  if (definition.factsMarker && factsMatch) {
+    try {
+      facts = JSON.parse(factsMatch[1]);
+    } catch (error) {
+      facts = null;
+      factsFailure = {
+        code: "verification_evidence_invalid",
+        detail: `${definition.factsMarker} is not valid JSON: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
+    if (!factsFailure) {
+      try {
+        const invalidFacts = definition.validateFacts?.(facts);
+        if (invalidFacts) {
+          facts = null;
+          factsFailure = {
+            code: "verification_evidence_invalid",
+            detail: `${definition.factsMarker} ${invalidFacts}`,
+          };
+        }
+      } catch (error) {
+        facts = null;
+        factsFailure = {
+          code: "verification_evidence_invalid",
+          detail: `${definition.factsMarker} validator failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        };
+      }
+    }
+  }
 
+  const factsOutcome = readFactsOutcome(facts);
+  let failure;
   if (result.status !== 0) {
+    if (!definition.factsMustPass || factsFailure || factsOutcome !== "fail") {
+      facts = null;
+    }
     failure = {
       code: definition.failureCode,
       detail: commandFailure(result, command, definition.arguments),
+    };
+  } else if (factsFailure) {
+    failure = factsFailure;
+  } else if (definition.factsMustPass && facts && factsOutcome !== "pass") {
+    failure = {
+      code: definition.failureCode,
+      detail: `${definition.factsMarker} outcome must be pass`,
     };
   } else if (definition.testGroup && (testCount === null || testCount < 1)) {
     failure = {
@@ -65,25 +126,6 @@ export function runGate(repositoryRoot, definition, options = {}) {
       code: "verification_evidence_invalid",
       detail: `${definition.name} passed without ${definition.factsMarker}`,
     };
-  } else if (factsMatch) {
-    try {
-      facts = JSON.parse(factsMatch[1]);
-      const invalidFacts = definition.validateFacts?.(facts);
-      if (invalidFacts) {
-        facts = null;
-        failure = {
-          code: "verification_evidence_invalid",
-          detail: `${definition.factsMarker} ${invalidFacts}`,
-        };
-      }
-    } catch (error) {
-      failure = {
-        code: "verification_evidence_invalid",
-        detail: `${definition.factsMarker} is not valid JSON: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      };
-    }
   }
 
   /** @type {GateEvidence} */

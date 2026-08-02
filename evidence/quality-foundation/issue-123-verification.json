@@ -23,7 +23,8 @@
     "production-type-check",
     "proof-code-type-check",
     "unit",
-    "browser-component"
+    "browser-component",
+    "performance-budgets"
   ],
   "cross_process_smokes": [
     {

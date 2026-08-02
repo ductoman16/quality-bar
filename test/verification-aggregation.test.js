@@ -10,6 +10,10 @@ import {
   readVerificationOwnership,
 } from "../scripts/verification/verification-aggregation.mjs";
 import { createManifest } from "../scripts/verification/manifest-reporting.mjs";
+import {
+  PERFORMANCE_PROFILE,
+  createPerformanceFacts,
+} from "../scripts/verification/performance-budget.mjs";
 import { runVerification } from "../scripts/verification/verification-runner.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
@@ -49,6 +53,7 @@ test("cost-free verification owns the three accepted invocation groups", () => {
     "proof-code-type-check",
     "unit",
     "browser-component",
+    "performance-budgets",
   ]);
   assert.deepEqual(
     aggregation.groups["linux-amd64-ci"],
@@ -88,6 +93,12 @@ test("the shared manifest preserves ownership and aggregation evidence", () => {
     verificationAggregation: aggregation,
   });
 
+  assert.equal(manifest.outcome, "fail");
+  assert.equal(manifest.performance, null);
+  assert.deepEqual(
+    manifest.failures.map((failure) => failure.code),
+    ["performance_budgets_failed", "verification_evidence_invalid"],
+  );
   assert.deepEqual(manifest.verification, {
     kind: "cost-free",
     ownership: {
@@ -113,6 +124,168 @@ test("the shared manifest preserves ownership and aggregation evidence", () => {
   });
 });
 
+test("the shared manifest does not pass with no invoked gates", () => {
+  const manifest = createManifest({
+    metadata,
+    gates: [],
+    failures: [],
+    startedAt: performance.now(),
+  });
+
+  assert.equal(manifest.outcome, "fail");
+  assert.deepEqual(
+    manifest.failures.map((failure) => failure.code),
+    ["performance_budgets_failed", "verification_evidence_invalid"],
+  );
+});
+
+test("the shared manifest promotes validated performance facts to its evidence surface", () => {
+  const facts = createPerformanceFacts({
+    durationsMs: {
+      readiness: Array(20).fill(1),
+      local_read: Array(20).fill(1),
+      accepted_local_mutation: Array(20).fill(1),
+      ready_queue_claim: Array(20).fill(1),
+    },
+    executionProfile: PERFORMANCE_PROFILE,
+  });
+  const manifest = createManifest({
+    metadata,
+    gates: [
+      {
+        name: "performance-budgets",
+        command: "node test/performance-budget-gate.test.js",
+        testGroups: [{ name: "performance", count: 1 }],
+        checkGroups: [],
+        tools: { node: process.version },
+        durationMs: 1,
+        outcome: "pass",
+        facts,
+      },
+    ],
+    failures: [],
+    startedAt: performance.now(),
+  });
+
+  assert.deepEqual(manifest.performance, facts);
+});
+
+test("the shared manifest does not project passing facts from a failed performance gate", () => {
+  const facts = createPerformanceFacts({
+    durationsMs: {
+      readiness: Array(20).fill(1),
+      local_read: Array(20).fill(1),
+      accepted_local_mutation: Array(20).fill(1),
+      ready_queue_claim: Array(20).fill(1),
+    },
+    executionProfile: PERFORMANCE_PROFILE,
+  });
+  const manifest = createManifest({
+    metadata,
+    gates: [
+      {
+        name: "performance-budgets",
+        command: "node test/performance-budget-gate.test.js",
+        testGroups: [{ name: "performance", count: 1 }],
+        checkGroups: [],
+        tools: { node: process.version },
+        durationMs: 1,
+        outcome: "fail",
+        facts,
+      },
+    ],
+    failures: [{ code: "performance_budgets_failed", detail: "proof failed" }],
+    startedAt: performance.now(),
+  });
+
+  assert.equal(manifest.performance, null);
+});
+
+test("the shared manifest fails a performance gate that has no facts", () => {
+  const manifest = createManifest({
+    metadata,
+    gates: [
+      {
+        name: "performance-budgets",
+        command: "node test/performance-budget-gate.test.js",
+        testGroups: [{ name: "performance", count: 1 }],
+        checkGroups: [],
+        tools: { node: process.version },
+        durationMs: 1,
+        outcome: "fail",
+      },
+    ],
+    failures: [],
+    startedAt: performance.now(),
+  });
+
+  assert.equal(manifest.outcome, "fail");
+  assert.equal(manifest.performance, null);
+  assert.equal(manifest.invokedGates[0].facts, undefined);
+  assert.deepEqual(
+    manifest.failures.map((failure) => failure.code),
+    ["performance_budgets_failed", "verification_evidence_invalid"],
+  );
+});
+
+test("the shared manifest fails a passing performance gate that has no facts", () => {
+  const manifest = createManifest({
+    metadata,
+    gates: [
+      {
+        name: "performance-budgets",
+        command: "node test/performance-budget-gate.test.js",
+        testGroups: [{ name: "performance", count: 1 }],
+        checkGroups: [],
+        tools: { node: process.version },
+        durationMs: 1,
+        outcome: "pass",
+      },
+    ],
+    failures: [],
+    startedAt: performance.now(),
+  });
+
+  assert.equal(manifest.outcome, "fail");
+  assert.equal(manifest.performance, null);
+  assert.equal(manifest.failures[0].code, "verification_evidence_invalid");
+});
+
+test("the shared manifest rejects inconsistent performance facts before projection", () => {
+  const facts = createPerformanceFacts({
+    durationsMs: {
+      readiness: Array(20).fill(1),
+      local_read: Array(20).fill(1),
+      accepted_local_mutation: Array(20).fill(1),
+      ready_queue_claim: Array(20).fill(1),
+    },
+    executionProfile: PERFORMANCE_PROFILE,
+  });
+  facts.outcome = "fail";
+  const manifest = createManifest({
+    metadata,
+    gates: [
+      {
+        name: "performance-budgets",
+        command: "node test/performance-budget-gate.test.js",
+        testGroups: [{ name: "performance", count: 1 }],
+        checkGroups: [],
+        tools: { node: process.version },
+        durationMs: 1,
+        outcome: "pass",
+        facts,
+      },
+    ],
+    failures: [],
+    startedAt: performance.now(),
+  });
+
+  assert.equal(manifest.outcome, "fail");
+  assert.equal(manifest.performance, null);
+  assert.equal(manifest.invokedGates[0].facts, undefined);
+  assert.equal(manifest.failures[0].code, "verification_evidence_invalid");
+});
+
 test("the canonical runner invokes every aggregated gate exactly once", () => {
   const result = runVerification({
     repositoryRoot,
@@ -134,6 +307,19 @@ test("the canonical runner invokes every aggregated gate exactly once", () => {
           tools: definition.tools ?? { node: process.version },
           durationMs: 1,
           outcome: "pass",
+          ...(definition.name === "performance-budgets"
+            ? {
+                facts: createPerformanceFacts({
+                  durationsMs: {
+                    readiness: Array(20).fill(1),
+                    local_read: Array(20).fill(1),
+                    accepted_local_mutation: Array(20).fill(1),
+                    ready_queue_claim: Array(20).fill(1),
+                  },
+                  executionProfile: PERFORMANCE_PROFILE,
+                }),
+              }
+            : {}),
         },
         failure: undefined,
         output: undefined,
