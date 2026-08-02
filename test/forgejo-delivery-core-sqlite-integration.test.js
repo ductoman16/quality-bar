@@ -42,6 +42,7 @@ test("uncertain Forgejo delivery reconciles persisted state after restart and re
       operations.push(["reconcile", target]);
       return null;
     },
+    repositoryId: "repository-1",
     sourceId: "evaluation-1:blocking",
     surface: /** @type {const} */ ("commit_status"),
     target: '{"state":"blocking"}',
@@ -122,6 +123,7 @@ test("Forgejo delivery surfaces retry independently", async (context) => {
       onDefinitive() {},
       onSuccess() {},
       reconcile: async () => null,
+      repositoryId: "repository-1",
       sourceId,
       surface: /** @type {any} */ (surface),
       target: `target-${sourceId}`,
@@ -175,6 +177,7 @@ test("HTTP 408 persists an uncertain retry instead of stopping the Forgejo surfa
     onDefinitive() {},
     onSuccess() {},
     reconcile: async () => null,
+    repositoryId: "repository-1",
     sourceId: "evaluation-1:blocking",
     surface: "commit_status",
     target: '{"state":"blocking"}',

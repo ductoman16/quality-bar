@@ -10,6 +10,7 @@ const CORRECTABLE_FAILURES = Object.freeze({
     "forgejo_connection_credential_invalid",
     "forgejo_connection_credential_undecryptable",
     "forgejo_connection_retired",
+    "forgejo_publication_capability_unavailable",
     "forgejo_repository_api_access_failed",
     "forgejo_repository_capability_missing",
     "forgejo_repository_permission_denied",

@@ -25,6 +25,53 @@ export async function assertForgejoMissingRepositoryId(verifier, baseUrl) {
       "repositoryId" in error &&
       error.repositoryId === 99,
   );
+  await assert.rejects(
+    verifier.verify({
+      baseUrl,
+      repositoryIds: [98, 99],
+      token: "operator-created-pat",
+    }),
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.deepEqual(/** @type {any} */ (error).repositoryIds, [98, 99]);
+      assert.deepEqual(
+        /** @type {any} */ (error).verificationEvidence.repositories,
+        [98, 99].map((repositoryId) => ({
+          error: {
+            code: "forgejo_repository_selection_unavailable",
+            message:
+              "Selected Forgejo Repository is not accessible to the Connection",
+          },
+          forge_repository_id: repositoryId,
+          outcome: "error",
+        })),
+      );
+      return true;
+    },
+  );
+}
+
+/** @param {any} verifier @param {string} baseUrl @param {(failure: "capability" | "git" | null) => void} setFailure */
+export async function assertForgejoRepositoryFailureOwners(
+  verifier,
+  baseUrl,
+  setFailure,
+) {
+  for (const [failure, expected] of [
+    ["capability", "forgejo_repository_capability_missing"],
+    ["git", "repository_git_read_failed"],
+  ]) {
+    setFailure(/** @type {"capability" | "git"} */ (failure));
+    await assert.rejects(
+      verifier.verify({
+        baseUrl,
+        repositoryIds: [11],
+        token: "operator-created-pat",
+      }),
+      { code: expected, repositoryId: 11 },
+    );
+  }
+  setFailure(null);
 }
 
 export const incompleteForgejoCapabilities = {
@@ -38,9 +85,9 @@ export const incompleteForgejoCapabilities = {
 };
 
 const routeError = {
-  code: "forgejo_required_route_unavailable",
+  code: "forgejo_repository_permission_denied",
   message:
-    "Forgejo required route is unavailable: /api/v1/repos/operator/private/branches",
+    "Forgejo verification route failed with HTTP 403: /api/v1/repos/operator/private/branches",
 };
 
 /** @param {any} failure */
@@ -58,9 +105,9 @@ export function assertForgejoPartialFailure(failure) {
     },
     {
       error: {
-        code: "forgejo_required_route_unavailable",
+        code: "forgejo_repository_permission_denied",
         message:
-          "Forgejo required route is unavailable: /api/v1/repos/operator/private-2/branches",
+          "Forgejo verification route failed with HTTP 403: /api/v1/repos/operator/private-2/branches",
       },
       forge_repository_id: 12,
       outcome: "error",
@@ -87,7 +134,7 @@ export function assertForgejoVerificationRows(core) {
       { error_code: null, id: "verification-1", trigger: "onboarding" },
       { error_code: null, id: "verification-2", trigger: "rotation" },
       {
-        error_code: "forgejo_required_route_unavailable",
+        error_code: "forgejo_repository_permission_denied",
         id: "verification-3",
         trigger: "enablement",
       },
@@ -118,4 +165,15 @@ export function assertForgejoFailedReactivationHistory(verification) {
     trigger: "enablement",
     verified_at: 1_006,
   });
+}
+
+/** @param {any} core */
+export function assertForgejoFailedReactivationRepository(core) {
+  assert.deepEqual(
+    core.get("SELECT health, health_error_code FROM repositories"),
+    {
+      health: "error",
+      health_error_code: "forgejo_repository_permission_denied",
+    },
+  );
 }

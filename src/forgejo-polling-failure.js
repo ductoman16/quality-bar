@@ -1,57 +1,33 @@
 export const FORGEJO_POLL_INTERVAL_MS = 60_000;
 
-const DEFINITIVE_FAILURES = new Set([
-  "forgejo_connection_credential_invalid",
-  "forgejo_connection_credential_undecryptable",
-  "forgejo_credential_undecryptable",
-  "forgejo_poll_response_invalid",
-  "forgejo_repository_api_access_failed",
-  "forgejo_repository_permission_denied",
-  "repository_authentication_failed",
-  "repository_git_read_failed",
-  "repository_permission_denied",
-  "forgejo_version_unsupported",
-]);
-const REPOSITORY_OWNED_DEFINITIVE_FAILURES = new Set([
-  "forgejo_poll_response_invalid",
-  "forgejo_repository_api_access_failed",
-  "forgejo_repository_permission_denied",
-  "repository_permission_denied",
-  "repository_git_read_failed",
-]);
-const REPOSITORY_OWNED_FAILURES = new Set([
-  ...REPOSITORY_OWNED_DEFINITIVE_FAILURES,
+import { forgejoDefinitiveFailureScope } from "./forgejo-failure.js";
+
+const POLLING_REPOSITORY_FAILURES = new Set([
   "evaluation_git_acquisition_failed",
   "evaluation_git_acquisition_unavailable",
   "evaluation_selector_not_found",
   "forgejo_pull_request_merge_base_inaccessible",
   "forgejo_pull_request_head_inaccessible",
   "repository_git_credentials_unavailable",
-  "repository_git_read_failed",
 ]);
 
 /** @param {{code?: string}} failure */
 export function isDefinitiveForgejoPollingFailure(failure) {
-  return (
-    typeof failure.code === "string" && DEFINITIVE_FAILURES.has(failure.code)
-  );
+  return forgejoDefinitiveFailureScope(failure) !== null;
 }
 
 /** @param {{code?: string, repositoryId?: number}} failure */
 export function isRepositoryOwnedDefinitiveForgejoPollingFailure(failure) {
-  return (
-    Number.isSafeInteger(failure.repositoryId) &&
-    typeof failure.code === "string" &&
-    REPOSITORY_OWNED_DEFINITIVE_FAILURES.has(failure.code)
-  );
+  return forgejoDefinitiveFailureScope(failure) === "repository";
 }
 
 /** @param {{code?: string, repositoryId?: number}} failure */
 export function isRepositoryOwnedForgejoPollingFailure(failure) {
   return (
-    Number.isSafeInteger(failure.repositoryId) &&
-    typeof failure.code === "string" &&
-    REPOSITORY_OWNED_FAILURES.has(failure.code)
+    forgejoDefinitiveFailureScope(failure) === "repository" ||
+    (Number.isSafeInteger(failure.repositoryId) &&
+      typeof failure.code === "string" &&
+      POLLING_REPOSITORY_FAILURES.has(failure.code))
   );
 }
 

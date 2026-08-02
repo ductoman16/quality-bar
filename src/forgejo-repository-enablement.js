@@ -6,15 +6,19 @@ import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
 import { resumeForgejoRepositoryDeliveries as resume } from "./forgejo-delivery-recovery.js";
 import {
   codedForgejoRepositoryFailure,
-  commitForgejoRepositoryFailure,
-  resolveForgejoRepositoryFailureOwner,
+  commitForgejoRepositoryFailures,
+  normalizeForgejoRepositoryFailureOwners,
 } from "./forgejo-repository-failure-commit.js";
+import {
+  forgejoDefinitiveFailureScope,
+  isForgejoRepositoryFailure,
+} from "./forgejo-failure.js";
+import { updateForgejoConnectionFailureHealth } from "./forgejo-failure-health.js";
 import {
   requireCurrentForgejoConnection,
   requireCurrentForgejoPollingGeneration,
   requireCurrentForgejoRepositories,
 } from "./forgejo-repository-enablement-fence.js";
-import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
 
 /** @param {string} code @param {string} message @returns {never} */
@@ -299,17 +303,12 @@ export async function prepareForgejoRepositoryEnablement(
     const repositoryChecks =
       failedEvidence?.repositories ??
       failedForgejoRepositoryChecks(error, repositoryIds);
-    const failureRepositoryId = resolveForgejoRepositoryFailureOwner(
+    const failureRepositoryIds = normalizeForgejoRepositoryFailureOwners(
       repositoryIds,
       error,
       repositoryChecks,
     );
-    if (failureRepositoryId === undefined) {
-      delete error.repositoryId;
-    } else {
-      error.repositoryId = failureRepositoryId;
-    }
-    const scope = forgejoVerificationErrorScope(error.code, error.repositoryId);
+    const scope = forgejoDefinitiveFailureScope(error);
     /** @param {any} transaction */
     const commit = (transaction) => {
       requireCurrentForgejoConnection(transaction, connection);
@@ -341,13 +340,11 @@ export async function prepareForgejoRepositoryEnablement(
         error.message,
         verifiedAt,
       );
-      const connectionUpdate = transaction.run(
-        `UPDATE forgejo_connections
-         SET health = ?, verified_at = ?
-         WHERE id = ? AND lifecycle = 'enabled'`,
-        scope === "connection" ? "error" : "healthy",
-        verifiedAt,
+      const connectionUpdate = updateForgejoConnectionFailureHealth(
+        transaction,
         connection.id,
+        scope,
+        verifiedAt,
       );
       if (connectionUpdate.changes !== 1) {
         fail(
@@ -355,26 +352,26 @@ export async function prepareForgejoRepositoryEnablement(
           "Forgejo Connection changed during Repository enablement",
         );
       }
-      if (scope === "repository" && failureRepositoryId !== undefined) {
-        if (
-          !commitForgejoRepositoryFailure(
-            transaction,
-            error,
-            connection.id,
-            failureRepositoryId,
-            verificationId,
-            verifiedAt,
-          )
-        ) {
-          fail(
-            "forgejo_repository_enablement_conflict",
-            "Forgejo Connection changed during Repository enablement",
-          );
-        }
+      if (
+        scope === "repository" &&
+        !commitForgejoRepositoryFailures(
+          transaction,
+          error,
+          connection.id,
+          failureRepositoryIds,
+          verificationId,
+          verifiedAt,
+        )
+      ) {
+        fail(
+          "forgejo_repository_enablement_conflict",
+          "Forgejo Connection changed during Repository enablement",
+        );
       }
       if (
         Number.isSafeInteger(error.attemptedAt) &&
-        (scope !== "repository" || failureRepositoryId !== undefined) &&
+        (!isForgejoRepositoryFailure(error) ||
+          failureRepositoryIds.length > 0) &&
         !polling.commitFailure(
           transaction,
           connection.id,
@@ -393,8 +390,8 @@ export async function prepareForgejoRepositoryEnablement(
     };
     if (
       scope === "connection" ||
-      failureRepositoryId === undefined ||
-      failureRepositoryId !== forgeRepositoryId
+      failureRepositoryIds.length !== 1 ||
+      failureRepositoryIds[0] !== forgeRepositoryId
     ) {
       durableCore.transaction(commit);
       throw error;

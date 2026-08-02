@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 
-/** @param {{api: Function, baseUrl: string, core: any, currentTime: number, service: any, token: string, verifier: any}} input */
+/** @param {{api: Function, baseUrl: string, core: any, currentTime: number, service: any, setCurrentTime: (value: number) => void, token: string, verifier: any}} input */
 export async function assertForgejoPublication({
   api,
   baseUrl,
   core,
   currentTime,
   service,
+  setCurrentTime,
   token,
   verifier,
 }) {
@@ -233,4 +234,21 @@ export async function assertForgejoPublication({
     `token ${token}`,
   );
   assert.match(followups.at(-1).body, /Recomputed outcome: clear/);
+  await api(
+    baseUrl,
+    "/api/v1/users/operator/tokens/quality-bar-reactivation",
+    `Basic ${Buffer.from("operator:QualityBarForgejo16!").toString("base64")}`,
+    undefined,
+    "DELETE",
+  );
+  setCurrentTime(currentTime + 60_000);
+  await service.runPolling();
+  assert.deepEqual(service.read()?.health_error, {
+    code: "forgejo_connection_credential_invalid",
+    message: "Forgejo Connection credential is invalid",
+  });
+  assert.equal(
+    core.get("SELECT health FROM repositories LIMIT 1")?.health,
+    "healthy",
+  );
 }

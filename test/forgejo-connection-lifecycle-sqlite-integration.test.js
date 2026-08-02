@@ -11,6 +11,7 @@ import { test } from "node:test";
 import { createForgejoConnectionCredentialCipher } from "../src/forgejo-connection-credential.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
 import { openDurableCore } from "../src/durable-core.js";
+import { ensureForgejoDelivery } from "../src/forgejo-delivery.js";
 
 const repository = {
   api_url: "https://forgejo.example/api/v1/repos/operator/private",
@@ -173,6 +174,32 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
     "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
   );
   service.retire({ lifecycle: "retired" });
+  for (const sourceId of [
+    "stale-credential-failure",
+    "stale-publication-capability-failure",
+  ]) {
+    ensureForgejoDelivery(
+      core,
+      "commit_status",
+      sourceId,
+      '{"repository_id":11}',
+    );
+  }
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET connection_id = 'connection-1', authority_verified_at = 1000,
+         attempt_count = 1, last_attempt_at = 4000, definitive = 1,
+         error_code = CASE source_id
+           WHEN 'stale-credential-failure'
+             THEN 'forgejo_connection_credential_invalid'
+           ELSE 'forgejo_publication_capability_unavailable'
+         END,
+         error_detail = 'Stale Forgejo Connection failure'
+     WHERE source_id IN (
+       'stale-credential-failure',
+       'stale-publication-capability-failure'
+     )`,
+  );
   timestamp = 2_000;
   await assert.rejects(() => service.reactivate({ token: "unavailable-pat" }), {
     code: "forgejo_verification_unavailable",
@@ -228,6 +255,17 @@ test("SQLite reactivation completely verifies the same Forgejo identity and rest
   assert.equal(
     /** @type {{lifecycle: string}} */ (reactivated).lifecycle,
     "enabled",
+  );
+  assert.equal(/** @type {any} */ (reactivated).health_error, null);
+  assert.deepEqual(
+    core.get(
+      `SELECT count(*) AS count FROM forgejo_delivery_attempts
+       WHERE source_id IN (
+         'stale-credential-failure',
+         'stale-publication-capability-failure'
+       ) AND (definitive != 0 OR error_code IS NOT NULL)`,
+    ),
+    { count: 0 },
   );
   assert.deepEqual(inputs[3], {
     baseUrl: "https://forgejo.example",

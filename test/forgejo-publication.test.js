@@ -192,6 +192,83 @@ test("Forgejo completes admitted delivery after Repository disablement", async (
   services.stop();
 });
 
+test("Forgejo does not start waiting publication through unhealthy ownership", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-publication-health-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrange(core);
+  let aggregateCalls = 0;
+  let inlineCalls = 0;
+  let statusCalls = 0;
+  let failAggregate = false;
+  const services = createForgejoPublicationServices(core, {
+    cipher: { decrypt: () => "operator-pat" },
+    externalOrigin: "https://quality-bar.example",
+    ioPool: createIoExecutionPool(),
+    now: () => 10,
+    verifier: {
+      async publishCommitStatus() {
+        statusCalls += 1;
+        return 901;
+      },
+      async publishAggregateFeedback() {
+        aggregateCalls += 1;
+        if (failAggregate) {
+          throw Object.assign(
+            new Error("Forgejo Repository permission denied"),
+            {
+              code: "forgejo_repository_permission_denied",
+              repositoryId: 101,
+              responseStatus: 403,
+            },
+          );
+        }
+        return 902;
+      },
+      async publishInlineFeedback() {
+        inlineCalls += 1;
+        return 903;
+      },
+      async reconcileAggregateFeedback() {
+        return null;
+      },
+      async reconcileCommitStatus() {
+        return null;
+      },
+      async reconcileInlineFeedback() {
+        return null;
+      },
+    },
+  });
+  context.after(() => services.stop());
+
+  core.run("UPDATE forgejo_connections SET health = 'error'");
+  await services.publishWaiting();
+  assert.deepEqual([statusCalls, aggregateCalls, inlineCalls], [0, 0, 0]);
+
+  core.run("UPDATE forgejo_connections SET health = 'healthy'");
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'forgejo_repository_permission_denied',
+         health_error_message = 'Forgejo Repository permission denied'`,
+  );
+  await services.publishWaiting();
+  assert.deepEqual([statusCalls, aggregateCalls, inlineCalls], [0, 0, 0]);
+
+  core.run(
+    `UPDATE repositories
+     SET health = 'healthy', health_error_code = NULL,
+         health_error_message = NULL`,
+  );
+  failAggregate = true;
+  await services.publishWaiting();
+  assert.deepEqual([statusCalls, aggregateCalls, inlineCalls], [1, 1, 0]);
+});
+
 test("Forgejo retirement makes waiting publication surfaces unavailable without reading credentials", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-feedback-"),

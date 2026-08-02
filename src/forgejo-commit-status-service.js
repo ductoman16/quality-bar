@@ -78,10 +78,12 @@ export function createForgejoCommitStatusService(
                 forgejo_commit_statuses.evaluation_id
          WHERE forgejo_commit_statuses.publication_status = 'waiting'
            AND forgejo_connections.lifecycle = 'enabled'
+           AND forgejo_connections.health = 'healthy'
            AND EXISTS (
              SELECT 1 FROM repositories
              WHERE repositories.id = forgejo_commit_statuses.repository_id
                AND repositories.lifecycle != 'retired'
+               AND repositories.health = 'healthy'
            )
          ORDER BY forgejo_commit_statuses.repository_id,
                   forgejo_commit_statuses.head_commit`,
@@ -181,6 +183,7 @@ export function createForgejoCommitStatusService(
             ),
           reconcile: (deliveryTarget) =>
             deliver(verifier.reconcileCommitStatus, deliveryTarget),
+          repositoryId: /** @type {string} */ (row.repository_id),
           sourceId: `${row.evaluation_id}:${row.desired_state}`,
           surface: "commit_status",
           target: JSON.stringify({

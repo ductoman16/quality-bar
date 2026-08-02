@@ -1,4 +1,10 @@
 import { resumeForgejoDeliveries } from "./forgejo-delivery-recovery.js";
+import {
+  forgejoDefinitiveFailureScope,
+  forgejoFailureRepositoryIds,
+} from "./forgejo-failure.js";
+import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
+import { commitForgejoRepositoryFailure } from "./forgejo-repository-failure-commit.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -283,16 +289,26 @@ export async function rotateForgejoConnection(
     ) {
       throw error;
     }
+    const failure =
+      /** @type {Error & {code: string, repositoryId?: number, repositoryIds?: number[]}} */ (
+        error
+      );
+    const scope = forgejoDefinitiveFailureScope(failure);
     durableCore.transaction((/** @type {any} */ transaction) => {
       const healthUpdate = /** @type {{changes: number}} */ (
         transaction.run(
           `UPDATE forgejo_connections
-           SET health = 'error', verified_at = ?
+           SET health = CASE WHEN ? = 'connection' THEN 'error' ELSE health END,
+               verified_at = CASE
+                 WHEN ? = 'connection' THEN ? ELSE verified_at
+               END
            WHERE id = ? AND EXISTS (
              SELECT 1
              FROM forgejo_connection_credentials
              WHERE connection_id = ? AND encrypted_credential = ?
            )`,
+          scope,
+          scope,
           verifiedAt,
           connection.id,
           connection.id,
@@ -322,16 +338,31 @@ export async function rotateForgejoConnection(
           : null,
         JSON.stringify(
           completedVerification?.repositories ??
-            activeRepositoryIds.map((repositoryId) => ({
-              error: { code: error.code, message: error.message },
-              forge_repository_id: repositoryId,
-              outcome: "error",
-            })),
+            failedForgejoRepositoryChecks(failure, activeRepositoryIds),
         ),
         error.code,
         error.message,
         verifiedAt,
       );
+      for (const repositoryId of scope === "repository"
+        ? forgejoFailureRepositoryIds(failure)
+        : []) {
+        if (
+          !commitForgejoRepositoryFailure(
+            transaction,
+            failure,
+            connection.id,
+            repositoryId,
+            verificationId,
+            verifiedAt,
+          )
+        ) {
+          fail(
+            "forgejo_connection_rotation_conflict",
+            "Forgejo Repository mapping changed during rotation",
+          );
+        }
+      }
     });
     throw error;
   }

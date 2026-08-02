@@ -234,12 +234,8 @@ test("SQLite keeps the active Forgejo PAT when replacement verification fails", 
       error_message: "Forgejo required route is unavailable: /api/v1/user",
       repositories: JSON.stringify([
         {
-          error: {
-            code: "forgejo_required_route_unavailable",
-            message: "Forgejo required route is unavailable: /api/v1/user",
-          },
           forge_repository_id: 11,
-          outcome: "error",
+          outcome: "not_completed",
         },
       ]),
       trigger: "rotation",

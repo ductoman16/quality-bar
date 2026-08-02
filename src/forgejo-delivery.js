@@ -130,10 +130,11 @@ export function ensureForgejoDelivery(durableCore, surface, sourceId, target) {
   return delivery;
 }
 
-/** @param {any} durableCore @param {string} connectionId @param {any} delivery @param {number} attemptedAt @param {"create" | "reconcile"} operation */
+/** @param {any} durableCore @param {string} connectionId @param {string} repositoryId @param {any} delivery @param {number} attemptedAt @param {"create" | "reconcile"} operation */
 export function beginForgejoDeliveryAttempt(
   durableCore,
   connectionId,
+  repositoryId,
   delivery,
   attemptedAt,
   operation,
@@ -168,7 +169,18 @@ export function beginForgejoDeliveryAttempt(
              CASE WHEN ? = 'create' THEN 1 ELSE reconciliation_required END,
            error_code = NULL, error_detail = NULL, response_status = NULL
        WHERE surface = ? AND source_id = ?
-         AND generation = ? AND definitive = 0`,
+         AND generation = ? AND definitive = 0
+         AND EXISTS (
+           SELECT 1
+           FROM forgejo_connections
+           JOIN forgejo_repositories
+             ON forgejo_repositories.connection_id = forgejo_connections.id
+           JOIN repositories
+             ON repositories.id = forgejo_repositories.repository_id
+           WHERE forgejo_connections.id = ?
+             AND forgejo_connections.health = 'healthy'
+             AND repositories.id = ? AND repositories.health = 'healthy'
+         )`,
       connectionId,
       connectionId,
       attemptedAt,
@@ -176,6 +188,8 @@ export function beginForgejoDeliveryAttempt(
       delivery.surface,
       delivery.source_id,
       delivery.generation,
+      connectionId,
+      repositoryId,
     );
     return begun.changes === 1;
   });

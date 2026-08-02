@@ -35,3 +35,38 @@ export function assertForgejoSiblingRecovery(core) {
     ],
   );
 }
+
+/** @param {any} core */
+export function assertForgejoMultipleRepositoryFailure(core) {
+  assert.deepEqual(
+    core.all(
+      `SELECT repositories.id, repositories.health,
+              repositories.health_error_code,
+              repositories.health_error_message,
+              forgejo_repositories.verification_id
+       FROM repositories
+       JOIN forgejo_repositories
+         ON forgejo_repositories.repository_id = repositories.id
+       ORDER BY repositories.id`,
+    ),
+    ["repository-1", "repository-2"].map((id) => ({
+      health: "error",
+      health_error_code: "forgejo_repository_permission_denied",
+      health_error_message: "Repositories are forbidden",
+      id,
+      verification_id: "verification-4",
+    })),
+  );
+  assert.deepEqual(
+    core.all(
+      `SELECT forge_repository_id, baseline_status, error_code, error_message
+       FROM forgejo_repository_polls ORDER BY forge_repository_id`,
+    ),
+    [11, 22].map((forgeRepositoryId) => ({
+      baseline_status: "error",
+      error_code: "forgejo_repository_permission_denied",
+      error_message: "Repositories are forbidden",
+      forge_repository_id: forgeRepositoryId,
+    })),
+  );
+}

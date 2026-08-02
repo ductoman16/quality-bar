@@ -1,3 +1,13 @@
+import { forgejoFailureRepositoryIds } from "./forgejo-failure.js";
+
+/** @returns {never} */
+function invalidFailureOwnership() {
+  throw Object.assign(
+    new Error("Forgejo Repository failure ownership is inconsistent"),
+    { code: "forgejo_verification_result_invalid" },
+  );
+}
+
 /** @param {unknown} error */
 export function codedForgejoRepositoryFailure(error) {
   if (
@@ -6,7 +16,7 @@ export function codedForgejoRepositoryFailure(error) {
     typeof error.code === "string" &&
     error.code.length > 0
   ) {
-    return /** @type {Error & {attemptedAt?: number, code: string, repositoryChecks?: unknown, repositoryId?: number, verificationEvidence?: any}} */ (
+    return /** @type {Error & {attemptedAt?: number, code: string, repositoryChecks?: unknown, repositoryId?: number, repositoryIds?: number[], verificationEvidence?: any}} */ (
       error
     );
   }
@@ -15,48 +25,84 @@ export function codedForgejoRepositoryFailure(error) {
 
 /**
  * @param {number[]} repositoryIds
- * @param {{code: string, message: string, repositoryId?: unknown}} error
+ * @param {{code: string, message: string, repositoryId?: number, repositoryIds?: number[]}} error
  * @param {any[]} repositoryChecks
  */
-export function resolveForgejoRepositoryFailureOwner(
+export function normalizeForgejoRepositoryFailureOwners(
   repositoryIds,
   error,
   repositoryChecks,
 ) {
+  /** @param {number[]} owners */
+  const normalize = (owners) => {
+    delete error.repositoryId;
+    delete error.repositoryIds;
+    if (owners.length === 1) {
+      error.repositoryId = owners[0];
+    } else if (owners.length > 1) {
+      error.repositoryIds = owners;
+    }
+    return owners;
+  };
   const checkedOwners = repositoryChecks
     .filter((check) => check.outcome === "error")
     .map((check) => Number(check.forge_repository_id));
-  const explicitOwner = Number.isSafeInteger(error.repositoryId)
-    ? Number(error.repositoryId)
-    : undefined;
+  const explicitOwners = forgejoFailureRepositoryIds(error);
   if (
-    checkedOwners.length > 1 ||
-    (error.repositoryId !== undefined && explicitOwner === undefined) ||
-    (explicitOwner !== undefined && !repositoryIds.includes(explicitOwner))
+    checkedOwners.some(
+      (repositoryId) =>
+        !Number.isSafeInteger(repositoryId) ||
+        repositoryId <= 0 ||
+        !repositoryIds.includes(repositoryId),
+    ) ||
+    new Set(checkedOwners).size !== checkedOwners.length ||
+    explicitOwners.some((repositoryId) => !repositoryIds.includes(repositoryId))
   ) {
-    return undefined;
-  }
-  const checkedOwner =
-    checkedOwners.length === 1 ? checkedOwners[0] : undefined;
-  const checkedFailure =
-    checkedOwners.length === 1
-      ? repositoryChecks.find((check) => check.outcome === "error")
-      : undefined;
-  if (
-    explicitOwner !== undefined &&
-    checkedOwner !== undefined &&
-    explicitOwner !== checkedOwner
-  ) {
-    return undefined;
+    invalidFailureOwnership();
   }
   if (
-    checkedFailure &&
-    (checkedFailure.error?.code !== error.code ||
-      checkedFailure.error?.message !== error.message)
+    explicitOwners.length > 0 &&
+    checkedOwners.length > 0 &&
+    (explicitOwners.length !== checkedOwners.length ||
+      explicitOwners.some(
+        (repositoryId) => !checkedOwners.includes(repositoryId),
+      ))
   ) {
-    return undefined;
+    invalidFailureOwnership();
   }
-  return checkedOwner ?? explicitOwner;
+  for (const checkedFailure of repositoryChecks.filter(
+    (check) => check.outcome === "error",
+  )) {
+    if (
+      checkedFailure.error?.code !== error.code ||
+      checkedFailure.error?.message !== error.message
+    ) {
+      invalidFailureOwnership();
+    }
+  }
+  const owners = checkedOwners.length > 0 ? checkedOwners : explicitOwners;
+  return normalize(owners);
+}
+
+/** @param {any} transaction @param {{code: string, message: string}} error @param {string} connectionId @param {number[]} forgeRepositoryIds @param {string} verificationId @param {number} verifiedAt */
+export function commitForgejoRepositoryFailures(
+  transaction,
+  error,
+  connectionId,
+  forgeRepositoryIds,
+  verificationId,
+  verifiedAt,
+) {
+  return forgeRepositoryIds.every((forgeRepositoryId) =>
+    commitForgejoRepositoryFailure(
+      transaction,
+      error,
+      connectionId,
+      forgeRepositoryId,
+      verificationId,
+      verifiedAt,
+    ),
+  );
 }
 
 /**

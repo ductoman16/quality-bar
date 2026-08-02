@@ -39,6 +39,7 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-delivery-core-sqlite-integration.test.js",
   "test/forgejo-delivery-lifecycle-sqlite-integration.test.js",
   "test/forgejo-delivery-sqlite-integration.test.js",
+  "test/forgejo-failure-sqlite-integration.test.js",
 ];
 
 export const FORGEJO_UNIT_TESTS = [
@@ -47,6 +48,7 @@ export const FORGEJO_UNIT_TESTS = [
   "test/forgejo-commit-status.test.js",
   "test/forgejo-feedback.test.js",
   "test/forgejo-delivery.test.js",
+  "test/forgejo-failure.test.js",
   "test/forgejo-v16-publication.test.js",
   "test/forgejo-automatic-evaluation.test.js",
   "test/forgejo-polling.test.js",

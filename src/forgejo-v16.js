@@ -8,11 +8,13 @@ import {
 import {
   forgejoRepository as repository,
   forgejoRepositoryOwner as repositoryOwner,
+  missingForgejoRepositorySelection,
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
 } from "./forgejo-v16-repository.js";
 import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
 import { createForgejoV16Publisher } from "./forgejo-v16-publication.js";
 import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
+import { forgejoV16ResponseJson } from "./forgejo-v16-response-failure.js";
 import {
   currentIoOperationSignal,
   throwIfIoOperationAborted,
@@ -114,24 +116,6 @@ function routeArray(value, route, field) {
   }
 }
 
-/** @param {string} path @param {Response} response */
-async function responseJson(path, response) {
-  if (!response.ok) {
-    fail(
-      "forgejo_required_route_unavailable",
-      `Forgejo required route is unavailable: ${path}`,
-    );
-  }
-  try {
-    return await response.json();
-  } catch {
-    fail(
-      "forgejo_api_response_invalid",
-      `Forgejo response is invalid: ${path}`,
-    );
-  }
-}
-
 /** @param {{fetch?: typeof fetch, now?: () => number, verifyGit?: typeof verifyRepositoryRead}} [options] */
 export function createForgejoV16Verifier({
   fetch: fetchRequest = fetch,
@@ -176,8 +160,8 @@ export function createForgejoV16Verifier({
       const origin = normalizedForgejoBaseUrl(baseUrl);
       const verificationEvidence =
         createForgejoVerificationEvidence(repositoryIds);
-      /** @param {string} path */
-      const get = async (path) => {
+      /** @param {string} path @param {number} [repositoryId] */
+      const get = async (path, repositoryId) => {
         signal?.throwIfAborted();
         let response;
         try {
@@ -198,7 +182,12 @@ export function createForgejoV16Verifier({
           );
         }
         signal?.throwIfAborted();
-        const body = await responseJson(path, response);
+        const body = await forgejoV16ResponseJson(
+          path,
+          response,
+          repositoryId,
+          now(),
+        );
         signal?.throwIfAborted();
         return { body };
       };
@@ -286,22 +275,13 @@ export function createForgejoV16Verifier({
         enumerated.find((candidate) => candidate.id === id),
       );
       if (selected.some((candidate) => !candidate)) {
-        const missingRepositoryIds = selected.flatMap((candidate, index) =>
-          candidate ? [] : [repositoryIds[index]],
+        const failure = missingForgejoRepositorySelection(
+          selected,
+          repositoryIds,
         );
+        verificationEvidence.repositories = failure.repositories;
         try {
-          throw Object.assign(
-            new Error(
-              "Selected Forgejo Repository is not accessible to the Connection",
-            ),
-            {
-              code: "forgejo_repository_selection_unavailable",
-              repositoryId:
-                missingRepositoryIds.length === 1
-                  ? missingRepositoryIds[0]
-                  : undefined,
-            },
-          );
+          throw failure.error;
         } catch (error) {
           throwWithForgejoEvidence(error, verificationEvidence);
         }
@@ -329,7 +309,7 @@ export function createForgejoV16Verifier({
             "inline_feedback",
           ];
           requiredRepositoryAuthority(
-            (await get(`/api/v1/repos/${encoded}`)).body,
+            (await get(`/api/v1/repos/${encoded}`, selectedRepository.id)).body,
             selectedRepository.id,
           );
           if (index === selected.length - 1) {
@@ -338,7 +318,12 @@ export function createForgejoV16Verifier({
           }
           activeCapabilities = ["branch_access"];
           routeArray(
-            (await get(`/api/v1/repos/${encoded}/branches`)).body,
+            (
+              await get(
+                `/api/v1/repos/${encoded}/branches`,
+                selectedRepository.id,
+              )
+            ).body,
             "branches",
             "name",
           );
@@ -347,7 +332,12 @@ export function createForgejoV16Verifier({
           }
           activeCapabilities = ["pull_request_access"];
           routeArray(
-            (await get(`/api/v1/repos/${encoded}/pulls?state=open`)).body,
+            (
+              await get(
+                `/api/v1/repos/${encoded}/pulls?state=open`,
+                selectedRepository.id,
+              )
+            ).body,
             "pull requests",
             "number",
           );
@@ -356,7 +346,12 @@ export function createForgejoV16Verifier({
           }
           activeCapabilities = ["aggregate_feedback"];
           routeArray(
-            (await get(`/api/v1/repos/${encoded}/issues/comments`)).body,
+            (
+              await get(
+                `/api/v1/repos/${encoded}/issues/comments`,
+                selectedRepository.id,
+              )
+            ).body,
             "issue comments",
             "id",
           );
@@ -384,6 +379,12 @@ export function createForgejoV16Verifier({
             typeof error.code !== "string"
           ) {
             throw error;
+          }
+          if (
+            !("repositoryId" in error) ||
+            !Number.isSafeInteger(error.repositoryId)
+          ) {
+            Object.assign(error, { repositoryId: selectedRepository.id });
           }
           for (const capability of activeCapabilities) {
             capabilityEvidence[capability] = "error";
