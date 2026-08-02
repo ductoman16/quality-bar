@@ -1,0 +1,30 @@
+{
+  "ticket": 105,
+  "acceptance_scenarios": ["ACC-08"],
+  "proof": {
+    "unit": {
+      "provider-recovery-unit": [
+        "test/provider-recovery.test.js",
+        "test/provider-recovery-verification.test.js"
+      ]
+    },
+    "sqlite_failure_integration": {
+      "provider-recovery-sqlite-failure-integration": [
+        "test/provider-recovery-sqlite-failure-integration.test.js"
+      ]
+    },
+    "process_integration": {
+      "provider-recovery-process-integration": [
+        "test/provider-recovery-process-integration.test.js"
+      ]
+    },
+    "adapter_integration": {
+      "provider-recovery-adapter-integration": [
+        "test/provider-recovery-adapter-integration.test.js",
+        "test/provider-recovery-adapter-surfaces-integration.test.js"
+      ]
+    }
+  },
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}

@@ -1,5 +1,6 @@
 import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-definitions.mjs";
 import { APPLICABILITY_GATE_DEFINITIONS } from "./applicability-gate-definitions.mjs";
+import { PROVIDER_RECOVERY_GATE_DEFINITIONS } from "./provider-recovery-gate-definitions.mjs";
 
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   ...APPLICABILITY_GATE_DEFINITIONS,
@@ -113,4 +114,5 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
     ],
   },
   ...REVIEW_RUN_CLAIM_GATE_DEFINITIONS,
+  ...PROVIDER_RECOVERY_GATE_DEFINITIONS,
 ];
