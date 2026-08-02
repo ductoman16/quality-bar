@@ -85,6 +85,11 @@ const browserAssets = [
     url: new URL("./browser/storage-reserve.js", import.meta.url),
   },
   {
+    route: "/assets/system-storage.js",
+    sourcePath: "src/browser/system-storage.js",
+    url: new URL("./browser/system-storage.js", import.meta.url),
+  },
+  {
     route: "/assets/waiver-adjudicator-configuration.js",
     sourcePath: "src/browser/waiver-adjudicator-configuration.js",
     url: new URL(

@@ -145,6 +145,50 @@ test("runtime reserve removes eligible data and remeasures before blocking", () 
   assert.equal(cleanupCalls, 1);
 });
 
+test("storage reserve reports owned cleanup outcome and exact cleanup failure", () => {
+  const gate = createStorageReserveGate({
+    cleanupEligibleData: () => ({
+      artifacts: { removed: 3 },
+      sessions: { changes: 2 },
+    }),
+    now: () => 1_000,
+    statfs: () => ({ bavail: 8 * GIB, bsize: 1 }),
+  });
+  gate.cleanupEligibleData();
+  assert.deepEqual(gate.readCleanupFacts(), {
+    artifacts_removed: 3,
+    error: null,
+    last_run_at: "1970-01-01T00:00:01.000Z",
+    sessions_removed: 2,
+    status: "available",
+  });
+
+  const failure = Object.assign(new Error("Owned cleanup failed."), {
+    code: "owned_artifact_cleanup_remove_failed",
+  });
+  const failedGate = createStorageReserveGate({
+    cleanupEligibleData: () => {
+      throw failure;
+    },
+    now: () => 1_000,
+    statfs: () => ({ bavail: 8 * GIB, bsize: 1 }),
+  });
+  assert.throws(
+    () => failedGate.cleanupEligibleData(),
+    (error) => error === failure,
+  );
+  assert.deepEqual(failedGate.readCleanupFacts(), {
+    artifacts_removed: null,
+    error: {
+      code: "owned_artifact_cleanup_remove_failed",
+      detail: "Owned cleanup failed.",
+    },
+    last_run_at: "1970-01-01T00:00:01.000Z",
+    sessions_removed: null,
+    status: "unavailable",
+  });
+});
+
 test("scheduled Forgejo polling pauses low reserve and fails fast on measurement errors", () => {
   assert.doesNotThrow(() =>
     requireStorageReservePause(

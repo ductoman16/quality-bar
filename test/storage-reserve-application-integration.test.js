@@ -7,7 +7,16 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
+const cleanupFacts = {
+  artifacts_removed: 0,
+  error: null,
+  last_run_at: "2026-08-02T12:00:00.000Z",
+  sessions_removed: 0,
+  status: "available",
+};
+
 const lowFacts = {
+  cleanup: cleanupFacts,
   filesystems: [
     {
       available_bytes: 6 * 1024 ** 3,
@@ -52,6 +61,7 @@ test("runtime reserve gates admission and Codex starts while System keeps exact 
           throw Object.assign(failure, { action: "work_admission" });
         },
         cleanupEligibleData() {},
+        readCleanupFacts: () => cleanupFacts,
         readFacts: () => lowFacts,
       }),
   });
@@ -106,6 +116,7 @@ test("System exposes the exact owning filesystem when reserve measurement fails"
         preparePollingObservationAdvance() {},
         assertWorkAdmissionAvailable() {},
         cleanupEligibleData() {},
+        readCleanupFacts: () => cleanupFacts,
         readFacts() {
           throw failure;
         },

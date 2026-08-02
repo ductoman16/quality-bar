@@ -292,7 +292,7 @@ test("runtime conformance rejects invalid request, response, status, content typ
       ),
     {
       message:
-        "openapi_success_document_invalid: GET /api/v1/system status 200 / must have required property 'bootstrap'",
+        "openapi_success_document_invalid: GET /api/v1/system status 200 / must have required property 'application'",
     },
   );
 

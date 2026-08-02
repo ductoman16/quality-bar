@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach } from "node:test";
 
 import { createApplication } from "../src/application.js";
@@ -43,6 +43,8 @@ export async function startApplication(
   } = {},
 ) {
   const application = createApplication({
+    applicationVersion: "1.2.3",
+    backupsPath: join(dirname(databasePath), "backups"),
     createStorageReserve: () => availableStorageReserve,
     databasePath,
     loadInstallation: () => ({

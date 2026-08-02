@@ -4,6 +4,9 @@ export function canonicalStorageReserveSchemas() {
   return {
     StorageReserveFact: closedObject(
       {
+        cleanup: {
+          $ref: "#/components/schemas/SystemStorageCleanupFact",
+        },
         filesystems: {
           items: {
             $ref: "#/components/schemas/StorageReserveFilesystemFact",
@@ -18,7 +21,7 @@ export function canonicalStorageReserveSchemas() {
           type: "string",
         },
       },
-      ["filesystems", "reserve_bytes", "status"],
+      ["cleanup", "filesystems", "reserve_bytes", "status"],
     ),
     StorageReserveFilesystemFact: closedObject(
       {

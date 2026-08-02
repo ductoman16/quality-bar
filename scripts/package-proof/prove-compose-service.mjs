@@ -397,6 +397,7 @@ export function proveComposeService({ configuration, fixture }) {
       ],
       reserve_bytes: 5 * 1024 ** 3,
       status: "available",
+      cleanup: initialAuthenticatedHttpSmoke.storage.cleanup,
     },
     tokenStatus: 201,
   });

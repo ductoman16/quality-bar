@@ -57,6 +57,7 @@ function nonnegativeInteger(value, fact) {
  * @param {{
  *   checkoutsPath?: string,
  *   cleanupEligibleData: () => unknown,
+ *   now?: () => number,
  *   reserveBytes?: number,
  *   statePath?: string,
  *   statfs?: (path: string) => {bavail: number | bigint, bsize: number | bigint}
@@ -65,6 +66,7 @@ function nonnegativeInteger(value, fact) {
 export function createStorageReserveGate({
   checkoutsPath = CHECKOUTS_PATH,
   cleanupEligibleData,
+  now = () => Date.now(),
   reserveBytes = DEFAULT_FREE_SPACE_RESERVE_BYTES,
   statePath = STATE_PATH,
   statfs = readFilesystem,
@@ -77,6 +79,7 @@ export function createStorageReserveGate({
     !Number.isSafeInteger(reserveBytes) ||
     reserveBytes <= 0 ||
     typeof cleanupEligibleData !== "function" ||
+    typeof now !== "function" ||
     typeof statfs !== "function"
   ) {
     throw new TypeError("storage reserve dependencies are invalid");
@@ -86,6 +89,102 @@ export function createStorageReserveGate({
     Object.freeze({ filesystem: "state", path: statePath }),
     Object.freeze({ filesystem: "checkouts", path: checkoutsPath }),
   ]);
+  /** @type {{
+   *   artifacts_removed: number | null,
+   *   error: {code: string, detail: string} | null,
+   *   last_run_at: string | null,
+   *   sessions_removed: number | null,
+   *   status: "available" | "not_run" | "running" | "unavailable"
+   * }} */
+  let cleanupFacts = {
+    artifacts_removed: null,
+    error: null,
+    last_run_at: null,
+    sessions_removed: null,
+    status: "not_run",
+  };
+
+  /** @param {unknown} error */
+  function cleanupError(error) {
+    if (!(error instanceof Error)) {
+      throw new TypeError("Storage cleanup failure is not an Error");
+    }
+    return {
+      code:
+        "code" in error && typeof error.code === "string"
+          ? error.code
+          : "cleanup_failed",
+      detail: error.message,
+    };
+  }
+
+  /** @param {any} result */
+  function recordCleanupSuccess(result) {
+    const completedAt = now();
+    if (!Number.isSafeInteger(completedAt) || completedAt < 0) {
+      throw new TypeError("Storage cleanup time is invalid");
+    }
+    cleanupFacts = {
+      artifacts_removed:
+        Number.isSafeInteger(result?.artifacts?.removed) &&
+        result.artifacts.removed >= 0
+          ? result.artifacts.removed
+          : null,
+      error: null,
+      last_run_at: new Date(completedAt).toISOString(),
+      sessions_removed:
+        Number.isSafeInteger(result?.sessions?.changes) &&
+        result.sessions.changes >= 0
+          ? result.sessions.changes
+          : null,
+      status: "available",
+    };
+  }
+
+  /** @param {unknown} error */
+  function recordCleanupFailure(error) {
+    const failedAt = now();
+    if (!Number.isSafeInteger(failedAt) || failedAt < 0) {
+      throw new TypeError("Storage cleanup time is invalid");
+    }
+    cleanupFacts = {
+      artifacts_removed: null,
+      error: cleanupError(error),
+      last_run_at: new Date(failedAt).toISOString(),
+      sessions_removed: null,
+      status: "unavailable",
+    };
+  }
+
+  function trackedCleanup() {
+    const startedAt = now();
+    if (!Number.isSafeInteger(startedAt) || startedAt < 0) {
+      throw new TypeError("Storage cleanup time is invalid");
+    }
+    cleanupFacts = {
+      artifacts_removed: null,
+      error: null,
+      last_run_at: new Date(startedAt).toISOString(),
+      sessions_removed: null,
+      status: "running",
+    };
+    try {
+      const result = cleanupEligibleData();
+      const promiseResult = /** @type {any} */ (result);
+      if (promiseResult && typeof promiseResult.then === "function") {
+        void Promise.resolve(promiseResult).then(
+          recordCleanupSuccess,
+          recordCleanupFailure,
+        );
+      } else {
+        recordCleanupSuccess(result);
+      }
+      return result;
+    } catch (error) {
+      recordCleanupFailure(error);
+      throw error;
+    }
+  }
 
   /** @param {string} action */
   function measure(action) {
@@ -141,7 +240,7 @@ export function createStorageReserveGate({
   function readFor(action) {
     let exactFacts = measure(action);
     if (exactFacts.status === "unavailable") {
-      cleanupEligibleData();
+      trackedCleanup();
       exactFacts = measure(action);
     }
     if (exactFacts.status === "unavailable") {
@@ -174,7 +273,10 @@ export function createStorageReserveGate({
     preparePollingObservationAdvance: () =>
       readFor(ACTIONS.pollingObservationAdvancement),
     assertWorkAdmissionAvailable: () => readFor(ACTIONS.workAdmission),
-    cleanupEligibleData,
+    cleanupEligibleData: trackedCleanup,
+    readCleanupFacts() {
+      return { ...cleanupFacts };
+    },
     readFacts() {
       try {
         return readFor("system_read");

@@ -164,7 +164,10 @@ export async function createInstalledApplication({
     let application;
     try {
       application = createRuntime({
+        applicationVersion,
+        backupsPath,
         databasePath,
+        installationKeyIdentity: keyIdentity,
         validateSources() {
           throw preflightFailure;
         },
@@ -194,7 +197,10 @@ export async function createInstalledApplication({
   }
 
   const application = createRuntime({
+    applicationVersion,
+    backupsPath,
     databasePath,
+    installationKeyIdentity: keyIdentity,
     loadInstallation: () =>
       /** @type {NonNullable<typeof installation>} */ (installation),
     validateInstallation: () => ({
