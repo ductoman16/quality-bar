@@ -5,7 +5,7 @@
 const connections = document.getElementById("system-polling-connections");
 const surfaces = document.getElementById("system-delivery-surfaces");
 const browserGlobals = /** @type {any} */ (window);
-const requireFacts = browserGlobals.systemPollingDeliveryRequireFacts;
+const requirePollingFacts = browserGlobals.systemPollingDeliveryRequireFacts;
 
 /** @type {(value: string | null, empty: string) => string} */
 const present = (value, empty) => value ?? empty;
@@ -154,7 +154,7 @@ function deliveryLabel(surface) {
 }
 
 /** @param {HTMLElement} container @param {BrowserPart[][]} rows */
-function replaceRows(container, rows) {
+function replacePollingRows(container, rows) {
   container.replaceChildren(
     ...rows.map((parts) => {
       const item = document.createElement("li");
@@ -189,9 +189,12 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     throw new Error("system_polling_delivery_controls_missing");
   }
   try {
-    const facts = requireFacts(/** @type {any} */ (event).detail);
-    replaceRows(connections, facts.polling.connections.map(pollingLabel));
-    replaceRows(surfaces, facts.delivery.surfaces.map(deliveryLabel));
+    const facts = requirePollingFacts(/** @type {any} */ (event).detail);
+    replacePollingRows(
+      connections,
+      facts.polling.connections.map(pollingLabel),
+    );
+    replacePollingRows(surfaces, facts.delivery.surfaces.map(deliveryLabel));
   } catch (cause) {
     const message =
       cause instanceof Error

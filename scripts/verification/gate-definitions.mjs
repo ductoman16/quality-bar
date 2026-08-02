@@ -279,7 +279,8 @@ export function createGateDefinitions(metadata) {
       failureCode: "browser_component_tests_failed",
       arguments: [
         "--test",
-        "test/browser-assets-browser-component.test.js",
+        // prettier-ignore
+        ...["test/browser-assets-browser-component.test.js", "test/browser-script-bundle-browser-component.test.js"],
         "test/analytics-browser-component.test.js",
         "test/review-metadata-browser-component.test.js",
         "test/review-create-browser-component.test.js",

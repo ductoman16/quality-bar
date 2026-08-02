@@ -42,7 +42,7 @@ const nullableString = (value, name) =>
   value === null ? value : string(value, name);
 
 /** @param {unknown} value @param {string} name */
-function error(value, name) {
+function errorFact(value, name) {
   if (value === null) {
     return null;
   }
@@ -131,8 +131,11 @@ function readSystemPollingDeliveryFacts(value) {
     ) {
       throw new Error("system_polling_connection_invalid");
     }
-    error(connection.error, "system_polling_connection_error");
-    error(connection.health_error, "system_polling_connection_health_error");
+    errorFact(connection.error, "system_polling_connection_error");
+    errorFact(
+      connection.health_error,
+      "system_polling_connection_health_error",
+    );
     if (
       (connection.health === "healthy" && connection.health_error !== null) ||
       (connection.health === "error" && connection.health_error === null)
@@ -165,8 +168,11 @@ function readSystemPollingDeliveryFacts(value) {
       ) {
         throw new Error("system_polling_repository_invalid");
       }
-      error(repository.error, "system_polling_repository_error");
-      error(repository.health_error, "system_polling_repository_health_error");
+      errorFact(repository.error, "system_polling_repository_error");
+      errorFact(
+        repository.health_error,
+        "system_polling_repository_health_error",
+      );
       if (
         (repository.health === "healthy" && repository.health_error !== null) ||
         (repository.health === "error" && repository.health_error === null)
@@ -246,8 +252,11 @@ function readSystemPollingDeliveryFacts(value) {
     nullableString(surface.adjudication_id, "system_delivery_adjudication");
     nullableString(surface.decision_id, "system_delivery_decision");
     nullableString(surface.finding_id, "system_delivery_finding");
-    error(surface.error, "system_delivery_error");
-    error(surface.provider_gate_error, "system_delivery_provider_gate_error");
+    errorFact(surface.error, "system_delivery_error");
+    errorFact(
+      surface.provider_gate_error,
+      "system_delivery_provider_gate_error",
+    );
     timestamp(surface.last_attempt_at, "system_delivery_last_attempt");
     timestamp(surface.next_attempt_at, "system_delivery_next_attempt");
     timestamp(surface.published_at, "system_delivery_published_at");

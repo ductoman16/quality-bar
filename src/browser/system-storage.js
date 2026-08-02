@@ -39,7 +39,7 @@ function requireBackupRecord(record) {
 }
 
 /** @param {any} value */
-function requireFacts(value) {
+function requireStorageFacts(value) {
   if (!value || typeof value !== "object") {
     throw new Error("system_storage_facts_invalid");
   }
@@ -163,7 +163,7 @@ function requireFacts(value) {
 }
 
 /** @param {string} name @param {string} value */
-function definition(name, value) {
+function storageDefinition(name, value) {
   const term = document.createElement("dt");
   term.textContent = name;
   const description = document.createElement("dd");
@@ -175,7 +175,7 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
   if (!factsContainer) {
     throw new Error("system_storage_facts_missing");
   }
-  const value = requireFacts(/** @type {any} */ (event).detail);
+  const value = requireStorageFacts(/** @type {any} */ (event).detail);
   const { application, backup, migration } = value;
   const cleanup = value.storage.cleanup;
   const cleanupValue = cleanup.error
@@ -191,28 +191,28 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     : `${migration.status} — ${migration.from_schema_version} to ${migration.to_schema_version}`;
   factsContainer.replaceChildren(
     ...[
-      ...definition(
+      ...storageDefinition(
         "Application",
         application.error
           ? `${application.status} — ${application.error.code}: ${application.error.detail}`
           : `${application.application_version} — ${application.status}`,
       ),
-      ...definition(
+      ...storageDefinition(
         "Installation key identity",
         application.installation_key_identity ?? "unavailable",
       ),
-      ...definition(
+      ...storageDefinition(
         "Schema",
         application.schema_version === null
           ? "unavailable"
           : String(application.schema_version),
       ),
-      ...definition("Owned cleanup", cleanupValue),
-      ...definition(
+      ...storageDefinition("Owned cleanup", cleanupValue),
+      ...storageDefinition(
         "Last successful backup",
         `${backup.status} — ${backupValue}`,
       ),
-      ...definition("Migration", migrationValue),
+      ...storageDefinition("Migration", migrationValue),
     ],
   );
 });

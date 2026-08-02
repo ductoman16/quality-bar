@@ -2,7 +2,8 @@ const githubOperator = /** @type {{
  * csrfToken: () => string,
  * requiredElement: (id: string) => HTMLElement
  * }} */ (Reflect.get(window, "qualityBarOperator"));
-const { csrfToken, requiredElement } = githubOperator;
+// prettier-ignore
+const { csrfToken: githubCsrf, requiredElement: githubElement } = githubOperator;
 const {
   consumeCallbackFailure: consumeGitHubCallback,
   historyText: githubHistoryText,
@@ -21,44 +22,44 @@ const {
  * verificationTime: (timestamp: number) => string
  * }} */ (Reflect.get(window, "qualityBarGitHubConnectionContract"));
 const githubForm = /** @type {HTMLFormElement} */ (
-  requiredElement("github-connection-form")
+  githubElement("github-connection-form")
 );
 const githubSubmit = /** @type {HTMLButtonElement} */ (
-  requiredElement("github-connection-submit")
+  githubElement("github-connection-submit")
 );
 const githubPem = /** @type {HTMLTextAreaElement} */ (
-  requiredElement("github-connection-pem")
+  githubElement("github-connection-pem")
 );
-const githubPemLabel = requiredElement("github-connection-pem-label");
-const githubStatus = requiredElement("github-connection-status");
-const githubError = requiredElement("github-connection-error");
-const githubDetails = requiredElement("github-connection-details");
-const githubIdentity = requiredElement("github-connection-identity");
-const githubProfile = requiredElement("github-connection-profile");
-const githubHealth = requiredElement("github-connection-health");
-const githubLifecycle = requiredElement("github-connection-lifecycle");
-const githubPermissions = requiredElement("github-connection-permissions");
-const githubCapabilities = requiredElement("github-connection-capabilities");
-const githubLatest = requiredElement("github-connection-latest");
-const githubHistory = requiredElement("github-connection-history");
-const githubPolling = requiredElement("github-connection-polling");
+const githubPemLabel = githubElement("github-connection-pem-label");
+const githubStatus = githubElement("github-connection-status");
+const githubError = githubElement("github-connection-error");
+const githubDetails = githubElement("github-connection-details");
+const githubIdentity = githubElement("github-connection-identity");
+const githubProfile = githubElement("github-connection-profile");
+const githubHealth = githubElement("github-connection-health");
+const githubLifecycle = githubElement("github-connection-lifecycle");
+const githubPermissions = githubElement("github-connection-permissions");
+const githubCapabilities = githubElement("github-connection-capabilities");
+const githubLatest = githubElement("github-connection-latest");
+const githubHistory = githubElement("github-connection-history");
+const githubPolling = githubElement("github-connection-polling");
 const githubRetire = /** @type {HTMLButtonElement} */ (
-  requiredElement("github-connection-retire")
+  githubElement("github-connection-retire")
 );
 const githubDelete = /** @type {HTMLButtonElement} */ (
-  requiredElement("github-connection-delete")
+  githubElement("github-connection-delete")
 );
 const githubRepositoryForm = /** @type {HTMLFormElement} */ (
-  requiredElement("github-repository-selection-form")
+  githubElement("github-repository-selection-form")
 );
-const githubRepositoryOptions = requiredElement(
+const githubRepositoryOptions = githubElement(
   "github-repository-selection-options",
 );
 const githubRepositorySubmit = /** @type {HTMLButtonElement} */ (
-  requiredElement("github-repository-selection-submit")
+  githubElement("github-repository-selection-submit")
 );
 // prettier-ignore
-const githubRotationForm = /** @type {HTMLFormElement} */ (requiredElement("github-connection-rotation-form")), githubRotationPem = /** @type {HTMLTextAreaElement} */ (requiredElement("github-connection-rotation-pem")), githubRotationSubmit = /** @type {HTMLButtonElement} */ (requiredElement("github-connection-rotation-submit"));
+const githubRotationForm = /** @type {HTMLFormElement} */ (githubElement("github-connection-rotation-form")), githubRotationPem = /** @type {HTMLTextAreaElement} */ (githubElement("github-connection-rotation-pem")), githubRotationSubmit = /** @type {HTMLButtonElement} */ (githubElement("github-connection-rotation-submit"));
 /** @type {{affected_repository_ids: number[], id: string, outcome: string, trigger: string, verified_at: number}[]} */
 let githubVerificationHistory = [];
 /** @param {string} message */
@@ -199,7 +200,7 @@ const bindLifecycleConfirmation = /** @type {(options: any) => void} */ (
   Reflect.get(window, "qualityBarGitHubConnectionLifecycleConfirmation")
 );
 bindLifecycleConfirmation({
-  csrfToken,
+  csrfToken: githubCsrf,
   error: githubError,
   fetch,
   identity: githubIdentity,
@@ -235,7 +236,7 @@ githubRotationForm.addEventListener("submit", async (event) => {
         body: JSON.stringify({ pem: githubRotationPem.value }),
         headers: {
           "content-type": "application/json",
-          "x-quality-bar-csrf": csrfToken(),
+          "x-quality-bar-csrf": githubCsrf(),
         },
         method: "POST",
       },
@@ -292,7 +293,7 @@ githubRepositoryForm.addEventListener("submit", async (event) => {
       }),
       headers: {
         "content-type": "application/json",
-        "x-quality-bar-csrf": csrfToken(),
+        "x-quality-bar-csrf": githubCsrf(),
       },
       method: "POST",
     });
@@ -409,7 +410,7 @@ const bindGitHubSubmission = /** @type {(options: any) => void} */ (
   Reflect.get(window, "qualityBarGitHubConnectionSubmission")
 );
 bindGitHubSubmission({
-  csrfToken,
+  csrfToken: githubCsrf,
   error: githubError,
   fetch,
   form: githubForm,

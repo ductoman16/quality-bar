@@ -1,6 +1,6 @@
 "use strict";
 
-const attention = document.getElementById("attention");
+const systemAttention = document.getElementById("attention");
 
 document.addEventListener("quality-bar:system-loaded", (event) => {
   const detail = /** @type {any} */ (event).detail;
@@ -14,19 +14,19 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
   ) {
     throw new Error("system_attention_facts_invalid");
   }
-  if (!attention) {
+  if (!systemAttention) {
     throw new Error("system_attention_missing");
   }
   if (storage.status === "unavailable") {
-    attention.hidden = false;
-    attention.textContent =
+    systemAttention.hidden = false;
+    systemAttention.textContent =
       "Storage reserve unavailable: " +
       storage.reserve_bytes +
       " bytes reserved";
     return;
   }
   if (detail.codex.status === "unavailable") {
-    attention.hidden = false;
-    attention.textContent = "Codex unavailable";
+    systemAttention.hidden = false;
+    systemAttention.textContent = "Codex unavailable";
   }
 });
