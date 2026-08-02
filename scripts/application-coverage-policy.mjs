@@ -315,6 +315,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-version-reactivation-sqlite-integration.test.js",
   "test/review-version-reactivation-http-integration.test.js",
   "test/browser-assets-browser-component.test.js",
+  "test/browser-script-bundle-browser-component.test.js",
   "test/review-metadata-browser-component.test.js",
   "test/review-create-browser-component.test.js",
   "test/review-version-browser-component.test.js",
