@@ -135,7 +135,7 @@ export function createForgejoFeedbackService(
            AND EXISTS (
              SELECT 1 FROM repositories
              WHERE repositories.id = evaluations.repository_id
-               AND repositories.lifecycle = 'enabled'
+               AND repositories.lifecycle != 'retired'
            )
          ORDER BY evaluations.created_at, evaluations.id`,
       );

@@ -4,7 +4,6 @@ const DEFINITIVE_FAILURES = new Set([
   "forgejo_connection_credential_invalid",
   "forgejo_connection_credential_undecryptable",
   "forgejo_connection_retired",
-  "forgejo_delivery_identity_conflict",
   "forgejo_publication_capability_unavailable",
   "forgejo_publication_request_invalid",
   "forgejo_repository_api_access_failed",

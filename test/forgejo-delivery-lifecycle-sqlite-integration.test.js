@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
 import { retireForgejoPublicationRows } from "../src/forgejo-publication-retirement.js";
+import { createRepositoryService, RepositoryError } from "../src/repository.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
 test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo delivery state", (context) => {
@@ -18,21 +19,33 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
   prior.run(
     `INSERT INTO forgejo_finding_feedback (
        finding_id, evaluation_id, publication_status, path, side, line
-     ) VALUES (
+     ) VALUES
+     (
        'finding-inline', 'evaluation-1', 'waiting',
        'src/example.js', 'RIGHT', 2
+     ),
+     (
+       'finding-stale', 'evaluation-1', 'waiting',
+       'src/example.js', 'RIGHT', 10
      )`,
   );
   prior.run(
     `UPDATE forgejo_feedback_bundles
-     SET publication_status = 'unavailable', error_code = 'forgejo_api_unavailable',
-         error_detail = 'response lost'`,
+     SET publication_status = 'unavailable',
+         error_code = 'forgejo_api_request_failed',
+         error_detail = 'Forgejo publication route failed with HTTP 429'`,
   );
   prior.run(
     `UPDATE forgejo_finding_feedback
      SET publication_status = 'unavailable',
-         error_code = 'forgejo_repository_permission_denied',
-         error_detail = 'permission denied'
+         error_code = CASE finding_id
+           WHEN 'finding-inline' THEN 'forgejo_repository_permission_denied'
+           ELSE 'forgejo_api_request_failed'
+         END,
+         error_detail = CASE finding_id
+           WHEN 'finding-inline' THEN 'permission denied'
+           ELSE 'Forgejo publication route failed with HTTP 503'
+         END
      WHERE publication_status = 'waiting'`,
   );
   for (const statement of [
@@ -53,13 +66,13 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
   context.after(() => migrated.close());
   assert.deepEqual(
     migrated.all(
-      `SELECT surface, attempt_count, connection_id,
+      `SELECT surface, source_id, attempt_count, connection_id,
               reconciliation_required, definitive
        FROM forgejo_delivery_attempts
        WHERE surface IN (
          'aggregate_feedback', 'commit_status', 'inline_feedback'
        )
-       ORDER BY surface`,
+       ORDER BY surface, source_id`,
     ),
     [
       {
@@ -67,13 +80,15 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
         connection_id: "connection-1",
         definitive: 0,
         reconciliation_required: 1,
+        source_id: "evaluation-1",
         surface: "aggregate_feedback",
       },
       {
         attempt_count: 0,
         connection_id: null,
         definitive: 0,
-        reconciliation_required: 0,
+        reconciliation_required: 1,
+        source_id: "evaluation-1:failure",
         surface: "commit_status",
       },
       {
@@ -81,6 +96,15 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
         connection_id: "connection-1",
         definitive: 1,
         reconciliation_required: 0,
+        source_id: "finding-inline",
+        surface: "inline_feedback",
+      },
+      {
+        attempt_count: 1,
+        connection_id: "connection-1",
+        definitive: 0,
+        reconciliation_required: 1,
+        source_id: "finding-stale",
         surface: "inline_feedback",
       },
     ],
@@ -94,7 +118,7 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
          WHERE publication_status != 'aggregate_only'
        ) WHERE publication_status = 'waiting'`,
     )?.count,
-    1,
+    2,
   );
 });
 
@@ -204,6 +228,12 @@ test("retirement preserves already successful delivery state", (context) => {
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
   arrangeForgejoFeedback(core);
+  core.run(
+    `INSERT INTO forgejo_delivery_provider_gates
+       (connection_id, gate_until, error_code, error_detail)
+     VALUES ('connection-1', 3_600_000,
+             'forgejo_api_rate_limited', 'Forgejo rate limit is active')`,
+  );
   core.transaction((transaction) => {
     transaction.run(
       `UPDATE forgejo_delivery_attempts
@@ -230,5 +260,63 @@ test("retirement preserves already successful delivery state", (context) => {
        FROM forgejo_delivery_attempts WHERE surface = 'commit_status'`,
     ),
     { definitive: 0, error_code: null, external_id: 701 },
+  );
+  assert.equal(
+    core.get("SELECT gate_until FROM forgejo_delivery_provider_gates")
+      ?.gate_until,
+    3_600_000,
+  );
+});
+
+test("Repository admission prefers current polling failure over stale verification history", (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-forgejo-current-health-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeForgejoFeedback(core);
+  core.run(
+    `INSERT INTO forgejo_connection_verifications (
+       id, connection_id, trigger, profile, reported_version, principal,
+       scopes, capabilities, repositories, error_code, error_message,
+       verified_at
+     ) VALUES (
+       'verification-old-failure', 'connection-1', 'manual_test',
+       NULL, NULL, NULL, NULL, NULL, NULL,
+       'forgejo_connection_credential_invalid', 'old PAT failure', 2
+     )`,
+  );
+  core.run(
+    `INSERT INTO forgejo_connection_verifications (
+       id, connection_id, trigger, profile, reported_version, principal,
+       scopes, capabilities, repositories, error_code, error_message,
+       verified_at
+     )
+     SELECT 'verification-current', connection_id, 'manual_test', profile,
+            reported_version, principal, scopes, capabilities, repositories,
+            NULL, NULL, 3
+     FROM forgejo_connection_verifications WHERE id = 'verification-1'`,
+  );
+  core.run("UPDATE forgejo_connections SET health = 'error', verified_at = 3");
+  core.run(
+    `INSERT INTO quality_bar_metadata (key, value) VALUES (
+       'forgejo_poll_gate:connection-1',
+       '{"code":"forgejo_poll_unavailable","message":"current polling failure","next_attempt_at":60000}'
+     )`,
+  );
+  const repositories = createRepositoryService(core, {
+    createId: () => "unused",
+    masterKey: Buffer.alloc(32, 4),
+    now: () => 4,
+    async verifyRead() {},
+  });
+  context.after(() => repositories.destroy());
+  assert.throws(
+    () => repositories.requireAcceptsNewWork("repository-1"),
+    (error) =>
+      error instanceof RepositoryError &&
+      error.code === "forgejo_poll_unavailable" &&
+      error.message === "current polling failure",
   );
 });

@@ -106,8 +106,4 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
     connectionId,
     connectionId,
   );
-  transaction.run(
-    `DELETE FROM forgejo_delivery_provider_gates WHERE connection_id = ?`,
-    connectionId,
-  );
 }

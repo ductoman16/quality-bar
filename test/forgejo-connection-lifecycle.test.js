@@ -96,13 +96,12 @@ test("Forgejo retirement decisions and PAT destruction are unit-owned", () => {
     retireForgejoConnection(core, { lifecycle: "retired" }, () => "retired"),
     "retired",
   );
-  assert.equal(writes.length, 7);
+  assert.equal(writes.length, 6);
   assert.match(writes[0], /UPDATE forgejo_commit_statuses/);
   assert.match(writes[1], /UPDATE forgejo_feedback_bundles/);
   assert.match(writes[2], /UPDATE forgejo_finding_feedback/);
   assert.match(writes[3], /UPDATE forgejo_delivery_attempts/);
-  assert.match(writes[4], /DELETE FROM forgejo_delivery_provider_gates/);
-  assert.match(writes[5], /DELETE FROM forgejo_connection_credentials/);
+  assert.match(writes[4], /DELETE FROM forgejo_connection_credentials/);
   const neverUsed = {
     ...core,
     all(/** @type {string} */ sql) {

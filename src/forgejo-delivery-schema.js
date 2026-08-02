@@ -1,19 +1,4 @@
-const DEFINITIVE_FAILURE_CODES = [
-  "forgejo_api_request_failed",
-  "forgejo_connection_credential_invalid",
-  "forgejo_connection_credential_undecryptable",
-  "forgejo_connection_retired",
-  "forgejo_delivery_identity_conflict",
-  "forgejo_publication_capability_unavailable",
-  "forgejo_publication_request_invalid",
-  "forgejo_repository_api_access_failed",
-  "forgejo_repository_capability_missing",
-  "forgejo_repository_permission_denied",
-  "forgejo_required_route_unavailable",
-  "forgejo_version_unsupported",
-]
-  .map((code) => `'${code}'`)
-  .join(", ");
+import * as legacy from "./forgejo-delivery-migration-classification.js";
 
 export const FORGEJO_DELIVERY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS forgejo_delivery_attempts (
@@ -264,12 +249,19 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            THEN NULL ELSE forgejo_connections.verified_at END,
          CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
          published_at,
-         CASE WHEN publication_status = 'unavailable'
-               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
+         CASE WHEN publication_status = 'waiting'
+                    OR (publication_status = 'unavailable'
+               AND NOT (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               ))
               THEN 1 ELSE 0 END,
          external_id, error_code, error_detail,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+               AND (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               )
               THEN 1 ELSE 0 END
   FROM forgejo_commit_statuses
   JOIN forgejo_repositories
@@ -296,14 +288,21 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            THEN NULL ELSE forgejo_connections.verified_at END,
          CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
          forgejo_feedback_bundles.published_at,
-         CASE WHEN publication_status = 'unavailable'
-               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
+         CASE WHEN publication_status = 'waiting'
+                    OR (publication_status = 'unavailable'
+               AND NOT (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               ))
               THEN 1 ELSE 0 END,
          forgejo_feedback_bundles.external_id,
          forgejo_feedback_bundles.error_code,
          forgejo_feedback_bundles.error_detail,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+               AND (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               )
               THEN 1 ELSE 0 END
   FROM forgejo_feedback_bundles
   JOIN forgejo_automatic_evaluations
@@ -338,14 +337,21 @@ export const FORGEJO_DELIVERY_SCHEMA = `
            THEN NULL ELSE forgejo_connections.verified_at END,
          CASE WHEN publication_status = 'waiting' THEN 0 ELSE 1 END,
          forgejo_finding_feedback.published_at,
-         CASE WHEN publication_status = 'unavailable'
-               AND error_code NOT IN (${DEFINITIVE_FAILURE_CODES})
+         CASE WHEN publication_status = 'waiting'
+                    OR (publication_status = 'unavailable'
+               AND NOT (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               ))
               THEN 1 ELSE 0 END,
          forgejo_finding_feedback.external_id,
          forgejo_finding_feedback.error_code,
          forgejo_finding_feedback.error_detail,
          CASE WHEN publication_status = 'unavailable'
-               AND error_code IN (${DEFINITIVE_FAILURE_CODES})
+               AND (
+                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
+                 OR ${legacy.DEFINITIVE_REQUEST}
+               )
               THEN 1 ELSE 0 END
   FROM forgejo_finding_feedback
   JOIN forgejo_automatic_evaluations

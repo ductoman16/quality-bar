@@ -79,7 +79,7 @@ export function createForgejoCommitStatusService(
            AND EXISTS (
              SELECT 1 FROM repositories
              WHERE repositories.id = forgejo_commit_statuses.repository_id
-               AND repositories.lifecycle = 'enabled'
+               AND repositories.lifecycle != 'retired'
            )
          ORDER BY forgejo_commit_statuses.repository_id,
                   forgejo_commit_statuses.head_commit`,

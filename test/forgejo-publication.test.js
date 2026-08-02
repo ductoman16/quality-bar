@@ -13,7 +13,7 @@ import {
 import { createForgejoPublicationServices } from "../src/forgejo-publication-services.js";
 import { arrangeForgejoFeedback as arrange } from "./forgejo-feedback-publication-support.js";
 
-test("Forgejo publishes one aggregate, the stable status, and only valid frozen coordinates", async (context) => {
+test("Forgejo completes admitted delivery after Repository disablement", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-feedback-"),
   );
@@ -21,6 +21,7 @@ test("Forgejo publishes one aggregate, the stable status, and only valid frozen 
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   context.after(() => core.close());
   const { head } = arrange(core);
+  core.run("UPDATE repositories SET lifecycle = 'disabled'");
   /** @type {any[][]} */
   const statuses = [];
   /** @type {any[][]} */

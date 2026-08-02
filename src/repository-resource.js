@@ -31,10 +31,8 @@ export const REPOSITORY_SELECTION = `SELECT
              'forgejo_version_unsupported'
            )
          ORDER BY last_attempt_at DESC, rowid DESC LIMIT 1),
-        (SELECT error_code FROM forgejo_connection_verifications
-         WHERE connection_id = forgejo_connections.id
-           AND error_code IS NOT NULL
-           AND error_code NOT IN (
+        (SELECT CASE
+           WHEN error_code IS NULL OR error_code IN (
              'forgejo_poll_response_invalid',
              'forgejo_repository_api_access_failed',
              'forgejo_repository_capability_missing',
@@ -42,7 +40,9 @@ export const REPOSITORY_SELECTION = `SELECT
              'forgejo_repository_selection_unavailable',
              'repository_git_read_failed',
              'repository_git_verification_unavailable'
-           )
+           ) THEN NULL ELSE error_code END
+         FROM forgejo_connection_verifications
+         WHERE connection_id = forgejo_connections.id
          ORDER BY rowid DESC LIMIT 1),
         json_extract((SELECT value FROM quality_bar_metadata
           WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id), '$.code')
@@ -64,10 +64,8 @@ export const REPOSITORY_SELECTION = `SELECT
              'forgejo_version_unsupported'
            )
          ORDER BY last_attempt_at DESC, rowid DESC LIMIT 1),
-        (SELECT error_message FROM forgejo_connection_verifications
-         WHERE connection_id = forgejo_connections.id
-           AND error_code IS NOT NULL
-           AND error_code NOT IN (
+        (SELECT CASE
+           WHEN error_code IS NULL OR error_code IN (
              'forgejo_poll_response_invalid',
              'forgejo_repository_api_access_failed',
              'forgejo_repository_capability_missing',
@@ -75,7 +73,9 @@ export const REPOSITORY_SELECTION = `SELECT
              'forgejo_repository_selection_unavailable',
              'repository_git_read_failed',
              'repository_git_verification_unavailable'
-           )
+           ) THEN NULL ELSE error_message END
+         FROM forgejo_connection_verifications
+         WHERE connection_id = forgejo_connections.id
          ORDER BY rowid DESC LIMIT 1),
         json_extract((SELECT value FROM quality_bar_metadata
           WHERE key = 'forgejo_poll_gate:' || forgejo_connections.id), '$.message')

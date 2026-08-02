@@ -14,7 +14,7 @@ import {
 import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
-test("a definitive delivery identity conflict does not misdiagnose connection health", async (context) => {
+test("an ambiguous delivery identity retries reconciliation until it becomes exact", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-identity-"),
   );
@@ -27,20 +27,8 @@ test("a definitive delivery identity conflict does not misdiagnose connection he
     connectionId: "connection-1",
     create: async () => 901,
     now: () => 10,
-    onDefinitive: (transaction, failure, attemptedAt) => {
-      transaction.run(
-        `UPDATE forgejo_commit_statuses
-         SET publication_status = 'unavailable', error_code = ?,
-             error_detail = ?`,
-        failure.code,
-        failure.detail,
-      );
-      recordForgejoDeliveryHealth(
-        transaction,
-        "connection-1",
-        attemptedAt,
-        failure,
-      );
+    onDefinitive() {
+      throw new Error("identity ambiguity must remain retryable");
     },
     onSuccess() {},
     reconcile: async () => {
@@ -64,13 +52,8 @@ test("a definitive delivery identity conflict does not misdiagnose connection he
     connectionId: "connection-1",
     create: async () => 901,
     now: () => 20,
-    onDefinitive: (transaction, failure, attemptedAt) => {
-      recordForgejoDeliveryHealth(
-        transaction,
-        "connection-1",
-        attemptedAt,
-        failure,
-      );
+    onDefinitive() {
+      throw new Error("identity ambiguity must remain retryable");
     },
     onSuccess() {},
     reconcile: async () => {
@@ -89,6 +72,41 @@ test("a definitive delivery identity conflict does not misdiagnose connection he
       "connection-1",
     )?.health,
     "healthy",
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT definitive, error_code, reconciliation_required,
+              next_attempt_at
+       FROM forgejo_delivery_attempts WHERE surface = 'commit_status'`,
+    ),
+    {
+      definitive: 0,
+      error_code: "forgejo_delivery_identity_conflict",
+      next_attempt_at: 60_020,
+      reconciliation_required: 1,
+    },
+  );
+  core.run(
+    "UPDATE forgejo_delivery_attempts SET next_attempt_at = 0 WHERE surface = 'commit_status'",
+  );
+  await attemptForgejoDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => 903,
+    now: () => 30,
+    onDefinitive() {
+      throw new Error("corrected reconciliation must not stop");
+    },
+    onSuccess() {},
+    reconcile: async () => 902,
+    sourceId: "evaluation-1:blocking",
+    surface: "commit_status",
+    target: '{"state":"blocking"}',
+  });
+  assert.equal(
+    core.get(
+      "SELECT external_id FROM forgejo_delivery_attempts WHERE surface = 'commit_status'",
+    )?.external_id,
+    902,
   );
 });
 
