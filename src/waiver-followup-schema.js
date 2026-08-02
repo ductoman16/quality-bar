@@ -38,15 +38,54 @@ export const WAIVER_FOLLOWUP_REBUILD_CLEANUP = `
 `;
 
 /** @param {"forgejo" | "github"} provider */
+const CONNECTION_RETIRED = (provider) => `EXISTS (
+  SELECT 1 FROM ${provider}_repositories AS publication_repository
+  JOIN ${provider}_connections AS publication_connection
+    ON publication_connection.id = publication_repository.connection_id
+  WHERE publication_repository.repository_id =
+          ${provider}_commit_statuses.repository_id
+    AND publication_connection.lifecycle = 'retired'
+)`;
+
+const FORGEJO_REPOSITORY_RETIRED = `EXISTS (
+  SELECT 1 FROM repositories AS publication_repository
+  WHERE publication_repository.id = forgejo_commit_statuses.repository_id
+    AND publication_repository.lifecycle = 'retired'
+)`;
+
+/** @param {"forgejo" | "github"} provider */
+const PUBLICATION_UNAVAILABLE = (provider) =>
+  provider === "forgejo"
+    ? `(${CONNECTION_RETIRED(provider)} OR ${FORGEJO_REPOSITORY_RETIRED})`
+    : CONNECTION_RETIRED(provider);
+
+/** @param {"forgejo" | "github"} provider */
+const UNAVAILABLE_CODE = (provider) => `CASE
+  WHEN ${CONNECTION_RETIRED(provider)} THEN '${provider}_connection_retired'
+  ${provider === "forgejo" ? "WHEN " + FORGEJO_REPOSITORY_RETIRED + " THEN 'repository_retired'" : ""}
+  ELSE NULL
+END`;
+
+/** @param {"forgejo" | "github"} provider */
+const UNAVAILABLE_DETAIL = (provider) => `CASE
+  WHEN ${CONNECTION_RETIRED(provider)} THEN
+    '${provider === "github" ? "GitHub" : "Forgejo"} commit status publication is unavailable because the ${provider === "github" ? "GitHub" : "Forgejo"} Connection is retired'
+  ${provider === "forgejo" ? "WHEN " + FORGEJO_REPOSITORY_RETIRED + " THEN 'Forgejo commit status publication is unavailable because the Repository is retired'" : ""}
+  ELSE NULL
+END`;
+
+/** @param {"forgejo" | "github"} provider */
 const STATUS_ON_START = (provider) => `
   UPDATE ${provider}_commit_statuses
-  SET desired_state = 'pending', publication_status = 'waiting',
+  SET desired_state = 'pending',
+      publication_status = CASE WHEN ${PUBLICATION_UNAVAILABLE(provider)}
+        THEN 'unavailable' ELSE 'waiting' END,
       published_state = NULL, published_at = NULL,
       ${provider === "forgejo" ? "external_id = NULL," : ""}
-      error_code = NULL, error_detail = NULL
+      error_code = ${UNAVAILABLE_CODE(provider)},
+      error_detail = ${UNAVAILABLE_DETAIL(provider)}
   WHERE evaluation_id = NEW.evaluation_id
-    AND head_commit = NEW.head_commit
-    AND error_code IS NOT '${provider}_connection_retired';`;
+    AND head_commit = NEW.head_commit;`;
 
 const EFFECTIVE_OUTCOME = `CASE
   WHEN NEW.execution_status IN ('failed', 'cancelled') THEN 'error'
@@ -113,13 +152,15 @@ const STATUS_ON_FINISH = (provider) => `
         WHEN 'blocking' THEN 'failure'
         WHEN 'error' THEN 'error'
       END,
-      publication_status = 'waiting', published_state = NULL,
+      publication_status = CASE WHEN ${PUBLICATION_UNAVAILABLE(provider)}
+        THEN 'unavailable' ELSE 'waiting' END,
+      published_state = NULL,
       published_at = NULL,
       ${provider === "forgejo" ? "external_id = NULL," : ""}
-      error_code = NULL, error_detail = NULL
+      error_code = ${UNAVAILABLE_CODE(provider)},
+      error_detail = ${UNAVAILABLE_DETAIL(provider)}
   WHERE evaluation_id = NEW.evaluation_id
-    AND head_commit = NEW.head_commit
-    AND error_code IS NOT '${provider}_connection_retired';`;
+    AND head_commit = NEW.head_commit;`;
 
 /** @param {"forgejo" | "github"} provider */
 const FOLLOWUP_TABLES = (provider) => `

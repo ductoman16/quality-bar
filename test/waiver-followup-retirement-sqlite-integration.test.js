@@ -148,16 +148,19 @@ test("waiver status transitions preserve GitHub retirement failures", () => {
       error_code: "github_connection_retired",
       publication_status: "unavailable",
     };
+    core.run(
+      `UPDATE github_commit_statuses
+       SET publication_status = 'succeeded', published_state = 'failure',
+           published_at = 29`,
+    );
+    core.run(
+      "UPDATE github_connections SET lifecycle = 'retired' WHERE id = 'connection-1'",
+    );
     submit(
       "adjudication-retired-start",
       "request-retired-start",
       "finding-1",
       30,
-    );
-    core.run(
-      `UPDATE github_commit_statuses
-       SET publication_status = 'unavailable', error_code = 'github_connection_retired',
-           error_detail = 'GitHub commit status publication is unavailable because the GitHub Connection is retired'`,
     );
     start("adjudication-retired-start", 31);
     assert.deepEqual(
@@ -180,6 +183,9 @@ test("waiver status transitions preserve GitHub retirement failures", () => {
     );
 
     core.run(
+      "UPDATE github_connections SET lifecycle = 'enabled' WHERE id = 'connection-1'",
+    );
+    core.run(
       `UPDATE github_commit_statuses
        SET desired_state = 'failure', publication_status = 'succeeded',
            published_state = 'failure', published_at = 33,
@@ -198,9 +204,7 @@ test("waiver status transitions preserve GitHub retirement failures", () => {
       "waiting",
     );
     core.run(
-      `UPDATE github_commit_statuses
-       SET publication_status = 'unavailable', error_code = 'github_connection_retired',
-           error_detail = 'GitHub commit status publication is unavailable because the GitHub Connection is retired'`,
+      "UPDATE github_connections SET lifecycle = 'retired' WHERE id = 'connection-1'",
     );
     finish(
       "adjudication-retired-finish",
