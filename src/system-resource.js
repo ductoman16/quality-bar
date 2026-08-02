@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { insertAuthorityAttribution } from "./authority-attribution.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { readSystemCodexExecutionFacts } from "./system-execution-facts.js";
+import { readSystemPollingDeliveryFacts } from "./system-polling-delivery-facts.js";
 import {
   BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   BROWSER_SESSION_IDLE_LIFETIME_MS,
@@ -199,6 +200,9 @@ export function createSystemResource(
           codex,
           now: timestamp,
           storage: /** @type {{status?: string}} */ (storage),
+        }),
+        ...readSystemPollingDeliveryFacts(durableCore, {
+          now: () => timestamp,
         }),
         durable_core: {
           schema_version: durableCore.facts.schemaVersion,

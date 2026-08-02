@@ -1,0 +1,26 @@
+{
+  "ticket": 111,
+  "acceptance_scenarios": ["ACC-03", "ACC-04", "ACC-10"],
+  "proof": {
+    "unit": {
+      "system-polling-delivery-unit": [
+        "test/system-polling-delivery-facts.test.js",
+        "test/system-polling-delivery-durable-integrity.test.js",
+        "test/system-polling-delivery-polling-integrity.test.js",
+        "test/system-polling-delivery-verification.test.js"
+      ]
+    },
+    "browser_component": {
+      "system-polling-delivery-browser-component": [
+        "test/system-polling-delivery-browser-component.test.js"
+      ]
+    },
+    "http_integration": {
+      "system-polling-delivery-http-integration": [
+        "test/system-polling-delivery-http-integration.test.js"
+      ]
+    }
+  },
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}

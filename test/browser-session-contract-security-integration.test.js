@@ -328,8 +328,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       queue: { count: 0, rows: [] },
       running: { count: 0, rows: [] },
     },
+    delivery: { surfaces: [] },
     durable_core: { schema_version: 52, status: "ready" },
     implementer_token: { status: "active" },
+    polling: { connections: [] },
     storage: availableStorageReserve.readFacts(),
   });
 

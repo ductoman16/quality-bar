@@ -29,7 +29,7 @@ function validPullRequest(value) {
 }
 
 /** @param {unknown} value */
-function forgejoPullRequestSnapshot(value) {
+export function forgejoPullRequestSnapshot(value) {
   if (
     !Array.isArray(value) ||
     value.some((pullRequest) => !validPullRequest(pullRequest)) ||

@@ -6,6 +6,8 @@
   "served_browser_modules": [
     "login.js",
     "operator.js",
+    "system-polling-delivery-contract.js",
+    "system-polling-delivery.js",
     "waiver-adjudicator-configuration.js",
     "github-connection-contract.js",
     "github-connection-lifecycle-confirmation.js",

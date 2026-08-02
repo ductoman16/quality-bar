@@ -96,6 +96,25 @@ if (mode === "machine") {
     repositoryListStatus: repositoryList.status,
     tokenStatus: tokenResponse.status,
   };
+  const revokeToken = await fetch(
+    `${endpoint}/api/v1/implementer-token/revoke`,
+    {
+      body: JSON.stringify({ password }),
+      headers: {
+        ...headers,
+        "content-type": "application/json",
+        cookie,
+        origin: "https://quality-bar.example",
+        "x-quality-bar-csrf": csrfToken,
+      },
+      method: "POST",
+    },
+  );
+  if (revokeToken.status !== 204) {
+    throw new Error(
+      `package_probe_implementer_token_revoke_${revokeToken.status}`,
+    );
+  }
 }
 
 console.log(

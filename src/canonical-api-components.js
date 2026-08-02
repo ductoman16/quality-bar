@@ -7,6 +7,7 @@ import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js
 import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-api.js";
 import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
 import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
+import { canonicalSystemPollingDeliverySchemas } from "./canonical-system-polling-delivery-components.js";
 import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /**
@@ -79,6 +80,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ...canonicalCodexExecutionConcurrencySchemas(),
       ...canonicalSystemExecutionSchemas(),
       ...canonicalSystemFactSchemas(codexCapabilityCatalog),
+      ...canonicalSystemPollingDeliverySchemas(),
       CurrentPasswordRequest: closedObject({ password: { type: "string" } }, [
         "password",
       ]),
@@ -322,10 +324,12 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           codex_execution: {
             $ref: "#/components/schemas/CodexExecutionSystemFact",
           },
+          delivery: { $ref: "#/components/schemas/SystemDeliveryFact" },
           durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
           implementer_token: {
             $ref: "#/components/schemas/ImplementerTokenFact",
           },
+          polling: { $ref: "#/components/schemas/SystemPollingFact" },
           storage: { $ref: "#/components/schemas/StorageReserveFact" },
         },
         [
@@ -333,8 +337,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "browser_sessions",
           "codex",
           "codex_execution",
+          "delivery",
           "durable_core",
           "implementer_token",
+          "polling",
           "storage",
         ],
       ),

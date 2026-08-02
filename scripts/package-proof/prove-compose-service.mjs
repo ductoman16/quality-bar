@@ -354,7 +354,7 @@ export function proveComposeService({ configuration, fixture }) {
     jsonPackageProbe(
       fixture,
       "authenticated-http-smoke.mjs",
-      [environment.QUALITY_BAR_HTTP_PORT],
+      [environment.QUALITY_BAR_HTTP_PORT, "machine"],
       bootstrapPassword,
     )
   );
@@ -369,8 +369,13 @@ export function proveComposeService({ configuration, fixture }) {
     hasCodexCapabilityModels: true,
     hasNavigation: true,
     loginStatus: 204,
+    mcpRepositoryCount: 0,
+    mcpStatus: 200,
+    mcpTool: "quality_bar.list_repositories",
     openapiStatus: 200,
     openapiVersion: "3.1.0",
+    repositoryCount: 0,
+    repositoryListStatus: 200,
     storage: {
       filesystems: [
         {
@@ -393,6 +398,7 @@ export function proveComposeService({ configuration, fixture }) {
       reserve_bytes: 5 * 1024 ** 3,
       status: "available",
     },
+    tokenStatus: 201,
   });
   proveOwnedArtifactCleanup({ fixture, serviceName });
   proveRetention({ fixture, serviceName });
@@ -403,16 +409,12 @@ export function proveComposeService({ configuration, fixture }) {
       port: environment.QUALITY_BAR_HTTP_PORT,
       serviceName,
     });
-  const {
-    authenticatedHttpSmoke,
-    restoredDatabaseFacts,
-    restorePassword,
-    restorePasswordStatus,
-  } = provePackageOfflineRestore({
-    fixture,
-    recoveryPassword,
-    schemaVersion: recreatedDatabaseFacts.schemaVersion,
-  });
+  const { restoredDatabaseFacts, restorePassword, restorePasswordStatus } =
+    provePackageOfflineRestore({
+      fixture,
+      recoveryPassword,
+      schemaVersion: recreatedDatabaseFacts.schemaVersion,
+    });
   const durableWriteFailure = /** @type {DurableWriteFailureFacts} */ (
     jsonPackageProbe(
       fixture,
@@ -457,7 +459,7 @@ export function proveComposeService({ configuration, fixture }) {
   });
 
   const facts = packageFacts({
-    authenticatedHttpSmoke,
+    authenticatedHttpSmoke: initialAuthenticatedHttpSmoke,
     backupFacts,
     configuration,
     durableWriteFailure,
