@@ -13,9 +13,11 @@ import { createGitHubWaiverFollowupService } from "./github-waiver-followup-serv
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
  *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
  *     publishInlineFeedback: (...parameters: any[]) => Promise<number>,
+ *     publishReviewCommentReply: (...parameters: any[]) => Promise<number>,
  *     reconcileAggregateFeedback: (...parameters: any[]) => Promise<number | null>,
  *     reconcileCommitStatus: (...parameters: any[]) => Promise<number | null>,
- *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>
+ *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>,
+ *     reconcileReviewCommentReply: (...parameters: any[]) => Promise<number | null>
  *   }
  * }} dependencies
  */

@@ -92,6 +92,7 @@ export function createGitHubCommitStatusService(
 ) {
   if (
     typeof durableCore?.all !== "function" ||
+    typeof durableCore?.get !== "function" ||
     typeof durableCore.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
     typeof ioPool?.run !== "function" ||

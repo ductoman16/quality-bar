@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createForgejoCommitStatusService } from "../src/forgejo-commit-status-service.js";
 import { createForgejoWaiverFollowupService } from "../src/forgejo-waiver-followup-service.js";
+import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
 import { createGitHubWaiverFollowupService } from "../src/github-waiver-followup-service.js";
 import {
   formatWaiverAdjudicationFollowup,
@@ -36,7 +38,7 @@ test("waiver follow-up services reject incomplete dependencies and non-HTTP orig
     assert.throws(
       () =>
         createService(
-          { all() {}, transaction() {} },
+          { all() {}, get() {}, transaction() {} },
           { ...dependencies, now: null },
         ),
       new RegExp(`${provider} waiver follow-up dependencies are invalid`),
@@ -44,10 +46,36 @@ test("waiver follow-up services reject incomplete dependencies and non-HTTP orig
     assert.throws(
       () =>
         createService(
-          { all() {}, transaction() {} },
+          { all() {}, get() {}, transaction() {} },
           { ...dependencies, externalOrigin: "ftp://quality-bar.example" },
         ),
       new RegExp(`${provider} waiver follow-up requires an HTTP origin`),
+    );
+  }
+});
+
+test("commit status services reject a durable core without reads", () => {
+  /** @type {Array<[string, (durableCore: any, dependencies: any) => any]>} */
+  const commitStatusServices = [
+    ["GitHub", createGitHubCommitStatusService],
+    ["Forgejo", createForgejoCommitStatusService],
+  ];
+  for (const [provider, createService] of commitStatusServices) {
+    assert.throws(
+      () =>
+        createService(
+          { all() {}, transaction() {} },
+          {
+            cipher: { decrypt() {} },
+            externalOrigin: "https://quality-bar.example",
+            ioPool: { run() {} },
+            verifier: {
+              publishCommitStatus() {},
+              reconcileCommitStatus() {},
+            },
+          },
+        ),
+      new RegExp(`${provider} commit status dependencies are invalid`),
     );
   }
 });

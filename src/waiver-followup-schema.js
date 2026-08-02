@@ -45,7 +45,8 @@ const STATUS_ON_START = (provider) => `
       ${provider === "forgejo" ? "external_id = NULL," : ""}
       error_code = NULL, error_detail = NULL
   WHERE evaluation_id = NEW.evaluation_id
-    AND head_commit = NEW.head_commit;`;
+    AND head_commit = NEW.head_commit
+    AND error_code IS NOT '${provider}_connection_retired';`;
 
 const EFFECTIVE_OUTCOME = `CASE
   WHEN NEW.execution_status IN ('failed', 'cancelled') THEN 'error'
@@ -117,7 +118,8 @@ const STATUS_ON_FINISH = (provider) => `
       ${provider === "forgejo" ? "external_id = NULL," : ""}
       error_code = NULL, error_detail = NULL
   WHERE evaluation_id = NEW.evaluation_id
-    AND head_commit = NEW.head_commit;`;
+    AND head_commit = NEW.head_commit
+    AND error_code IS NOT '${provider}_connection_retired';`;
 
 /** @param {"forgejo" | "github"} provider */
 const FOLLOWUP_TABLES = (provider) => `
