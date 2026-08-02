@@ -264,6 +264,7 @@ export async function rotateForgejoConnection(
         transaction,
         connection.id,
         verifiedAt,
+        "connection_authority",
         activeRepositoryIds,
       );
       polling.commitBaseline(transaction, connection.id, preparedBaseline);

@@ -1,17 +1,47 @@
-/** @param {any} transaction @param {string} connectionId @param {number} readyAt @param {number[]} [repositoryIds] */
+const CORRECTABLE_FAILURES = Object.freeze({
+  connection_authority: [
+    "forgejo_connection_credential_invalid",
+    "forgejo_connection_credential_undecryptable",
+    "forgejo_repository_api_access_failed",
+    "forgejo_repository_capability_missing",
+    "forgejo_repository_permission_denied",
+    "forgejo_required_route_unavailable",
+    "forgejo_version_unsupported",
+  ],
+  connection_reactivation: [
+    "forgejo_connection_credential_invalid",
+    "forgejo_connection_credential_undecryptable",
+    "forgejo_connection_retired",
+    "forgejo_repository_api_access_failed",
+    "forgejo_repository_capability_missing",
+    "forgejo_repository_permission_denied",
+    "forgejo_required_route_unavailable",
+    "forgejo_version_unsupported",
+  ],
+  repository_authority: [
+    "forgejo_repository_api_access_failed",
+    "forgejo_repository_capability_missing",
+    "forgejo_repository_permission_denied",
+  ],
+});
+
+/** @param {any} transaction @param {string} connectionId @param {number} readyAt @param {keyof typeof CORRECTABLE_FAILURES} correction @param {number[]} [repositoryIds] */
 export function resumeForgejoDeliveries(
   transaction,
   connectionId,
   readyAt,
+  correction,
   repositoryIds,
 ) {
+  const correctableFailures = CORRECTABLE_FAILURES[correction];
   if (
-    repositoryIds &&
-    (new Set(repositoryIds).size !== repositoryIds.length ||
-      repositoryIds.some(
-        (repositoryId) =>
-          !Number.isSafeInteger(repositoryId) || repositoryId <= 0,
-      ))
+    !correctableFailures ||
+    (repositoryIds &&
+      (new Set(repositoryIds).size !== repositoryIds.length ||
+        repositoryIds.some(
+          (repositoryId) =>
+            !Number.isSafeInteger(repositoryId) || repositoryId <= 0,
+        )))
   ) {
     throw new TypeError("Forgejo delivery recovery scope is invalid");
   }
@@ -19,7 +49,7 @@ export function resumeForgejoDeliveries(
     return;
   }
   const scope = repositoryIds
-    ? ` AND forge_repository_id IN (${repositoryIds.map(() => "?").join(", ")})`
+    ? ` AND json_extract(target, '$.repository_id') IN (${repositoryIds.map(() => "?").join(", ")})`
     : "";
   const parameters = repositoryIds ?? [];
   transaction.run(
@@ -28,40 +58,10 @@ export function resumeForgejoDeliveries(
          error_code = NULL, error_detail = NULL, response_status = NULL,
          definitive = 0
      WHERE definitive = 1
-       AND (
-         (surface = 'commit_status' AND source_id IN (
-           SELECT evaluation_id || ':' || desired_state
-           FROM forgejo_commit_statuses
-           WHERE repository_id IN (
-             SELECT repository_id FROM forgejo_repositories
-             WHERE connection_id = ?${scope}
-           )
-         ))
-         OR (surface = 'aggregate_feedback' AND source_id IN (
-           SELECT forgejo_automatic_evaluations.evaluation_id
-           FROM forgejo_automatic_evaluations
-           JOIN forgejo_repositories
-             ON forgejo_repositories.repository_id =
-                  forgejo_automatic_evaluations.repository_id
-           WHERE forgejo_repositories.connection_id = ?${scope}
-         ))
-         OR (surface = 'inline_feedback' AND source_id IN (
-           SELECT forgejo_finding_feedback.finding_id
-           FROM forgejo_finding_feedback
-           JOIN forgejo_automatic_evaluations
-             ON forgejo_automatic_evaluations.evaluation_id =
-                  forgejo_finding_feedback.evaluation_id
-           JOIN forgejo_repositories
-             ON forgejo_repositories.repository_id =
-                  forgejo_automatic_evaluations.repository_id
-           WHERE forgejo_repositories.connection_id = ?${scope}
-         ))
-       )`,
+       AND error_code IN (${correctableFailures.map(() => "?").join(", ")})
+       AND connection_id = ?${scope}`,
     readyAt,
-    connectionId,
-    ...parameters,
-    connectionId,
-    ...parameters,
+    ...correctableFailures,
     connectionId,
     ...parameters,
   );
@@ -101,9 +101,20 @@ export function resumeForgejoDeliveries(
       readyAt,
     );
   }
-  transaction.run(
-    `DELETE FROM forgejo_delivery_provider_gates
-     WHERE connection_id = ?`,
+}
+
+/** @param {any} transaction @param {string} connectionId @param {number} readyAt @param {number[]} repositoryIds */
+export function resumeForgejoRepositoryDeliveries(
+  transaction,
+  connectionId,
+  readyAt,
+  repositoryIds,
+) {
+  resumeForgejoDeliveries(
+    transaction,
     connectionId,
+    readyAt,
+    "repository_authority",
+    repositoryIds,
   );
 }

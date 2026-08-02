@@ -21,6 +21,7 @@ import { requireCodedError } from "./coded-error.js";
 import { reconcileForgejoAutomaticEvaluations } from "./forgejo-automatic-reconciliation.js";
 import { gatesForgejoConnection } from "./forgejo-reconciliation-failure.js";
 import { recordForgejoPollingOwningFailure } from "./forgejo-polling-owning-failure.js";
+import { resetForgejoPollingHealth } from "./forgejo-polling-health-reset.js";
 /** @param {any} durableCore @param {any} dependencies */
 export function createForgejoPollingRunner(
   durableCore,
@@ -72,28 +73,7 @@ export function createForgejoPollingRunner(
                 error_code = NULL, error_message = NULL,
                 rate_gate_until = NULL, next_attempt_at = 0`,
       );
-      transaction.run(
-        `UPDATE repositories
-            SET health = 'healthy', health_error_code = NULL,
-                health_error_message = NULL
-          WHERE id IN (SELECT repository_id FROM forgejo_repositories)
-            AND health_error_code IN (
-              'forgejo_poll_response_invalid',
-              'forgejo_repository_api_access_failed',
-              'forgejo_repository_permission_denied'
-            )`,
-      );
-      transaction.run(
-        `UPDATE forgejo_connections
-            SET health = 'healthy'
-          WHERE lifecycle = 'enabled'
-            AND (
-              SELECT error_code
-                FROM forgejo_connection_verifications
-               WHERE connection_id = forgejo_connections.id
-               ORDER BY rowid DESC LIMIT 1
-            ) IS NULL`,
-      );
+      resetForgejoPollingHealth(transaction);
     });
   }
 

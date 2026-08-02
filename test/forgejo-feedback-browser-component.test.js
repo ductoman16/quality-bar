@@ -44,7 +44,21 @@ test("Forgejo feedback retry state identifies its source, schedule, gate, and ow
                       source_identity: "evaluation-1",
                       target: '{"pull_request_number":17,"repository_id":101}',
                     },
-                    findings: [],
+                    findings: [
+                      {
+                        error: {
+                          code: "forgejo_api_unavailable",
+                          detail: "Forgejo inline response was lost",
+                        },
+                        external_id: null,
+                        finding_id: "finding-inline",
+                        publication_status: "waiting",
+                        published_at: null,
+                        reconciliation_required: true,
+                        target:
+                          '{"body":"Evaluation: evaluation-1; Finding: finding-inline","repository_id":101}',
+                      },
+                    ],
                   },
                 }),
                 evaluation({
@@ -115,16 +129,26 @@ test("Forgejo feedback retry state identifies its source, schedule, gate, and ow
   assert.match(row.options[1].textContent, /Reconciliation required/);
   assert.match(row.options[1].textContent, /Provider gate until/);
   assert.match(row.options[1].textContent, /Next attempt/);
-  assert.equal(row.options.length, 2);
+  assert.equal(
+    row.options.some((/** @type {any} */ candidate) =>
+      /Evaluation: evaluation-1; Finding: finding-inline/.test(
+        candidate.textContent,
+      ),
+    ),
+    true,
+  );
+  assert.equal(row.options.length, 3);
   const definitive = controls
     .get("evaluation-attention")
-    .options.find((/** @type {any} */ candidate) => candidate.options[2]);
+    .options.find((/** @type {any} */ candidate) =>
+      candidate.options.some((/** @type {any} */ option) => option.href),
+    );
+  const correction = definitive.options.find(
+    (/** @type {any} */ option) => option.href,
+  );
   assert.equal(
-    definitive.options[2].href,
+    correction.href,
     "/?view=repositories#forgejo-connection-details",
   );
-  assert.equal(
-    definitive.options[2].textContent,
-    "Forgejo Connection connection-1",
-  );
+  assert.equal(correction.textContent, "Forgejo Connection connection-1");
 });

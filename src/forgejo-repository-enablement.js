@@ -3,7 +3,7 @@ import {
   failedForgejoReactivationVerification,
 } from "./forgejo-connection-reactivation-verification.js";
 import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
-import { resumeForgejoDeliveries as resumeDelivery } from "./forgejo-delivery-recovery.js";
+import { resumeForgejoRepositoryDeliveries as resume } from "./forgejo-delivery-recovery.js";
 import {
   codedForgejoRepositoryFailure,
   commitForgejoRepositoryFailure,
@@ -16,6 +16,7 @@ import {
 } from "./forgejo-repository-enablement-fence.js";
 import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";
 import { isUniqueConstraintFailure } from "./sqlite-error.js";
+
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -265,7 +266,7 @@ export async function prepareForgejoRepositoryEnablement(
               );
             }
           }
-          resumeDelivery(transaction, connection.id, verifiedAt, repositoryIds);
+          resume(transaction, connection.id, verifiedAt, repositoryIds);
           if (
             !polling.commitBaseline(
               transaction,

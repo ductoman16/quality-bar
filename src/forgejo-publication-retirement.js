@@ -54,6 +54,9 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
   transaction.run(
     `UPDATE forgejo_delivery_attempts
      SET generation = generation + 1, next_attempt_at = 0,
+         connection_id = ?, authority_verified_at = (
+           SELECT verified_at FROM forgejo_connections WHERE id = ?
+         ),
          error_code = 'forgejo_connection_retired',
          error_detail =
            'Forgejo delivery is unavailable because the Forgejo Connection is retired',
@@ -86,6 +89,8 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
                 forgejo_automatic_evaluations.repository_id
          WHERE forgejo_repositories.connection_id = ?
        ))`,
+    connectionId,
+    connectionId,
     connectionId,
     connectionId,
     connectionId,

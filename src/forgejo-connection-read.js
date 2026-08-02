@@ -99,30 +99,6 @@ export function readForgejoConnection(durableCore) {
                'forgejo_version_unsupported'
              )
            )
-           AND (
-             (
-               surface = 'commit_status'
-               AND EXISTS (
-                 SELECT 1 FROM forgejo_commit_statuses
-                 WHERE source_id =
-                       evaluation_id || ':' || desired_state
-               )
-             )
-             OR (
-               surface = 'aggregate_feedback'
-               AND EXISTS (
-                 SELECT 1 FROM forgejo_feedback_bundles
-                 WHERE evaluation_id = source_id
-               )
-             )
-             OR (
-               surface = 'inline_feedback'
-               AND EXISTS (
-                 SELECT 1 FROM forgejo_finding_feedback
-                 WHERE finding_id = source_id
-               )
-             )
-           )
          ORDER BY last_attempt_at DESC, rowid DESC
          LIMIT 1
        )

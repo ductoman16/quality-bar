@@ -19,7 +19,7 @@ function providerDelay(headers, now) {
     )
     .sort(
       (left, right) =>
-        /** @type {number} */ (left) - /** @type {number} */ (right),
+        /** @type {number} */ (right) - /** @type {number} */ (left),
     )[0];
 }
 

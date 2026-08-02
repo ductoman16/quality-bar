@@ -214,23 +214,22 @@ export function createForgejoV16Reconciler({
           `/api/v1/repos/${selected.encoded}/pulls/${pullRequestNumber}/reviews/${review.id}/comments`,
           selected.id,
         );
-        if (
-          comments.some(
-            (candidate) =>
-              candidate.body === comment.body &&
-              candidate.commit_id === comment.commit_id &&
-              candidate.path === comment.path &&
-              candidate.position ===
-                (comment.side === "RIGHT" ? comment.line : 0) &&
-              candidate.original_position ===
-                (comment.side === "LEFT" ? comment.line : 0) &&
-              candidate.extra_lines_count ===
-                (comment.start_line === undefined
-                  ? 0
-                  : comment.line - comment.start_line),
-          )
-        ) {
-          matches.push(review);
+        for (const candidate of comments) {
+          if (
+            candidate.body === comment.body &&
+            candidate.commit_id === comment.commit_id &&
+            candidate.path === comment.path &&
+            candidate.position ===
+              (comment.side === "RIGHT" ? comment.line : 0) &&
+            candidate.original_position ===
+              (comment.side === "LEFT" ? comment.line : 0) &&
+            candidate.extra_lines_count ===
+              (comment.start_line === undefined
+                ? 0
+                : comment.line - comment.start_line)
+          ) {
+            matches.push(review);
+          }
         }
       }
       return reconciledIdentity(matches);

@@ -137,15 +137,18 @@ export const EVALUATION_SELECTION = `${EVALUATION_WAIVER_SELECTION}
              COALESCE(forgejo_inline_delivery.connection_id, forgejo_delivery_repository.connection_id) AS connection_identity,
              CASE WHEN forgejo_finding_feedback.publication_status = 'aggregate_only'
                THEN 'aggregate_only'
-               ELSE json_object(
-                 'commit_id', evaluations.head_commit,
-                 'line', forgejo_finding_feedback.line,
-                 'path', forgejo_finding_feedback.path,
-                 'side', forgejo_finding_feedback.side,
-                 'start_line', forgejo_finding_feedback.start_line,
-                 'start_side', forgejo_finding_feedback.start_side,
-                 'pull_request_number', forgejo_automatic_evaluations.pull_request_number,
-                 'repository_id', forgejo_delivery_repository.forge_repository_id
+               ELSE COALESCE(
+                 forgejo_inline_delivery.target,
+                 json_object(
+                   'commit_id', evaluations.head_commit,
+                   'line', forgejo_finding_feedback.line,
+                   'path', forgejo_finding_feedback.path,
+                   'side', forgejo_finding_feedback.side,
+                   'start_line', forgejo_finding_feedback.start_line,
+                   'start_side', forgejo_finding_feedback.start_side,
+                   'pull_request_number', forgejo_automatic_evaluations.pull_request_number,
+                   'repository_id', forgejo_delivery_repository.forge_repository_id
+                 )
                )
              END AS target,
              COALESCE(forgejo_inline_delivery.attempt_count, 0) AS attempt_count,

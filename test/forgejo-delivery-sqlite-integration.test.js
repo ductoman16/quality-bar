@@ -13,46 +13,6 @@ import {
 import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
-test("HTTP 408 persists an uncertain retry instead of stopping the Forgejo surface", async (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-408-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
-  context.after(() => core.close());
-  arrangeForgejoFeedback(core);
-  await attemptForgejoDelivery(core, {
-    connectionId: "connection-1",
-    create: async () => {
-      throw Object.assign(new Error("Forgejo publication HTTP 408"), {
-        code: "forgejo_api_transient_failure",
-        responseStatus: 408,
-      });
-    },
-    now: () => 10,
-    onDefinitive() {},
-    onSuccess() {},
-    reconcile: async () => null,
-    sourceId: "evaluation-1:blocking",
-    surface: "commit_status",
-    target: '{"state":"blocking"}',
-  });
-  assert.deepEqual(
-    core.get(
-      `SELECT definitive, error_code, next_attempt_at,
-              reconciliation_required, response_status
-       FROM forgejo_delivery_attempts
-       WHERE surface = 'commit_status' AND source_id = ?`,
-      "evaluation-1:blocking",
-    ),
-    {
-      definitive: 0,
-      error_code: "forgejo_api_transient_failure",
-      next_attempt_at: 60_010,
-      reconciliation_required: 1,
-      response_status: 408,
-    },
-  );
-});
-
 test("a definitive delivery identity conflict does not misdiagnose connection health", async (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-forgejo-identity-"),
@@ -148,18 +108,20 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
   core.run(
     `UPDATE forgejo_commit_statuses
      SET publication_status = 'unavailable',
-         error_code = 'forgejo_api_request_failed',
-         error_detail = 'Forgejo publication route failed with HTTP 403'`,
+         error_code = 'forgejo_connection_credential_invalid',
+         error_detail = 'Forgejo PAT rejected'`,
   );
   core.run(
     `UPDATE forgejo_feedback_bundles
      SET publication_status = 'unavailable',
-         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'`,
+         error_code = 'forgejo_repository_permission_denied',
+         error_detail = 'Forgejo Repository permission denied'`,
   );
   core.run(
     `UPDATE forgejo_finding_feedback
      SET publication_status = 'unavailable',
-         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'
+         error_code = 'forgejo_delivery_identity_conflict',
+         error_detail = 'duplicate source identities'
      WHERE publication_status = 'waiting'`,
   );
   core.run(
@@ -167,9 +129,9 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
      SET connection_id = 'connection-1', authority_verified_at = 1,
          attempt_count = 1, last_attempt_at = 10,
          reconciliation_required = 1, definitive = 1,
-         response_status = 403,
-         error_code = 'forgejo_api_request_failed',
-         error_detail = 'Forgejo publication route failed with HTTP 403'
+         response_status = 401,
+         error_code = 'forgejo_connection_credential_invalid',
+         error_detail = 'Forgejo PAT rejected'
      WHERE surface = 'commit_status'`,
   );
   core.run(
@@ -178,7 +140,14 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
          attempt_count = 1, last_attempt_at = 10,
          reconciliation_required = 1, definitive = 1,
          response_status = 403,
-         error_code = 'forgejo_api_request_failed', error_detail = 'HTTP 403'
+         error_code = CASE surface
+           WHEN 'aggregate_feedback' THEN 'forgejo_repository_permission_denied'
+           ELSE 'forgejo_delivery_identity_conflict'
+         END,
+         error_detail = CASE surface
+           WHEN 'aggregate_feedback' THEN 'Forgejo Repository permission denied'
+           ELSE 'duplicate source identities'
+         END
      WHERE surface IN ('aggregate_feedback', 'inline_feedback')`,
   );
   core.run(
@@ -188,7 +157,12 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
   );
 
   core.transaction((transaction) =>
-    resumeForgejoDeliveries(transaction, "connection-1", 20),
+    resumeForgejoDeliveries(
+      transaction,
+      "connection-1",
+      20,
+      "connection_authority",
+    ),
   );
 
   assert.deepEqual(
@@ -209,7 +183,10 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
     ),
     [
       { error_code: null, publication_status: "waiting" },
-      { error_code: null, publication_status: "waiting" },
+      {
+        error_code: "forgejo_delivery_identity_conflict",
+        publication_status: "unavailable",
+      },
     ],
   );
   assert.deepEqual(
@@ -217,7 +194,11 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
       `SELECT definitive, error_code, next_attempt_at,
               reconciliation_required
        FROM forgejo_delivery_attempts
-       WHERE surface = 'commit_status'`,
+       WHERE surface = 'commit_status'
+         AND source_id = (
+           SELECT evaluation_id || ':' || desired_state
+           FROM forgejo_commit_statuses
+         )`,
     ),
     {
       definitive: 0,
@@ -233,7 +214,7 @@ test("corrected Forgejo authority visibly resumes definitive delivery without ch
   assert.equal(
     core.get("SELECT count(*) AS count FROM forgejo_delivery_provider_gates")
       ?.count,
-    0,
+    1,
   );
 });
 
@@ -384,7 +365,12 @@ test("delivery failure health remains exact and scoped to its owning Forgejo res
   });
   core.transaction((transaction) => {
     transaction.run("UPDATE forgejo_connections SET health = 'healthy'");
-    resumeForgejoDeliveries(transaction, "connection-1", 30);
+    resumeForgejoDeliveries(
+      transaction,
+      "connection-1",
+      30,
+      "connection_authority",
+    );
   });
   assert.deepEqual(
     core.get(

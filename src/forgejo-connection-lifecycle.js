@@ -331,7 +331,12 @@ export async function reactivateForgejoConnection(
           "Forgejo Connection changed during reactivation",
         );
       }
-      resumeForgejoDeliveries(transaction, connection.id, verifiedAt);
+      resumeForgejoDeliveries(
+        transaction,
+        connection.id,
+        verifiedAt,
+        "connection_reactivation",
+      );
       polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {

@@ -205,10 +205,14 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
 
 test("Forgejo reconciliation preserves provider rate-limit delay", async () => {
   const now = Date.now();
+  const rateReset = Math.ceil((now + 240_000) / 1_000);
   const publisher = createForgejoV16Publisher({
     fetch: async () =>
       new Response("rate limited", {
-        headers: { "retry-after": "120" },
+        headers: {
+          "retry-after": "120",
+          "x-ratelimit-reset": String(rateReset),
+        },
         status: 429,
       }),
   });
@@ -222,7 +226,7 @@ test("Forgejo reconciliation preserves provider rate-limit delay", async () => {
     (error) =>
       error instanceof Error &&
       /** @type {any} */ (error).code === "forgejo_api_rate_limited" &&
-      /** @type {any} */ (error).nextAttemptAt >= now + 120_000,
+      /** @type {any} */ (error).nextAttemptAt >= now + 239_000,
   );
 });
 
@@ -299,8 +303,11 @@ test("Forgejo inline reconciliation requires the exact persisted range", async (
   const duplicate = createForgejoV16Publisher({
     fetch: async (url) =>
       String(url).endsWith("/reviews?limit=50&page=1")
-        ? Response.json([{ id: 901 }, { id: 903 }])
-        : Response.json([{ ...responseComment, extra_lines_count: 3 }]),
+        ? Response.json([{ id: 901 }])
+        : Response.json([
+            { ...responseComment, extra_lines_count: 3 },
+            { ...responseComment, extra_lines_count: 3, id: 904 },
+          ]),
   });
   await assert.rejects(
     duplicate.reconcileInlineFeedback(connection, repository, 17, comment),

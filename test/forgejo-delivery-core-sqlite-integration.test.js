@@ -6,7 +6,12 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { attemptForgejoDelivery } from "../src/forgejo-delivery-service.js";
+import { createForgejoPollingRunner } from "../src/forgejo-polling-runner.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
+import {
+  availableStorageReserve,
+  forgejoAutomaticEvaluationTestDependencies,
+} from "./storage-reserve-support.js";
 
 test("uncertain Forgejo delivery reconciles persisted state after restart and recreates only after proven absence", async (context) => {
   const directory = mkdtempSync(
@@ -150,4 +155,99 @@ test("Forgejo delivery surfaces retry independently", async (context) => {
     error_detail: "Forgejo rate limit is active",
     gate_until: 125_000,
   });
+});
+
+test("HTTP 408 persists an uncertain retry instead of stopping the Forgejo surface", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-408-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeForgejoFeedback(core);
+  await attemptForgejoDelivery(core, {
+    connectionId: "connection-1",
+    create: async () => {
+      throw Object.assign(new Error("Forgejo publication HTTP 408"), {
+        code: "forgejo_api_transient_failure",
+        responseStatus: 408,
+      });
+    },
+    now: () => 10,
+    onDefinitive() {},
+    onSuccess() {},
+    reconcile: async () => null,
+    sourceId: "evaluation-1:blocking",
+    surface: "commit_status",
+    target: '{"state":"blocking"}',
+  });
+  assert.deepEqual(
+    core.get(
+      `SELECT definitive, error_code, next_attempt_at,
+              reconciliation_required, response_status
+       FROM forgejo_delivery_attempts
+       WHERE surface = 'commit_status' AND source_id = ?`,
+      "evaluation-1:blocking",
+    ),
+    {
+      definitive: 0,
+      error_code: "forgejo_api_transient_failure",
+      next_attempt_at: 60_010,
+      reconciliation_required: 1,
+      response_status: 408,
+    },
+  );
+});
+
+test("a fresh polling baseline preserves delivery-owned Repository and Connection health", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-health-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  arrangeForgejoFeedback(core);
+  const runner = createForgejoPollingRunner(core, {
+    ...forgejoAutomaticEvaluationTestDependencies,
+    cipher: { decrypt: () => "pat" },
+    storageReserve: availableStorageReserve,
+    timestamp: () => 20,
+    verifier: {
+      async listPullRequests() {
+        return [];
+      },
+    },
+  });
+  context.after(() => runner.destroy());
+  core.run(
+    `UPDATE repositories
+     SET health = 'error',
+         health_error_code = 'forgejo_repository_permission_denied',
+         health_error_message = 'delivery permission denied'
+     WHERE id = 'repository-1'`,
+  );
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET connection_id = 'connection-1', authority_verified_at = 1,
+         attempt_count = 1, last_attempt_at = 10, definitive = 1,
+         error_code = 'forgejo_repository_permission_denied',
+         error_detail = 'delivery permission denied'
+     WHERE surface = 'commit_status'`,
+  );
+  runner.requireFreshBaseline();
+  assert.equal(
+    core.get("SELECT health FROM repositories WHERE id = 'repository-1'")
+      ?.health,
+    "error",
+  );
+
+  core.run(
+    `UPDATE forgejo_delivery_attempts
+     SET error_code = 'forgejo_connection_credential_invalid',
+         error_detail = 'delivery PAT rejected'
+     WHERE surface = 'commit_status'`,
+  );
+  core.run("UPDATE forgejo_connections SET health = 'error'");
+  runner.requireFreshBaseline();
+  assert.equal(
+    core.get("SELECT health FROM forgejo_connections WHERE id = 'connection-1'")
+      ?.health,
+    "error",
+  );
 });
