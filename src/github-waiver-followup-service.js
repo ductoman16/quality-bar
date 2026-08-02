@@ -7,7 +7,6 @@ import {
   formatWaiverAdjudicationFollowup,
   formatWaiverDecisionFollowup,
 } from "./waiver-followup.js";
-import { readEffectiveWaiverOutcome } from "./waiver-followup-outcome.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -32,8 +31,10 @@ export function createGitHubWaiverFollowupService(
 ) {
   if (
     typeof durableCore?.all !== "function" ||
+    typeof durableCore?.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
     typeof ioPool?.run !== "function" ||
+    typeof now !== "function" ||
     typeof verifier?.publishAggregateFeedback !== "function" ||
     typeof verifier?.reconcileAggregateFeedback !== "function" ||
     typeof verifier?.publishReviewCommentReply !== "function" ||
@@ -42,6 +43,9 @@ export function createGitHubWaiverFollowupService(
     throw new TypeError("GitHub waiver follow-up dependencies are invalid");
   }
   const origin = new URL(externalOrigin);
+  if (!["http:", "https:"].includes(origin.protocol)) {
+    throw new TypeError("GitHub waiver follow-up requires an HTTP origin");
+  }
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
   let running = false;
@@ -62,6 +66,7 @@ export function createGitHubWaiverFollowupService(
     try {
       const rows = durableCore.all(
         `SELECT followups.waiver_adjudication_id, followups.evaluation_id,
+                followups.outcome,
                 adjudications.base_commit, adjudications.head_commit,
                 automatic.pull_request_number,
                 repositories.forge_repository_id, repositories.name,
@@ -114,7 +119,7 @@ export function createGitHubWaiverFollowupService(
           details_url: detailsUrl(row.evaluation_id),
           evaluation_id: row.evaluation_id,
           head_commit: row.head_commit,
-          outcome: readEffectiveWaiverOutcome(durableCore, row.evaluation_id),
+          outcome: row.outcome,
         };
         const decisions = durableCore.all(
           `SELECT decisions.outcome, decisions.explanation,

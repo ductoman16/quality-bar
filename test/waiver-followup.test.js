@@ -1,10 +1,56 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createForgejoWaiverFollowupService } from "../src/forgejo-waiver-followup-service.js";
+import { createGitHubWaiverFollowupService } from "../src/github-waiver-followup-service.js";
 import {
   formatWaiverAdjudicationFollowup,
   formatWaiverDecisionFollowup,
 } from "../src/waiver-followup.js";
+
+/** @type {Array<[string, (durableCore: any, dependencies: any) => any]>} */
+const providerServices = [
+  ["GitHub", createGitHubWaiverFollowupService],
+  ["Forgejo", createForgejoWaiverFollowupService],
+];
+
+test("waiver follow-up services reject incomplete dependencies and non-HTTP origins", () => {
+  for (const [provider, createService] of providerServices) {
+    const dependencies = {
+      cipher: { decrypt() {} },
+      externalOrigin: "https://quality-bar.example",
+      ioPool: { run() {} },
+      verifier: {
+        publishAggregateFeedback() {},
+        publishInlineFeedback() {},
+        publishReviewCommentReply() {},
+        reconcileAggregateFeedback() {},
+        reconcileInlineFeedback() {},
+        reconcileReviewCommentReply() {},
+      },
+    };
+    assert.throws(
+      () => createService({ all() {} }, dependencies),
+      new RegExp(`${provider} waiver follow-up dependencies are invalid`),
+    );
+    assert.throws(
+      () =>
+        createService(
+          { all() {}, transaction() {} },
+          { ...dependencies, now: null },
+        ),
+      new RegExp(`${provider} waiver follow-up dependencies are invalid`),
+    );
+    assert.throws(
+      () =>
+        createService(
+          { all() {}, transaction() {} },
+          { ...dependencies, externalOrigin: "ftp://quality-bar.example" },
+        ),
+      new RegExp(`${provider} waiver follow-up requires an HTTP origin`),
+    );
+  }
+});
 
 const identity = {
   adjudication_id: "adjudication-1",

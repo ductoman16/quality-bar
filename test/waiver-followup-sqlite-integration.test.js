@@ -6,7 +6,9 @@ import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
+import { GitHubConnectionError } from "../src/github-connection-error.js";
 import { createGitHubWaiverFollowupService } from "../src/github-waiver-followup-service.js";
+import { readEvaluationWaiverAdjudications } from "../src/waiver-adjudication-resource.js";
 import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
@@ -177,11 +179,12 @@ test("SQLite admits and GitHub publishes aggregate plus accepted original-inline
 
     assert.deepEqual(
       core.all(
-        "SELECT waiver_adjudication_id, publication_status FROM github_waiver_adjudication_followups",
+        "SELECT waiver_adjudication_id, outcome, publication_status FROM github_waiver_adjudication_followups",
       ),
       [
         {
           publication_status: "waiting",
+          outcome: "blocking",
           waiver_adjudication_id: "adjudication-1",
         },
       ],
@@ -206,8 +209,41 @@ test("SQLite admits and GitHub publishes aggregate plus accepted original-inline
     await statusService.publishWaiting();
     statusService.destroy();
     assert.deepEqual(statusWrites, ["pending", "failure"]);
+    createWaiverBatchService(core, {
+      createAdjudicationId: () => "adjudication-2",
+      createRequestId: () => "request-3",
+      now: () => 13,
+      readCodexCapabilityFailure: () => null,
+      storageReserve: { assertWorkAdmissionAvailable() {} },
+    }).submit({
+      channel: "browser_session",
+      evaluationId: "evaluation-1",
+      idempotencyKey: "later-waiver-key",
+      request: {
+        requests: [
+          {
+            finding_id: "finding-2",
+            rationale: "Revised second exception.",
+          },
+        ],
+      },
+    });
+    core.run(
+      `UPDATE codex_execution_queue
+       SET worker_id = 'worker-2', fencing_token = 1,
+           lease_expires_at = 100, started_at = 14
+       WHERE work_id = 'adjudication-2'`,
+    );
+    core.run(
+      `UPDATE waiver_adjudications
+       SET execution_status = 'running', started_at = 14,
+           codex_cli_version = '0.114.0'
+       WHERE id = 'adjudication-2'`,
+    );
     /** @type {any[]} */
     const writes = [];
+    let aggregateAttempts = 0;
+    let publicationTime = 20;
     const service = createGitHubWaiverFollowupService(core, {
       cipher: {
         decrypt() {
@@ -221,11 +257,19 @@ test("SQLite admits and GitHub publishes aggregate plus accepted original-inline
           return operation();
         },
       },
-      now: () => 20,
+      now: () => publicationTime,
       verifier: {
         /** @param {...any} parameters */
         async publishAggregateFeedback(...parameters) {
           writes.push({ kind: "aggregate", parameters });
+          aggregateAttempts += 1;
+          if (aggregateAttempts === 1) {
+            throw new GitHubConnectionError(
+              "github_api_transient_failure",
+              "GitHub API request temporarily failed with HTTP 429",
+              { nextAttemptAt: 60_000, responseStatus: 429 },
+            );
+          }
           return 901;
         },
         /** @param {...any} parameters */
@@ -234,13 +278,36 @@ test("SQLite admits and GitHub publishes aggregate plus accepted original-inline
           return 902;
         },
         async reconcileAggregateFeedback() {
-          assert.fail("successful aggregate must not reconcile");
+          return null;
         },
         async reconcileReviewCommentReply() {
           assert.fail("successful reply must not reconcile");
         },
       },
     });
+    await service.publishWaiting();
+    assert.deepEqual(
+      readEvaluationWaiverAdjudications(core, "evaluation-1")[0]?.followup
+        .aggregate,
+      {
+        error: {
+          code: "github_api_transient_failure",
+          detail: "GitHub API request temporarily failed with HTTP 429",
+        },
+        latest_attempt: {
+          attempt_count: 1,
+          error: {
+            code: "github_api_transient_failure",
+            detail: "GitHub API request temporarily failed with HTTP 429",
+          },
+          last_attempt_at: "1970-01-01T00:00:00.020Z",
+          next_attempt_at: "1970-01-01T00:01:00.020Z",
+          reconciliation_required: true,
+        },
+        publication_status: "waiting",
+      },
+    );
+    publicationTime = 60_020;
     await service.publishWaiting();
     service.destroy();
     assert.deepEqual(
@@ -250,9 +317,11 @@ test("SQLite admits and GitHub publishes aggregate plus accepted original-inline
       })),
       [
         { kind: "aggregate", originalCommentId: null },
+        { kind: "aggregate", originalCommentId: null },
         { kind: "reply", originalCommentId: 801 },
       ],
     );
+    assert.match(writes[1].parameters.at(-1), /Recomputed outcome: blocking/);
     assert.deepEqual(
       core.get(
         "SELECT publication_status, external_id FROM github_waiver_adjudication_followups",

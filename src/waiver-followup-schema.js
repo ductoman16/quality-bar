@@ -47,62 +47,70 @@ const STATUS_ON_START = (provider) => `
   WHERE evaluation_id = NEW.evaluation_id
     AND head_commit = NEW.head_commit;`;
 
+const EFFECTIVE_OUTCOME = `CASE
+  WHEN NEW.execution_status IN ('failed', 'cancelled') THEN 'error'
+  WHEN (SELECT outcome FROM evaluation_results
+        WHERE evaluation_id = NEW.evaluation_id) = 'error' THEN 'error'
+  WHEN EXISTS (
+    SELECT 1 FROM waiver_requests
+    WHERE waiver_requests.evaluation_id = NEW.evaluation_id
+      AND (
+        SELECT CASE
+          WHEN current_adjudication.execution_status IN ('failed', 'cancelled')
+            THEN 1
+          WHEN current_adjudication.execution_status = 'completed'
+            AND waiver_decisions.outcome = 'error' THEN 1
+          ELSE 0
+        END
+        FROM waiver_adjudication_requests
+        JOIN waiver_adjudications AS current_adjudication
+          ON current_adjudication.id =
+               waiver_adjudication_requests.waiver_adjudication_id
+        LEFT JOIN waiver_decisions
+          ON waiver_decisions.waiver_adjudication_id = current_adjudication.id
+         AND waiver_decisions.waiver_request_id = waiver_requests.id
+        WHERE waiver_adjudication_requests.waiver_request_id = waiver_requests.id
+        ORDER BY current_adjudication.rowid DESC
+        LIMIT 1
+      ) = 1
+  ) THEN 'error'
+  WHEN EXISTS (
+    SELECT 1 FROM findings
+    JOIN review_runs ON review_runs.id = findings.review_run_id
+    JOIN review_version_criteria
+      ON review_version_criteria.review_version_id = review_runs.review_version_id
+     AND review_version_criteria.criterion_id = findings.criterion_id
+    WHERE findings.evaluation_id = NEW.evaluation_id
+      AND review_version_criteria.impact = 'blocking'
+  ) THEN 'blocking'
+  WHEN EXISTS (
+    SELECT 1 FROM findings
+    JOIN review_runs ON review_runs.id = findings.review_run_id
+    JOIN review_version_criteria
+      ON review_version_criteria.review_version_id = review_runs.review_version_id
+     AND review_version_criteria.criterion_id = findings.criterion_id
+    WHERE findings.evaluation_id = NEW.evaluation_id
+      AND review_version_criteria.impact = 'advisory'
+      AND NOT EXISTS (
+        SELECT 1 FROM waiver_requests
+        WHERE waiver_requests.finding_id = findings.id
+          AND (SELECT waiver_decisions.outcome
+               FROM waiver_decisions
+               WHERE waiver_decisions.waiver_request_id = waiver_requests.id
+               ORDER BY waiver_decisions.rowid DESC LIMIT 1) = 'accepted'
+      )
+  ) THEN 'advisory'
+  ELSE 'clear'
+END`;
+
 /** @param {"forgejo" | "github"} provider */
 const STATUS_ON_FINISH = (provider) => `
   UPDATE ${provider}_commit_statuses
-  SET desired_state = CASE
-        WHEN NEW.execution_status IN ('failed', 'cancelled') THEN 'error'
-        WHEN (SELECT outcome FROM evaluation_results
-              WHERE evaluation_id = NEW.evaluation_id) = 'error' THEN 'error'
-        WHEN EXISTS (
-          SELECT 1 FROM waiver_requests
-          WHERE waiver_requests.evaluation_id = NEW.evaluation_id
-            AND (
-              SELECT CASE
-                WHEN current_adjudication.execution_status IN ('failed', 'cancelled')
-                  THEN 1
-                WHEN current_adjudication.execution_status = 'completed'
-                  AND waiver_decisions.outcome = 'error' THEN 1
-                ELSE 0
-              END
-              FROM waiver_adjudication_requests
-              JOIN waiver_adjudications AS current_adjudication
-                ON current_adjudication.id =
-                     waiver_adjudication_requests.waiver_adjudication_id
-              LEFT JOIN waiver_decisions
-                ON waiver_decisions.waiver_adjudication_id = current_adjudication.id
-               AND waiver_decisions.waiver_request_id = waiver_requests.id
-              WHERE waiver_adjudication_requests.waiver_request_id = waiver_requests.id
-              ORDER BY current_adjudication.rowid DESC
-              LIMIT 1
-            ) = 1
-        ) THEN 'error'
-        WHEN EXISTS (
-          SELECT 1 FROM findings
-          JOIN review_runs ON review_runs.id = findings.review_run_id
-          JOIN review_version_criteria
-            ON review_version_criteria.review_version_id = review_runs.review_version_id
-           AND review_version_criteria.criterion_id = findings.criterion_id
-          WHERE findings.evaluation_id = NEW.evaluation_id
-            AND review_version_criteria.impact = 'blocking'
-        ) THEN 'failure'
-        WHEN EXISTS (
-          SELECT 1 FROM findings
-          JOIN review_runs ON review_runs.id = findings.review_run_id
-          JOIN review_version_criteria
-            ON review_version_criteria.review_version_id = review_runs.review_version_id
-           AND review_version_criteria.criterion_id = findings.criterion_id
-          WHERE findings.evaluation_id = NEW.evaluation_id
-            AND review_version_criteria.impact = 'advisory'
-            AND NOT EXISTS (
-              SELECT 1 FROM waiver_requests
-              JOIN waiver_decisions
-                ON waiver_decisions.waiver_request_id = waiver_requests.id
-              WHERE waiver_requests.finding_id = findings.id
-                AND waiver_decisions.outcome = 'accepted'
-            )
-        ) THEN 'failure'
-        ELSE 'success'
+  SET desired_state = CASE ${EFFECTIVE_OUTCOME}
+        WHEN 'clear' THEN 'success'
+        WHEN 'advisory' THEN 'failure'
+        WHEN 'blocking' THEN 'failure'
+        WHEN 'error' THEN 'error'
       END,
       publication_status = 'waiting', published_state = NULL,
       published_at = NULL,
@@ -116,6 +124,9 @@ const FOLLOWUP_TABLES = (provider) => `
   CREATE TABLE IF NOT EXISTS ${provider}_waiver_adjudication_followups (
     waiver_adjudication_id TEXT PRIMARY KEY REFERENCES waiver_adjudications(id),
     evaluation_id TEXT NOT NULL REFERENCES evaluation_results(evaluation_id),
+    outcome TEXT NOT NULL CHECK (
+      outcome IN ('clear', 'advisory', 'blocking', 'error')
+    ),
     ${PUBLICATION_COLUMNS}
   ) STRICT;
   CREATE TABLE IF NOT EXISTS ${provider}_waiver_decision_followups (
@@ -136,7 +147,7 @@ const FOLLOWUP_TABLES = (provider) => `
     ${PUBLICATION_COLUMNS}
   ) STRICT;
   CREATE TRIGGER IF NOT EXISTS ${provider}_waiver_adjudication_followup_identity
-    BEFORE UPDATE OF waiver_adjudication_id, evaluation_id
+    BEFORE UPDATE OF waiver_adjudication_id, evaluation_id, outcome
     ON ${provider}_waiver_adjudication_followups
     BEGIN SELECT RAISE(ABORT, '${provider}_waiver_followup_immutable'); END;
   CREATE TRIGGER IF NOT EXISTS ${provider}_waiver_adjudication_followup_delete
@@ -180,10 +191,10 @@ const FOLLOWUP_ADMISSION = (provider, retiredCode) => `
     WHEN NEW.execution_status = 'completed'
     BEGIN
       INSERT INTO ${provider}_waiver_adjudication_followups (
-        waiver_adjudication_id, evaluation_id, publication_status,
+        waiver_adjudication_id, evaluation_id, outcome, publication_status,
         error_code, error_detail
       )
-      SELECT NEW.id, NEW.evaluation_id,
+      SELECT NEW.id, NEW.evaluation_id, ${EFFECTIVE_OUTCOME},
              CASE connections.lifecycle WHEN 'retired' THEN 'unavailable' ELSE 'waiting' END,
              CASE connections.lifecycle WHEN 'retired' THEN '${retiredCode}' ELSE NULL END,
              CASE connections.lifecycle WHEN 'retired' THEN

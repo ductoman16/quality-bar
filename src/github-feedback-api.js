@@ -309,6 +309,7 @@ export function createGitHubFeedbackPublisher(dependencies) {
       pullRequestNumber,
       body,
     ) {
+      const adjudicationId = sourceIdentity(body, "Adjudication");
       const evaluationId = sourceIdentity(body, "Evaluation");
       return reconcile(
         credential,
@@ -318,9 +319,12 @@ export function createGitHubFeedbackPublisher(dependencies) {
         "issues",
         (item) =>
           typeof item?.body === "string" &&
-          (evaluationId
-            ? sourceIdentity(item.body, "Evaluation") === evaluationId
-            : item.body === body),
+          (adjudicationId
+            ? sourceIdentity(item.body, "Adjudication") === adjudicationId
+            : evaluationId
+              ? sourceIdentity(item.body, "Evaluation") === evaluationId &&
+                sourceIdentity(item.body, "Adjudication") === null
+              : item.body === body),
       );
     },
     /**

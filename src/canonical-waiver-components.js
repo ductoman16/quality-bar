@@ -1,4 +1,5 @@
 import { closedObject } from "./canonical-schema.js";
+import { canonicalWaiverFollowupSchemas } from "./canonical-waiver-followup-components.js";
 
 const adjudicationProperties = {
   base_commit: {
@@ -82,37 +83,7 @@ export function canonicalWaiverSchemas() {
       operationalRequired,
     );
   return {
-    WaiverFollowupSurface: closedObject(
-      {
-        error: nullableError,
-        publication_status: {
-          enum: ["waiting", "succeeded", "unavailable"],
-          type: "string",
-        },
-      },
-      ["publication_status", "error"],
-    ),
-    WaiverLocalFollowupSurface: closedObject(
-      {
-        decision_id: identifier,
-        error: nullableError,
-        publication_status: {
-          enum: ["waiting", "succeeded", "unavailable"],
-          type: "string",
-        },
-      },
-      ["decision_id", "publication_status", "error"],
-    ),
-    WaiverFollowupPublication: closedObject(
-      {
-        aggregate: { $ref: "#/components/schemas/WaiverFollowupSurface" },
-        local: {
-          items: { $ref: "#/components/schemas/WaiverLocalFollowupSurface" },
-          type: "array",
-        },
-      },
-      ["aggregate", "local"],
-    ),
+    ...canonicalWaiverFollowupSchemas(),
     WaiverOperationalError: closedObject(
       {
         code: {

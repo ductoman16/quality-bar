@@ -20,6 +20,8 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
   let duplicate = false;
   const head = "a".repeat(40);
   const aggregateBody = "complete aggregate\nEvaluation: `evaluation-1`";
+  const waiverAggregateBody =
+    "waiver aggregate\nEvaluation: `evaluation-1`\nAdjudication: `adjudication-1`";
   const server = createServer((request, response) => {
     let body = "";
     request.setEncoding("utf8");
@@ -87,6 +89,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         response.end(
           JSON.stringify([
             { body: aggregateBody, id: 701 },
+            { body: waiverAggregateBody, id: 706 },
             ...(duplicate ? [{ body: aggregateBody, id: 703 }] : []),
           ]),
         );
@@ -254,6 +257,16 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       "changed formatting\nEvaluation: `evaluation-1`",
     ),
     701,
+  );
+  assert.equal(
+    await verifier.reconcileAggregateFeedback(
+      credential,
+      73,
+      repository,
+      17,
+      waiverAggregateBody,
+    ),
+    706,
   );
   assert.equal(
     await verifier.reconcileInlineFeedback(credential, 73, repository, 17, {
