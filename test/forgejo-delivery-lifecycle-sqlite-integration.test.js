@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
 import { retireForgejoPublicationRows } from "../src/forgejo-publication-retirement.js";
+import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../src/waiver-followup-schema.js";
 import { createRepositoryService, RepositoryError } from "../src/repository.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
@@ -49,6 +50,7 @@ test("schema v51 preserves legacy waiting, uncertain, and definitive Forgejo del
      WHERE publication_status = 'waiting'`,
   );
   for (const statement of [
+    ...WAIVER_FOLLOWUP_REBUILD_CLEANUP.split(";").filter((sql) => sql.trim()),
     "DROP TRIGGER forgejo_commit_status_delivery_admit",
     "DROP TRIGGER forgejo_commit_status_delivery_update_admit",
     "DROP TRIGGER forgejo_feedback_bundle_delivery_admit",

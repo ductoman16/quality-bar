@@ -1,5 +1,6 @@
 import { createGitHubCommitStatusService } from "./github-commit-status-service.js";
 import { createGitHubFeedbackService } from "./github-feedback-service.js";
+import { createGitHubWaiverFollowupService } from "./github-waiver-followup-service.js";
 
 /**
  * @param {any} durableCore
@@ -12,9 +13,11 @@ import { createGitHubFeedbackService } from "./github-feedback-service.js";
  *     publishAggregateFeedback: (...parameters: any[]) => Promise<number>,
  *     publishCommitStatus: (...parameters: any[]) => Promise<number>,
  *     publishInlineFeedback: (...parameters: any[]) => Promise<number>,
+ *     publishReviewCommentReply: (...parameters: any[]) => Promise<number>,
  *     reconcileAggregateFeedback: (...parameters: any[]) => Promise<number | null>,
  *     reconcileCommitStatus: (...parameters: any[]) => Promise<number | null>,
- *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>
+ *     reconcileInlineFeedback: (...parameters: any[]) => Promise<number | null>,
+ *     reconcileReviewCommentReply: (...parameters: any[]) => Promise<number | null>
  *   }
  * }} dependencies
  */
@@ -44,14 +47,23 @@ export function createGitHubPublicationServices(
       reconcileInlineFeedback: verifier.reconcileInlineFeedback,
     },
   });
+  const waiverFollowups = createGitHubWaiverFollowupService(durableCore, {
+    cipher,
+    externalOrigin,
+    ioPool,
+    now,
+    verifier,
+  });
   return {
     destroy() {
       commitStatuses.destroy();
       feedback.destroy();
+      waiverFollowups.destroy();
     },
     start() {
       commitStatuses.start();
       feedback.start();
+      waiverFollowups.start();
     },
   };
 }

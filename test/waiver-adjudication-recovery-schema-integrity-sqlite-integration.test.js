@@ -92,7 +92,7 @@ test("schema v47 repairs waiver recovery before retention objects existed", () =
     legacy.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     assert.ok(
       migrated.get(
         `SELECT 1 FROM sqlite_schema

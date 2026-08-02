@@ -1,7 +1,7 @@
 export const GITHUB_FIXTURE_GATE = {
   name: "github-fixture-integration",
   testGroup:
-    "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-draft-ready-force-push-retarget-close-merge-and-reopen-observation-exact-frozen-head-stable-commit-status-append-only-aggregate-and-inline-feedback-atomic-selection-enumeration-and-private-git-boundary",
+    "github-rest-profile-personal-installation-permissions-routes-pagination-rate-gates-draft-ready-force-push-retarget-close-merge-and-reopen-observation-exact-frozen-head-stable-commit-status-append-only-aggregate-inline-feedback-and-original-review-comment-waiver-replies-atomic-selection-enumeration-and-private-git-boundary",
   failureCode: "github_fixture_integration_tests_failed",
   arguments: [
     "--test",

@@ -20,6 +20,7 @@ const queued = {
   decisions: [],
   exhausted_at: null,
   execution_status: "queued",
+  followup: null,
   id: "adjudication-1",
   next_attempt_at: "2026-07-29T12:00:00.000Z",
   pre_start_attempt_count: 0,

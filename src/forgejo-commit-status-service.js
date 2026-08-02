@@ -5,6 +5,7 @@ import {
 } from "./forgejo-delivery-service.js";
 import { readForgejoStatusTarget } from "./forgejo-delivery-target.js";
 import { createIoDutyScheduler } from "./io-execution-pool.js";
+import { readEffectiveWaiverOutcome } from "./waiver-followup-outcome.js";
 
 const PUBLICATION_INTERVAL_MS = 1_000;
 
@@ -27,6 +28,7 @@ export function createForgejoCommitStatusService(
 ) {
   if (
     typeof durableCore?.all !== "function" ||
+    typeof durableCore?.get !== "function" ||
     typeof durableCore?.transaction !== "function" ||
     typeof cipher?.decrypt !== "function" ||
     typeof ioPool?.run !== "function" ||
@@ -85,7 +87,10 @@ export function createForgejoCommitStatusService(
                   forgejo_commit_statuses.head_commit`,
       );
       for (const row of rows) {
-        const outcome = row.result_outcome ?? "pending";
+        const outcome = readEffectiveWaiverOutcome(
+          durableCore,
+          row.evaluation_id,
+        );
         const status = forgejoCommitStatusForEvaluation(outcome);
         if (status.state !== row.desired_state) {
           throw new TypeError("Forgejo commit status durable state is invalid");

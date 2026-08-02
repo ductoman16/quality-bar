@@ -20,6 +20,8 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
   let duplicate = false;
   const head = "a".repeat(40);
   const aggregateBody = "complete aggregate\nEvaluation: `evaluation-1`";
+  const waiverAggregateBody =
+    "waiver aggregate\nEvaluation: `evaluation-1`\nAdjudication: `adjudication-1`";
   const server = createServer((request, response) => {
     let body = "";
     request.setEncoding("utf8");
@@ -53,6 +55,20 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       }
       if (
         request.method === "POST" &&
+        request.url ===
+          "/repos/operator/repository/pulls/17/comments/702/replies"
+      ) {
+        response.end(
+          JSON.stringify({
+            body: parsed.body,
+            id: 705,
+            in_reply_to_id: 702,
+          }),
+        );
+        return;
+      }
+      if (
+        request.method === "POST" &&
         request.url === "/repos/operator/repository/pulls/17/comments"
       ) {
         response.end(
@@ -73,6 +89,7 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
         response.end(
           JSON.stringify([
             { body: aggregateBody, id: 701 },
+            { body: waiverAggregateBody, id: 706 },
             ...(duplicate ? [{ body: aggregateBody, id: 703 }] : []),
           ]),
         );
@@ -146,6 +163,17 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     }),
     702,
   );
+  assert.equal(
+    await verifier.publishReviewCommentReply(
+      credential,
+      73,
+      repository,
+      17,
+      702,
+      "waiver accepted\nFinding: `finding-1`\nAdjudication: `adjudication-1`",
+    ),
+    705,
+  );
   duplicate = true;
   for (const reconcile of [
     () =>
@@ -190,13 +218,12 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
     },
   );
   assert.deepEqual(
-    requests
-      .filter(
-        (request) =>
-          request.method === "POST" &&
-          request.authorization === "Bearer installation-token",
-      )
-      .at(-1),
+    requests.find(
+      (request) =>
+        request.method === "POST" &&
+        request.authorization === "Bearer installation-token" &&
+        request.path === "/repos/operator/repository/pulls/17/comments",
+    ),
     {
       authorization: "Bearer installation-token",
       body: {
@@ -210,6 +237,17 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       path: "/repos/operator/repository/pulls/17/comments",
     },
   );
+  assert.deepEqual(
+    requests.find((request) => request.path.endsWith("/comments/702/replies")),
+    {
+      authorization: "Bearer installation-token",
+      body: {
+        body: "waiver accepted\nFinding: `finding-1`\nAdjudication: `adjudication-1`",
+      },
+      method: "POST",
+      path: "/repos/operator/repository/pulls/17/comments/702/replies",
+    },
+  );
   assert.equal(
     await verifier.reconcileAggregateFeedback(
       credential,
@@ -219,6 +257,16 @@ test("GitHub fixture receives append-only aggregate and exact frozen-head inline
       "changed formatting\nEvaluation: `evaluation-1`",
     ),
     701,
+  );
+  assert.equal(
+    await verifier.reconcileAggregateFeedback(
+      credential,
+      73,
+      repository,
+      17,
+      waiverAggregateBody,
+    ),
+    706,
   );
   assert.equal(
     await verifier.reconcileInlineFeedback(credential, 73, repository, 17, {

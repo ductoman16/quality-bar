@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewService } from "../src/review.js";
+import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../src/waiver-followup-schema.js";
 import { assertSupersessionFencesRunningWorker } from "./automatic-evaluation-supersession-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
@@ -265,6 +266,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
   legacy.exec("PRAGMA foreign_keys = OFF");
   legacy.exec(`
     BEGIN IMMEDIATE;
+    ${WAIVER_FOLLOWUP_REBUILD_CLEANUP}
     DROP TRIGGER github_feedback_bundle_admit;
     DROP TRIGGER github_feedback_bundle_identity_update;
     DROP TRIGGER github_feedback_bundle_delete;
@@ -355,7 +357,7 @@ test("schema 35 preserves automatic Evaluation references while adding supersess
 
   const migrated = openDurableCore(databasePath);
 
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.deepEqual(
     migrated.get(
       `SELECT evaluation_id, pull_request_number

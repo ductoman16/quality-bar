@@ -106,4 +106,44 @@ export function retireForgejoPublicationRows(transaction, connectionId) {
     connectionId,
     connectionId,
   );
+  for (const table of [
+    "forgejo_waiver_adjudication_followups",
+    "forgejo_waiver_decision_followups",
+  ]) {
+    transaction.run(
+      `UPDATE ${table}
+       SET publication_status = 'unavailable', external_id = NULL,
+           published_at = NULL,
+           error_code = 'forgejo_connection_retired',
+           error_detail =
+             'Forgejo waiver follow-up publication is unavailable because the Forgejo Connection is retired'
+       WHERE publication_status = 'waiting'
+         AND waiver_adjudication_id IN (
+           SELECT waiver_adjudications.id
+           FROM waiver_adjudications
+           JOIN forgejo_automatic_evaluations
+             ON forgejo_automatic_evaluations.evaluation_id =
+                  waiver_adjudications.evaluation_id
+           JOIN forgejo_repositories
+             ON forgejo_repositories.repository_id =
+                  forgejo_automatic_evaluations.repository_id
+           WHERE forgejo_repositories.connection_id = ?
+         )`,
+      connectionId,
+    );
+  }
+  transaction.run(
+    `UPDATE forgejo_delivery_attempts
+     SET generation = generation + 1, next_attempt_at = 0,
+         connection_id = ?, authority_verified_at = (
+           SELECT verified_at FROM forgejo_connections WHERE id = ?
+         ), error_code = 'forgejo_connection_retired',
+         error_detail =
+           'Forgejo delivery is unavailable because the Forgejo Connection is retired',
+         response_status = NULL, definitive = 1
+     WHERE connection_id = ? AND source_id GLOB 'waiver-*'`,
+    connectionId,
+    connectionId,
+    connectionId,
+  );
 }

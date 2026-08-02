@@ -11,6 +11,8 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../src/waiver-followup-schema.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 
 test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   const directory = mkdtempSync(
@@ -19,6 +21,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const databasePath = join(directory, "quality-bar.sqlite3");
   const prior = openDurableCore(databasePath);
+  removeWaiverFollowupSchema(prior);
   prior.run("DROP TABLE forgejo_repository_polls");
   prior.run("DROP TABLE forgejo_repositories");
   prior.run("DROP TABLE forgejo_connection_verifications");
@@ -31,7 +34,7 @@ test("SQLite creates the final Forgejo schema directly from v16", (context) => {
   prior.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.deepEqual(
     migrated.get(
       `SELECT name
@@ -153,7 +156,7 @@ test("SQLite migrates an untouched canonical v20 database to Forgejo polling", (
   canonicalV20.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   migrated.run(
     `INSERT INTO authority_attributions
       (id, channel, action, outcome, error_code, occurred_at)
@@ -198,6 +201,7 @@ test("SQLite preserves non-default Forgejo ports during v18 migration", (context
   ]) {
     const databasePath = join(directory, `quality-bar-${index}.sqlite3`);
     const prior = openDurableCore(databasePath);
+    removeWaiverFollowupSchema(prior);
     for (const trigger of [
       "forgejo_commit_status_admit",
       "forgejo_commit_status_complete",
@@ -292,6 +296,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.exec(`
     PRAGMA foreign_keys = OFF;
     BEGIN IMMEDIATE;
+    ${WAIVER_FOLLOWUP_REBUILD_CLEANUP}
     DROP TRIGGER forgejo_commit_status_admit;
     DROP TRIGGER forgejo_commit_status_complete;
     DROP TRIGGER forgejo_feedback_bundle_admit;
@@ -354,7 +359,7 @@ test("SQLite migrates v17 Forgejo verifications into immutable triggered history
   legacy.close();
 
   const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 51);
+  assert.equal(migrated.facts.schemaVersion, 52);
   assert.equal(
     migrated.get(
       "SELECT lifecycle FROM forgejo_connections WHERE id = 'connection-1'",

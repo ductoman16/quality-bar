@@ -2,7 +2,7 @@ export const WAIVER_ADJUDICATION_GATE_DEFINITIONS = [
   {
     name: "waiver-adjudication-unit",
     testGroup:
-      "focused-exact-request-finding-criterion-review-version-evaluation-changeset-schema-and-inspection-prompt-plus-complete-decision-set-validation-effective-outcome-precedence-subsequent-request-action-exact-operational-lifecycle-and-recovery-classification",
+      "focused-exact-request-finding-criterion-review-version-evaluation-changeset-schema-and-inspection-prompt-plus-complete-decision-set-validation-effective-outcome-precedence-provider-waiver-followup-formatting-subsequent-request-action-exact-operational-lifecycle-and-recovery-classification",
     failureCode: "waiver_adjudication_unit_tests_failed",
     arguments: [
       "--test",
@@ -12,13 +12,14 @@ export const WAIVER_ADJUDICATION_GATE_DEFINITIONS = [
       "test/waiver-adjudication-result.test.js",
       "test/waiver-adjudication-execution.test.js",
       "test/waiver-effective-outcome.test.js",
+      "test/waiver-followup.test.js",
       "test/waiver-request-lifecycle.test.js",
     ],
   },
   {
     name: "waiver-adjudication-browser-component",
     testGroup:
-      "queued-focused-waiver-adjudication-mixed-decision-meanings-exact-owning-failure-browser-only-exhausted-recovery-and-distinct-decision-error-retry-actions",
+      "queued-focused-waiver-adjudication-mixed-decision-meanings-followup-publication-state-exact-owning-failure-browser-only-exhausted-recovery-and-distinct-decision-error-retry-actions",
     failureCode: "waiver_adjudication_browser_component_tests_failed",
     arguments: [
       "--test",
@@ -29,7 +30,7 @@ export const WAIVER_ADJUDICATION_GATE_DEFINITIONS = [
   {
     name: "waiver-adjudication-sqlite-integration",
     testGroup:
-      "focused-claim-v38-v40-v42-migration-first-valid-atomic-complete-immutable-decision-set-current-effective-outcome-governed-error-retry-pre-start-io-capacity-same-identity-and-started-failure-cancellation-recovery-revised-rationale-three-request-limit-and-raw-partial-rejection",
+      "focused-claim-v38-v40-v42-v52-migration-first-valid-atomic-complete-immutable-decision-set-current-effective-outcome-controlling-status-and-waiver-followup-admission-publication-governed-error-retry-pre-start-io-capacity-same-identity-and-started-failure-cancellation-recovery-revised-rationale-three-request-limit-and-raw-partial-rejection",
     failureCode: "waiver_adjudication_sqlite_integration_tests_failed",
     arguments: [
       "--test",
@@ -46,6 +47,8 @@ export const WAIVER_ADJUDICATION_GATE_DEFINITIONS = [
       "test/waiver-request-lifecycle-schema-integrity-sqlite-integration.test.js",
       "test/waiver-request-lifecycle-sqlite-integration.test.js",
       "test/waiver-error-retry-lifecycle-sqlite-integration.test.js",
+      "test/waiver-followup-sqlite-integration.test.js",
+      "test/waiver-followup-retirement-sqlite-integration.test.js",
       "test/waiver-supersession-sqlite-integration.test.js",
     ],
   },

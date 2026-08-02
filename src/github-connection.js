@@ -32,7 +32,7 @@ import { createGitHubPublicationServices } from "./github-publication-services.j
 import { resumeGitHubDeliveries } from "./github-delivery-recovery.js";
 import { assertGitHubVerifier } from "./github-connection-dependencies.js";
 export { GitHubConnectionError } from "./github-connection-error.js";
-/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<number>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, reconcileAggregateFeedback?: (...parameters: any[]) => Promise<number | null>, reconcileCommitStatus?: (...parameters: any[]) => Promise<number | null>, reconcileInlineFeedback?: (...parameters: any[]) => Promise<number | null>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
+/** @typedef {{createInstallationToken?: (credential: any, installationId: number) => Promise<string>, exchangeManifest: (code: string) => Promise<any>, listPullRequests: (credential: any, installationId: number, repository: any) => Promise<any>, publishAggregateFeedback?: (...parameters: any[]) => Promise<number>, publishCommitStatus?: (...parameters: any[]) => Promise<number>, publishInlineFeedback?: (...parameters: any[]) => Promise<number>, publishReviewCommentReply?: (...parameters: any[]) => Promise<number>, reconcileAggregateFeedback?: (...parameters: any[]) => Promise<number | null>, reconcileCommitStatus?: (...parameters: any[]) => Promise<number | null>, reconcileInlineFeedback?: (...parameters: any[]) => Promise<number | null>, reconcileReviewCommentReply?: (...parameters: any[]) => Promise<number | null>, verifyInstallation: (credential: any, installationId: number) => Promise<any>, verifyRepositories: (credential: any, installationId: number, repositoryIds: number[]) => Promise<any>}} GitHubVerifier */
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "github", pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin: string, masterKey: Buffer, now?: () => number, randomBytes?: (size: number) => Buffer, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: GitHubVerifier}} options */
 export function createGitHubConnectionService(
   durableCore,
@@ -51,6 +51,7 @@ export function createGitHubConnectionService(
 ) {
   if (
     typeof durableCore?.all !== "function" ||
+    typeof durableCore?.get !== "function" ||
     typeof durableCore.transaction !== "function"
   ) {
     throw new TypeError("durableCore must provide reads and transactions");

@@ -68,6 +68,19 @@ export function resumeForgejoDeliveries(
     connectionId,
     ...parameters,
   );
+  transaction.run(
+    `UPDATE forgejo_delivery_attempts
+     SET generation = generation + 1, next_attempt_at = ?,
+         error_code = NULL, error_detail = NULL, response_status = NULL,
+         definitive = 0
+     WHERE definitive = 1 AND connection_id = ?
+       AND source_id GLOB 'waiver-*'
+       AND error_code IN (${correctableFailures.map(() => "?").join(", ")})${scope}`,
+    readyAt,
+    connectionId,
+    ...correctableFailures,
+    ...parameters,
+  );
   if (repositoryIds) {
     transaction.run(
       `UPDATE repositories
@@ -119,6 +132,37 @@ export function resumeForgejoDeliveries(
              AND next_attempt_at = ?
          )`,
       surface,
+      readyAt,
+    );
+  }
+  for (const [table, surface, identity, prefix] of [
+    [
+      "forgejo_waiver_adjudication_followups",
+      "aggregate_feedback",
+      "waiver_adjudication_id",
+      "waiver-adjudication:",
+    ],
+    [
+      "forgejo_waiver_decision_followups",
+      "inline_feedback",
+      "waiver_decision_id",
+      "waiver-decision:",
+    ],
+  ]) {
+    transaction.run(
+      `UPDATE ${table}
+       SET publication_status = 'waiting', external_id = NULL,
+           published_at = NULL, error_code = NULL, error_detail = NULL
+       WHERE publication_status = 'unavailable'
+         AND EXISTS (
+           SELECT 1 FROM forgejo_delivery_attempts
+           WHERE surface = ?
+             AND source_id ${surface === "inline_feedback" ? `= ? || ${table}.${identity} || ':' || ${table}.finding_id` : `= ? || ${table}.${identity}`}
+             AND definitive = 0 AND error_code IS NULL
+             AND next_attempt_at = ?
+         )`,
+      surface,
+      prefix,
       readyAt,
     );
   }

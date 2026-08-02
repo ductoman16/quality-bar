@@ -3,9 +3,27 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { formatWaiverDecisionFollowup } from "../src/waiver-followup.js";
 
 test("Forgejo v16 fixture accepts the exact status, aggregate, and inline publication routes", async (context) => {
   const head = "a".repeat(40);
+  const waiverBody = formatWaiverDecisionFollowup(
+    {
+      adjudication_id: "adjudication-1",
+      base_commit: "b".repeat(40),
+      details_url:
+        "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
+      evaluation_id: "evaluation-1",
+      head_commit: head,
+      outcome: "clear",
+    },
+    {
+      explanation: "The exact exception is justified.",
+      finding_id: "finding-1",
+      outcome: "accepted",
+      request_id: "request-1",
+    },
+  );
   /** @type {any[]} */
   const requests = [];
   const server = createServer((request, response) => {
@@ -61,7 +79,7 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
         response.end(
           JSON.stringify([
             {
-              body: "inline",
+              body: waiverBody,
               commit_id: head,
               extra_lines_count: 0,
               id: 904,
@@ -130,7 +148,7 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
   );
   assert.equal(
     await verifier.publishInlineFeedback(connection, repository, 17, {
-      body: "inline",
+      body: waiverBody,
       commit_id: head,
       line: 2,
       path: "src/example.js",
@@ -158,7 +176,7 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
   );
   assert.equal(
     await verifier.reconcileInlineFeedback(connection, repository, 17, {
-      body: "inline",
+      body: waiverBody,
       commit_id: head,
       line: 2,
       path: "src/example.js",

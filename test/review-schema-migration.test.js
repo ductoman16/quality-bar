@@ -7,6 +7,7 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createReviewService } from "../src/review.js";
+import { removeWaiverFollowupSchema } from "./support/waiver-followup-schema.js";
 
 test("migrates a genuine pre-Review v5 database to Repository-scoped Assignments", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-review-v5-"));
@@ -41,7 +42,7 @@ test("migrates a genuine pre-Review v5 database to Repository-scoped Assignments
     legacy.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     migrated.run(
       "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
       "repository-1",
@@ -89,6 +90,7 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
   try {
     const current = openDurableCore(databasePath);
     current.transaction((transaction) => {
+      removeWaiverFollowupSchema(transaction);
       transaction.run(
         "INSERT INTO reviews (id, name, description, active_version_id, created_at) VALUES (?, ?, ?, ?, ?)",
         "review-1",
@@ -198,7 +200,7 @@ test("migrates v6 Review facts into immutable executable snapshots with active l
     current.close();
 
     const migrated = openDurableCore(databasePath);
-    assert.equal(migrated.facts.schemaVersion, 51);
+    assert.equal(migrated.facts.schemaVersion, 52);
     assert.deepEqual(
       migrated.get("SELECT archived_at FROM reviews WHERE id = ?", "review-1"),
       { archived_at: null },

@@ -217,7 +217,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       },
       criteria: [
         {
-          impact: "blocking",
+          impact: "advisory",
           instruction: "Review the newly ready Forgejo pull request.",
         },
       ],

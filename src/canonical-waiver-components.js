@@ -1,4 +1,5 @@
 import { closedObject } from "./canonical-schema.js";
+import { canonicalWaiverFollowupSchemas } from "./canonical-waiver-followup-components.js";
 
 const adjudicationProperties = {
   base_commit: {
@@ -54,6 +55,12 @@ export function canonicalWaiverSchemas() {
     decisions,
     exhausted_at: nullableTimestamp,
     execution_status: { type: "string" },
+    followup: {
+      oneOf: [
+        { $ref: "#/components/schemas/WaiverFollowupPublication" },
+        nullValue,
+      ],
+    },
     id: identifier,
     next_attempt_at: nullableTimestamp,
     pre_start_attempt_count: { minimum: 0, type: "integer" },
@@ -76,6 +83,7 @@ export function canonicalWaiverSchemas() {
       operationalRequired,
     );
   return {
+    ...canonicalWaiverFollowupSchemas(),
     WaiverOperationalError: closedObject(
       {
         code: {

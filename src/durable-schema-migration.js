@@ -131,7 +131,8 @@ export function migrateSchema(
            DROP TRIGGER IF EXISTS forgejo_commit_status_delivery_admit;
            DROP TRIGGER IF EXISTS forgejo_commit_status_delivery_update_admit;
            DROP TRIGGER IF EXISTS forgejo_feedback_bundle_delivery_admit;
-           DROP TRIGGER IF EXISTS forgejo_finding_feedback_delivery_admit;`
+           DROP TRIGGER IF EXISTS forgejo_finding_feedback_delivery_admit;
+           ${WAIVER_FOLLOWUP_REBUILD_CLEANUP}`
         : ""
     }
     ${statements}
@@ -182,7 +183,7 @@ export function migrateSchema(
     }
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${FORGEJO_FEEDBACK_SCHEMA}${FORGEJO_DELIVERY_SCHEMA}${RETENTION_BACKFILL}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${FORGEJO_FEEDBACK_SCHEMA}${FORGEJO_DELIVERY_SCHEMA}${WAIVER_FOLLOWUP_SCHEMA}${RETENTION_BACKFILL}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -221,7 +222,7 @@ export function finalizeSchemaMigration(
   if (
     ![
       29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
-      47, 48, 49, 50,
+      47, 48, 49, 50, 51,
     ].includes(version)
   ) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
@@ -267,10 +268,14 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 51;
+export const CURRENT_SCHEMA_VERSION = 52;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
+import {
+  WAIVER_FOLLOWUP_REBUILD_CLEANUP,
+  WAIVER_FOLLOWUP_SCHEMA,
+} from "./waiver-followup-schema.js";
 import { migrateEvaluationCancellationReason } from "./evaluation-cancellation-reason-migration.js";
 import {
   EVALUATION_FILE_CHANGE_KIND_MIGRATION,
