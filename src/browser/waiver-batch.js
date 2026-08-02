@@ -373,6 +373,7 @@
     }
     for (const adjudication of adjudications) {
       const status = document.createElement("p");
+      status.id = "waiver-adjudication-" + encodeURIComponent(adjudication.id);
       status.textContent = describeStatus(adjudication);
       target.append(status);
       const ownsLatestUndecidedRequests = adjudication.request_ids.every(

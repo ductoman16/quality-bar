@@ -1,9 +1,11 @@
 import { REVIEW_RUN_CLAIM_GATE_DEFINITIONS } from "./review-run-claim-gate-definitions.mjs";
 import { APPLICABILITY_GATE_DEFINITIONS } from "./applicability-gate-definitions.mjs";
 import { PROVIDER_RECOVERY_GATE_DEFINITIONS } from "./provider-recovery-gate-definitions.mjs";
+import { SYSTEM_POLLING_DELIVERY_GATE_DEFINITIONS } from "./system-polling-delivery-gate-definitions.mjs";
 
 export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
   ...APPLICABILITY_GATE_DEFINITIONS,
+  ...SYSTEM_POLLING_DELIVERY_GATE_DEFINITIONS,
   {
     name: "review-run-execution-unit",
     testGroup:

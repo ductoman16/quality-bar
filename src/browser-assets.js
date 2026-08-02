@@ -67,6 +67,19 @@ const browserAssets = [
     url: new URL("./browser/system-execution.js", import.meta.url),
   },
   {
+    route: "/assets/system-polling-delivery-contract.js",
+    sourcePath: "src/browser/system-polling-delivery-contract.js",
+    url: new URL(
+      "./browser/system-polling-delivery-contract.js",
+      import.meta.url,
+    ),
+  },
+  {
+    route: "/assets/system-polling-delivery.js",
+    sourcePath: "src/browser/system-polling-delivery.js",
+    url: new URL("./browser/system-polling-delivery.js", import.meta.url),
+  },
+  {
     route: "/assets/storage-reserve.js",
     sourcePath: "src/browser/storage-reserve.js",
     url: new URL("./browser/storage-reserve.js", import.meta.url),
