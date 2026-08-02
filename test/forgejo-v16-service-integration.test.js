@@ -364,6 +364,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       core,
       currentTime,
       service,
+      setCurrentTime: (value) => (currentTime = value),
       token: setupToken,
       verifier,
     });

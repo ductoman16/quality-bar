@@ -2,8 +2,10 @@ import {
   completeForgejoReactivationVerification,
   failedForgejoReactivationVerification,
 } from "./forgejo-connection-reactivation-verification.js";
-import { failedForgejoRepositoryChecks } from "./forgejo-repository-check.js";
 import { retireForgejoPublicationRows } from "./forgejo-publication-retirement.js";
+import { forgejoDefinitiveFailureScope } from "./forgejo-failure.js";
+import { commitForgejoReactivationFailure } from "./forgejo-failure-health.js";
+import { resumeForgejoDeliveries } from "./forgejo-delivery-recovery.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
@@ -330,6 +332,12 @@ export async function reactivateForgejoConnection(
           "Forgejo Connection changed during reactivation",
         );
       }
+      resumeForgejoDeliveries(
+        transaction,
+        connection.id,
+        verifiedAt,
+        "connection_reactivation",
+      );
       polling.commitBaseline(transaction, connection.id, preparedBaseline);
     });
   } catch (error) {
@@ -340,62 +348,26 @@ export async function reactivateForgejoConnection(
     ) {
       throw error;
     }
+    const failure =
+      /** @type {Error & {code: string, repositoryId?: number, repositoryIds?: number[]}} */ (
+        error
+      );
     const failedVerification = failedForgejoReactivationVerification(
       error,
       repositoryIds,
     );
+    const scope = forgejoDefinitiveFailureScope(failure);
     durableCore.transaction((/** @type {any} */ transaction) => {
-      const healthUpdate = transaction.run(
-        `UPDATE forgejo_connections
-         SET health = 'error', verified_at = ?
-         WHERE id = ? AND lifecycle = 'retired'
-           AND NOT EXISTS (
-             SELECT 1 FROM forgejo_connection_credentials
-             WHERE connection_id = ?
-           )`,
-        verifiedAt,
-        connection.id,
-        connection.id,
-      );
-      if (healthUpdate.changes !== 1) {
-        fail(
-          "forgejo_connection_reactivation_conflict",
-          "Forgejo Connection changed during reactivation",
-        );
-      }
-      transaction.run(
-        "INSERT INTO forgejo_connection_verifications (id, connection_id, trigger, profile, reported_version, principal, scopes, capabilities, repositories, error_code, error_message, verified_at) VALUES (?, ?, 'enablement', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      commitForgejoReactivationFailure(transaction, {
+        completedVerification,
+        connectionId: connection.id,
+        error: failure,
+        failedVerification,
+        repositoryIds,
+        scope,
         verificationId,
-        connection.id,
-        failedVerification?.profile ?? completedVerification?.profile ?? null,
-        failedVerification?.reported_version ??
-          completedVerification?.reported_version ??
-          null,
-        failedVerification || completedVerification
-          ? JSON.stringify(
-              failedVerification?.principal ?? completedVerification?.principal,
-            )
-          : null,
-        failedVerification || completedVerification
-          ? JSON.stringify(
-              failedVerification?.scopes ?? completedVerification?.scopes,
-            )
-          : null,
-        failedVerification || completedVerification
-          ? JSON.stringify(
-              failedVerification?.capabilities ??
-                completedVerification?.capabilities,
-            )
-          : null,
-        JSON.stringify(
-          failedVerification?.repositories ??
-            completedVerification?.repositories ??
-            failedForgejoRepositoryChecks(error, repositoryIds),
-        ),
-        error.code,
-        error.message,
         verifiedAt,
-      );
+      });
     });
     throw error;
   }

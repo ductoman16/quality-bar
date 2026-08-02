@@ -96,6 +96,7 @@ export function createForgejoFeedbackService(
         `SELECT
            forgejo_feedback_bundles.evaluation_id,
            forgejo_feedback_bundles.publication_status,
+           evaluations.repository_id,
            evaluations.base_commit,
            evaluations.head_commit,
            evaluation_results.outcome,
@@ -132,10 +133,12 @@ export function createForgejoFeedbackService(
             )
          )
            AND forgejo_connections.lifecycle = 'enabled'
+           AND forgejo_connections.health = 'healthy'
            AND EXISTS (
              SELECT 1 FROM repositories
              WHERE repositories.id = evaluations.repository_id
                AND repositories.lifecycle != 'retired'
+               AND repositories.health = 'healthy'
            )
          ORDER BY evaluations.created_at, evaluations.id`,
       );
@@ -223,6 +226,7 @@ export function createForgejoFeedbackService(
               ),
             reconcile: (target) =>
               deliverAggregate(verifier.reconcileAggregateFeedback, target),
+            repositoryId: /** @type {string} */ (bundle.repository_id),
             sourceId: evaluationId,
             surface: "aggregate_feedback",
             target: JSON.stringify(aggregateTarget),
@@ -321,6 +325,7 @@ export function createForgejoFeedbackService(
               ),
             reconcile: (target) =>
               deliverInline(verifier.reconcileInlineFeedback, target),
+            repositoryId: /** @type {string} */ (bundle.repository_id),
             sourceId: /** @type {string} */ (row.finding_id),
             surface: "inline_feedback",
             target: JSON.stringify(inlineTarget),

@@ -1,5 +1,5 @@
 import { GitHubConnectionError } from "./github-connection-error.js";
-import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";
+import { forgejoDefinitiveFailureScope } from "./forgejo-failure.js";
 import { fail as failRepository } from "./repository-validation.js";
 
 const REPOSITORY_SCOPED_GITHUB_ERRORS = new Set([
@@ -60,12 +60,13 @@ export async function prepareForgejoRepositoryEnablement(
       error instanceof Error &&
       "code" in error &&
       typeof error.code === "string" &&
-      forgejoVerificationErrorScope(
-        error.code,
-        "repositoryId" in error && Number.isSafeInteger(error.repositoryId)
-          ? Number(error.repositoryId)
-          : undefined,
-      ) === "repository" &&
+      forgejoDefinitiveFailureScope({
+        code: error.code,
+        repositoryId:
+          "repositoryId" in error && Number.isSafeInteger(error.repositoryId)
+            ? Number(error.repositoryId)
+            : undefined,
+      }) === "repository" &&
       "repositoryId" in error &&
       Number.isSafeInteger(error.repositoryId) &&
       Number(error.repositoryId) === forgeRepositoryId

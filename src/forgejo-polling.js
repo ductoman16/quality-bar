@@ -3,6 +3,7 @@ import {
   isRepositoryOwnedForgejoPollingFailure,
   nextForgejoAttemptAt,
 } from "./forgejo-polling-failure.js";
+import { forgejoFailureRepositoryIds } from "./forgejo-failure.js";
 export {
   FORGEJO_POLL_INTERVAL_MS,
   isDefinitiveForgejoPollingFailure,
@@ -226,7 +227,7 @@ export function createForgejoPollingService(
   /**
    * @param {string} connectionId
    * @param {number[]} forgeRepositoryIds
-   * @param {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number}} failure
+   * @param {Error & {code: string, nextAttemptAt?: number, rateGateUntil?: number, repositoryId?: number, repositoryIds?: number[]}} failure
    * @param {number} attemptedAt
    * @param {boolean} baseline
    * @param {number} [expectedGeneration]
@@ -282,10 +283,11 @@ export function createForgejoPollingService(
       return false;
     }
     const nextAttemptAt = nextForgejoAttemptAt(attemptedAt, failure);
+    const failureRepositoryIds = forgejoFailureRepositoryIds(failure);
     for (const forgeRepositoryId of forgeRepositoryIds) {
       if (
-        failure.repositoryId !== undefined &&
-        failure.repositoryId !== forgeRepositoryId
+        failureRepositoryIds.length > 0 &&
+        !failureRepositoryIds.includes(forgeRepositoryId)
       ) {
         if (baseline) {
           transaction.run(

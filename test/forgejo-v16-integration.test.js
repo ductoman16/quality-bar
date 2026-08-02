@@ -10,9 +10,11 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
 import {
   createAvailableForgejoConnectionService,
-  assertForgejoFailedReactivationHistory,
+  assertForgejoFailedReactivationHistory as assertFailedHistory,
+  assertForgejoFailedReactivationRepository,
   assertForgejoMissingRepositoryId,
   assertForgejoPartialFailure,
+  assertForgejoRepositoryFailureOwners,
   assertForgejoVerificationRows,
 } from "./forgejo-v16-integration-support.js";
 import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
@@ -22,6 +24,8 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   const requests = [];
   /** @type {number | null} */
   let forbiddenRepositoryId = null;
+  /** @type {"capability" | "git" | null} */
+  let repositoryFailure = null;
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://fixture.invalid");
     requests.push({
@@ -71,7 +75,10 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     if (url.pathname === "/api/v1/repos/operator/private") {
       return send({
         id: 11,
-        permissions: { admin: true, pull: true, push: true },
+        permissions:
+          repositoryFailure === "capability"
+            ? { admin: false, pull: true, push: true }
+            : { admin: true, pull: true, push: true },
       });
     }
     if (url.pathname === "/api/v1/repos/operator/private-2") {
@@ -117,6 +124,11 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   const verifier = createForgejoV16Verifier({
     fetch,
     verifyGit: async (url, credential) => {
+      if (repositoryFailure === "git") {
+        throw Object.assign(new Error("Forgejo Repository Git read failed"), {
+          code: "repository_git_read_failed",
+        });
+      }
       if (!credential?.token || !credential.username) {
         throw new Error("forgejo_git_credential_missing");
       }
@@ -230,6 +242,13 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
     ],
   });
   assert.equal(gitReads.length, 1);
+  await assertForgejoRepositoryFailureOwners(
+    verifier,
+    `http://127.0.0.1:${address.port}`,
+    (failure) => {
+      repositoryFailure = failure;
+    },
+  );
   forbiddenRepositoryId = 11;
   await assert.rejects(
     verifier.verify({
@@ -237,7 +256,15 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       repositoryIds: [11],
       token: "operator-created-pat",
     }),
-    { code: "forgejo_required_route_unavailable" },
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.equal(
+        /** @type {any} */ (error).code,
+        "forgejo_repository_permission_denied",
+      );
+      assert.equal(/** @type {any} */ (error).repositoryId, 11);
+      return true;
+    },
   );
   forbiddenRepositoryId = 12;
   /** @type {any} */
@@ -291,11 +318,10 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   forbiddenRepositoryId = 11;
   await assert.rejects(
     service.reactivate({ token: "failed-reactivation-pat" }),
-    { code: "forgejo_required_route_unavailable" },
+    { code: "forgejo_repository_permission_denied", repositoryId: 11 },
   );
-  assertForgejoFailedReactivationHistory(
-    service.read()?.verification_history.at(-1),
-  );
+  assertFailedHistory(service.read()?.verification_history.at(-1));
+  assertForgejoFailedReactivationRepository(core);
   forbiddenRepositoryId = null;
   await service.reactivate({ token: "reactivation-pat" });
   assert.deepEqual(

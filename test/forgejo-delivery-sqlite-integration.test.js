@@ -36,6 +36,7 @@ test("an ambiguous delivery identity retries reconciliation until it becomes exa
         code: "forgejo_delivery_identity_conflict",
       });
     },
+    repositoryId: "repository-1",
     sourceId: "evaluation-1:blocking",
     surface: "commit_status",
     target: '{"state":"blocking"}',
@@ -61,6 +62,7 @@ test("an ambiguous delivery identity retries reconciliation until it becomes exa
         code: "forgejo_delivery_identity_conflict",
       });
     },
+    repositoryId: "repository-1",
     sourceId: "evaluation-1:blocking",
     surface: "commit_status",
     target: '{"state":"blocking"}',
@@ -98,6 +100,7 @@ test("an ambiguous delivery identity retries reconciliation until it becomes exa
     },
     onSuccess() {},
     reconcile: async () => 902,
+    repositoryId: "repository-1",
     sourceId: "evaluation-1:blocking",
     surface: "commit_status",
     target: '{"state":"blocking"}',
@@ -303,6 +306,7 @@ test("delivery failure health remains exact and scoped to its owning Forgejo res
     onDefinitive() {},
     onSuccess() {},
     reconcile: async () => null,
+    repositoryId: "repository-2",
     sourceId: "sibling-delivery",
     surface: "aggregate_feedback",
     target: '{"repository_id":102}',
@@ -327,7 +331,7 @@ test("delivery failure health remains exact and scoped to its owning Forgejo res
          error_detail = 'Forgejo PAT rejected'
      WHERE surface = 'commit_status'`,
   );
-  core.run("UPDATE forgejo_connections SET health = 'error'");
+  core.run("UPDATE forgejo_connections SET health = 'error', verified_at = 20");
   assert.deepEqual(readForgejoConnection(core)?.health_error, {
     code: "forgejo_connection_credential_invalid",
     message: "Forgejo PAT rejected",

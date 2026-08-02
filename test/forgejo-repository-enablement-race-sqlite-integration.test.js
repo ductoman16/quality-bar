@@ -12,7 +12,10 @@ import {
   forgejoVerification,
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
-import { assertForgejoSiblingRecovery } from "./forgejo-repository-enablement-race-support.js";
+import {
+  assertForgejoMultipleRepositoryFailure,
+  assertForgejoSiblingRecovery,
+} from "./forgejo-repository-enablement-race-support.js";
 import {
   availableStorageReserve,
   forgejoAutomaticEvaluationTestDependencies,
@@ -107,6 +110,7 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
                 outcome: "error",
               },
             ],
+            repositoryIds: [11, 22],
           });
         }
         if (newerSiblingHealthAndFailure) {
@@ -164,7 +168,8 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
   await repositories.setLifecycle("repository-1", { lifecycle: "retired" });
   core.run(
     `UPDATE forgejo_repository_polls
-     SET baseline_status = 'pending', next_attempt_at = 0
+     SET baseline_status = 'pending', error_code = NULL,
+         error_message = NULL, rate_gate_until = NULL, next_attempt_at = 0
      WHERE forge_repository_id = 22`,
   );
   siblingFailure = true;
@@ -225,15 +230,9 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
   conflictingFailure = true;
   await assert.rejects(
     repositories.setLifecycle("repository-1", { lifecycle: "enabled" }),
-    { code: "forgejo_repository_permission_denied" },
+    { code: "forgejo_verification_result_invalid" },
   );
   conflictingFailure = false;
-  multipleFailure = true;
-  await assert.rejects(
-    repositories.setLifecycle("repository-1", { lifecycle: "enabled" }),
-    { code: "forgejo_repository_permission_denied" },
-  );
-  multipleFailure = false;
   assert.deepEqual(
     core.all(
       `SELECT repositories.id, repositories.health,
@@ -247,19 +246,19 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
     ),
     beforeAmbiguousOwnership.repositories,
   );
-  assert.deepEqual(
-    core.all(
-      `SELECT forge_repository_id, baseline_status, error_code, error_message
-       FROM forgejo_repository_polls ORDER BY forge_repository_id`,
-    ),
-    beforeAmbiguousOwnership.polling,
+  multipleFailure = true;
+  await assert.rejects(
+    repositories.setLifecycle("repository-1", { lifecycle: "enabled" }),
+    { code: "forgejo_repository_permission_denied" },
   );
+  multipleFailure = false;
+  assertForgejoMultipleRepositoryFailure(core);
   assert.deepEqual(
     core.all(
       `SELECT id FROM forgejo_connection_verifications
        WHERE id IN ('verification-3', 'verification-4') ORDER BY id`,
     ),
-    [{ id: "verification-3" }, { id: "verification-4" }],
+    [{ id: "verification-4" }],
   );
   ambiguousFailure = true;
   await assert.rejects(
@@ -277,16 +276,16 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
     ),
     [
       {
-        health: "healthy",
+        health: "error",
         id: "repository-1",
         lifecycle: "retired",
-        verification_id: "verification-1",
+        verification_id: "verification-4",
       },
       {
         health: "error",
         id: "repository-2",
         lifecycle: "enabled",
-        verification_id: "verification-2",
+        verification_id: "verification-4",
       },
     ],
   );
@@ -385,7 +384,8 @@ test("Forgejo Repository re-enablement rejects a stale sibling snapshot atomical
   );
   core.run(
     `UPDATE forgejo_repository_polls
-     SET baseline_status = 'pending', next_attempt_at = 0
+     SET baseline_status = 'pending', error_code = NULL,
+         error_message = NULL, rate_gate_until = NULL, next_attempt_at = 0
      WHERE forge_repository_id = 22`,
   );
   await repositories.setLifecycle("repository-1", { lifecycle: "enabled" });

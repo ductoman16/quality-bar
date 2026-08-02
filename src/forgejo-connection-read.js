@@ -71,23 +71,14 @@ function verification(row) {
 export function readForgejoConnection(durableCore) {
   const [row] = durableCore.all(
     `SELECT forgejo_connections.*,
-       latest_verification.error_code AS health_error_code,
-       latest_verification.error_message AS health_error_message,
        latest_delivery.error_code AS delivery_health_error_code,
        latest_delivery.error_detail AS delivery_health_error_message
      FROM forgejo_connections
-     LEFT JOIN forgejo_connection_verifications AS latest_verification
-       ON latest_verification.rowid = (
-         SELECT rowid
-         FROM forgejo_connection_verifications
-         WHERE connection_id = forgejo_connections.id
-         ORDER BY rowid DESC
-         LIMIT 1
-       )
      LEFT JOIN forgejo_delivery_attempts AS latest_delivery
        ON latest_delivery.rowid = (
          SELECT rowid FROM forgejo_delivery_attempts
          WHERE connection_id = forgejo_connections.id
+           AND last_attempt_at = forgejo_connections.verified_at
            AND definitive = 1
            AND (
              response_status = 401
@@ -124,12 +115,22 @@ export function readForgejoConnection(durableCore) {
   }
   const pollingGate = readForgejoPollingGate(durableCore, row.id);
   const connectionVerificationError =
-    row.health_error_code !== null &&
-    forgejoVerificationErrorScope(
-      /** @type {string} */ (row.health_error_code),
-      undefined,
-    ) === "connection"
-      ? { code: row.health_error_code, message: row.health_error_message }
+    row.health === "error"
+      ? (durableCore
+          .all(
+            `SELECT error_code AS code, error_message AS message
+             FROM forgejo_connection_verifications
+             WHERE connection_id = ? AND verified_at = ?
+               AND error_code IS NOT NULL
+             ORDER BY rowid DESC`,
+            row.id,
+            row.verified_at,
+          )
+          .find(
+            (failure) =>
+              failure !== undefined &&
+              forgejoDefinitiveFailureScope(failure) === "connection",
+          ) ?? null)
       : null;
   const deliveryHealthError =
     typeof row.delivery_health_error_code === "string" &&
@@ -198,4 +199,4 @@ import {
   readForgejoPollingGate,
   readForgejoPollingStates,
 } from "./forgejo-polling-read.js";
-import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";
+import { forgejoDefinitiveFailureScope } from "./forgejo-failure.js";

@@ -345,6 +345,30 @@ export async function assertForgejoContract(contract) {
     }),
     "Forge Repository 11; baseline complete; 1970-01-01T00:00:01.000Z; Forgejo polling rate limited (forgejo_api_rate_limited); rate gate until 1970-01-01T00:02:05.000Z; next attempt 1970-01-01T00:02:05.000Z",
   );
+  assert.equal(
+    contract.forgejoPollingFailureText({
+      error: {
+        code: "forgejo_version_unsupported",
+        message: "Forgejo Connection requires stable v16.x",
+      },
+      forge_repository_id: null,
+      next_attempt_at: null,
+      rate_gate_until: null,
+    }),
+    "Connection baseline error; Forgejo Connection requires stable v16.x (forgejo_version_unsupported); next attempt after operator correction",
+  );
+  assert.equal(
+    contract.forgejoPollingFailureText({
+      error: {
+        code: "forgejo_repository_permission_denied",
+        message: "Forgejo Repository pull-request access is forbidden",
+      },
+      forge_repository_id: 11,
+      next_attempt_at: null,
+      rate_gate_until: null,
+    }),
+    "Forge Repository 11 baseline error; Forgejo Repository pull-request access is forbidden (forgejo_repository_permission_denied); next attempt after operator correction",
+  );
   assert.match(
     contract.forgejoVerificationText({
       error: { code: "forgejo_failed", message: "Forgejo failed" },

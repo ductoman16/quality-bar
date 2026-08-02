@@ -6,7 +6,7 @@ import {
   proveForgejoDeliveryAbsent,
   succeedForgejoDelivery,
 } from "./forgejo-delivery.js";
-import { forgejoVerificationErrorScope } from "./forgejo-verification-scope.js";
+import { forgejoDefinitiveFailureScope } from "./forgejo-failure.js";
 
 /** @param {any} transaction @param {string} connectionId @param {number} attemptedAt @param {any} failure */
 export function recordForgejoDeliveryHealth(
@@ -16,8 +16,7 @@ export function recordForgejoDeliveryHealth(
   failure,
 ) {
   if (
-    forgejoVerificationErrorScope(failure.code, failure.repositoryId) ===
-      "repository" &&
+    forgejoDefinitiveFailureScope(failure) === "repository" &&
     Number.isSafeInteger(failure.repositoryId)
   ) {
     transaction.run(
@@ -38,14 +37,7 @@ export function recordForgejoDeliveryHealth(
   }
   const connectionOwned =
     failure.definitive &&
-    ([
-      "forgejo_connection_credential_invalid",
-      "forgejo_connection_credential_undecryptable",
-      "forgejo_publication_capability_unavailable",
-      "forgejo_required_route_unavailable",
-      "forgejo_version_unsupported",
-    ].includes(failure.code) ||
-      failure.responseStatus === 401);
+    forgejoDefinitiveFailureScope(failure) === "connection";
   if (!connectionOwned) {
     return;
   }
@@ -57,7 +49,7 @@ export function recordForgejoDeliveryHealth(
   );
 }
 
-/** @param {any} durableCore @param {{connectionId: string, create: (target: string) => Promise<number>, now: () => number, onDefinitive: (transaction: any, failure: any, attemptedAt: number) => void, onSuccess: (transaction: any, externalId: number, publishedAt: number) => void, reconcile: (target: string) => Promise<number | null>, sourceId: string, surface: "commit_status" | "aggregate_feedback" | "inline_feedback", target: string}} input */
+/** @param {any} durableCore @param {{connectionId: string, create: (target: string) => Promise<number>, now: () => number, onDefinitive: (transaction: any, failure: any, attemptedAt: number) => void, onSuccess: (transaction: any, externalId: number, publishedAt: number) => void, reconcile: (target: string) => Promise<number | null>, repositoryId: string, sourceId: string, surface: "commit_status" | "aggregate_feedback" | "inline_feedback", target: string}} input */
 export async function attemptForgejoDelivery(durableCore, input) {
   let delivery = ensureForgejoDelivery(
     durableCore,
@@ -87,6 +79,7 @@ export async function attemptForgejoDelivery(durableCore, input) {
     !beginForgejoDeliveryAttempt(
       durableCore,
       input.connectionId,
+      input.repositoryId,
       delivery,
       attemptedAt,
       operation,
@@ -129,6 +122,7 @@ export async function attemptForgejoDelivery(durableCore, input) {
         !beginForgejoDeliveryAttempt(
           durableCore,
           input.connectionId,
+          input.repositoryId,
           delivery,
           attemptedAt,
           "create",

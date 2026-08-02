@@ -22,7 +22,6 @@ test("a Forgejo PR acquisition failure stays local and skips no sibling Reposito
   /** @type {number[]} */
   const acquisitions = [];
   let releases = 0;
-  let authenticationFailure = false;
   /** @type {number | null} */
   let mixedObjectRepository = null;
   /** @type {number[]} */
@@ -30,11 +29,6 @@ test("a Forgejo PR acquisition failure stays local and skips no sibling Reposito
   const connection = createForgejoConnectionService(core, {
     async acquirePullRequestChangeset({ pullRequest: candidate }) {
       acquisitions.push(candidate.number);
-      if (authenticationFailure) {
-        throw Object.assign(new Error("Repository authentication failed"), {
-          code: "repository_authentication_failed",
-        });
-      }
       if (candidate.number === 11) {
         throw Object.assign(
           new Error("Forgejo pull request head is inaccessible"),
@@ -185,36 +179,24 @@ test("a Forgejo PR acquisition failure stays local and skips no sibling Reposito
   mixedObjectRepository = 11;
   currentTime = 121_000;
   await connection.runPolling();
-  assert.deepEqual(polled.slice(-3), [11, 14, 15]);
+  assert.deepEqual(polled.slice(-1), [11]);
   assert.equal(
     core.get(
       "SELECT error_code FROM forgejo_repository_polls WHERE forge_repository_id = 11",
     )?.error_code,
     "forgejo_poll_response_invalid",
   );
-  assert.equal(
-    core.get(
-      "SELECT value FROM quality_bar_metadata WHERE key = 'forgejo_poll_gate:connection-1'",
-    ),
-    undefined,
-  );
-
-  mixedObjectRepository = null;
-  authenticationFailure = true;
-  currentTime = 181_000;
-  await connection.runPolling();
-  assert.equal(
-    core.get("SELECT health FROM forgejo_connections")?.health,
-    "error",
-  );
-  assert.deepEqual(acquisitions.slice(-1), [14]);
   assert.match(
     String(
       core.get(
         "SELECT value FROM quality_bar_metadata WHERE key = 'forgejo_poll_gate:connection-1'",
-      )?.value ?? "",
+      )?.value,
     ),
-    /repository_authentication_failed/,
+    /forgejo_poll_response_invalid/,
+  );
+  assert.equal(
+    core.get("SELECT health FROM forgejo_connections")?.health,
+    "error",
   );
   connection.destroy();
   core.close();

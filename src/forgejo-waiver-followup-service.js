@@ -70,6 +70,7 @@ export function createForgejoWaiverFollowupService(
                 followups.outcome,
                 adjudications.base_commit, adjudications.head_commit,
                 automatic.pull_request_number,
+                automatic.repository_id,
                 repositories.forge_repository_id, repositories.name,
                 connections.id AS connection_id, connections.base_url,
                 credentials.encrypted_credential
@@ -151,6 +152,7 @@ export function createForgejoWaiverFollowupService(
             reconcile: (serialized) =>
               deliver(verifier.reconcileAggregateFeedback, serialized),
             now,
+            repositoryId: row.repository_id,
             sourceId: `waiver-adjudication:${row.waiver_adjudication_id}`,
             surface: "aggregate_feedback",
             target: JSON.stringify(aggregateTarget),
@@ -231,6 +233,7 @@ export function createForgejoWaiverFollowupService(
             reconcile: (serialized) =>
               deliver(verifier.reconcileInlineFeedback, serialized),
             now,
+            repositoryId: row.repository_id,
             sourceId: `waiver-decision:${local.waiver_decision_id}:${local.finding_id}`,
             surface: "inline_feedback",
             target: JSON.stringify(inlineTarget),

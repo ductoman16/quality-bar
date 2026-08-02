@@ -1,6 +1,9 @@
-import { isDefinitiveForgejoPollingFailure } from "./forgejo-polling.js";
+import {
+  forgejoDefinitiveFailureScope,
+  forgejoFailureRepositoryIds,
+} from "./forgejo-failure.js";
 
-/** @param {any} transaction @param {string} connectionId @param {number[]} forgeRepositoryIds @param {Error & {code: string, repositoryId?: number}} failure @param {number} attemptedAt */
+/** @param {any} transaction @param {string} connectionId @param {number[]} forgeRepositoryIds @param {Error & {code: string, repositoryId?: number, repositoryIds?: number[]}} failure @param {number} attemptedAt */
 export function recordForgejoPollingOwningFailure(
   transaction,
   connectionId,
@@ -8,24 +11,26 @@ export function recordForgejoPollingOwningFailure(
   failure,
   attemptedAt,
 ) {
-  if (!isDefinitiveForgejoPollingFailure(failure)) {
+  const scope = forgejoDefinitiveFailureScope(failure);
+  if (scope === null) {
     return;
   }
-  const repositoryFailure = new Set([
-    "forgejo_poll_response_invalid",
-    "forgejo_repository_api_access_failed",
-    "forgejo_repository_permission_denied",
-    "repository_permission_denied",
-    "repository_git_read_failed",
-  ]);
-  const repositoryId =
-    repositoryFailure.has(failure.code) &&
-    Number.isSafeInteger(failure.repositoryId) &&
-    forgeRepositoryIds.includes(Number(failure.repositoryId))
-      ? Number(failure.repositoryId)
-      : null;
-  if (repositoryId !== null) {
-    transaction.run(
+  const repositoryIds =
+    scope === "repository" ? forgejoFailureRepositoryIds(failure) : [];
+  if (
+    scope === "repository" &&
+    (repositoryIds.length === 0 ||
+      repositoryIds.some(
+        (repositoryId) => !forgeRepositoryIds.includes(repositoryId),
+      ))
+  ) {
+    throw Object.assign(
+      new Error("Forgejo polling failure owner is not selected"),
+      { code: "forgejo_poll_response_invalid" },
+    );
+  }
+  for (const repositoryId of repositoryIds) {
+    const update = transaction.run(
       `UPDATE repositories
           SET health = 'error', health_error_code = ?,
               health_error_message = ?, verified_at = ?
@@ -39,6 +44,14 @@ export function recordForgejoPollingOwningFailure(
       connectionId,
       repositoryId,
     );
+    if (update.changes !== 1) {
+      throw Object.assign(
+        new Error("Forgejo polling failure owner is not selected"),
+        { code: "forgejo_poll_response_invalid" },
+      );
+    }
+  }
+  if (repositoryIds.length > 0) {
     return;
   }
   transaction.run(
