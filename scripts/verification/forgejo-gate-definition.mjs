@@ -27,6 +27,7 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-automatic-evaluation-sqlite-integration.test.js",
   "test/forgejo-automatic-evaluation-supersession-sqlite-integration.test.js",
   "test/forgejo-connection-rotation-sqlite-integration.test.js",
+  "test/forgejo-connection-empty-rotation-sqlite-integration.test.js",
   "test/forgejo-connection-lifecycle-sqlite-integration.test.js",
   "test/forgejo-connection-schema-migration.test.js",
   "test/forgejo-connection-concurrency-sqlite-integration.test.js",
@@ -36,6 +37,7 @@ export const FORGEJO_SQLITE_TESTS = [
   "test/forgejo-repository-enablement-race-sqlite-integration.test.js",
   "test/forgejo-publication.test.js",
   "test/forgejo-delivery-core-sqlite-integration.test.js",
+  "test/forgejo-delivery-lifecycle-sqlite-integration.test.js",
   "test/forgejo-delivery-sqlite-integration.test.js",
 ];
 
