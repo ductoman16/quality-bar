@@ -74,6 +74,7 @@ export function createApplicationIoPool({
       }
       const storageReserve = createStorageReserve({
         cleanupEligibleData,
+        now,
         reserveBytes,
       });
       return {

@@ -39,6 +39,7 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     integrity: "ok",
     journalMode: "wal",
     schemaVersion: 52,
+    schemaVersionBeforeMigration: 0,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);

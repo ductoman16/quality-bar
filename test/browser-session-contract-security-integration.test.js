@@ -8,6 +8,12 @@ import {
   temporaryDatabasePath,
 } from "./browser-session-security-integration-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
+import {
+  expectedSystemApplication,
+  expectedSystemBackup,
+  expectedSystemDurableCore,
+  expectedSystemMigration,
+} from "./system-storage-expected.js";
 
 /**
  * @typedef {{
@@ -314,7 +320,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     headers: { cookie },
   });
   assert.equal(system.status, 200);
-  assert.deepEqual(await system.json(), {
+  const systemFacts = /** @type {any} */ (await system.json());
+  assert.deepEqual(systemFacts, {
+    application: expectedSystemApplication,
+    backup: expectedSystemBackup,
     bootstrap: { status: "complete" },
     browser_sessions: { active_count: 1, status: "available" },
     codex: { catalog: CODEX_CAPABILITY_CATALOG, status: "available" },
@@ -329,9 +338,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       running: { count: 0, rows: [] },
     },
     delivery: { surfaces: [] },
-    durable_core: { schema_version: 52, status: "ready" },
+    durable_core: expectedSystemDurableCore(systemFacts.durable_core),
     implementer_token: { status: "active" },
     polling: { connections: [] },
+    migration: expectedSystemMigration,
     storage: availableStorageReserve.readFacts(),
   });
 

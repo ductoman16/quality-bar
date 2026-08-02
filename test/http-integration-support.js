@@ -27,8 +27,16 @@ function temporaryDatabasePath() {
   return join(directory, "quality-bar.sqlite3");
 }
 
+function temporaryBackupsPath() {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-http-backups-"));
+  temporaryDirectories.push(directory);
+  return directory;
+}
+
 /**
  * @param {{
+ *   applicationVersion?: string,
+ *   backupsPath?: string,
  *   createRepositories?: Parameters<typeof createApplication>[0]["createRepositories"],
  *   createGitHubConnections?: Parameters<typeof createApplication>[0]["createGitHubConnections"],
  *   createForgejoConnections?: Parameters<typeof createApplication>[0]["createForgejoConnections"],
@@ -38,11 +46,14 @@ function temporaryDatabasePath() {
  *   createEvaluations?: Parameters<typeof createApplication>[0]["createEvaluations"],
  *   createCodexRuntime?: Parameters<typeof createApplication>[0]["createCodexRuntime"],
  *   validateCodexAuthentication?: Parameters<typeof createApplication>[0]["validateCodexAuthentication"],
+ *   now?: Parameters<typeof createApplication>[0]["now"],
  *   writeLog?: Parameters<typeof createApplication>[0]["writeLog"]
  * }} [options]
  */
 export async function startApplication(options = {}) {
   const application = createApplication({
+    applicationVersion: options.applicationVersion ?? "1.2.3",
+    backupsPath: options.backupsPath ?? temporaryBackupsPath(),
     databasePath: temporaryDatabasePath(),
     loadInstallation: () => ({
       externalOrigin: "http://127.0.0.1:3000",
@@ -69,6 +80,7 @@ export async function startApplication(options = {}) {
         async close() {},
         start() {},
       })),
+    now: options.now,
     writeLog: options.writeLog ?? (() => {}),
   });
   if (!application.durableCore || !application.implementerTokens) {

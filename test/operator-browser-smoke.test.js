@@ -119,6 +119,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const directory = temporaryDirectory("quality-bar-operator-browser-");
   const databasePath = join(directory, "quality-bar.sqlite3");
   const application = createApplication({
+    applicationVersion: "1.2.3",
     createStorageReserve: () => availableStorageReserve,
     databasePath,
     loadInstallation: () => ({

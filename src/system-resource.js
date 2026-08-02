@@ -4,6 +4,8 @@ import { insertAuthorityAttribution } from "./authority-attribution.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { readSystemCodexExecutionFacts } from "./system-execution-facts.js";
 import { readSystemPollingDeliveryFacts } from "./system-polling-delivery-facts.js";
+import { readSystemStorageFacts } from "./system-storage-facts.js";
+import { BACKUPS_PATH } from "./installation-environment.js";
 import {
   BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   BROWSER_SESSION_IDLE_LIFETIME_MS,
@@ -66,11 +68,23 @@ function eventDocument(row) {
 
 /**
  * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
- * @param {{ now?: () => number }} [options]
+ * @param {{
+ *   applicationVersion?: string,
+ *   backupsPath?: string,
+ *   installationKeyIdentity?: string,
+ *   now?: () => number,
+ *   readBackups?: typeof import("./validated-backup.js").readValidatedBackups
+ * }} [options]
  */
 export function createSystemResource(
   durableCore,
-  { now = () => Date.now() } = {},
+  {
+    applicationVersion,
+    backupsPath = BACKUPS_PATH,
+    installationKeyIdentity,
+    now = () => Date.now(),
+    readBackups,
+  } = {},
 ) {
   if (!durableCore) {
     throw new TypeError("durableCore is required");
@@ -176,7 +190,16 @@ export function createSystemResource(
           "now must return a nonnegative integer millisecond timestamp",
         );
       }
+      const storageFacts = readSystemStorageFacts({
+        applicationVersion,
+        backupsPath,
+        durableCore,
+        installationKeyIdentity,
+        now: () => timestamp,
+        readBackups,
+      });
       return {
+        ...storageFacts,
         bootstrap: {
           status: browserSessions.isBootstrapped() ? "complete" : "required",
         },
@@ -205,8 +228,15 @@ export function createSystemResource(
           now: () => timestamp,
         }),
         durable_core: {
+          database_version: durableCore.facts.databaseVersion,
+          foreign_keys: durableCore.facts.foreignKeys,
+          integrity: durableCore.facts.integrity,
+          journal_mode: durableCore.facts.journalMode,
           schema_version: durableCore.facts.schemaVersion,
+          schema_version_before_migration:
+            durableCore.facts.schemaVersionBeforeMigration,
           status: "ready",
+          synchronous: durableCore.facts.synchronous,
         },
         implementer_token: implementerToken,
         storage,

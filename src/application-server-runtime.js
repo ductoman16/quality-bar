@@ -1,4 +1,5 @@
 import { createApplicationServer } from "./server.js";
+import { StorageReserveError } from "./storage-reserve.js";
 
 /** @param {unknown} failure @returns {never} */
 function throwStartupFailure(failure) {
@@ -54,6 +55,15 @@ export function createApplicationRuntimeServer(options) {
       if (!systemResource || !storageReserve) {
         throwStartupFailure(startupFailure);
       }
+      if (typeof storageReserve.readCleanupFacts !== "function") {
+        throw new StorageReserveError(
+          "storage_cleanup_facts_unavailable",
+          "Owned storage cleanup facts are unavailable",
+          { action: "system_read" },
+        );
+      }
+      const storage = storageReserve.readFacts();
+      const cleanup = storageReserve.readCleanupFacts();
       return systemResource.readFacts({
         browserSessions,
         codex: codexCapabilityFailure
@@ -62,7 +72,7 @@ export function createApplicationRuntimeServer(options) {
         implementerToken: implementerTokens?.hasActiveToken()
           ? { status: "active" }
           : { status: "revoked" },
-        storage: storageReserve.readFacts(),
+        storage: { ...storage, cleanup },
       });
     },
     listAuthorityAttributions(query) {
