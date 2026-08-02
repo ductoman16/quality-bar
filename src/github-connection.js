@@ -51,6 +51,7 @@ export function createGitHubConnectionService(
 ) {
   if (
     typeof durableCore?.all !== "function" ||
+    typeof durableCore?.get !== "function" ||
     typeof durableCore.transaction !== "function"
   ) {
     throw new TypeError("durableCore must provide reads and transactions");

@@ -46,6 +46,9 @@ test("Forgejo lifecycle rejects malformed input before durable access", async ()
         reads += 1;
         return [];
       },
+      get() {
+        return undefined;
+      },
       transaction() {
         throw new Error("unused transaction");
       },

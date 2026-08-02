@@ -1,0 +1,72 @@
+{
+  "ticket": 134,
+  "acceptance_scenarios": ["ACC-08"],
+  "proof": {
+    "unit": {
+      "application-shutdown-unit": [
+        "test/application-shutdown.test.js",
+        "test/application-execution-shutdown.test.js"
+      ],
+      "codex-execution-claim-unit": [
+        "test/codex-execution-recovery.test.js",
+        "test/codex-execution-worker.test.js"
+      ],
+      "unit": [
+        "test/restored-discovery.test.js"
+      ]
+    },
+    "sqlite_integration": {
+      "codex-execution-race-sqlite-integration": [
+        "test/codex-execution-race-sqlite-integration.test.js"
+      ],
+      "codex-execution-recovery-sqlite-integration": [
+        "test/codex-execution-recovery-sqlite-integration.test.js"
+      ],
+      "sqlite-integration": [
+        "test/github-pr-lifecycle-sqlite-integration.test.js",
+        "test/forgejo-automatic-evaluation-supersession-sqlite-integration.test.js",
+        "test/github-polling.test.js",
+        "test/github-polling-race-sqlite-integration.test.js",
+        "test/forgejo-connection-concurrency-sqlite-integration.test.js",
+        "test/forgejo-polling-sqlite-integration.test.js"
+      ],
+      "waiver-adjudication-sqlite-integration": [
+        "test/waiver-adjudication-recovery-lineage-sqlite-integration.test.js",
+        "test/waiver-supersession-sqlite-integration.test.js"
+      ]
+    },
+    "sqlite_failure_integration": {
+      "application-shutdown-sqlite-failure-integration": [
+        "test/application-shutdown-sqlite-failure-integration.test.js"
+      ],
+      "codex-execution-race-sqlite-failure-integration": [
+        "test/codex-execution-race-sqlite-failure-integration.test.js"
+      ],
+      "codex-execution-recovery-sqlite-failure-integration": [
+        "test/codex-execution-recovery-sqlite-failure-integration.test.js"
+      ],
+      "sqlite-restore-failure-integration": [
+        "test/restored-discovery-sqlite-failure-integration.test.js"
+      ]
+    },
+    "process_integration": {
+      "application-shutdown-process-integration": [
+        "test/application-shutdown-process-integration.test.js"
+      ],
+      "codex-execution-recovery-process-integration": [
+        "test/codex-execution-recovery-process-integration.test.js"
+      ],
+      "codex-execution-claim-process-integration": [
+        "test/review-run-claim-process-integration.test.js"
+      ]
+    },
+    "adapter_integration": {
+      "codex-execution-claim-adapter-integration": [
+        "test/review-run-claim-adapter-integration.test.js"
+      ]
+    }
+  },
+  "deterministic_timing_sleeps_added": 0,
+  "cross_process_e2e_scenarios_added": 0,
+  "final_outcome": "pass"
+}

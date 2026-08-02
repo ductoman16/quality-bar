@@ -128,11 +128,12 @@ test("Forgejo v16 verifier rejects malformed selection, token, and endpoint inpu
 });
 
 test("Forgejo Connection construction rejects every incomplete owned dependency", () => {
-  const validCore = { all: () => [], transaction() {} };
+  const validCore = { all: () => [], get() {}, transaction() {} };
   for (const [core, options] of [
     [null, { masterKey: Buffer.alloc(32) }],
     [{ transaction() {} }, { masterKey: Buffer.alloc(32) }],
     [{ all: () => [] }, { masterKey: Buffer.alloc(32) }],
+    [{ all: () => [], transaction() {} }, { masterKey: Buffer.alloc(32) }],
     [validCore, { createId: null, masterKey: Buffer.alloc(32) }],
     [validCore, { masterKey: Buffer.alloc(32), now: null }],
     [validCore, { masterKey: Buffer.alloc(32), verifier: null }],
@@ -156,6 +157,9 @@ test("Forgejo PAT rotation rejects an empty replacement before reading or verify
       all() {
         reads += 1;
         return [];
+      },
+      get() {
+        return undefined;
       },
       transaction() {
         throw new Error("unused transaction");
@@ -225,6 +229,9 @@ test("Forgejo Connection read rejects contradictory durable health errors", () =
             sql.includes("forgejo_repository_polls")
             ? []
             : [row];
+        },
+        get() {
+          return undefined;
         },
         transaction() {
           throw new Error("unused transaction");

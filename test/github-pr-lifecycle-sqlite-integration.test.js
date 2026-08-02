@@ -9,6 +9,7 @@ import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
 import { createReviewService } from "../src/review.js";
 import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../src/waiver-followup-schema.js";
+import { assertSupersessionFencesRunningWorker } from "./automatic-evaluation-supersession-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 const SUPERSESSION = {
@@ -200,6 +201,8 @@ test("a different GitHub pull-request pair durably supersedes nonterminal work",
     ),
     { completed_at: 11, outcome: "error" },
   );
+  assertSupersessionFencesRunningWorker(core);
+  assert.deepEqual(signalled, []);
   second.afterCommit();
   assert.deepEqual(signalled, ["review-run-1"]);
 

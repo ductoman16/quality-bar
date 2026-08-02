@@ -17,6 +17,9 @@ function createCore() {
       void sql;
       return [];
     },
+    get() {
+      return undefined;
+    },
     /** @param {(transaction: any) => any} callback */
     transaction(callback) {
       return callback({
