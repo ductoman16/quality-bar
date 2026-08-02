@@ -7,6 +7,7 @@ import test from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
 import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 /** @param {any} core */
@@ -217,6 +218,107 @@ test("waiver status transitions preserve GitHub retirement failures", () => {
         "SELECT publication_status, error_code FROM github_commit_statuses",
       ),
       retiredStatus,
+    );
+  } finally {
+    core.close();
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("Forgejo waiver status derives Connection and Repository retirement", () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-retired-"));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite"));
+  try {
+    const { head } = arrangeForgejoFeedback(core, { impact: "advisory" });
+    core.run(
+      `UPDATE forgejo_commit_statuses
+       SET desired_state = 'failure', publication_status = 'succeeded',
+           published_state = 'failure', published_at = 4, external_id = 501
+       WHERE head_commit = ?`,
+      head,
+    );
+    core.run(
+      `INSERT INTO waiver_adjudicator_configuration (
+         singleton, model, reasoning_effort, service_tier, updated_at
+       ) VALUES (1, 'gpt-5.6-terra', 'high', 'standard', 5)`,
+    );
+    createWaiverBatchService(core, {
+      createAdjudicationId: () => "adjudication-forgejo-retired",
+      createRequestId: () => "request-forgejo-retired",
+      now: () => 6,
+      readCodexCapabilityFailure: () => null,
+      storageReserve: { assertWorkAdmissionAvailable() {} },
+    }).submit({
+      channel: "browser_session",
+      evaluationId: "evaluation-1",
+      idempotencyKey: "forgejo-retired",
+      request: {
+        requests: [
+          {
+            finding_id: "finding-inline",
+            rationale: "Exact exception.",
+          },
+        ],
+      },
+    });
+    core.run(
+      `UPDATE codex_execution_queue
+       SET worker_id = 'worker-forgejo-retired', fencing_token = 1,
+           lease_expires_at = 100, started_at = 7
+       WHERE work_id = 'adjudication-forgejo-retired'`,
+    );
+    core.run(
+      "UPDATE forgejo_connections SET lifecycle = 'retired' WHERE id = 'connection-1'",
+    );
+    core.run(
+      `UPDATE waiver_adjudications
+       SET execution_status = 'running', started_at = 7,
+           codex_cli_version = '0.114.0'
+       WHERE id = 'adjudication-forgejo-retired'`,
+    );
+    assert.deepEqual(
+      core.get(
+        "SELECT publication_status, error_code FROM forgejo_commit_statuses",
+      ),
+      {
+        error_code: "forgejo_connection_retired",
+        publication_status: "unavailable",
+      },
+    );
+
+    core.run(
+      "UPDATE forgejo_connections SET lifecycle = 'enabled' WHERE id = 'connection-1'",
+    );
+    core.run(
+      "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
+    );
+    createWaiverAdjudicationResultService(core, {
+      createDecisionId: () => "decision-forgejo-retired",
+      now: () => 8,
+    }).prepare(
+      {
+        fencingToken: 1,
+        workerId: "worker-forgejo-retired",
+        workId: "adjudication-forgejo-retired",
+      },
+      {
+        decisions: [
+          {
+            explanation: "The exception is justified.",
+            outcome: "accepted",
+            request_id: "request-forgejo-retired",
+          },
+        ],
+      },
+    );
+    assert.deepEqual(
+      core.get(
+        "SELECT publication_status, error_code FROM forgejo_commit_statuses",
+      ),
+      {
+        error_code: "repository_retired",
+        publication_status: "unavailable",
+      },
     );
   } finally {
     core.close();

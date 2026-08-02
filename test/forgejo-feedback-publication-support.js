@@ -1,10 +1,14 @@
 /**
  * @param {any} core
- * @param {{complete?: boolean, connectionLifecycle?: "enabled" | "retired"}} [options]
+ * @param {{complete?: boolean, connectionLifecycle?: "enabled" | "retired", impact?: "advisory" | "blocking"}} [options]
  */
 export function arrangeForgejoFeedback(
   core,
-  { complete = true, connectionLifecycle = "enabled" } = {},
+  {
+    complete = true,
+    connectionLifecycle = "enabled",
+    impact = "blocking",
+  } = {},
 ) {
   core.run(
     "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES ('repository-1', 'https://forgejo.example/operator/repository.git', 1, 1)",
@@ -57,10 +61,12 @@ export function arrangeForgejoFeedback(
       "INSERT INTO review_versions (id, review_id, number, model, reasoning_effort, service_tier, created_at, sealed_at) VALUES ('version-1', 'review-1', 1, 'gpt-5.6-terra', 'high', 'standard', 1, NULL)",
     );
     transaction.run(
-      "INSERT INTO criteria (id, review_id, instruction, impact, created_at) VALUES ('criterion-1', 'review-1', 'Find concern', 'blocking', 1)",
+      "INSERT INTO criteria (id, review_id, instruction, impact, created_at) VALUES ('criterion-1', 'review-1', 'Find concern', ?, 1)",
+      impact,
     );
     transaction.run(
-      "INSERT INTO review_version_criteria (review_version_id, criterion_id, position, instruction, impact) VALUES ('version-1', 'criterion-1', 1, 'Find concern', 'blocking')",
+      "INSERT INTO review_version_criteria (review_version_id, criterion_id, position, instruction, impact) VALUES ('version-1', 'criterion-1', 1, 'Find concern', ?)",
+      impact,
     );
     transaction.run(
       "UPDATE review_versions SET sealed_at = 1 WHERE id = 'version-1'",
