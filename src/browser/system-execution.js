@@ -120,7 +120,7 @@ function failureLabel(failure) {
 }
 
 /** @param {HTMLElement} container @param {string[]} labels */
-function replaceRows(container, labels) {
+function replaceExecutionRows(container, labels) {
   container.replaceChildren(
     ...labels.map((text) => {
       const item = document.createElement("li");
@@ -131,7 +131,7 @@ function replaceRows(container, labels) {
 }
 
 /** @param {string} name @param {string | number} value */
-function definition(name, value) {
+function executionDefinition(name, value) {
   const term = document.createElement("dt");
   const description = document.createElement("dd");
   term.textContent = name;
@@ -153,15 +153,18 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     throw new Error("system_execution_counts_invalid");
   }
   const definitions = [
-    ...definition("Maximum running", facts.concurrency.maximum_running),
-    ...definition("Running", facts.concurrency.running_count),
-    ...definition("Start gate", facts.concurrency.start_gate),
+    ...executionDefinition(
+      "Maximum running",
+      facts.concurrency.maximum_running,
+    ),
+    ...executionDefinition("Running", facts.concurrency.running_count),
+    ...executionDefinition("Start gate", facts.concurrency.start_gate),
   ];
   const queueItems = facts.queue.rows.map(executionLabel);
   const runningItems = facts.running.rows.map(executionLabel);
   const failureItems = facts.failures.map(failureLabel);
   concurrency.replaceChildren(...definitions);
-  replaceRows(queue, queueItems);
-  replaceRows(running, runningItems);
-  replaceRows(failures, failureItems);
+  replaceExecutionRows(queue, queueItems);
+  replaceExecutionRows(running, runningItems);
+  replaceExecutionRows(failures, failureItems);
 });

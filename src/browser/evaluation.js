@@ -64,7 +64,7 @@ function focusValue(name) {
 const nullableString = (value) => value === null || typeof value === "string";
 
 /** @param {string} id */
-function controlValue(id) {
+function evaluationControlValue(id) {
   const control = operator.requiredElement(id);
   if (!("value" in control) || typeof control.value !== "string") {
     throw new Error("evaluation_control_unavailable");
@@ -381,18 +381,18 @@ async function loadRepositories() {
 form.addEventListener("submit", async (/** @type {SubmitEvent} */ event) => {
   event.preventDefault();
   creationStatus.textContent = "";
-  const repositoryId = controlValue("evaluation-repository");
+  const repositoryId = evaluationControlValue("evaluation-repository");
   const response = await fetch(
     "/api/v1/repositories/" + encodeURIComponent(repositoryId) + "/evaluations",
     {
       body: JSON.stringify({
         base: {
-          type: controlValue("evaluation-base-type"),
-          value: controlValue("evaluation-base-value"),
+          type: evaluationControlValue("evaluation-base-type"),
+          value: evaluationControlValue("evaluation-base-value"),
         },
         head: {
-          type: controlValue("evaluation-head-type"),
-          value: controlValue("evaluation-head-value"),
+          type: evaluationControlValue("evaluation-head-type"),
+          value: evaluationControlValue("evaluation-head-value"),
         },
       }),
       headers: {
