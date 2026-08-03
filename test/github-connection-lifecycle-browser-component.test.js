@@ -17,7 +17,10 @@ test("GitHub Connection lifecycle controls use a focused confirmation and the ca
      * @param {any} options
      */
     async function (path, options) {
-      if (this?.form || this?.retire) {
+      if (
+        path === "/api/v1/github-connections/lifecycle" &&
+        this !== browser.context.window
+      ) {
         throw new TypeError("Illegal invocation");
       }
       requests.push({ path, options });
