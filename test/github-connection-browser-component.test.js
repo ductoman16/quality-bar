@@ -62,8 +62,18 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
         };
       },
     },
-    /** @param {string} path @param {any} options */
-    fetch: async (path, options) => {
+    /**
+     * @this {any}
+     * @param {string} path
+     * @param {any} options
+     */
+    async fetch(path, options) {
+      if (
+        path === "/api/v1/github-connections/manifest" &&
+        this !== context.window
+      ) {
+        throw new TypeError("Illegal invocation");
+      }
       requests.push({ options, path });
       if (path === "/api/v1/github-connections") {
         return {

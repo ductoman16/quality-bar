@@ -10,17 +10,30 @@ import {
 test("GitHub Connection lifecycle controls use a focused confirmation and the canonical mutation", async () => {
   /** @type {any[]} */
   const requests = [];
-  const browser = browserContext(async (path, options) => {
-    requests.push({ path, options });
-    return {
-      ok: true,
-      async json() {
-        return path === "/api/v1/github-connections/lifecycle"
-          ? { ...verifiedConnection(), lifecycle: "retired" }
-          : verifiedConnection();
-      },
-    };
-  });
+  const browser = browserContext(
+    /**
+     * @this {any}
+     * @param {string} path
+     * @param {any} options
+     */
+    async function (path, options) {
+      if (
+        path === "/api/v1/github-connections/lifecycle" &&
+        this !== browser.context.window
+      ) {
+        throw new TypeError("Illegal invocation");
+      }
+      requests.push({ path, options });
+      return {
+        ok: true,
+        async json() {
+          return path === "/api/v1/github-connections/lifecycle"
+            ? { ...verifiedConnection(), lifecycle: "retired" }
+            : verifiedConnection();
+        },
+      };
+    },
+  );
   executeGitHubBrowserAsset(browser.context);
   await new Promise((resolve) => setImmediate(resolve));
   const retire = browser.github.elements.get("github-connection-retire");
