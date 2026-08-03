@@ -23,7 +23,8 @@ function bindGitHubConnectionSubmission(options) {
     options.submit.disabled = true;
     let response;
     try {
-      response = await options.fetch(
+      response = await options.fetch.call(
+        window,
         reactivating
           ? "/api/v1/github-connections/reactivate"
           : "/api/v1/github-connections/manifest",

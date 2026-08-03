@@ -25,7 +25,8 @@ function createGitHubConnectionLifecycleConfirmation(options) {
     options.retire.disabled = true;
     options.remove.disabled = true;
     try {
-      const response = await options.fetch(
+      const response = await options.fetch.call(
+        window,
         "/api/v1/github-connections/lifecycle",
         {
           body: JSON.stringify(body),
