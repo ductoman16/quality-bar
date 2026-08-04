@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { connect } from "node:net";
@@ -176,7 +178,10 @@ test("keeps the trusted command outside the checkout while exposing the endpoint
     { checkoutPath },
   );
   try {
-    assert.equal(channel.environment.QUALITY_BAR_SUBMIT_SOCKET, ".qbs.sock");
+    assert.match(
+      channel.environment.QUALITY_BAR_SUBMIT_SOCKET,
+      /^\.qbs-[A-Za-z0-9_-]{11}\.s$/,
+    );
     assert.notEqual(channel.commandDirectory, checkoutPath);
     const resultPath = join(checkoutPath, ".quality-bar-result.json");
     writeFileSync(resultPath, '{"candidate":"from-checkout"}\n');
@@ -229,24 +234,42 @@ test("removes the trusted command directory when channel setup fails", async (co
   assert.equal(existsSync(join(commandPath, "..")), false);
 });
 
-test("does not remove a pre-existing checkout endpoint when setup fails", async (context) => {
+test("does not collide with a pre-existing checkout endpoint", async (context) => {
   const checkoutPath = createCheckout(context);
-  const socketPath = join(checkoutPath, ".qbs.sock");
-  writeFileSync(socketPath, "existing endpoint\n");
-  const failure = new Error("submission command write failed");
-  await assert.rejects(
-    () =>
-      openReviewRunSubmissionChannel(
-        claim,
-        { prepare() {} },
-        {
-          checkoutPath,
-          writeCommand() {
-            throw failure;
-          },
-        },
-      ),
-    (error) => error === failure,
+  const existingEndpointPath = join(checkoutPath, ".qbs.sock");
+  writeFileSync(existingEndpointPath, "existing endpoint\n");
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    { prepare() {} },
+    { checkoutPath },
   );
-  assert.equal(readFileSync(socketPath, "utf8"), "existing endpoint\n");
+  assert.notEqual(channel.environment.QUALITY_BAR_SUBMIT_SOCKET, ".qbs.sock");
+  await channel.close();
+  assert.equal(
+    readFileSync(existingEndpointPath, "utf8"),
+    "existing endpoint\n",
+  );
+});
+
+test("preserves a replaced endpoint without following its external target", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const externalDirectory = mkdtempSync(join(tmpdir(), "qbs-external-"));
+  context.after(() =>
+    rmSync(externalDirectory, { force: true, recursive: true }),
+  );
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    { prepare() {} },
+    { checkoutPath },
+  );
+  const socketPath = join(
+    checkoutPath,
+    channel.environment.QUALITY_BAR_SUBMIT_SOCKET,
+  );
+  const externalSocketPath = join(externalDirectory, "socket");
+  rmSync(socketPath, { force: true });
+  symlinkSync(externalSocketPath, socketPath);
+  await channel.close();
+  assert.equal(lstatSync(socketPath).isSymbolicLink(), true);
+  assert.equal(existsSync(externalSocketPath), false);
 });

@@ -1,7 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
+  lstatSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -29,6 +31,48 @@ function preserveCleanupFailure(failure, cleanupFailure) {
       value: cleanupFailure,
     });
   }
+}
+
+function submissionChannelUnavailable() {
+  return new ReviewRunExecutionError(
+    "submission_channel_unavailable",
+    "Review Run submission channel is unavailable",
+  );
+}
+
+/** @param {unknown} error */
+function isMissingPath(error) {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+/** @param {string} path */
+function requireEndpointAvailable(path) {
+  try {
+    lstatSync(path);
+  } catch (error) {
+    if (isMissingPath(error)) {
+      return;
+    }
+    throw error;
+  }
+  throw submissionChannelUnavailable();
+}
+
+/** @param {string} path */
+function readSocketIdentity(path) {
+  const status = lstatSync(path);
+  if (!status.isSocket()) {
+    throw submissionChannelUnavailable();
+  }
+  return { dev: status.dev, ino: status.ino };
+}
+
+/**
+ * @param {{dev: number, ino: number}} actual
+ * @param {{dev: number, ino: number}} expected
+ */
+function hasSocketIdentity(actual, expected) {
+  return actual.dev === expected.dev && actual.ino === expected.ino;
 }
 
 /**
@@ -59,10 +103,13 @@ export async function openReviewRunSubmissionChannel(
     throw new TypeError("Review Run checkout path is invalid");
   }
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
-  const socketName = ".qbs.sock";
+  const socketName = `.qbs-${randomBytes(8).toString("base64url")}.s`;
   const socketPath = join(checkoutPath, socketName);
   const socketAddressPath = join(directory, "checkout", socketName);
-  let socketBound = false;
+  /** @type {{dev: number, ino: number} | null} */
+  let socketIdentity = null;
+  /** @type {string | null} */
+  let preservedReplacementPath = null;
   try {
     const commandPath = join(directory, "quality-bar-submit");
     writeCommand(
@@ -70,6 +117,7 @@ export async function openReviewRunSubmissionChannel(
       `#!/usr/bin/env node\n${readFileSync(submitPath, "utf8")}`,
       { mode: 0o700 },
     );
+    requireEndpointAvailable(socketPath);
     symlinkSync(checkoutPath, join(directory, "checkout"), "dir");
     const token = randomUUID();
     let accepted = false;
@@ -141,10 +189,73 @@ export async function openReviewRunSubmissionChannel(
     await new Promise((resolve, reject) => {
       server.once("error", reject);
       server.listen(socketAddressPath, () => {
-        socketBound = true;
-        resolve(undefined);
+        try {
+          socketIdentity = readSocketIdentity(socketPath);
+          resolve(undefined);
+        } catch (error) {
+          server.close((closeError) => reject(closeError ?? error));
+        }
       });
     });
+
+    /** @returns {string | null} */
+    function preserveReplacement() {
+      if (!socketIdentity) {
+        return null;
+      }
+      let currentIdentity;
+      try {
+        currentIdentity = readSocketIdentity(socketPath);
+      } catch (error) {
+        if (isMissingPath(error)) {
+          return null;
+        }
+        if (error instanceof ReviewRunExecutionError) {
+          const replacementPath = join(
+            directory,
+            `.qbs-replaced-${randomUUID()}`,
+          );
+          renameSync(socketPath, replacementPath);
+          preservedReplacementPath = replacementPath;
+          return replacementPath;
+        }
+        throw error;
+      }
+      if (hasSocketIdentity(currentIdentity, socketIdentity)) {
+        return null;
+      }
+      const replacementPath = join(directory, `.qbs-replaced-${randomUUID()}`);
+      renameSync(socketPath, replacementPath);
+      preservedReplacementPath = replacementPath;
+      return replacementPath;
+    }
+
+    function removeOwnedSocket() {
+      if (!socketIdentity) {
+        return;
+      }
+      let currentIdentity;
+      try {
+        currentIdentity = readSocketIdentity(socketPath);
+      } catch (error) {
+        if (isMissingPath(error) || error instanceof ReviewRunExecutionError) {
+          return;
+        }
+        throw error;
+      }
+      if (hasSocketIdentity(currentIdentity, socketIdentity)) {
+        removeSocket(socketPath);
+      }
+    }
+
+    async function restoreReplacement() {
+      if (!preservedReplacementPath) {
+        return;
+      }
+      renameSync(preservedReplacementPath, socketPath);
+      preservedReplacementPath = null;
+    }
+
     /** @param {import("node:net").Socket} [respondingSocket] */
     function stopAccepting(respondingSocket) {
       for (const socket of sockets) {
@@ -153,7 +264,43 @@ export async function openReviewRunSubmissionChannel(
         }
       }
       serverClose ??= new Promise((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve(undefined)));
+        /** @type {unknown} */
+        let closeFailure = null;
+        try {
+          preserveReplacement();
+        } catch (error) {
+          closeFailure = error;
+        }
+        server.close((error) => {
+          if (error && !closeFailure) {
+            closeFailure = error;
+          }
+          try {
+            removeOwnedSocket();
+          } catch (cleanupFailure) {
+            if (!closeFailure) {
+              closeFailure = cleanupFailure;
+            } else {
+              preserveCleanupFailure(closeFailure, cleanupFailure);
+            }
+          }
+          restoreReplacement()
+            .then(() => {
+              if (closeFailure) {
+                reject(closeFailure);
+              } else {
+                resolve(undefined);
+              }
+            })
+            .catch((restoreFailure) => {
+              if (closeFailure) {
+                preserveCleanupFailure(closeFailure, restoreFailure);
+                reject(closeFailure);
+              } else {
+                reject(restoreFailure);
+              }
+            });
+        });
       });
       return serverClose;
     }
@@ -174,19 +321,13 @@ export async function openReviewRunSubmissionChannel(
         } catch (error) {
           closeFailure = error;
         }
-        if (socketBound) {
-          try {
-            removeSocket(socketPath);
-          } catch (cleanupFailure) {
-            if (!closeFailure) {
-              closeFailure = cleanupFailure;
-            } else {
-              preserveCleanupFailure(closeFailure, cleanupFailure);
-            }
-          }
+        if (preservedReplacementPath) {
+          closeFailure ??= submissionChannelUnavailable();
         }
         try {
-          removeDirectory(directory, { force: true, recursive: true });
+          if (!preservedReplacementPath) {
+            removeDirectory(directory, { force: true, recursive: true });
+          }
         } catch (cleanupFailure) {
           if (!closeFailure) {
             throw cleanupFailure;
@@ -199,13 +340,6 @@ export async function openReviewRunSubmissionChannel(
       },
     };
   } catch (setupFailure) {
-    if (socketBound) {
-      try {
-        removeSocket(socketPath);
-      } catch (cleanupFailure) {
-        preserveCleanupFailure(setupFailure, cleanupFailure);
-      }
-    }
     try {
       removeDirectory(directory, { force: true, recursive: true });
     } catch (cleanupFailure) {
