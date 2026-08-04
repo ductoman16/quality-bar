@@ -169,6 +169,42 @@ function verifyProcessFailure({ core, claim }) {
 }
 
 /** @param {any} options */
+function verifyNoSubmission({ core, claim }) {
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, error_code, error_detail,
+              process_exit_code, process_signal,
+              execution_evidence_recorded
+       FROM review_runs WHERE id = ?`,
+      claim.workId,
+    ),
+    {
+      error_code: "result_not_submitted",
+      error_detail: "Codex Review Run exited without an accepted Result",
+      execution_evidence_recorded: 1,
+      execution_status: "failed",
+      process_exit_code: 0,
+      process_signal: null,
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+  const transcript = core
+    .all(
+      `SELECT content FROM review_run_transcript_chunks
+       WHERE review_run_id = ? ORDER BY sequence`,
+      claim.workId,
+    )
+    .map((/** @type {any} */ chunk) => chunk?.content)
+    .join("");
+  assert.match(transcript, /Review complete in prose only/);
+  assert.match(transcript, /turn\.completed/);
+}
+
+/** @param {any} options */
 function verifyAuthenticationFailure({ core, claim }) {
   assert.deepEqual(
     core.get(
@@ -323,6 +359,12 @@ export const fakeCodexScenarios = Object.freeze({
     criterionErrorCode: null,
     criterionErrorDetail: null,
     evaluationOutcome: "clear",
+  },
+  no_submission: {
+    ...common,
+    arguments: ["--fake-no-submission"],
+    execute: failedExecution("result_not_submitted"),
+    verifySpecialResult: verifyNoSubmission,
   },
   process_failure: {
     ...common,
