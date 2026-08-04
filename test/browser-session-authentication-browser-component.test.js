@@ -42,7 +42,7 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   assert.equal(await responseErrorCode(system), "authentication_required");
 });
 
-test("a password login sets only an HttpOnly Strict host-only cookie and logout clears it", async () => {
+test("a password login sets a callback-capable session cookie and strict CSRF cookie", async () => {
   const { origin } = await startApplication({
     externalOrigin: "https://quality-bar.example",
   });
@@ -67,9 +67,25 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
   }
   assert.match(csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.match(cookie, /; HttpOnly/);
-  assert.match(cookie, /; SameSite=Strict/);
   assert.match(cookie, /; Secure/);
   assert.doesNotMatch(cookie, /Domain=|Max-Age=|Bearer/i);
+  const issuedCookies = login.headers.getSetCookie();
+  assert.equal(issuedCookies.length, 2);
+  assert.deepEqual(
+    new Set(issuedCookies.map((setCookie) => setCookie.split("=", 1)[0])),
+    new Set(["quality_bar_session", "quality_bar_csrf"]),
+  );
+  const issuedSessionCookie = issuedCookies.find((setCookie) =>
+    setCookie.startsWith("quality_bar_session="),
+  );
+  const issuedCsrfCookie = issuedCookies.find((setCookie) =>
+    setCookie.startsWith("quality_bar_csrf="),
+  );
+  if (!issuedSessionCookie || !issuedCsrfCookie) {
+    throw new Error("browser_authentication_cookie_names_invalid");
+  }
+  assert.match(issuedSessionCookie, /; SameSite=Lax/);
+  assert.match(issuedCsrfCookie, /; SameSite=Strict/);
 
   const authenticated = await fetch(`${origin}/api/v1/system`, {
     headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
@@ -99,7 +115,26 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     method: "POST",
   });
   assert.equal(logout.status, 204);
-  assert.match(requiredHeader(logout, "set-cookie"), /Max-Age=0/);
+  const clearedCookies = logout.headers.getSetCookie();
+  assert.equal(clearedCookies.length, 2);
+  assert.deepEqual(
+    new Set(clearedCookies.map((setCookie) => setCookie.split("=", 1)[0])),
+    new Set(["quality_bar_session", "quality_bar_csrf"]),
+  );
+  for (const setCookie of clearedCookies) {
+    assert.match(setCookie, /Max-Age=0/);
+  }
+  const clearedSessionCookie = clearedCookies.find((setCookie) =>
+    setCookie.startsWith("quality_bar_session="),
+  );
+  const clearedCsrfCookie = clearedCookies.find((setCookie) =>
+    setCookie.startsWith("quality_bar_csrf="),
+  );
+  if (!clearedSessionCookie || !clearedCsrfCookie) {
+    throw new Error("browser_authentication_cleared_cookie_names_invalid");
+  }
+  assert.match(clearedSessionCookie, /; SameSite=Lax/);
+  assert.match(clearedCsrfCookie, /; SameSite=Strict/);
   assert.equal(
     (
       await fetch(`${origin}/api/v1/system`, {

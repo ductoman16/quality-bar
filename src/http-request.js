@@ -3,6 +3,10 @@ import {
   BROWSER_SESSION_COOKIE_NAME,
 } from "./browser-session.js";
 
+// GitHub's manifest and installation callbacks return through a top-level cross-site GET.
+const BROWSER_SESSION_COOKIE_SAME_SITE = "Lax";
+const BROWSER_CSRF_COOKIE_SAME_SITE = "Strict";
+
 /**
  * @typedef {{
  *   authenticate: (secret: string | undefined) => boolean,
@@ -133,7 +137,7 @@ export function sessionCookie(secret, secure) {
     `${BROWSER_SESSION_COOKIE_NAME}=${secret}`,
     "Path=/",
     "HttpOnly",
-    "SameSite=Strict",
+    `SameSite=${BROWSER_SESSION_COOKIE_SAME_SITE}`,
     ...(secure ? ["Secure"] : []),
   ].join("; ");
 }
@@ -146,7 +150,7 @@ export function csrfCookie(token, secure) {
   return [
     `${BROWSER_CSRF_COOKIE_NAME}=${token}`,
     "Path=/",
-    "SameSite=Strict",
+    `SameSite=${BROWSER_CSRF_COOKIE_SAME_SITE}`,
     ...(secure ? ["Secure"] : []),
   ].join("; ");
 }
@@ -158,14 +162,14 @@ export function clearedSessionCookies(secure) {
       `${BROWSER_SESSION_COOKIE_NAME}=`,
       "Path=/",
       "HttpOnly",
-      "SameSite=Strict",
+      `SameSite=${BROWSER_SESSION_COOKIE_SAME_SITE}`,
       "Max-Age=0",
       ...(secure ? ["Secure"] : []),
     ].join("; "),
     [
       `${BROWSER_CSRF_COOKIE_NAME}=`,
       "Path=/",
-      "SameSite=Strict",
+      `SameSite=${BROWSER_CSRF_COOKIE_SAME_SITE}`,
       "Max-Age=0",
       ...(secure ? ["Secure"] : []),
     ].join("; "),
