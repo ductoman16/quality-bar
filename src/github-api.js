@@ -40,6 +40,11 @@ function onlyGitHubMandatedEvents(value) {
   );
 }
 
+/** @param {unknown} value GitHub may omit visibility for a private App in GET /app. */
+function privateOrUnspecified(value) {
+  return value === undefined || value === false;
+}
+
 /** @param {unknown} value @returns {{id: number, login: string, type: "User"}} */
 function principal(value) {
   const candidate = object(value);
@@ -175,7 +180,7 @@ export function createGitHubVerifier({
         app.slug !== credential.app_slug ||
         (credential.client_id !== null &&
           app.client_id !== credential.client_id) ||
-        app.public !== false ||
+        !privateOrUnspecified(app.public) ||
         !onlyGitHubMandatedEvents(app.events)
       ) {
         fail(

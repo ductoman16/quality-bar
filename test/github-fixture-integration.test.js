@@ -54,7 +54,6 @@ test("GitHub fixture verifies the pinned profile and reactivated installation cr
         client_id: "Iv1.client",
         owner: { id: 91, login: "operator", type: "User" },
         permissions,
-        public: false,
         slug: "quality-bar-personal",
       });
       return;
