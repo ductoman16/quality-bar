@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 
 import {
   GITHUB_API_PROFILE,
+  GITHUB_MANDATED_EVENTS,
   GITHUB_REQUIRED_PERMISSIONS,
   createGitHubAppManifest,
 } from "../src/github-app-manifest.js";
+import { createGitHubVerifier } from "../src/github-api.js";
+import { GitHubConnectionError } from "../src/github-connection-error.js";
 
 test("GitHub App Manifest is private, webhook-free, and requests only the exact v1 permissions", () => {
   const manifest = createGitHubAppManifest({
@@ -58,5 +62,84 @@ test("GitHub App Manifest rejects non-HTTPS origins and invalid state", () => {
         state: "not a state",
       }),
     /manifest state/,
+  );
+});
+
+test("GitHub verifier rejects configured events beyond GitHub-mandated events", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  let appEvents = GITHUB_MANDATED_EVENTS;
+  let installationEvents = GITHUB_MANDATED_EVENTS;
+  const verifier = createGitHubVerifier({
+    fetch: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === "/app") {
+        return Response.json({
+          events: appEvents,
+          id: 47,
+          client_id: "Iv1.client",
+          owner: { id: 91, login: "operator", type: "User" },
+          permissions: GITHUB_REQUIRED_PERMISSIONS,
+          public: false,
+          slug: "quality-bar-personal",
+        });
+      }
+      if (path === "/app/installations") {
+        return Response.json([
+          {
+            account: { id: 91, login: "operator", type: "User" },
+            app_id: 47,
+            events: installationEvents,
+            id: 73,
+            permissions: GITHUB_REQUIRED_PERMISSIONS,
+            repository_selection: "selected",
+            suspended_at: null,
+            target_type: "User",
+          },
+        ]);
+      }
+      if (path === "/app/installations/73/access_tokens") {
+        return Response.json({
+          permissions: GITHUB_REQUIRED_PERMISSIONS,
+          token: "installation-token",
+        });
+      }
+      if (path === "/installation/repositories") {
+        return Response.json({ repositories: [], total_count: 0 });
+      }
+      throw new Error(`unexpected fixture path: ${path}`);
+    },
+    now: () => 2_000_000_000_000,
+  });
+  const credential = {
+    app_id: 47,
+    app_slug: "quality-bar-personal",
+    client_id: "Iv1.client",
+    owner: { id: 91, login: "operator", type: /** @type {const} */ ("User") },
+    pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+  };
+
+  appEvents = [...GITHUB_MANDATED_EVENTS, "push"];
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_app_profile_mismatch",
+  );
+
+  appEvents = GITHUB_MANDATED_EVENTS;
+  installationEvents = [...GITHUB_MANDATED_EVENTS, "push"];
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_installation_mismatch",
+  );
+
+  installationEvents = GITHUB_MANDATED_EVENTS;
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_enumeration_incomplete",
   );
 });

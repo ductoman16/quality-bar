@@ -1,6 +1,7 @@
 import { sign } from "node:crypto";
 
 import {
+  GITHUB_MANDATED_EVENTS,
   GITHUB_REQUIRED_PERMISSIONS,
   GITHUB_VERIFIED_CAPABILITIES,
 } from "./github-app-manifest.js";
@@ -29,6 +30,14 @@ function object(value) {
   return value && !Array.isArray(value) && typeof value === "object"
     ? /** @type {Record<string, unknown>} */ (value)
     : null;
+}
+
+/** @param {unknown} value */
+function onlyGitHubMandatedEvents(value) {
+  return (
+    Array.isArray(value) &&
+    value.every((event) => GITHUB_MANDATED_EVENTS.includes(event))
+  );
 }
 
 /** @param {unknown} value @returns {{id: number, login: string, type: "User"}} */
@@ -167,8 +176,7 @@ export function createGitHubVerifier({
         (credential.client_id !== null &&
           app.client_id !== credential.client_id) ||
         app.public !== false ||
-        !Array.isArray(app.events) ||
-        app.events.length !== 0
+        !onlyGitHubMandatedEvents(app.events)
       ) {
         fail(
           "github_app_profile_mismatch",
@@ -213,8 +221,7 @@ export function createGitHubVerifier({
         installation.app_id !== credential.app_id ||
         installation.target_type !== "User" ||
         installation.suspended_at !== null ||
-        !Array.isArray(installation.events) ||
-        installation.events.length !== 0
+        !onlyGitHubMandatedEvents(installation.events)
       ) {
         fail(
           "github_installation_mismatch",
