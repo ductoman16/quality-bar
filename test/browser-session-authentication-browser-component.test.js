@@ -42,7 +42,7 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   assert.equal(await responseErrorCode(system), "authentication_required");
 });
 
-test("a password login sets only an HttpOnly Strict host-only cookie and logout clears it", async () => {
+test("a password login sets an HttpOnly Lax host-only cookie for GitHub callbacks and logout clears it", async () => {
   const { origin } = await startApplication({
     externalOrigin: "https://quality-bar.example",
   });
@@ -67,9 +67,18 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
   }
   assert.match(csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.match(cookie, /; HttpOnly/);
-  assert.match(cookie, /; SameSite=Strict/);
+  assert.match(cookie, /; SameSite=Lax/);
   assert.match(cookie, /; Secure/);
   assert.doesNotMatch(cookie, /Domain=|Max-Age=|Bearer/i);
+  const issuedCookies = login.headers.getSetCookie();
+  assert.equal(issuedCookies.length, 2);
+  assert.deepEqual(
+    new Set(issuedCookies.map((setCookie) => setCookie.split("=", 1)[0])),
+    new Set(["quality_bar_session", "quality_bar_csrf"]),
+  );
+  for (const setCookie of issuedCookies) {
+    assert.match(setCookie, /; SameSite=Lax/);
+  }
 
   const authenticated = await fetch(`${origin}/api/v1/system`, {
     headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
@@ -99,7 +108,16 @@ test("a password login sets only an HttpOnly Strict host-only cookie and logout 
     method: "POST",
   });
   assert.equal(logout.status, 204);
-  assert.match(requiredHeader(logout, "set-cookie"), /Max-Age=0/);
+  const clearedCookies = logout.headers.getSetCookie();
+  assert.equal(clearedCookies.length, 2);
+  assert.deepEqual(
+    new Set(clearedCookies.map((setCookie) => setCookie.split("=", 1)[0])),
+    new Set(["quality_bar_session", "quality_bar_csrf"]),
+  );
+  for (const setCookie of clearedCookies) {
+    assert.match(setCookie, /; SameSite=Lax/);
+    assert.match(setCookie, /Max-Age=0/);
+  }
   assert.equal(
     (
       await fetch(`${origin}/api/v1/system`, {
