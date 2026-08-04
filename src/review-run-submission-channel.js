@@ -105,20 +105,21 @@ export async function openReviewRunSubmissionChannel(
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
   const socketName = `.qbs-${randomBytes(8).toString("base64url")}.s`;
   const socketPath = join(checkoutPath, socketName);
-  const socketAddressPath = join(directory, "checkout", socketName);
   /** @type {{dev: number, ino: number} | null} */
   let socketIdentity = null;
   /** @type {string | null} */
   let preservedReplacementPath = null;
   try {
     const commandPath = join(directory, "quality-bar-submit");
+    const checkoutLinkPath = join(directory, "checkout");
+    const socketAddressPath = join(checkoutLinkPath, socketName);
     writeCommand(
       commandPath,
       `#!/usr/bin/env node\n${readFileSync(submitPath, "utf8")}`,
       { mode: 0o700 },
     );
     requireEndpointAvailable(socketPath);
-    symlinkSync(checkoutPath, join(directory, "checkout"), "dir");
+    symlinkSync(checkoutPath, checkoutLinkPath, "dir");
     const token = randomUUID();
     let accepted = false;
     /** @type {ReviewRunExecutionError | null} */
@@ -198,6 +199,12 @@ export async function openReviewRunSubmissionChannel(
       });
     });
 
+    function isolateServerCleanupPath() {
+      const closedDirectory = mkdtempSync(join(directory, "closed-"));
+      rmSync(checkoutLinkPath, { force: true });
+      symlinkSync(closedDirectory, checkoutLinkPath, "dir");
+    }
+
     /** @returns {string | null} */
     function preserveReplacement() {
       if (!socketIdentity) {
@@ -270,6 +277,24 @@ export async function openReviewRunSubmissionChannel(
           preserveReplacement();
         } catch (error) {
           closeFailure = error;
+        }
+        try {
+          removeOwnedSocket();
+        } catch (cleanupFailure) {
+          if (!closeFailure) {
+            closeFailure = cleanupFailure;
+          } else {
+            preserveCleanupFailure(closeFailure, cleanupFailure);
+          }
+        }
+        try {
+          isolateServerCleanupPath();
+        } catch (cleanupFailure) {
+          if (!closeFailure) {
+            closeFailure = cleanupFailure;
+          } else {
+            preserveCleanupFailure(closeFailure, cleanupFailure);
+          }
         }
         server.close((error) => {
           if (error && !closeFailure) {
