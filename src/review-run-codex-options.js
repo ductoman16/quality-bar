@@ -7,7 +7,8 @@
  *   codexPrefixArguments?: string[],
  *   openSubmissionChannel?: (
  *     claim: any,
- *     resultService: any
+ *     resultService: any,
+ *     options: {checkoutPath: string}
  *   ) => Promise<{
  *     accepted(): boolean,
  *     close(): Promise<void>,

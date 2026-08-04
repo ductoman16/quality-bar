@@ -74,7 +74,7 @@ export async function runReviewRunCodex({
   clearTerminationTimer = clearTimeout,
   evidenceService = evidence.NO_REVIEW_RUN_EVIDENCE,
   killProcessGroup = process.kill,
-  openSubmissionChannel = openReviewRunSubmissionChannel,
+  openSubmissionChannel: openChannel = openReviewRunSubmissionChannel,
   observeProcess = observeSupervisedCodexProcess,
   prepareProcess = prepareCodexProcess,
   processEnvironment = process.env,
@@ -89,7 +89,7 @@ export async function runReviewRunCodex({
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
   group.requireTracking(finishProcessGroup, startProcessGroup);
-  const channel = await openSubmissionChannel(claim, resultService);
+  const channel = await openChannel(claim, resultService, { checkoutPath });
   /** @type {Promise<void> | undefined} */
   let channelClose;
   function closeSubmissionChannel() {
