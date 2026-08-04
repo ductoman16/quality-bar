@@ -1,5 +1,11 @@
 export const GITHUB_API_PROFILE = "github-rest:2026-03-10";
 
+export const GITHUB_MANDATED_EVENTS = Object.freeze([
+  "github_app_authorization",
+  "installation",
+  "installation_repositories",
+]);
+
 export const GITHUB_REQUIRED_PERMISSIONS = Object.freeze({
   contents: "read",
   issues: "write",

@@ -48,7 +48,8 @@ test("GitHub fixture verifies the pinned profile and reactivated installation cr
     }
     if (request.method === "GET" && url.pathname === "/app") {
       send({
-        events: [],
+        // prettier-ignore
+        events: ["github_app_authorization", "installation", "installation_repositories"],
         id: 47,
         client_id: "Iv1.client",
         owner: { id: 91, login: "operator", type: "User" },
@@ -63,7 +64,8 @@ test("GitHub fixture verifies the pinned profile and reactivated installation cr
         {
           account: { id: 91, login: "operator", type: "User" },
           app_id: 47,
-          events: [],
+          // prettier-ignore
+          events: ["github_app_authorization", "installation", "installation_repositories"],
           id: 73,
           permissions,
           repository_selection: "selected",
