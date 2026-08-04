@@ -143,3 +143,84 @@ test("GitHub verifier rejects configured events beyond GitHub-mandated events", 
       error.code === "github_repository_enumeration_incomplete",
   );
 });
+
+test("GitHub verifier accepts omitted or private visibility but rejects public Apps", async () => {
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  /** @type {boolean | undefined} */
+  let appVisibility;
+  const verifier = createGitHubVerifier({
+    fetch: async (url) => {
+      const path = new URL(url).pathname;
+      if (path === "/app") {
+        /** @type {Record<string, unknown>} */
+        const app = {
+          events: GITHUB_MANDATED_EVENTS,
+          id: 47,
+          client_id: "Iv1.client",
+          owner: { id: 91, login: "operator", type: "User" },
+          permissions: GITHUB_REQUIRED_PERMISSIONS,
+          slug: "quality-bar-personal",
+        };
+        if (appVisibility !== undefined) {
+          app.public = appVisibility;
+        }
+        return Response.json(app);
+      }
+      if (path === "/app/installations") {
+        return Response.json([
+          {
+            account: { id: 91, login: "operator", type: "User" },
+            app_id: 47,
+            events: GITHUB_MANDATED_EVENTS,
+            id: 73,
+            permissions: GITHUB_REQUIRED_PERMISSIONS,
+            repository_selection: "selected",
+            suspended_at: null,
+            target_type: "User",
+          },
+        ]);
+      }
+      if (path === "/app/installations/73/access_tokens") {
+        return Response.json({
+          permissions: GITHUB_REQUIRED_PERMISSIONS,
+          token: "installation-token",
+        });
+      }
+      if (path === "/installation/repositories") {
+        return Response.json({ repositories: [], total_count: 0 });
+      }
+      throw new Error(`unexpected fixture path: ${path}`);
+    },
+    now: () => 2_000_000_000_000,
+  });
+  const credential = {
+    app_id: 47,
+    app_slug: "quality-bar-personal",
+    client_id: "Iv1.client",
+    owner: { id: 91, login: "operator", type: /** @type {const} */ ("User") },
+    pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+  };
+
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_enumeration_incomplete",
+  );
+
+  appVisibility = false;
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_repository_enumeration_incomplete",
+  );
+
+  appVisibility = true;
+  await assert.rejects(
+    () => verifier.verifyInstallation(credential, 73),
+    (error) =>
+      error instanceof GitHubConnectionError &&
+      error.code === "github_app_profile_mismatch",
+  );
+});
