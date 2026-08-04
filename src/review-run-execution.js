@@ -78,7 +78,8 @@ export function createReviewRunPrompt(run) {
       })),
     )}`,
     'result_schema: {"criterion_results":[{"criterion_id":"<each selected criterion_id exactly once and in order>","outcome":"clear OR triggered OR not_applicable OR error","findings":"required only when triggered; one or more objects with nonblank evidence, nonblank remediation, and location","error":"required only when error; stable nonblank code and exact nonblank detail"}],"location_forms":[{"kind":"line_range","file_change_id":"<frozen id>","side":"base OR head","start_line":"<inclusive integer>","end_line":"<inclusive integer>"},{"kind":"whole_side","file_change_id":"<frozen id>","side":"base OR head"},{"kind":"changeset"}]}',
-    'submission: {"command":"quality-bar-submit","input":"JSON by standard input or one JSON file"}',
+    'submission: {"command":"quality-bar-submit .quality-bar-result.json","input":".quality-bar-result.json"}',
+    "Submission is mandatory and is the only completion signal. After inspecting the frozen Changeset, construct exactly one candidate Result matching result_schema, write it to the literal file `.quality-bar-result.json` in this checkout, and execute exactly `quality-bar-submit .quality-bar-result.json` from PATH. Do not invoke another command or path for submission, do not invoke the submission command without that file argument, do not rely on standard input, and do not stop after a prose response; wait for the command to accept the candidate before responding.",
     'evidence_boundaries: {"include":"frozen base/head Changeset and surrounding Repository material inspected on demand","exclude":["Repository instructions","pull-request discussion","prior runs","other Reviews","Forge metadata"]}',
   ].join("\n");
 }
