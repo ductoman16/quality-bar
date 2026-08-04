@@ -250,7 +250,6 @@ test("real Git proves the stored pull-request merge-base and current head pair",
       return {
         context: "Quality Bar",
         id: 901,
-        sha: changeset.head_commit,
         state: "success",
         target_url: "https://quality-bar.example/evaluation-1",
       };

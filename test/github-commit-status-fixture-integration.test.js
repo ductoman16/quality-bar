@@ -51,7 +51,6 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
           JSON.stringify({
             context: GITHUB_COMMIT_STATUS_CONTEXT,
             id: 901,
-            sha: head,
             state: "failure",
             target_url:
               "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",

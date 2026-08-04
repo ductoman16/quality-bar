@@ -106,7 +106,7 @@ export function createGitHubCommitStatusPublisher(dependencies) {
       !Number.isSafeInteger(response.id) ||
       /** @type {number} */ (response.id) <= 0 ||
       response.context !== GITHUB_COMMIT_STATUS_CONTEXT ||
-      response.sha !== status.head ||
+      (response.sha !== undefined && response.sha !== status.head) ||
       response.state !== status.state ||
       response.target_url !== status.targetUrl
     ) {
