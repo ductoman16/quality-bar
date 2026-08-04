@@ -16,6 +16,7 @@
  *     environment: Record<string, string>,
  *     failure(): Error | null,
  *     lastValidationFailure(): import("./review-run-result.js").ReviewRunExecutionError | null,
+ *     stop?(): Promise<void>,
  *     waitForResult(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},

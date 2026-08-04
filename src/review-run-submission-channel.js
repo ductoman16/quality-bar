@@ -3,7 +3,6 @@ import {
   lstatSync,
   mkdtempSync,
   readFileSync,
-  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -59,6 +58,14 @@ function requireEndpointAvailable(path) {
 }
 
 /** @param {string} path */
+function requireCheckoutDirectory(path) {
+  const status = lstatSync(path);
+  if (!status.isDirectory() || status.isSymbolicLink()) {
+    throw new TypeError("Review Run checkout path is invalid");
+  }
+}
+
+/** @param {string} path */
 function readSocketIdentity(path) {
   const status = lstatSync(path);
   if (!status.isSocket()) {
@@ -75,11 +82,13 @@ function hasSocketIdentity(actual, expected) {
   return actual.dev === expected.dev && actual.ino === expected.ino;
 }
 
-/**
+/** Internal-only Review Run adapter seam; checkoutPath is required for isolation.
+ *
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {{prepare(claim: any, candidate: unknown): unknown}} resultService
  * @param {{
  *   checkoutPath: string,
+ *   createSocketName?: () => string,
  *   removeDirectory?: (path: string, options: {force: boolean, recursive: boolean}) => void,
  *   removeSocket?: (path: string) => void,
  *   writeCommand?: typeof writeFileSync
@@ -90,6 +99,7 @@ export async function openReviewRunSubmissionChannel(
   resultService,
   {
     checkoutPath,
+    createSocketName = () => `.qbs-${randomBytes(8).toString("base64url")}.s`,
     removeDirectory = rmSync,
     removeSocket = (path) => rmSync(path, { force: true }),
     writeCommand = writeFileSync,
@@ -102,13 +112,23 @@ export async function openReviewRunSubmissionChannel(
   ) {
     throw new TypeError("Review Run checkout path is invalid");
   }
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
-  const socketName = `.qbs-${randomBytes(8).toString("base64url")}.s`;
+  requireCheckoutDirectory(checkoutPath);
+  const socketName = createSocketName();
+  if (
+    typeof socketName !== "string" ||
+    socketName.length === 0 ||
+    socketName.includes("/") ||
+    socketName.includes("\\") ||
+    socketName.includes("\0") ||
+    socketName === "." ||
+    socketName === ".."
+  ) {
+    throw new TypeError("Review Run submission socket name is invalid");
+  }
   const socketPath = join(checkoutPath, socketName);
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
   /** @type {{dev: number, ino: number} | null} */
   let socketIdentity = null;
-  /** @type {string | null} */
-  let preservedReplacementPath = null;
   try {
     const commandPath = join(directory, "quality-bar-submit");
     const checkoutLinkPath = join(directory, "checkout");
@@ -199,68 +219,37 @@ export async function openReviewRunSubmissionChannel(
       });
     });
 
-    function isolateServerCleanupPath() {
-      const closedDirectory = mkdtempSync(join(directory, "closed-"));
-      rmSync(checkoutLinkPath, { force: true });
-      symlinkSync(closedDirectory, checkoutLinkPath, "dir");
-    }
+    let cleanupPathIsolated = false;
+    let serverStopped = false;
+    /** @type {string | null} */
+    let closedDirectoryPath = null;
 
-    /** @returns {string | null} */
-    function preserveReplacement() {
-      if (!socketIdentity) {
-        return null;
+    function isolateServerCleanupPath() {
+      if (cleanupPathIsolated) {
+        return;
       }
-      let currentIdentity;
-      try {
-        currentIdentity = readSocketIdentity(socketPath);
-      } catch (error) {
-        if (isMissingPath(error)) {
-          return null;
-        }
-        if (error instanceof ReviewRunExecutionError) {
-          const replacementPath = join(
-            directory,
-            `.qbs-replaced-${randomUUID()}`,
-          );
-          renameSync(socketPath, replacementPath);
-          preservedReplacementPath = replacementPath;
-          return replacementPath;
-        }
-        throw error;
-      }
-      if (hasSocketIdentity(currentIdentity, socketIdentity)) {
-        return null;
-      }
-      const replacementPath = join(directory, `.qbs-replaced-${randomUUID()}`);
-      renameSync(socketPath, replacementPath);
-      preservedReplacementPath = replacementPath;
-      return replacementPath;
+      closedDirectoryPath ??= mkdtempSync(join(directory, "closed-"));
+      rmSync(checkoutLinkPath, { force: true });
+      symlinkSync(closedDirectoryPath, checkoutLinkPath, "dir");
+      cleanupPathIsolated = true;
     }
 
     function removeOwnedSocket() {
       if (!socketIdentity) {
         return;
       }
-      let currentIdentity;
+      let current;
       try {
-        currentIdentity = readSocketIdentity(socketPath);
+        current = lstatSync(socketPath);
       } catch (error) {
-        if (isMissingPath(error) || error instanceof ReviewRunExecutionError) {
+        if (isMissingPath(error)) {
           return;
         }
         throw error;
       }
-      if (hasSocketIdentity(currentIdentity, socketIdentity)) {
+      if (current.isSocket() && hasSocketIdentity(current, socketIdentity)) {
         removeSocket(socketPath);
       }
-    }
-
-    async function restoreReplacement() {
-      if (!preservedReplacementPath) {
-        return;
-      }
-      renameSync(preservedReplacementPath, socketPath);
-      preservedReplacementPath = null;
     }
 
     /** @param {import("node:net").Socket} [respondingSocket] */
@@ -270,63 +259,24 @@ export async function openReviewRunSubmissionChannel(
           socket.destroy();
         }
       }
-      serverClose ??= new Promise((resolve, reject) => {
-        /** @type {unknown} */
-        let closeFailure = null;
-        try {
-          preserveReplacement();
-        } catch (error) {
-          closeFailure = error;
-        }
-        try {
-          removeOwnedSocket();
-        } catch (cleanupFailure) {
-          if (!closeFailure) {
-            closeFailure = cleanupFailure;
-          } else {
-            preserveCleanupFailure(closeFailure, cleanupFailure);
-          }
-        }
-        try {
+      if (serverStopped) {
+        return Promise.resolve();
+      }
+      if (!serverClose) {
+        const attempt = (async () => {
           isolateServerCleanupPath();
-        } catch (cleanupFailure) {
-          if (!closeFailure) {
-            closeFailure = cleanupFailure;
-          } else {
-            preserveCleanupFailure(closeFailure, cleanupFailure);
-          }
-        }
-        server.close((error) => {
-          if (error && !closeFailure) {
-            closeFailure = error;
-          }
-          try {
-            removeOwnedSocket();
-          } catch (cleanupFailure) {
-            if (!closeFailure) {
-              closeFailure = cleanupFailure;
-            } else {
-              preserveCleanupFailure(closeFailure, cleanupFailure);
-            }
-          }
-          restoreReplacement()
-            .then(() => {
-              if (closeFailure) {
-                reject(closeFailure);
-              } else {
-                resolve(undefined);
-              }
-            })
-            .catch((restoreFailure) => {
-              if (closeFailure) {
-                preserveCleanupFailure(closeFailure, restoreFailure);
-                reject(closeFailure);
-              } else {
-                reject(restoreFailure);
-              }
-            });
+          await new Promise((resolve, reject) => {
+            server.close((error) =>
+              error ? reject(error) : resolve(undefined),
+            );
+          });
+          serverStopped = true;
+        })();
+        serverClose = attempt.catch((error) => {
+          serverClose = null;
+          throw error;
         });
-      });
+      }
       return serverClose;
     }
     return {
@@ -339,25 +289,36 @@ export async function openReviewRunSubmissionChannel(
       failure: () => unexpectedFailure,
       lastValidationFailure: () => lastValidationFailure,
       waitForResult: () => result,
+      stop: () => stopAccepting(),
       async close() {
-        let closeFailure;
+        /** @type {unknown} */
+        let closeFailure = null;
+        let stopped = false;
         try {
           await stopAccepting();
+          stopped = true;
         } catch (error) {
           closeFailure = error;
         }
-        if (preservedReplacementPath) {
-          closeFailure ??= submissionChannelUnavailable();
-        }
-        try {
-          if (!preservedReplacementPath) {
+        if (stopped) {
+          try {
+            removeOwnedSocket();
+          } catch (cleanupFailure) {
+            if (!closeFailure) {
+              closeFailure = cleanupFailure;
+            } else {
+              preserveCleanupFailure(closeFailure, cleanupFailure);
+            }
+          }
+          try {
             removeDirectory(directory, { force: true, recursive: true });
+          } catch (cleanupFailure) {
+            if (!closeFailure) {
+              closeFailure = cleanupFailure;
+            } else {
+              preserveCleanupFailure(closeFailure, cleanupFailure);
+            }
           }
-        } catch (cleanupFailure) {
-          if (!closeFailure) {
-            throw cleanupFailure;
-          }
-          preserveCleanupFailure(closeFailure, cleanupFailure);
         }
         if (closeFailure) {
           throw closeFailure;

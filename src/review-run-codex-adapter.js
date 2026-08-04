@@ -21,6 +21,7 @@ import {
 import {
   completeCodexExecutionCleanup,
   createCodexLaunchFailure,
+  createSubmissionChannelControllers,
   createTranscriptFailureController,
 } from "./review-run-codex-process.js";
 import * as group from "./codex-execution-process-group-tracking.js";
@@ -90,15 +91,11 @@ export async function runReviewRunCodex({
   deadline.requireDeadlineRecorder(recordDeadline);
   group.requireTracking(finishProcessGroup, startProcessGroup);
   const channel = await openChannel(claim, resultService, { checkoutPath });
-  /** @type {Promise<void> | undefined} */
-  let channelClose;
-  function closeSubmissionChannel() {
-    channelClose ??= channel.close();
-    return channelClose;
-  }
-  let executionFailure;
+  const { close: closeSubmissionChannel, stop: stopSubmissionChannel } =
+    createSubmissionChannelControllers(channel);
   /** @type {Error[]} */
   const diagnosticFailures = [];
+  let executionFailure;
   try {
     const arguments_ = reviewRunCodexArguments(run);
     arguments_.unshift(...codexPrefixArguments);
@@ -153,7 +150,7 @@ export async function runReviewRunCodex({
       finishSupervisor: prepared.finish,
     });
     const transcript = createTranscriptFailureController({
-      closeSubmissionChannel,
+      closeSubmissionChannel: stopSubmissionChannel,
       diagnosticFailures,
       terminateProcessGroup,
     });
@@ -182,7 +179,7 @@ export async function runReviewRunCodex({
         child,
         startProcessGroup,
         prepared.start,
-        closeSubmissionChannel,
+        stopSubmissionChannel,
         prepared.abort,
       );
     } catch (error) {
@@ -234,7 +231,7 @@ export async function runReviewRunCodex({
       terminal.kind === "transcript"
     ) {
       try {
-        await closeSubmissionChannel();
+        await stopSubmissionChannel();
       } catch (error) {
         if (terminal.kind === "cancellation") {
           diagnosticFailures.push(
@@ -263,12 +260,9 @@ export async function runReviewRunCodex({
       recordDeadline,
       deadlineFailure,
     );
-    /** @type {Error | undefined} */
-    let acceptedTerminationFailure;
-    /** @type {Error | undefined} */
-    let submissionTerminationFailure;
-    /** @type {Error | undefined} */
-    let processErrorTerminationFailure;
+    /** @type {Error | undefined} */ let acceptedTerminationFailure;
+    /** @type {Error | undefined} */ let submissionTerminationFailure;
+    /** @type {Error | undefined} */ let processErrorTerminationFailure;
     if (
       (accepted ||
         failedSubmission ||

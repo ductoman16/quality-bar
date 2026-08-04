@@ -96,7 +96,7 @@ test("returns exact recognized submission failures without accepting a Result", 
   }
 });
 
-test("the first valid submission closes the channel before reporting acceptance", async (context) => {
+test("the first valid submission stops the listener before reporting acceptance", async (context) => {
   let submissions = 0;
   const checkoutPath = createCheckout(context);
   const channel = await openReviewRunSubmissionChannel(
@@ -129,6 +129,13 @@ test("the first valid submission closes the channel before reporting acceptance"
     assert.equal(channel.accepted(), true);
     assert.equal(submissions, 1);
     assert.equal(idleSocket.destroyed, true);
+    assert.equal(
+      existsSync(
+        join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
+      ),
+      true,
+    );
+    await channel.close();
     assert.equal(
       existsSync(
         join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
@@ -248,6 +255,69 @@ test("does not collide with a pre-existing checkout endpoint", async (context) =
   assert.equal(
     readFileSync(existingEndpointPath, "utf8"),
     "existing endpoint\n",
+  );
+});
+
+test("rejects a collision at the generated endpoint without falling back", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const socketName = ".qbs-test.s";
+  const socketPath = join(checkoutPath, socketName);
+  writeFileSync(socketPath, "existing endpoint\n");
+  await assert.rejects(
+    () =>
+      openReviewRunSubmissionChannel(
+        claim,
+        { prepare() {} },
+        { checkoutPath, createSocketName: () => socketName },
+      ),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "submission_channel_unavailable",
+  );
+  assert.equal(readFileSync(socketPath, "utf8"), "existing endpoint\n");
+});
+
+test("rejects a symlink collision at the generated endpoint without following it", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const externalDirectory = mkdtempSync(join(tmpdir(), "qbs-external-"));
+  context.after(() =>
+    rmSync(externalDirectory, { force: true, recursive: true }),
+  );
+  const socketName = ".qbs-test.s";
+  const socketPath = join(checkoutPath, socketName);
+  const externalSocketPath = join(externalDirectory, "socket");
+  symlinkSync(externalSocketPath, socketPath);
+  await assert.rejects(
+    () =>
+      openReviewRunSubmissionChannel(
+        claim,
+        { prepare() {} },
+        { checkoutPath, createSocketName: () => socketName },
+      ),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "submission_channel_unavailable",
+  );
+  assert.equal(lstatSync(socketPath).isSymbolicLink(), true);
+  assert.equal(existsSync(externalSocketPath), false);
+});
+
+test("rejects a symlinked checkout path before opening a submission channel", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const linkRoot = mkdtempSync(join(tmpdir(), "qbs-checkout-link-"));
+  context.after(() => rmSync(linkRoot, { force: true, recursive: true }));
+  const linkedCheckoutPath = join(linkRoot, "checkout");
+  symlinkSync(checkoutPath, linkedCheckoutPath, "dir");
+  await assert.rejects(
+    () =>
+      openReviewRunSubmissionChannel(
+        claim,
+        { prepare() {} },
+        { checkoutPath: linkedCheckoutPath },
+      ),
+    (error) =>
+      error instanceof TypeError &&
+      error.message === "Review Run checkout path is invalid",
   );
 });
 

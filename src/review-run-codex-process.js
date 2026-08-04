@@ -47,6 +47,23 @@ export function createCodexLaunchFailure({
 }
 
 /**
+ * @param {{close: () => Promise<void>, stop?: () => Promise<void>}} channel
+ */
+export function createSubmissionChannelControllers(channel) {
+  /** @type {Promise<void> | undefined} */
+  let channelClose;
+  /** @type {Promise<void> | undefined} */
+  let channelStop;
+  const stop = () =>
+    (channelStop ??= channel.stop ? channel.stop() : channel.close());
+  const close = () =>
+    (channelClose ??= channel.stop
+      ? channel.close()
+      : (channelStop ??= channel.close()));
+  return { close, stop };
+}
+
+/**
  * @param {{
  *   closeSubmissionChannel: () => Promise<void>,
  *   diagnosticFailures: Error[],
