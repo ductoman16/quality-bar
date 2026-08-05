@@ -157,8 +157,17 @@ export function createGitHubCommitStatusPublisher(dependencies) {
       }
       for (const item of /** @type {any[]} */ (response)) {
         if (
+          item?.sha !== undefined &&
+          item.sha !== null &&
+          item.sha !== status.head
+        ) {
+          dependencies.fail(
+            "github_api_response_invalid",
+            "GitHub commit status reconciliation response is invalid",
+          );
+        }
+        if (
           item?.context === GITHUB_COMMIT_STATUS_CONTEXT &&
-          item.sha === status.head &&
           item.state === status.state &&
           evaluationIdentity(item.target_url) === evaluationId
         ) {
