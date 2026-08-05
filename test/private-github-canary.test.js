@@ -226,6 +226,44 @@ test("a stale or incomplete pull request fails with the exact owning error and n
   assert.equal(writes, 0);
 });
 
+test("a status that GitHub creates but cannot reconcile fails at the owning surface", async () => {
+  const verifier = {
+    async verifyInstallation() {
+      return { repositories: [{ ...fixture.repository, private: true }] };
+    },
+    async listPullRequests() {
+      return [
+        {
+          base: { sha: base },
+          draft: false,
+          head: { sha: head },
+          merged_at: null,
+          number: 17,
+          state: "open",
+        },
+      ];
+    },
+    async reconcileCommitStatus() {
+      return null;
+    },
+    async publishCommitStatus() {
+      return 703;
+    },
+  };
+  const evidence = await invokePrivateGitHubCanary({
+    credential: credential(),
+    fixture,
+    now: () => 1_700_000_000_000,
+    verifier,
+  });
+  assert.equal(evidence.outcome, "fail");
+  assert.equal(
+    evidence.failure?.code,
+    "private_github_canary_status_reconciliation_failed",
+  );
+  assert.equal(evidence.observations, null);
+});
+
 test("shared evidence accepts only a passing same-commit cost-free manifest", () => {
   const sourceCommit = "c".repeat(40);
   const canary = {
@@ -349,5 +387,6 @@ test("the explicit live canary is absent from every routine gate", () => {
   assert.deepEqual(evidence.proof, ["private-github-canary"]);
   assert.deepEqual(evidence.routine_gate_membership, []);
   assert.equal(evidence.new_e2e_scenarios, 0);
+  assert.equal("live_blocker" in evidence, false);
   assert.equal(evidence.final_outcome, "pass");
 });

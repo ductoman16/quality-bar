@@ -81,8 +81,8 @@ function canaryIdentity(fixture) {
   };
 }
 
-/** @param {{reconcile: () => Promise<any>, publish: () => Promise<any>}} input */
-async function reconcileOrPublish({ reconcile, publish }) {
+/** @param {{failureCode: string, reconcile: () => Promise<any>, publish: () => Promise<any>}} input */
+async function reconcileOrPublish({ failureCode, reconcile, publish }) {
   const existing = await reconcile();
   const identity = existing ?? (await publish());
   const reconciled = await reconcile();
@@ -92,7 +92,7 @@ async function reconcileOrPublish({ reconcile, publish }) {
     reconciled !== identity
   ) {
     throw failure(
-      "private_github_canary_reconciliation_failed",
+      failureCode,
       "GitHub publication did not reconcile to exactly one source identity",
     );
   }
@@ -213,6 +213,7 @@ export async function invokePrivateGitHubCanary({
       targetUrl: identity.details_url,
     };
     const statusId = await reconcileOrPublish({
+      failureCode: "private_github_canary_status_reconciliation_failed",
       reconcile: () =>
         verifier.reconcileCommitStatus(
           credential,
@@ -229,6 +230,7 @@ export async function invokePrivateGitHubCanary({
         ),
     });
     const aggregateId = await reconcileOrPublish({
+      failureCode: "private_github_canary_aggregate_reconciliation_failed",
       reconcile: () =>
         verifier.reconcileAggregateFeedback(
           credential,
@@ -247,6 +249,7 @@ export async function invokePrivateGitHubCanary({
         ),
     });
     const inlineId = await reconcileOrPublish({
+      failureCode: "private_github_canary_inline_reconciliation_failed",
       reconcile: () =>
         verifier.reconcileInlineFeedback(
           credential,
