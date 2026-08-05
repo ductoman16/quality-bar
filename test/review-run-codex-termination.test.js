@@ -42,6 +42,7 @@ test("a synchronous post-start launch failure retains exact evidence", async () 
         },
         openSubmissionChannel: async () => ({
           accepted: () => false,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: { QUALITY_BAR_SUBMIT_TOKEN: "secret" },
@@ -132,6 +133,7 @@ test(
           openSubmissionChannel: async () => ({
             ...acceptedChannel(),
             accepted: () => false,
+            bindProcessGroup() {},
             async close() {
               events.push("submission-closed");
             },
@@ -202,6 +204,7 @@ test("parallel Review Runs own independent deadline timers", async () => {
       openSubmissionChannel: async () => ({
         ...acceptedChannel(),
         accepted: () => false,
+        bindProcessGroup() {},
         waitForResult: () => new Promise(() => {}),
       }),
       resultService: { prepare() {} },

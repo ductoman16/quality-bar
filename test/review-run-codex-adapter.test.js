@@ -64,6 +64,7 @@ function processThatFailsWithJsonl() {
   return process;
 }
 
+/** @param {Error} processFailure */
 /**
  * @param {{
  *   accepted?: boolean,
@@ -80,6 +81,7 @@ function channel({
 } = {}) {
   return {
     accepted: () => accepted,
+    bindProcessGroup() {},
     async close() {
       if (closeFailure) {
         throw closeFailure;
@@ -87,7 +89,7 @@ function channel({
     },
     commandDirectory: "/submit-bin",
     environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+      QUALITY_BAR_SUBMIT_FILE: "/socket",
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
     failure: () => failure,
@@ -158,7 +160,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
           HOME: "/var/lib/quality-bar",
           LANG: "en_US.UTF-8",
           PATH: "/submit-bin:/usr/local/bin:/usr/bin",
-          QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+          QUALITY_BAR_SUBMIT_FILE: "/socket",
           QUALITY_BAR_SUBMIT_TOKEN: "secret",
         },
         stdio: ["ignore", "pipe", "pipe"],

@@ -45,10 +45,11 @@ function processThatExitsWithStderr(stderr) {
 function channel({ failure = null, result } = {}) {
   return {
     accepted: () => false,
+    bindProcessGroup: () => undefined,
     async close() {},
     commandDirectory: "/submit-bin",
     environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+      QUALITY_BAR_SUBMIT_FILE: "/socket",
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
     failure: () => failure,
@@ -390,15 +391,13 @@ test("a process error closes submission before termination can accept a Result",
           });
         },
         openSubmissionChannel: async () => ({
+          ...channel(),
           accepted: () => accepted,
           async close() {
             closed = true;
             events.push("submission-closed");
           },
-          commandDirectory: "/submit-bin",
           environment: {},
-          failure: () => null,
-          lastValidationFailure: () => null,
           waitForResult: () => submission,
         }),
         resultService: { prepare() {} },
