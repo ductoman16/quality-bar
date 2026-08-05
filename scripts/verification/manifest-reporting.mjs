@@ -252,6 +252,7 @@ export function createManifest({
         }
       : null,
     performance: invalidPerformanceEvidence ? null : performanceFacts,
+    releaseCanaries: null,
     totalDurationMs: Math.round(performance.now() - startedAt),
     outcome,
     failures: manifestFailures,
