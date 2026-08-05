@@ -18,7 +18,11 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   /** @type {any[]} */
   const requests = [];
+  /** @type {"matching" | "mismatched" | "null" | "omitted"} */
+  let shaShape = "matching";
   let duplicate = false;
+  /** @type {Record<string, unknown>} */
+  let matchOverrides = {};
   const head = "a".repeat(40);
   const server = createServer((request, response) => {
     let body = "";
@@ -66,15 +70,21 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
         const match = {
           context: GITHUB_COMMIT_STATUS_CONTEXT,
           id: 901,
-          sha: head,
+          ...(shaShape === "omitted"
+            ? {}
+            : { sha: shaShape === "null" ? null : head }),
           state: "failure",
           target_url:
             "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
         };
+        if (shaShape === "mismatched") {
+          match.sha = "b".repeat(40);
+        }
+        const candidate = { ...match, ...matchOverrides };
         response.end(
           JSON.stringify([
-            match,
-            ...(duplicate ? [{ ...match, id: 902 }] : []),
+            candidate,
+            ...(duplicate ? [{ ...candidate, id: 902 }] : []),
           ]),
         );
         return;
@@ -95,24 +105,26 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
   const verifier = createGitHubVerifier({
     apiBaseUrl: `http://127.0.0.1:${address.port}`,
   });
-  await verifier.publishCommitStatus(
-    {
-      app_id: 47,
-      app_slug: "quality-bar-personal",
-      client_id: "Iv1.client",
-      owner: { id: 91, login: "operator", type: "User" },
-      pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
-    },
-    73,
-    { full_name: "operator/repository", id: 101 },
-    {
-      description: "Quality Bar Evaluation is blocking",
-      head,
-      state: "failure",
-      targetUrl:
-        "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
-    },
-  );
+  const credential = {
+    app_id: 47,
+    app_slug: "quality-bar-personal",
+    client_id: "Iv1.client",
+    owner: { id: 91, login: "operator", type: "User" },
+    pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+  };
+  const repository = { full_name: "operator/repository", id: 101 };
+  const status = {
+    head,
+    state: "failure",
+    targetUrl:
+      "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
+  };
+  const reconcile = () =>
+    verifier.reconcileCommitStatus(credential, 73, repository, status);
+  await verifier.publishCommitStatus(credential, 73, repository, {
+    description: "Quality Bar Evaluation is blocking",
+    ...status,
+  });
   assert.deepEqual(requests[1], {
     authorization: "Bearer installation-token",
     body: {
@@ -125,65 +137,41 @@ test("GitHub fixture receives the stable status on the exact frozen head", async
     method: "POST",
     path: `/repos/operator/repository/statuses/${head}`,
   });
-  assert.equal(
-    await verifier.reconcileCommitStatus(
-      {
-        app_id: 47,
-        app_slug: "quality-bar-personal",
-        client_id: "Iv1.client",
-        owner: { id: 91, login: "operator", type: "User" },
-        pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
-      },
-      73,
-      { full_name: "operator/repository", id: 101 },
-      {
-        head,
-        state: "failure",
-        targetUrl:
-          "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
-      },
-    ),
-    901,
+  assert.equal(await reconcile(), 901);
+  shaShape = "omitted";
+  assert.equal(await reconcile(), 901);
+  shaShape = "null";
+  assert.equal(await reconcile(), 901);
+  shaShape = "mismatched";
+  await assert.rejects(
+    reconcile(),
+    (error) =>
+      /** @type {any} */ (error)?.code === "github_api_response_invalid" &&
+      /** @type {any} */ (error).message ===
+        "GitHub commit status reconciliation response is invalid",
   );
+  shaShape = "omitted";
+  matchOverrides = { context: "Other" };
+  assert.equal(await reconcile(), null);
+  matchOverrides = { state: "success" };
+  assert.equal(await reconcile(), null);
+  matchOverrides = {
+    target_url:
+      "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-2",
+  };
+  assert.equal(await reconcile(), null);
+  matchOverrides = {};
   assert.equal(
-    await verifier.reconcileCommitStatus(
-      {
-        app_id: 47,
-        app_slug: "quality-bar-personal",
-        client_id: "Iv1.client",
-        owner: { id: 91, login: "operator", type: "User" },
-        pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
-      },
-      73,
-      { full_name: "operator/repository", id: 101 },
-      {
-        head,
-        state: "failure",
-        targetUrl:
-          "https://changed.example/?view=evaluations&evaluation_id=evaluation-1",
-      },
-    ),
+    await verifier.reconcileCommitStatus(credential, 73, repository, {
+      ...status,
+      targetUrl:
+        "https://changed.example/?view=evaluations&evaluation_id=evaluation-1",
+    }),
     901,
   );
   duplicate = true;
   await assert.rejects(
-    verifier.reconcileCommitStatus(
-      {
-        app_id: 47,
-        app_slug: "quality-bar-personal",
-        client_id: "Iv1.client",
-        owner: { id: 91, login: "operator", type: "User" },
-        pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
-      },
-      73,
-      { full_name: "operator/repository", id: 101 },
-      {
-        head,
-        state: "failure",
-        targetUrl:
-          "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1",
-      },
-    ),
+    reconcile(),
     (error) =>
       /** @type {any} */ (error)?.code ===
         "github_delivery_identity_conflict" &&
