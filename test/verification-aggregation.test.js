@@ -95,6 +95,7 @@ test("the shared manifest preserves ownership and aggregation evidence", () => {
 
   assert.equal(manifest.outcome, "fail");
   assert.equal(manifest.performance, null);
+  assert.equal(manifest.releaseCanaries, null);
   assert.deepEqual(
     manifest.failures.map((failure) => failure.code),
     ["performance_budgets_failed", "verification_evidence_invalid"],

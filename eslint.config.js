@@ -133,6 +133,7 @@ export default [
     files: [
       "scripts/package-proof/package-fixture.mjs",
       "scripts/verification/harness.mjs",
+      "scripts/verification/run-private-github-canary.mjs",
       "src/healthcheck.js",
       "src/main.js",
       "src/operator-password-bootstrap.js",
