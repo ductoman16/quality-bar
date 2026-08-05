@@ -5,9 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   publishFile as publishInstalledFile,
-  removeOwnedFile,
   requirePrivateFile,
 } from "./review-run-submission-files.js";
+import { removeOwnedFile } from "./review-run-submission-file-cleanup.js";
 
 const submitPath = fileURLToPath(
   new URL("./quality-bar-submit.js", import.meta.url),
@@ -17,7 +17,7 @@ const submitRuntimePath = fileURLToPath(
 );
 
 /**
- * @param {{commandPath: string, runtimePath: string, commandIdentity: {dev: number, ino: number} | null, runtimeIdentity: {dev: number, ino: number} | null}} installation
+ * @param {{commandPath: string, runtimePath: string, commandIdentity: {birthtimeMs: number, dev: number, ino: number} | null, runtimeIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} installation
  * @param {{
  *   directory: string,
  *   responseDeadlineAt: number,
@@ -66,9 +66,9 @@ export function installSubmissionCommand(
     directory,
     `quality-bar-submit.tmp-${randomUUID()}`,
   );
-  /** @type {{dev: number, ino: number} | null} */
+  /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
   let commandTemporaryIdentity = null;
-  /** @type {{dev: number, ino: number} | null} */
+  /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
   let runtimeTemporaryIdentity = null;
   try {
     writeCommand(
@@ -82,6 +82,7 @@ export function installSubmissionCommand(
     chmodSync(commandTemporaryPath, 0o700);
     const commandStatus = requirePrivateFile(commandTemporaryPath, 0o700);
     commandTemporaryIdentity = {
+      birthtimeMs: commandStatus.birthtimeMs,
       dev: commandStatus.dev,
       ino: commandStatus.ino,
     };
@@ -96,6 +97,7 @@ export function installSubmissionCommand(
       commandStatus,
     );
     runtimeTemporaryIdentity = {
+      birthtimeMs: runtimeStatus.birthtimeMs,
       dev: runtimeStatus.dev,
       ino: runtimeStatus.ino,
     };
@@ -106,7 +108,9 @@ export function installSubmissionCommand(
     const installedRuntimeStatus = lstatSync(installation.runtimePath);
     if (
       installedRuntimeStatus.dev !== installation.runtimeIdentity.dev ||
-      installedRuntimeStatus.ino !== installation.runtimeIdentity.ino
+      installedRuntimeStatus.ino !== installation.runtimeIdentity.ino ||
+      installedRuntimeStatus.birthtimeMs !==
+        installation.runtimeIdentity.birthtimeMs
     ) {
       throw new TypeError("Review Run submission runtime identity changed");
     }
@@ -118,7 +122,9 @@ export function installSubmissionCommand(
     const installedCommandStatus = lstatSync(installation.commandPath);
     if (
       installedCommandStatus.dev !== installation.commandIdentity.dev ||
-      installedCommandStatus.ino !== installation.commandIdentity.ino
+      installedCommandStatus.ino !== installation.commandIdentity.ino ||
+      installedCommandStatus.birthtimeMs !==
+        installation.commandIdentity.birthtimeMs
     ) {
       throw new TypeError("Review Run submission command identity changed");
     }
@@ -126,7 +132,7 @@ export function installSubmissionCommand(
     return token;
   } catch (error) {
     let cleanupFailure = null;
-    /** @type {Array<[string, {dev: number, ino: number} | null]>} */
+    /** @type {Array<[string, {birthtimeMs: number, dev: number, ino: number} | null]>} */
     const temporaryFiles = [
       [commandTemporaryPath, commandTemporaryIdentity],
       [runtimeTemporaryPath, runtimeTemporaryIdentity],

@@ -10,8 +10,8 @@ import { publishFile } from "./review-run-submission-files.js";
  * @param {Record<string, unknown>} response
  * @param {string} requestId
  * @param {() => string} createId
- * @param {(temporaryPath: string, targetPath: string, requirements?: {uid?: number, gid?: number, mode?: number}) => {dev: number, ino: number}} [publish]
- * @returns {{dev: number, ino: number}}
+ * @param {(temporaryPath: string, targetPath: string, requirements?: {uid?: number, gid?: number, mode?: number}) => {birthtimeMs: number, dev: number, ino: number}} [publish]
+ * @returns {{birthtimeMs: number, dev: number, ino: number}}
  */
 export function publishSignedResponse(
   directory,

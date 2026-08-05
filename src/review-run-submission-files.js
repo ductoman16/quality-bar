@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   closeSync,
@@ -8,11 +7,8 @@ import {
   lstatSync,
   openSync,
   readSync,
-  readlinkSync,
   readFileSync,
-  renameSync,
   rmSync,
-  symlinkSync,
 } from "node:fs";
 
 import { readBoundedText } from "./review-run-submission-io.js";
@@ -171,119 +167,12 @@ export function requirePrivateFile(path, mode, owner = null) {
   return status;
 }
 
-/** @param {unknown} error */
-function isExistingPath(error) {
-  return error instanceof Error && "code" in error && error.code === "EEXIST";
-}
-
-/**
- * @param {string} path
- * @param {string} quarantinePath
- * @param {import("node:fs").Stats} current
- */
-function restoreQuarantinedArtifact(path, quarantinePath, current) {
-  if (!current.isSymbolicLink() && !current.isFile()) {
-    const preservedPath = `${path}.cleanup-preserved-${randomUUID()}`;
-    try {
-      renameSync(quarantinePath, preservedPath);
-    } catch (preserveError) {
-      throw new Error(
-        "Submission cleanup could not preserve a non-restorable artifact",
-        { cause: preserveError },
-      );
-    }
-    throw new TypeError(
-      `Submission cleanup encountered a non-restorable artifact; preserved it at ${preservedPath}`,
-    );
-  }
-  try {
-    if (current.isSymbolicLink()) {
-      symlinkSync(readlinkSync(quarantinePath), path);
-    } else {
-      linkSync(quarantinePath, path);
-    }
-  } catch (error) {
-    if (!isExistingPath(error)) {
-      throw error;
-    }
-    const preservedPath = `${path}.cleanup-preserved-${randomUUID()}`;
-    try {
-      renameSync(quarantinePath, preservedPath);
-    } catch (preserveError) {
-      throw new Error(
-        "Submission cleanup could not preserve a concurrent artifact replacement",
-        { cause: preserveError },
-      );
-    }
-    throw new Error(
-      `Submission cleanup encountered a concurrent artifact replacement; preserved the quarantined artifact at ${preservedPath}`,
-      { cause: error },
-    );
-  }
-  rmSync(quarantinePath, { force: true });
-}
-
-/**
- * @param {string} path
- * @param {{dev: number, ino: number, uid?: number, gid?: number, mode?: number}} expected
- * @param {{beforeRename?: () => void, afterQuarantine?: () => void}} [operations]
- */
-export function removeOwnedFile(path, expected, operations = {}) {
-  const quarantinePath = `${path}.cleanup-${randomUUID()}`;
-  try {
-    const status = lstatSync(path);
-    if (status.dev !== expected.dev || status.ino !== expected.ino) {
-      return;
-    }
-    if (
-      (expected.uid !== undefined && status.uid !== expected.uid) ||
-      (expected.gid !== undefined && status.gid !== expected.gid) ||
-      (expected.mode !== undefined && status.mode !== expected.mode)
-    ) {
-      throw new TypeError("Submission cleanup artifact metadata changed");
-    }
-  } catch (error) {
-    if (isMissingPath(error)) {
-      return;
-    }
-    throw error;
-  }
-  operations.beforeRename?.();
-  try {
-    renameSync(path, quarantinePath);
-  } catch (error) {
-    if (isMissingPath(error)) {
-      return;
-    }
-    throw error;
-  }
-  const current = lstatSync(quarantinePath);
-  operations.afterQuarantine?.();
-  if (!current.isFile()) {
-    restoreQuarantinedArtifact(path, quarantinePath, current);
-    throw new TypeError("Submission cleanup encountered a non-file artifact");
-  }
-  if (current.dev !== expected.dev || current.ino !== expected.ino) {
-    restoreQuarantinedArtifact(path, quarantinePath, current);
-    return;
-  }
-  if (
-    (expected.uid !== undefined && current.uid !== expected.uid) ||
-    (expected.gid !== undefined && current.gid !== expected.gid) ||
-    (expected.mode !== undefined && current.mode !== expected.mode)
-  ) {
-    restoreQuarantinedArtifact(path, quarantinePath, current);
-    throw new TypeError("Submission cleanup artifact metadata changed");
-  }
-  rmSync(quarantinePath, { force: true });
-}
-
 /**
  * @param {string} temporaryPath
  * @param {string} targetPath
  * @param {{uid?: number, gid?: number, mode?: number}} [requirements]
  * @param {{beforeOpen?: () => void, afterLink?: () => void}} [operations]
- * @returns {{dev: number, ino: number}}
+ * @returns {{birthtimeMs: number, dev: number, ino: number}}
  */
 export function publishFile(
   temporaryPath,
@@ -338,7 +227,11 @@ export function publishFile(
     ) {
       throw new TypeError("Submission publication source identity changed");
     }
-    const identity = { dev: status.dev, ino: status.ino };
+    const identity = {
+      birthtimeMs: status.birthtimeMs,
+      dev: status.dev,
+      ino: status.ino,
+    };
     linkSync(temporaryPath, targetPath);
     operations.afterLink?.();
     const published = lstatSync(targetPath);
@@ -393,8 +286,8 @@ export function publishFile(
 
 /**
  * @param {string} path
- * @param {{dev: number, ino: number} | null} current
- * @returns {{dev: number, ino: number} | null}
+ * @param {{birthtimeMs: number, dev: number, ino: number} | null} current
+ * @returns {{birthtimeMs: number, dev: number, ino: number} | null}
  */
 export function captureFileIdentity(path, current) {
   if (current) {
@@ -402,7 +295,9 @@ export function captureFileIdentity(path, current) {
   }
   try {
     const status = lstatSync(path);
-    return status.isFile() ? { dev: status.dev, ino: status.ino } : null;
+    return status.isFile()
+      ? { birthtimeMs: status.birthtimeMs, dev: status.dev, ino: status.ino }
+      : null;
   } catch (error) {
     if (isMissingPath(error)) {
       return null;
@@ -415,7 +310,7 @@ export function captureFileIdentity(path, current) {
  * @param {string} path
  * @param {() => Error} unavailable
  * @param {{uid: number, gid: number}} owner
- * @returns {{content: string, identity: {dev: number, ino: number, uid: number, gid: number, mode: number}, mtimeMs: number}}
+ * @returns {{content: string, identity: {birthtimeMs: number, dev: number, ino: number, uid: number, gid: number, mode: number}, mtimeMs: number}}
  */
 export function readSubmissionFile(path, unavailable, owner) {
   let descriptor;
@@ -450,6 +345,7 @@ export function readSubmissionFile(path, unavailable, owner) {
     return {
       content: readBoundedText(descriptor, MAX_SUBMISSION_BYTES),
       identity: {
+        birthtimeMs: status.birthtimeMs,
         dev: status.dev,
         gid: status.gid,
         ino: status.ino,

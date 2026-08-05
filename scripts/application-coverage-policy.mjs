@@ -115,6 +115,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-run-submission-channel-security.test.js",
   "test/review-run-submission-ownership.test.js",
   "test/review-run-submission-command-installation.test.js",
+  "test/review-run-submission-file-cleanup.test.js",
   "test/review-run-submission-process-group.test.js",
   "test/repository-collection.test.js",
   "test/repository-selector.test.js",

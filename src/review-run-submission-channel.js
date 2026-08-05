@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
-import { lstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,14 +26,15 @@ import {
   processStartIdentity,
   publishFile,
   readSubmissionFile,
-  removeOwnedFile,
 } from "./review-run-submission-files.js";
+import { removeOwnedFile } from "./review-run-submission-file-cleanup.js";
 import {
   createTrustedProcessGroupBinding,
   processGroupIdentity,
 } from "./review-run-submission-process-group.js";
 
 import {
+  captureDirectoryIdentity,
   captureExistingIdentity,
   requireCheckoutPath,
   requireEndpointAvailable,
@@ -84,13 +85,7 @@ export async function openReviewRunSubmissionChannel(
   const lockPath = join(checkoutPath, lockName);
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
-  const directoryStatus = lstatSync(directory);
-  const directoryIdentity = {
-    dev: directoryStatus.dev,
-    ino: directoryStatus.ino,
-    uid: directoryStatus.uid,
-    gid: directoryStatus.gid,
-  };
+  const directoryIdentity = captureDirectoryIdentity(directory);
   /** @param {string} path @param {() => Error} unavailable */
   const readTrustedSubmissionFile = (path, unavailable) =>
     readSubmissionFile(path, unavailable, directoryIdentity);
@@ -103,12 +98,18 @@ export async function openReviewRunSubmissionChannel(
   const commandPath = join(directory, "quality-bar-submit");
   const runtimePath = join(directory, "quality-bar-submit-runtime.js");
   const installation = {
-    commandIdentity: /** @type {{dev: number, ino: number} | null} */ (null),
+    commandIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
     commandPath,
-    runtimeIdentity: /** @type {{dev: number, ino: number} | null} */ (null),
+    runtimeIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
     runtimePath,
   };
-  /** @type {{requestIdentity: {dev: number, ino: number} | null, lockIdentity: {dev: number, ino: number} | null, responseIdentity: {dev: number, ino: number} | null, acknowledgmentIdentity: {dev: number, ino: number} | null, closedIdentity: {dev: number, ino: number} | null}} */
+  /** @type {{requestIdentity: {birthtimeMs: number, dev: number, ino: number} | null, lockIdentity: {birthtimeMs: number, dev: number, ino: number} | null, responseIdentity: {birthtimeMs: number, dev: number, ino: number} | null, acknowledgmentIdentity: {birthtimeMs: number, dev: number, ino: number} | null, closedIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} */
   const identities = {
     acknowledgmentIdentity: null,
     closedIdentity: null,

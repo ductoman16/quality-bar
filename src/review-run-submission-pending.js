@@ -1,8 +1,8 @@
 /**
  * @param {{
  *   acknowledgmentPath: string,
- *   acknowledgmentIdentity: {dev: number, ino: number} | null,
- *   setAcknowledgmentIdentity: (identity: {dev: number, ino: number}) => void,
+ *   acknowledgmentIdentity: {birthtimeMs: number, dev: number, ino: number} | null,
+ *   setAcknowledgmentIdentity: (identity: {birthtimeMs: number, dev: number, ino: number}) => void,
  *   failUnexpectedly: (error: unknown) => void,
  *   isMissingPath: (error: unknown) => boolean,
  *   isPendingClientAlive: (submission: any) => boolean,
@@ -15,7 +15,7 @@
  *   removeOwnedFile: (path: string, identity: any) => void,
  *   requestChannelUnavailable: () => Error,
  *   resolveResult: (result: "accepted" | "failed") => void,
- *   responseIdentity: {dev: number, ino: number} | null,
+ *   responseIdentity: {birthtimeMs: number, dev: number, ino: number} | null,
  *   responsePath: string,
  *   setLastValidationFailure: (failure: any) => void,
  *   settlePendingResponse: (result: "accepted" | "failed") => void,

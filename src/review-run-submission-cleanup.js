@@ -121,7 +121,7 @@ export function cleanupOwnedFile(
 
 /**
  * @param {string} path
- * @param {{dev: number, ino: number, uid: number, gid: number}} identity
+ * @param {{dev: number, ino: number, birthtimeMs: number, uid: number, gid: number}} identity
  * @param {unknown} closeFailure
  * @param {(path: string, options: {force: boolean, recursive: boolean}) => void} removeDirectory
  * @returns {unknown}
@@ -146,6 +146,7 @@ export function cleanupOwnedDirectory(
     status.isSymbolicLink() ||
     status.dev !== identity.dev ||
     status.ino !== identity.ino ||
+    status.birthtimeMs !== identity.birthtimeMs ||
     status.uid !== identity.uid ||
     status.gid !== identity.gid
   ) {
@@ -165,6 +166,7 @@ export function cleanupOwnedDirectory(
       quarantined.isSymbolicLink() ||
       quarantined.dev !== identity.dev ||
       quarantined.ino !== identity.ino ||
+      quarantined.birthtimeMs !== identity.birthtimeMs ||
       quarantined.uid !== identity.uid ||
       quarantined.gid !== identity.gid
     ) {

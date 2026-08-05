@@ -110,9 +110,9 @@ async function submitCandidate(
   const temporaryRequestPath = `${requestPath}.tmp-${process.pid}-${randomUUID()}`;
   const requestId = randomUUID();
   const clientId = randomUUID();
-  /** @type {{dev: number, ino: number} | null} */
+  /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
   let lockIdentity = null;
-  /** @type {{dev: number, ino: number} | null} */
+  /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
   let requestIdentity = null;
   let leaseTimer = null;
   let leaseFailure = null;
@@ -131,7 +131,11 @@ async function submitCandidate(
         })}\n`,
       );
       const lock = fs.fstatSync(lockDescriptor);
-      ownedLockIdentity = { dev: lock.dev, ino: lock.ino };
+      ownedLockIdentity = {
+        birthtimeMs: lock.birthtimeMs,
+        dev: lock.dev,
+        ino: lock.ino,
+      };
     } finally {
       fs.closeSync(lockDescriptor);
     }
@@ -153,7 +157,8 @@ async function submitCandidate(
           if (
             !status.isFile() ||
             status.dev !== ownedLockIdentity.dev ||
-            status.ino !== ownedLockIdentity.ino
+            status.ino !== ownedLockIdentity.ino ||
+            status.birthtimeMs !== ownedLockIdentity.birthtimeMs
           ) {
             throw new Error("Review Run submission lock identity changed");
           }
@@ -189,7 +194,11 @@ async function submitCandidate(
           })}\n`,
         );
         const request = fs.fstatSync(requestDescriptor);
-        requestIdentity = { dev: request.dev, ino: request.ino };
+        requestIdentity = {
+          birthtimeMs: request.birthtimeMs,
+          dev: request.dev,
+          ino: request.ino,
+        };
       } finally {
         fs.closeSync(requestDescriptor);
       }

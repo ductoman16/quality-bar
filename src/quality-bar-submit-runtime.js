@@ -174,7 +174,7 @@ function readBoundedText(descriptor, maxBytes) {
 
 /**
  * @param {string} path
- * @param {{dev: number, ino: number} | null} expected
+ * @param {{dev: number, ino: number, birthtimeMs?: number} | null} expected
  */
 export function removeOwnedFile(path, expected) {
   if (!expected) {
@@ -182,7 +182,12 @@ export function removeOwnedFile(path, expected) {
   }
   try {
     const status = fs.lstatSync(path);
-    if (status.dev !== expected.dev || status.ino !== expected.ino) {
+    if (
+      status.dev !== expected.dev ||
+      status.ino !== expected.ino ||
+      (expected.birthtimeMs !== undefined &&
+        status.birthtimeMs !== expected.birthtimeMs)
+    ) {
       return;
     }
   } catch (error) {
@@ -201,7 +206,12 @@ export function removeOwnedFile(path, expected) {
     throw error;
   }
   const current = fs.lstatSync(quarantinePath);
-  if (current.dev === expected.dev && current.ino === expected.ino) {
+  if (
+    current.dev === expected.dev &&
+    current.ino === expected.ino &&
+    (expected.birthtimeMs === undefined ||
+      current.birthtimeMs === expected.birthtimeMs)
+  ) {
     fs.rmSync(quarantinePath, { force: true });
     return;
   }
@@ -351,7 +361,11 @@ export function readResponse(path) {
       throw new InvalidResponseError();
     }
     return {
-      identity: { dev: status.dev, ino: status.ino },
+      identity: {
+        birthtimeMs: status.birthtimeMs,
+        dev: status.dev,
+        ino: status.ino,
+      },
       payload: response.payload,
     };
   } finally {

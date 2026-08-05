@@ -19,8 +19,8 @@ import {
   isProcessAlive,
   parseSubmissionLock,
   publishFile,
-  removeOwnedFile,
 } from "../src/review-run-submission-files.js";
+import { removeOwnedFile } from "../src/review-run-submission-file-cleanup.js";
 import { processGroupIdentity } from "../src/review-run-submission-process-group.js";
 
 const claim = Object.freeze({
@@ -347,14 +347,19 @@ test("retains response ownership when a fast client removes it before publicatio
   assert.equal(readFileSync(responsePath, "utf8"), "foreign-response\n");
 });
 
-test("quarantines a replacement instead of unlinking it during owned cleanup", (context) => {
+test("preserves a replacement that reuses an owned inode", (context) => {
   const checkoutPath = createCheckout(context);
   const path = join(checkoutPath, "artifact");
   writeFileSync(path, "owned\n");
   const owned = lstatSync(path);
   rmSync(path, { force: true });
   writeFileSync(path, "replacement\n");
-  removeOwnedFile(path, { dev: owned.dev, ino: owned.ino });
+  const replacement = lstatSync(path);
+  removeOwnedFile(path, {
+    birthtimeMs: owned.birthtimeMs,
+    dev: replacement.dev,
+    ino: replacement.ino,
+  });
   assert.equal(readFileSync(path, "utf8"), "replacement\n");
 });
 

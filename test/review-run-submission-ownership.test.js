@@ -4,9 +4,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readlinkSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,62 +15,8 @@ import { openReviewRunSubmissionChannel } from "../src/review-run-submission-cha
 import { createSubmissionProcessor } from "../src/review-run-submission-processor.js";
 import { processPendingResponse } from "../src/review-run-submission-pending.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
-import {
-  removeOwnedFile,
-  requirePrivateFile,
-} from "../src/review-run-submission-files.js";
+import { requirePrivateFile } from "../src/review-run-submission-files.js";
 import { settleSubmissionTerminal } from "../src/review-run-codex-submission-terminal.js";
-
-test("restores a symlink replacement before reporting non-file cleanup", (context) => {
-  const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-ownership-"));
-  context.after(() => rmSync(checkoutPath, { force: true, recursive: true }));
-  const path = join(checkoutPath, "artifact");
-  writeFileSync(path, "owned\n");
-  const owned = lstatSync(path);
-  rmSync(path, { force: true });
-  symlinkSync("foreign-target", path);
-  removeOwnedFile(path, { dev: owned.dev, ino: owned.ino });
-  assert.equal(lstatSync(path).isSymbolicLink(), true);
-  assert.equal(readlinkSync(path), "foreign-target");
-});
-
-test("preserves both artifacts when restoration races a replacement", (context) => {
-  const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-ownership-race-"));
-  context.after(() => rmSync(checkoutPath, { force: true, recursive: true }));
-  const path = join(checkoutPath, "artifact");
-  writeFileSync(path, "owned\n");
-  const owned = lstatSync(path);
-  /** @type {string | null} */
-  let preservedPath = null;
-  assert.throws(
-    () =>
-      removeOwnedFile(
-        path,
-        { dev: owned.dev, ino: owned.ino },
-        {
-          beforeRename: () => {
-            rmSync(path, { force: true });
-            symlinkSync("foreign-target", path);
-          },
-          afterQuarantine: () => writeFileSync(path, "replacement\n"),
-        },
-      ),
-    (error) => {
-      const message = error instanceof Error ? error.message : "";
-      assert.match(message, /preserved the quarantined artifact at /);
-      preservedPath = message.replace(
-        /^.*preserved the quarantined artifact at /,
-        "",
-      );
-      return true;
-    },
-  );
-  assert.equal(typeof preservedPath, "string");
-  assert.ok(preservedPath);
-  assert.equal(readlinkSync(preservedPath), "foreign-target");
-  assert.equal(lstatSync(path).isFile(), true);
-  rmSync(preservedPath, { force: true });
-});
 
 test("rejects a private submission file owned by a different identity", (context) => {
   const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-ownership-owner-"));
@@ -144,7 +88,7 @@ test("does not remove an empty foreign command directory during setup cleanup", 
 });
 
 test("shares the acknowledgment inode before stopping acceptance", () => {
-  const acknowledgmentIdentity = { dev: 11, ino: 22 };
+  const acknowledgmentIdentity = { birthtimeMs: 1, dev: 11, ino: 22 };
   /** @type {{dev: number, ino: number} | null} */
   let sharedIdentity = null;
   /** @type {{dev: number, ino: number} | null} */
@@ -184,7 +128,7 @@ test("shares the acknowledgment inode before stopping acceptance", () => {
     },
     requestChannelUnavailable: () => new Error("unavailable"),
     resolveResult: (value) => assert.equal(value, "accepted"),
-    responseIdentity: { dev: 33, ino: 44 },
+    responseIdentity: { birthtimeMs: 2, dev: 33, ino: 44 },
     responsePath: "/response",
     setAcknowledgmentIdentity: (identity) => {
       sharedIdentity = identity;
@@ -200,7 +144,7 @@ test("shares the acknowledgment inode before stopping acceptance", () => {
 });
 
 test("does not publish a foreign acknowledgment identity", () => {
-  const foreignIdentity = { dev: 55, ino: 66 };
+  const foreignIdentity = { birthtimeMs: 3, dev: 55, ino: 66 };
   const pendingResponse = {
     accepted: true,
     client_id: "client",
@@ -238,7 +182,7 @@ test("does not publish a foreign acknowledgment identity", () => {
     removeOwnedFile: () => assert.fail("foreign ACK must not be removed"),
     requestChannelUnavailable: () => new Error("unavailable"),
     resolveResult: () => assert.fail("foreign ACK must not resolve"),
-    responseIdentity: { dev: 77, ino: 88 },
+    responseIdentity: { birthtimeMs: 4, dev: 77, ino: 88 },
     responsePath: "/response",
     setAcknowledgmentIdentity: (identity) => {
       sharedIdentity = identity;

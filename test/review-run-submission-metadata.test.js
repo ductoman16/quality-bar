@@ -15,8 +15,8 @@ import { test } from "node:test";
 import {
   publishFile,
   readSubmissionFile,
-  removeOwnedFile,
 } from "../src/review-run-submission-files.js";
+import { removeOwnedFile } from "../src/review-run-submission-file-cleanup.js";
 
 test("publishes only a descriptor-bound restrictive regular file", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "qbs-publish-metadata-"));
@@ -30,7 +30,11 @@ test("publishes only a descriptor-bound restrictive regular file", (context) => 
     mode: status.mode,
     uid: status.uid,
   });
-  assert.deepEqual(identity, { dev: status.dev, ino: status.ino });
+  assert.deepEqual(identity, {
+    birthtimeMs: status.birthtimeMs,
+    dev: status.dev,
+    ino: status.ino,
+  });
   assert.equal(lstatSync(target).mode & 0o777, 0o600);
 });
 

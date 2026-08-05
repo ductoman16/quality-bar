@@ -32,6 +32,7 @@ export const REVIEW_RUN_ADMISSION_GATE_DEFINITIONS = [
       "test/review-run-submission-channel-security.test.js",
       "test/review-run-submission-ownership.test.js",
       "test/review-run-submission-command-installation.test.js",
+      "test/review-run-submission-file-cleanup.test.js",
       "test/review-run-submission-process-group.test.js",
       "test/evaluation-cancellation.test.js",
     ],
