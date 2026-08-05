@@ -29,10 +29,11 @@ function processThatExitsWithStderr(stderr) {
 function channel({ failure = null, result } = {}) {
   return {
     accepted: () => false,
+    bindProcessGroup() {},
     async close() {},
     commandDirectory: "/submit-bin",
     environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+      QUALITY_BAR_SUBMIT_FILE: "/socket",
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
     failure: () => failure,
@@ -344,6 +345,7 @@ test("a direct child exit closes submission and terminates surviving descendants
         },
         openSubmissionChannel: async () => ({
           accepted: () => lateAcceptance,
+          bindProcessGroup() {},
           async close() {
             closed = true;
             events.push("submission-closed");

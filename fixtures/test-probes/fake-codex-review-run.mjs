@@ -51,7 +51,7 @@ if (
   environmentNames.some(
     (name) =>
       name.startsWith("QUALITY_BAR_") &&
-      !["QUALITY_BAR_SUBMIT_SOCKET", "QUALITY_BAR_SUBMIT_TOKEN"].includes(name),
+      !["QUALITY_BAR_SUBMIT_FILE", "QUALITY_BAR_SUBMIT_TOKEN"].includes(name),
   ) ||
   readFileSync(".git/config", "utf8").includes("[remote ") ||
   typeof criterion !== "string" ||

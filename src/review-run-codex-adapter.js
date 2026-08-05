@@ -29,6 +29,7 @@ import * as deadline from "./review-run-deadline.js";
 import * as evidence from "./review-run-evidence.js";
 import { createReviewRunProcessGroupTermination } from "./review-run-process-group.js";
 import { ReviewRunExecutionError } from "./review-run-result.js";
+import { settleSubmissionTerminal } from "./review-run-codex-submission-terminal.js";
 import { openReviewRunSubmissionChannel } from "./review-run-submission-channel.js";
 
 /**
@@ -82,6 +83,7 @@ export async function runReviewRunCodex({
   recordDeadline,
   resultService,
   run,
+  submissionMode = "review-file",
   setDeadlineTimer = setTimeout,
   setTerminationTimer = setTimeout,
   spawnProcess = spawn,
@@ -90,7 +92,10 @@ export async function runReviewRunCodex({
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
   group.requireTracking(finishProcessGroup, startProcessGroup);
-  const channel = await openChannel(claim, resultService, { checkoutPath });
+  const channel = await openChannel(claim, resultService, {
+    checkoutPath,
+    submissionMode,
+  });
   const { close: closeSubmissionChannel, stop: stopSubmissionChannel } =
     createSubmissionChannelControllers(channel);
   /** @type {Error[]} */
@@ -182,6 +187,7 @@ export async function runReviewRunCodex({
         stopSubmissionChannel,
         prepared.abort,
       );
+      channel.bindProcessGroup(/** @type {number} */ (child.pid));
     } catch (error) {
       clearDeadlineTimer(deadlineTimer);
       throw error;
@@ -220,38 +226,14 @@ export async function runReviewRunCodex({
     } finally {
       clearDeadlineTimer(deadlineTimer);
     }
-    const failedSubmission =
-      terminal.kind === "submission" && terminal.result === "failed";
-    const processError = terminal.kind === "process-error";
-    if (
-      closesSubmissionForCancellationOrDeadline(terminal.kind) ||
-      failedSubmission ||
-      processError ||
-      terminal.kind === "process" ||
-      terminal.kind === "transcript"
-    ) {
-      try {
-        await stopSubmissionChannel();
-      } catch (error) {
-        if (terminal.kind === "cancellation") {
-          diagnosticFailures.push(
-            error instanceof Error
-              ? error
-              : new TypeError("Review Run submission channel cleanup failed", {
-                  cause: error,
-                }),
-          );
-        }
-      }
-    }
-    let accepted =
-      terminal.kind === "submission" && terminal.result === "accepted";
-    if (terminal.kind === "process" && channel.accepted()) {
-      accepted = (await channel.waitForResult()) === "accepted";
-    }
-    if (terminal.kind === "deadline" && channel.accepted()) {
-      accepted = (await channel.waitForResult()) === "accepted";
-    }
+    const { accepted, failedSubmission, processError } =
+      await settleSubmissionTerminal({
+        channel,
+        diagnosticFailures,
+        stopSubmissionChannel,
+        terminal,
+      });
+    const committedSubmission = channel.hasCommittedSubmission?.() === true;
     const deadlineFailure = deadline.createDeadlineFailure(
       terminal.kind === "deadline",
       accepted,
@@ -305,7 +287,9 @@ export async function runReviewRunCodex({
       throw transcriptFailure;
     }
     if (acceptedTerminationFailure) {
-      if (failedSubmission) {
+      if (committedSubmission) {
+        diagnosticFailures.push(acceptedTerminationFailure);
+      } else if (failedSubmission) {
         const owningFailure = createSubmissionFailure(
           channel.failure() ?? new TypeError("Review Run submission failed"),
         );
@@ -315,8 +299,7 @@ export async function runReviewRunCodex({
           acceptedTerminationFailure,
         );
         throw owningFailure;
-      }
-      if (deadlineFailure) {
+      } else if (deadlineFailure) {
         const owningFailure =
           deadlineRecordingFailure instanceof Error
             ? deadlineRecordingFailure
@@ -327,12 +310,16 @@ export async function runReviewRunCodex({
           acceptedTerminationFailure,
         );
         throw owningFailure;
+      } else {
+        fail(
+          "codex_process_failed",
+          "Codex Review Run process-group termination failed",
+          acceptedTerminationFailure,
+        );
       }
-      fail(
-        "codex_process_failed",
-        "Codex Review Run process-group termination failed",
-        acceptedTerminationFailure,
-      );
+    }
+    if (processErrorTerminationFailure && committedSubmission) {
+      diagnosticFailures.push(processErrorTerminationFailure);
     }
     const terminalProcess =
       terminal.kind === "process" ? terminal.result : await processResult;
@@ -344,12 +331,23 @@ export async function runReviewRunCodex({
       stdout,
     );
     const submissionFailure = channel.failure();
-    const cancellationResult = cancelledReviewRunResult(
-      terminal.kind,
-      evidenceCompletionFailure,
-      submissionFailure,
-      diagnosticFailures,
-    );
+    if (accepted && submissionFailure) {
+      diagnosticFailures.push(
+        submissionFailure instanceof Error
+          ? submissionFailure
+          : new TypeError("Review Run submission channel cleanup failed", {
+              cause: submissionFailure,
+            }),
+      );
+    }
+    const cancellationResult = accepted
+      ? undefined
+      : cancelledReviewRunResult(
+          terminal.kind,
+          evidenceCompletionFailure,
+          submissionFailure,
+          diagnosticFailures,
+        );
     if (cancellationResult) {
       return cancellationResult;
     }
@@ -360,7 +358,10 @@ export async function runReviewRunCodex({
         { evidenceCompletionFailure, submissionFailure, transcriptFailure },
       );
     }
-    if (submissionFailure || failedSubmission) {
+    if (
+      !committedSubmission &&
+      ((!accepted && submissionFailure) || failedSubmission)
+    ) {
       const owningFailure = createSubmissionFailure(
         submissionFailure ?? new TypeError("Review Run submission failed"),
       );
@@ -386,7 +387,7 @@ export async function runReviewRunCodex({
     if (evidenceCompletionFailure) {
       throw evidenceCompletionFailure;
     }
-    if ((terminal.kind === "process" || processError) && !channel.accepted()) {
+    if ((terminal.kind === "process" || processError) && !accepted) {
       const exit = /** @type {any} */ (terminalProcess);
       const validationFailure = channel.lastValidationFailure();
       if (validationFailure || (exit.code === 0 && exit.signal === null)) {

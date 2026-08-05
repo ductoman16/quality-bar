@@ -5,19 +5,24 @@
  *   claim: {fencingToken: number, workerId: string, workId: string},
  *   codexCommand?: string,
  *   codexPrefixArguments?: string[],
+ *   submissionMode?: "review-file" | "generic",
  *   openSubmissionChannel?: (
  *     claim: any,
  *     resultService: any,
- *     options: {checkoutPath: string}
+ *     options: {checkoutPath: string, submissionMode?: "review-file" | "generic"}
  *   ) => Promise<{
  *     accepted(): boolean,
+ *     bindProcessGroup(processGroupId: number): void,
  *     close(): Promise<void>,
  *     commandDirectory: string,
  *     environment: Record<string, string>,
  *     failure(): Error | null,
+ *     hasCommittedSubmission?(): boolean,
+ *     hasPendingSubmission?(): boolean,
  *     lastValidationFailure(): import("./review-run-result.js").ReviewRunExecutionError | null,
  *     stop?(): Promise<void>,
  *     waitForResult(): Promise<"accepted" | "failed">
+ *     waitForPendingSubmission?(): Promise<"accepted" | "failed">
  *   }>,
  *   resultService: {prepare(claim: any, candidate: unknown): unknown},
  *   recordDeadline: (failure: import("./review-run-result.js").ReviewRunExecutionError) => unknown,

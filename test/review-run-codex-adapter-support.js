@@ -23,10 +23,11 @@ export const run = Object.freeze({
 export function acceptedChannel() {
   return {
     accepted: () => true,
+    bindProcessGroup() {},
     async close() {},
     commandDirectory: "/submit-bin",
     environment: {
-      QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+      QUALITY_BAR_SUBMIT_FILE: "/socket",
       QUALITY_BAR_SUBMIT_TOKEN: "secret",
     },
     failure: () => null,

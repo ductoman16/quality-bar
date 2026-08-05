@@ -295,6 +295,7 @@ export async function executeWaiverAdjudication(
           prompt,
         },
         ...codexOptions,
+        submissionMode: "generic",
         finishProcessGroup() {
           claimService.finishProcessGroup(claim);
         },

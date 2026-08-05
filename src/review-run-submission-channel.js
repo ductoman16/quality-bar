@@ -1,96 +1,55 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import {
-  lstatSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { createServer } from "node:net";
+import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-import { ReviewRunExecutionError } from "./review-run-result.js";
+import { REVIEW_RUN_DEADLINE_MILLISECONDS } from "./review-run-deadline.js";
+import { installSubmissionCommand } from "./review-run-submission-installation.js";
+import { createSubmissionProcessor } from "./review-run-submission-processor.js";
+import { processPendingResponse as readPendingResponse } from "./review-run-submission-pending.js";
+import { publishSignedResponse } from "./review-run-submission-response.js";
+import {
+  cleanupOwnedFile,
+  cleanupOwnedDirectory,
+  cleanupSubmissionFiles,
+  drainSubmissionArtifacts,
+  mergeCleanupFailure,
+  preserveCleanupFailure,
+  removeSubmissionDirectory,
+} from "./review-run-submission-cleanup.js";
+import {
+  isProcessAlive,
+  isMissingPath,
+  isSubmissionLeaseAlive,
+  isSubmissionLeaseExpired,
+  parseSubmissionLock,
+  processStartIdentity,
+  publishFile,
+  readSubmissionFile,
+} from "./review-run-submission-files.js";
+import { removeOwnedFile } from "./review-run-submission-file-cleanup.js";
+import {
+  createTrustedProcessGroupBinding,
+  processGroupIdentity,
+} from "./review-run-submission-process-group.js";
 
-const submitPath = fileURLToPath(
-  new URL("./quality-bar-submit.js", import.meta.url),
-);
-
-/**
- * @param {unknown} failure
- * @param {unknown} cleanupFailure
- */
-function preserveCleanupFailure(failure, cleanupFailure) {
-  if (failure instanceof Error) {
-    Object.defineProperty(failure, "submissionCleanupFailure", {
-      configurable: true,
-      enumerable: false,
-      value: cleanupFailure,
-    });
-  }
-}
-
-function submissionChannelUnavailable() {
-  return new ReviewRunExecutionError(
-    "submission_channel_unavailable",
-    "Review Run submission channel is unavailable",
-  );
-}
-
-/** @param {unknown} error */
-function isMissingPath(error) {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-/** @param {string} path */
-function requireEndpointAvailable(path) {
-  try {
-    lstatSync(path);
-  } catch (error) {
-    if (isMissingPath(error)) {
-      return;
-    }
-    throw error;
-  }
-  throw submissionChannelUnavailable();
-}
-
-/** @param {string} path */
-function requireCheckoutDirectory(path) {
-  const status = lstatSync(path);
-  if (!status.isDirectory() || status.isSymbolicLink()) {
-    throw new TypeError("Review Run checkout path is invalid");
-  }
-}
-
-/** @param {string} path */
-function readSocketIdentity(path) {
-  const status = lstatSync(path);
-  if (!status.isSocket()) {
-    throw submissionChannelUnavailable();
-  }
-  return { dev: status.dev, ino: status.ino };
-}
+import {
+  captureDirectoryIdentity,
+  captureExistingIdentity,
+  requireCheckoutPath,
+  requireEndpointAvailable,
+  submissionChannelUnavailable,
+} from "./review-run-submission-paths.js";
 
 /**
- * @param {{dev: number, ino: number}} actual
- * @param {{dev: number, ino: number}} expected
- */
-function hasSocketIdentity(actual, expected) {
-  return actual.dev === expected.dev && actual.ino === expected.ino;
-}
-
-/** Internal-only Review Run adapter seam; checkoutPath is required for isolation.
- *
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {{prepare(claim: any, candidate: unknown): unknown}} resultService
  * @param {{
  *   checkoutPath: string,
- *   createSocketName?: () => string,
+ *   createEndpointName?: () => string,
  *   removeDirectory?: (path: string, options: {force: boolean, recursive: boolean}) => void,
- *   removeSocket?: (path: string) => void,
+ *   publishFile?: typeof publishFile,
+ *   submissionMode?: "review-file" | "generic",
  *   writeCommand?: typeof writeFileSync
  * }} options
  */
@@ -99,237 +58,375 @@ export async function openReviewRunSubmissionChannel(
   resultService,
   {
     checkoutPath,
-    createSocketName = () => `.qbs-${randomBytes(8).toString("base64url")}.s`,
-    removeDirectory = rmSync,
-    removeSocket = (path) => rmSync(path, { force: true }),
+    createEndpointName = () => `.qbs-${randomBytes(8).toString("base64url")}.s`,
+    removeDirectory = removeSubmissionDirectory,
+    publishFile: publishSubmissionFile = publishFile,
+    submissionMode = "review-file",
     writeCommand = writeFileSync,
   },
 ) {
+  requireCheckoutPath(checkoutPath);
+  const endpointName = createEndpointName();
   if (
-    typeof checkoutPath !== "string" ||
-    !isAbsolute(checkoutPath) ||
-    checkoutPath.includes("\0")
+    typeof endpointName !== "string" ||
+    endpointName.length === 0 ||
+    endpointName.includes("/") ||
+    endpointName.includes("\\") ||
+    endpointName.includes("\0") ||
+    endpointName === "." ||
+    endpointName === ".."
   ) {
-    throw new TypeError("Review Run checkout path is invalid");
+    throw new TypeError("Review Run submission endpoint name is invalid");
   }
-  requireCheckoutDirectory(checkoutPath);
-  const socketName = createSocketName();
-  if (
-    typeof socketName !== "string" ||
-    socketName.length === 0 ||
-    socketName.includes("/") ||
-    socketName.includes("\\") ||
-    socketName.includes("\0") ||
-    socketName === "." ||
-    socketName === ".."
-  ) {
-    throw new TypeError("Review Run submission socket name is invalid");
-  }
-  const socketPath = join(checkoutPath, socketName);
+  const closedName = `${endpointName}.closed`;
+  const lockName = `${endpointName}.lock`;
+  const requestPath = join(checkoutPath, endpointName);
+  const closedPath = join(checkoutPath, closedName);
+  const lockPath = join(checkoutPath, lockName);
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
-  /** @type {{dev: number, ino: number} | null} */
-  let socketIdentity = null;
+  const directoryIdentity = captureDirectoryIdentity(directory);
+  /** @param {string} path @param {() => Error} unavailable */
+  const readTrustedSubmissionFile = (path, unavailable) =>
+    readSubmissionFile(path, unavailable, directoryIdentity);
+  const responsePath = join(directory, "response");
+  const acknowledgmentPath = join(directory, "response.ack");
+  const responsePublicKey = publicKey
+    .export({ format: "pem", type: "spki" })
+    .toString();
+  const responseDeadlineAt = Date.now() + REVIEW_RUN_DEADLINE_MILLISECONDS;
+  const commandPath = join(directory, "quality-bar-submit");
+  const runtimePath = join(directory, "quality-bar-submit-runtime.js");
+  const installation = {
+    commandIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
+    commandPath,
+    runtimeIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
+    runtimePath,
+  };
+  /** @type {{requestIdentity: {birthtimeMs: number, dev: number, ino: number} | null, lockIdentity: {birthtimeMs: number, dev: number, ino: number} | null, responseIdentity: {birthtimeMs: number, dev: number, ino: number} | null, acknowledgmentIdentity: {birthtimeMs: number, dev: number, ino: number} | null, closedIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} */
+  const identities = {
+    acknowledgmentIdentity: null,
+    closedIdentity: null,
+    lockIdentity: null,
+    requestIdentity: null,
+    responseIdentity: null,
+  };
   try {
-    const commandPath = join(directory, "quality-bar-submit");
-    const checkoutLinkPath = join(directory, "checkout");
-    const socketAddressPath = join(checkoutLinkPath, socketName);
-    writeCommand(
-      commandPath,
-      `#!/usr/bin/env node\n${readFileSync(submitPath, "utf8")}`,
-      { mode: 0o700 },
+    requireEndpointAvailable(
+      requestPath,
+      isMissingPath,
+      submissionChannelUnavailable,
     );
-    requireEndpointAvailable(socketPath);
-    symlinkSync(checkoutPath, checkoutLinkPath, "dir");
-    const token = randomUUID();
-    let accepted = false;
-    /** @type {ReviewRunExecutionError | null} */
-    let lastValidationFailure = null;
+    requireEndpointAvailable(
+      closedPath,
+      isMissingPath,
+      submissionChannelUnavailable,
+    );
+    requireEndpointAvailable(
+      lockPath,
+      isMissingPath,
+      submissionChannelUnavailable,
+    );
+    const token = installSubmissionCommand(installation, {
+      directory,
+      responseDeadlineAt,
+      responsePath,
+      responsePublicKey,
+      submissionMode,
+      writeCommand,
+      publishFile: publishSubmissionFile,
+    });
+    const state = {
+      accepted: false,
+      committed: false,
+      lastValidationFailure:
+        /** @type {import("./review-run-result.js").ReviewRunExecutionError | null} */ (
+          null
+        ),
+      pendingResponse: /** @type {any} */ (null),
+      processing: false,
+      stopped: false,
+    };
     /** @type {Error | null} */
     let unexpectedFailure = null;
-    /** @type {Promise<void> | null} */
-    let serverClose = null;
+    /** @type {Error | null} */
+    let stopFailure = null;
     /** @type {(result: "accepted" | "failed") => void} */
-    let resolveResult;
+    let resolveResult = () => {};
     const result = new Promise((resolve) => {
       resolveResult = resolve;
     });
-    const sockets = new Set();
-    const server = createServer((socket) => {
-      sockets.add(socket);
-      socket.once("close", () => sockets.delete(socket));
-      let request = "";
-      socket.setEncoding("utf8");
-      socket.on("data", (chunk) => {
-        request += chunk;
-        if (request.length > 1024 * 1024) {
-          socket.destroy();
-        }
-      });
-      socket.once("end", () => {
-        try {
-          const envelope = JSON.parse(request);
-          if (envelope.token !== token) {
-            throw new ReviewRunExecutionError(
-              "submission_channel_unavailable",
-              "Review Run submission channel is unavailable",
-            );
-          }
-          resultService.prepare(claim, envelope.candidate);
-          accepted = true;
-          socket.end('{"ok":true}\n');
-          stopAccepting(socket).catch((error) => {
-            if (!unexpectedFailure) {
-              unexpectedFailure =
-                error instanceof Error
-                  ? error
-                  : new TypeError("Review Run submission channel failed");
-            }
-          });
-          resolveResult("accepted");
-        } catch (error) {
-          if (!(error instanceof ReviewRunExecutionError)) {
-            unexpectedFailure =
-              error instanceof Error
-                ? error
-                : new TypeError("Review Run submission failed");
-            socket.destroy();
-            stopAccepting().catch(() => {});
-            resolveResult("failed");
-            return;
-          }
-          lastValidationFailure = error;
-          socket.end(
-            `${JSON.stringify({
-              error: { code: error.code, message: error.message },
-              ok: false,
-            })}\n`,
-          );
-        }
-      });
-    });
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(socketAddressPath, () => {
-        try {
-          socketIdentity = readSocketIdentity(socketPath);
-          resolve(undefined);
-        } catch (error) {
-          server.close((closeError) => reject(closeError ?? error));
-        }
-      });
-    });
+    /** @type {Promise<"accepted" | "failed">} */
+    let pendingSettlement = Promise.resolve("failed");
+    /** @type {(result: "accepted" | "failed") => void} */
+    let resolvePendingSettlement = () => {};
+    /** @type {ReturnType<typeof setInterval> | null} */
+    let pollTimer = null;
 
-    let cleanupPathIsolated = false;
-    let serverStopped = false;
-    /** @type {string | null} */
-    let closedDirectoryPath = null;
-
-    function isolateServerCleanupPath() {
-      if (cleanupPathIsolated) {
+    function stopAccepting() {
+      if (state.stopped) {
         return;
       }
-      closedDirectoryPath ??= mkdtempSync(join(directory, "closed-"));
-      rmSync(checkoutLinkPath, { force: true });
-      symlinkSync(closedDirectoryPath, checkoutLinkPath, "dir");
-      cleanupPathIsolated = true;
-    }
-
-    function removeOwnedSocket() {
-      if (!socketIdentity) {
-        return;
-      }
-      let current;
+      const temporaryPath = join(
+        checkoutPath,
+        `${closedName}.tmp-${randomUUID()}`,
+      );
       try {
-        current = lstatSync(socketPath);
-      } catch (error) {
-        if (isMissingPath(error)) {
-          return;
+        try {
+          identities.requestIdentity = captureExistingIdentity(
+            requestPath,
+            identities.requestIdentity,
+          );
+          identities.lockIdentity = captureExistingIdentity(
+            lockPath,
+            identities.lockIdentity,
+          );
+          identities.responseIdentity = captureExistingIdentity(
+            responsePath,
+            identities.responseIdentity,
+          );
+          identities.acknowledgmentIdentity = captureExistingIdentity(
+            acknowledgmentPath,
+            identities.acknowledgmentIdentity,
+          );
+        } catch (error) {
+          stopFailure =
+            error instanceof Error
+              ? error
+              : new TypeError("Review Run submission channel failed");
         }
-        throw error;
+        try {
+          writeFileSync(temporaryPath, "closed\n", {
+            flag: "wx",
+            mode: 0o600,
+          });
+          identities.closedIdentity = publishSubmissionFile(
+            temporaryPath,
+            closedPath,
+          );
+        } catch (error) {
+          rmSync(temporaryPath, { force: true });
+          throw error;
+        }
+      } catch (error) {
+        stopFailure ??=
+          error instanceof Error
+            ? error
+            : new TypeError("Review Run submission channel failed");
       }
-      if (current.isSocket() && hasSocketIdentity(current, socketIdentity)) {
-        removeSocket(socketPath);
+      unexpectedFailure ??= stopFailure;
+      state.stopped = true;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
       }
     }
 
-    /** @param {import("node:net").Socket} [respondingSocket] */
-    function stopAccepting(respondingSocket) {
-      for (const socket of sockets) {
-        if (socket !== respondingSocket) {
-          socket.destroy();
-        }
-      }
-      if (serverStopped) {
-        return Promise.resolve();
-      }
-      if (!serverClose) {
-        const attempt = (async () => {
-          isolateServerCleanupPath();
-          await new Promise((resolve, reject) => {
-            server.close((error) =>
-              error ? reject(error) : resolve(undefined),
-            );
-          });
-          serverStopped = true;
-        })();
-        serverClose = attempt.catch((error) => {
-          serverClose = null;
-          throw error;
-        });
-      }
-      return serverClose;
+    /**
+     * @param {Record<string, unknown>} response
+     * @param {string} requestId
+     */
+    function writeResponse(response, requestId) {
+      pendingSettlement = new Promise((resolve) => {
+        resolvePendingSettlement = resolve;
+      });
+      identities.responseIdentity = publishSignedResponse(
+        directory,
+        responsePath,
+        privateKey,
+        response,
+        requestId,
+        randomUUID,
+      );
     }
+
+    /** @param {unknown} error */
+    function failUnexpectedly(error) {
+      unexpectedFailure =
+        error instanceof Error
+          ? error
+          : new TypeError("Review Run submission failed");
+      stopAccepting();
+      resolvePendingSettlement("failed");
+      resolveResult("failed");
+    }
+
+    function processPendingResponse() {
+      const result = /** @type {any} */ (
+        readPendingResponse({
+          acknowledgmentPath,
+          acknowledgmentIdentity: identities.acknowledgmentIdentity,
+          setAcknowledgmentIdentity: (identity) => {
+            identities.acknowledgmentIdentity = identity;
+          },
+          failUnexpectedly,
+          isMissingPath,
+          isPendingClientAlive: (submission) =>
+            isProcessAlive(submission.client_pid) &&
+            processStartIdentity(submission.client_pid) ===
+              submission.client_start_identity,
+          isSubmissionLeaseAlive,
+          isSubmissionLeaseExpired,
+          lockPath,
+          parseSubmissionLock,
+          pendingResponse: state.pendingResponse,
+          readSubmissionFile: readTrustedSubmissionFile,
+          removeOwnedFile,
+          requestChannelUnavailable: submissionChannelUnavailable,
+          resolveResult,
+          responseIdentity: identities.responseIdentity,
+          responsePath,
+          setLastValidationFailure: (failure) => {
+            state.lastValidationFailure = failure;
+          },
+          settlePendingResponse: (settled) => {
+            resolvePendingSettlement(settled);
+          },
+          stopAccepting,
+        })
+      );
+      if ("pendingResponse" in result) {
+        state.pendingResponse = result.pendingResponse;
+        identities.responseIdentity = result.responseIdentity;
+        identities.acknowledgmentIdentity = result.acknowledgmentIdentity;
+        state.accepted ||= result.accepted;
+      }
+      return result.handled;
+    }
+
+    const processSubmission = createSubmissionProcessor({
+      claim,
+      failUnexpectedly,
+      identities,
+      isMissingPath,
+      isProcessAlive,
+      isSubmissionLeaseAlive,
+      isSubmissionLeaseExpired,
+      lockPath,
+      parseSubmissionLock,
+      processGroupIdentity,
+      processStartIdentity,
+      processPendingResponse,
+      readSubmissionFile: readTrustedSubmissionFile,
+      removeOwnedFile,
+      requestPath,
+      resultService,
+      resolveResult,
+      state,
+      submissionChannelUnavailable,
+      token,
+      trustedProcessGroup: () => processGroupBinding.current(),
+      writeResponse,
+    });
+
+    pollTimer = setInterval(processSubmission, 10);
+    pollTimer.unref?.();
+    const processGroupBinding = createTrustedProcessGroupBinding({
+      isProcessAlive,
+      onBound: processSubmission,
+      processStartIdentity,
+    });
+    processSubmission();
+    const paths = {
+      acknowledgmentPath,
+      closedPath,
+      lockPath,
+      requestPath,
+      responsePath,
+    };
     return {
-      accepted: () => accepted,
+      accepted: () => state.accepted,
+      bindProcessGroup: processGroupBinding.bind,
+      hasCommittedSubmission: () => state.committed,
       commandDirectory: directory,
       environment: {
-        QUALITY_BAR_SUBMIT_SOCKET: socketName,
+        QUALITY_BAR_SUBMIT_FILE: endpointName,
         QUALITY_BAR_SUBMIT_TOKEN: token,
       },
       failure: () => unexpectedFailure,
-      lastValidationFailure: () => lastValidationFailure,
+      lastValidationFailure: () => state.lastValidationFailure,
+      hasPendingSubmission: () => state.pendingResponse !== null,
+      hasPendingAcceptedSubmission: () =>
+        state.pendingResponse?.accepted === true,
       waitForResult: () => result,
-      stop: () => stopAccepting(),
+      waitForPendingSubmission: () => pendingSettlement,
+      stop: async () => {
+        stopAccepting();
+      },
       async close() {
+        stopAccepting();
         /** @type {unknown} */
-        let closeFailure = null;
-        let stopped = false;
-        try {
-          await stopAccepting();
-          stopped = true;
-        } catch (error) {
-          closeFailure = error;
+        let closeFailure = stopFailure;
+        const drained = await drainSubmissionArtifacts(
+          paths,
+          identities,
+          closeFailure,
+          removeOwnedFile,
+        );
+        closeFailure = drained.failure;
+        if (!drained.drained) {
+          closeFailure = mergeCleanupFailure(
+            closeFailure,
+            new Error("Review Run submission channel did not drain"),
+          );
+        } else {
+          closeFailure = cleanupSubmissionFiles(
+            paths,
+            identities,
+            closeFailure,
+            removeOwnedFile,
+          );
         }
-        if (stopped) {
-          try {
-            removeOwnedSocket();
-          } catch (cleanupFailure) {
-            if (!closeFailure) {
-              closeFailure = cleanupFailure;
-            } else {
-              preserveCleanupFailure(closeFailure, cleanupFailure);
-            }
-          }
-          try {
-            removeDirectory(directory, { force: true, recursive: true });
-          } catch (cleanupFailure) {
-            if (!closeFailure) {
-              closeFailure = cleanupFailure;
-            } else {
-              preserveCleanupFailure(closeFailure, cleanupFailure);
-            }
-          }
-        }
+        closeFailure = cleanupOwnedFile(
+          commandPath,
+          installation.commandIdentity,
+          closeFailure,
+          removeOwnedFile,
+        );
+        closeFailure = cleanupOwnedFile(
+          runtimePath,
+          installation.runtimeIdentity,
+          closeFailure,
+          removeOwnedFile,
+        );
+        closeFailure = cleanupOwnedDirectory(
+          directory,
+          directoryIdentity,
+          closeFailure,
+          removeDirectory,
+        );
         if (closeFailure) {
           throw closeFailure;
         }
       },
     };
   } catch (setupFailure) {
-    try {
-      removeDirectory(directory, { force: true, recursive: true });
-    } catch (cleanupFailure) {
-      preserveCleanupFailure(setupFailure, cleanupFailure);
+    cleanupOwnedFile(
+      commandPath,
+      installation.commandIdentity,
+      setupFailure,
+      removeOwnedFile,
+    );
+    cleanupOwnedFile(
+      runtimePath,
+      installation.runtimeIdentity,
+      setupFailure,
+      removeOwnedFile,
+    );
+    const setupCleanupFailure = cleanupOwnedDirectory(
+      directory,
+      directoryIdentity,
+      null,
+      removeDirectory,
+    );
+    if (setupCleanupFailure) {
+      preserveCleanupFailure(setupFailure, setupCleanupFailure);
     }
     throw setupFailure;
   }

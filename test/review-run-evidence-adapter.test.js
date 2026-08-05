@@ -60,10 +60,11 @@ test("streams exact transcript chunks and retains supplied terminal counters and
         },
         openSubmissionChannel: async () => ({
           accepted: () => false,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: {
-            QUALITY_BAR_SUBMIT_SOCKET: "/socket",
+            QUALITY_BAR_SUBMIT_FILE: "/socket",
             QUALITY_BAR_SUBMIT_TOKEN: "secret",
           },
           failure: () => null,
@@ -147,6 +148,7 @@ test("transcript failure closes submission before terminating Codex", async () =
         },
         openSubmissionChannel: async () => ({
           accepted: () => accepted,
+          bindProcessGroup() {},
           async close() {
             closed = true;
             events.push("submission-closed");
@@ -209,6 +211,7 @@ test("terminal evidence failure remains exact after Result acceptance", async ()
         },
         openSubmissionChannel: async () => ({
           accepted: () => true,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: {},
@@ -265,6 +268,7 @@ test("a transcript write failure immediately terminates Codex with its owning er
         },
         openSubmissionChannel: async () => ({
           accepted: () => false,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: {},
@@ -299,6 +303,7 @@ test("claim start failures remain exact and prevent Codex launch", async () => {
         claim,
         openSubmissionChannel: async () => ({
           accepted: () => false,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: {},
@@ -365,6 +370,7 @@ test("transcript failure surfaces even when process termination also fails", asy
         },
         openSubmissionChannel: async () => ({
           accepted: () => false,
+          bindProcessGroup() {},
           async close() {},
           commandDirectory: "/submit-bin",
           environment: {},

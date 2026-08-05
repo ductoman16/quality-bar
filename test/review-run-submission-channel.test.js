@@ -10,19 +10,20 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
+import { processGroupIdentity } from "../src/review-run-submission-process-group.js";
 
 const claim = Object.freeze({
   fencingToken: 7,
   workerId: "worker-1",
   workId: "run-1",
 });
+const boundChannels = new WeakSet();
 
 /** @param {{after(callback: () => void): void}} context */
 function createCheckout(context) {
@@ -31,30 +32,57 @@ function createCheckout(context) {
   return checkoutPath;
 }
 
+/** @param {Awaited<ReturnType<typeof openReviewRunSubmissionChannel>>} channel */
+async function closeWithForeignPrivateArtifacts(channel) {
+  /** @type {unknown} */
+  let closeFailure = null;
+  try {
+    await channel.close();
+  } catch (error) {
+    closeFailure = error;
+  }
+  if (closeFailure) {
+    assert.ok(closeFailure instanceof Error);
+    assert.match(closeFailure.message, /ENOTEMPTY|did not drain/);
+    rmSync(channel.commandDirectory, { force: true, recursive: true });
+  }
+}
+
 /**
  * @param {Awaited<ReturnType<typeof openReviewRunSubmissionChannel>>} channel
  * @param {string} checkoutPath
  * @param {unknown} candidate
  */
 async function submit(channel, checkoutPath, candidate) {
-  return await new Promise((resolve) => {
-    const socket = connect(
-      join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
+  if (!boundChannels.has(channel)) {
+    channel.bindProcessGroup(
+      /** @type {number} */ (processGroupIdentity(process.pid)),
     );
-    let response = "";
-    socket.setEncoding("utf8");
-    socket.once("connect", () => {
-      socket.end(
-        JSON.stringify({
-          candidate,
-          token: channel.environment.QUALITY_BAR_SUBMIT_TOKEN,
-        }),
-      );
-    });
-    socket.on("data", (chunk) => {
-      response += chunk;
-    });
-    socket.once("close", () => resolve(response));
+    boundChannels.add(channel);
+  }
+  const resultPath = join(checkoutPath, ".quality-bar-result.json");
+  writeFileSync(resultPath, JSON.stringify(candidate));
+  return await new Promise((resolve) => {
+    execFile(
+      "quality-bar-submit",
+      [".quality-bar-result.json"],
+      {
+        cwd: checkoutPath,
+        env: {
+          ...channel.environment,
+          PATH: [
+            channel.commandDirectory,
+            dirname(process.execPath),
+            "/usr/bin",
+            "/bin",
+          ].join(delimiter),
+        },
+      },
+      (...callbackArguments) => {
+        const [error, , stderr] = callbackArguments;
+        resolve(error ? stderr : "");
+      },
+    );
   });
 }
 
@@ -81,22 +109,50 @@ test("returns exact recognized submission failures without accepting a Result", 
       /^#!\/usr\/bin\/env node\n/,
     );
     assert.equal("QUALITY_BAR_SUBMIT_PATH" in channel.environment, false);
-    assert.deepEqual(JSON.parse(await submit(channel, checkoutPath, {})), {
-      error: {
-        code: failure.code,
-        message: failure.message,
-      },
-      ok: false,
-    });
+    assert.equal(
+      await submit(channel, checkoutPath, {}),
+      `${failure.code}: ${failure.message}\n`,
+    );
     assert.equal(channel.accepted(), false);
     assert.equal(channel.failure(), null);
     assert.equal(channel.lastValidationFailure(), failure);
+  } finally {
+    await closeWithForeignPrivateArtifacts(channel);
+  }
+});
+
+test("keeps the file channel available for a corrected submission", async (context) => {
+  let attempts = 0;
+  const checkoutPath = createCheckout(context);
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    {
+      prepare() {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new ReviewRunExecutionError(
+            "criterion_result_coverage_invalid",
+            "Criterion Results are incomplete",
+          );
+        }
+      },
+    },
+    { checkoutPath },
+  );
+  try {
+    assert.equal(
+      await submit(channel, checkoutPath, { attempt: 1 }),
+      "criterion_result_coverage_invalid: Criterion Results are incomplete\n",
+    );
+    assert.equal(await submit(channel, checkoutPath, { attempt: 2 }), "");
+    assert.equal(await channel.waitForResult(), "accepted");
+    assert.equal(attempts, 2);
   } finally {
     await channel.close();
   }
 });
 
-test("the first valid submission stops the listener before reporting acceptance", async (context) => {
+test("the first valid file submission stops the channel before reporting acceptance", async (context) => {
   let submissions = 0;
   const checkoutPath = createCheckout(context);
   const channel = await openReviewRunSubmissionChannel(
@@ -109,41 +165,44 @@ test("the first valid submission stops the listener before reporting acceptance"
     },
     { checkoutPath },
   );
-  const idleSocket = connect(
-    join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
-  );
-  await new Promise((resolve) => idleSocket.once("connect", resolve));
   try {
-    assert.deepEqual(JSON.parse(await submit(channel, checkoutPath, {})), {
-      ok: true,
-    });
-    assert.equal(
-      await Promise.race([
-        channel.waitForResult(),
-        new Promise((resolve) =>
-          setImmediate(() => resolve("acceptance_stalled")),
-        ),
-      ]),
-      "accepted",
-    );
+    const acceptance = channel.waitForResult();
+    assert.equal(await submit(channel, checkoutPath, {}), "");
+    assert.equal(await acceptance, "accepted");
     assert.equal(channel.accepted(), true);
     assert.equal(submissions, 1);
-    assert.equal(idleSocket.destroyed, true);
     assert.equal(
       existsSync(
-        join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
+        join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_FILE),
       ),
-      true,
+      false,
     );
     await channel.close();
     assert.equal(
       existsSync(
-        join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_SOCKET),
+        join(checkoutPath, channel.environment.QUALITY_BAR_SUBMIT_FILE),
       ),
       false,
     );
   } finally {
-    idleSocket.destroy();
+    await channel.close();
+  }
+});
+
+test("rejects a submission after the channel stops without waiting for the timeout", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    { prepare() {} },
+    { checkoutPath },
+  );
+  try {
+    await channel.stop();
+    assert.equal(
+      await submit(channel, checkoutPath, {}),
+      "submission_channel_unavailable: Review Run submission channel is unavailable\n",
+    );
+  } finally {
     await channel.close();
   }
 });
@@ -161,12 +220,15 @@ test("preserves unexpected storage failures for the owning execution", async (co
     { checkoutPath },
   );
   try {
-    assert.equal(await submit(channel, checkoutPath, {}), "");
+    assert.equal(
+      await submit(channel, checkoutPath, {}),
+      "submission_channel_unavailable: Review Run submission channel is unavailable\n",
+    );
     assert.equal(await channel.waitForResult(), "failed");
     assert.equal(channel.accepted(), false);
     assert.equal(channel.failure(), failure);
   } finally {
-    await channel.close();
+    await closeWithForeignPrivateArtifacts(channel);
   }
 });
 
@@ -185,9 +247,16 @@ test("keeps the trusted command outside the checkout while exposing the endpoint
     { checkoutPath },
   );
   try {
+    channel.bindProcessGroup(
+      /** @type {number} */ (processGroupIdentity(process.pid)),
+    );
     assert.match(
-      channel.environment.QUALITY_BAR_SUBMIT_SOCKET,
+      channel.environment.QUALITY_BAR_SUBMIT_FILE,
       /^\.qbs-[A-Za-z0-9_-]{11}\.s$/,
+    );
+    assert.equal(
+      "QUALITY_BAR_SUBMIT_RESPONSE_FILE" in channel.environment,
+      false,
     );
     assert.notEqual(channel.commandDirectory, checkoutPath);
     const resultPath = join(checkoutPath, ".quality-bar-result.json");
@@ -250,7 +319,7 @@ test("does not collide with a pre-existing checkout endpoint", async (context) =
     { prepare() {} },
     { checkoutPath },
   );
-  assert.notEqual(channel.environment.QUALITY_BAR_SUBMIT_SOCKET, ".qbs.sock");
+  assert.notEqual(channel.environment.QUALITY_BAR_SUBMIT_FILE, ".qbs.sock");
   await channel.close();
   assert.equal(
     readFileSync(existingEndpointPath, "utf8"),
@@ -268,7 +337,7 @@ test("rejects a collision at the generated endpoint without falling back", async
       openReviewRunSubmissionChannel(
         claim,
         { prepare() {} },
-        { checkoutPath, createSocketName: () => socketName },
+        { checkoutPath, createEndpointName: () => socketName },
       ),
     (error) =>
       error instanceof ReviewRunExecutionError &&
@@ -292,7 +361,7 @@ test("rejects a symlink collision at the generated endpoint without following it
       openReviewRunSubmissionChannel(
         claim,
         { prepare() {} },
-        { checkoutPath, createSocketName: () => socketName },
+        { checkoutPath, createEndpointName: () => socketName },
       ),
     (error) =>
       error instanceof ReviewRunExecutionError &&
@@ -334,7 +403,7 @@ test("preserves a replaced endpoint without following its external target", asyn
   );
   const socketPath = join(
     checkoutPath,
-    channel.environment.QUALITY_BAR_SUBMIT_SOCKET,
+    channel.environment.QUALITY_BAR_SUBMIT_FILE,
   );
   const externalSocketPath = join(externalDirectory, "socket");
   rmSync(socketPath, { force: true });

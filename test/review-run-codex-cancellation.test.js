@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createTranscriptFailureController } from "../src/review-run-codex-process.js";
+import { settleSubmissionTerminal } from "../src/review-run-codex-submission-terminal.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   acceptedChannel,
@@ -10,6 +11,116 @@ import {
   runningProcess,
   runReviewRunCodex,
 } from "./review-run-codex-adapter-support.js";
+
+/** @param {"cancellation" | "deadline" | "process-error"} kind */
+async function settleCommittedTerminal(kind) {
+  let stops = 0;
+  const result = await settleSubmissionTerminal({
+    channel: {
+      accepted: () => false,
+      hasCommittedSubmission: () => true,
+      hasPendingSubmission: () => true,
+      waitForResult: () => new Promise(() => {}),
+    },
+    diagnosticFailures: [],
+    async stopSubmissionChannel() {
+      stops += 1;
+    },
+    terminal: { kind },
+  });
+  assert.equal(stops, 1);
+  assert.equal(result.accepted, true);
+}
+
+test("durable Result remains authoritative when cancellation arrives before ACK", async () => {
+  await settleCommittedTerminal("cancellation");
+});
+
+test("durable Result remains authoritative when deadline arrives before ACK", async () => {
+  await settleCommittedTerminal("deadline");
+});
+
+test("durable Result remains authoritative when process error arrives before ACK", async () => {
+  await settleCommittedTerminal("process-error");
+});
+
+test("process exit drains an acknowledged validation rejection", async () => {
+  let stops = 0;
+  const outcome = await Promise.race([
+    settleSubmissionTerminal({
+      channel: {
+        accepted: () => false,
+        hasCommittedSubmission: () => false,
+        hasPendingAcceptedSubmission: () => false,
+        hasPendingSubmission: () => true,
+        waitForResult: () => Promise.resolve("failed"),
+      },
+      diagnosticFailures: [],
+      async stopSubmissionChannel() {
+        stops += 1;
+      },
+      terminal: { kind: "process", result: { code: 1, signal: null } },
+    }),
+    new Promise((resolve) => setTimeout(() => resolve("timeout"), 100)),
+  ]);
+  assert.notEqual(outcome, "timeout");
+  assert.equal(outcome.accepted, false);
+  assert.equal(stops, 1);
+});
+
+test("process exit drains and validates a committed Result acknowledgment", async () => {
+  /** @type {string[]} */
+  const events = [];
+  const outcome = await settleSubmissionTerminal({
+    channel: {
+      accepted: () => false,
+      hasCommittedSubmission: () => true,
+      hasPendingAcceptedSubmission: () => true,
+      hasPendingSubmission: () => true,
+      async waitForResult() {
+        events.push("acknowledged");
+        return "accepted";
+      },
+    },
+    diagnosticFailures: [],
+    async stopSubmissionChannel() {
+      events.push("stopped");
+    },
+    terminal: { kind: "process", result: { code: 0, signal: null } },
+  });
+  assert.deepEqual(events, ["acknowledged"]);
+  assert.equal(outcome.accepted, true);
+});
+
+for (const acknowledgment of ["forged", "absent-at-deadline"]) {
+  test(`process exit settles a ${acknowledgment} acknowledgment without overturning the committed Result`, async () => {
+    /** @type {string[]} */
+    const events = [];
+    const outcome = await Promise.race([
+      settleSubmissionTerminal({
+        channel: {
+          accepted: () => false,
+          hasCommittedSubmission: () => true,
+          hasPendingAcceptedSubmission: () => true,
+          hasPendingSubmission: () => true,
+          async waitForResult() {
+            events.push(`${acknowledgment}-rejected`);
+            return "failed";
+          },
+        },
+        diagnosticFailures: [],
+        async stopSubmissionChannel() {
+          events.push("stopped");
+        },
+        terminal: { kind: "process", result: { code: 0, signal: null } },
+      }),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 100)),
+    ]);
+    assert.notEqual(outcome, "timeout");
+    assert.deepEqual(events, [`${acknowledgment}-rejected`, "stopped"]);
+    assert.equal(outcome.accepted, true);
+  });
+}
 
 test("transcript failure controller normalizes a non-Error exactly once", async () => {
   let closes = 0;
@@ -80,6 +191,49 @@ test("durably committed operator cancellation closes submission before process-g
     diagnosticFailures: [],
   });
   assert.deepEqual(events, ["submission-closed", "SIGTERM", "SIGKILL"]);
+});
+
+test("durable Result keeps cancellation cleanup failure as a diagnostic", async () => {
+  const cleanupFailure = new Error("submission cleanup failed");
+  const child = runningProcess(87);
+  /** @type {(value?: void) => void} */
+  let signalCancellation = () =>
+    assert.fail("cancellation signal was not installed");
+  const cancellationSignal = new Promise((resolve) => {
+    signalCancellation = resolve;
+  });
+  const execution = runReviewRunCodex({
+    cancellationSignal,
+    checkoutPath: "/checkout",
+    claim,
+    clearTerminationTimer() {},
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -87);
+      if (signal === "SIGKILL") {
+        queueMicrotask(() => child.emit("close", null, "SIGKILL"));
+      }
+    },
+    openSubmissionChannel: async () => ({
+      ...acceptedChannel(),
+      accepted: () => false,
+      failure: () => cleanupFailure,
+      hasCommittedSubmission: () => true,
+      hasPendingSubmission: () => true,
+      waitForResult: () => new Promise(() => {}),
+    }),
+    resultService: { prepare() {} },
+    run,
+    setTerminationTimer(callback, milliseconds) {
+      assert.equal(milliseconds, 5_000);
+      queueMicrotask(callback);
+      return {};
+    },
+    spawnProcess: () => /** @type {any} */ (child),
+  });
+  signalCancellation();
+  assert.deepEqual(await execution, {
+    diagnosticFailures: [cleanupFailure],
+  });
 });
 
 test("operator cancellation surfaces submission-channel cleanup failure", async () => {
