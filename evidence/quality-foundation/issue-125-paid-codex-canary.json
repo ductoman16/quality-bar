@@ -1,0 +1,11 @@
+{
+  "ticket": 125,
+  "parent": 25,
+  "sources": ["#21", "#22"],
+  "acceptance_scenarios": ["ACC-03", "ACC-09"],
+  "proof": ["paid-codex-canary"],
+  "invocation": "npm run canary:paid-codex",
+  "routine_gate_membership": [],
+  "new_e2e_scenarios": 0,
+  "final_outcome": "pending"
+}

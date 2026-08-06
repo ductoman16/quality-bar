@@ -10,7 +10,7 @@
  *   isSubmissionLeaseExpired: (submission: any) => boolean,
  *   lockPath: string,
  *   parseSubmissionLock: (submission: any) => any,
- *   pendingResponse: {accepted: boolean, client_id: string, client_pid: number, client_start_identity: string, request_id: string, validationFailure: any} | null,
+ *   pendingResponse: {accepted: boolean, client_id: string, client_pid: number, client_start_identity: string, verified_client_start_identity: string, request_id: string, validationFailure: any} | null,
  *   readSubmissionFile: (path: string, unavailable: () => Error) => any,
  *   removeOwnedFile: (path: string, identity: any) => void,
  *   requestChannelUnavailable: () => Error,

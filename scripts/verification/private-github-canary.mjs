@@ -3,6 +3,10 @@ import {
   formatGitHubAggregateFeedback,
   formatGitHubInlineFeedback,
 } from "../../src/github-feedback.js";
+import {
+  validatePrivateGitHubCanaryEvidence,
+  validateReleaseCanaries,
+} from "./release-canary-schema.mjs";
 
 const KIND = "private-github-canary";
 const REST_PROFILE = "2026-03-10";
@@ -141,8 +145,10 @@ export async function invokePrivateGitHubCanary({
     },
     startedAt: new Date(startedAt).toISOString(),
   };
+  let fixtureValidated = false;
   try {
     const fixture = validateFixture(fixtureInput);
+    fixtureValidated = true;
     if (!verifier || typeof verifier.verifyInstallation !== "function") {
       throw failure(
         "private_github_canary_dependencies_invalid",
@@ -269,6 +275,7 @@ export async function invokePrivateGitHubCanary({
     });
     return {
       ...common,
+      fixture: fixtureValidated ? common.fixture : null,
       completedAt: new Date(now()).toISOString(),
       outcome: "pass",
       observations: {
@@ -283,23 +290,30 @@ export async function invokePrivateGitHubCanary({
       failure: null,
     };
   } catch (error) {
+    const failureCode =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof error.code === "string" &&
+      error.code.length <= 96 &&
+      /^[a-z][a-z0-9_]*$/u.test(error.code)
+        ? error.code
+        : "private_github_canary_failed";
     return {
       ...common,
+      fixture: fixtureValidated ? common.fixture : null,
       completedAt: new Date(now()).toISOString(),
       outcome: "fail",
       observations: null,
       failure: {
-        code:
-          error &&
-          typeof error === "object" &&
-          "code" in error &&
-          typeof error.code === "string"
-            ? error.code
-            : "private_github_canary_failed",
-        detail: redactOrdinaryDetail(
-          error instanceof Error ? error.message : String(error),
-          { knownSecrets },
-        ),
+        code: failureCode,
+        detail:
+          redactOrdinaryDetail(
+            error instanceof Error
+              ? error.message
+              : "private GitHub canary failed",
+            { knownSecrets },
+          ).slice(0, 512) || "private GitHub canary failed",
       },
     };
   }
@@ -319,10 +333,25 @@ export function mergePrivateGitHubCanaryEvidence(manifest, canary) {
       "private GitHub canary requires passing cost-free evidence",
     );
   }
-  if (canary?.kind !== KIND || canary?.outcome !== "pass") {
+  if (
+    manifest.releaseCanaries !== null &&
+    manifest.releaseCanaries !== undefined
+  ) {
+    try {
+      validateReleaseCanaries(manifest.releaseCanaries, manifest.sourceCommit);
+    } catch {
+      throw failure(
+        "private_github_canary_cost_free_evidence_invalid",
+        "private GitHub canary requires valid retained release evidence",
+      );
+    }
+  }
+  try {
+    validatePrivateGitHubCanaryEvidence(canary);
+  } catch {
     throw failure(
       "private_github_canary_evidence_invalid",
-      "private GitHub canary evidence is not a pass",
+      "private GitHub canary evidence is invalid",
     );
   }
   if (

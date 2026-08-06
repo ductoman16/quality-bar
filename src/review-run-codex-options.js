@@ -30,6 +30,7 @@
  *   finishProcessGroup: () => unknown,
  *   run: unknown,
  *   processEnvironment?: NodeJS.ProcessEnv,
+ *   terminateOnParentDisconnect?: boolean,
  *   clearDeadlineTimer?: (timer: any) => void,
  *   clearTerminationTimer?: (timer: any) => void,
  *   evidenceService?: {appendTranscriptChunk(claim: any, stream: "stdout" | "stderr", content: string): unknown, complete(claim: any, facts: unknown): unknown},

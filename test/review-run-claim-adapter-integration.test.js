@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
@@ -54,6 +55,9 @@ test("tracking failure still terminates the untracked detached process group", a
         () => {
           throw trackingFailure;
         },
+        () => {
+          assert.fail("submission provenance bound after failed tracking");
+        },
         async () => {
           assert.fail("Codex launched before durable tracking");
         },
@@ -64,6 +68,9 @@ test("tracking failure still terminates the untracked detached process group", a
         async () => {
           events.push("terminate");
           throw terminationFailure;
+        },
+        () => {
+          assert.fail("unstarted tracking was finished");
         },
       ),
     trackingFailure,
@@ -77,6 +84,162 @@ test("tracking failure still terminates the untracked detached process group", a
     /** @type {any} */ (trackingFailure).terminationFailure,
     terminationFailure,
   );
+});
+
+test("submission provenance binds before launch and a binding failure finishes tracked process state", async () => {
+  const bindingFailure = new Error("trusted process publication failed");
+  /** @type {string[]} */
+  const events = [];
+  await assert.rejects(
+    () =>
+      startSpawnedCodexProcessGroup(
+        /** @type {any} */ ({ pid: 4322 }),
+        () => {
+          events.push("track");
+        },
+        () => {
+          events.push("bind");
+          throw bindingFailure;
+        },
+        async () => {
+          events.push("launch");
+        },
+        async () => {
+          events.push("close");
+        },
+        async () => {
+          events.push("terminate");
+        },
+        () => {
+          events.push("finish");
+        },
+      ),
+    bindingFailure,
+  );
+  assert.deepEqual(events, ["track", "bind", "close", "terminate", "finish"]);
+});
+
+test("a termination failure retains tracked provenance for recovery", async () => {
+  const bindingFailure = new Error("trusted process publication failed");
+  const terminationFailure = new Error("process group termination failed");
+  let finishes = 0;
+  await assert.rejects(
+    () =>
+      startSpawnedCodexProcessGroup(
+        /** @type {any} */ ({ pid: 4324 }),
+        () => {},
+        () => {
+          throw bindingFailure;
+        },
+        async () => {
+          assert.fail("Codex launched after provenance binding failed");
+        },
+        async () => {},
+        async () => {
+          throw terminationFailure;
+        },
+        () => {
+          finishes += 1;
+        },
+      ),
+    (error) => {
+      assert.equal(error, bindingFailure);
+      assert.equal(
+        /** @type {any} */ (error).terminationFailure,
+        terminationFailure,
+      );
+      return true;
+    },
+  );
+  assert.equal(finishes, 0);
+});
+
+test("a falsy termination failure retains tracked provenance for recovery", async () => {
+  const bindingFailure = new Error("trusted process publication failed");
+  let finishes = 0;
+  await assert.rejects(
+    () =>
+      startSpawnedCodexProcessGroup(
+        /** @type {any} */ ({ pid: 4325 }),
+        () => {},
+        () => {
+          throw bindingFailure;
+        },
+        async () => {
+          assert.fail("Codex launched after provenance binding failed");
+        },
+        async () => {},
+        async () => {
+          runInNewContext("throw undefined");
+        },
+        () => {
+          finishes += 1;
+        },
+      ),
+    (error) => {
+      assert.equal(error, bindingFailure);
+      assert.match(
+        /** @type {any} */ (error).terminationFailure.message,
+        /process-group termination failed/u,
+      );
+      return true;
+    },
+  );
+  assert.equal(finishes, 0);
+});
+
+test("the Codex adapter fences launch and terminates its supervisor when provenance binding fails", async () => {
+  const bindingFailure = new Error("trusted process publication failed");
+  const child = runningProcess(4323);
+  /** @type {string[]} */
+  const events = [];
+  await assert.rejects(
+    () =>
+      runReviewRunCodex({
+        checkoutPath: "/checkout",
+        claim: adapterClaim,
+        finishProcessGroup() {
+          events.push("finish");
+        },
+        killProcessGroup(processGroupId, signal) {
+          assert.equal(processGroupId, -4323);
+          if (signal === "SIGTERM") {
+            events.push("terminate");
+            queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+            return;
+          }
+          assert.equal(signal, 0);
+          throw Object.assign(new Error("process group exited"), {
+            code: "ESRCH",
+          });
+        },
+        openSubmissionChannel: async () => ({
+          ...acceptedChannel(),
+          bindProcessGroup() {
+            events.push("bind");
+            throw bindingFailure;
+          },
+        }),
+        prepareProcess() {
+          return {
+            async abort() {},
+            child: /** @type {any} */ (child),
+            async finish() {},
+            async start() {
+              events.push("launch");
+            },
+          };
+        },
+        resultService: { prepare() {} },
+        run: adapterRun,
+        trackProcessGroup(processGroupId) {
+          assert.equal(processGroupId, 4323);
+          events.push("track");
+        },
+      }),
+    bindingFailure,
+  );
+  assert.deepEqual(events, ["track", "bind", "terminate", "finish"]);
 });
 
 test("the owning fake Codex adapter is reached only after the shared durable claim commits", (context) => {
@@ -233,48 +396,4 @@ test("only the replacement Review Run claim reaches its owning adapter", (contex
     },
   });
   assert.equal(reviewLaunches, 1);
-});
-
-test("the Codex adapter tracks the detached process group before observing its terminal result", async () => {
-  const child = runningProcess(4321);
-  /** @type {string[]} */
-  const events = [];
-
-  await runReviewRunCodex({
-    checkoutPath: "/checkout",
-    claim: adapterClaim,
-    evidenceService: {
-      appendTranscriptChunk() {},
-      complete() {},
-    },
-    finishProcessGroup() {
-      events.push("finish");
-    },
-    killProcessGroup(processGroupId, signal) {
-      assert.equal(processGroupId, -4321);
-      if (signal === "SIGTERM") {
-        events.push("terminate");
-        queueMicrotask(() => child.emit("close", 0, null));
-        return;
-      }
-      if (signal === 0) {
-        throw Object.assign(new Error("process group exited"), {
-          code: "ESRCH",
-        });
-      }
-    },
-    openSubmissionChannel: async () => acceptedChannel(),
-    resultService: { prepare() {} },
-    run: adapterRun,
-    spawnProcess() {
-      events.push("spawn");
-      return /** @type {any} */ (child);
-    },
-    trackProcessGroup(processGroupId) {
-      assert.equal(processGroupId, 4321);
-      events.push("track");
-    },
-  });
-
-  assert.deepEqual(events, ["spawn", "track", "terminate", "finish"]);
 });

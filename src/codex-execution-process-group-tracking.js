@@ -13,17 +13,22 @@ export function requireTracking(finish, start) {
 /**
  * @param {import("node:child_process").ChildProcess} child
  * @param {(processGroupId: number) => unknown} startProcessGroup
+ * @param {(processGroupId: number) => unknown} bindProcessGroup
  * @param {() => Promise<void>} launch
  * @param {() => Promise<void>} closeSubmission
  * @param {() => Promise<void>} terminate
+ * @param {() => unknown} finishProcessGroup
  */
 export async function startSpawnedCodexProcessGroup(
   child,
   startProcessGroup,
+  bindProcessGroup,
   launch,
   closeSubmission,
   terminate,
+  finishProcessGroup,
 ) {
+  let tracked = false;
   try {
     if (
       !Number.isSafeInteger(child.pid) ||
@@ -35,36 +40,76 @@ export async function startSpawnedCodexProcessGroup(
       );
     }
     startProcessGroup(/** @type {number} */ (child.pid));
+    tracked = true;
+    bindProcessGroup(/** @type {number} */ (child.pid));
     await launch();
   } catch (error) {
+    const owningFailure =
+      error instanceof Error
+        ? error
+        : new TypeError("Codex process-group tracking failed", {
+            cause: error,
+          });
     let submissionCloseFailure;
+    let submissionCloseFailed = false;
     try {
       await closeSubmission();
     } catch (failure) {
-      submissionCloseFailure = failure;
+      submissionCloseFailed = true;
+      submissionCloseFailure =
+        failure instanceof Error
+          ? failure
+          : new TypeError("Codex submission close failed", { cause: failure });
     }
     let terminationFailure;
+    let terminationFailed = false;
     try {
       await terminate();
     } catch (failure) {
-      terminationFailure = failure;
+      terminationFailed = true;
+      terminationFailure =
+        failure instanceof Error
+          ? failure
+          : new TypeError("Codex process-group termination failed", {
+              cause: failure,
+            });
     }
-    if (error instanceof Error) {
-      if (submissionCloseFailure !== undefined) {
-        attachFailureDiagnostic(
-          error,
-          "submissionCloseFailure",
-          submissionCloseFailure,
-        );
-      }
-      if (terminationFailure !== undefined) {
-        attachFailureDiagnostic(
-          error,
-          "terminationFailure",
-          terminationFailure,
-        );
+    let processGroupFinishFailure;
+    let processGroupFinishFailed = false;
+    if (tracked && !terminationFailed) {
+      try {
+        await finishProcessGroup();
+      } catch (failure) {
+        processGroupFinishFailed = true;
+        processGroupFinishFailure =
+          failure instanceof Error
+            ? failure
+            : new TypeError("Codex process-group tracking cleanup failed", {
+                cause: failure,
+              });
       }
     }
-    throw error;
+    if (submissionCloseFailed) {
+      attachFailureDiagnostic(
+        owningFailure,
+        "submissionCloseFailure",
+        submissionCloseFailure,
+      );
+    }
+    if (terminationFailed) {
+      attachFailureDiagnostic(
+        owningFailure,
+        "terminationFailure",
+        terminationFailure,
+      );
+    }
+    if (processGroupFinishFailed) {
+      attachFailureDiagnostic(
+        owningFailure,
+        "processGroupFinishFailure",
+        processGroupFinishFailure,
+      );
+    }
+    throw owningFailure;
   }
 }

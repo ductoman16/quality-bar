@@ -10,7 +10,7 @@ import {
   NO_REVIEW_RUN_CANCELLATION,
 } from "./evaluation-cancellation.js";
 import {
-  buildReviewRunCodexEnvironment,
+  buildReviewRunCodexEnvironment as reviewRunCodexEnvironment,
   reviewRunCodexArguments,
 } from "./review-run-codex-command.js";
 import {
@@ -47,23 +47,7 @@ function fail(code, message, cause) {
 }
 
 export { reviewRunCodexArguments };
-
-/**
- * @param {Record<string, string>} submissionEnvironment
- * @param {string} commandDirectory
- * @param {NodeJS.ProcessEnv} [processEnvironment]
- */
-export function reviewRunCodexEnvironment(
-  submissionEnvironment,
-  commandDirectory,
-  processEnvironment = process.env,
-) {
-  return buildReviewRunCodexEnvironment(
-    submissionEnvironment,
-    commandDirectory,
-    processEnvironment,
-  );
-}
+export { reviewRunCodexEnvironment };
 
 /** @param {import("./review-run-codex-options.js").ReviewRunCodexOptions} options */
 export async function runReviewRunCodex({
@@ -89,6 +73,7 @@ export async function runReviewRunCodex({
   spawnProcess = spawn,
   startProcessGroup,
   finishProcessGroup,
+  terminateOnParentDisconnect = false,
 }) {
   deadline.requireDeadlineRecorder(recordDeadline);
   group.requireTracking(finishProcessGroup, startProcessGroup);
@@ -101,8 +86,13 @@ export async function runReviewRunCodex({
   /** @type {Error[]} */
   const diagnosticFailures = [];
   let executionFailure;
+  let executionFailed = false;
   try {
-    const arguments_ = reviewRunCodexArguments(run);
+    const arguments_ = reviewRunCodexArguments(run, channel.commandDirectory);
+    const environment = reviewRunCodexEnvironment(
+      channel.commandDirectory,
+      processEnvironment,
+    );
     arguments_.unshift(...codexPrefixArguments);
     /** @type {(value?: void) => void} */
     let signalDeadline = () => {};
@@ -121,11 +111,8 @@ export async function runReviewRunCodex({
         arguments_,
         {
           cwd: checkoutPath,
-          environment: reviewRunCodexEnvironment(
-            channel.environment,
-            channel.commandDirectory,
-            processEnvironment,
-          ),
+          environment,
+          terminateOnParentDisconnect,
         },
         process.execPath,
         spawnProcess,
@@ -183,11 +170,12 @@ export async function runReviewRunCodex({
       await group.startSpawnedCodexProcessGroup(
         child,
         startProcessGroup,
+        channel.bindProcessGroup,
         prepared.start,
         stopSubmissionChannel,
-        prepared.abort,
+        terminateProcessGroup,
+        finishProcessGroup,
       );
-      channel.bindProcessGroup(/** @type {number} */ (child.pid));
     } catch (error) {
       clearDeadlineTimer(deadlineTimer);
       throw error;
@@ -396,6 +384,7 @@ export async function runReviewRunCodex({
           validationFailure
             ? `Codex Review Run exited without an accepted Result; last validation error ${validationFailure.code}: ${validationFailure.message}`
             : "Codex Review Run exited without an accepted Result",
+          terminalProcess,
         );
       }
       const failure = createCodexProcessFailure(exit, channel.environment);
@@ -409,7 +398,14 @@ export async function runReviewRunCodex({
       throw failure;
     }
   } catch (error) {
-    executionFailure = error;
+    executionFailed = true;
+    executionFailure =
+      error instanceof Error
+        ? error
+        : new TypeError("Codex Review Run execution failed", { cause: error });
+  }
+  if (executionFailed && !(executionFailure instanceof Error)) {
+    throw new TypeError("Codex Review Run execution failure was not retained");
   }
   return completeCodexExecutionCleanup(
     closeSubmissionChannel,

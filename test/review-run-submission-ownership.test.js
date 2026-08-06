@@ -98,6 +98,7 @@ test("shares the acknowledgment inode before stopping acceptance", () => {
     client_id: "client",
     client_pid: 123,
     client_start_identity: "linux:start",
+    verified_client_start_identity: "linux:client-start",
     request_id: "request",
     validationFailure: null,
   };
@@ -150,6 +151,7 @@ test("does not publish a foreign acknowledgment identity", () => {
     client_id: "client",
     client_pid: 123,
     client_start_identity: "linux:start",
+    verified_client_start_identity: "linux:client-start",
     request_id: "request",
     validationFailure: null,
   };
@@ -261,6 +263,7 @@ test("a response publication failure cannot overturn a committed Result", async 
     isMissingPath: () => false,
     isProcessAlive: (pid) =>
       pid === process.pid || pid === clientProcessGroupId,
+    isProcessDescendant: () => false,
     isSubmissionLeaseAlive: () => true,
     isSubmissionLeaseExpired: () => false,
     lockPath,

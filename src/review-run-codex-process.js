@@ -186,26 +186,34 @@ export async function completeCodexExecutionCleanup(
   diagnosticFailures,
 ) {
   let cleanupFailure;
+  let cleanupFailed = false;
   try {
     await closeSubmissionChannel();
   } catch (error) {
     cleanupFailure = error;
+    cleanupFailed = true;
   }
   if (executionFailure instanceof Error) {
-    if (cleanupFailure) {
+    if (cleanupFailed) {
       attachFailureDiagnostic(
         executionFailure,
         "submissionChannelCleanupFailure",
-        cleanupFailure,
+        cleanupFailure instanceof Error
+          ? cleanupFailure
+          : new TypeError("Review Run submission channel cleanup failed", {
+              cause: cleanupFailure,
+            }),
       );
     }
     throw executionFailure;
   }
-  if (cleanupFailure) {
+  if (cleanupFailed) {
     diagnosticFailures.push(
       cleanupFailure instanceof Error
         ? cleanupFailure
-        : new TypeError("Review Run submission channel cleanup failed"),
+        : new TypeError("Review Run submission channel cleanup failed", {
+            cause: cleanupFailure,
+          }),
     );
   }
   return { diagnosticFailures };

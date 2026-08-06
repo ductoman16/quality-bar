@@ -1,20 +1,16 @@
 import { execFileSync } from "node:child_process";
-import {
-  chmodSync,
-  mkdtempSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { createGitHubVerifier } from "../../src/github-api.js";
+import { validateCostFreeEvidence } from "./cost-free-evidence-validation.mjs";
 import { readPrivateGitHubCanaryConfiguration } from "./private-github-canary-configuration.mjs";
 import {
   invokePrivateGitHubCanary,
   mergePrivateGitHubCanaryEvidence,
 } from "./private-github-canary.mjs";
+import { publishReleaseCanaryAttempt } from "./release-canary-publication.mjs";
+import { runPrivateGitHubCanaryLifecycle } from "./private-github-canary-runner.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const manifestPath = resolve(
@@ -25,23 +21,6 @@ const canaryPath = resolve(
   repositoryRoot,
   "artifacts/verification/private-github-canary.json",
 );
-
-/** @param {string} path @param {unknown} value */
-function atomicJson(path, value) {
-  const temporaryDirectory = mkdtempSync(
-    join(dirname(path), ".private-github-canary-"),
-  );
-  const temporaryPath = join(temporaryDirectory, "evidence.json");
-  try {
-    writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
-      mode: 0o600,
-    });
-    chmodSync(temporaryPath, 0o600);
-    renameSync(temporaryPath, path);
-  } finally {
-    rmSync(temporaryDirectory, { force: true, recursive: true });
-  }
-}
 
 /** @param {...string} arguments_ */
 function git(...arguments_) {
@@ -63,75 +42,72 @@ function applicationVersion() {
   return value;
 }
 
-try {
-  const sourceCommit = git("rev-parse", "HEAD");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  if (
-    manifest?.sourceCommit !== sourceCommit ||
-    manifest?.outcome !== "pass" ||
-    manifest?.verification?.kind !== "cost-free" ||
-    manifest?.failures?.length !== 0
-  ) {
+const sourceCommit = git("rev-parse", "HEAD");
+/** @param {any} manifest @param {any} canary */
+const mergeValidatedEvidence = (manifest, canary) => {
+  try {
+    validateCostFreeEvidence(manifest, { repositoryRoot, sourceCommit });
+  } catch (error) {
     throw Object.assign(
       new Error(
-        "passing same-commit cost-free evidence is required before the live canary",
+        "complete passing same-commit cost-free evidence is required before the live canary",
+        { cause: error },
       ),
       { code: "private_github_canary_cost_free_evidence_invalid" },
     );
   }
-  const configuration = readPrivateGitHubCanaryConfiguration(
-    repositoryRoot,
-    process.env,
-  );
-  const canary = await invokePrivateGitHubCanary({
-    applicationVersion: applicationVersion(),
-    credential: configuration.credential,
-    fixture: configuration.fixture,
-    gitVersion: git("--version").replace(/^git version /u, ""),
-    sourceCommit,
-    verifier: createGitHubVerifier(),
-  });
-  atomicJson(canaryPath, canary);
-  if (canary.outcome !== "pass") {
-    const canaryFailure = canary.failure;
-    if (!canaryFailure) {
-      throw Object.assign(new Error("failed canary has no owning failure"), {
-        code: "private_github_canary_evidence_invalid",
+  return mergePrivateGitHubCanaryEvidence(manifest, canary);
+};
+let evidence;
+try {
+  evidence = await runPrivateGitHubCanaryLifecycle({
+    canaryPath,
+    invoke: async () => {
+      const configuration = readPrivateGitHubCanaryConfiguration(
+        repositoryRoot,
+        process.env,
+      );
+      return invokePrivateGitHubCanary({
+        applicationVersion: applicationVersion(),
+        credential: configuration.credential,
+        fixture: configuration.fixture,
+        gitVersion: git("--version").replace(/^git version /u, ""),
+        sourceCommit,
+        verifier: createGitHubVerifier(),
       });
-    }
-    process.stderr.write(`${canaryFailure.code}: ${canaryFailure.detail}\n`);
-    process.exitCode = 1;
-  } else {
-    atomicJson(
-      manifestPath,
-      mergePrivateGitHubCanaryEvidence(manifest, canary),
-    );
-    process.stdout.write(
-      `Private GitHub canary: PASS\nEvidence: ${canaryPath}\nShared evidence: ${manifestPath}\n`,
-    );
-  }
+    },
+    manifestPath,
+    mergeEvidence: mergeValidatedEvidence,
+    publish: publishReleaseCanaryAttempt,
+    sourceCommit,
+  });
 } catch (error) {
-  const code =
+  const owningCode =
     error && typeof error === "object" && "code" in error
       ? String(error.code)
       : "private_github_canary_failed";
-  const detail = error instanceof Error ? error.message : String(error);
-  atomicJson(canaryPath, {
-    kind: "private-github-canary",
-    sourceCommit: git("rev-parse", "HEAD"),
-    fixture: null,
-    versions: {
-      application: null,
-      node: process.version,
-      git: null,
-      githubRest: "2026-03-10",
-    },
-    startedAt: new Date().toISOString(),
-    completedAt: new Date().toISOString(),
-    outcome: "fail",
-    observations: null,
-    failure: { code, detail },
-  });
+  const code =
+    owningCode.length <= 96 && /^[a-z][a-z0-9_]*$/u.test(owningCode)
+      ? owningCode
+      : "private_github_canary_failed";
+  const detail =
+    (error instanceof Error
+      ? error.message
+      : "private GitHub canary failed"
+    ).slice(0, 512) || "private GitHub canary failed";
   process.stderr.write(`${code}: ${detail}\n`);
+  process.exitCode = 1;
+}
+
+if (evidence?.outcome === "pass") {
+  process.stdout.write(
+    `Private GitHub canary: PASS\nEvidence: ${canaryPath}\nShared evidence: ${manifestPath}\n`,
+  );
+} else if (evidence) {
+  process.stderr.write(
+    `${evidence.failure?.code ?? "private_github_canary_failed"}: ${
+      evidence.failure?.detail ?? "private GitHub canary failed"
+    }\n`,
+  );
   process.exitCode = 1;
 }

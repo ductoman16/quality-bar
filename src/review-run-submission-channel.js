@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,9 +11,6 @@ import { publishSignedResponse } from "./review-run-submission-response.js";
 import {
   cleanupOwnedFile,
   cleanupOwnedDirectory,
-  cleanupSubmissionFiles,
-  drainSubmissionArtifacts,
-  mergeCleanupFailure,
   preserveCleanupFailure,
   removeSubmissionDirectory,
 } from "./review-run-submission-cleanup.js";
@@ -28,8 +25,11 @@ import {
   readSubmissionFile,
 } from "./review-run-submission-files.js";
 import { removeOwnedFile } from "./review-run-submission-file-cleanup.js";
+import { createSubmissionChannelSurface } from "./review-run-submission-channel-surface.js";
+import { publishTrustedProcess } from "./review-run-submission-trusted-process.js";
 import {
   createTrustedProcessGroupBinding,
+  isProcessDescendant,
   processGroupIdentity,
 } from "./review-run-submission-process-group.js";
 
@@ -47,6 +47,8 @@ import {
  * @param {{
  *   checkoutPath: string,
  *   createEndpointName?: () => string,
+ *   isProcessDescendant?: typeof isProcessDescendant,
+ *   processGroupIdentity?: typeof processGroupIdentity,
  *   removeDirectory?: (path: string, options: {force: boolean, recursive: boolean}) => void,
  *   publishFile?: typeof publishFile,
  *   submissionMode?: "review-file" | "generic",
@@ -59,6 +61,8 @@ export async function openReviewRunSubmissionChannel(
   {
     checkoutPath,
     createEndpointName = () => `.qbs-${randomBytes(8).toString("base64url")}.s`,
+    isProcessDescendant: inspectProcessDescendant = isProcessDescendant,
+    processGroupIdentity: inspectProcessGroup = processGroupIdentity,
     removeDirectory = removeSubmissionDirectory,
     publishFile: publishSubmissionFile = publishFile,
     submissionMode = "review-file",
@@ -84,7 +88,9 @@ export async function openReviewRunSubmissionChannel(
   const closedPath = join(checkoutPath, closedName);
   const lockPath = join(checkoutPath, lockName);
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-submit-"));
+  const directory = realpathSync(
+    mkdtempSync(join(tmpdir(), "quality-bar-submit-")),
+  );
   const directoryIdentity = captureDirectoryIdentity(directory);
   /** @param {string} path @param {() => Error} unavailable */
   const readTrustedSubmissionFile = (path, unavailable) =>
@@ -108,6 +114,16 @@ export async function openReviewRunSubmissionChannel(
         null
       ),
     runtimePath,
+    tokenIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
+    tokenPath: join(directory, "quality-bar-submit-token"),
+    trustedProcessIdentity:
+      /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */ (
+        null
+      ),
+    trustedProcessPath: join(directory, "quality-bar-submit-process"),
   };
   /** @type {{requestIdentity: {birthtimeMs: number, dev: number, ino: number} | null, lockIdentity: {birthtimeMs: number, dev: number, ino: number} | null, responseIdentity: {birthtimeMs: number, dev: number, ino: number} | null, acknowledgmentIdentity: {birthtimeMs: number, dev: number, ino: number} | null, closedIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} */
   const identities = {
@@ -133,12 +149,19 @@ export async function openReviewRunSubmissionChannel(
       isMissingPath,
       submissionChannelUnavailable,
     );
+    requireEndpointAvailable(
+      installation.trustedProcessPath,
+      isMissingPath,
+      submissionChannelUnavailable,
+    );
     const token = installSubmissionCommand(installation, {
       directory,
       responseDeadlineAt,
       responsePath,
       responsePublicKey,
+      submissionFileName: endpointName,
       submissionMode,
+      trustedProcessFile: installation.trustedProcessPath,
       writeCommand,
       publishFile: publishSubmissionFile,
     });
@@ -270,7 +293,7 @@ export async function openReviewRunSubmissionChannel(
           isPendingClientAlive: (submission) =>
             isProcessAlive(submission.client_pid) &&
             processStartIdentity(submission.client_pid) ===
-              submission.client_start_identity,
+              submission.verified_client_start_identity,
           isSubmissionLeaseAlive,
           isSubmissionLeaseExpired,
           lockPath,
@@ -306,11 +329,12 @@ export async function openReviewRunSubmissionChannel(
       identities,
       isMissingPath,
       isProcessAlive,
+      isProcessDescendant: inspectProcessDescendant,
       isSubmissionLeaseAlive,
       isSubmissionLeaseExpired,
       lockPath,
       parseSubmissionLock,
-      processGroupIdentity,
+      processGroupIdentity: inspectProcessGroup,
       processStartIdentity,
       processPendingResponse,
       readSubmissionFile: readTrustedSubmissionFile,
@@ -329,7 +353,15 @@ export async function openReviewRunSubmissionChannel(
     pollTimer.unref?.();
     const processGroupBinding = createTrustedProcessGroupBinding({
       isProcessAlive,
-      onBound: processSubmission,
+      onBound: (binding) => {
+        installation.trustedProcessIdentity = publishTrustedProcess({
+          binding,
+          directory,
+          path: installation.trustedProcessPath,
+          publishFile: publishSubmissionFile,
+        });
+        processSubmission();
+      },
       processStartIdentity,
     });
     processSubmission();
@@ -340,72 +372,26 @@ export async function openReviewRunSubmissionChannel(
       requestPath,
       responsePath,
     };
-    return {
-      accepted: () => state.accepted,
+    return createSubmissionChannelSurface({
       bindProcessGroup: processGroupBinding.bind,
-      hasCommittedSubmission: () => state.committed,
-      commandDirectory: directory,
-      environment: {
-        QUALITY_BAR_SUBMIT_FILE: endpointName,
-        QUALITY_BAR_SUBMIT_TOKEN: token,
-      },
-      failure: () => unexpectedFailure,
-      lastValidationFailure: () => state.lastValidationFailure,
-      hasPendingSubmission: () => state.pendingResponse !== null,
-      hasPendingAcceptedSubmission: () =>
-        state.pendingResponse?.accepted === true,
-      waitForResult: () => result,
-      waitForPendingSubmission: () => pendingSettlement,
-      stop: async () => {
-        stopAccepting();
-      },
-      async close() {
-        stopAccepting();
-        /** @type {unknown} */
-        let closeFailure = stopFailure;
-        const drained = await drainSubmissionArtifacts(
-          paths,
-          identities,
-          closeFailure,
-          removeOwnedFile,
-        );
-        closeFailure = drained.failure;
-        if (!drained.drained) {
-          closeFailure = mergeCleanupFailure(
-            closeFailure,
-            new Error("Review Run submission channel did not drain"),
-          );
-        } else {
-          closeFailure = cleanupSubmissionFiles(
-            paths,
-            identities,
-            closeFailure,
-            removeOwnedFile,
-          );
-        }
-        closeFailure = cleanupOwnedFile(
-          commandPath,
-          installation.commandIdentity,
-          closeFailure,
-          removeOwnedFile,
-        );
-        closeFailure = cleanupOwnedFile(
-          runtimePath,
-          installation.runtimeIdentity,
-          closeFailure,
-          removeOwnedFile,
-        );
-        closeFailure = cleanupOwnedDirectory(
-          directory,
-          directoryIdentity,
-          closeFailure,
-          removeDirectory,
-        );
-        if (closeFailure) {
-          throw closeFailure;
-        }
-      },
-    };
+      commandPath,
+      directory,
+      directoryIdentity,
+      endpointName,
+      identities,
+      installation,
+      pendingSettlement: () => pendingSettlement,
+      paths,
+      removeDirectory,
+      removeOwnedFile,
+      result,
+      runtimePath,
+      state,
+      stopAccepting,
+      stopFailure: () => stopFailure,
+      token,
+      unexpectedFailure: () => unexpectedFailure,
+    });
   } catch (setupFailure) {
     cleanupOwnedFile(
       commandPath,
@@ -416,6 +402,18 @@ export async function openReviewRunSubmissionChannel(
     cleanupOwnedFile(
       runtimePath,
       installation.runtimeIdentity,
+      setupFailure,
+      removeOwnedFile,
+    );
+    cleanupOwnedFile(
+      installation.tokenPath,
+      installation.tokenIdentity,
+      setupFailure,
+      removeOwnedFile,
+    );
+    cleanupOwnedFile(
+      installation.trustedProcessPath,
+      installation.trustedProcessIdentity,
       setupFailure,
       removeOwnedFile,
     );

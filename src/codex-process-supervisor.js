@@ -8,7 +8,7 @@ const SUPERVISOR_PATH = fileURLToPath(
 /**
  * @param {string} command
  * @param {string[]} arguments_
- * @param {{cwd: string, environment: NodeJS.ProcessEnv}} options
+ * @param {{cwd: string, environment: NodeJS.ProcessEnv, terminateOnParentDisconnect?: boolean}} options
  * @param {string} nodeExecutable
  * @param {(command: string, arguments_: string[], options: import("node:child_process").SpawnOptions) => import("node:child_process").ChildProcess} [spawnProcess]
  * @returns {{abort: () => Promise<void>, child: import("node:child_process").ChildProcess, finish: () => Promise<void>, start: () => Promise<void>}}
@@ -51,6 +51,8 @@ export function prepareCodexProcess(
             arguments: arguments_,
             command,
             environment: options.environment,
+            terminateOnParentDisconnect:
+              options.terminateOnParentDisconnect === true,
             type: "launch",
           },
           (error) => {

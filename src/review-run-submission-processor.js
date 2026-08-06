@@ -29,6 +29,7 @@ function hasValidRequestSignature(envelope, token) {
  *   identities: {lockIdentity: any, requestIdentity: any},
  *   isMissingPath: (error: unknown) => boolean,
  *   isProcessAlive: (pid: number) => boolean,
+ *   isProcessDescendant: (pid: number, ancestorPid: number) => boolean,
  *   processGroupIdentity: (pid: number) => number | null,
  *   processStartIdentity: (pid: number) => string | null,
  *   trustedProcessGroup: () => {groupId: number, leaderStartIdentity: string} | null,
@@ -128,6 +129,7 @@ export function createSubmissionProcessor(input) {
     let requestId = null;
     let envelope;
     let lock;
+    let verifiedClientStartIdentity = null;
     try {
       envelope = JSON.parse(submission.content);
       input.removeOwnedFile(
@@ -159,15 +161,31 @@ export function createSubmissionProcessor(input) {
       if (input.isSubmissionLeaseAlive(lockSubmission) !== true) {
         throw input.submissionChannelUnavailable();
       }
+      verifiedClientStartIdentity = input.processStartIdentity(
+        envelope.client_pid,
+      );
+      const observedProcessGroup = input.processGroupIdentity(
+        envelope.client_pid,
+      );
       if (
+        typeof verifiedClientStartIdentity !== "string" ||
         envelope.client_process_group_id !== trustedProcessGroup.groupId ||
-        input.processGroupIdentity(envelope.client_pid) !==
-          trustedProcessGroup.groupId ||
+        (observedProcessGroup !== trustedProcessGroup.groupId &&
+          !input.isProcessDescendant(
+            envelope.client_pid,
+            trustedProcessGroup.groupId,
+          )) ||
         !input.isProcessAlive(trustedProcessGroup.groupId) ||
         input.processStartIdentity(trustedProcessGroup.groupId) !==
           trustedProcessGroup.leaderStartIdentity ||
         input.processGroupIdentity(trustedProcessGroup.groupId) !==
           trustedProcessGroup.groupId
+      ) {
+        throw input.submissionChannelUnavailable();
+      }
+      if (
+        input.processStartIdentity(envelope.client_pid) !==
+        verifiedClientStartIdentity
       ) {
         throw input.submissionChannelUnavailable();
       }
@@ -180,6 +198,7 @@ export function createSubmissionProcessor(input) {
         client_id: lock.client_id,
         client_pid: envelope.client_pid,
         client_start_identity: lock.client_start_identity,
+        verified_client_start_identity: verifiedClientStartIdentity,
         request_id: requestId,
         validationFailure: null,
       };
@@ -212,6 +231,10 @@ export function createSubmissionProcessor(input) {
         return;
       }
       input.state.lastValidationFailure = error;
+      if (typeof verifiedClientStartIdentity !== "string") {
+        input.failUnexpectedly(input.submissionChannelUnavailable());
+        return;
+      }
       try {
         input.writeResponse(
           {
@@ -225,6 +248,7 @@ export function createSubmissionProcessor(input) {
           client_id: lock.client_id,
           client_pid: envelope.client_pid,
           client_start_identity: lock.client_start_identity,
+          verified_client_start_identity: verifiedClientStartIdentity,
           request_id: requestId,
           validationFailure: error,
         };

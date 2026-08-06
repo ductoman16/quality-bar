@@ -17,6 +17,7 @@ import {
   mergePrivateGitHubCanaryEvidence,
 } from "../scripts/verification/private-github-canary.mjs";
 import { createGateDefinitions } from "../scripts/verification/gate-definitions.mjs";
+import { privateGitHubPass } from "./release-canary-test-fixtures.js";
 
 const base = "a".repeat(40);
 const head = "b".repeat(40);
@@ -266,11 +267,7 @@ test("a status that GitHub creates but cannot reconcile fails at the owning surf
 
 test("shared evidence accepts only a passing same-commit cost-free manifest", () => {
   const sourceCommit = "c".repeat(40);
-  const canary = {
-    kind: "private-github-canary",
-    outcome: "pass",
-    sourceCommit,
-  };
+  const canary = privateGitHubPass({ sourceCommit });
   const manifest = {
     evidenceVersion: 1,
     sourceCommit,
@@ -303,6 +300,20 @@ test("shared evidence accepts only a passing same-commit cost-free manifest", ()
       error instanceof Error &&
       "code" in error &&
       error.code === "private_github_canary_source_commit_mismatch",
+  );
+  assert.throws(
+    () =>
+      mergePrivateGitHubCanaryEvidence(
+        {
+          ...manifest,
+          releaseCanaries: { paidCodex: { kind: "paid-codex-canary" } },
+        },
+        canary,
+      ),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "private_github_canary_cost_free_evidence_invalid",
   );
 });
 

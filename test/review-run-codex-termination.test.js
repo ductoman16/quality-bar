@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createCodexProcessFailure } from "../src/review-run-codex-failure.js";
+import { terminateReviewRunProcessGroup } from "../src/review-run-process-group.js";
 import { ReviewRunExecutionError } from "../src/review-run-result.js";
 import {
   acceptedChannel,
@@ -20,6 +21,32 @@ test("a process error without transcript preserves secret-safe detail", () => {
   assert.equal(failure.code, "codex_process_failed");
   assert.equal(failure.message, "spawn failed for [REDACTED]");
   assert.equal(/** @type {any} */ (failure.cause).processError, processError);
+});
+
+test("closed supervisor IPC still proves that the process group exited", async () => {
+  /** @type {(string | number)[]} */
+  const signals = [];
+  await terminateReviewRunProcessGroup({
+    child: /** @type {any} */ ({ pid: 72 }),
+    clearTerminationTimer() {},
+    async finishSupervisor() {
+      throw Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+    },
+    killProcessGroup(pid, signal) {
+      assert.equal(pid, -72);
+      signals.push(signal);
+      if (signal === 0) {
+        throw Object.assign(new Error("process group exited"), {
+          code: "ESRCH",
+        });
+      }
+    },
+    processResult: Promise.resolve({ code: 0, signal: null }),
+    setTerminationTimer() {
+      return {};
+    },
+  });
+  assert.deepEqual(signals, ["SIGTERM", 0]);
 });
 
 test("a synchronous post-start launch failure retains exact evidence", async () => {
