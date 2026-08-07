@@ -40,6 +40,53 @@ export const QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE = Object.freeze({
   path: "test/package/compose.package-test.mjs",
 });
 
+export const QUALITY_BAR_EXPECTED_PROOF_IMPLEMENTATIONS = Object.freeze({
+  "adapter-integration": [
+    "scripts/verification/review-run-admission-gate-definitions.mjs",
+  ],
+  "browser-component": ["scripts/verification/gate-definitions.mjs"],
+  "evidence-manifest": ["scripts/verification/manifest-reporting.mjs"],
+  "fake-codex-integration": [
+    "scripts/verification/fake-codex-gate-definition.mjs",
+  ],
+  "forgejo-fixture-integration": [
+    "scripts/verification/forgejo-gate-definition.mjs",
+  ],
+  "forgejo-v16-integration": [
+    "scripts/verification/forgejo-gate-definition.mjs",
+  ],
+  "git-integration": [
+    "scripts/verification/github-feedback-gate-definitions.mjs",
+  ],
+  "github-fixture-integration": [
+    "scripts/verification/github-feedback-gate-definitions.mjs",
+  ],
+  "http-integration": ["scripts/verification/gate-definitions.mjs"],
+  "http-openapi-integration": [
+    "scripts/verification/openapi-runtime-conformance-gate.mjs",
+  ],
+  "mcp-integration": ["scripts/verification/mcp-gate-definition.mjs"],
+  "operator-browser-smoke": [
+    "scripts/verification/operator-browser-smoke-gate.mjs",
+  ],
+  "package-integration": ["test/package/compose.package-test.mjs"],
+  "packaged-api-mcp-smoke": ["test/package/compose.package-test.mjs"],
+  "paid-codex-canary": ["scripts/verification/run-paid-codex-canary.mjs"],
+  "private-github-canary": [
+    "scripts/verification/run-private-github-canary.mjs",
+  ],
+  "process-integration": [
+    "scripts/verification/review-run-admission-gate-definitions.mjs",
+  ],
+  "security-integration": ["scripts/verification/security-gate-definition.mjs"],
+  "sqlite-failure-integration": [
+    "scripts/verification/backup-gate-definition.mjs",
+  ],
+  "sqlite-integration": ["scripts/verification/gate-definitions.mjs"],
+  unit: ["scripts/verification/gate-definitions.mjs"],
+  "verification-gate": ["scripts/verification/verification-runner.mjs"],
+});
+
 export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
   {
     id: "#2",
@@ -47,6 +94,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-02"],
     proof: ["unit", "browser-component", "http-integration"],
     evidence: "Version, activation, identity, validation assertions",
+    proof_owners: {
+      unit: [26],
+      "browser-component": [30],
+      "http-integration": [37],
+    },
   },
   {
     id: "#3",
@@ -54,6 +106,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-08"],
     proof: ["fake-codex-integration"],
     evidence: "Command, events, exit, schema, version facts",
+    proof_owners: { "fake-codex-integration": [54] },
   },
   {
     id: "#4",
@@ -61,6 +114,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-04", "ACC-05"],
     proof: ["git-integration", "adapter-integration"],
     evidence: "Capability, acquisition, projection evidence",
+    proof_owners: { "git-integration": [47], "adapter-integration": [55] },
   },
   {
     id: "#5",
@@ -68,6 +122,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-02", "ACC-03"],
     proof: ["unit", "git-integration"],
     evidence: "Rule/result/match/error assertions",
+    proof_owners: { unit: [26], "git-integration": [47] },
   },
   {
     id: "#6",
@@ -75,6 +130,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-07"],
     proof: ["unit", "sqlite-integration", "fake-codex-integration"],
     evidence: "Atomic coverage, outcome, Finding invariants",
+    proof_owners: {
+      unit: [26],
+      "sqlite-integration": [37],
+      "fake-codex-integration": [54],
+    },
   },
   {
     id: "#7",
@@ -82,6 +142,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-08", "ACC-09"],
     proof: ["fake-codex-integration"],
     evidence: "Submission, timer, cancellation, transcript facts",
+    proof_owners: { "fake-codex-integration": [54] },
   },
   {
     id: "#8",
@@ -89,6 +150,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-04", "ACC-05"],
     proof: ["adapter-integration", "git-integration", "security-integration"],
     evidence: "Identity, scopes, profiles, rotation, health",
+    proof_owners: {
+      "adapter-integration": [55],
+      "git-integration": [47],
+      "security-integration": [30],
+    },
   },
   {
     id: "#9",
@@ -101,6 +167,12 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
       "sqlite-integration",
     ],
     evidence: "Baseline, pair, deduplication, rate facts",
+    proof_owners: {
+      unit: [26],
+      "git-integration": [47],
+      "adapter-integration": [55],
+      "sqlite-integration": [37],
+    },
   },
   {
     id: "#10",
@@ -108,6 +180,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-09"],
     proof: ["security-integration"],
     evidence: "Credential exclusion, redaction, trust facts",
+    proof_owners: { "security-integration": [30] },
   },
   {
     id: "#11",
@@ -115,6 +188,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-02", "ACC-06"],
     proof: ["http-openapi-integration", "mcp-integration"],
     evidence: "Complete equivalent guidance document",
+    proof_owners: { "http-openapi-integration": [72], "mcp-integration": [74] },
   },
   {
     id: "#12",
@@ -122,6 +196,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-04", "ACC-07", "ACC-08"],
     proof: ["adapter-integration", "sqlite-integration"],
     evidence: "Status mapping, source/external identity, retries",
+    proof_owners: { "adapter-integration": [55], "sqlite-integration": [37] },
   },
   {
     id: "#13",
@@ -129,6 +204,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-07", "ACC-08"],
     proof: ["unit", "sqlite-integration", "fake-codex-integration"],
     evidence: "Atomic Decisions, limits, retries, outcome",
+    proof_owners: {
+      unit: [26],
+      "sqlite-integration": [37],
+      "fake-codex-integration": [54],
+    },
   },
   {
     id: "#14",
@@ -136,6 +216,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-10"],
     proof: ["unit", "browser-component", "http-integration"],
     evidence: "Numerators, denominators, missing/error states",
+    proof_owners: {
+      unit: [26],
+      "browser-component": [30],
+      "http-integration": [37],
+    },
   },
   {
     id: "#15",
@@ -148,6 +233,12 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
       "mcp-integration",
     ],
     evidence: "Session/token/authority/redaction assertions",
+    proof_owners: {
+      unit: [26],
+      "browser-component": [30],
+      "http-openapi-integration": [72],
+      "mcp-integration": [74],
+    },
   },
   {
     id: "#16",
@@ -155,6 +246,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-02", "ACC-05", "ACC-06"],
     proof: ["http-openapi-integration"],
     evidence: "Schema, pagination, idempotency, errors",
+    proof_owners: { "http-openapi-integration": [72] },
   },
   {
     id: "#17",
@@ -166,6 +258,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
       "package-integration",
     ],
     evidence: "Seven tools, resources, equivalence, polling",
+    proof_owners: {
+      "mcp-integration": [74],
+      "http-openapi-integration": [72],
+      "package-integration": [26],
+    },
   },
   {
     id: "#18",
@@ -177,6 +274,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
       "sqlite-failure-integration",
     ],
     evidence: "Transactions, leases, retries, backup/restore",
+    proof_owners: {
+      "sqlite-integration": [37],
+      "process-integration": [55],
+      "sqlite-failure-integration": [55],
+    },
   },
   {
     id: "#19",
@@ -184,6 +286,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-01", "ACC-02", "ACC-03", "ACC-07", "ACC-10"],
     proof: ["browser-component", "operator-browser-smoke"],
     evidence: "Resource workflows and distinct states",
+    proof_owners: { "browser-component": [30], "operator-browser-smoke": [36] },
   },
   {
     id: "#20",
@@ -191,6 +294,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-01", "ACC-10"],
     proof: ["package-integration"],
     evidence: "Image/tool/path/health/backup facts",
+    proof_owners: { "package-integration": [26] },
   },
   {
     id: "#21",
@@ -208,6 +312,17 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
       "private-github-canary",
     ],
     evidence: "Evidence manifest and performance gates",
+    proof_owners: {
+      unit: [26],
+      "browser-component": [30],
+      "sqlite-integration": [37],
+      "process-integration": [55],
+      "adapter-integration": [55],
+      "verification-gate": [26],
+      "evidence-manifest": [26],
+      "paid-codex-canary": [125],
+      "private-github-canary": [126],
+    },
   },
   {
     id: "#22",
@@ -215,6 +330,7 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: [...QUALITY_BAR_ACCEPTANCE_SCENARIOS],
     proof: ["verification-gate", "evidence-manifest"],
     evidence: "Complete mapping, no unresolved requirement",
+    proof_owners: { "verification-gate": [26], "evidence-manifest": [26] },
   },
   {
     id: "#23",
@@ -222,6 +338,11 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-02", "ACC-03"],
     proof: ["unit", "http-integration", "fake-codex-integration"],
     evidence: "Catalog compatibility, immutable config",
+    proof_owners: {
+      unit: [26],
+      "http-integration": [37],
+      "fake-codex-integration": [54],
+    },
   },
   {
     id: "#24",
@@ -229,5 +350,6 @@ export const QUALITY_BAR_SOURCE_CONTRACTS = Object.freeze([
     scenarios: ["ACC-03", "ACC-05"],
     proof: ["git-integration", "fake-codex-integration"],
     evidence: "Inspect-on-demand, material-error behavior",
+    proof_owners: { "git-integration": [47], "fake-codex-integration": [54] },
   },
 ]);

@@ -11,6 +11,7 @@ import {
 } from "./verification-contract.mjs";
 import { validateTraceabilityProofs } from "./traceability-proof.mjs";
 import { validateTraceabilityRelease } from "./traceability-release.mjs";
+import { validateTraceabilityResolution } from "./traceability-resolution.mjs";
 
 export const TRACEABILITY_OWNERSHIP_PATH =
   "evidence/quality-foundation/issue-127-traceability.json";
@@ -188,6 +189,7 @@ function validateSpecification(marker) {
       scenarios: contract?.scenarios,
       proof: contract?.proof,
       evidence: contract?.evidence,
+      proof_owners: contract?.proof_owners,
     })),
     QUALITY_BAR_SOURCE_CONTRACTS,
     "requirements",
@@ -360,6 +362,7 @@ export function auditTraceability({
   const { sourceContracts } = validateSpecification(marker);
   const owners = validateOwners(marker);
   validateCoverage(marker, owners);
+  validateTraceabilityResolution(marker, owners);
   const evidenceFields = validateEvidenceFields(marker);
   validateTraceabilityProofs({
     marker,

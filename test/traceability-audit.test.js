@@ -24,7 +24,7 @@ const repositoryRoot = resolve(import.meta.dirname, "..");
  *   proof_gate_bindings: Record<string, {gate: string, testGroup: string, command: string, arguments: string[], path: string}>,
  *   specification: {
  *     evidence_fields: Array<{id: string, path: string, owners: number[]}>,
- *     source_contracts: Array<{id: string, section: string, scenarios: string[], proof: string[], evidence: string}>,
+ *     source_contracts: Array<{id: string, section: string, scenarios: string[], proof: string[], evidence: string, proof_owners: Record<string, number[]>}>,
  *   },
  * }} TraceabilityMarker
  */
@@ -126,6 +126,16 @@ test("the audit rejects stale owner and unproved proof claims", () => {
       assert.throws(
         () => auditTraceability({ repositoryRoot: directory }),
         /traceability_audit_proof_unproved: adapter-integration/u,
+      ),
+  );
+  withMarker(
+    (marker) => {
+      marker.proof_implementations.unit = [TRACEABILITY_OWNERSHIP_PATH];
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_proof_implementations_stale/u,
       ),
   );
 });

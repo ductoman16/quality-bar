@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE } from "./verification-contract.mjs";
+import {
+  QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE,
+  QUALITY_BAR_EXPECTED_PROOF_IMPLEMENTATIONS,
+} from "./verification-contract.mjs";
 
 /** @param {unknown} actual @param {unknown} expected @param {string} field */
 function requireExact(actual, expected, field) {
@@ -22,6 +25,10 @@ export function validateTraceabilityProofs({
   repositoryRoot,
   proofLayers,
 }) {
+  const expectedImplementations =
+    /** @type {Record<string, readonly string[]>} */ (
+      QUALITY_BAR_EXPECTED_PROOF_IMPLEMENTATIONS
+    );
   const bindings = marker.proof_gate_bindings;
   if (
     typeof bindings !== "object" ||
@@ -59,18 +66,26 @@ export function validateTraceabilityProofs({
     if (
       !Array.isArray(paths) ||
       paths.length === 0 ||
-      paths.some(
-        (path) =>
-          typeof path !== "string" ||
-          !existsSync(resolve(repositoryRoot, path)),
+      paths.some((path) => typeof path !== "string")
+    ) {
+      throw new Error(`traceability_audit_proof_unproved: ${layer}`);
+    }
+  }
+  for (const layer of proofLayers) {
+    requireExact(
+      implementations[layer],
+      expectedImplementations[layer],
+      "proof_implementations",
+    );
+  }
+  for (const layer of proofLayers) {
+    if (
+      implementations[layer].some(
+        /** @param {string} path */
+        (path) => !existsSync(resolve(repositoryRoot, path)),
       )
     ) {
       throw new Error(`traceability_audit_proof_unproved: ${layer}`);
     }
   }
-  requireExact(
-    implementations["packaged-api-mcp-smoke"],
-    [QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE.path],
-    "proof_implementations",
-  );
 }
