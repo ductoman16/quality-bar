@@ -138,6 +138,24 @@ test("the audit rejects removing an implemented owner with its marker", () => {
   );
 });
 
+test("the audit rejects a stale ownership tuple", () => {
+  withMarker(
+    (marker) => {
+      const owner = marker.ownership_markers.find(
+        /** @param {{ticket: number}} candidate */
+        (candidate) => candidate.ticket === 79,
+      );
+      assert.ok(owner);
+      owner.sources = [...owner.sources, "#21"];
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_owners_stale/u,
+      ),
+  );
+});
+
 test("the audit rejects stale owner and unproved proof claims", () => {
   withMarker(
     (marker) => {

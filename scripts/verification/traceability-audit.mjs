@@ -13,6 +13,7 @@ import {
 import {
   QUALITY_BAR_CANONICAL_REFERENCES,
   QUALITY_BAR_EXPECTED_IMPLEMENTED_OWNERS,
+  QUALITY_BAR_EXPECTED_OWNERSHIP_MARKERS,
 } from "./traceability-contract.mjs";
 import { validateTraceabilityProofs } from "./traceability-proof.mjs";
 import { validateTraceabilityRelease } from "./traceability-release.mjs";
@@ -54,7 +55,6 @@ const EXPECTED_MANIFEST_PATHS = new Set([
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
 /** @param {unknown} value @param {string} field */
 function requiredArray(value, field) {
   if (!Array.isArray(value) || value.length === 0) {
@@ -68,7 +68,6 @@ function requiredArray(value, field) {
   }
   return [...value];
 }
-
 /** @param {unknown} actual @param {unknown} expected @param {string} field */
 function requireExact(actual, expected, field) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -376,6 +375,7 @@ export function auditTraceability({
   const owners = validateOwners(marker);
   validateCoverage(marker, owners);
   validateTraceabilityResolution(marker, owners);
+  requireExact(owners, QUALITY_BAR_EXPECTED_OWNERSHIP_MARKERS, "owners");
   const evidenceFields = validateEvidenceFields(marker);
   validateTraceabilityProofs({
     marker,
