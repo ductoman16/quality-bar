@@ -9,6 +9,7 @@
   "scripts": {
     "canary:paid-codex": "node scripts/run-with-exact-node.mjs scripts/verification/run-paid-codex-canary.mjs",
     "canary:private-github": "node scripts/run-with-exact-node.mjs scripts/verification/run-private-github-canary.mjs",
+    "verify:release": "node scripts/run-with-exact-node.mjs scripts/verify-release.mjs",
     "start": "node scripts/run-with-exact-node.mjs src/main.js",
     "test": "node scripts/run-with-exact-node.mjs --test",
     "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",

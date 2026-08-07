@@ -137,6 +137,7 @@ function positiveTicketArray(value, field) {
   if (
     !Array.isArray(value) ||
     value.length === 0 ||
+    new Set(value).size !== value.length ||
     value.some((ticket) => !Number.isSafeInteger(ticket) || ticket <= 0)
   ) {
     throw new Error(`traceability_audit_${field}_invalid`);
@@ -319,7 +320,11 @@ function validateEvidenceFields(marker) {
     throw new Error("traceability_audit_evidence_fields_missing");
   }
   requireExact(
-    fields.map((field) => ({ id: field?.id, path: field?.path })),
+    fields.map((field) => ({
+      id: field?.id,
+      path: field?.path,
+      owners: field?.owners,
+    })),
     QUALITY_BAR_EXPECTED_EVIDENCE_FIELDS,
     "evidence_fields",
   );
@@ -353,11 +358,13 @@ function validateEvidenceFields(marker) {
 }
 
 /**
- * @param {{repositoryRoot?: string}} [options]
+ * @param {{repositoryRoot?: string, releaseCanaries?: unknown, sourceCommit?: string}} [options]
  * @returns {TraceabilityAudit}
  */
 export function auditTraceability({
   repositoryRoot = resolve(import.meta.dirname, "../.."),
+  releaseCanaries,
+  sourceCommit,
 } = {}) {
   const marker = readTraceabilityOwnership(repositoryRoot);
   validateIdentity(marker);
@@ -371,7 +378,7 @@ export function auditTraceability({
     proofLayers: EXPECTED_PROOF_LAYERS,
     repositoryRoot,
   });
-  validateTraceabilityRelease(marker);
+  validateTraceabilityRelease(marker, { releaseCanaries, sourceCommit });
   return {
     marker: TRACEABILITY_OWNERSHIP_PATH,
     parent: QUALITY_BAR_SPECIFICATION_PARENT,

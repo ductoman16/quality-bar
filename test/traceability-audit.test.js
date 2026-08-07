@@ -159,6 +159,19 @@ test("the audit rejects a missing expected evidence field", () => {
   );
 });
 
+test("the audit rejects non-authoritative evidence-field ownership", () => {
+  withMarker(
+    (marker) => {
+      marker.specification.evidence_fields[0].owners = [125];
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_evidence_fields_stale/u,
+      ),
+  );
+});
+
 test("the audit rejects a stale source contract mapping", () => {
   withMarker(
     (marker) => {
@@ -218,9 +231,25 @@ test("release traceability requires both passing canary evidence", () => {
       sourceCommit: releaseCanarySourceCommit,
     }),
   );
+  assert.doesNotThrow(() =>
+    auditTraceability({
+      repositoryRoot,
+      releaseCanaries: evidence,
+      sourceCommit: releaseCanarySourceCommit,
+    }),
+  );
   assert.throws(
     () =>
       validateTraceabilityRelease(marker, {
+        releaseCanaries: { paidCodex: evidence.paidCodex },
+        sourceCommit: releaseCanarySourceCommit,
+      }),
+    /traceability_audit_release_evidence_invalid/u,
+  );
+  assert.throws(
+    () =>
+      auditTraceability({
+        repositoryRoot,
         releaseCanaries: { paidCodex: evidence.paidCodex },
         sourceCommit: releaseCanarySourceCommit,
       }),

@@ -18,20 +18,28 @@ export const QUALITY_BAR_VERIFICATION_PROOF = Object.freeze([
 ]);
 
 export const QUALITY_BAR_EXPECTED_EVIDENCE_FIELDS = Object.freeze([
-  { id: "source-commit", path: "sourceCommit" },
-  { id: "platform", path: "platform" },
-  { id: "component-versions", path: "componentVersions" },
-  { id: "runner-versions", path: "runnerVersions" },
-  { id: "security-boundary", path: "securityBoundary" },
-  { id: "invoked-gates", path: "invokedGates" },
-  { id: "test-group-counts", path: "invokedGates[].testGroups" },
-  { id: "gate-durations", path: "invokedGates[].durationMs" },
-  { id: "gate-facts", path: "invokedGates[].facts" },
-  { id: "total-duration", path: "totalDurationMs" },
-  { id: "outcome", path: "outcome" },
-  { id: "failures", path: "failures" },
-  { id: "performance-facts", path: "performance" },
-  { id: "release-canaries", path: "releaseCanaries" },
+  { id: "source-commit", path: "sourceCommit", owners: [123] },
+  { id: "platform", path: "platform", owners: [123] },
+  { id: "component-versions", path: "componentVersions", owners: [123] },
+  { id: "runner-versions", path: "runnerVersions", owners: [123] },
+  { id: "security-boundary", path: "securityBoundary", owners: [123] },
+  { id: "invoked-gates", path: "invokedGates", owners: [123] },
+  {
+    id: "test-group-counts",
+    path: "invokedGates[].testGroups",
+    owners: [123],
+  },
+  { id: "gate-durations", path: "invokedGates[].durationMs", owners: [123] },
+  { id: "gate-facts", path: "invokedGates[].facts", owners: [123] },
+  { id: "total-duration", path: "totalDurationMs", owners: [123] },
+  { id: "outcome", path: "outcome", owners: [123] },
+  { id: "failures", path: "failures", owners: [123] },
+  { id: "performance-facts", path: "performance", owners: [124] },
+  {
+    id: "release-canaries",
+    path: "releaseCanaries",
+    owners: [125, 126],
+  },
 ]);
 
 export const QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE = Object.freeze({
