@@ -7,8 +7,7 @@ import { auditTraceability } from "./verification/traceability-audit.mjs";
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const manifestPath = resolve(
   repositoryRoot,
-  process.env.QUALITY_BAR_EVIDENCE_PATH ??
-    "artifacts/verification/evidence.json",
+  "artifacts/verification/evidence.json",
 );
 
 try {
