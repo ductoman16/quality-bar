@@ -186,6 +186,23 @@ test("the audit rejects a stale source contract mapping", () => {
   );
 });
 
+test("the testing-decision source must bind every proof layer", () => {
+  withMarker(
+    (marker) => {
+      const contract = marker.specification.source_contracts.find(
+        (candidate) => candidate.id === "#21",
+      );
+      assert.ok(contract);
+      contract.proof = contract.proof.slice(0, -1);
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_requirements_stale/u,
+      ),
+  );
+});
+
 test("the audit rejects a proof owner that does not own the source contract", () => {
   withMarker(
     (marker) => {

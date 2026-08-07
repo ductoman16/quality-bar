@@ -320,18 +320,31 @@
           "ACC-10"
         ],
         "proof": [
-          "unit",
-          "browser-component",
-          "sqlite-integration",
-          "process-integration",
           "adapter-integration",
-          "verification-gate",
+          "browser-component",
           "evidence-manifest",
+          "fake-codex-integration",
+          "forgejo-fixture-integration",
+          "forgejo-v16-integration",
+          "git-integration",
+          "github-fixture-integration",
+          "http-integration",
+          "http-openapi-integration",
+          "mcp-integration",
+          "operator-browser-smoke",
+          "package-integration",
+          "packaged-api-mcp-smoke",
           "paid-codex-canary",
-          "private-github-canary"
+          "private-github-canary",
+          "process-integration",
+          "security-integration",
+          "sqlite-failure-integration",
+          "sqlite-integration",
+          "unit",
+          "verification-gate"
         ],
         "evidence": "Evidence manifest and performance gates",
-        "proof_owners": {"unit": [26], "browser-component": [36], "sqlite-integration": [58], "process-integration": [56], "adapter-integration": [56], "verification-gate": [26], "evidence-manifest": [26], "paid-codex-canary": [125], "private-github-canary": [126]}
+        "proof_owners": {"adapter-integration": [56], "browser-component": [36], "evidence-manifest": [26], "fake-codex-integration": [58], "forgejo-fixture-integration": [132], "forgejo-v16-integration": [132], "git-integration": [58], "github-fixture-integration": [76], "http-integration": [110], "http-openapi-integration": [75], "mcp-integration": [75], "operator-browser-smoke": [36], "package-integration": [26], "packaged-api-mcp-smoke": [75], "paid-codex-canary": [125], "private-github-canary": [126], "process-integration": [56], "security-integration": [36], "sqlite-failure-integration": [56], "sqlite-integration": [58], "unit": [26], "verification-gate": [26]}
       },
       {
         "id": "#22",
@@ -1883,7 +1896,8 @@
         "#4",
         "#8",
         "#10",
-        "#19"
+        "#19",
+        "#21"
       ],
       "scenarios": [
         "ACC-03",
@@ -1941,7 +1955,8 @@
         "#4",
         "#9",
         "#18",
-        "#19"
+        "#19",
+        "#21"
       ],
       "scenarios": [
         "ACC-03",
@@ -2904,7 +2919,8 @@
         "#4",
         "#9",
         "#18",
-        "#19"
+        "#19",
+        "#21"
       ],
       "scenarios": [
         "ACC-04",

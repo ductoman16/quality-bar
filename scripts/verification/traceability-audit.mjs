@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   QUALITY_BAR_ACCEPTANCE_SCENARIOS,
   QUALITY_BAR_EXPECTED_EVIDENCE_FIELDS,
+  QUALITY_BAR_EXPECTED_PROOF_LAYERS,
   QUALITY_BAR_SOURCE_CONTRACTS,
   QUALITY_BAR_SPECIFICATION_PARENT,
   QUALITY_BAR_VERIFICATION_PROOF,
@@ -17,30 +18,7 @@ export const TRACEABILITY_OWNERSHIP_PATH =
   "evidence/quality-foundation/issue-127-traceability.json";
 
 const EXPECTED_SOURCES = [...Array(23).keys()].map((index) => `#${index + 2}`);
-const EXPECTED_PROOF_LAYERS = [
-  "adapter-integration",
-  "browser-component",
-  "evidence-manifest",
-  "fake-codex-integration",
-  "forgejo-fixture-integration",
-  "forgejo-v16-integration",
-  "git-integration",
-  "github-fixture-integration",
-  "http-integration",
-  "http-openapi-integration",
-  "mcp-integration",
-  "operator-browser-smoke",
-  "package-integration",
-  "packaged-api-mcp-smoke",
-  "paid-codex-canary",
-  "private-github-canary",
-  "process-integration",
-  "security-integration",
-  "sqlite-failure-integration",
-  "sqlite-integration",
-  "unit",
-  "verification-gate",
-];
+const EXPECTED_PROOF_LAYERS = [...QUALITY_BAR_EXPECTED_PROOF_LAYERS];
 const EXPECTED_MANIFEST_PATHS = new Set([
   "sourceCommit",
   "platform",
