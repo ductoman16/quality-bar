@@ -151,7 +151,7 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
   assert.deepEqual(spawnCalls, [
     [
       "pinned-codex",
-      ["adapter.mjs", ...reviewRunCodexArguments(run)],
+      ["adapter.mjs", ...reviewRunCodexArguments(run, "/submit-bin")],
       {
         cwd: "/checkout",
         detached: true,
@@ -160,8 +160,6 @@ test("constructs the pinned Codex invocation and accepts only the submission cha
           HOME: "/var/lib/quality-bar",
           LANG: "en_US.UTF-8",
           PATH: "/submit-bin:/usr/local/bin:/usr/bin",
-          QUALITY_BAR_SUBMIT_FILE: "/socket",
-          QUALITY_BAR_SUBMIT_TOKEN: "secret",
         },
         stdio: ["ignore", "pipe", "pipe"],
       },
@@ -209,33 +207,42 @@ test("accepted submission closes before terminating the still-running Codex proc
 
 test("constructs a fixed host-login-safe environment instead of inheriting application secrets", () => {
   assert.deepEqual(
-    reviewRunCodexEnvironment(
-      { QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token" },
-      "/submit-bin",
-      {
-        CODEX_HOME: "/codex-home",
-        HOME: "/home/quality-bar",
-        LANG: "C.UTF-8",
-        LC_ALL: "C.UTF-8",
-        PATH: "/bin",
-        SSL_CERT_FILE: "/etc/ssl/cert.pem",
-        TMPDIR: "/tmp",
-        XDG_CONFIG_HOME: "/config",
-        QUALITY_BAR_MASTER_KEY: ownedSecrets.masterKey,
-        QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
-      },
-    ),
+    reviewRunCodexEnvironment("/submit-bin", {
+      CODEX_HOME: "/codex-home",
+      HOME: "/home/quality-bar",
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      PATH: "/bin",
+      SSL_CERT_FILE: "/etc/ssl/cert.pem",
+      TMPDIR: "/tmp",
+      XDG_CONFIG_HOME: "/config",
+      QUALITY_BAR_MASTER_KEY: ownedSecrets.masterKey,
+      QUALITY_BAR_SESSION_SECRET: ownedSecrets.session,
+    }),
     {
       CODEX_HOME: "/codex-home",
       HOME: "/home/quality-bar",
       LANG: "C.UTF-8",
       LC_ALL: "C.UTF-8",
       PATH: "/submit-bin:/bin",
-      QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-token",
       SSL_CERT_FILE: "/etc/ssl/cert.pem",
       TMPDIR: "/tmp",
       XDG_CONFIG_HOME: "/config",
     },
+  );
+});
+
+test("keeps submission credentials out of Codex arguments and environment", () => {
+  const invocation = {
+    arguments: reviewRunCodexArguments(run, "/submit-bin"),
+    environment: reviewRunCodexEnvironment("/submit-bin", {
+      PATH: "/bin",
+      QUALITY_BAR_SUBMIT_TOKEN: "submission-channel-secret",
+    }),
+  };
+  assert.equal(
+    JSON.stringify(invocation).includes("submission-channel-secret"),
+    false,
   );
 });
 

@@ -17,12 +17,14 @@ const submitRuntimePath = fileURLToPath(
 );
 
 /**
- * @param {{commandPath: string, runtimePath: string, commandIdentity: {birthtimeMs: number, dev: number, ino: number} | null, runtimeIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} installation
+ * @param {{commandPath: string, runtimePath: string, tokenPath: string, trustedProcessPath: string, commandIdentity: {birthtimeMs: number, dev: number, ino: number} | null, runtimeIdentity: {birthtimeMs: number, dev: number, ino: number} | null, tokenIdentity: {birthtimeMs: number, dev: number, ino: number} | null, trustedProcessIdentity: {birthtimeMs: number, dev: number, ino: number} | null}} installation
  * @param {{
  *   directory: string,
  *   responseDeadlineAt: number,
  *   responsePath: string,
  *   responsePublicKey: string,
+ *   submissionFileName: string,
+ *   trustedProcessFile: string,
  *   submissionMode: "review-file" | "generic",
  *   writeCommand?: typeof writeFileSync,
  *   publishFile?: typeof publishInstalledFile
@@ -36,7 +38,9 @@ export function installSubmissionCommand(
     responseDeadlineAt,
     responsePath,
     responsePublicKey,
+    submissionFileName,
     submissionMode,
+    trustedProcessFile,
     writeCommand = writeFileSync,
     publishFile = publishInstalledFile,
   },
@@ -51,6 +55,14 @@ export function installSubmissionCommand(
       '"__QUALITY_BAR_SUBMIT_RESPONSE_PUBLIC_KEY__"',
       JSON.stringify(responsePublicKey),
     )
+    .replace(
+      '"__QUALITY_BAR_SUBMIT_FILE__"',
+      JSON.stringify(submissionFileName),
+    )
+    .replace(
+      '"__QUALITY_BAR_SUBMIT_TRUSTED_PROCESS_FILE__"',
+      JSON.stringify(trustedProcessFile),
+    )
     .replace('"__QUALITY_BAR_SUBMIT_DEADLINE__"', String(responseDeadlineAt))
     .replace('"__QUALITY_BAR_SUBMIT_MODE__"', JSON.stringify(submissionMode));
   const runtimeHash = createHash("sha256").update(runtimeSource).digest("hex");
@@ -62,6 +74,10 @@ export function installSubmissionCommand(
     directory,
     `quality-bar-submit-runtime.tmp-${randomUUID()}`,
   );
+  const tokenTemporaryPath = join(
+    directory,
+    `quality-bar-submit-token.tmp-${randomUUID()}`,
+  );
   const commandTemporaryPath = join(
     directory,
     `quality-bar-submit.tmp-${randomUUID()}`,
@@ -70,6 +86,8 @@ export function installSubmissionCommand(
   let commandTemporaryIdentity = null;
   /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
   let runtimeTemporaryIdentity = null;
+  /** @type {{birthtimeMs: number, dev: number, ino: number} | null} */
+  let tokenTemporaryIdentity = null;
   try {
     writeCommand(
       commandTemporaryPath,
@@ -115,6 +133,35 @@ export function installSubmissionCommand(
       throw new TypeError("Review Run submission runtime identity changed");
     }
     requirePrivateFile(installation.runtimePath, 0o600, commandStatus);
+    writeFileSync(tokenTemporaryPath, token, {
+      flag: "wx",
+      mode: 0o600,
+    });
+    chmodSync(tokenTemporaryPath, 0o600);
+    const tokenStatus = requirePrivateFile(
+      tokenTemporaryPath,
+      0o600,
+      commandStatus,
+    );
+    tokenTemporaryIdentity = {
+      birthtimeMs: tokenStatus.birthtimeMs,
+      dev: tokenStatus.dev,
+      ino: tokenStatus.ino,
+    };
+    installation.tokenIdentity = publishFile(
+      tokenTemporaryPath,
+      installation.tokenPath,
+    );
+    const installedTokenStatus = lstatSync(installation.tokenPath);
+    if (
+      installedTokenStatus.dev !== installation.tokenIdentity.dev ||
+      installedTokenStatus.ino !== installation.tokenIdentity.ino ||
+      installedTokenStatus.birthtimeMs !==
+        installation.tokenIdentity.birthtimeMs
+    ) {
+      throw new TypeError("Review Run submission token identity changed");
+    }
+    requirePrivateFile(installation.tokenPath, 0o600, commandStatus);
     installation.commandIdentity = publishFile(
       commandTemporaryPath,
       installation.commandPath,
@@ -136,6 +183,7 @@ export function installSubmissionCommand(
     const temporaryFiles = [
       [commandTemporaryPath, commandTemporaryIdentity],
       [runtimeTemporaryPath, runtimeTemporaryIdentity],
+      [tokenTemporaryPath, tokenTemporaryIdentity],
     ];
     for (const [path, identity] of temporaryFiles) {
       if (!identity) {

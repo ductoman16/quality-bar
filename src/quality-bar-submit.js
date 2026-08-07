@@ -1,21 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import { fileURLToPath } from "node:url";
-
 const CHANNEL_UNAVAILABLE =
   "submission_channel_unavailable: Review Run submission channel is unavailable";
-
 /** @param {string} message */
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 }
-
-/**
- * @param {string} path
- * @param {number} mode
- * @param {import("node:fs").Stats | null} [owner]
- */
+/** @param {string} path @param {number} mode @param {import("node:fs").Stats | null} [owner] */
 function requireTrustedPrivateFile(path, mode, owner = null) {
   const status = fs.lstatSync(path);
   if (
@@ -32,8 +25,10 @@ function requireTrustedPrivateFile(path, mode, owner = null) {
 const runtimeUrl = new URL("./quality-bar-submit-runtime.js", import.meta.url);
 /** @type {any} */
 let runtime = null;
+/** @type {import("node:fs").Stats | null} */
+let trustedCommandStatus = null;
 try {
-  const commandStatus = requireTrustedPrivateFile(
+  trustedCommandStatus = requireTrustedPrivateFile(
     fileURLToPath(import.meta.url),
     0o700,
   );
@@ -41,7 +36,7 @@ try {
   const runtimePathStatus = requireTrustedPrivateFile(
     runtimePath,
     0o600,
-    commandStatus,
+    trustedCommandStatus,
   );
   const runtimeDescriptor = fs.openSync(
     runtimePath,
@@ -54,8 +49,8 @@ try {
       !runtimeStatus.isFile() ||
       runtimeStatus.dev !== runtimePathStatus.dev ||
       runtimeStatus.ino !== runtimePathStatus.ino ||
-      runtimeStatus.uid !== commandStatus.uid ||
-      runtimeStatus.gid !== commandStatus.gid ||
+      runtimeStatus.uid !== trustedCommandStatus.uid ||
+      runtimeStatus.gid !== trustedCommandStatus.gid ||
       (runtimeStatus.mode & 0o777) !== 0o600
     ) {
       throw new Error("Review Run submission runtime identity changed");
@@ -64,7 +59,7 @@ try {
     const revalidated = requireTrustedPrivateFile(
       runtimePath,
       0o600,
-      commandStatus,
+      trustedCommandStatus,
     );
     if (
       revalidated.dev !== runtimeStatus.dev ||
@@ -92,6 +87,7 @@ try {
  * @param {unknown} candidate
  * @param {string} requestPath
  * @param {string} token
+ * @param {number} clientPid
  * @param {string} clientStartIdentity
  * @param {number} clientProcessGroupId
  */
@@ -99,6 +95,7 @@ async function submitCandidate(
   candidate,
   requestPath,
   token,
+  clientPid,
   clientStartIdentity,
   clientProcessGroupId,
 ) {
@@ -124,7 +121,7 @@ async function submitCandidate(
         lockDescriptor,
         `${JSON.stringify({
           client_id: clientId,
-          client_pid: process.pid,
+          client_pid: clientPid,
           client_process_group_id: clientProcessGroupId,
           client_start_identity: clientStartIdentity,
           request_id: requestId,
@@ -178,7 +175,7 @@ async function submitCandidate(
     const requestPayload = {
       candidate,
       client_id: clientId,
-      client_pid: process.pid,
+      client_pid: clientPid,
       client_process_group_id: clientProcessGroupId,
       client_start_identity: clientStartIdentity,
       request_id: requestId,
@@ -248,6 +245,7 @@ async function submitCandidate(
         helpers.publishAcknowledgment(
           acknowledgmentPath,
           clientId,
+          clientPid,
           clientStartIdentity,
           requestId,
         );
@@ -262,6 +260,7 @@ async function submitCandidate(
         helpers.publishAcknowledgment(
           acknowledgmentPath,
           clientId,
+          clientPid,
           clientStartIdentity,
           requestId,
         );
@@ -290,16 +289,55 @@ async function submitCandidate(
 
 if (runtime !== null) {
   const helpers = runtime;
-  const submissionFileName = process.env.QUALITY_BAR_SUBMIT_FILE;
-  const token = process.env.QUALITY_BAR_SUBMIT_TOKEN;
-  const clientStartIdentity = helpers.processStartIdentity(process.pid);
-  const clientProcessGroupId = helpers.processGroupIdentity(process.pid);
+  const submissionFileName = helpers.submissionFileName;
+  let token;
+  let trustedProcess = null;
+  try {
+    if (trustedCommandStatus === null) {
+      throw new Error("Review Run submission command identity is unavailable");
+    }
+    token = helpers.readTrustedFile(
+      fileURLToPath(new URL("./quality-bar-submit-token", import.meta.url)),
+      trustedCommandStatus,
+      128,
+    );
+    if (token.length === 0) {
+      throw new Error("Review Run submission token is empty");
+    }
+    const parsed = JSON.parse(
+      helpers.readTrustedFile(
+        helpers.trustedProcessFile,
+        trustedCommandStatus,
+        1024,
+      ),
+    );
+    if (
+      !parsed ||
+      Array.isArray(parsed) ||
+      !Number.isSafeInteger(parsed.client_pid) ||
+      parsed.client_pid < 1 ||
+      !Number.isSafeInteger(parsed.client_process_group_id) ||
+      parsed.client_process_group_id < 1 ||
+      typeof parsed.client_start_identity !== "string" ||
+      parsed.client_start_identity.length === 0
+    ) {
+      throw new Error("Review Run trusted process metadata is invalid");
+    }
+    trustedProcess = parsed;
+  } catch {
+    token = undefined;
+    trustedProcess = null;
+  }
+  const clientPid = process.pid;
+  const clientStartIdentity = trustedProcess?.client_start_identity;
+  const clientProcessGroupId = trustedProcess?.client_process_group_id;
   if (
     typeof submissionFileName !== "string" ||
     submissionFileName.length === 0 ||
     /[\\/\0]/.test(submissionFileName) ||
     submissionFileName === "." ||
     submissionFileName === ".." ||
+    trustedProcess === null ||
     typeof token !== "string" ||
     token.length === 0 ||
     typeof clientStartIdentity !== "string" ||
@@ -338,6 +376,7 @@ if (runtime !== null) {
           candidate,
           submissionFileName,
           token,
+          clientPid,
           clientStartIdentity,
           clientProcessGroupId,
         );

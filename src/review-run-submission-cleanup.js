@@ -83,16 +83,28 @@ export function preserveCleanupFailure(failure, cleanupFailure) {
   }
 }
 
+/** @param {unknown} failure */
+function normalizeCleanupFailure(failure) {
+  return failure instanceof Error
+    ? failure
+    : new TypeError("Review Run submission cleanup failed", {
+        cause: failure,
+      });
+}
+
 /**
  * @param {unknown} closeFailure
  * @param {unknown} cleanupFailure
  * @returns {unknown}
  */
 export function mergeCleanupFailure(closeFailure, cleanupFailure) {
-  if (closeFailure) {
-    preserveCleanupFailure(closeFailure, cleanupFailure);
+  const normalizedCleanupFailure = normalizeCleanupFailure(cleanupFailure);
+  if (closeFailure !== null) {
+    const normalizedCloseFailure = normalizeCleanupFailure(closeFailure);
+    preserveCleanupFailure(normalizedCloseFailure, normalizedCleanupFailure);
+    return normalizedCloseFailure;
   }
-  return closeFailure ?? cleanupFailure;
+  return normalizedCleanupFailure;
 }
 
 /**

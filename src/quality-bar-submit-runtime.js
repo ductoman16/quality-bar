@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { createHmac, createPublicKey, randomUUID, verify } from "node:crypto";
 import * as fs from "node:fs";
 
@@ -13,6 +12,8 @@ export const INVALID_SUBMISSION =
 export const TOO_LARGE =
   "review_run_submission_invalid: Review Run submission is too large";
 export const responseFileName = "__QUALITY_BAR_SUBMIT_RESPONSE_FILE__";
+export const submissionFileName = "__QUALITY_BAR_SUBMIT_FILE__";
+export const trustedProcessFile = "__QUALITY_BAR_SUBMIT_TRUSTED_PROCESS_FILE__";
 export const responseDeadlineAt = Number("__QUALITY_BAR_SUBMIT_DEADLINE__");
 export const submissionMode = String("__QUALITY_BAR_SUBMIT_MODE__");
 
@@ -75,79 +76,6 @@ function restoreQuarantinedArtifact(path, quarantinePath, current) {
   fs.rmSync(quarantinePath, { force: true });
 }
 
-/** @param {number} pid */
-export function processStartIdentity(pid) {
-  try {
-    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
-    const closingParenthesis = stat.lastIndexOf(")");
-    const fields = stat
-      .slice(closingParenthesis + 1)
-      .trim()
-      .split(/\s+/);
-    if (closingParenthesis >= 0 && fields[19]) {
-      return `linux:${fields[19]}`;
-    }
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !("code" in error) ||
-      typeof error.code !== "string" ||
-      !["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(error.code)
-    ) {
-      throw error;
-    }
-  }
-  try {
-    const start = execFileSync(
-      "/bin/ps",
-      ["-o", "lstart=", "-p", String(pid)],
-      { encoding: "utf8" },
-    ).trim();
-    return start.length > 0 ? `ps:${start}` : null;
-  } catch {
-    return null;
-  }
-}
-
-/** @param {number} pid */
-export function processGroupIdentity(pid) {
-  try {
-    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
-    const closingParenthesis = stat.lastIndexOf(")");
-    const fields = stat
-      .slice(closingParenthesis + 1)
-      .trim()
-      .split(/\s+/);
-    const groupId = Number(fields[2]);
-    if (
-      closingParenthesis >= 0 &&
-      Number.isSafeInteger(groupId) &&
-      groupId > 0
-    ) {
-      return groupId;
-    }
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !("code" in error) ||
-      typeof error.code !== "string" ||
-      !["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(error.code)
-    ) {
-      throw error;
-    }
-  }
-  try {
-    const groupId = Number(
-      execFileSync("/bin/ps", ["-o", "pgid=", "-p", String(pid)], {
-        encoding: "utf8",
-      }).trim(),
-    );
-    return Number.isSafeInteger(groupId) && groupId > 0 ? groupId : null;
-  } catch {
-    return null;
-  }
-}
-
 export class InvalidResponseError extends Error {}
 export class SubmissionTooLargeError extends Error {}
 
@@ -169,6 +97,55 @@ function readBoundedText(descriptor, maxBytes) {
       throw new SubmissionTooLargeError();
     }
     chunks.push(chunk.subarray(0, bytesRead));
+  }
+}
+
+/** @param {string} path @param {fs.Stats} owner @param {number} maxBytes */
+export function readTrustedFile(path, owner, maxBytes) {
+  const pathStatus = fs.lstatSync(path);
+  if (
+    !pathStatus.isFile() ||
+    pathStatus.isSymbolicLink() ||
+    (pathStatus.mode & 0o777) !== 0o600 ||
+    pathStatus.uid !== owner.uid ||
+    pathStatus.gid !== owner.gid
+  ) {
+    throw new Error("Review Run submission metadata is invalid");
+  }
+  const descriptor = fs.openSync(
+    path,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,
+  );
+  try {
+    const status = fs.fstatSync(descriptor);
+    if (
+      !status.isFile() ||
+      status.dev !== pathStatus.dev ||
+      status.ino !== pathStatus.ino ||
+      status.birthtimeMs !== pathStatus.birthtimeMs ||
+      status.uid !== owner.uid ||
+      status.gid !== owner.gid ||
+      (status.mode & 0o777) !== 0o600 ||
+      status.size > maxBytes
+    ) {
+      throw new Error("Review Run submission metadata identity changed");
+    }
+    const content = readBoundedText(descriptor, maxBytes);
+    const revalidated = fs.lstatSync(path);
+    if (
+      revalidated.dev !== status.dev ||
+      revalidated.ino !== status.ino ||
+      revalidated.birthtimeMs !== status.birthtimeMs ||
+      revalidated.size !== status.size ||
+      revalidated.uid !== status.uid ||
+      revalidated.gid !== status.gid ||
+      (revalidated.mode & 0o777) !== 0o600
+    ) {
+      throw new Error("Review Run submission metadata identity changed");
+    }
+    return content;
+  } finally {
+    fs.closeSync(descriptor);
   }
 }
 
@@ -225,10 +202,11 @@ export function requestSignature(payload, token) {
     .digest("base64");
 }
 
-/** @param {string} path @param {string} clientId @param {string} clientStartIdentity @param {string} requestId */
+/** @param {string} path @param {string} clientId @param {number} clientPid @param {string} clientStartIdentity @param {string} requestId */
 export function publishAcknowledgment(
   path,
   clientId,
+  clientPid,
   clientStartIdentity,
   requestId,
 ) {
@@ -238,7 +216,7 @@ export function publishAcknowledgment(
       temporaryPath,
       `${JSON.stringify({
         client_id: clientId,
-        client_pid: process.pid,
+        client_pid: clientPid,
         client_start_identity: clientStartIdentity,
         request_id: requestId,
       })}\n`,

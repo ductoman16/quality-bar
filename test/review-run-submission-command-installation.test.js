@@ -7,6 +7,7 @@ import {
   lstatSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -36,8 +37,13 @@ function createCheckout(context) {
 /**
  * @param {Awaited<ReturnType<typeof openReviewRunSubmissionChannel>>} channel
  * @param {string} checkoutPath
+ * @param {Record<string, string>} [environment]
  */
-async function submit(channel, checkoutPath) {
+async function submit(
+  channel,
+  checkoutPath,
+  environment = channel.environment,
+) {
   if (!boundChannels.has(channel)) {
     channel.bindProcessGroup(
       /** @type {number} */ (processGroupIdentity(process.pid)),
@@ -52,7 +58,7 @@ async function submit(channel, checkoutPath) {
       {
         cwd: checkoutPath,
         env: {
-          ...channel.environment,
+          ...environment,
           PATH: [
             channel.commandDirectory,
             dirname(process.execPath),
@@ -68,6 +74,67 @@ async function submit(channel, checkoutPath) {
     );
   });
 }
+
+test("accepts a submission when the host drops the submission environment", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    { prepare() {} },
+    { checkoutPath },
+  );
+  try {
+    assert.equal(await submit(channel, checkoutPath, {}), "");
+    assert.equal(await channel.waitForResult(), "accepted");
+  } finally {
+    await channel.close();
+  }
+});
+
+test(
+  "exposes the canonical command directory to the sandbox",
+  { skip: process.platform !== "darwin" },
+  async (context) => {
+    const checkoutPath = createCheckout(context);
+    const channel = await openReviewRunSubmissionChannel(
+      claim,
+      { prepare() {} },
+      { checkoutPath },
+    );
+    try {
+      assert.equal(
+        channel.commandDirectory,
+        realpathSync(channel.commandDirectory),
+      );
+    } finally {
+      await channel.close();
+    }
+  },
+);
+
+test("fails fast when installed trusted-process provenance is corrupt", async (context) => {
+  const checkoutPath = createCheckout(context);
+  const channel = await openReviewRunSubmissionChannel(
+    claim,
+    { prepare() {} },
+    { checkoutPath },
+  );
+  try {
+    channel.bindProcessGroup(
+      /** @type {number} */ (processGroupIdentity(process.pid)),
+    );
+    boundChannels.add(channel);
+    writeFileSync(
+      join(channel.commandDirectory, "quality-bar-submit-process"),
+      "corrupt\n",
+    );
+    assert.equal(
+      await submit(channel, checkoutPath, {}),
+      "submission_channel_unavailable: Review Run submission channel is unavailable\n",
+    );
+  } finally {
+    await channel.close();
+  }
+});
 
 test("the generated command executes only with its installed sibling runtime", async (context) => {
   const checkoutPath = createCheckout(context);

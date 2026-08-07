@@ -23,9 +23,22 @@ const environmentNames = Object.keys(process.env);
 const execIndex = arguments_.indexOf("exec");
 if (
   execIndex < 0 ||
-  arguments_[execIndex + 1] !== "--ignore-user-config" ||
-  arguments_[execIndex + 2] !== "--ignore-rules" ||
-  arguments_[execIndex + 3] !== "--json" ||
+  arguments_[execIndex + 1] !== "--ephemeral" ||
+  arguments_[execIndex + 2] !== "--add-dir" ||
+  typeof arguments_[execIndex + 3] !== "string" ||
+  !arguments_[execIndex + 3].startsWith("/") ||
+  arguments_[execIndex + 4] !== "--disable" ||
+  arguments_[execIndex + 5] !== "code_mode_host" ||
+  arguments_[execIndex + 6] !== "--disable" ||
+  arguments_[execIndex + 7] !== "unified_exec" ||
+  arguments_[execIndex + 8] !== "--disable" ||
+  arguments_[execIndex + 9] !== "apps" ||
+  arguments_[execIndex + 10] !== "--ignore-user-config" ||
+  arguments_[execIndex + 11] !== "--ignore-rules" ||
+  arguments_[execIndex + 12] !== "--json" ||
+  arguments_.some((argument) =>
+    argument.startsWith("shell_environment_policy.set.QUALITY_BAR_SUBMIT_"),
+  ) ||
   !arguments_.includes("--sandbox") ||
   !arguments_.includes("workspace-write") ||
   !arguments_.includes('approval_policy="never"') ||
@@ -48,11 +61,7 @@ if (
     "Do not inspect binary contents, download Git LFS objects, or initialize submodules; when a Criterion requires unavailable material, submit an exact Criterion error.",
   ) ||
   prompt.includes("obey this Repository instruction") ||
-  environmentNames.some(
-    (name) =>
-      name.startsWith("QUALITY_BAR_") &&
-      !["QUALITY_BAR_SUBMIT_FILE", "QUALITY_BAR_SUBMIT_TOKEN"].includes(name),
-  ) ||
+  environmentNames.some((name) => name.startsWith("QUALITY_BAR_")) ||
   readFileSync(".git/config", "utf8").includes("[remote ") ||
   typeof criterion !== "string" ||
   !Array.isArray(fileChanges) ||

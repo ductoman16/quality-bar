@@ -8,6 +8,15 @@ function isPermissionDenied(error) {
   return error instanceof Error && "code" in error && error.code === "EPERM";
 }
 
+/** @param {unknown} error */
+function isClosedSupervisorIpc(error) {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    ["EPIPE", "ERR_IPC_CHANNEL_CLOSED"].includes(String(error.code))
+  );
+}
+
 /** @param {Parameters<typeof terminateReviewRunProcessGroup>[0]} options */
 export function createReviewRunProcessGroupTermination(options) {
   /** @type {Promise<void> | undefined} */
@@ -75,7 +84,13 @@ export async function terminateReviewRunProcessGroup({
       forceKill.then(() => "force-kill"),
     ]);
     if (first === "process") {
-      await finishSupervisor();
+      try {
+        await finishSupervisor();
+      } catch (error) {
+        if (!isClosedSupervisorIpc(error)) {
+          throw error;
+        }
+      }
       try {
         killProcessGroup(processGroupId, 0);
       } catch (error) {

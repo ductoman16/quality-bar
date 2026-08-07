@@ -1,8 +1,10 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 import { validatePerformanceFacts } from "./performance-budget.mjs";
+import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { updateVerificationEvidence } from "./release-canary-evidence.mjs";
 
 /**
  * @typedef {{
@@ -48,9 +50,12 @@ import { validatePerformanceFacts } from "./performance-budget.mjs";
  */
 /**
  * @typedef {{
+ *   evidenceVersion: number,
  *   invokedGates: VerificationGate[],
  *   verification?: VerificationEvidence | null,
  *   performance?: import("./performance-budget.mjs").PerformanceFacts | null,
+ *   releaseCanaries: Record<string, any> | null,
+ *   sourceCommit: string | null,
  *   outcome: "pass" | "fail",
  *   failures: VerificationFailure[],
  * }} VerificationManifest
@@ -259,13 +264,54 @@ export function createManifest({
   };
 }
 
+/** @param {any} current @param {VerificationManifest} manifest */
+function retainedReleaseCanaries(current, manifest) {
+  if (
+    manifest.outcome !== "pass" ||
+    manifest.failures.length !== 0 ||
+    manifest.verification?.kind !== "cost-free" ||
+    typeof manifest.sourceCommit !== "string" ||
+    current?.sourceCommit !== manifest.sourceCommit
+  ) {
+    return null;
+  }
+  const canaries = current?.releaseCanaries;
+  if (canaries === null || canaries === undefined) {
+    return null;
+  }
+  if (
+    current.evidenceVersion !== 1 ||
+    current.outcome !== "pass" ||
+    current.verification?.kind !== "cost-free" ||
+    !Array.isArray(current.failures) ||
+    current.failures.length !== 0 ||
+    typeof canaries !== "object" ||
+    Array.isArray(canaries)
+  ) {
+    throw new TypeError("existing release canary evidence is invalid");
+  }
+  try {
+    validateReleaseCanaries(canaries, manifest.sourceCommit);
+  } catch {
+    throw new TypeError("existing release canary evidence is invalid");
+  }
+  return canaries;
+}
+
 /**
  * @param {string} manifestPath
  * @param {VerificationManifest} manifest
  */
 export function writeManifest(manifestPath, manifest) {
   mkdirSync(dirname(manifestPath), { recursive: true });
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  updateVerificationEvidence({
+    manifest,
+    manifestPath,
+    mergeEvidence: (current, replacement) => ({
+      ...replacement,
+      releaseCanaries: retainedReleaseCanaries(current, replacement),
+    }),
+  });
 }
 
 /**

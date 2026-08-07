@@ -122,7 +122,12 @@ export function isSubmissionLeaseAlive(lockSubmission) {
   if (!isProcessAlive(lock.client_pid)) {
     return false;
   }
-  const currentStartIdentity = processStartIdentity(lock.client_pid);
+  if (!isProcessAlive(lock.client_process_group_id)) {
+    return false;
+  }
+  const currentStartIdentity = processStartIdentity(
+    lock.client_process_group_id,
+  );
   if (currentStartIdentity === null) {
     return null;
   }

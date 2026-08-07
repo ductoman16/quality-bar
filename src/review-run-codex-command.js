@@ -15,6 +15,19 @@ const CODEX_HOST_ENVIRONMENT = Object.freeze([
   "XDG_CONFIG_HOME",
 ]);
 
+/** @param {NodeJS.ProcessEnv} processEnvironment */
+export function buildCodexHostEnvironment(processEnvironment) {
+  /** @type {Record<string, string>} */
+  const environment = {};
+  for (const name of CODEX_HOST_ENVIRONMENT) {
+    const value = processEnvironment[name];
+    if (typeof value === "string" && value.length > 0) {
+      environment[name] = value;
+    }
+  }
+  return environment;
+}
+
 export class CodexProcessExitError extends Error {
   /**
    * @param {{
@@ -36,8 +49,11 @@ export class CodexProcessExitError extends Error {
   }
 }
 
-/** @param {unknown} candidate */
-export function reviewRunCodexArguments(candidate) {
+/**
+ * @param {unknown} candidate
+ * @param {string} [commandDirectory]
+ */
+export function reviewRunCodexArguments(candidate, commandDirectory) {
   const input = /** @type {any} */ (candidate);
   const configuration = validateCodexConfiguration(input?.configuration);
   if (
@@ -48,7 +64,7 @@ export function reviewRunCodexArguments(candidate) {
   ) {
     throw new TypeError("Review Run Codex input is invalid");
   }
-  return [
+  const arguments_ = [
     "--model",
     configuration.model,
     "--config",
@@ -73,15 +89,30 @@ export function reviewRunCodexArguments(candidate) {
     "allow_login_shell=false",
     input.prompt,
   ];
+  if (commandDirectory !== undefined) {
+    const executionArgumentIndex = arguments_.indexOf("exec");
+    arguments_.splice(
+      executionArgumentIndex + 1,
+      0,
+      "--ephemeral",
+      "--add-dir",
+      commandDirectory,
+      "--disable",
+      "code_mode_host",
+      "--disable",
+      "unified_exec",
+      "--disable",
+      "apps",
+    );
+  }
+  return arguments_;
 }
 
 /**
- * @param {Record<string, string>} submissionEnvironment
  * @param {string} commandDirectory
  * @param {NodeJS.ProcessEnv} processEnvironment
  */
 export function buildReviewRunCodexEnvironment(
-  submissionEnvironment,
   commandDirectory,
   processEnvironment,
 ) {
@@ -92,16 +123,9 @@ export function buildReviewRunCodexEnvironment(
   ) {
     throw new TypeError("Review Run submission command directory is invalid");
   }
-  /** @type {Record<string, string>} */
-  const environment = {};
-  for (const name of CODEX_HOST_ENVIRONMENT) {
-    const value = processEnvironment[name];
-    if (typeof value === "string" && value.length > 0) {
-      environment[name] = value;
-    }
-  }
+  const environment = buildCodexHostEnvironment(processEnvironment);
   environment.PATH = environment.PATH
     ? `${commandDirectory}${delimiter}${environment.PATH}`
     : commandDirectory;
-  return { ...environment, ...submissionEnvironment };
+  return environment;
 }

@@ -1,23 +1,64 @@
 import { spawn } from "node:child_process";
 import process from "node:process";
-import { clearInterval, setInterval } from "node:timers";
+import {
+  clearInterval,
+  clearTimeout,
+  setInterval,
+  setTimeout,
+} from "node:timers";
 
 let launched = false;
 let completed = false;
+let parentDisconnected = false;
 let terminationRequested = false;
+let terminateOnParentDisconnect = false;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let forceTerminationTimer = null;
 const keepAlive = setInterval(() => {}, 60_000);
 
 function stopSupervisor() {
   clearInterval(keepAlive);
+  clearTimeout(forceTerminationTimer ?? undefined);
   process.exitCode = 0;
   if (process.connected) {
     process.disconnect();
   }
 }
 
+function terminateDisconnectedProcessGroup() {
+  if (terminationRequested) {
+    return;
+  }
+  terminationRequested = true;
+  try {
+    process.kill(-process.pid, "SIGTERM");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH") {
+      stopSupervisor();
+      return;
+    }
+    throw error;
+  }
+  forceTerminationTimer = setTimeout(() => {
+    try {
+      process.kill(-process.pid, "SIGKILL");
+    } catch (error) {
+      if (
+        !(
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "ESRCH"
+        )
+      ) {
+        process.exitCode = 1;
+      }
+    }
+  }, 5_000);
+}
+
 process.on("SIGTERM", () => {
   terminationRequested = true;
-  if (completed) {
+  if (!launched || completed) {
     stopSupervisor();
   }
 });
@@ -33,9 +74,12 @@ function send(message) {
 }
 
 process.once("disconnect", () => {
+  parentDisconnected = true;
   if (!launched) {
     clearInterval(keepAlive);
     process.exitCode = 1;
+  } else if (terminateOnParentDisconnect) {
+    terminateDisconnectedProcessGroup();
   }
 });
 
@@ -50,7 +94,8 @@ process.on("message", (message) => {
     typeof message.command !== "string" ||
     !Array.isArray(message.arguments) ||
     typeof message.environment !== "object" ||
-    message.environment === null
+    message.environment === null ||
+    typeof message.terminateOnParentDisconnect !== "boolean"
   ) {
     send({
       message: "Codex supervisor launch request is invalid",
@@ -59,6 +104,7 @@ process.on("message", (message) => {
     return;
   }
   launched = true;
+  terminateOnParentDisconnect = message.terminateOnParentDisconnect;
   let child;
   try {
     child = spawn(message.command, message.arguments, {
@@ -80,8 +126,9 @@ process.on("message", (message) => {
   });
   child.once("close", (code, signal) => {
     completed = true;
+    clearTimeout(forceTerminationTimer ?? undefined);
     send({ code, signal, type: "result" });
-    if (terminationRequested) {
+    if (terminationRequested || parentDisconnected) {
       stopSupervisor();
     }
   });
