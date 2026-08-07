@@ -2,16 +2,58 @@
 
 An AI code review management and execution platform
 
+## First installation
+
+Run this from the repository root for a new local installation. It uses direct HTTP on `127.0.0.1:3000`. Create the files and export the Compose variables before running any Compose command; Compose must be able to resolve both bind-mount paths even for `stop` and `config`.
+
+```sh
+mkdir -p .quality-bar
+chmod 0700 .quality-bar
+printf '%s\n' 'QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000' 'QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none' > .quality-bar/config.env
+if [ ! -s .quality-bar/quality-bar-master-key ]; then
+  openssl rand -base64 32 > .quality-bar/quality-bar-master-key
+fi
+chmod 0400 .quality-bar/config.env .quality-bar/quality-bar-master-key
+export QUALITY_BAR_CONFIG_FILE="$PWD/.quality-bar/config.env"
+export QUALITY_BAR_MASTER_KEY_FILE="$PWD/.quality-bar/quality-bar-master-key"
+export QUALITY_BAR_HTTP_PORT=3000
+if [ "$(uname -s)" = Linux ]; then
+  sudo chown 10001:10001 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
+fi
+docker compose config --quiet
+docker compose stop quality-bar
+docker compose build quality-bar
+docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.js
+docker compose run --rm --no-deps quality-bar codex login --device-auth
+docker compose up --detach --wait
+curl --fail http://127.0.0.1:3000/health/live
+```
+
+`config.env` must contain exactly these two required entries for this local setup:
+
+```env
+QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000
+QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none
+```
+
+Do not add quotes or unrelated keys. `QUALITY_BAR_EXTERNAL_ORIGIN` is the URL operators use to reach the service; its port must match `QUALITY_BAR_HTTP_PORT`. `QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none` is correct when the browser connects directly to Quality Bar. The optional `QUALITY_BAR_FREE_SPACE_RESERVE_BYTES` entry can be omitted; the default is 5 GiB.
+
+The master key is not a password. Generate it with `openssl rand -base64 32`; this produces the required 32 random bytes in the exact base64 format Quality Bar accepts. Keep the file private and backed up. Never generate a replacement after the installation has state, because the original key is required to decrypt that state. The exports above last only for the current shell; for later shells, put the same absolute paths in `.env` while preserving its existing `QUALITY_BAR_VERSION` line. Docker Desktop/macOS can skip the Linux-only `chown`; the `0700` directory and `0400` files are still required.
+
 ## Host provisioning
 
 Quality Bar has one fixed Codex-authentication location: `/var/lib/quality-bar/codex-home`.
 Before starting the service, make the fixed configuration and master-key files readable only by the service account, then provision that persistent service-account login with:
 
 ```sh
-chown 10001:10001 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
+if [ "$(uname -s)" = Linux ]; then
+  sudo chown 10001:10001 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
+fi
 chmod 0400 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
 docker compose run --rm --no-deps quality-bar codex login --device-auth
 ```
+
+Docker Desktop/macOS can skip the Linux-only `chown` line.
 
 The command writes only to the named state volume. A missing or invalid login leaves the durable System surface available but marks Codex unavailable and gates every new Codex start; it does not use an environment token, another home directory, or a fallback provider.
 

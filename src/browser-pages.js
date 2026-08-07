@@ -61,7 +61,7 @@ export function operatorPage({ view }) {
     })
     .join("");
   const attention = `<a hidden href="/?view=system" id="attention"></a>${
-    view === "system" ? "" : "<style>details{display:none}</style>"
+    view === "system" ? "" : "<style>main > details{display:none}</style>"
   }`;
   const heading = view[0].toUpperCase() + view.slice(1);
   const systemSection =
@@ -114,6 +114,23 @@ export function operatorPage({ view }) {
       ? '<form id="evaluation-create-form"><label for="evaluation-repository">Repository</label><select disabled id="evaluation-repository" required></select><label for="evaluation-base-type">Base selector</label><select id="evaluation-base-type"><option value="branch">Branch</option><option value="commit">Commit</option></select><input aria-label="Base selector value" id="evaluation-base-value" required><label for="evaluation-head-type">Head selector</label><select id="evaluation-head-type"><option value="branch">Branch</option><option value="commit">Commit</option></select><input aria-label="Head selector value" id="evaluation-head-value" required><button type="submit">Evaluate</button><output aria-live="polite" id="evaluation-create-status"></output></form><p aria-live="polite" id="evaluation-loading">Loading Evaluations</p><p hidden id="evaluation-empty">No Evaluations</p><p hidden role="alert" id="evaluation-state"></p><section aria-labelledby="evaluation-active-title"><h2 id="evaluation-active-title">Active</h2><ol id="evaluation-active"></ol></section><section aria-labelledby="evaluation-recent-title"><h2 id="evaluation-recent-title">Recent</h2><ol id="evaluation-recent"></ol></section><section aria-labelledby="evaluation-attention-title"><h2 id="evaluation-attention-title">Attention required</h2><ol id="evaluation-attention"></ol></section><button hidden id="evaluation-more" type="button">More Evaluations</button>'
       : "";
   if (evaluationSection) {
+    evaluationSection = evaluationSection
+      .replace(
+        '<form id="evaluation-create-form">',
+        '<form id="evaluation-create-form"><div class="evaluation-field">',
+      )
+      .replace(
+        '<label for="evaluation-base-type">',
+        '</div><div class="evaluation-field"><label for="evaluation-base-type">',
+      )
+      .replace(
+        '<label for="evaluation-head-type">',
+        '</div><div class="evaluation-field"><label for="evaluation-head-type">',
+      )
+      .replace(
+        '<button type="submit">Evaluate</button>',
+        '</div><button type="submit">Evaluate</button>',
+      );
     evaluationSection +=
       '<script src="/assets/waiver-batch.js"></script><script src="/assets/evaluation-result.js"></script><script src="/assets/evaluation-feedback.js"></script><script src="/assets/evaluation-active-controls.js"></script>';
   }
