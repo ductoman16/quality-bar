@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Quality Bar — Style Guide — Fono LCD</title>
+<meta name="description" content="Canonical style guide for Quality Bar — Fono LCD flat: sage / black / grey, no shadows, no pixels. Single-file spec + real Review mock." />
+<meta name="color-scheme" content="light" />
+<style>
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0; font-family:'Inter','Aeonik','Helvetica Neue',system-ui,sans-serif; background:#d7dbd2; color:#0f1410; line-height:1.45; -webkit-font-smoothing:antialiased}
+a{color:inherit}
+::selection{background:#0f1410; color:#d7dbd2}
+/* LCD flat — only 3 inks: sage #d7dbd2, black #0f1410, grey #6d736d. No shadows, no other colors. */
+:root{
+  --bg:#d7dbd2; --panel:#d7dbd2; --panel-2:#d7dbd2;
+  --ink:#0f1410; --muted:#6d736d; --line:#0f1410; --line-2:#0f1410;
+  --grey:#6d736d; /* the one grey */
+  --radius:22px; --radius-sm:14px;
+  --shadow:none;
+  --font-mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+code,pre{font-family:var(--font-mono)}
+/* nav — flat, no blur, no shadow */
+.topbar{position:sticky; top:0; z-index:50; background:var(--bg); border-bottom:1.5px solid var(--ink)}
+.topbar-inner{max-width:1240px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.mark{width:36px; height:36px; border-radius:12px; background:var(--ink); color:var(--bg); display:grid; place-items:center; font-weight:800; font-size:13px; letter-spacing:.04em; border:1.5px solid var(--ink)}
+.brand-title{font-weight:650; letter-spacing:-.03em; line-height:1; font-size:15px}
+.brand-sub{font-size:12px; color:var(--grey)}
+.tabs{margin-left:auto; display:flex; gap:6px; background:var(--bg); border:1.5px solid var(--ink); padding:4px; border-radius:999px}
+.tab{border:0; padding:8px 16px; border-radius:999px; font-size:12.5px; font-weight:650; cursor:pointer; background:transparent; color:var(--grey); transition:none}
+.tab.active{background:var(--ink); color:var(--bg)}
+.wrap{max-width:1240px; margin:0 auto; padding:24px 20px 48px}
+.hero{display:grid; grid-template-columns:1.25fr .75fr; gap:20px; margin-bottom:20px}
+@media(max-width:900px){.hero{grid-template-columns:1fr}}
+.kicker{font-size:11px; letter-spacing:.12em; text-transform:uppercase; font-weight:800; color:var(--grey)}
+h1{font-size:clamp(30px,4vw,46px); line-height:.92; margin:8px 0 10px; letter-spacing:-.04em; font-weight:800}
+.lede{color:var(--grey); font-size:14.5px; max-width:60ch}
+.hero-card{border:1.5px solid var(--ink); background:var(--bg); border-radius:var(--radius); padding:18px}
+.eyebrow{font-size:11px; letter-spacing:.11em; text-transform:uppercase; font-weight:800; color:var(--grey); margin-bottom:6px}
+.divider{height:1.5px; background:var(--ink); margin:14px 0; opacity:.15}
+/* style guide — flat */
+.section{border:1.5px solid var(--ink); background:var(--bg); border-radius:var(--radius); overflow:hidden; margin-top:18px}
+.section-hd{padding:16px 18px 14px; border-bottom:1.5px solid var(--ink); background:var(--bg); display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.section-hd h2{margin:0; font-size:14px; letter-spacing:-.02em}
+.section-hd p{margin:0; color:var(--grey); font-size:12.5px}
+.section-bd{padding:18px}
+.swatch-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+@media(max-width:800px){.swatch-grid{grid-template-columns:repeat(2,1fr)}}
+.swatch{border:1.5px solid var(--ink); border-radius:16px; overflow:hidden; background:var(--bg)}
+.swatch-top{height:64px; display:grid; place-items:center; font-size:11px; font-weight:800; letter-spacing:.06em; border-bottom:1.5px solid var(--ink)}
+.swatch-bd{padding:10px 12px; font-size:11px; line-height:1.4}
+.swatch-bd b{font-size:12px}
+.swatch-bd code{font-size:10px; background:transparent; border:1.5px solid var(--ink); padding:1px 5px; border-radius:6px}
+.type-row{display:grid; grid-template-columns:180px 1fr; gap:16px; padding:12px 0; border-bottom:1.5px solid var(--ink); align-items:baseline}
+.type-row:last-child{border-bottom:0}
+.type-label{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--grey); font-weight:700}
+.component-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+@media(max-width:800px){.component-grid{grid-template-columns:1fr}}
+.demo{border:1.5px solid var(--ink); background:var(--bg); border-radius:16px; padding:14px}
+.demo-title{font-size:11px; letter-spacing:.09em; text-transform:uppercase; font-weight:800; color:var(--grey); margin-bottom:10px}
+.btn-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+.btn{border:1.5px solid var(--ink); background:var(--bg); color:var(--ink); padding:10px 16px; border-radius:999px; font-size:13px; font-weight:650; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+.btn.primary{background:var(--ink); color:var(--bg)}
+.btn.ghost{background:transparent; border-color:transparent; color:var(--grey)}
+.btn.ghost:hover{background:transparent; text-decoration:underline}
+.btn.circle{width:36px; height:36px; padding:0; justify-content:center; border-radius:999px; font-size:18px; font-weight:500}
+.btn:disabled{opacity:.35; cursor:not-allowed}
+.pill{border:1.5px solid var(--ink); background:var(--bg); padding:6px 10px; border-radius:999px; font-size:11px; font-weight:650; display:inline-flex; gap:6px; align-items:center}
+.badge{padding:4px 9px; border-radius:999px; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; display:inline-flex; gap:5px; align-items:center; border:1.5px solid var(--ink); background:var(--bg)}
+.badge.fill{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.dot{width:7px; height:7px; border-radius:50%; background:currentColor}
+.card{border:1.5px solid var(--ink); background:var(--bg); border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:8px}
+.card h3{margin:0; font-size:13px; letter-spacing:-.01em}
+.meta{font-size:11px; color:var(--grey); font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+.toggle{width:52px; height:28px; border-radius:999px; background:var(--ink); position:relative; display:flex; align-items:center; padding:0 6px; cursor:pointer; border:1.5px solid var(--ink)}
+.toggle.off{background:var(--bg); border-color:var(--ink)}
+.toggle .knob{width:20px; height:20px; border-radius:999px; position:absolute; left:3px; transition:.2s; border:1.5px solid var(--ink); background:var(--bg)}
+.toggle.on .knob{left:27px; background:var(--bg)}
+.toggle.off .knob{background:var(--bg); border:1.5px solid var(--ink)}
+.toggle .label{font-size:9px; font-weight:800; letter-spacing:.08em; width:100%}
+.toggle.off .label{color:var(--ink); text-align:left; padding-left:4px}
+.toggle.on .label{color:var(--bg); text-align:left; padding-left:6px}
+.progress{width:52px; height:52px; border-radius:999px; border:1.5px solid var(--ink); display:grid; place-items:center; font-size:12px; font-weight:800; position:relative; background:var(--bg)}
+.progress::before{content:""; position:absolute; inset:-1.5px; border-radius:999px; background:conic-gradient(var(--ink) var(--pct,68%), transparent var(--pct,68%)); mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), black calc(100% - 3.5px)); -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3.5px), black calc(100% - 3.5px))}
+.input{width:100%; border:1.5px solid var(--ink); background:var(--bg); color:var(--ink); border-radius:12px; padding:10px 12px; font-size:13px; outline:none}
+.input:focus{border-color:var(--ink); outline:1.5px solid var(--ink); outline-offset:1px}
+.input.error{border-color:var(--ink); border-width:2px; background:var(--ink); color:var(--bg)}
+.help{font-size:11px; color:var(--grey)} .help.error{color:var(--ink); font-weight:700}
+.term{background:var(--ink); color:var(--bg); border-radius:16px; padding:14px; font-family:var(--font-mono); font-size:12px; line-height:1.6; overflow:auto; border:1.5px solid var(--ink)}
+/* mock — flat LCD: everything sage + black hairline, no shadows */
+.mock-shell{border:1.5px solid var(--ink); background:var(--bg); border-radius:28px; padding:14px}
+.mock-screen{background:var(--bg); border-radius:22px; overflow:hidden; border:1.5px solid var(--ink)}
+.mock-status{display:flex; justify-content:space-between; align-items:center; padding:10px 16px 8px; font-size:11px; font-weight:600; letter-spacing:.04em; border-bottom:1.5px solid var(--ink)}
+.mock-header{display:flex; justify-content:space-between; align-items:start; gap:12px; padding:12px 16px 14px; border-bottom:1.5px solid var(--ink)}
+.mock-header h1{font-size:22px; font-weight:800; letter-spacing:-.03em; margin:0; line-height:1}
+.mock-header p{margin:4px 0 0; color:var(--grey); font-size:12px}
+.mock-menu{width:38px; height:38px; border-radius:999px; border:1.5px solid var(--ink); background:transparent; display:grid; place-items:center; flex-shrink:0}
+.breadcrumb{font-size:11px; color:var(--grey); padding:10px 16px; display:flex; gap:6px; align-items:center; border-bottom:1.5px solid var(--ink)}
+.breadcrumb b{color:var(--ink)}
+.threshold{border:1.5px solid var(--ink); background:var(--bg); border-radius:18px; padding:14px; display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; margin:12px 16px 0}
+.threshold .mid{font-size:11px; color:var(--grey); line-height:1.35}
+.cards2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:12px 16px 0}
+@media(max-width:600px){.cards2{grid-template-columns:1fr}}
+.mini-card{border:1.5px solid var(--ink); background:var(--bg); border-radius:18px; padding:12px; display:grid; gap:10px}
+.mini-card-head{font-size:10px; letter-spacing:.1em; font-weight:800; display:flex; justify-content:space-between}
+.mini-card-head span{font-weight:500; letter-spacing:.03em; color:var(--grey); text-transform:none; font-size:11px}
+.illus{border:1.5px solid var(--ink); background:var(--bg); border-radius:12px; height:64px; display:grid; place-items:center}
+.stat-row{display:flex; justify-content:space-between; align-items:baseline; border-bottom:1.5px solid var(--ink); padding:6px 0; font-size:11px}
+.stat-row:last-child{border-bottom:0}
+.stat-row small{letter-spacing:.08em; font-weight:700; color:var(--grey); font-size:10px}
+.waivers{margin:12px 16px; border:1.5px solid var(--ink); background:var(--bg); border-radius:18px; overflow:hidden}
+.waiver-row{display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:12px; border-bottom:1.5px solid var(--ink); font-size:11px}
+.waiver-row:last-child{border-bottom:0}
+.waiver-row .w-title{font-weight:800; letter-spacing:-.01em; font-size:11px}
+.waiver-row .w-meta{color:var(--grey); font-size:11px; margin-top:2px}
+.waiver-row .w-badge{padding:4px 8px; border-radius:999px; border:1.5px solid var(--ink); font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; background:var(--ink); color:var(--bg)}
+.waiver-row .w-badge.pending{background:var(--bg); color:var(--ink)}
+.detail-grid{display:grid; grid-template-columns:1.2fr .8fr; gap:12px; margin:12px 16px}
+@media(max-width:900px){.detail-grid{grid-template-columns:1fr}}
+.timeline{border-left:1.5px solid var(--ink); padding-left:16px; margin-left:6px; display:grid; gap:10px}
+.step{border:1.5px solid var(--ink); background:var(--bg); border-radius:14px; padding:10px 12px; position:relative}
+.step::before{content:""; position:absolute; left:-22px; top:12px; width:10px; height:10px; border-radius:50%; background:var(--ink); border:2px solid var(--bg)}
+.finding{border:1.5px solid var(--ink); background:var(--bg); border-radius:14px; padding:12px}
+.hidden{display:none !important}
+.footer{max-width:1240px; margin:0 auto; padding:18px 20px 30px; color:var(--grey); font-size:12px; border-top:1.5px solid var(--ink); margin-top:24px}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <div class="topbar-inner">
+    <div class="mark">QB</div>
+      <div class="brand-title">Quality Bar — Style Guide</div>
+      <div class="brand-sub">Canonical · Fono LCD flat · 3 inks: sage / black / grey · early LCD, no shadows, no pixels</div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-view="guide" role="tab" aria-selected="true">Style Guide</button>
+      <button class="tab" data-view="mock" role="tab">Page Mock — Review</button>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <div class="kicker">Built from Fono — the image you loved</div>
+      <h1>Calm is the <br>most honest signal.</h1>
+      <p class="lede">Quality Bar is governance software — repos, CEL rules, Codex runs, waivers. Fono makes the gate feel <b>quiet, tactile, and inevitable</b>: pale sage paper, single ink, 22px radius, 1.2px hairlines. Hierarchy from <em>weight and whitespace</em>, not color.</p>
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap">
+        <span class="pill">Monochrome — AA on body</span>
+        <span class="pill">No accent hue</span>
+        <span class="pill">Scandinavian · 14px base</span>
+      </div>
+    </div>
+    <div class="hero-card">
+      <div class="eyebrow">How to use this file</div>
+      <p style="margin:0; color:var(--grey); font-size:13px">Canonical style guide — defines tokens + components and proves them on a <b>real Review page</b> (PR #482). Keep this file as source of truth; fork for experiments, don't edit tokens in place.</p>
+      <div class="divider"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:11px">
+        <div><b>Background</b><br><span style="color:var(--muted)">Sage only — page + all cards. No white panels.</span></div>
+        <div><b>Grey</b><br><span style="color:var(--muted)">One grey #6D736D — muted text only. No second grey.</span></div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px"><button class="btn primary" onclick="document.querySelector('[data-view=mock]').click()">Open mock →</button><button class="btn" onclick="window.print()">Print</button></div>
+    </div>
+
+  <!-- ============ STYLE GUIDE ============ -->
+  <div id="guide">
+    <!-- Foundations -->
+    <div class="section">
+      <div class="section-hd"><h2>Foundations — Color</h2><p>3 inks only — sage / black / one grey · flat, no shadows</p></div>
+      <div class="section-bd">
+        <div class="swatch-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="swatch"><div class="swatch-top" style="background:#d7dbd2; border-bottom:1.5px solid #0f1410">SAGE</div><div class="swatch-bd"><b>Background</b><br><code>#D7DBD2</code><br>Every surface — page, cards, schedule. No white.</div></div>
+          <div class="swatch"><div class="swatch-top" style="background:#0f1410; color:#d7dbd2; border-bottom:1.5px solid #0f1410">BLACK</div><div class="swatch-bd"><b>Ink</b><br><code>#0F1410</code><br>Text, borders (1.5px), toggles, progress, code.</div></div>
+          <div class="swatch"><div class="swatch-top" style="background:#6d736d; color:#d7dbd2; border-bottom:1.5px solid #0f1410">GREY</div><div class="swatch-bd"><b>Grey</b><br><code>#6D736D</code><br>The one grey — muted text, secondary. No other grey.</div></div>
+        </div>
+        <p class="help" style="margin-top:10px">Early LCD rule: active segments = <b style="color:var(--ink)">black</b> on sage; inactive = grey. No other colors — not even for errors. Error = inverted (black fill, sage text). Flat — <code>box-shadow: none</code> everywhere.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-hd"><h2>Typography</h2><p>Aeonik-like sans only — weight creates hierarchy</p></div>
+      <div class="section-bd">
+        <div class="type-row"><div class="type-label">Display · 28–46px · 800</div><div style="font-size:28px; font-weight:800; letter-spacing:-.04em; line-height:.95">Quality Bar keeps the line honest.</div></div>
+        <div class="type-row"><div class="type-label">H2 · 14px · 750</div><div style="font-size:14px; font-weight:750; letter-spacing:-.02em">Repositories · Rules · Evaluations · Waivers</div></div>
+        <div class="type-row"><div class="type-label">Eyebrow · 11px · 800 · .11em</div><div style="font-size:11px; letter-spacing:.11em; text-transform:uppercase; font-weight:800; color:var(--muted)">Applicability · Coverage · Waiver policy</div></div>
+        <div class="type-row"><div class="type-label">Body · 13–14px · 500</div><div style="font-size:13px; color:var(--grey)">Review run was <b style="color:var(--ink)">admitted, claimed, and executed</b> by Codex 0.145.0 in <code style="font-family:var(--font-mono); background:var(--bg); border:1.5px solid var(--ink); padding:1px 6px; border-radius:6px; font-size:11px">/var/cache/quality-bar/checkouts</code>.</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-hd"><h2>Space, Radius & Stroke</h2><p>round, flat — LCD segments, no depth</p></div>
+      <div class="section-bd">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px">
+          <div class="demo"><div class="demo-title">Radius</div><div style="display:flex; gap:10px; align-items:end"><span style="width:42px; height:42px; border:1.5px solid var(--ink); border-radius:22px; background:var(--bg); display:grid; place-items:center; font-size:10px; font-weight:800">22</span><span style="width:36px; height:36px; border:1.5px solid var(--ink); border-radius:14px; background:var(--bg); display:grid; place-items:center; font-size:10px">14</span><span style="width:28px; height:28px; border:1.5px solid var(--ink); border-radius:999px; background:var(--bg); display:grid; place-items:center; font-size:9px">○</span></div><p class="help" style="margin:8px 0 0">22 — cards · 14 — inner · 999 — pills</p></div>
+          <div class="demo"><div class="demo-title">Stroke</div><div style="height:44px; display:grid; place-items:center; border:1.5px solid var(--ink); border-radius:12px; background:var(--bg); font-size:11px; font-weight:700">1.5px — everywhere, flat</div><p class="help" style="margin:8px 0 0">No 1.2px variance. LCD demands one stroke weight.</p></div>
+          <div class="demo"><div class="demo-title">No shadow</div><div style="height:44px; display:grid; place-items:center; border:1.5px solid var(--ink); background:var(--bg); border-radius:12px; font-size:11px; font-weight:700; text-decoration:line-through; opacity:.6">shadow: none</div><p class="help" style="margin:8px 0 0">Early LCD is flat. No depth — ink on paper.</p></div>
+        </div>
+      </div>
+    <div class="section">
+      <div class="section-hd"><h2>Components</h2><p>flat LCD — ink or sage, nothing else</p></div>
+      <div class="section-bd">
+        <div class="component-grid">
+          <div class="demo"><div class="demo-title">Buttons</div><div class="btn-row"><button class="btn primary">Create rule →</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn circle">＋</button><button class="btn circle">−</button></div><p class="help">Primary = ink fill. No white.</p></div>
+          <div class="demo"><div class="demo-title">Toggles — flat</div><div style="display:flex; gap:12px; align-items:center"><div class="toggle off"><span class="label">OFF</span><span class="knob"></span></div><div class="toggle" style="background:var(--ink)"><span class="label">ON</span><span class="knob" style="left:27px; background:var(--bg)"></span></div><span class="pill">WAIVER</span></div><p class="help">Ink / sage only. No grey knob variant.</p></div>
+          <div class="demo"><div class="demo-title">Inputs</div><div style="display:grid; gap:8px"><input class="input" value="changed_files.exists(f, glob(&quot;**/*.cs&quot;))"/><input class="input error" value="glob(f.path, &quot;[invalid&quot;)"/><span class="help error">Error = inverted (black fill, sage text) — still only 3 inks.</span></div></div>
+          <div class="demo"><div class="demo-title">Card + Illustrations</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:8px"><div class="illus"><svg width="72" height="36" viewBox="0 0 72 36" fill="none" stroke="#0f1410" stroke-width="1.2"><rect x="4" y="6" width="12" height="24" rx="6"/><rect x="20" y="6" width="12" height="24" rx="6"/><rect x="36" y="6" width="12" height="24" rx="6"/><rect x="52" y="6" width="12" height="24" rx="6"/></svg></div><div class="illus"><svg width="54" height="30" viewBox="0 0 54 30"><rect x="1" y="1" width="52" height="28" rx="8" fill="none" stroke="#0f1410" stroke-width="1.1"/><path d="M8 10 H46 M8 18 H46" stroke="#0f1410" stroke-width="1.05"/></svg></div></div><p class="help">1.5px stroke, rounded tubes — ink on sage.</p></div>
+        </div>
+      </div>
+    <div class="section">
+      <div class="section-hd"><h2>How Fono maps to Quality Bar</h2><p>the image was heating — this is the translation contract</p></div>
+      <div class="section-bd">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:12px">
+          <div class="card"><b>19.0°C + −/＋ + 68% ring</b><p style="margin:6px 0 0; color:var(--grey)">→ <b>Threshold</b> + progress of a Codex run. “Running to desired threshold…” is the review-run lifecycle text.</p></div>
+          <div class="card"><b>RADIATORS → REPOSITORIES</b><p style="margin:6px 0 0; color:var(--grey)">4 tubes = 4 repos. COVERAGE 67% / WAIVERS 1.7 / SYNC.</p></div>
+          <div class="card"><b>PANELS WEST/EAST → RULES</b><p style="margin:6px 0 0; color:var(--grey)">UNIT / INTG 67% / 72% hit rates. Mock now uses real <b>Waivers</b> (not heating schedule).</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MOCKUP ============ -->
+  <div id="mock" class="hidden">
+    <div class="section" style="background:transparent; border:0; box-shadow:none">
+      <div style="padding:6px 2px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+        <span style="font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)">Live page mock</span>
+        <span style="font-size:12px; color:var(--muted)">— this is a <em>real</em> Quality Bar surface, not the heating app: <b style="color:var(--ink)">Review — “Require passing unit tests”</b> · the central entity (~28 files)</span>
+        <span style="margin-left:auto; display:flex; gap:6px"><span class="pill">review.js</span><span class="pill">review-run-*.js</span><span class="pill">applicability</span></span>
+      </div>
+    </div>
+
+    <div class="mock-shell">
+      <div class="mock-screen">
+        <div class="mock-status"><span>14:41</span><span style="letter-spacing:.2em; opacity:.7">● ● ●  ◐  ▮</span></div>
+        <div class="breadcrumb"><span>Reviews</span> <span>›</span> <b>Require passing unit tests</b> <span style="margin-left:auto; display:flex; gap:6px"><span class="badge fill">● FAIL · 2 FINDINGS</span><span class="badge">PR #482</span></span></div>
+        <div class="mock-header">
+          <div>
+            <h1>Require passing unit tests</h1>
+            <p>Precedence 20 · Applies to 8 repositories · Created 2026-07-14 · Assignment: <b style="color:var(--ink)">platform team</b> · <span style="text-decoration:underline; text-underline-offset:3px">Edit criteria</span> · Archive</p>
+          </div>
+          <button class="mock-menu" aria-label="menu">⋮</button>
+        </div>
+
+        <div class="threshold">
+          <button class="btn circle">−</button>
+          <div style="font-size:22px; font-weight:800; letter-spacing:-.03em; text-align:center; min-width:64px">68%</div>
+          <button class="btn circle">＋</button>
+          <div class="mid">Gate threshold<br><b style="color:var(--ink)">Running to desired coverage…</b></div>
+          <div class="progress" style="--pct:68%">68%</div>
+        </div>
+
+        <div class="cards2">
+          <div class="mini-card">
+            <div class="mini-card-head">REPOSITORIES <span>Edit</span></div>
+            <div class="illus">
+              <svg width="96" height="42" viewBox="0 0 96 42" fill="none" stroke="#0f1410" stroke-width="1.2" stroke-linecap="round"><rect x="6" y="7" width="14" height="28" rx="7"/><rect x="26" y="7" width="14" height="28" rx="7"/><rect x="46" y="7" width="14" height="28" rx="7"/><rect x="66" y="7" width="14" height="28" rx="7"/><circle cx="13" cy="30" r="1.4" fill="#0f1410" stroke="none"/></svg>
+            </div>
+            <div>
+              <div class="stat-row"><small>COVERAGE</small><b>67%</b></div>
+              <div class="stat-row"><small>WAIVERS</small><b>1.7 / wk</b></div>
+              <div class="stat-row"><small>SYNC</small><span style="font-family:var(--font-mono); font-weight:700; font-size:11px">ON&nbsp;&nbsp;OFF</span></div>
+            </div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-card-head">RULES <span>Active · 2 families</span></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+              <div class="illus" style="flex-direction:column; gap:3px; height:64px"><svg width="44" height="26" viewBox="0 0 44 26"><rect x="1" y="1" width="42" height="24" rx="7" fill="none" stroke="#0f1410" stroke-width="1.1"/><path d="M7 8 H37 M7 14 H37" stroke="#0f1410" stroke-width="1.05" stroke-linecap="round"/></svg><span style="font-size:10px; font-weight:800; letter-spacing:.07em">UNIT</span><b style="font-size:11px">67%</b></div>
+              <div class="illus" style="flex-direction:column; gap:3px; height:64px"><svg width="44" height="26" viewBox="0 0 44 26"><rect x="1" y="1" width="42" height="24" rx="7" fill="none" stroke="#0f1410" stroke-width="1.1"/><path d="M7 8 H37 M7 14 H37 M14 20 H37" stroke="#0f1410" stroke-width="1.05" stroke-linecap="round"/></svg><span style="font-size:10px; font-weight:800; letter-spacing:.07em">INTG</span><b style="font-size:11px">72%</b></div>
+            </div>
+            <div>
+              <div class="stat-row"><small>CAPACITY</small><b>320 evals</b></div>
+              <div class="stat-row"><small>WEEKLY</small><b>+1.6%</b></div>
+              <div class="stat-row"><small>TOTAL SAVED</small><b>190</b></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin:12px 16px 0; display:flex; gap:8px; align-items:center">
+          <span style="margin-left:auto; font-size:11px; color:var(--muted)">real surface · waiver-*.js (34 files) · not a heating timer</span>
+        </div>
+        <div class="waivers">
+          <div class="waiver-row">
+            <div>
+              <div class="w-title">Batch #14 · acme/payments-service · PR #482</div>
+              <div class="w-meta">2 files · <code style="font-family:var(--font-mono); font-size:10px; background:rgba(15,20,16,.06); padding:1px 5px; border-radius:6px">src/gen/schema.cs</code> · requested by <b style="color:var(--ink)">alice</b> · reason: generated, exempt per policy 4.2</div>
+              <div class="w-meta">Expires in <b style="color:var(--ink)">36h</b> · needs reviewer + operator sign-off</div>
+            </div>
+            <span class="w-badge pending">Pending</span>
+          </div>
+          <div class="waiver-row">
+            <div>
+              <div class="w-title">Batch #13 · acme/platform · PR #91</div>
+              <div class="w-meta">1 file · follows precedent #12 · requested by <b style="color:var(--ink)">bob</b> · adjudicator: platform team</div>
+              <div class="w-meta">Follow-up window <b style="color:var(--ink)">48h</b> · effective outcome held</div>
+            </div>
+            <span class="w-badge pending">Pending</span>
+          </div>
+          <div class="waiver-row">
+            <div>
+              <div class="w-title">Batch #12 · acme/legacy · PR #12</div>
+              <div class="w-meta">3 files · waived 2026-08-05 · adjudicated by <b style="color:var(--ink)">operator</b> · recovery path available</div>
+              <div class="w-meta">Outcome: <b style="color:var(--ink)">WAIVED</b> · retained in evidence seal</div>
+            </div>
+            <span class="w-badge">Waived</span>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <div class="eyebrow" style="padding:0 2px; color:var(--muted)">Applicability — CEL · compile-once, evaluate-many</div>
+            <div class="term" style="margin-top:6px">changed_files.exists(f,
+  glob(f.path, "**/*.cs") &amp;&amp;
+  f.content.matches(r'\[Fact\]')
+) <span style="opacity:.6">// cost 42/100 · precedence 20</span></div>
+            <div style="margin-top:10px; border:1.2px solid rgba(15,20,16,.12); background:var(--bg); border-radius:16px; overflow:hidden">
+              <div style="padding:10px 12px; font-size:11px; font-weight:800; letter-spacing:.06em; background:var(--bg); border-bottom:1px solid rgba(15,20,16,.08)">EVALUATIONS · PR #482</div>
+              <table style="width:100%; border-collapse:collapse; font-size:12px">
+                <tr style="font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)"><th style="text-align:left; padding:8px 10px; font-weight:700">Run</th><th style="text-align:left; padding:8px 10px; font-weight:700">Finding</th><th style="text-align:left; padding:8px 10px; font-weight:700">State</th></tr>
+                <tr><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08); font-family:var(--font-mono); font-size:11px">#4182</td><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08)">src/orders/PlaceOrder.cs:88 — missing branch</td><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08)"><span class="badge" style="background:var(--ink); color:var(--bg); border-color:var(--ink); font-size:10px">FAIL</span></td></tr>
+                <tr><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08); font-family:var(--font-mono); font-size:11px">#4181</td><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08)">src/gen/schema.cs — waivable</td><td style="padding:8px 10px; border-top:1px solid rgba(15,20,16,.08)"><span class="badge" style="font-size:10px; background:transparent">WAIVED</span></td></tr>
+              </table>
+            </div>
+          </div>
+          <div>
+            <div class="eyebrow" style="color:var(--muted)">Execution — admission → claim → Codex</div>
+            <div class="timeline" style="margin-top:8px">
+              <div class="step done"><div style="font-size:12px; font-weight:750">Admitted</div><div style="font-size:11px; color:var(--muted)">review-selection matched · lineage sealed</div></div>
+              <div class="step done"><div style="font-size:12px; font-weight:750">Claimed</div><div style="font-size:11px; color:var(--muted)">codex-concurrency gate · 1 at a time</div></div>
+              <div class="step active"><div style="font-size:12px; font-weight:750">Codex 0.145.0 — 68%</div><div style="font-size:11px; color:var(--muted)">/var/cache/checkouts/pr-482 · 18s</div></div>
+              <div class="step"><div style="font-size:12px; font-weight:750">Waiver</div><div style="font-size:11px; color:var(--muted)">src/gen/schema.cs — pending adjudication 36h</div></div>
+            </div>
+            <div class="finding" style="margin-top:12px">
+              <div style="font-size:11px; letter-spacing:.07em; text-transform:uppercase; font-weight:800">Finding — missing branch</div>
+              <p style="margin:6px 0 0; font-size:12px; color:var(--muted)">New <code style="font-family:var(--font-mono); background:transparent; border:1px solid rgba(15,20,16,.12); padding:1px 5px; border-radius:6px; font-size:11px">if (order.total &gt; threshold)</code> without corresponding <code style="font-family:var(--font-mono); font-size:11px">[Fact]</code>. Evidence includes snippet + AST position.</p>
+              <div style="margin-top:8px; display:flex; gap:8px"><button class="btn primary" style="padding:7px 12px; font-size:11.5px">Request waiver</button><button class="btn" style="padding:7px 12px; font-size:11.5px">View evidence</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+      </div>
+    </div>
+    <p class="help" style="margin-top:12px; text-align:center">Mock is <b>Review detail</b> — the central entity. Same tokens as the style guide: no new colors, no new radii. The phone layout scales to desktop by widening the shell (outer sage #D7DBD2 → inner #D7DBD2, same as image) and keeping the 22px / 1.2px system intact.</p>
+  </div>
+</div>
+
+<div class="footer">Canonical Style Guide · <code>theme-gallery-lcd.html</code> · 3 inks: <code>#D7DBD2</code> sage / <code>#0F1410</code> black / <code>#6D736D</code> grey · No shadows, 1.5px flat stroke, 22px radius · Single file — <code>open theme-gallery-lcd.html</code></div>
+
+<script>
+const tabs=document.querySelectorAll('.tab');
+const guide=document.getElementById('guide');
+const mock=document.getElementById('mock');
+tabs.forEach(t=> t.addEventListener('click', ()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const v=t.dataset.view;
+  if(v==='guide'){ guide.classList.remove('hidden'); mock.classList.add('hidden'); }
+  else { guide.classList.add('hidden'); mock.classList.remove('hidden'); window.scrollTo({top:0, behavior:'smooth'}); }
+}));
+</script>
+</body>
+</html>
