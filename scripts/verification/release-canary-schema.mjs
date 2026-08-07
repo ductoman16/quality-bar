@@ -51,6 +51,7 @@ function positiveInteger(value) {
 
 /** @param {unknown} evidence @param {string} message */
 function requireEnvelope(evidence, message) {
+  const hasInvocation = isRecord(evidence) && "invocation" in evidence;
   if (
     !isRecord(evidence) ||
     !hasExactKeys(evidence, [
@@ -63,12 +64,23 @@ function requireEnvelope(evidence, message) {
       "sourceCommit",
       "startedAt",
       "versions",
+      ...(hasInvocation ? ["invocation"] : []),
     ]) ||
     !validCommit(evidence.sourceCommit) ||
     !validTimestamp(evidence.startedAt) ||
     !validTimestamp(evidence.completedAt) ||
     Date.parse(evidence.completedAt) < Date.parse(evidence.startedAt) ||
     !["fail", "pass"].includes(evidence.outcome)
+  ) {
+    throw new TypeError(message);
+  }
+  if (
+    hasInvocation &&
+    (!isRecord(evidence.invocation) ||
+      !hasExactKeys(evidence.invocation, ["attemptId", "command"]) ||
+      typeof evidence.invocation.command !== "string" ||
+      typeof evidence.invocation.attemptId !== "string" ||
+      !ATTEMPT_ID.test(evidence.invocation.attemptId))
   ) {
     throw new TypeError(message);
   }
@@ -326,7 +338,13 @@ export function validateReleaseCanaries(canaries, sourceCommit) {
     !isRecord(value) ||
     !hasExactKeys(value, ["paidCodex", "privateGitHub"]) ||
     value.paidCodex.outcome !== "pass" ||
-    value.privateGitHub.outcome !== "pass"
+    value.privateGitHub.outcome !== "pass" ||
+    !isRecord(value.paidCodex.invocation) ||
+    value.paidCodex.invocation.command !== "canary:paid-codex" ||
+    !isRecord(value.privateGitHub.invocation) ||
+    value.privateGitHub.invocation.command !== "canary:private-github" ||
+    typeof value.paidCodex.invocation.attemptId !== "string" ||
+    typeof value.privateGitHub.invocation.attemptId !== "string"
   ) {
     throw new TypeError("release acceptance canary evidence is invalid");
   }

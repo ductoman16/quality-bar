@@ -10,14 +10,15 @@ import {
   QUALITY_BAR_VERIFICATION_PROOF,
   QUALITY_BAR_VERIFICATION_SOURCES,
 } from "./verification-contract.mjs";
-import { QUALITY_BAR_CANONICAL_REFERENCES } from "./traceability-contract.mjs";
+import {
+  QUALITY_BAR_CANONICAL_REFERENCES,
+  QUALITY_BAR_EXPECTED_IMPLEMENTED_OWNERS,
+} from "./traceability-contract.mjs";
 import { validateTraceabilityProofs } from "./traceability-proof.mjs";
 import { validateTraceabilityRelease } from "./traceability-release.mjs";
 import { validateTraceabilityResolution } from "./traceability-resolution.mjs";
-
 export const TRACEABILITY_OWNERSHIP_PATH =
   "evidence/quality-foundation/issue-127-traceability.json";
-
 const EXPECTED_SOURCES = [...Array(23).keys()].map((index) => `#${index + 2}`);
 const EXPECTED_PROOF_LAYERS = [...QUALITY_BAR_EXPECTED_PROOF_LAYERS];
 const EXPECTED_MANIFEST_PATHS = new Set([
@@ -36,7 +37,6 @@ const EXPECTED_MANIFEST_PATHS = new Set([
   "performance",
   "releaseCanaries",
 ]);
-
 /**
  * @typedef {{
  *   marker: string,
@@ -241,6 +241,14 @@ function validateOwners(marker) {
     }
     implementedByTicket.set(owner.ticket, owner.key);
   }
+  requireExact(
+    implemented.map((owner) => ({
+      ticket: owner.ticket,
+      key: owner.key,
+    })),
+    QUALITY_BAR_EXPECTED_IMPLEMENTED_OWNERS,
+    "implemented_owners",
+  );
   const ownerTickets = new Set();
   const ownerKeys = new Set();
   for (const owner of owners) {

@@ -29,6 +29,7 @@ const repositoryRoot = resolve(import.meta.dirname, "..");
  * @typedef {{
  *   canonical_references: Array<{id: string, role: string, url: string}>,
  *   cross_process_smokes: Array<{gate: string, testGroup: string}>,
+ *   implemented_owners: Array<{ticket: number, key: string}>,
  *   ownership_markers: Array<{ticket: number, key: string, sources: string[]}>,
  *   proof_implementations: Record<string, string[]>,
  *   proof_gate_bindings: Record<string, {gate: string, testGroup: string, command: string, arguments: string[], path: string}>,
@@ -113,6 +114,26 @@ test("the audit rejects duplicate-conflicting ownership", () => {
       assert.throws(
         () => auditTraceability({ repositoryRoot: directory }),
         /traceability_audit_duplicate_conflict/u,
+      ),
+  );
+});
+
+test("the audit rejects removing an implemented owner with its marker", () => {
+  withMarker(
+    (marker) => {
+      marker.implemented_owners = marker.implemented_owners.filter(
+        /** @param {{ticket: number}} owner */
+        (owner) => owner.ticket !== 27,
+      );
+      marker.ownership_markers = marker.ownership_markers.filter(
+        /** @param {{ticket: number}} owner */
+        (owner) => owner.ticket !== 27,
+      );
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_implemented_owners_stale/u,
       ),
   );
 });
@@ -302,6 +323,19 @@ test("release traceability requires both passing canary evidence", () => {
       auditTraceability({
         repositoryRoot,
         releaseCanaries: { paidCodex: evidence.paidCodex },
+        sourceCommit: releaseCanarySourceCommit,
+      }),
+    /traceability_audit_release_evidence_invalid/u,
+  );
+  const paidWithoutInvocation = { ...evidence.paidCodex };
+  Reflect.deleteProperty(paidWithoutInvocation, "invocation");
+  assert.throws(
+    () =>
+      validateTraceabilityRelease(marker, {
+        releaseCanaries: {
+          paidCodex: paidWithoutInvocation,
+          privateGitHub: evidence.privateGitHub,
+        },
         sourceCommit: releaseCanarySourceCommit,
       }),
     /traceability_audit_release_evidence_invalid/u,

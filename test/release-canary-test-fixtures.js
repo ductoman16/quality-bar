@@ -9,6 +9,10 @@ export function paidCodexPass(overrides = {}) {
       file: "reviewed.txt",
       id: "paid-codex-canary-fixture-v1",
     },
+    invocation: {
+      attemptId: "00000000-0000-4000-8000-000000000001",
+      command: "canary:paid-codex",
+    },
     kind: "paid-codex-canary",
     observations: {
       acceptedSubmission: true,
@@ -54,6 +58,10 @@ export function privateGitHubPass(overrides = {}) {
       id: "private-github-canary-fixture-v1",
       pullRequest: 7,
       repository: "quality-bar/private-canary",
+    },
+    invocation: {
+      attemptId: "00000000-0000-4000-8000-000000000002",
+      command: "canary:private-github",
     },
     kind: "private-github-canary",
     observations: {

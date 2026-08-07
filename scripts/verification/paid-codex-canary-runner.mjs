@@ -35,8 +35,15 @@ function failureEvidence({
   const at = new Date(now()).toISOString();
   return {
     completedAt: at,
-    failure: { code, detail, ...(attemptId ? { attemptId } : {}) },
+    failure: {
+      code,
+      detail,
+      ...(code === "paid_codex_canary_attempt_started" && attemptId
+        ? { attemptId }
+        : {}),
+    },
     fixture: { file: "reviewed.txt", id: "paid-codex-canary-fixture-v1" },
+    invocation: { attemptId, command: "canary:paid-codex" },
     kind: "paid-codex-canary",
     observations: null,
     outcome: "fail",
@@ -50,7 +57,7 @@ function failureEvidence({
   };
 }
 
-/** @param {unknown} error @param {{applicationVersion?: string | null, now: () => number, sourceCommit: string}} input */
+/** @param {unknown} error @param {{applicationVersion?: string | null, attemptId: string, now: () => number, sourceCommit: string}} input */
 function evidenceForError(error, input) {
   const code = owningCode(error);
   return failureEvidence({
@@ -111,9 +118,10 @@ export async function runPaidCodexCanaryLifecycle({
       lockPath,
       async (assertOwned, trackProcessGroup) => {
         leaseEntered = true;
+        const attemptId = createAttemptId();
         attemptEvidence = failureEvidence({
           applicationVersion: null,
-          attemptId: createAttemptId(),
+          attemptId,
           code: "paid_codex_canary_attempt_started",
           detail: "paid Codex canary attempt started",
           now,
@@ -147,7 +155,10 @@ export async function runPaidCodexCanaryLifecycle({
             { code: "paid_codex_canary_evidence_invalid" },
           );
         }
-        return canary;
+        return {
+          ...canary,
+          invocation: { attemptId, command: "canary:paid-codex" },
+        };
       },
     );
   } catch (error) {
@@ -161,6 +172,7 @@ export async function runPaidCodexCanaryLifecycle({
     lifecycleFailure = error;
     finalEvidence = evidenceForError(error, {
       applicationVersion: knownApplicationVersion,
+      attemptId: attemptEvidence?.invocation?.attemptId ?? createAttemptId(),
       now,
       sourceCommit,
     });
