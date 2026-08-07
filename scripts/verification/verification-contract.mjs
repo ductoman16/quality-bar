@@ -74,17 +74,6 @@ export const QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE = Object.freeze({
   path: "test/package/compose.package-test.mjs",
 });
 
-export const QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES = Object.freeze([
-  Object.freeze({
-    gate: "operator-browser-smoke",
-    testGroup: "authenticated-firefox-browser-cross-process",
-  }),
-  Object.freeze({
-    gate: "package-integration",
-    testGroup: "compose-service",
-  }),
-]);
-
 export const QUALITY_BAR_EXPECTED_PROOF_IMPLEMENTATIONS = Object.freeze({
   "adapter-integration": [
     "scripts/verification/review-run-admission-gate-definitions.mjs",

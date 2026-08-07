@@ -10,6 +10,7 @@ import {
   QUALITY_BAR_VERIFICATION_PROOF,
   QUALITY_BAR_VERIFICATION_SOURCES,
 } from "./verification-contract.mjs";
+import { QUALITY_BAR_CANONICAL_REFERENCES } from "./traceability-contract.mjs";
 import { validateTraceabilityProofs } from "./traceability-proof.mjs";
 import { validateTraceabilityRelease } from "./traceability-release.mjs";
 import { validateTraceabilityResolution } from "./traceability-resolution.mjs";
@@ -131,6 +132,22 @@ function validateIdentity(marker) {
   ) {
     throw new Error("traceability_audit_identity_stale");
   }
+  if (
+    !Array.isArray(marker.canonical_references) ||
+    marker.canonical_references.length === 0 ||
+    marker.canonical_references.some((reference) => !isRecord(reference))
+  ) {
+    throw new Error("traceability_audit_canonical_references_missing");
+  }
+  requireExact(
+    marker.canonical_references.map((reference) => ({
+      id: reference.id,
+      role: reference.role,
+      url: reference.url,
+    })),
+    QUALITY_BAR_CANONICAL_REFERENCES,
+    "canonical_references",
+  );
   requireExact(
     requiredArray(marker.sources, "sources"),
     QUALITY_BAR_VERIFICATION_SOURCES,
@@ -336,13 +353,14 @@ function validateEvidenceFields(marker) {
 }
 
 /**
- * @param {{repositoryRoot?: string, releaseCanaries?: unknown, sourceCommit?: string}} [options]
+ * @param {{repositoryRoot?: string, releaseCanaries?: unknown, sourceCommit?: string, invokedGates?: unknown}} [options]
  * @returns {TraceabilityAudit}
  */
 export function auditTraceability({
   repositoryRoot = resolve(import.meta.dirname, "../.."),
   releaseCanaries,
   sourceCommit,
+  invokedGates,
 } = {}) {
   const marker = readTraceabilityOwnership(repositoryRoot);
   validateIdentity(marker);
@@ -355,6 +373,7 @@ export function auditTraceability({
     marker,
     proofLayers: EXPECTED_PROOF_LAYERS,
     repositoryRoot,
+    invokedGates,
   });
   validateTraceabilityRelease(marker, { releaseCanaries, sourceCommit });
   return {

@@ -14,7 +14,9 @@ import {
   auditTraceability,
   TRACEABILITY_OWNERSHIP_PATH,
 } from "../scripts/verification/traceability-audit.mjs";
+import { validateTraceabilityProofs } from "../scripts/verification/traceability-proof.mjs";
 import { validateTraceabilityRelease } from "../scripts/verification/traceability-release.mjs";
+import { QUALITY_BAR_EXPECTED_PROOF_LAYERS } from "../scripts/verification/verification-contract.mjs";
 import {
   paidCodexPass,
   privateGitHubPass,
@@ -25,6 +27,8 @@ const repositoryRoot = resolve(import.meta.dirname, "..");
 
 /**
  * @typedef {{
+ *   canonical_references: Array<{id: string, role: string, url: string}>,
+ *   cross_process_smokes: Array<{gate: string, testGroup: string}>,
  *   ownership_markers: Array<{ticket: number, key: string, sources: string[]}>,
  *   proof_implementations: Record<string, string[]>,
  *   proof_gate_bindings: Record<string, {gate: string, testGroup: string, command: string, arguments: string[], path: string}>,
@@ -186,6 +190,20 @@ test("the audit rejects a stale source contract mapping", () => {
   );
 });
 
+test("the audit binds canonical specification and resolution references", () => {
+  withMarker(
+    (marker) => {
+      marker.canonical_references[1].url =
+        "https://github.com/ductoman16/quality-bar/issues/21";
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_canonical_references_stale/u,
+      ),
+  );
+});
+
 test("the testing-decision source must bind every proof layer", () => {
   withMarker(
     (marker) => {
@@ -231,6 +249,22 @@ test("the audit binds the packaged API and MCP smoke to its package gate", () =>
         () => auditTraceability({ repositoryRoot: directory }),
         /traceability_audit_proof_gate_bindings_stale/u,
       ),
+  );
+});
+
+test("the proof audit binds both cross-process smokes to live gates", () => {
+  const marker = JSON.parse(
+    readFileSync(resolve(repositoryRoot, TRACEABILITY_OWNERSHIP_PATH), "utf8"),
+  );
+  marker.cross_process_smokes[0].testGroup = "wrong-live-test-group";
+  assert.throws(
+    () =>
+      validateTraceabilityProofs({
+        marker,
+        proofLayers: [...QUALITY_BAR_EXPECTED_PROOF_LAYERS],
+        repositoryRoot,
+      }),
+    /traceability_audit_cross_process_smokes_stale/u,
   );
 });
 

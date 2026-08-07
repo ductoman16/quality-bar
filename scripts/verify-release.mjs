@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { validateCostFreeEvidence } from "./verification/cost-free-evidence-validation.mjs";
+import { readVerificationMetadata } from "./verification/metadata.mjs";
 import { auditTraceability } from "./verification/traceability-audit.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
@@ -20,14 +21,25 @@ try {
   ) {
     throw new TypeError("release acceptance manifest identity is invalid");
   }
+  const metadata = readVerificationMetadata(repositoryRoot);
+  if (metadata.sourceCommit !== manifest.sourceCommit) {
+    throw new TypeError("release acceptance source identity is stale");
+  }
+  if (
+    !Object.hasOwn(manifest, "releaseCanaries") ||
+    manifest.releaseCanaries === null
+  ) {
+    throw new TypeError("release acceptance canary evidence is required");
+  }
   validateCostFreeEvidence(manifest, {
     repositoryRoot,
-    sourceCommit: manifest.sourceCommit,
+    sourceCommit: metadata.sourceCommit,
   });
   auditTraceability({
+    invokedGates: manifest.invokedGates,
     repositoryRoot,
     releaseCanaries: manifest.releaseCanaries,
-    sourceCommit: manifest.sourceCommit,
+    sourceCommit: metadata.sourceCommit,
   });
   process.stdout.write("Quality Bar release acceptance: PASS\n");
 } catch (error) {

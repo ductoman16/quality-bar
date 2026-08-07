@@ -1,6 +1,23 @@
 {
   "ticket": 127,
   "parent": 25,
+  "canonical_references": [
+    {
+      "id": "#25",
+      "role": "specification",
+      "url": "https://github.com/ductoman16/quality-bar/issues/25"
+    },
+    {
+      "id": "#21#issuecomment-5072366039",
+      "role": "resolution",
+      "url": "https://github.com/ductoman16/quality-bar/issues/21#issuecomment-5072366039"
+    },
+    {
+      "id": "#22#issuecomment-5072725791",
+      "role": "resolution",
+      "url": "https://github.com/ductoman16/quality-bar/issues/22#issuecomment-5072725791"
+    }
+  ],
   "sources": [
     "#21",
     "#22"
@@ -20,6 +37,16 @@
   "proof": [
     "verification-gate",
     "evidence-manifest"
+  ],
+  "cross_process_smokes": [
+    {
+      "gate": "operator-browser-smoke",
+      "testGroup": "authenticated-firefox-browser-cross-process"
+    },
+    {
+      "gate": "package-integration",
+      "testGroup": "compose-service"
+    }
   ],
   "specification": {
     "source_contracts": [

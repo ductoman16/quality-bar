@@ -182,6 +182,7 @@ export function validateCostFreeEvidence(input, expected) {
     definitions,
     ownership: readVerificationOwnership(expected.repositoryRoot),
     traceability: auditTraceability({
+      invokedGates: input.invokedGates,
       repositoryRoot: expected.repositoryRoot,
     }),
   });

@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   QUALITY_BAR_ACCEPTANCE_SCENARIOS,
-  QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES,
   QUALITY_BAR_SPECIFICATION_PARENT,
   QUALITY_BAR_VERIFICATION_PROOF,
   QUALITY_BAR_VERIFICATION_SOURCES,
 } from "./verification-contract.mjs";
+import { QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES } from "./traceability-contract.mjs";
 
 export const VERIFICATION_OWNERSHIP_PATH =
   "evidence/quality-foundation/issue-123-verification.json";
