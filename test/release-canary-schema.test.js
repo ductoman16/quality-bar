@@ -5,6 +5,7 @@ import {
   validatePaidCodexCanaryEvidence,
   validatePrivateGitHubCanaryEvidence,
   validateReleaseCanaries,
+  validateRetainedReleaseCanaries,
 } from "../scripts/verification/release-canary-schema.mjs";
 import {
   paidCodexFailure,
@@ -138,5 +139,35 @@ test("validates the complete retained release-canary set", () => {
         releaseCanarySourceCommit,
       ),
     /release canary evidence is invalid/u,
+  );
+});
+
+test("release acceptance requires both passing canaries while retention stays incremental", () => {
+  const paid = paidCodexPass();
+  const failure = privateGitHubFailure();
+  assert.doesNotThrow(() =>
+    validateRetainedReleaseCanaries(
+      { paidCodex: paid },
+      releaseCanarySourceCommit,
+    ),
+  );
+  assert.doesNotThrow(() =>
+    validateRetainedReleaseCanaries(
+      { paidCodex: paid, privateGitHub: failure },
+      releaseCanarySourceCommit,
+    ),
+  );
+  assert.throws(
+    () =>
+      validateReleaseCanaries({ paidCodex: paid }, releaseCanarySourceCommit),
+    /release acceptance canary evidence is invalid/u,
+  );
+  assert.throws(
+    () =>
+      validateReleaseCanaries(
+        { paidCodex: paid, privateGitHub: failure },
+        releaseCanarySourceCommit,
+      ),
+    /release acceptance canary evidence is invalid/u,
   );
 });

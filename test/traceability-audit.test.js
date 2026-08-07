@@ -14,12 +14,18 @@ import {
   auditTraceability,
   TRACEABILITY_OWNERSHIP_PATH,
 } from "../scripts/verification/traceability-audit.mjs";
+import { validateTraceabilityRelease } from "../scripts/verification/traceability-release.mjs";
+import {
+  paidCodexPass,
+  privateGitHubPass,
+  releaseCanarySourceCommit,
+} from "./release-canary-test-fixtures.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
 /**
  * @typedef {{
- *   ownership_markers: Array<{key: string, sources: string[]}>,
+ *   ownership_markers: Array<{ticket: number, key: string, sources: string[]}>,
  *   proof_implementations: Record<string, string[]>,
  *   proof_gate_bindings: Record<string, {gate: string, testGroup: string, command: string, arguments: string[], path: string}>,
  *   specification: {
@@ -167,6 +173,23 @@ test("the audit rejects a stale source contract mapping", () => {
   );
 });
 
+test("the audit rejects a proof owner that does not own the source contract", () => {
+  withMarker(
+    (marker) => {
+      const owner = marker.ownership_markers.find(
+        (candidate) => candidate.ticket === 38,
+      );
+      assert.ok(owner);
+      owner.sources = owner.sources.filter((source) => source !== "#2");
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_requirement_proof_owner_stale: #2/u,
+      ),
+  );
+});
+
 test("the audit binds the packaged API and MCP smoke to its package gate", () => {
   withMarker(
     (marker) => {
@@ -178,5 +201,29 @@ test("the audit binds the packaged API and MCP smoke to its package gate", () =>
         () => auditTraceability({ repositoryRoot: directory }),
         /traceability_audit_proof_gate_bindings_stale/u,
       ),
+  );
+});
+
+test("release traceability requires both passing canary evidence", () => {
+  const marker = JSON.parse(
+    readFileSync(resolve(repositoryRoot, TRACEABILITY_OWNERSHIP_PATH), "utf8"),
+  );
+  const evidence = {
+    paidCodex: paidCodexPass(),
+    privateGitHub: privateGitHubPass(),
+  };
+  assert.doesNotThrow(() =>
+    validateTraceabilityRelease(marker, {
+      releaseCanaries: evidence,
+      sourceCommit: releaseCanarySourceCommit,
+    }),
+  );
+  assert.throws(
+    () =>
+      validateTraceabilityRelease(marker, {
+        releaseCanaries: { paidCodex: evidence.paidCodex },
+        sourceCommit: releaseCanarySourceCommit,
+      }),
+    /traceability_audit_release_evidence_invalid/u,
   );
 });

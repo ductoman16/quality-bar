@@ -290,7 +290,7 @@ export function validatePrivateGitHubCanaryEvidence(evidence) {
 }
 
 /** @param {unknown} canaries @param {string} sourceCommit */
-export function validateReleaseCanaries(canaries, sourceCommit) {
+export function validateRetainedReleaseCanaries(canaries, sourceCommit) {
   if (!isRecord(canaries) || Object.keys(canaries).length === 0) {
     throw new TypeError("release canary evidence is invalid");
   }
@@ -317,4 +317,18 @@ export function validateReleaseCanaries(canaries, sourceCommit) {
     throw new TypeError("release canary evidence is invalid");
   }
   return canaries;
+}
+
+/** @param {unknown} canaries @param {string} sourceCommit */
+export function validateReleaseCanaries(canaries, sourceCommit) {
+  const value = validateRetainedReleaseCanaries(canaries, sourceCommit);
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["paidCodex", "privateGitHub"]) ||
+    value.paidCodex.outcome !== "pass" ||
+    value.privateGitHub.outcome !== "pass"
+  ) {
+    throw new TypeError("release acceptance canary evidence is invalid");
+  }
+  return value;
 }

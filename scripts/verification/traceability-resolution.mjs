@@ -48,15 +48,25 @@ export function validateTraceabilityResolution(marker, owners) {
         contract.proof_owners[layer],
         "requirement_proof_owners",
       );
+      if (new Set(proofOwners).size !== proofOwners.length) {
+        throw new Error(
+          `traceability_audit_requirement_proof_owners_conflict: ${contract.id}`,
+        );
+      }
+      const sourceOwnerTickets = new Set(
+        sourceOwners.map((owner) => owner.ticket),
+      );
       if (
-        !proofOwners.some((ticket) =>
-          owners.some(
-            (owner) => owner.ticket === ticket && owner.proof.includes(layer),
-          ),
+        proofOwners.some(
+          (ticket) =>
+            !sourceOwnerTickets.has(ticket) ||
+            !owners.some(
+              (owner) => owner.ticket === ticket && owner.proof.includes(layer),
+            ),
         )
       ) {
         throw new Error(
-          `traceability_audit_requirement_proof_unproved: ${contract.id}`,
+          `traceability_audit_requirement_proof_owner_stale: ${contract.id}`,
         );
       }
     }

@@ -18,7 +18,7 @@ import {
 } from "./paid-codex-canary-events.mjs";
 import {
   validatePaidCodexCanaryEvidence,
-  validateReleaseCanaries,
+  validateRetainedReleaseCanaries,
 } from "./release-canary-schema.mjs";
 
 const KIND = "paid-codex-canary";
@@ -352,7 +352,10 @@ export function mergePaidCodexCanaryEvidence(manifest, canary) {
     manifest.releaseCanaries !== undefined
   ) {
     try {
-      validateReleaseCanaries(manifest.releaseCanaries, manifest.sourceCommit);
+      validateRetainedReleaseCanaries(
+        manifest.releaseCanaries,
+        manifest.sourceCommit,
+      );
     } catch {
       throw failure(
         "paid_codex_canary_cost_free_evidence_invalid",

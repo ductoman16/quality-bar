@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 
 import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 import { validatePerformanceFacts } from "./performance-budget.mjs";
-import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { validateRetainedReleaseCanaries } from "./release-canary-schema.mjs";
 import { updateVerificationEvidence } from "./release-canary-evidence.mjs";
 
 /**
@@ -293,7 +293,7 @@ function retainedReleaseCanaries(current, manifest) {
     throw new TypeError("existing release canary evidence is invalid");
   }
   try {
-    validateReleaseCanaries(canaries, manifest.sourceCommit);
+    validateRetainedReleaseCanaries(canaries, manifest.sourceCommit);
   } catch {
     throw new TypeError("existing release canary evidence is invalid");
   }

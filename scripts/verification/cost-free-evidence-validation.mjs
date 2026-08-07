@@ -1,7 +1,7 @@
 import { createGateDefinitions } from "./gate-definitions.mjs";
 import { createManifest } from "./manifest-reporting.mjs";
 import { readVerificationMetadata } from "./metadata.mjs";
-import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { validateRetainedReleaseCanaries } from "./release-canary-schema.mjs";
 import { auditTraceability } from "./traceability-audit.mjs";
 import {
   createVerificationAggregation,
@@ -210,7 +210,10 @@ export function validateCostFreeEvidence(input, expected) {
     }
   }
   if (input.releaseCanaries !== null) {
-    validateReleaseCanaries(input.releaseCanaries, expected.sourceCommit);
+    validateRetainedReleaseCanaries(
+      input.releaseCanaries,
+      expected.sourceCommit,
+    );
   }
   return input;
 }

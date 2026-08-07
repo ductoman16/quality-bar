@@ -35,7 +35,7 @@
           "http-integration"
         ],
         "evidence": "Version, activation, identity, validation assertions",
-        "proof_owners": {"unit": [26], "browser-component": [30], "http-integration": [37]}
+        "proof_owners": {"unit": [38], "browser-component": [38], "http-integration": [38]}
       },
       {
         "id": "#3",
@@ -48,7 +48,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Command, events, exit, schema, version facts",
-        "proof_owners": {"fake-codex-integration": [54]}
+        "proof_owners": {"fake-codex-integration": [57]}
       },
       {
         "id": "#4",
@@ -77,7 +77,7 @@
           "git-integration"
         ],
         "evidence": "Rule/result/match/error assertions",
-        "proof_owners": {"unit": [26], "git-integration": [47]}
+        "proof_owners": {"unit": [40], "git-integration": [52]}
       },
       {
         "id": "#6",
@@ -92,7 +92,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Atomic coverage, outcome, Finding invariants",
-        "proof_owners": {"unit": [26], "sqlite-integration": [37], "fake-codex-integration": [54]}
+        "proof_owners": {"unit": [54], "sqlite-integration": [54], "fake-codex-integration": [54]}
       },
       {
         "id": "#7",
@@ -106,7 +106,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Submission, timer, cancellation, transcript facts",
-        "proof_owners": {"fake-codex-integration": [54]}
+        "proof_owners": {"fake-codex-integration": [57]}
       },
       {
         "id": "#8",
@@ -122,7 +122,7 @@
           "security-integration"
         ],
         "evidence": "Identity, scopes, profiles, rotation, health",
-        "proof_owners": {"adapter-integration": [55], "git-integration": [47], "security-integration": [30]}
+        "proof_owners": {"adapter-integration": [55], "git-integration": [47], "security-integration": [131]}
       },
       {
         "id": "#9",
@@ -139,7 +139,7 @@
           "sqlite-integration"
         ],
         "evidence": "Baseline, pair, deduplication, rate facts",
-        "proof_owners": {"unit": [26], "git-integration": [47], "adapter-integration": [55], "sqlite-integration": [37]}
+        "proof_owners": {"unit": [54], "git-integration": [54], "adapter-integration": [104], "sqlite-integration": [54]}
       },
       {
         "id": "#10",
@@ -151,7 +151,7 @@
           "security-integration"
         ],
         "evidence": "Credential exclusion, redaction, trust facts",
-        "proof_owners": {"security-integration": [30]}
+        "proof_owners": {"security-integration": [34]}
       },
       {
         "id": "#11",
@@ -181,7 +181,7 @@
           "sqlite-integration"
         ],
         "evidence": "Status mapping, source/external identity, retries",
-        "proof_owners": {"adapter-integration": [55], "sqlite-integration": [37]}
+        "proof_owners": {"adapter-integration": [104], "sqlite-integration": [69]}
       },
       {
         "id": "#13",
@@ -196,7 +196,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Atomic Decisions, limits, retries, outcome",
-        "proof_owners": {"unit": [26], "sqlite-integration": [37], "fake-codex-integration": [54]}
+        "proof_owners": {"unit": [92], "sqlite-integration": [92], "fake-codex-integration": [92]}
       },
       {
         "id": "#14",
@@ -210,7 +210,7 @@
           "http-integration"
         ],
         "evidence": "Numerators, denominators, missing/error states",
-        "proof_owners": {"unit": [26], "browser-component": [30], "http-integration": [37]}
+        "proof_owners": {"unit": [66], "browser-component": [66], "http-integration": [106]}
       },
       {
         "id": "#15",
@@ -227,7 +227,7 @@
           "mcp-integration"
         ],
         "evidence": "Session/token/authority/redaction assertions",
-        "proof_owners": {"unit": [26], "browser-component": [30], "http-openapi-integration": [72], "mcp-integration": [74]}
+        "proof_owners": {"unit": [30], "browser-component": [30], "http-openapi-integration": [72], "mcp-integration": [74]}
       },
       {
         "id": "#16",
@@ -256,7 +256,7 @@
           "package-integration"
         ],
         "evidence": "Seven tools, resources, equivalence, polling",
-        "proof_owners": {"mcp-integration": [74], "http-openapi-integration": [72], "package-integration": [26]}
+        "proof_owners": {"mcp-integration": [74], "http-openapi-integration": [74], "package-integration": [26]}
       },
       {
         "id": "#18",
@@ -272,7 +272,7 @@
           "sqlite-failure-integration"
         ],
         "evidence": "Transactions, leases, retries, backup/restore",
-        "proof_owners": {"sqlite-integration": [37], "process-integration": [55], "sqlite-failure-integration": [55]}
+        "proof_owners": {"sqlite-integration": [54], "process-integration": [55], "sqlite-failure-integration": [55]}
       },
       {
         "id": "#19",
@@ -289,7 +289,7 @@
           "operator-browser-smoke"
         ],
         "evidence": "Resource workflows and distinct states",
-        "proof_owners": {"browser-component": [30], "operator-browser-smoke": [36]}
+        "proof_owners": {"browser-component": [31], "operator-browser-smoke": [36]}
       },
       {
         "id": "#20",
@@ -331,7 +331,7 @@
           "private-github-canary"
         ],
         "evidence": "Evidence manifest and performance gates",
-        "proof_owners": {"unit": [26], "browser-component": [30], "sqlite-integration": [37], "process-integration": [55], "adapter-integration": [55], "verification-gate": [26], "evidence-manifest": [26], "paid-codex-canary": [125], "private-github-canary": [126]}
+        "proof_owners": {"unit": [26], "browser-component": [36], "sqlite-integration": [58], "process-integration": [56], "adapter-integration": [56], "verification-gate": [26], "evidence-manifest": [26], "paid-codex-canary": [125], "private-github-canary": [126]}
       },
       {
         "id": "#22",
@@ -353,7 +353,7 @@
           "evidence-manifest"
         ],
         "evidence": "Complete mapping, no unresolved requirement",
-        "proof_owners": {"verification-gate": [26], "evidence-manifest": [26]}
+        "proof_owners": {"verification-gate": [123], "evidence-manifest": [123]}
       },
       {
         "id": "#23",
@@ -368,7 +368,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Catalog compatibility, immutable config",
-        "proof_owners": {"unit": [26], "http-integration": [37], "fake-codex-integration": [54]}
+        "proof_owners": {"unit": [37], "http-integration": [37], "fake-codex-integration": [92]}
       },
       {
         "id": "#24",
@@ -382,7 +382,7 @@
           "fake-codex-integration"
         ],
         "evidence": "Inspect-on-demand, material-error behavior",
-        "proof_owners": {"git-integration": [47], "fake-codex-integration": [54]}
+        "proof_owners": {"git-integration": [62], "fake-codex-integration": [62]}
       }
     ],
     "proof_layers": [
@@ -476,6 +476,20 @@
       {
         "id": "total-duration",
         "path": "totalDurationMs",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "outcome",
+        "path": "outcome",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "failures",
+        "path": "failures",
         "owners": [
           123
         ]
@@ -937,7 +951,8 @@
       "key": "p01",
       "sources": [
         "#20",
-        "#21"
+        "#21",
+        "#17"
       ],
       "scenarios": [
         "ACC-01",
@@ -1462,7 +1477,9 @@
       "ticket": 55,
       "key": "o01",
       "sources": [
-        "#18"
+        "#18",
+        "#4",
+        "#8"
       ],
       "scenarios": [
         "ACC-08"
@@ -1827,7 +1844,8 @@
       "key": "api04",
       "sources": [
         "#15",
-        "#17"
+        "#17",
+        "#11"
       ],
       "scenarios": [
         "ACC-02",

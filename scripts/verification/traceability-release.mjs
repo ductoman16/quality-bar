@@ -1,3 +1,5 @@
+import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+
 const EXPECTED_RELEASE_PROOF = ["paid-codex-canary", "private-github-canary"];
 
 /** @param {unknown} actual @param {unknown} expected @param {string} field */
@@ -7,8 +9,11 @@ function requireExact(actual, expected, field) {
   }
 }
 
-/** @param {Record<string, any>} marker */
-export function validateTraceabilityRelease(marker) {
+/**
+ * @param {Record<string, any>} marker
+ * @param {{releaseCanaries?: unknown, sourceCommit?: string}} [evidence]
+ */
+export function validateTraceabilityRelease(marker, evidence = {}) {
   const release = marker.release_acceptance;
   if (
     typeof release !== "object" ||
@@ -41,6 +46,16 @@ export function validateTraceabilityRelease(marker) {
     );
     if (!owner || JSON.stringify(owner.proof) !== JSON.stringify([proof])) {
       throw new Error("traceability_audit_release_owner_unproved");
+    }
+  }
+  if (evidence.releaseCanaries !== undefined) {
+    if (typeof evidence.sourceCommit !== "string") {
+      throw new Error("traceability_audit_release_evidence_identity_invalid");
+    }
+    try {
+      validateReleaseCanaries(evidence.releaseCanaries, evidence.sourceCommit);
+    } catch {
+      throw new Error("traceability_audit_release_evidence_invalid");
     }
   }
 }

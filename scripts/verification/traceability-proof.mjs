@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { createGateDefinitions } from "./gate-definitions.mjs";
+import { readVerificationMetadata } from "./metadata.mjs";
 import {
   QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE,
   QUALITY_BAR_EXPECTED_PROOF_IMPLEMENTATIONS,
@@ -11,6 +13,42 @@ function requireExact(actual, expected, field) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(`traceability_audit_${field}_stale`);
   }
+}
+
+/** @param {string} repositoryRoot @param {Record<string, any>} binding */
+function validateLivePackagedSmokeBinding(repositoryRoot, binding) {
+  let definitions;
+  try {
+    definitions = createGateDefinitions(
+      readVerificationMetadata(repositoryRoot),
+    );
+  } catch {
+    throw new Error("traceability_audit_proof_gate_binding_unproved");
+  }
+  const definition = definitions.find(
+    (candidate) => candidate.name === "package-integration",
+  );
+  if (
+    !definition ||
+    typeof definition.testGroup !== "string" ||
+    !Array.isArray(definition.arguments) ||
+    definition.arguments.length === 0
+  ) {
+    throw new Error("traceability_audit_proof_gate_binding_unproved");
+  }
+  const derivedBinding = {
+    gate: definition.name,
+    testGroup: definition.testGroup,
+    command: definition.command ?? "node",
+    arguments: [...definition.arguments],
+    path: definition.arguments.at(-1),
+  };
+  requireExact(
+    derivedBinding,
+    QUALITY_BAR_EXPECTED_PACKAGED_API_MCP_SMOKE,
+    "proof_gate_bindings",
+  );
+  requireExact(binding, derivedBinding, "proof_gate_bindings");
 }
 
 /**
@@ -88,4 +126,8 @@ export function validateTraceabilityProofs({
       throw new Error(`traceability_audit_proof_unproved: ${layer}`);
     }
   }
+  validateLivePackagedSmokeBinding(
+    repositoryRoot,
+    bindings["packaged-api-mcp-smoke"],
+  );
 }

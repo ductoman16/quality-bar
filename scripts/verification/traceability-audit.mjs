@@ -52,6 +52,8 @@ const EXPECTED_MANIFEST_PATHS = new Set([
   "invokedGates[].durationMs",
   "invokedGates[].facts",
   "totalDurationMs",
+  "outcome",
+  "failures",
   "performance",
   "releaseCanaries",
 ]);

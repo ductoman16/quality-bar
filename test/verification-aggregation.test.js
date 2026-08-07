@@ -85,6 +85,20 @@ test("cost-free verification owns the three accepted invocation groups", () => {
   ]);
 });
 
+test("the aggregation rejects a different pair of cross-process smokes", () => {
+  const ownership = readVerificationOwnership(repositoryRoot);
+  ownership.crossProcessSmokes.reverse();
+  assert.throws(
+    () =>
+      createVerificationAggregation({
+        definitions: definitions(),
+        ownership,
+        traceability: traceability(),
+      }),
+    /verification_aggregation_cross_process_smokes_invalid/u,
+  );
+});
+
 test("the shared manifest preserves ownership and aggregation evidence", () => {
   const ownership = readVerificationOwnership(repositoryRoot);
   const aggregation = createVerificationAggregation({

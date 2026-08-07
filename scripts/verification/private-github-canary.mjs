@@ -5,7 +5,7 @@ import {
 } from "../../src/github-feedback.js";
 import {
   validatePrivateGitHubCanaryEvidence,
-  validateReleaseCanaries,
+  validateRetainedReleaseCanaries,
 } from "./release-canary-schema.mjs";
 
 const KIND = "private-github-canary";
@@ -338,7 +338,10 @@ export function mergePrivateGitHubCanaryEvidence(manifest, canary) {
     manifest.releaseCanaries !== undefined
   ) {
     try {
-      validateReleaseCanaries(manifest.releaseCanaries, manifest.sourceCommit);
+      validateRetainedReleaseCanaries(
+        manifest.releaseCanaries,
+        manifest.sourceCommit,
+      );
     } catch {
       throw failure(
         "private_github_canary_cost_free_evidence_invalid",

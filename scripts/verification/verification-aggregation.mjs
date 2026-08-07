@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   QUALITY_BAR_ACCEPTANCE_SCENARIOS,
+  QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES,
   QUALITY_BAR_SPECIFICATION_PARENT,
   QUALITY_BAR_VERIFICATION_PROOF,
   QUALITY_BAR_VERIFICATION_SOURCES,
@@ -79,6 +80,12 @@ function readCrossProcessSmokes(value) {
     return { gate: entry.gate, testGroup: entry.testGroup };
   });
   if (new Set(smokes.map((smoke) => smoke.gate)).size !== smokes.length) {
+    throw new Error("verification_ownership_cross_process_smokes_invalid");
+  }
+  if (
+    JSON.stringify(smokes) !==
+    JSON.stringify(QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES)
+  ) {
     throw new Error("verification_ownership_cross_process_smokes_invalid");
   }
   return smokes;
@@ -183,6 +190,12 @@ export function createVerificationAggregation({
     return smoke;
   });
   if (crossProcessSmokes.length !== 2) {
+    throw new Error("verification_aggregation_cross_process_smokes_invalid");
+  }
+  if (
+    JSON.stringify(crossProcessSmokes) !==
+    JSON.stringify(QUALITY_BAR_EXPECTED_CROSS_PROCESS_SMOKES)
+  ) {
     throw new Error("verification_aggregation_cross_process_smokes_invalid");
   }
   const crossProcessNames = new Set(
