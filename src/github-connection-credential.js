@@ -1,0 +1,174 @@
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes as createRandomBytes,
+} from "node:crypto";
+
+/** @param {{appId: number, id: string}} connection */
+function authenticatedData(connection) {
+  return Buffer.from(
+    JSON.stringify([
+      "quality-bar-github-connection-credential-v1",
+      connection.id,
+      connection.appId,
+    ]),
+  );
+}
+
+/**
+ * @param {Buffer} masterKey
+ * @param {{randomBytes?: (size: number) => Buffer, onSecret?: (secret: string) => unknown}} [options]
+ */
+export function createGitHubConnectionCredentialCipher(
+  masterKey,
+  { randomBytes = createRandomBytes, onSecret } = {},
+) {
+  if (!Buffer.isBuffer(masterKey) || masterKey.length !== 32) {
+    throw new TypeError("a 32-byte installation master key is required");
+  }
+  if (onSecret !== undefined && typeof onSecret !== "function") {
+    throw new TypeError("onSecret must be a function");
+  }
+  const key = Buffer.from(masterKey);
+
+  /** @param {{client_id: string | null, installation_id: number, pem: string}} credential */
+  function rememberCredential(credential) {
+    if (credential.client_id !== null) {
+      onSecret?.(credential.client_id);
+    }
+    onSecret?.(credential.pem);
+  }
+  return {
+    /**
+     * @param {{appId: number, id: string}} connection
+     * @param {{client_id: string | null, installation_id: number, pem: string}} credential
+     */
+    encrypt(connection, credential) {
+      try {
+        rememberCredential(credential);
+        const initializationVector = randomBytes(12);
+        if (
+          !Buffer.isBuffer(initializationVector) ||
+          initializationVector.length !== 12
+        ) {
+          throw new Error("initialization vector is invalid");
+        }
+        const cipher = createCipheriv("aes-256-gcm", key, initializationVector);
+        cipher.setAAD(authenticatedData(connection));
+        const ciphertext = Buffer.concat([
+          cipher.update(JSON.stringify(credential), "utf8"),
+          cipher.final(),
+        ]);
+        return [
+          "v1",
+          initializationVector.toString("base64"),
+          cipher.getAuthTag().toString("base64"),
+          ciphertext.toString("base64"),
+        ].join(".");
+      } catch (cause) {
+        throw Object.assign(
+          new Error("GitHub Connection credential could not be encrypted", {
+            cause,
+          }),
+          { code: "github_connection_credential_encryption_unavailable" },
+        );
+      }
+    },
+    /**
+     * @param {{appId: number, id: string}} connection
+     * @param {string} encrypted
+     */
+    decrypt(connection, encrypted) {
+      try {
+        const [version, iv, tag, ciphertext, ...extra] = encrypted.split(".");
+        if (version !== "v1" || !iv || !tag || !ciphertext || extra.length) {
+          throw new Error("credential envelope is invalid");
+        }
+        const decipher = createDecipheriv(
+          "aes-256-gcm",
+          key,
+          Buffer.from(iv, "base64"),
+        );
+        decipher.setAAD(authenticatedData(connection));
+        decipher.setAuthTag(Buffer.from(tag, "base64"));
+        const value = /** @type {unknown} */ (
+          JSON.parse(
+            Buffer.concat([
+              decipher.update(Buffer.from(ciphertext, "base64")),
+              decipher.final(),
+            ]).toString("utf8"),
+          )
+        );
+        if (
+          !value ||
+          Array.isArray(value) ||
+          typeof value !== "object" ||
+          Object.keys(value).length !== 3 ||
+          !("client_id" in value) ||
+          !(
+            value.client_id === null ||
+            (typeof value.client_id === "string" && value.client_id.length > 0)
+          ) ||
+          !("installation_id" in value) ||
+          !Number.isSafeInteger(value.installation_id) ||
+          !("pem" in value) ||
+          typeof value.pem !== "string" ||
+          value.pem.length === 0
+        ) {
+          throw new Error("credential plaintext is invalid");
+        }
+        const credential = {
+          client_id: value.client_id,
+          installation_id: /** @type {number} */ (value.installation_id),
+          pem: value.pem,
+        };
+        rememberCredential(credential);
+        return credential;
+      } catch (cause) {
+        throw Object.assign(
+          new Error("GitHub Connection credential cannot be decrypted", {
+            cause,
+          }),
+          { code: "github_connection_credential_undecryptable" },
+        );
+      }
+    },
+    destroy() {
+      key.fill(0);
+    },
+  };
+}
+
+/**
+ * @param {any} durableCore
+ * @param {{decrypt: (connection: {appId: number, id: string}, encrypted: string) => unknown, destroy: () => unknown}} cipher
+ */
+export function validatePersistedGitHubCredentials(durableCore, cipher) {
+  try {
+    for (const row of durableCore.all(
+      `SELECT
+       github_connections.id,
+       github_connections.app_id,
+       github_connection_credentials.encrypted_credential
+     FROM github_connections
+     JOIN github_connection_credentials
+       ON github_connection_credentials.connection_id = github_connections.id`,
+    )) {
+      if (
+        !row ||
+        typeof row.id !== "string" ||
+        !Number.isSafeInteger(row.app_id) ||
+        typeof row.encrypted_credential !== "string"
+      ) {
+        throw new TypeError("GitHub Connection credential row is invalid");
+      }
+      cipher.decrypt(
+        { appId: /** @type {number} */ (row.app_id), id: row.id },
+        row.encrypted_credential,
+      );
+    }
+  } catch (error) {
+    cipher.destroy();
+    throw error;
+  }
+}

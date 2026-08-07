@@ -1,0 +1,4 @@
+const { failure: reason } = Object.freeze({
+  failure: new String("invalid"),
+});
+throw reason;

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "precision": 2,
+  "genesisHash": "sha256:b1b0f6bb68e31b46812072358bf8610164fdd110c9553011478434d2a8f1102f",
+  "entries": [
+    {
+      "previousHash": "sha256:b1b0f6bb68e31b46812072358bf8610164fdd110c9553011478434d2a8f1102f",
+      "sourceCommit": "313f83f70a96e7959c5539b45eca4493430ebca0",
+      "thresholds": {
+        "lines": "86.01",
+        "branches": "83.26",
+        "functions": "88.71"
+      },
+      "hash": "sha256:e21af3df8aa40242c9b9cfd839845227b3f088051a4c240f682fad3be7286914"
+    }
+  ]
+}

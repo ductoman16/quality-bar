@@ -1,0 +1,2 @@
+Reflect["get"](process, "env").QUALITY_BAR_TEST;
+Object["getOwnPropertyDescriptor"](process, "env").value.QUALITY_BAR_TEST;

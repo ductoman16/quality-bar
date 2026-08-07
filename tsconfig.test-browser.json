@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.browser.json",
+  "files": ["fixtures/operator-browser-login.js"]
+}

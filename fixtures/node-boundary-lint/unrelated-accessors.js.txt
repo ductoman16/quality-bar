@@ -1,0 +1,3 @@
+const record = { name: "ready" };
+Reflect.get(record, "name");
+Object.getOwnPropertyDescriptor(record, "name");

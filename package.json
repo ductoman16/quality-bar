@@ -2,10 +2,48 @@
   "name": "quality-bar",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.18.0"
+  },
+  "packageManager": "npm@11.16.0",
   "scripts": {
-    "start": "node src/main.js",
-    "test": "node --test",
-    "test:package": "node --test test/package/compose.package-test.mjs",
-    "verify": "node scripts/verify.mjs"
+    "canary:paid-codex": "node scripts/run-with-exact-node.mjs scripts/verification/run-paid-codex-canary.mjs",
+    "canary:private-github": "node scripts/run-with-exact-node.mjs scripts/verification/run-private-github-canary.mjs",
+    "verify:release": "node scripts/run-with-exact-node.mjs scripts/verify-release.mjs",
+    "start": "node scripts/run-with-exact-node.mjs src/main.js",
+    "test": "node scripts/run-with-exact-node.mjs --test",
+    "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",
+    "lint:correctness": "node scripts/run-with-exact-node.mjs scripts/core-js-lint.mjs",
+    "lint:boundaries": "node scripts/run-with-exact-node.mjs scripts/node-boundary-lint.mjs",
+    "typecheck:node": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.node.json",
+    "typecheck:browser": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.browser.json",
+    "typecheck:tests": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test.json && node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test-browser.json",
+    "typecheck:verification": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.verification.json",
+    "typecheck:production": "npm run typecheck:node && npm run typecheck:browser",
+    "typecheck:proof": "npm run typecheck:tests && npm run typecheck:verification",
+    "coverage": "node scripts/run-with-exact-node.mjs scripts/application-coverage.mjs",
+    "openapi:check": "node scripts/run-with-exact-node.mjs scripts/openapi-structural.mjs",
+    "test:package": "node scripts/run-with-exact-node.mjs --test test/package/compose.package-test.mjs",
+    "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
+    "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
+    "verify": "node scripts/run-with-exact-node.mjs scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@seriousme/openapi-schema-validator": "2.9.0",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "c8": "12.0.0",
+    "eslint": "9.39.1",
+    "eslint-plugin-n": "18.2.2",
+    "espree": "10.4.0",
+    "globals": "14.0.0",
+    "prettier": "3.7.4",
+    "typescript": "7.0.2",
+    "yaml": "2.9.0"
+  },
+  "dependencies": {
+    "re2-wasm": "1.0.2"
   }
 }

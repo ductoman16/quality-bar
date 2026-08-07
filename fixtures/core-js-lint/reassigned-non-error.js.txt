@@ -1,0 +1,3 @@
+let value = new Error("valid");
+value = new String("not an Error");
+throw value;

@@ -1,0 +1,18 @@
+{
+  "ticket": 158,
+  "focused_command": "npm run lint:structure",
+  "initial_violations": [
+    {
+      "logical_lines": 609,
+      "path": "src/canonical-api.js",
+      "rule": "max-lines"
+    },
+    {
+      "logical_lines": 403,
+      "path": "test/durable-core.test.js",
+      "rule": "max-lines"
+    }
+  ],
+  "resolution": "Split the OpenAPI components and asynchronous durable-transaction proof at existing cohesive seams before enforcement.",
+  "final_outcome": "pass"
+}

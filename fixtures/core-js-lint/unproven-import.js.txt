@@ -1,0 +1,2 @@
+import { bogus as ReviewError } from "./not-an-error.js";
+throw new ReviewError();

@@ -1,0 +1,439 @@
+import { validatePackageFacts } from "./package-facts.mjs";
+import { validateApplicationCoverageFacts } from "../application-coverage-report.mjs";
+import { APPLICATION_COVERAGE_PROOF_GATE } from "./application-coverage-proof-gate.mjs";
+import { SQLITE_BACKUP_FAILURE_GATE } from "./backup-gate-definition.mjs";
+import { formattingGateDefinition } from "./format-gate-definition.mjs";
+import { SQLITE_RESTORE_FAILURE_GATE } from "./restore-gate-definition.mjs";
+import {
+  FORGEJO_BROWSER_TESTS,
+  FORGEJO_SQLITE_TESTS,
+  FORGEJO_UNIT_TESTS,
+  forgejoGateDefinitions,
+} from "./forgejo-gate-definition.mjs";
+import { requireExactToolVersion } from "./tool-version.mjs";
+import { CODEX_GATE_DEFINITIONS } from "./fake-codex-gate-definition.mjs";
+import { STATIC_PROOF_GATE_DEFINITIONS } from "./proof-gate-definitions.mjs";
+import * as evaluationGate from "./openapi-runtime-conformance-gate.mjs";
+import { OPERATOR_BROWSER_SMOKE_GATE } from "./operator-browser-smoke-gate.mjs";
+import { SECURITY_INTEGRATION_GATE } from "./security-gate-definition.mjs";
+import { REVIEW_RUN_ADMISSION_GATE_DEFINITIONS } from "./review-run-admission-gate-definitions.mjs";
+import { repositoryGateTests } from "./repository-gate-definition.mjs";
+import { MCP_GATE_DEFINITION } from "./mcp-gate-definition.mjs";
+import {
+  GITHUB_FIXTURE_GATE,
+  GIT_GATE,
+} from "./github-feedback-gate-definitions.mjs";
+import { PERFORMANCE_BUDGET_GATE } from "./performance-gate-definition.mjs";
+/**
+ * @typedef {{
+ *   name: string,
+ *   testGroup?: string,
+ *   checkGroups?: {
+ *     name: string,
+ *     count?: number,
+ *     countPattern?: RegExp,
+ *     unit: string,
+ *   }[],
+ *   failureCode: string,
+ *   command?: string,
+ *   arguments: string[],
+ *   tools?: Record<string, string>,
+ *   factsMarker?: string,
+ *   validateFacts?: (facts: unknown) => string | null,
+ *   factsMustPass?: boolean,
+ * }} GateDefinition
+ */
+/**
+ * @param {{
+ *   applicationVersion: string | null,
+ *   coverageToolVersion: string | null,
+ *   eslintPluginNodeVersion: string | null,
+ *   eslintVersion: string | null,
+ *   formatterVersion: string | null,
+ *   jsonSchemaFormatsVersion: string | null,
+ *   jsonSchemaValidatorVersion: string | null,
+ *   openApiValidatorVersion: string | null,
+ *   typeCheckerVersion: string | null,
+ * }} metadata
+ * @returns {GateDefinition[]}
+ */
+export function createGateDefinitions(metadata) {
+  const node = process.version;
+  const c8 = requireExactToolVersion(
+    metadata.coverageToolVersion,
+    "application coverage",
+  );
+  const eslint = requireExactToolVersion(metadata.eslintVersion, "eslint");
+  const eslintPluginNode = requireExactToolVersion(
+    metadata.eslintPluginNodeVersion,
+    "eslint-plugin-n",
+  );
+  const prettier = requireExactToolVersion(
+    metadata.formatterVersion,
+    "prettier",
+  );
+  const ajv = requireExactToolVersion(
+    metadata.jsonSchemaValidatorVersion,
+    "JSON Schema validator",
+  );
+  const ajvFormats = requireExactToolVersion(
+    metadata.jsonSchemaFormatsVersion,
+    "JSON Schema format validator",
+  );
+  const openApiValidator = requireExactToolVersion(
+    metadata.openApiValidatorVersion,
+    "OpenAPI schema validator",
+  );
+  const typescript = requireExactToolVersion(
+    metadata.typeCheckerVersion,
+    "typescript",
+  );
+  return [
+    formattingGateDefinition({ node, prettier }),
+    {
+      name: "structural-lint",
+      failureCode: "structural_lint_failed",
+      command: "npm",
+      arguments: ["run", "lint:structure"],
+      checkGroups: [
+        {
+          name: "maintained-javascript-structure",
+          countPattern: /PASS \((\d+) maintained JavaScript files,/,
+          unit: "file",
+        },
+      ],
+      tools: { eslint, node },
+    },
+    {
+      name: "correctness-lint",
+      failureCode: "correctness_lint_failed",
+      command: "npm",
+      arguments: ["run", "lint:correctness"],
+      checkGroups: [
+        {
+          name: "maintained-javascript-correctness",
+          countPattern: /PASS \((\d+) maintained JavaScript files,/,
+          unit: "file",
+        },
+      ],
+      tools: { eslint, node },
+    },
+    {
+      name: "node-ownership-lint",
+      failureCode: "node_ownership_lint_failed",
+      command: "npm",
+      arguments: ["run", "lint:boundaries"],
+      checkGroups: [
+        {
+          name: "maintained-javascript-node-and-ownership-boundaries",
+          countPattern: /PASS \((\d+) maintained JavaScript files,/,
+          unit: "file",
+        },
+      ],
+      tools: { eslint, "eslint-plugin-n": eslintPluginNode, node },
+    },
+    {
+      name: "production-type-check",
+      failureCode: "production_type_check_failed",
+      command: "npm",
+      arguments: ["run", "typecheck:production"],
+      checkGroups: [
+        { name: "production-node-javascript", count: 1, unit: "project" },
+        {
+          name: "served-browser-javascript",
+          count: 1,
+          unit: "project",
+        },
+      ],
+      tools: { node, typescript },
+    },
+    {
+      name: "proof-code-type-check",
+      failureCode: "proof_code_type_check_failed",
+      command: "npm",
+      arguments: ["run", "typecheck:proof"],
+      checkGroups: [
+        { name: "maintained-test-javascript", count: 1, unit: "project" },
+        {
+          name: "extracted-browser-test-probe",
+          count: 1,
+          unit: "project",
+        },
+        {
+          name: "verification-and-package-proof-javascript",
+          count: 1,
+          unit: "project",
+        },
+      ],
+      tools: { node, typescript },
+    },
+    {
+      name: "openapi-structure",
+      failureCode: "openapi_structure_failed",
+      command: "npm",
+      arguments: ["run", "openapi:check"],
+      checkGroups: [
+        {
+          name: "published-openapi-document",
+          countPattern: /PASS \((\d+) document,/,
+          unit: "document",
+        },
+        {
+          name: "published-openapi-operations",
+          countPattern: /document, (\d+) operations,/,
+          unit: "operation",
+        },
+        {
+          name: "published-openapi-response-statuses",
+          countPattern: /operations, (\d+) response statuses;/,
+          unit: "response status",
+        },
+      ],
+      tools: {
+        ajv,
+        "ajv-formats": ajvFormats,
+        node,
+        "openapi-schema-validator": openApiValidator,
+      },
+    },
+    evaluationGate.createOpenApiRuntimeConformanceGate({
+      ajv,
+      ajvFormats,
+      node,
+      openApiValidator,
+    }),
+    {
+      name: "unit",
+      testGroup:
+        "core-unit-contracts-including-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-runtime-storage-reserve-github-automatic-evaluation-exact-head-status-and-frozen-diff-feedback-mapping-forgejo-polling-restored-discovery-baselines-and-waivers",
+      failureCode: "unit_tests_failed",
+      arguments: [
+        "--test",
+        "test/application-hard-storage-shutdown.test.js",
+        "test/application-readiness.test.js",
+        "test/codex-capabilities.test.js",
+        "test/configuration.test.js",
+        "test/durable-core.test.js",
+        "test/durable-core-transaction.test.js",
+        // prettier-ignore
+        ...["test/retention.test.js", "test/health-live.test.js", "test/installed-application-retention-failure.test.js", "test/upgrade.test.js"],
+        "test/http-port.test.js",
+        "test/installation-environment.test.js",
+        "test/storage-reserve.test.js",
+        "test/system-execution-facts.test.js",
+        "test/installed-application.test.js",
+        "test/installed-backup.test.js",
+        "test/offline-restore.test.js",
+        "test/restored-discovery.test.js",
+        "test/operator-authority-recovery.test.js",
+        "test/operator-password.test.js",
+        "test/quality-foundation.test.js",
+        "test/browser-session.test.js",
+        "test/implementer-token.test.js",
+        "test/request-security.test.js",
+        "test/applicability-rule.test.js",
+        "test/analytics.test.js",
+        "test/analytics-filter.test.js",
+        "test/execution-analytics.test.js",
+        "test/evaluation-validation.test.js",
+        ...evaluationGate.EVALUATION_UNIT_TESTS,
+        "test/review-run-admission.test.js",
+        "test/repository-collection.test.js",
+        "test/repository-selector.test.js",
+        "test/review-archival.test.js",
+        "test/review-deletion.test.js",
+        "test/review-selection.test.js",
+        "test/repository-guidance.test.js",
+        "test/mcp-contract.test.js",
+        "test/mcp-evaluation.test.js",
+        "test/review-validation.test.js",
+        "test/review-version-reactivation.test.js",
+        "test/repository-credential.test.js",
+        "test/repository-lifecycle.test.js",
+        "test/repository-rotation.test.js",
+        "test/repository-validation.test.js",
+        "test/github-app-manifest.test.js",
+        "test/github-callback-failure.test.js",
+        // prettier-ignore
+        ...["test/github-connection.test.js", "test/github-connection-rotation.test.js"],
+        "test/github-repository-selection.test.js",
+        "test/github-automatic-evaluation.test.js",
+        "test/github-commit-status.test.js",
+        "test/github-delivery.test.js",
+        "test/github-delivery-concurrency.test.js",
+        "test/github-feedback.test.js",
+        "test/github-feedback-api.test.js",
+        "test/github-polling-state.test.js",
+        ...FORGEJO_UNIT_TESTS,
+        "test/waiver-adjudicator-configuration.test.js",
+        "test/waiver-batch.test.js",
+        "test/sqlite-backup.test.js",
+        // prettier-ignore
+        ...[
+          "test/verification-harness.test.js",
+          "test/verification-aggregation.test.js",
+          "test/traceability-audit.test.js",
+        ],
+      ],
+    },
+    {
+      name: "browser-component",
+      testGroup:
+        "browser-filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-distinct-states-authority-request-security-automatic-and-explicit-evaluation-provenance-exact-head-github-commit-status-and-append-only-feedback-state-and-owning-error-incomplete-result-rejection-aggregate-completed-sibling-facts-durable-operator-and-pull-request-supersession-cancellation-four-meaning-criterion-result-exact-unavailable-material-error-without-partial-findings-review-run-started-codex-authentication-and-deadline-failures-without-partial-work-browser-only-transcript-and-process-measurement-response-storage-reserve-review-assignment-version-repository-guidance-repository-retirement-reactivation-deletion-and-forgejo-connection-lifecycle-browser-boundary",
+      failureCode: "browser_component_tests_failed",
+      arguments: [
+        "--test",
+        // prettier-ignore
+        ...["test/browser-assets-browser-component.test.js", "test/browser-script-bundle-browser-component.test.js"],
+        "test/analytics-browser-component.test.js",
+        "test/review-metadata-browser-component.test.js",
+        "test/review-create-browser-component.test.js",
+        "test/review-criterion-retirement-browser-component.test.js",
+        "test/review-archival-browser-component.test.js",
+        "test/review-delete-browser-component.test.js",
+        "test/review-applicability-rule-browser-component.test.js",
+        "test/review-assignment-browser-component.test.js",
+        "test/repository-guidance-browser-component.test.js",
+        "test/review-version-reactivation-browser-component.test.js",
+        "test/review-version-browser-component.test.js",
+        "test/repository-browser-component.test.js",
+        "test/repository-delete-browser-component.test.js",
+        "test/repository-lifecycle-browser-component.test.js",
+        "test/operator-password-browser-component.test.js",
+        "test/browser-session-authentication-browser-component.test.js",
+        "test/browser-session-protection-browser-component.test.js",
+        "test/browser-session-operator-browser-component.test.js",
+        // prettier-ignore
+        ...["test/github-connection-browser-component.test.js", "test/github-connection-rotation-browser-component.test.js"],
+        "test/github-repository-reconciliation-browser-component.test.js",
+        "test/github-repository-browser-component.test.js",
+        ...FORGEJO_BROWSER_TESTS,
+        "test/waiver-adjudicator-configuration-browser-component.test.js",
+        "test/storage-reserve-browser-component.test.js",
+        "test/system-execution-browser-component.test.js",
+        "test/evaluation-browser-component.test.js",
+        "test/evaluation-browser-state-component.test.js",
+        "test/github-commit-status-browser-component.test.js",
+        "test/github-feedback-browser-component.test.js",
+        "test/evaluation-cancellation-browser-component.test.js",
+        "test/review-run-evidence-browser-component.test.js",
+        "test/review-run-failure-browser-component.test.js",
+      ],
+    },
+    ...CODEX_GATE_DEFINITIONS,
+    ...REVIEW_RUN_ADMISSION_GATE_DEFINITIONS,
+    GITHUB_FIXTURE_GATE,
+    ...forgejoGateDefinitions,
+    GIT_GATE,
+    {
+      name: "sqlite-integration",
+      testGroup:
+        "durable-resources-including-applicability-criterion-and-review-run-reliability-duration-token-counter-analytics-terminal-run-failure-exclusion-atomic-github-automatic-evaluation-exact-head-latest-evaluation-status-and-append-only-immutable-feedback-publication-owning-error-schema-backfill-pull-request-supersession-return-to-prior-pair-and-migration-repository-retirement-reactivation-deletion-storage-gated-forgejo-polling-and-waivers",
+      failureCode: "sqlite_integration_tests_failed",
+      arguments: [
+        "--test",
+        "test/review-criterion-identity.test.js",
+        "test/review-archival-sqlite-integration.test.js",
+        "test/review-removal-sqlite-integration.test.js",
+        "test/review-applicability-rule-sqlite-integration.test.js",
+        "test/review-assignment-sqlite-integration.test.js",
+        "test/repository-guidance-sqlite-integration.test.js",
+        "test/review-schema-migration.test.js",
+        "test/authority-attribution-schema-migration.test.js",
+        "test/review-version-change-detection.test.js",
+        "test/review-version-reactivation-sqlite-integration.test.js",
+        ...["test/review.test.js", "test/analytics-sqlite-integration.test.js"],
+        ...repositoryGateTests.sqlite,
+        // prettier-ignore
+        ...["test/github-connection-sqlite-integration.test.js", "test/github-connection-rotation-sqlite-integration.test.js", "test/github-connection-rotation-schema-sqlite-integration.test.js"],
+        "test/github-connection-verification-sqlite-integration.test.js",
+        "test/github-repository-migration-sqlite-integration.test.js",
+        "test/github-repository-selection-sqlite-integration.test.js",
+        ...repositoryGateTests.githubSqliteRaces,
+        "test/github-automatic-evaluation-sqlite-integration.test.js",
+        "test/github-pr-lifecycle-sqlite-integration.test.js",
+        "test/github-commit-status-publication.test.js",
+        "test/github-delivery-feedback-publication.test.js",
+        "test/github-delivery-status-publication.test.js",
+        "test/github-delivery-schema-migration.test.js",
+        "test/github-commit-status-sqlite-integration.test.js",
+        "test/github-feedback-publication.test.js",
+        "test/github-feedback-schema-integrity-sqlite-integration.test.js",
+        "test/github-polling.test.js",
+        ...FORGEJO_SQLITE_TESTS,
+        "test/waiver-adjudicator-configuration-sqlite-integration.test.js",
+        "test/waiver-batch-cancelled-sqlite-integration.test.js",
+        "test/waiver-batch-schema-integrity-sqlite-integration.test.js",
+        "test/waiver-batch-sqlite-integration.test.js",
+        "test/waiver-batch-schema-migration.test.js",
+        "test/evaluation-sqlite-integration.test.js",
+        "test/retention-sqlite-failure-integration.test.js",
+      ],
+    },
+    SQLITE_BACKUP_FAILURE_GATE,
+    SQLITE_RESTORE_FAILURE_GATE,
+    {
+      name: "http-integration",
+      testGroup:
+        "filtered-applicability-criterion-evaluation-finding-waiver-execution-reliability-duration-token-counter-and-pull-request-transition-analytics-review-assignment-version-machine-repository-guidance-repository-retirement-reactivation-deletion-forgejo-connection-lifecycle-and-owned-secret-excluding-http-resource-boundary",
+      failureCode: "http_integration_tests_failed",
+      arguments: [
+        "--test",
+        ...repositoryGateTests.http,
+        "test/review-authorization-http-integration.test.js",
+        "test/review-archival-http-integration.test.js",
+        "test/review-removal-http-integration.test.js",
+        "test/review-applicability-rule-http-integration.test.js",
+        "test/review-assignment-http-integration.test.js",
+        "test/review-criterion-retirement-http-integration.test.js",
+        "test/review-version-reactivation-http-integration.test.js",
+        "test/review-http-integration.test.js",
+        "test/github-connection-http-integration.test.js",
+        "test/forgejo-connection-http-integration.test.js",
+        "test/waiver-adjudicator-configuration-http-integration.test.js",
+        "test/storage-reserve-application-integration.test.js",
+        "test/codex-execution-concurrency-http-integration.test.js",
+        "test/analytics-http-integration.test.js",
+        ...evaluationGate.EVALUATION_HTTP_TESTS,
+        "test/evaluation-cancellation-http-integration.test.js",
+      ],
+    },
+    MCP_GATE_DEFINITION,
+    SECURITY_INTEGRATION_GATE,
+    {
+      name: "application-coverage",
+      testGroup: "maintained-server-and-served-browser-application",
+      failureCode: "application_coverage_failed",
+      command: "npm",
+      factsMarker: "QUALITY_BAR_APPLICATION_COVERAGE_FACTS",
+      validateFacts: validateApplicationCoverageFacts,
+      arguments: ["run", "coverage"],
+      tools: { c8, node },
+    },
+    OPERATOR_BROWSER_SMOKE_GATE,
+    {
+      name: "package-integration",
+      testGroup: "compose-service",
+      failureCode: "package_integration_failed",
+      factsMarker: "QUALITY_BAR_PACKAGE_FACTS",
+      validateFacts: (facts) =>
+        validatePackageFacts(facts, metadata.applicationVersion),
+      arguments: ["--test", "test/package/compose.package-test.mjs"],
+    },
+    {
+      name: "structural-lint-proof",
+      testGroup: "maintained-javascript-structure",
+      failureCode: "structural_lint_proof_failed",
+      arguments: ["--test", "test/structural-lint-gate.test.js"],
+    },
+    {
+      name: "correctness-lint-proof",
+      testGroup: "maintained-javascript-correctness",
+      failureCode: "correctness_lint_proof_failed",
+      arguments: ["--test", "test/core-js-lint-gate.test.js"],
+    },
+    ...STATIC_PROOF_GATE_DEFINITIONS,
+    APPLICATION_COVERAGE_PROOF_GATE,
+    PERFORMANCE_BUDGET_GATE,
+  ];
+}

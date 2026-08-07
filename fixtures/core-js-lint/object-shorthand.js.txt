@@ -1,0 +1,3 @@
+const value = 1;
+const object = { value: value };
+console.log(object);

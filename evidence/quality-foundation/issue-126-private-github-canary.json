@@ -1,0 +1,11 @@
+{
+  "ticket": 126,
+  "parent": 25,
+  "sources": ["#21", "#22"],
+  "acceptance_scenarios": ["ACC-03"],
+  "proof": ["private-github-canary"],
+  "invocation": "npm run canary:private-github",
+  "routine_gate_membership": [],
+  "new_e2e_scenarios": 0,
+  "final_outcome": "pass"
+}

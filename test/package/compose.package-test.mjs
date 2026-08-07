@@ -1,143 +1,20 @@
-import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { createServer } from "node:net";
 import { test } from "node:test";
 
-const applicationVersion = readFileSync(".env", "utf8").match(
-  /^QUALITY_BAR_VERSION=(\d+\.\d+\.\d+)$/m,
-)?.[1];
-assert.ok(applicationVersion, ".env must define a semantic QUALITY_BAR_VERSION");
-const serviceName = "quality-bar";
-const projectName = `quality-bar-package-${process.pid}`;
+import { assertComposeConfiguration } from "../../scripts/package-proof/compose-configuration.mjs";
+import { createPackageFixture } from "../../scripts/package-proof/package-fixture.mjs";
+import { proveComposeService } from "../../scripts/package-proof/prove-compose-service.mjs";
 
-function run(command, arguments_, environment = {}) {
-  return execFileSync(command, arguments_, {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env: { ...process.env, ...environment },
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
-}
-
-async function reservePort() {
-  const server = createServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const { port } = server.address();
-  await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
-  return port;
-}
-
-test("Compose boots one Linux amd64 service as one unprivileged application process", async () => {
-  const hostPort = await reservePort();
-  const environment = {
-    COMPOSE_PROJECT_NAME: projectName,
-    QUALITY_BAR_HTTP_PORT: String(hostPort),
-    QUALITY_BAR_VERSION: applicationVersion,
-  };
-
-  const configuration = JSON.parse(
-    run("docker", ["compose", "config", "--format", "json"], environment),
-  );
-  assert.deepEqual(Object.keys(configuration.services), [serviceName]);
-  assert.equal(configuration.services[serviceName].platform, "linux/amd64");
-  assert.equal(
-    configuration.services[serviceName].image,
-    `quality-bar:${applicationVersion}`,
-  );
-  assert.equal(configuration.services[serviceName].profiles, undefined);
-  assert.equal(configuration.services[serviceName].depends_on, undefined);
-  assert.throws(
-    () =>
-      run(
-        "docker",
-        [
-          "build",
-          "--platform",
-          "linux/amd64",
-          "--output",
-          "type=cacheonly",
-          ".",
-        ],
-        environment,
-      ),
-    /QUALITY_BAR_VERSION must be a semantic version/,
-  );
-
+test("Compose boots with one strict configuration source and external installation master key", async () => {
+  const fixture = await createPackageFixture();
   let primaryFailure;
+
   try {
-    run("docker", ["compose", "build"], environment);
-    run("docker", ["compose", "up", "--detach", "--wait"], environment);
-
-    const imagePlatform = run("docker", [
-      "image",
-      "inspect",
-      `quality-bar:${applicationVersion}`,
-      "--format",
-      "{{.Os}}/{{.Architecture}}",
-    ]);
-    assert.equal(imagePlatform, "linux/amd64");
-    const uidOutput = run(
-      "docker",
-      ["compose", "exec", "-T", serviceName, "id", "-u"],
-      environment,
-    );
-    assert.equal(uidOutput, "10001");
-    const uid = Number(uidOutput);
-    const processArguments = run(
-      "docker",
-      ["compose", "exec", "-T", serviceName, "cat", "/proc/1/cmdline"],
-      environment,
-    )
-      .split("\u0000")
-      .filter(Boolean);
-    assert.equal(processArguments[0], "node");
-    assert.equal(processArguments.at(-1), "src/main.js");
-
-    const response = await fetch(`http://127.0.0.1:${hostPort}/health/live`);
-    assert.equal(response.status, 200);
-    const liveness = await response.json();
-    assert.deepEqual(liveness, { status: "live" });
-
-    console.log(
-      `QUALITY_BAR_PACKAGE_FACTS ${JSON.stringify({
-        serviceCount: Object.keys(configuration.services).length,
-        companionServiceCount: 0,
-        platform: imagePlatform,
-        image: `quality-bar:${applicationVersion}`,
-        applicationProcess: {
-          uid,
-          pid: 1,
-          executable: processArguments[0],
-          entrypoint: processArguments.at(-1),
-        },
-        liveness: {
-          path: "/health/live",
-          httpStatus: response.status,
-          response: liveness,
-        },
-      })}`,
-    );
+    const configuration = assertComposeConfiguration(fixture);
+    proveComposeService({ configuration, fixture });
   } catch (error) {
     primaryFailure = error;
     throw error;
   } finally {
-    try {
-      run(
-        "docker",
-        ["compose", "down", "--volumes", "--remove-orphans"],
-        environment,
-      );
-    } catch (cleanupError) {
-      if (!primaryFailure) {
-        throw cleanupError;
-      }
-      process.stderr.write(`Package cleanup also failed: ${cleanupError.message}\n`);
-    }
+    fixture.cleanup(primaryFailure);
   }
 });
