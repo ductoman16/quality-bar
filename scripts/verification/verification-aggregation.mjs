@@ -1,24 +1,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  QUALITY_BAR_ACCEPTANCE_SCENARIOS,
+  QUALITY_BAR_SPECIFICATION_PARENT,
+  QUALITY_BAR_VERIFICATION_PROOF,
+  QUALITY_BAR_VERIFICATION_SOURCES,
+} from "./verification-contract.mjs";
 
 export const VERIFICATION_OWNERSHIP_PATH =
   "evidence/quality-foundation/issue-123-verification.json";
-
-const EXPECTED_PARENT = 25;
-const EXPECTED_SOURCES = ["#21", "#22"];
-const EXPECTED_SCENARIOS = [
-  "ACC-01",
-  "ACC-02",
-  "ACC-03",
-  "ACC-04",
-  "ACC-05",
-  "ACC-06",
-  "ACC-07",
-  "ACC-08",
-  "ACC-09",
-  "ACC-10",
-];
-const EXPECTED_PROOF = ["verification-gate", "evidence-manifest"];
 
 /** @typedef {{gate: string, testGroup: string}} CrossProcessSmoke */
 /**
@@ -66,7 +56,7 @@ function requiredStrings(value, field, predicate = () => true) {
   return [...value];
 }
 
-/** @param {string[]} actual @param {string[]} expected @param {string} field */
+/** @param {string[]} actual @param {readonly string[]} expected @param {string} field */
 function requireExactStrings(actual, expected, field) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(`verification_ownership_${field}_invalid`);
@@ -111,11 +101,14 @@ export function readVerificationOwnership(repositoryRoot) {
     throw new Error("verification_ownership_marker_invalid");
   }
 
-  if (marker.ticket !== 123 || marker.parent !== EXPECTED_PARENT) {
+  if (
+    marker.ticket !== 123 ||
+    marker.parent !== QUALITY_BAR_SPECIFICATION_PARENT
+  ) {
     throw new Error("verification_ownership_identity_invalid");
   }
   const sources = requiredStrings(marker.sources, "sources");
-  requireExactStrings(sources, EXPECTED_SOURCES, "sources");
+  requireExactStrings(sources, QUALITY_BAR_VERIFICATION_SOURCES, "sources");
   const acceptanceScenarios = requiredStrings(
     marker.acceptance_scenarios,
     "acceptance_scenarios",
@@ -123,11 +116,11 @@ export function readVerificationOwnership(repositoryRoot) {
   );
   requireExactStrings(
     acceptanceScenarios,
-    EXPECTED_SCENARIOS,
+    QUALITY_BAR_ACCEPTANCE_SCENARIOS,
     "acceptance_scenarios",
   );
   const proof = requiredStrings(marker.proof, "proof");
-  requireExactStrings(proof, EXPECTED_PROOF, "proof");
+  requireExactStrings(proof, QUALITY_BAR_VERIFICATION_PROOF, "proof");
   const localGates = requiredStrings(marker.local_gates, "local_gates");
   const crossProcessSmokes = readCrossProcessSmokes(
     marker.cross_process_smokes,
@@ -138,7 +131,7 @@ export function readVerificationOwnership(repositoryRoot) {
 
   return {
     marker: VERIFICATION_OWNERSHIP_PATH,
-    parent: EXPECTED_PARENT,
+    parent: QUALITY_BAR_SPECIFICATION_PARENT,
     sources,
     acceptanceScenarios,
     proof,
@@ -160,7 +153,10 @@ export function createVerificationAggregation({
   ownership,
   traceability,
 }) {
-  if (!traceability || traceability.parent !== EXPECTED_PARENT) {
+  if (
+    !traceability ||
+    traceability.parent !== QUALITY_BAR_SPECIFICATION_PARENT
+  ) {
     throw new Error("verification_aggregation_traceability_invalid");
   }
   const names = definitions.map((definition) => definition.name);

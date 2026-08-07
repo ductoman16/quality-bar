@@ -21,7 +21,11 @@ const repositoryRoot = resolve(import.meta.dirname, "..");
  * @typedef {{
  *   ownership_markers: Array<{key: string, sources: string[]}>,
  *   proof_implementations: Record<string, string[]>,
- *   specification: {evidence_fields: Array<{id: string, path: string, owners: number[]}>},
+ *   proof_gate_bindings: Record<string, {gate: string, testGroup: string, command: string, arguments: string[], path: string}>,
+ *   specification: {
+ *     evidence_fields: Array<{id: string, path: string, owners: number[]}>,
+ *     source_contracts: Array<{id: string, section: string, scenarios: string[], proof: string[], evidence: string}>,
+ *   },
  * }} TraceabilityMarker
  */
 
@@ -135,6 +139,34 @@ test("the audit rejects a missing expected evidence field", () => {
       assert.throws(
         () => auditTraceability({ repositoryRoot: directory }),
         /traceability_audit_evidence_fields_stale/u,
+      ),
+  );
+});
+
+test("the audit rejects a stale source contract mapping", () => {
+  withMarker(
+    (marker) => {
+      marker.specification.source_contracts[0].evidence =
+        "stale evidence mapping";
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_requirements_stale/u,
+      ),
+  );
+});
+
+test("the audit binds the packaged API and MCP smoke to its package gate", () => {
+  withMarker(
+    (marker) => {
+      marker.proof_gate_bindings["packaged-api-mcp-smoke"].gate =
+        "mcp-integration";
+    },
+    (directory) =>
+      assert.throws(
+        () => auditTraceability({ repositoryRoot: directory }),
+        /traceability_audit_proof_gate_bindings_stale/u,
       ),
   );
 });

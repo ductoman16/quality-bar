@@ -2974,7 +2974,7 @@
       "scripts/verification/operator-browser-smoke-gate.mjs"
     ],
     "packaged-api-mcp-smoke": [
-      "scripts/verification/mcp-gate-definition.mjs"
+      "test/package/compose.package-test.mjs"
     ],
     "verification-gate": [
       "scripts/verification/verification-runner.mjs"
@@ -2988,6 +2988,18 @@
     "private-github-canary": [
       "scripts/verification/run-private-github-canary.mjs"
     ]
+  },
+  "proof_gate_bindings": {
+    "packaged-api-mcp-smoke": {
+      "gate": "package-integration",
+      "testGroup": "compose-service",
+      "command": "node",
+      "arguments": [
+        "--test",
+        "test/package/compose.package-test.mjs"
+      ],
+      "path": "test/package/compose.package-test.mjs"
+    }
   },
   "release_acceptance": {
     "proof": [
