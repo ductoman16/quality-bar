@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 const FAILURE_CODE = /^[a-z][a-z0-9_]*$/u;
 
 /** @param {unknown} error */
@@ -21,13 +23,14 @@ function owningDetail(error) {
   );
 }
 
-/** @param {{code: string, detail: string, now: () => number, sourceCommit: string}} input */
-function failureEvidence({ code, detail, now, sourceCommit }) {
+/** @param {{attemptId: string, code: string, detail: string, now: () => number, sourceCommit: string}} input */
+function failureEvidence({ attemptId, code, detail, now, sourceCommit }) {
   const at = new Date(now()).toISOString();
   return {
     completedAt: at,
     failure: { code, detail },
     fixture: null,
+    invocation: { attemptId, command: "canary:private-github" },
     kind: "private-github-canary",
     observations: null,
     outcome: "fail",
@@ -45,6 +48,7 @@ function failureEvidence({ code, detail, now, sourceCommit }) {
 /**
  * @param {{
  *   canaryPath: string,
+ *   createAttemptId?: () => string,
  *   invoke: () => Promise<any>,
  *   manifestPath: string,
  *   mergeEvidence: (manifest: any, canary: any) => any,
@@ -55,6 +59,7 @@ function failureEvidence({ code, detail, now, sourceCommit }) {
  */
 export async function runPrivateGitHubCanaryLifecycle({
   canaryPath,
+  createAttemptId = randomUUID,
   invoke,
   manifestPath,
   mergeEvidence,
@@ -62,7 +67,9 @@ export async function runPrivateGitHubCanaryLifecycle({
   publish,
   sourceCommit,
 }) {
+  const attemptId = createAttemptId();
   const attempt = failureEvidence({
+    attemptId,
     code: "private_github_canary_attempt_started",
     detail: "private GitHub canary attempt started",
     now,
@@ -86,7 +93,10 @@ export async function runPrivateGitHubCanaryLifecycle({
   try {
     const canary = await invoke();
     publish({
-      canary,
+      canary: {
+        ...canary,
+        invocation: { attemptId, command: "canary:private-github" },
+      },
       canaryPath,
       manifestPath,
       mergeEvidence,
@@ -94,6 +104,7 @@ export async function runPrivateGitHubCanaryLifecycle({
     return canary;
   } catch (error) {
     const canary = failureEvidence({
+      attemptId,
       code: owningCode(error),
       detail: owningDetail(error),
       now,

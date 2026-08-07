@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 
 import { createGateDefinitions } from "../scripts/verification/gate-definitions.mjs";
+import { auditTraceability } from "../scripts/verification/traceability-audit.mjs";
 import {
   createVerificationAggregation,
   readVerificationOwnership,
@@ -37,11 +38,16 @@ function definitions() {
   return createGateDefinitions(metadata);
 }
 
+function traceability() {
+  return auditTraceability({ repositoryRoot });
+}
+
 test("cost-free verification owns the three accepted invocation groups", () => {
   const ownership = readVerificationOwnership(repositoryRoot);
   const aggregation = createVerificationAggregation({
     definitions: definitions(),
     ownership,
+    traceability: traceability(),
   });
 
   assert.deepEqual(aggregation.groups.local, [
@@ -79,11 +85,26 @@ test("cost-free verification owns the three accepted invocation groups", () => {
   ]);
 });
 
+test("the aggregation rejects a different pair of cross-process smokes", () => {
+  const ownership = readVerificationOwnership(repositoryRoot);
+  ownership.crossProcessSmokes.reverse();
+  assert.throws(
+    () =>
+      createVerificationAggregation({
+        definitions: definitions(),
+        ownership,
+        traceability: traceability(),
+      }),
+    /verification_aggregation_cross_process_smokes_invalid/u,
+  );
+});
+
 test("the shared manifest preserves ownership and aggregation evidence", () => {
   const ownership = readVerificationOwnership(repositoryRoot);
   const aggregation = createVerificationAggregation({
     definitions: definitions(),
     ownership,
+    traceability: traceability(),
   });
   const manifest = createManifest({
     metadata,
@@ -122,6 +143,7 @@ test("the shared manifest preserves ownership and aggregation evidence", () => {
     },
     groups: aggregation.groups,
     crossProcessSmokes: aggregation.crossProcessSmokes,
+    traceability: traceability(),
   });
 });
 
@@ -377,6 +399,7 @@ test("aggregation rejects a registry that loses a fixed cross-process smoke", ()
           (definition) => definition.name !== "package-integration",
         ),
         ownership,
+        traceability: traceability(),
       }),
     /verification_aggregation_cross_process_smoke_invalid/,
   );

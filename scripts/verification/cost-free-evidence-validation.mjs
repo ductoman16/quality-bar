@@ -1,7 +1,8 @@
 import { createGateDefinitions } from "./gate-definitions.mjs";
 import { createManifest } from "./manifest-reporting.mjs";
 import { readVerificationMetadata } from "./metadata.mjs";
-import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { validateRetainedReleaseCanaries } from "./release-canary-schema.mjs";
+import { auditTraceability } from "./traceability-audit.mjs";
 import {
   createVerificationAggregation,
   readVerificationOwnership,
@@ -180,6 +181,10 @@ export function validateCostFreeEvidence(input, expected) {
   const verificationAggregation = createVerificationAggregation({
     definitions,
     ownership: readVerificationOwnership(expected.repositoryRoot),
+    traceability: auditTraceability({
+      invokedGates: input.invokedGates,
+      repositoryRoot: expected.repositoryRoot,
+    }),
   });
   const canonical = createManifest({
     failures: [],
@@ -206,7 +211,10 @@ export function validateCostFreeEvidence(input, expected) {
     }
   }
   if (input.releaseCanaries !== null) {
-    validateReleaseCanaries(input.releaseCanaries, expected.sourceCommit);
+    validateRetainedReleaseCanaries(
+      input.releaseCanaries,
+      expected.sourceCommit,
+    );
   }
   return input;
 }

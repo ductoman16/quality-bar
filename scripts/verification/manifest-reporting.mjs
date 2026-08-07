@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 
 import { MCP_PROTOCOL_VERSION } from "../../src/mcp-contract.js";
 import { validatePerformanceFacts } from "./performance-budget.mjs";
-import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { validateRetainedReleaseCanaries } from "./release-canary-schema.mjs";
 import { updateVerificationEvidence } from "./release-canary-evidence.mjs";
 
 /**
@@ -29,6 +29,7 @@ import { updateVerificationEvidence } from "./release-canary-evidence.mjs";
  *   ownership: import("./verification-aggregation.mjs").VerificationAggregation["ownership"],
  *   groups: import("./verification-aggregation.mjs").VerificationAggregation["groups"],
  *   crossProcessSmokes: import("./verification-aggregation.mjs").VerificationAggregation["crossProcessSmokes"],
+ *   traceability: import("./traceability-audit.mjs").TraceabilityAudit,
  * }} VerificationEvidence
  */
 /**
@@ -254,6 +255,7 @@ export function createManifest({
           ownership: verificationAggregation.ownership,
           groups: verificationAggregation.groups,
           crossProcessSmokes: verificationAggregation.crossProcessSmokes,
+          traceability: verificationAggregation.traceability,
         }
       : null,
     performance: invalidPerformanceEvidence ? null : performanceFacts,
@@ -291,7 +293,7 @@ function retainedReleaseCanaries(current, manifest) {
     throw new TypeError("existing release canary evidence is invalid");
   }
   try {
-    validateReleaseCanaries(canaries, manifest.sourceCommit);
+    validateRetainedReleaseCanaries(canaries, manifest.sourceCommit);
   } catch {
     throw new TypeError("existing release canary evidence is invalid");
   }
