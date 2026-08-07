@@ -29,6 +29,7 @@ import { updateVerificationEvidence } from "./release-canary-evidence.mjs";
  *   ownership: import("./verification-aggregation.mjs").VerificationAggregation["ownership"],
  *   groups: import("./verification-aggregation.mjs").VerificationAggregation["groups"],
  *   crossProcessSmokes: import("./verification-aggregation.mjs").VerificationAggregation["crossProcessSmokes"],
+ *   traceability: import("./traceability-audit.mjs").TraceabilityAudit,
  * }} VerificationEvidence
  */
 /**
@@ -254,6 +255,7 @@ export function createManifest({
           ownership: verificationAggregation.ownership,
           groups: verificationAggregation.groups,
           crossProcessSmokes: verificationAggregation.crossProcessSmokes,
+          traceability: verificationAggregation.traceability,
         }
       : null,
     performance: invalidPerformanceEvidence ? null : performanceFacts,

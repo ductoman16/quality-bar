@@ -269,7 +269,11 @@ export function createGateDefinitions(metadata) {
         "test/waiver-batch.test.js",
         "test/sqlite-backup.test.js",
         // prettier-ignore
-        ...["test/verification-harness.test.js", "test/verification-aggregation.test.js"],
+        ...[
+          "test/verification-harness.test.js",
+          "test/verification-aggregation.test.js",
+          "test/traceability-audit.test.js",
+        ],
       ],
     },
     {

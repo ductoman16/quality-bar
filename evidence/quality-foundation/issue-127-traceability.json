@@ -1,0 +1,3009 @@
+{
+  "ticket": 127,
+  "parent": 25,
+  "sources": [
+    "#21",
+    "#22"
+  ],
+  "acceptance_scenarios": [
+    "ACC-01",
+    "ACC-02",
+    "ACC-03",
+    "ACC-04",
+    "ACC-05",
+    "ACC-06",
+    "ACC-07",
+    "ACC-08",
+    "ACC-09",
+    "ACC-10"
+  ],
+  "proof": [
+    "verification-gate",
+    "evidence-manifest"
+  ],
+  "specification": {
+    "source_contracts": [
+      {
+        "id": "#2",
+        "section": "Decisions 2",
+        "scenarios": [
+          "ACC-02"
+        ],
+        "proof": [
+          "unit",
+          "browser-component",
+          "http-integration"
+        ],
+        "evidence": "Version, activation, identity, validation assertions"
+      },
+      {
+        "id": "#3",
+        "section": "Decisions 6",
+        "scenarios": [
+          "ACC-03",
+          "ACC-08"
+        ],
+        "proof": [
+          "fake-codex-integration"
+        ],
+        "evidence": "Command, events, exit, schema, version facts"
+      },
+      {
+        "id": "#4",
+        "section": "Decisions 4, 9",
+        "scenarios": [
+          "ACC-03",
+          "ACC-04",
+          "ACC-05"
+        ],
+        "proof": [
+          "git-integration",
+          "adapter-integration"
+        ],
+        "evidence": "Capability, acquisition, projection evidence"
+      },
+      {
+        "id": "#5",
+        "section": "Decisions 3",
+        "scenarios": [
+          "ACC-02",
+          "ACC-03"
+        ],
+        "proof": [
+          "unit",
+          "git-integration"
+        ],
+        "evidence": "Rule/result/match/error assertions"
+      },
+      {
+        "id": "#6",
+        "section": "Decisions 7",
+        "scenarios": [
+          "ACC-03",
+          "ACC-07"
+        ],
+        "proof": [
+          "unit",
+          "sqlite-integration",
+          "fake-codex-integration"
+        ],
+        "evidence": "Atomic coverage, outcome, Finding invariants"
+      },
+      {
+        "id": "#7",
+        "section": "Decisions 6",
+        "scenarios": [
+          "ACC-03",
+          "ACC-08",
+          "ACC-09"
+        ],
+        "proof": [
+          "fake-codex-integration"
+        ],
+        "evidence": "Submission, timer, cancellation, transcript facts"
+      },
+      {
+        "id": "#8",
+        "section": "Decisions 4",
+        "scenarios": [
+          "ACC-03",
+          "ACC-04",
+          "ACC-05"
+        ],
+        "proof": [
+          "adapter-integration",
+          "git-integration",
+          "security-integration"
+        ],
+        "evidence": "Identity, scopes, profiles, rotation, health"
+      },
+      {
+        "id": "#9",
+        "section": "Decisions 5",
+        "scenarios": [
+          "ACC-03",
+          "ACC-04",
+          "ACC-08"
+        ],
+        "proof": [
+          "unit",
+          "git-integration",
+          "adapter-integration",
+          "sqlite-integration"
+        ],
+        "evidence": "Baseline, pair, deduplication, rate facts"
+      },
+      {
+        "id": "#10",
+        "section": "Decisions 6, 10, 11",
+        "scenarios": [
+          "ACC-09"
+        ],
+        "proof": [
+          "security-integration"
+        ],
+        "evidence": "Credential exclusion, redaction, trust facts"
+      },
+      {
+        "id": "#11",
+        "section": "Decisions 3, 10",
+        "scenarios": [
+          "ACC-02",
+          "ACC-06"
+        ],
+        "proof": [
+          "http-openapi-integration",
+          "mcp-integration"
+        ],
+        "evidence": "Complete equivalent guidance document"
+      },
+      {
+        "id": "#12",
+        "section": "Decisions 9",
+        "scenarios": [
+          "ACC-03",
+          "ACC-04",
+          "ACC-07",
+          "ACC-08"
+        ],
+        "proof": [
+          "adapter-integration",
+          "sqlite-integration"
+        ],
+        "evidence": "Status mapping, source/external identity, retries"
+      },
+      {
+        "id": "#13",
+        "section": "Decisions 8",
+        "scenarios": [
+          "ACC-07",
+          "ACC-08"
+        ],
+        "proof": [
+          "unit",
+          "sqlite-integration",
+          "fake-codex-integration"
+        ],
+        "evidence": "Atomic Decisions, limits, retries, outcome"
+      },
+      {
+        "id": "#14",
+        "section": "Decisions 12",
+        "scenarios": [
+          "ACC-10"
+        ],
+        "proof": [
+          "unit",
+          "browser-component",
+          "http-integration"
+        ],
+        "evidence": "Numerators, denominators, missing/error states"
+      },
+      {
+        "id": "#15",
+        "section": "Decisions 10",
+        "scenarios": [
+          "ACC-01",
+          "ACC-06",
+          "ACC-09"
+        ],
+        "proof": [
+          "unit",
+          "browser-component",
+          "http-openapi-integration",
+          "mcp-integration"
+        ],
+        "evidence": "Session/token/authority/redaction assertions"
+      },
+      {
+        "id": "#16",
+        "section": "Decisions 10",
+        "scenarios": [
+          "ACC-02",
+          "ACC-05",
+          "ACC-06"
+        ],
+        "proof": [
+          "http-openapi-integration"
+        ],
+        "evidence": "Schema, pagination, idempotency, errors"
+      },
+      {
+        "id": "#17",
+        "section": "Decisions 10",
+        "scenarios": [
+          "ACC-02",
+          "ACC-06"
+        ],
+        "proof": [
+          "mcp-integration",
+          "http-openapi-integration",
+          "package-integration"
+        ],
+        "evidence": "Seven tools, resources, equivalence, polling"
+      },
+      {
+        "id": "#18",
+        "section": "Decisions 11",
+        "scenarios": [
+          "ACC-01",
+          "ACC-08",
+          "ACC-10"
+        ],
+        "proof": [
+          "sqlite-integration",
+          "process-integration",
+          "sqlite-failure-integration"
+        ],
+        "evidence": "Transactions, leases, retries, backup/restore"
+      },
+      {
+        "id": "#19",
+        "section": "Decisions 12",
+        "scenarios": [
+          "ACC-01",
+          "ACC-02",
+          "ACC-03",
+          "ACC-07",
+          "ACC-10"
+        ],
+        "proof": [
+          "browser-component",
+          "operator-browser-smoke"
+        ],
+        "evidence": "Resource workflows and distinct states"
+      },
+      {
+        "id": "#20",
+        "section": "Decisions 1, 13",
+        "scenarios": [
+          "ACC-01",
+          "ACC-10"
+        ],
+        "proof": [
+          "package-integration"
+        ],
+        "evidence": "Image/tool/path/health/backup facts"
+      },
+      {
+        "id": "#21",
+        "section": "Testing Decisions",
+        "scenarios": [
+          "ACC-01",
+          "ACC-02",
+          "ACC-03",
+          "ACC-04",
+          "ACC-05",
+          "ACC-06",
+          "ACC-07",
+          "ACC-08",
+          "ACC-09",
+          "ACC-10"
+        ],
+        "proof": [
+          "unit",
+          "browser-component",
+          "sqlite-integration",
+          "process-integration",
+          "adapter-integration",
+          "verification-gate",
+          "evidence-manifest",
+          "paid-codex-canary",
+          "private-github-canary"
+        ],
+        "evidence": "Evidence manifest and performance gates"
+      },
+      {
+        "id": "#22",
+        "section": "Testing Decisions, Further Notes",
+        "scenarios": [
+          "ACC-01",
+          "ACC-02",
+          "ACC-03",
+          "ACC-04",
+          "ACC-05",
+          "ACC-06",
+          "ACC-07",
+          "ACC-08",
+          "ACC-09",
+          "ACC-10"
+        ],
+        "proof": [
+          "verification-gate",
+          "evidence-manifest"
+        ],
+        "evidence": "Complete mapping, no unresolved requirement"
+      },
+      {
+        "id": "#23",
+        "section": "Decisions 2, 6",
+        "scenarios": [
+          "ACC-02",
+          "ACC-03"
+        ],
+        "proof": [
+          "unit",
+          "http-integration",
+          "fake-codex-integration"
+        ],
+        "evidence": "Catalog compatibility, immutable config"
+      },
+      {
+        "id": "#24",
+        "section": "Decisions 3, 6",
+        "scenarios": [
+          "ACC-03",
+          "ACC-05"
+        ],
+        "proof": [
+          "git-integration",
+          "fake-codex-integration"
+        ],
+        "evidence": "Inspect-on-demand, material-error behavior"
+      }
+    ],
+    "proof_layers": [
+      "adapter-integration",
+      "browser-component",
+      "evidence-manifest",
+      "fake-codex-integration",
+      "forgejo-fixture-integration",
+      "forgejo-v16-integration",
+      "git-integration",
+      "github-fixture-integration",
+      "http-integration",
+      "http-openapi-integration",
+      "mcp-integration",
+      "operator-browser-smoke",
+      "package-integration",
+      "packaged-api-mcp-smoke",
+      "paid-codex-canary",
+      "private-github-canary",
+      "process-integration",
+      "security-integration",
+      "sqlite-failure-integration",
+      "sqlite-integration",
+      "unit",
+      "verification-gate"
+    ],
+    "evidence_fields": [
+      {
+        "id": "source-commit",
+        "path": "sourceCommit",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "platform",
+        "path": "platform",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "component-versions",
+        "path": "componentVersions",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "runner-versions",
+        "path": "runnerVersions",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "security-boundary",
+        "path": "securityBoundary",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "invoked-gates",
+        "path": "invokedGates",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "test-group-counts",
+        "path": "invokedGates[].testGroups",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "gate-durations",
+        "path": "invokedGates[].durationMs",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "gate-facts",
+        "path": "invokedGates[].facts",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "total-duration",
+        "path": "totalDurationMs",
+        "owners": [
+          123
+        ]
+      },
+      {
+        "id": "performance-facts",
+        "path": "performance",
+        "owners": [
+          124
+        ]
+      },
+      {
+        "id": "release-canaries",
+        "path": "releaseCanaries",
+        "owners": [
+          125,
+          126
+        ]
+      }
+    ]
+  },
+  "implemented_owners": [
+    {
+      "ticket": 26,
+      "key": "p01"
+    },
+    {
+      "ticket": 27,
+      "key": "p02"
+    },
+    {
+      "ticket": 28,
+      "key": "p03"
+    },
+    {
+      "ticket": 29,
+      "key": "p04"
+    },
+    {
+      "ticket": 30,
+      "key": "a01"
+    },
+    {
+      "ticket": 31,
+      "key": "a02"
+    },
+    {
+      "ticket": 32,
+      "key": "a03"
+    },
+    {
+      "ticket": 33,
+      "key": "a04"
+    },
+    {
+      "ticket": 34,
+      "key": "a05"
+    },
+    {
+      "ticket": 35,
+      "key": "a06"
+    },
+    {
+      "ticket": 36,
+      "key": "a07"
+    },
+    {
+      "ticket": 37,
+      "key": "r01"
+    },
+    {
+      "ticket": 38,
+      "key": "r02"
+    },
+    {
+      "ticket": 39,
+      "key": "r03"
+    },
+    {
+      "ticket": 40,
+      "key": "r04"
+    },
+    {
+      "ticket": 41,
+      "key": "r05"
+    },
+    {
+      "ticket": 42,
+      "key": "r06"
+    },
+    {
+      "ticket": 43,
+      "key": "r07"
+    },
+    {
+      "ticket": 44,
+      "key": "r08"
+    },
+    {
+      "ticket": 45,
+      "key": "r09"
+    },
+    {
+      "ticket": 46,
+      "key": "r10"
+    },
+    {
+      "ticket": 47,
+      "key": "g01"
+    },
+    {
+      "ticket": 48,
+      "key": "g02"
+    },
+    {
+      "ticket": 49,
+      "key": "g03"
+    },
+    {
+      "ticket": 50,
+      "key": "g04"
+    },
+    {
+      "ticket": 51,
+      "key": "g05"
+    },
+    {
+      "ticket": 52,
+      "key": "g06"
+    },
+    {
+      "ticket": 53,
+      "key": "g07"
+    },
+    {
+      "ticket": 54,
+      "key": "e01"
+    },
+    {
+      "ticket": 55,
+      "key": "o01"
+    },
+    {
+      "ticket": 56,
+      "key": "o02"
+    },
+    {
+      "ticket": 57,
+      "key": "e02"
+    },
+    {
+      "ticket": 58,
+      "key": "e03"
+    },
+    {
+      "ticket": 59,
+      "key": "e04"
+    },
+    {
+      "ticket": 60,
+      "key": "e05"
+    },
+    {
+      "ticket": 61,
+      "key": "e06"
+    },
+    {
+      "ticket": 62,
+      "key": "e07"
+    },
+    {
+      "ticket": 63,
+      "key": "e08"
+    },
+    {
+      "ticket": 64,
+      "key": "e09"
+    },
+    {
+      "ticket": 65,
+      "key": "e10"
+    },
+    {
+      "ticket": 66,
+      "key": "e11"
+    },
+    {
+      "ticket": 67,
+      "key": "e12"
+    },
+    {
+      "ticket": 68,
+      "key": "e13"
+    },
+    {
+      "ticket": 69,
+      "key": "e14"
+    },
+    {
+      "ticket": 70,
+      "key": "e15"
+    },
+    {
+      "ticket": 71,
+      "key": "e16"
+    },
+    {
+      "ticket": 72,
+      "key": "api02"
+    },
+    {
+      "ticket": 73,
+      "key": "api03"
+    },
+    {
+      "ticket": 74,
+      "key": "api04"
+    },
+    {
+      "ticket": 75,
+      "key": "api05"
+    },
+    {
+      "ticket": 76,
+      "key": "gh01"
+    },
+    {
+      "ticket": 77,
+      "key": "gh02"
+    },
+    {
+      "ticket": 78,
+      "key": "gh03"
+    },
+    {
+      "ticket": 79,
+      "key": "gh04"
+    },
+    {
+      "ticket": 80,
+      "key": "gh05"
+    },
+    {
+      "ticket": 81,
+      "key": "gh06"
+    },
+    {
+      "ticket": 82,
+      "key": "gh07"
+    },
+    {
+      "ticket": 83,
+      "key": "gh08"
+    },
+    {
+      "ticket": 84,
+      "key": "gh09"
+    },
+    {
+      "ticket": 85,
+      "key": "fj01"
+    },
+    {
+      "ticket": 86,
+      "key": "fj02"
+    },
+    {
+      "ticket": 87,
+      "key": "fj03"
+    },
+    {
+      "ticket": 88,
+      "key": "fj04"
+    },
+    {
+      "ticket": 89,
+      "key": "fj05"
+    },
+    {
+      "ticket": 90,
+      "key": "fj06"
+    },
+    {
+      "ticket": 91,
+      "key": "fj07"
+    },
+    {
+      "ticket": 92,
+      "key": "w01"
+    },
+    {
+      "ticket": 93,
+      "key": "w02"
+    },
+    {
+      "ticket": 94,
+      "key": "w03"
+    },
+    {
+      "ticket": 95,
+      "key": "w04"
+    },
+    {
+      "ticket": 96,
+      "key": "w05"
+    },
+    {
+      "ticket": 97,
+      "key": "w06"
+    },
+    {
+      "ticket": 98,
+      "key": "w07"
+    },
+    {
+      "ticket": 99,
+      "key": "w08"
+    },
+    {
+      "ticket": 100,
+      "key": "o03"
+    },
+    {
+      "ticket": 101,
+      "key": "o04"
+    },
+    {
+      "ticket": 102,
+      "key": "o05"
+    },
+    {
+      "ticket": 103,
+      "key": "o06"
+    },
+    {
+      "ticket": 104,
+      "key": "o07"
+    },
+    {
+      "ticket": 105,
+      "key": "o08"
+    },
+    {
+      "ticket": 106,
+      "key": "an01"
+    },
+    {
+      "ticket": 107,
+      "key": "an02"
+    },
+    {
+      "ticket": 108,
+      "key": "an03"
+    },
+    {
+      "ticket": 109,
+      "key": "an04"
+    },
+    {
+      "ticket": 110,
+      "key": "sys01"
+    },
+    {
+      "ticket": 111,
+      "key": "sys02"
+    },
+    {
+      "ticket": 112,
+      "key": "sys03"
+    },
+    {
+      "ticket": 113,
+      "key": "op01"
+    },
+    {
+      "ticket": 114,
+      "key": "op02"
+    },
+    {
+      "ticket": 115,
+      "key": "op03"
+    },
+    {
+      "ticket": 116,
+      "key": "op04"
+    },
+    {
+      "ticket": 117,
+      "key": "op05"
+    },
+    {
+      "ticket": 118,
+      "key": "op06"
+    },
+    {
+      "ticket": 119,
+      "key": "op07"
+    },
+    {
+      "ticket": 120,
+      "key": "op08"
+    },
+    {
+      "ticket": 121,
+      "key": "op09"
+    },
+    {
+      "ticket": 122,
+      "key": "op10"
+    },
+    {
+      "ticket": 123,
+      "key": "v01"
+    },
+    {
+      "ticket": 124,
+      "key": "v02"
+    },
+    {
+      "ticket": 125,
+      "key": "v03"
+    },
+    {
+      "ticket": 126,
+      "key": "v04"
+    },
+    {
+      "ticket": 128,
+      "key": "p05"
+    },
+    {
+      "ticket": 129,
+      "key": "a02b"
+    },
+    {
+      "ticket": 130,
+      "key": "a08"
+    },
+    {
+      "ticket": 131,
+      "key": "gh10"
+    },
+    {
+      "ticket": 132,
+      "key": "fj08"
+    },
+    {
+      "ticket": 133,
+      "key": "fj09"
+    },
+    {
+      "ticket": 134,
+      "key": "o09"
+    }
+  ],
+  "ownership_markers": [
+    {
+      "ticket": 26,
+      "key": "p01",
+      "sources": [
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "package-integration",
+        "verification-gate",
+        "evidence-manifest"
+      ]
+    },
+    {
+      "ticket": 27,
+      "key": "p02",
+      "sources": [
+        "#18",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "package-integration"
+      ]
+    },
+    {
+      "ticket": 28,
+      "key": "p03",
+      "sources": [
+        "#8",
+        "#10",
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "package-integration"
+      ]
+    },
+    {
+      "ticket": 29,
+      "key": "p04",
+      "sources": [
+        "#18",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "package-integration"
+      ]
+    },
+    {
+      "ticket": 30,
+      "key": "a01",
+      "sources": [
+        "#15",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 31,
+      "key": "a02",
+      "sources": [
+        "#15",
+        "#16",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 32,
+      "key": "a03",
+      "sources": [
+        "#15",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 33,
+      "key": "a04",
+      "sources": [
+        "#15",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 34,
+      "key": "a05",
+      "sources": [
+        "#10",
+        "#15",
+        "#16",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 35,
+      "key": "a06",
+      "sources": [
+        "#15",
+        "#16",
+        "#17",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-06",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 36,
+      "key": "a07",
+      "sources": [
+        "#15",
+        "#16",
+        "#19",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-06",
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration",
+        "operator-browser-smoke"
+      ]
+    },
+    {
+      "ticket": 37,
+      "key": "r01",
+      "sources": [
+        "#3",
+        "#7",
+        "#23"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 38,
+      "key": "r02",
+      "sources": [
+        "#2",
+        "#11",
+        "#23"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 39,
+      "key": "r03",
+      "sources": [
+        "#2",
+        "#11",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 40,
+      "key": "r04",
+      "sources": [
+        "#2",
+        "#5",
+        "#23"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 41,
+      "key": "r05",
+      "sources": [
+        "#2",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 42,
+      "key": "r06",
+      "sources": [
+        "#2",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 43,
+      "key": "r07",
+      "sources": [
+        "#2",
+        "#23"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 44,
+      "key": "r08",
+      "sources": [
+        "#2",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 45,
+      "key": "r09",
+      "sources": [
+        "#2",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 46,
+      "key": "r10",
+      "sources": [
+        "#5",
+        "#24"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 47,
+      "key": "g01",
+      "sources": [
+        "#4",
+        "#8"
+      ],
+      "scenarios": [
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 48,
+      "key": "g02",
+      "sources": [
+        "#8",
+        "#10"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 49,
+      "key": "g03",
+      "sources": [
+        "#8",
+        "#10"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 50,
+      "key": "g04",
+      "sources": [
+        "#8",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 51,
+      "key": "g05",
+      "sources": [
+        "#8",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 52,
+      "key": "g06",
+      "sources": [
+        "#2",
+        "#5",
+        "#11"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 53,
+      "key": "g07",
+      "sources": [
+        "#5",
+        "#11",
+        "#16",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-06"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 54,
+      "key": "e01",
+      "sources": [
+        "#6",
+        "#9",
+        "#16",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-06"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 55,
+      "key": "o01",
+      "sources": [
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 56,
+      "key": "o02",
+      "sources": [
+        "#18",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 57,
+      "key": "e02",
+      "sources": [
+        "#3",
+        "#6",
+        "#7",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-05",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 58,
+      "key": "e03",
+      "sources": [
+        "#7",
+        "#10",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 59,
+      "key": "e04",
+      "sources": [
+        "#6",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 60,
+      "key": "e05",
+      "sources": [
+        "#6"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 61,
+      "key": "e06",
+      "sources": [
+        "#6",
+        "#7",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 62,
+      "key": "e07",
+      "sources": [
+        "#5",
+        "#6",
+        "#24"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 63,
+      "key": "e08",
+      "sources": [
+        "#5",
+        "#24"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 64,
+      "key": "e09",
+      "sources": [
+        "#5",
+        "#24"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 65,
+      "key": "e10",
+      "sources": [
+        "#6",
+        "#7",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 66,
+      "key": "e11",
+      "sources": [
+        "#7",
+        "#10",
+        "#14",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 67,
+      "key": "e12",
+      "sources": [
+        "#7",
+        "#24"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-05"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 68,
+      "key": "e13",
+      "sources": [
+        "#7",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 69,
+      "key": "e14",
+      "sources": [
+        "#7",
+        "#12",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 70,
+      "key": "e15",
+      "sources": [
+        "#3",
+        "#7",
+        "#10",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 71,
+      "key": "e16",
+      "sources": [
+        "#9",
+        "#16",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-06",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "git-integration",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 72,
+      "key": "api02",
+      "sources": [
+        "#11",
+        "#15",
+        "#16"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-06",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "http-openapi-integration"
+      ]
+    },
+    {
+      "ticket": 73,
+      "key": "api03",
+      "sources": [
+        "#15",
+        "#16"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-06"
+      ],
+      "proof": [
+        "unit",
+        "http-openapi-integration"
+      ]
+    },
+    {
+      "ticket": 74,
+      "key": "api04",
+      "sources": [
+        "#15",
+        "#17"
+      ],
+      "scenarios": [
+        "ACC-02",
+        "ACC-06"
+      ],
+      "proof": [
+        "unit",
+        "http-openapi-integration",
+        "mcp-integration"
+      ]
+    },
+    {
+      "ticket": 75,
+      "key": "api05",
+      "sources": [
+        "#16",
+        "#17",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-05",
+        "ACC-06"
+      ],
+      "proof": [
+        "unit",
+        "http-openapi-integration",
+        "mcp-integration",
+        "packaged-api-mcp-smoke"
+      ]
+    },
+    {
+      "ticket": 76,
+      "key": "gh01",
+      "sources": [
+        "#4",
+        "#8",
+        "#10",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 77,
+      "key": "gh02",
+      "sources": [
+        "#8",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 78,
+      "key": "gh03",
+      "sources": [
+        "#8",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 79,
+      "key": "gh04",
+      "sources": [
+        "#4",
+        "#9",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 80,
+      "key": "gh05",
+      "sources": [
+        "#4",
+        "#9",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 81,
+      "key": "gh06",
+      "sources": [
+        "#9",
+        "#12",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 82,
+      "key": "gh07",
+      "sources": [
+        "#12",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 83,
+      "key": "gh08",
+      "sources": [
+        "#6",
+        "#12",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 84,
+      "key": "gh09",
+      "sources": [
+        "#12",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "github-fixture-integration",
+        "git-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 85,
+      "key": "fj01",
+      "sources": [
+        "#4",
+        "#8",
+        "#10",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 86,
+      "key": "fj02",
+      "sources": [
+        "#8",
+        "#10",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 87,
+      "key": "fj03",
+      "sources": [
+        "#8",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 88,
+      "key": "fj04",
+      "sources": [
+        "#4",
+        "#9",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 89,
+      "key": "fj05",
+      "sources": [
+        "#9",
+        "#12",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 90,
+      "key": "fj06",
+      "sources": [
+        "#4",
+        "#12",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 91,
+      "key": "fj07",
+      "sources": [
+        "#8",
+        "#9",
+        "#12",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration",
+        "browser-component"
+      ]
+    },
+    {
+      "ticket": 92,
+      "key": "w01",
+      "sources": [
+        "#7",
+        "#13",
+        "#23"
+      ],
+      "scenarios": [
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 93,
+      "key": "w02",
+      "sources": [
+        "#13",
+        "#15",
+        "#16",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-06",
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 94,
+      "key": "w03",
+      "sources": [
+        "#7",
+        "#13",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-07",
+        "ACC-08",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 95,
+      "key": "w04",
+      "sources": [
+        "#13",
+        "#15"
+      ],
+      "scenarios": [
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 96,
+      "key": "w05",
+      "sources": [
+        "#12",
+        "#13"
+      ],
+      "scenarios": [
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 97,
+      "key": "w06",
+      "sources": [
+        "#13",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-07",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "fake-codex-integration"
+      ]
+    },
+    {
+      "ticket": 98,
+      "key": "w07",
+      "sources": [
+        "#16",
+        "#17"
+      ],
+      "scenarios": [
+        "ACC-06",
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "http-openapi-integration",
+        "mcp-integration"
+      ]
+    },
+    {
+      "ticket": 99,
+      "key": "w08",
+      "sources": [
+        "#12",
+        "#13"
+      ],
+      "scenarios": [
+        "ACC-07"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "sqlite-integration",
+        "github-fixture-integration",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration"
+      ]
+    },
+    {
+      "ticket": 100,
+      "key": "o03",
+      "sources": [
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 101,
+      "key": "o04",
+      "sources": [
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 102,
+      "key": "o05",
+      "sources": [
+        "#18",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 103,
+      "key": "o06",
+      "sources": [
+        "#13",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 104,
+      "key": "o07",
+      "sources": [
+        "#7",
+        "#9",
+        "#12",
+        "#13",
+        "#18",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 105,
+      "key": "o08",
+      "sources": [
+        "#9",
+        "#12",
+        "#18"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    },
+    {
+      "ticket": 106,
+      "key": "an01",
+      "sources": [
+        "#14"
+      ],
+      "scenarios": [
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 107,
+      "key": "an02",
+      "sources": [
+        "#14"
+      ],
+      "scenarios": [
+        "ACC-07",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 108,
+      "key": "an03",
+      "sources": [
+        "#14"
+      ],
+      "scenarios": [
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 109,
+      "key": "an04",
+      "sources": [
+        "#14",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 110,
+      "key": "sys01",
+      "sources": [
+        "#18",
+        "#19",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 111,
+      "key": "sys02",
+      "sources": [
+        "#18",
+        "#19",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-04",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 112,
+      "key": "sys03",
+      "sources": [
+        "#18",
+        "#19",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "http-integration"
+      ]
+    },
+    {
+      "ticket": 113,
+      "key": "op01",
+      "sources": [
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 114,
+      "key": "op02",
+      "sources": [
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 115,
+      "key": "op03",
+      "sources": [
+        "#15",
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 116,
+      "key": "op04",
+      "sources": [
+        "#9",
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-04",
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 117,
+      "key": "op05",
+      "sources": [
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 118,
+      "key": "op06",
+      "sources": [
+        "#10",
+        "#18",
+        "#20",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 119,
+      "key": "op07",
+      "sources": [
+        "#10",
+        "#18",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 120,
+      "key": "op08",
+      "sources": [
+        "#10",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 121,
+      "key": "op09",
+      "sources": [
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 122,
+      "key": "op10",
+      "sources": [
+        "#18",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "process-integration",
+        "package-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 123,
+      "key": "v01",
+      "sources": [
+        "#21",
+        "#22"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-02",
+        "ACC-03",
+        "ACC-04",
+        "ACC-05",
+        "ACC-06",
+        "ACC-07",
+        "ACC-08",
+        "ACC-09",
+        "ACC-10"
+      ],
+      "proof": [
+        "verification-gate",
+        "evidence-manifest"
+      ]
+    },
+    {
+      "ticket": 124,
+      "key": "v02",
+      "sources": [
+        "#21",
+        "#22"
+      ],
+      "scenarios": [
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "verification-gate",
+        "evidence-manifest"
+      ]
+    },
+    {
+      "ticket": 125,
+      "key": "v03",
+      "sources": [
+        "#21",
+        "#22"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-09"
+      ],
+      "proof": [
+        "paid-codex-canary"
+      ]
+    },
+    {
+      "ticket": 126,
+      "key": "v04",
+      "sources": [
+        "#21",
+        "#22"
+      ],
+      "scenarios": [
+        "ACC-03"
+      ],
+      "proof": [
+        "private-github-canary"
+      ]
+    },
+    {
+      "ticket": 128,
+      "key": "p05",
+      "sources": [
+        "#18",
+        "#19",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-08",
+        "ACC-10"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-failure-integration",
+        "browser-component",
+        "package-integration"
+      ]
+    },
+    {
+      "ticket": 129,
+      "key": "a02b",
+      "sources": [
+        "#15",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 130,
+      "key": "a08",
+      "sources": [
+        "#15",
+        "#20"
+      ],
+      "scenarios": [
+        "ACC-01",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "security-integration",
+        "process-integration"
+      ]
+    },
+    {
+      "ticket": 131,
+      "key": "gh10",
+      "sources": [
+        "#8",
+        "#10",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-03",
+        "ACC-09"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "github-fixture-integration",
+        "sqlite-integration",
+        "security-integration"
+      ]
+    },
+    {
+      "ticket": 132,
+      "key": "fj08",
+      "sources": [
+        "#4",
+        "#9",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "git-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 133,
+      "key": "fj09",
+      "sources": [
+        "#12",
+        "#18",
+        "#19"
+      ],
+      "scenarios": [
+        "ACC-04",
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "browser-component",
+        "forgejo-fixture-integration",
+        "forgejo-v16-integration",
+        "sqlite-integration"
+      ]
+    },
+    {
+      "ticket": 134,
+      "key": "o09",
+      "sources": [
+        "#7",
+        "#9",
+        "#12",
+        "#13",
+        "#18",
+        "#21"
+      ],
+      "scenarios": [
+        "ACC-08"
+      ],
+      "proof": [
+        "unit",
+        "sqlite-integration",
+        "sqlite-failure-integration",
+        "process-integration",
+        "adapter-integration"
+      ]
+    }
+  ],
+  "proof_implementations": {
+    "unit": [
+      "test"
+    ],
+    "browser-component": [
+      "test"
+    ],
+    "security-integration": [
+      "test"
+    ],
+    "sqlite-integration": [
+      "test"
+    ],
+    "sqlite-failure-integration": [
+      "test"
+    ],
+    "process-integration": [
+      "test"
+    ],
+    "adapter-integration": [
+      "scripts/verification/gate-definitions.mjs"
+    ],
+    "git-integration": [
+      "scripts/verification/repository-gate-definition.mjs"
+    ],
+    "github-fixture-integration": [
+      "scripts/verification/github-feedback-gate-definitions.mjs"
+    ],
+    "forgejo-fixture-integration": [
+      "scripts/verification/forgejo-gate-definition.mjs"
+    ],
+    "forgejo-v16-integration": [
+      "scripts/verification/forgejo-gate-definition.mjs"
+    ],
+    "http-integration": [
+      "scripts/verification/gate-definitions.mjs"
+    ],
+    "http-openapi-integration": [
+      "scripts/verification/openapi-runtime-conformance-gate.mjs"
+    ],
+    "mcp-integration": [
+      "scripts/verification/mcp-gate-definition.mjs"
+    ],
+    "fake-codex-integration": [
+      "scripts/verification/fake-codex-gate-definition.mjs"
+    ],
+    "package-integration": [
+      "test/package/compose.package-test.mjs"
+    ],
+    "operator-browser-smoke": [
+      "scripts/verification/operator-browser-smoke-gate.mjs"
+    ],
+    "packaged-api-mcp-smoke": [
+      "scripts/verification/mcp-gate-definition.mjs"
+    ],
+    "verification-gate": [
+      "scripts/verification/verification-runner.mjs"
+    ],
+    "evidence-manifest": [
+      "scripts/verification/manifest-reporting.mjs"
+    ],
+    "paid-codex-canary": [
+      "scripts/verification/run-paid-codex-canary.mjs"
+    ],
+    "private-github-canary": [
+      "scripts/verification/run-private-github-canary.mjs"
+    ]
+  },
+  "release_acceptance": {
+    "proof": [
+      "paid-codex-canary",
+      "private-github-canary"
+    ],
+    "owners": [
+      125,
+      126
+    ],
+    "manifest_paths": [
+      "releaseCanaries.paidCodex",
+      "releaseCanaries.privateGitHub"
+    ],
+    "routine_gate_membership": [],
+    "new_e2e_scenarios": 0
+  },
+  "final_outcome": "pass"
+}

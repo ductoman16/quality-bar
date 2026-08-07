@@ -13,6 +13,7 @@ import {
   writeManifest,
 } from "./manifest-reporting.mjs";
 import { readVerificationMetadata } from "./metadata.mjs";
+import { auditTraceability } from "./traceability-audit.mjs";
 
 /**
  * @param {{
@@ -74,10 +75,12 @@ export function collectVerificationEvidence({
     if (!definitions) {
       try {
         const ownership = readVerificationOwnership(repositoryRoot);
+        const traceability = auditTraceability({ repositoryRoot });
         definitions = createGateDefinitions(metadata);
         verificationAggregation = createVerificationAggregation({
           definitions,
           ownership,
+          traceability,
         });
       } catch (error) {
         failures.push({

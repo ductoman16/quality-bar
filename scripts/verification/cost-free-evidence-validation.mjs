@@ -2,6 +2,7 @@ import { createGateDefinitions } from "./gate-definitions.mjs";
 import { createManifest } from "./manifest-reporting.mjs";
 import { readVerificationMetadata } from "./metadata.mjs";
 import { validateReleaseCanaries } from "./release-canary-schema.mjs";
+import { auditTraceability } from "./traceability-audit.mjs";
 import {
   createVerificationAggregation,
   readVerificationOwnership,
@@ -180,6 +181,9 @@ export function validateCostFreeEvidence(input, expected) {
   const verificationAggregation = createVerificationAggregation({
     definitions,
     ownership: readVerificationOwnership(expected.repositoryRoot),
+    traceability: auditTraceability({
+      repositoryRoot: expected.repositoryRoot,
+    }),
   });
   const canonical = createManifest({
     failures: [],

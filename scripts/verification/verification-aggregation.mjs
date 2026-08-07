@@ -41,6 +41,7 @@ const EXPECTED_PROOF = ["verification-gate", "evidence-manifest"];
  *   },
  *   crossProcessSmokes: CrossProcessSmoke[],
  *   ownership: Omit<VerificationOwnership, "localGates" | "crossProcessSmokes">,
+ *   traceability: import("./traceability-audit.mjs").TraceabilityAudit,
  * }} VerificationAggregation
  */
 
@@ -150,10 +151,18 @@ export function readVerificationOwnership(repositoryRoot) {
  * @param {{
  *   definitions: import("./gate-definitions.mjs").GateDefinition[],
  *   ownership: VerificationOwnership,
+ *   traceability: import("./traceability-audit.mjs").TraceabilityAudit,
  * }} input
  * @returns {VerificationAggregation}
  */
-export function createVerificationAggregation({ definitions, ownership }) {
+export function createVerificationAggregation({
+  definitions,
+  ownership,
+  traceability,
+}) {
+  if (!traceability || traceability.parent !== EXPECTED_PARENT) {
+    throw new Error("verification_aggregation_traceability_invalid");
+  }
   const names = definitions.map((definition) => definition.name);
   if (new Set(names).size !== names.length) {
     throw new Error("verification_aggregation_duplicate_gate");
@@ -199,5 +208,6 @@ export function createVerificationAggregation({ definitions, ownership }) {
       acceptanceScenarios: [...ownership.acceptanceScenarios],
       proof: [...ownership.proof],
     },
+    traceability,
   };
 }
