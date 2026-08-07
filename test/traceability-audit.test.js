@@ -340,4 +340,22 @@ test("release traceability requires both passing canary evidence", () => {
       }),
     /traceability_audit_release_evidence_invalid/u,
   );
+  const duplicateInvocation = {
+    ...evidence.privateGitHub,
+    invocation: {
+      ...evidence.privateGitHub.invocation,
+      attemptId: evidence.paidCodex.invocation.attemptId,
+    },
+  };
+  assert.throws(
+    () =>
+      validateTraceabilityRelease(marker, {
+        releaseCanaries: {
+          paidCodex: evidence.paidCodex,
+          privateGitHub: duplicateInvocation,
+        },
+        sourceCommit: releaseCanarySourceCommit,
+      }),
+    /traceability_audit_release_evidence_invalid/u,
+  );
 });

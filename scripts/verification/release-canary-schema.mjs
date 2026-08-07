@@ -344,7 +344,9 @@ export function validateReleaseCanaries(canaries, sourceCommit) {
     !isRecord(value.privateGitHub.invocation) ||
     value.privateGitHub.invocation.command !== "canary:private-github" ||
     typeof value.paidCodex.invocation.attemptId !== "string" ||
-    typeof value.privateGitHub.invocation.attemptId !== "string"
+    typeof value.privateGitHub.invocation.attemptId !== "string" ||
+    value.paidCodex.invocation.attemptId ===
+      value.privateGitHub.invocation.attemptId
   ) {
     throw new TypeError("release acceptance canary evidence is invalid");
   }
