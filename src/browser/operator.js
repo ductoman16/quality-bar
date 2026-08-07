@@ -315,32 +315,41 @@ fetch("/api/v1/system")
       }),
     );
     if (systemFacts) {
-      const codexModels = system.codex.catalog.models
-        .map(
-          (model) =>
-            model.id +
-            " (" +
-            model.reasoning_efforts.join(", ") +
-            "; " +
-            model.service_tiers.join(", ") +
-            ")",
-        )
-        .join(". ");
-      systemFacts.textContent =
-        "Bootstrap: " +
-        system.bootstrap.status +
-        ". Durable core: " +
-        system.durable_core.status +
-        ". Codex: " +
+      const heading = document.createElement("h2");
+      heading.textContent = "System status";
+      const facts = document.createElement("dl");
+      /** @param {string} name @param {string | Node} value */
+      const addFact = (name, value) => {
+        const term = document.createElement("dt");
+        term.textContent = name;
+        const description = document.createElement("dd");
+        description.append(value);
+        facts.append(term, description);
+      };
+      addFact("Bootstrap", system.bootstrap.status);
+      addFact("Durable core", system.durable_core.status);
+      addFact(
+        "Codex",
         system.codex.status +
-        (system.codex.error ? " (" + system.codex.error + ")" : "") +
-        ". Models: " +
-        codexModels +
-        ". Browser sessions: " +
-        system.browser_sessions.active_count +
-        ". Implementer token: " +
-        system.implementer_token.status +
-        ".";
+          (system.codex.error ? " (" + system.codex.error + ")" : ""),
+      );
+      const models = document.createElement("ul");
+      models.className = "system-model-list";
+      for (const model of system.codex.catalog.models) {
+        const item = document.createElement("li");
+        item.textContent =
+          model.id +
+          " (" +
+          model.reasoning_efforts.join(", ") +
+          "; " +
+          model.service_tiers.join(", ") +
+          ")";
+        models.append(item);
+      }
+      addFact("Models", models);
+      addFact("Browser sessions", String(system.browser_sessions.active_count));
+      addFact("Implementer token", system.implementer_token.status);
+      systemFacts.replaceChildren(heading, facts);
     }
   })
   .catch((failure) => {
