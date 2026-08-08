@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 
+import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
+import { readBrowserAsset } from "../src/browser-assets.js";
+import { renderEvaluationMonitorPage } from "../src/evaluation-monitor-page.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
 /** @param {string} digit */
@@ -7,45 +11,38 @@ const oid = (digit) => digit.repeat(40);
 
 /** @param {string} page */
 export function assertEvaluationPage(page) {
-  for (const id of [
-    "evaluation-monitor",
-    "evaluation-stat-workers",
-    "evaluation-stat-queue",
-    "evaluation-stat-pass-rate",
-    "evaluation-stat-p95",
-    "evaluation-stat-updated",
-    "evaluation-stat-window-24h",
-    "evaluation-stat-window-7d",
-    "evaluation-filter-form",
-    "evaluation-filter-repository",
-    "evaluation-filter-status",
-    "evaluation-filter-outcome",
-    "evaluation-filter-query",
-    "evaluation-filter-start",
-    "evaluation-filter-end",
-    "evaluation-filter-reset",
-    "evaluation-create-toggle",
-    "evaluation-create-form",
-    "evaluation-create-repository",
-    "evaluation-create-base-type",
-    "evaluation-create-base-value",
-    "evaluation-create-head-type",
-    "evaluation-create-head-value",
-    "evaluation-create-submit",
-    "evaluation-create-status",
-    "evaluation-list",
-    "evaluation-empty",
-    "evaluation-loading",
-    "evaluation-error",
-    "evaluation-new-activity",
-    "evaluation-load-more",
-  ]) {
-    assert.match(page, new RegExp(`id="${id}"`));
-  }
-  assert.match(page, /<script src="\/assets\/evaluation\.js"><\/script>/);
+  const evaluationPage = renderEvaluationMonitorPage("evaluations");
+  assert.ok(page.includes(evaluationPage.markup));
+  assert.ok(page.includes(evaluationPage.scripts));
+  const operatorIndex = page.indexOf("/assets/operator.js");
+  const monitorIndex = page.indexOf("/assets/evaluation-monitor.js");
+  const evaluationIndex = page.indexOf("/assets/evaluation.js");
+  assert.ok(operatorIndex < monitorIndex);
+  assert.ok(monitorIndex < evaluationIndex);
   assert.doesNotMatch(
     page,
     /evaluation-result\.js|evaluation-feedback\.js|waiver-batch\.js/,
+  );
+}
+
+/** @param {Record<string, any>} context */
+export function executeEvaluationMonitorContract(context) {
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation-monitor.js",
+    readBrowserAsset("/assets/evaluation-monitor.js"),
+    context,
+  );
+}
+
+/** @param {Record<string, any>} context @param {"/assets/evaluation.js" | "/assets/evaluation-detail.js"} route */
+export function executeEvaluationMonitorPageAsset(context, route) {
+  executeEvaluationMonitorContract(context);
+  executeServedBrowserAsset(
+    resolve("."),
+    `src/browser/${route.slice("/assets/".length)}`,
+    readBrowserAsset(route),
+    context,
   );
 }
 
@@ -107,37 +104,10 @@ export function evaluationElements() {
   return /** @type {any} */ (
     new Map(
       [
-        "evaluation-create-form",
-        "evaluation-create-toggle",
-        "evaluation-create-repository",
-        "evaluation-create-base-type",
-        "evaluation-create-base-value",
-        "evaluation-create-head-type",
-        "evaluation-create-head-value",
-        "evaluation-create-submit",
-        "evaluation-create-status",
-        "evaluation-filter-form",
-        "evaluation-filter-repository",
-        "evaluation-filter-status",
-        "evaluation-filter-outcome",
-        "evaluation-filter-query",
-        "evaluation-filter-start",
-        "evaluation-filter-end",
-        "evaluation-filter-reset",
-        "evaluation-loading",
-        "evaluation-empty",
-        "evaluation-error",
-        "evaluation-list",
-        "evaluation-new-activity",
-        "evaluation-load-more",
-        "evaluation-stat-workers",
-        "evaluation-stat-queue",
-        "evaluation-stat-pass-rate",
-        "evaluation-stat-p95",
-        "evaluation-stat-updated",
-        "evaluation-stat-window-24h",
-        "evaluation-stat-window-7d",
-      ].map((id) => [id, browserElement({ hidden: true })]),
+        ...renderEvaluationMonitorPage("evaluations").markup.matchAll(
+          /\bid="([^"]+)"/g,
+        ),
+      ].map(([, id]) => [id, browserElement({ hidden: true })]),
     )
   );
 }

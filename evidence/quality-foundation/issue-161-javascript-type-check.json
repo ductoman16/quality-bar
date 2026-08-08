@@ -9,6 +9,7 @@
   "served_browser_modules": [
     "login.js",
     "operator.js",
+    "evaluation-monitor.js",
     "evaluation-detail.js",
     "system-polling-delivery-contract.js",
     "system-polling-delivery.js",

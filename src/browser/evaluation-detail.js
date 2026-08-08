@@ -1,13 +1,14 @@
 // @ts-nocheck
 (() => {
-  const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-  const EXECUTION_STATUSES = new Set([
-    "queued",
-    "running",
-    "completed",
-    "failed",
-    "cancelled",
-  ]);
+  const monitor = Reflect.get(window, "qualityBarEvaluationMonitor");
+  if (
+    !monitor ||
+    typeof monitor.isTerminalStatus !== "function" ||
+    typeof monitor.mutate !== "function" ||
+    typeof monitor.validEvaluation !== "function"
+  ) {
+    throw new Error("evaluation_monitor_boundary_unavailable");
+  }
   let currentEvaluation;
   let refreshing = false;
   let resultRendered = false;
@@ -24,51 +25,6 @@
   /** @param {unknown} value */
   function record(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-
-  /** @param {unknown} value */
-  function validMonitor(value) {
-    if (
-      !record(value) ||
-      !Array.isArray(value.nodes) ||
-      value.nodes.length < 2
-    ) {
-      return false;
-    }
-    return value.nodes.every((node) => {
-      if (!record(node) || !EXECUTION_STATUSES.has(node.status)) {
-        return false;
-      }
-      if (node.kind === "system") {
-        return (
-          ["preparing", "finalizing"].includes(node.key) &&
-          ["Preparing", "Finalizing"].includes(node.label)
-        );
-      }
-      return (
-        node.kind === "review" &&
-        typeof node.label === "string" &&
-        node.label.length > 0 &&
-        typeof node.review_id === "string" &&
-        typeof node.review_version_id === "string"
-      );
-    });
-  }
-
-  /** @param {unknown} value */
-  function validEvaluation(value) {
-    return (
-      record(value) &&
-      typeof value.id === "string" &&
-      value.id.length > 0 &&
-      record(value.repository) &&
-      typeof value.repository.url === "string" &&
-      EXECUTION_STATUSES.has(value.execution_status) &&
-      typeof value.effective_outcome === "string" &&
-      typeof value.created_at === "string" &&
-      (value.completed_at === null || typeof value.completed_at === "string") &&
-      validMonitor(value.monitor)
-    );
   }
 
   /** @param {unknown} counts */
@@ -172,7 +128,10 @@
       evaluation.execution_status,
     );
     retry.hidden = evaluation.retry_state !== "exhausted";
-    if (!TERMINAL_STATUSES.has(evaluation.execution_status) && resultRendered) {
+    if (
+      !monitor.isTerminalStatus(evaluation.execution_status) &&
+      resultRendered
+    ) {
       element("evaluation-detail-result").replaceChildren();
       resultRendered = false;
     }
@@ -275,7 +234,10 @@
         showError("Evaluation failed to load");
         return;
       }
-      if (!validEvaluation(evaluation) || evaluation.id !== evaluationId) {
+      if (
+        !monitor.validEvaluation(evaluation) ||
+        evaluation.id !== evaluationId
+      ) {
         showError("Evaluation failed to load");
         return;
       }
@@ -294,19 +256,11 @@
     const control = element("evaluation-detail-" + action);
     control.disabled = true;
     try {
-      const headers = {
-        "x-quality-bar-csrf": window.qualityBarOperator.csrfToken(),
-      };
-      if (action === "retry") {
-        headers["idempotency-key"] = crypto.randomUUID();
-      }
-      const response = await fetch(
-        "/api/v1/evaluations/" +
-          encodeURIComponent(currentEvaluation.id) +
-          "/" +
-          action,
-        { headers, method: "POST" },
-      );
+      const response = await monitor.mutate({
+        action,
+        csrfToken: window.qualityBarOperator.csrfToken(),
+        evaluationId: currentEvaluation.id,
+      });
       if (!response.ok) {
         showError(await responseMessage(response, "Evaluation action failed"));
         return;

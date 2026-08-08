@@ -4,13 +4,20 @@
   const operator = /** @type {any} */ (
     Reflect.get(window, "qualityBarOperator")
   );
+  const monitor = /** @type {any} */ (
+    Reflect.get(window, "qualityBarEvaluationMonitor")
+  );
   if (
     !operator ||
     typeof operator.requiredElement !== "function" ||
     typeof operator.csrfToken !== "function" ||
-    typeof operator.readRepositoryCollection !== "function"
+    typeof operator.readRepositoryCollection !== "function" ||
+    !monitor ||
+    typeof monitor.isTerminalStatus !== "function" ||
+    typeof monitor.mutate !== "function" ||
+    typeof monitor.validCollection !== "function"
   ) {
-    throw new Error("evaluation_operator_boundary_unavailable");
+    throw new Error("evaluation_monitor_boundary_unavailable");
   }
 
   /** @param {string} id */
@@ -47,7 +54,6 @@
   const FILTER_NAMES = /** @type {Array<keyof typeof FILTER_IDS>} */ (
     Object.keys(FILTER_IDS)
   );
-  const TERMINAL = new Set(["completed", "failed", "cancelled"]);
   const known = new Map();
   const evaluations = new Map();
   const expanded = new Set();
@@ -222,7 +228,7 @@
     if (Number.isSafeInteger(duration) && duration >= 0) {
       return formatMilliseconds(duration);
     }
-    if (!TERMINAL.has(evaluation?.execution_status)) {
+    if (!monitor.isTerminalStatus(evaluation?.execution_status)) {
       const started = timestamp(evaluation);
       if (started > 0) {
         return formatMilliseconds(Math.max(0, Date.now() - started));
@@ -374,21 +380,11 @@
     button.addEventListener("click", async () => {
       let response;
       try {
-        response = await fetch(
-          "/api/v1/evaluations/" +
-            encodeURIComponent(evaluation.id) +
-            "/" +
-            action,
-          {
-            headers: {
-              ...(action === "retry"
-                ? { "idempotency-key": crypto.randomUUID() }
-                : {}),
-              "x-quality-bar-csrf": operator.csrfToken(),
-            },
-            method: "POST",
-          },
-        );
+        response = await monitor.mutate({
+          action,
+          csrfToken: operator.csrfToken(),
+          evaluationId: evaluation.id,
+        });
       } catch {
         showError("Evaluation action failed");
         await refreshList({ replace: true });
@@ -604,13 +600,7 @@
       return;
     }
     const collection = await response.json();
-    if (
-      !Array.isArray(collection?.items) ||
-      !(
-        collection.next_cursor === null ||
-        typeof collection.next_cursor === "string"
-      )
-    ) {
+    if (!monitor.validCollection(collection)) {
       showError("Evaluations returned an invalid response");
       return;
     }
