@@ -11,7 +11,7 @@
     "canary:private-github": "node scripts/run-with-exact-node.mjs scripts/verification/run-private-github-canary.mjs",
     "verify:release": "node scripts/run-with-exact-node.mjs scripts/verify-release.mjs",
     "start": "node scripts/run-with-exact-node.mjs src/main.js",
-    "test": "node scripts/run-with-exact-node.mjs --test",
+    "test": "node scripts/run-with-exact-node.mjs scripts/run-suite.mjs",
     "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",
     "lint:correctness": "node scripts/run-with-exact-node.mjs scripts/core-js-lint.mjs",
     "lint:boundaries": "node scripts/run-with-exact-node.mjs scripts/node-boundary-lint.mjs",
