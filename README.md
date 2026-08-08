@@ -53,7 +53,6 @@ chmod 0400 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
 docker compose run --rm --no-deps quality-bar codex login --device-auth
 ```
 
-
 If you are logging into an already-running temporary instance from a non-TTY path (the error `cannot attach stdin to a TTY-enabled container`), run:
 
 ```sh
@@ -67,7 +66,6 @@ docker exec quality-bar-local chown -R 10001:10001 /var/lib/quality-bar/codex-ho
 ```
 
 Then restart that container after the browser flow completes.
-
 
 Docker Desktop/macOS can skip the Linux-only `chown` line.
 
