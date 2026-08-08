@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
 import {
   evaluation,
   evaluationElements,
@@ -13,8 +14,8 @@ import { browserElement } from "./repository-browser-component-support.js";
 
 test("a newly ready Forgejo Evaluation has provider-neutral semantic operator state", async () => {
   const page = operatorPage({ view: "evaluations" });
-  assert.match(page, /@media\(max-width:40rem\)/);
-  assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(FONO_LCD_STYLE, /@media/);
+  assert.match(FONO_LCD_STYLE, /prefers-reduced-motion/);
   const controls = evaluationElements();
   const automatic = evaluation({
     completed_at: null,

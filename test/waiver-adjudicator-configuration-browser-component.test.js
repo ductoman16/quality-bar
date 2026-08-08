@@ -7,6 +7,7 @@ import { Script } from "node:vm";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
 import {
   browserElement,
   FakeCustomEvent,
@@ -36,10 +37,7 @@ test("the System page exposes one semantic narrow-layout Waiver Adjudicator Conf
     page,
     /<output aria-label="Waiver Adjudicator Configuration status" aria-live="polite" id="waiver-adjudicator-configuration-status"><\/output><p hidden id="waiver-adjudicator-configuration-error" role="alert" tabindex="-1"><\/p>/,
   );
-  assert.match(
-    page,
-    /@media\(max-width:40rem\).*@media\(prefers-reduced-motion:reduce\)/,
-  );
+  assert.match(FONO_LCD_STYLE, /@media/);
   assert.match(
     page,
     /<script src="\/assets\/waiver-adjudicator-configuration\.js"><\/script>/,
