@@ -12,6 +12,14 @@ import {
 
 const document = {
   criterion_outcomes: [],
+  evaluation_overview: {
+    clear_count: 1,
+    duration_sample_count: 1,
+    p95_duration_ms: 120,
+    pass_rate: { denominator: 4, numerator: 1 },
+    terminal_count: 4,
+    window: { end: 200, start: 100 },
+  },
   evaluation_outcomes: {
     advisory: 1,
     advisory_rate: { denominator: 4, numerator: 1 },

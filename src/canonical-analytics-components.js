@@ -73,6 +73,9 @@ export function canonicalAnalyticsSchemas() {
         evaluation_outcomes: {
           $ref: "#/components/schemas/EvaluationOutcomeAnalytics",
         },
+        evaluation_overview: {
+          $ref: "#/components/schemas/EvaluationOverviewAnalytics",
+        },
         finding_impact: {
           $ref: "#/components/schemas/FindingImpactAnalytics",
         },
@@ -100,6 +103,7 @@ export function canonicalAnalyticsSchemas() {
       [
         "criterion_outcomes",
         "evaluation_outcomes",
+        "evaluation_overview",
         "finding_impact",
         "matching_facts",
         "population",
@@ -198,6 +202,30 @@ export function canonicalAnalyticsSchemas() {
         "advisory_rate",
         "blocking_rate",
         "error_rate",
+      ],
+    ),
+    EvaluationOverviewAnalytics: closedObject(
+      {
+        clear_count: count,
+        duration_sample_count: count,
+        p95_duration_ms: nullableCount,
+        pass_rate: rate,
+        terminal_count: count,
+        window: closedObject(
+          {
+            end: count,
+            start: count,
+          },
+          ["start", "end"],
+        ),
+      },
+      [
+        "window",
+        "terminal_count",
+        "clear_count",
+        "pass_rate",
+        "duration_sample_count",
+        "p95_duration_ms",
       ],
     ),
     FindingImpactAnalytics: closedObject(
