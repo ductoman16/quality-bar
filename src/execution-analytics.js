@@ -23,6 +23,69 @@ function rate(numerator, denominator) {
 }
 
 /** @param {number[]} values */
+export function nearestRankP95(values) {
+  if (values.length === 0) {
+    return null;
+  }
+  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)) {
+    throw new AnalyticsError(
+      "analytics_fact_invalid",
+      "Canonical analytics fact is invalid",
+    );
+  }
+  const sorted = values.toSorted((left, right) => left - right);
+  return sorted[Math.ceil(sorted.length * 0.95) - 1];
+}
+
+/**
+ * @param {Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>} rows
+ * @param {(row: Record<string, import("node:sqlite").SQLInputValue> | undefined) => string} outcome
+ * @param {{end: number, start: number}} window
+ */
+export function deriveEvaluationOverview(rows, outcome, window) {
+  let clearCount = 0;
+  let terminalCount = 0;
+  /** @type {number[]} */
+  const durations = [];
+  for (const row of rows) {
+    const status = row?.execution_status;
+    const effectiveOutcome = outcome(row);
+    if (["completed", "failed", "cancelled"].includes(String(status))) {
+      terminalCount += 1;
+      if (effectiveOutcome === "clear") {
+        clearCount += 1;
+      }
+    }
+    const completedAt = row?.completed_at;
+    if (status !== "completed" || typeof completedAt !== "number") {
+      continue;
+    }
+    const createdAt = row?.created_at;
+    if (
+      typeof createdAt !== "number" ||
+      !Number.isSafeInteger(createdAt) ||
+      !Number.isSafeInteger(completedAt) ||
+      createdAt < 0 ||
+      completedAt < createdAt
+    ) {
+      throw new AnalyticsError(
+        "analytics_fact_invalid",
+        "Canonical analytics fact is invalid",
+      );
+    }
+    durations.push(completedAt - createdAt);
+  }
+  return {
+    clear_count: clearCount,
+    duration_sample_count: durations.length,
+    p95_duration_ms: nearestRankP95(durations),
+    pass_rate: rate(clearCount, terminalCount),
+    terminal_count: terminalCount,
+    window,
+  };
+}
+
+/** @param {number[]} values */
 function numericSummary(values) {
   if (values.length === 0) {
     return null;

@@ -16,8 +16,14 @@ import { readAutomaticEvaluationProgressionRows } from "./analytics-automatic-pr
  * }} durableCore
  * @param {Record<string, unknown>} filters
  * @param {(row: Record<string, import("node:sqlite").SQLInputValue> | undefined) => string} evaluationOutcome
+ * @param {{end: number, start: number}} evaluationOverviewWindow
  */
-export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
+export function readAnalyticsFactRows(
+  durableCore,
+  filters,
+  evaluationOutcome,
+  evaluationOverviewWindow,
+) {
   const evaluationRows = durableCore.all(
     `${EVALUATION_WAIVER_SELECTION}
      evaluations.id AS analytics_evaluation_id
@@ -30,6 +36,29 @@ export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
      LEFT JOIN evaluation_results
        ON evaluation_results.evaluation_id = evaluations.id
      ORDER BY evaluations.rowid`,
+  );
+  const overviewWindow = analyticsEventWindow(
+    "evaluations.created_at",
+    evaluationOverviewWindow,
+  );
+  const evaluationOverviewRows = durableCore.all(
+    `${EVALUATION_WAIVER_SELECTION}
+     evaluations.id AS analytics_evaluation_id,
+     evaluations.execution_status,
+     evaluations.created_at,
+     evaluations.completed_at,
+     evaluation_results.outcome AS effective_outcome_source
+     FROM evaluations
+     JOIN repositories ON repositories.id = evaluations.repository_id
+     LEFT JOIN github_automatic_evaluations
+       ON github_automatic_evaluations.evaluation_id = evaluations.id
+     LEFT JOIN forgejo_automatic_evaluations
+       ON forgejo_automatic_evaluations.evaluation_id = evaluations.id
+     LEFT JOIN evaluation_results
+       ON evaluation_results.evaluation_id = evaluations.id
+     WHERE ${overviewWindow.sql}
+     ORDER BY evaluations.rowid`,
+    ...overviewWindow.parameters,
   );
   const progressionRows = readAutomaticEvaluationProgressionRows(durableCore);
   const filterFactRows = durableCore.all(
@@ -373,6 +402,7 @@ export function readAnalyticsFactRows(durableCore, filters, evaluationOutcome) {
     criterionRows,
     decisionRows,
     evaluationRows,
+    evaluationOverviewRows,
     filteredEvaluationRows,
     findingRows,
     matchingCriterionRows,

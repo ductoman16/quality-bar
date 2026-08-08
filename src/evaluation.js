@@ -114,7 +114,7 @@ export function createEvaluationService(
     storageReserve,
   });
   const waiverResources = createWaiverResourceReader(durableCore);
-  const analytics = createAnalyticsService(durableCore);
+  const analytics = createAnalyticsService(durableCore, { now });
   const preStartRetries = createEvaluationPreStartRetryService(durableCore, {
     now,
     readCodexCapabilityFailure: readLiveCodexCapabilityFailure,

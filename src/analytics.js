@@ -1,8 +1,9 @@
-import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import {
   AnalyticsError,
+  deriveEvaluationOverview,
   deriveExecutionReliability,
 } from "./execution-analytics.js";
+import { evaluationOutcome } from "./analytics-evaluation-outcome.js";
 import {
   derivePullRequestCriterionTransitions,
   validatedAnalyticsFilters,
@@ -56,81 +57,49 @@ function countPopulation(rows, outcomes) {
   return counts;
 }
 
-/** @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row */
-function evaluationOutcome(row) {
-  const facts = {
-    activeAdjudicationCount: row?.active_waiver_adjudication_count,
-    blockingFindingCount: row?.blocking_finding_count,
-    currentWaiverErrorCount: row?.current_waiver_error_count,
-    unwaivedAdvisoryFindingCount: row?.unwaived_advisory_finding_count,
-  };
-  const storedOutcome = row?.result_outcome;
-  const executionStatus = row?.execution_status;
-  if (
-    !Object.values(facts).every(
-      (count) =>
-        typeof count === "number" && Number.isSafeInteger(count) && count >= 0,
-    ) ||
-    !["queued", "running", "completed", "failed", "cancelled"].includes(
-      /** @type {string} */ (executionStatus),
-    ) ||
-    !(
-      storedOutcome === null ||
-      ["clear", "advisory", "blocking", "error"].includes(
-        /** @type {string} */ (storedOutcome),
-      )
-    ) ||
-    (storedOutcome === null && executionStatus === "completed") ||
-    (storedOutcome !== null &&
-      ["queued", "running"].includes(/** @type {string} */ (executionStatus)))
-  ) {
-    throw new AnalyticsError(
-      "analytics_fact_invalid",
-      "Canonical analytics fact is invalid",
-    );
-  }
-  const resultOutcome =
-    storedOutcome !== null
-      ? /** @type {string} */ (storedOutcome)
-      : ["failed", "cancelled"].includes(
-            /** @type {string} */ (executionStatus),
-          )
-        ? "error"
-        : "pending";
-  return effectiveEvaluationOutcome({
-    activeAdjudicationCount: /** @type {number} */ (
-      facts.activeAdjudicationCount
-    ),
-    blockingFindingCount: /** @type {number} */ (facts.blockingFindingCount),
-    currentWaiverErrorCount: /** @type {number} */ (
-      facts.currentWaiverErrorCount
-    ),
-    resultOutcome,
-    unwaivedAdvisoryFindingCount: /** @type {number} */ (
-      facts.unwaivedAdvisoryFindingCount
-    ),
-  });
-}
-
 /**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>
  * }} durableCore
+ * @param {{now?: () => number}} [dependencies]
  */
-export function createAnalyticsService(durableCore) {
-  if (typeof durableCore?.all !== "function") {
+export function createAnalyticsService(durableCore, { now = Date.now } = {}) {
+  if (typeof durableCore?.all !== "function" || typeof now !== "function") {
     throw new TypeError("Analytics durable core is required");
   }
   return {
     /** @param {Record<string, unknown>} [inputFilters] */
     read(inputFilters) {
       const filters = validatedAnalyticsFilters(inputFilters);
+      const overviewWindow = {
+        end:
+          filters.end === undefined
+            ? now()
+            : /** @type {number} */ (filters.end),
+        start:
+          filters.start === undefined
+            ? 0
+            : /** @type {number} */ (filters.start),
+      };
+      if (overviewWindow.end <= overviewWindow.start) {
+        throw new AnalyticsError(
+          "analytics_filter_invalid",
+          "Analytics filter is invalid",
+        );
+      }
+      if (!Number.isSafeInteger(overviewWindow.end)) {
+        throw new AnalyticsError(
+          "analytics_fact_invalid",
+          "Canonical analytics fact is invalid",
+        );
+      }
       try {
         const {
           applicabilityRows,
           criterionRows,
           decisionRows,
           evaluationRows,
+          evaluationOverviewRows,
           filteredEvaluationRows,
           findingRows,
           matchingCriterionRows,
@@ -143,7 +112,12 @@ export function createAnalyticsService(durableCore) {
           waiverAdjudicationRows,
           waiverRequestRows,
           waiverRows,
-        } = readAnalyticsFactRows(durableCore, filters, evaluationOutcome);
+        } = readAnalyticsFactRows(
+          durableCore,
+          filters,
+          evaluationOutcome,
+          overviewWindow,
+        );
         const applicability = countOutcomes(applicabilityRows, "review_id", [
           "applicable",
           "not_applicable",
@@ -306,6 +280,11 @@ export function createAnalyticsService(durableCore) {
               triggered: counts.triggered,
             };
           }),
+          evaluation_overview: deriveEvaluationOverview(
+            evaluationOverviewRows,
+            evaluationOutcome,
+            overviewWindow,
+          ),
           evaluation_outcomes: {
             advisory: evaluationCounts.advisory,
             advisory_rate: rate(evaluationCounts.advisory, terminalEvaluations),
