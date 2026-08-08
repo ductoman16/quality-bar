@@ -8,7 +8,7 @@ const oid = (digit) => digit.repeat(40);
 /** @param {string} page */
 export function assertEvaluationPage(page) {
   for (const pattern of [
-    /<h1>Evaluations<\/h1>/,
+    /<h1[^>]*>Evaluations<\/h1>/,
     /id="evaluation-create-form"/,
     /id="evaluation-active"/,
     /id="evaluation-recent"/,
