@@ -1,3 +1,7 @@
+import {
+  readEvaluationMonitors,
+  validEvaluationMonitor,
+} from "./evaluation-monitor.js";
 import { effectiveEvaluationOutcome } from "./waiver-effective-outcome.js";
 import { githubDeliveryResource as delivery } from "./github-delivery-resource.js";
 import {
@@ -9,8 +13,11 @@ export { EVALUATION_SELECTION } from "./evaluation-resource-selection.js";
 const timestamp = (/** @type {number} */ value) =>
   new Date(value).toISOString();
 
-/** @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row */
-export function readEvaluation(row) {
+/**
+ * @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row
+ * @param {unknown} [monitor]
+ */
+export function readEvaluation(row, monitor) {
   if (
     !row ||
     typeof row.id !== "string" ||
@@ -43,6 +50,7 @@ export function readEvaluation(row) {
       row.next_attempt_at === null || Number.isSafeInteger(row.next_attempt_at)
     ) ||
     !Number.isSafeInteger(row.created_at) ||
+    (monitor !== undefined && !validEvaluationMonitor(monitor)) ||
     !validEvaluationPreStartRetryRow(row)
   ) {
     throw new TypeError("Evaluation row is invalid");
@@ -279,6 +287,7 @@ export function readEvaluation(row) {
         }
       : {}),
     created_at: timestamp(/** @type {number} */ (row.created_at)),
+    ...(monitor === undefined ? {} : { monitor }),
     effective_outcome: effectiveOutcome,
     execution_status: row.execution_status,
     head_commit: row.head_commit,
@@ -298,4 +307,19 @@ export function readEvaluation(row) {
       : {}),
     repository: { id: row.repository_id, url: row.normalized_url },
   };
+}
+
+/**
+ * @param {{all: Function}} durableCore
+ * @param {Record<string, import("node:sqlite").SQLInputValue> | undefined} row
+ */
+export function readEvaluationWithMonitor(durableCore, row) {
+  if (!row || typeof row.id !== "string") {
+    throw new TypeError("Evaluation row is invalid");
+  }
+  const monitor = readEvaluationMonitors(durableCore, [row]).get(row.id);
+  if (!monitor) {
+    throw new TypeError("Evaluation monitor is missing");
+  }
+  return readEvaluation(row, monitor);
 }

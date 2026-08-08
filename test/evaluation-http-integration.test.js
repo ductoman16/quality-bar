@@ -142,7 +142,10 @@ test("the browser creates, replays, polls, and reads complete zero-Review Evalua
       headers: { cookie: operatorHeaders.cookie },
     });
     assert.equal(malformed.status, 400);
-    assert.equal(await responseErrorCode(malformed), "request_malformed");
+    assert.equal(
+      await responseErrorCode(malformed),
+      "evaluation_filter_invalid",
+    );
   }
   const ordinaryArtifacts = JSON.stringify({
     logs,

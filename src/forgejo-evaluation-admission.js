@@ -1,4 +1,7 @@
-import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
+import {
+  EVALUATION_SELECTION,
+  readEvaluationWithMonitor,
+} from "./evaluation-resource.js";
 import { cancelSupersededForgejoEvaluations } from "./forgejo-evaluation-supersession.js";
 
 /** @param {any} transaction @param {string} evaluationId @param {{changeset: {base_commit: string, head_commit: string}, pullRequestNumber: number, repositoryId: string}} input */
@@ -84,7 +87,7 @@ export function prepareForgejoAutomaticEvaluation(
     existing: {
       createdAt: row.created_at,
       evaluationId: existing.evaluation_id,
-      resource: readEvaluation(row),
+      resource: readEvaluationWithMonitor(transaction, row),
     },
   };
 }

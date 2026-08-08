@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAXIMUM_PAGE_SIZE = 100;
@@ -16,19 +16,119 @@ function pageSize(value) {
   }
   if (!/^[1-9][0-9]*$/.test(value) || Number(value) > MAXIMUM_PAGE_SIZE) {
     throw invalidQuery(
-      "page_size_invalid",
+      "evaluation_filter_invalid",
       "Evaluation collection limit must be between 1 and 100",
     );
   }
   return Number(value);
 }
 
-/** @typedef {{created_at: number, id: string}} EvaluationCursorBoundary */
+/** @typedef {{created_at: number, filter_fingerprint: string, id: string}} EvaluationCursorBoundary */
+
+/**
+ * @typedef {{
+ *   effective_outcome: "pending" | "clear" | "advisory" | "blocking" | "error" | null,
+ *   end: number | null,
+ *   execution_status: "queued" | "running" | "completed" | "failed" | "cancelled" | null,
+ *   query: string | null,
+ *   repository_id: string | null,
+ *   start: number | null
+ * }} EvaluationCollectionFilters
+ */
+
+/** @param {string | undefined} value */
+function epochMilliseconds(value) {
+  if (value === undefined) {
+    return null;
+  }
+  if (
+    !/^(?:0|[1-9][0-9]*)$/.test(value) ||
+    !Number.isSafeInteger(Number(value))
+  ) {
+    throw invalidQuery(
+      "evaluation_filter_invalid",
+      "Evaluation collection time filter is invalid",
+    );
+  }
+  return Number(value);
+}
+
+/** @param {string | undefined} value @param {string[]} allowed */
+function enumFilter(value, allowed) {
+  if (value === undefined) {
+    return null;
+  }
+  if (!allowed.includes(value)) {
+    throw invalidQuery(
+      "evaluation_filter_invalid",
+      "Evaluation collection filter is invalid",
+    );
+  }
+  return value;
+}
+
+/** @param {string | undefined} value */
+function queryFilter(value) {
+  if (value === undefined) {
+    return null;
+  }
+  if (value.length === 0 || value.length > 200) {
+    throw invalidQuery(
+      "evaluation_filter_invalid",
+      "Evaluation collection query is invalid",
+    );
+  }
+  return value;
+}
+
+/** @param {{[key: string]: string | undefined}} query */
+export function readEvaluationCollectionFilters(query) {
+  const start = epochMilliseconds(query.start);
+  const end = epochMilliseconds(query.end);
+  if (start !== null && end !== null && end <= start) {
+    throw invalidQuery(
+      "evaluation_filter_invalid",
+      "Evaluation collection time window is invalid",
+    );
+  }
+  return {
+    effective_outcome:
+      /** @type {EvaluationCollectionFilters["effective_outcome"]} */ (
+        enumFilter(query.effective_outcome, [
+          "pending",
+          "clear",
+          "advisory",
+          "blocking",
+          "error",
+        ])
+      ),
+    end,
+    execution_status:
+      /** @type {EvaluationCollectionFilters["execution_status"]} */ (
+        enumFilter(query.execution_status, [
+          "queued",
+          "running",
+          "completed",
+          "failed",
+          "cancelled",
+        ])
+      ),
+    query: queryFilter(query.query),
+    repository_id: query.repository_id ?? null,
+    start,
+  };
+}
+
+/** @param {EvaluationCollectionFilters} filters */
+function filterFingerprint(filters) {
+  return createHash("sha256").update(JSON.stringify(filters)).digest("hex");
+}
 
 /**
  * @param {Buffer} masterKey
  * @param {(query: {
  *   after: EvaluationCursorBoundary | null,
+ *   filters: EvaluationCollectionFilters,
  *   limit: number
  * }) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[]} readPage
  */
@@ -52,8 +152,8 @@ export function createEvaluationCollection(masterKey, readPage) {
     return `${body}.${signature}`;
   }
 
-  /** @param {string} cursor */
-  function decodeCursor(cursor) {
+  /** @param {string} cursor @param {string} expectedFingerprint */
+  function decodeCursor(cursor, expectedFingerprint) {
     try {
       const [body, signature, extra] = cursor.split(".");
       if (
@@ -82,16 +182,20 @@ export function createEvaluationCollection(masterKey, readPage) {
         Array.isArray(boundary) ||
         typeof boundary !== "object" ||
         !("created_at" in boundary) ||
+        !("filter_fingerprint" in boundary) ||
         !("id" in boundary) ||
         !Number.isSafeInteger(boundary.created_at) ||
+        typeof boundary.filter_fingerprint !== "string" ||
+        boundary.filter_fingerprint !== expectedFingerprint ||
         typeof boundary.id !== "string" ||
         boundary.id.length === 0 ||
-        Object.keys(boundary).length !== 2
+        Object.keys(boundary).length !== 3
       ) {
         throw new Error("invalid cursor");
       }
       return {
         created_at: /** @type {number} */ (boundary.created_at),
+        filter_fingerprint: /** @type {string} */ (boundary.filter_fingerprint),
         id: boundary.id,
       };
     } catch {
@@ -106,11 +210,28 @@ export function createEvaluationCollection(masterKey, readPage) {
     destroy() {
       cursorKey.fill(0);
     },
-    /** @param {{cursor?: string, limit?: string}} [query] */
-    read({ cursor, limit } = {}) {
-      const size = pageSize(limit);
+    /**
+     * @param {{
+     *   cursor?: string,
+     *   effective_outcome?: string,
+     *   end?: string,
+     *   execution_status?: string,
+     *   limit?: string,
+     *   query?: string,
+     *   repository_id?: string,
+     *   start?: string
+     * }} [query]
+     */
+    read(query = {}) {
+      const filters = readEvaluationCollectionFilters(query);
+      const fingerprint = filterFingerprint(filters);
+      const size = pageSize(query.limit);
       const rows = readPage({
-        after: cursor === undefined ? null : decodeCursor(cursor),
+        after:
+          query.cursor === undefined
+            ? null
+            : decodeCursor(query.cursor, fingerprint),
+        filters,
         limit: size + 1,
       });
       if (!Array.isArray(rows) || rows.length > size + 1) {
@@ -135,6 +256,7 @@ export function createEvaluationCollection(masterKey, readPage) {
           hasMore && last
             ? encodeCursor({
                 created_at: /** @type {number} */ (last.created_at),
+                filter_fingerprint: fingerprint,
                 id: /** @type {string} */ (last.id),
               })
             : null,

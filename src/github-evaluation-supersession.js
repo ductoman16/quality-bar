@@ -2,7 +2,10 @@ import {
   cancelEvaluationInTransaction,
   SUPERSESSION_CANCELLATION,
 } from "./evaluation-cancellation.js";
-import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
+import {
+  EVALUATION_SELECTION,
+  readEvaluationWithMonitor,
+} from "./evaluation-resource.js";
 
 /**
  * @param {any} transaction
@@ -157,7 +160,7 @@ export function prepareGitHubAutomaticEvaluation(
     existing: {
       createdAt: row.created_at,
       evaluationId: existing.evaluation_id,
-      resource: readEvaluation(row),
+      resource: readEvaluationWithMonitor(transaction, row),
     },
   };
 }
