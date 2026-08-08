@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
-import { readBrowserAsset } from "../src/browser-assets.js";
-import { evaluationElements } from "./evaluation-browser-component-support.js";
+import {
+  evaluationElements,
+  executeEvaluationMonitorPageAsset,
+} from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
 /** @param {any} body @param {boolean} [ok] */
@@ -64,12 +64,7 @@ test("Evaluation monitor distinguishes an empty ledger from a list dependency fa
         },
       },
     };
-    executeServedBrowserAsset(
-      resolve("."),
-      "src/browser/evaluation.js",
-      readBrowserAsset("/assets/evaluation.js"),
-      context,
-    );
+    executeEvaluationMonitorPageAsset(context, "/assets/evaluation.js");
     for (let index = 0; index < 24; index += 1) {
       await Promise.resolve();
     }
