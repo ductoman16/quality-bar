@@ -241,12 +241,12 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
   const preview = expandedRow.options.at(-1);
   assert.equal(preview.className, "evaluation-expanded");
   assert.match(
-    preview.options[0].options[0].options[0].className,
-    /qb-timeline-node--system/,
+    preview.options[0].options[1].options[0].options[1].className,
+    /evaluation-step__marker--system/,
   );
   assert.match(
-    preview.options[1].options[0].options[0].className,
-    /qb-timeline-node--review/,
+    preview.options[0].options[2].options[0].options[1].className,
+    /evaluation-step__marker--review/,
   );
 
   fixture.controls.get("evaluation-filter-status").value = "running";
