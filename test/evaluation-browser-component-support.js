@@ -7,128 +7,137 @@ const oid = (digit) => digit.repeat(40);
 
 /** @param {string} page */
 export function assertEvaluationPage(page) {
-  for (const pattern of [
-    /<h1[^>]*>Evaluations<\/h1>/,
-    /id="evaluation-create-form"/,
-    /id="evaluation-active"/,
-    /id="evaluation-recent"/,
-    /id="evaluation-attention"/,
-    /id="evaluation-more"/,
-    /<script src="\/assets\/evaluation-result\.js"><\/script>/,
-    /<script src="\/assets\/evaluation-feedback\.js"><\/script>/,
-    /<script src="\/assets\/evaluation-active-controls\.js"><\/script>/,
-    /<script src="\/assets\/evaluation\.js"><\/script>/,
+  for (const id of [
+    "evaluation-monitor",
+    "evaluation-stat-workers",
+    "evaluation-stat-queue",
+    "evaluation-stat-pass-rate",
+    "evaluation-stat-p95",
+    "evaluation-stat-updated",
+    "evaluation-stat-window-24h",
+    "evaluation-stat-window-7d",
+    "evaluation-filter-form",
+    "evaluation-filter-repository",
+    "evaluation-filter-status",
+    "evaluation-filter-outcome",
+    "evaluation-filter-query",
+    "evaluation-filter-start",
+    "evaluation-filter-end",
+    "evaluation-filter-reset",
+    "evaluation-create-toggle",
+    "evaluation-create-form",
+    "evaluation-create-repository",
+    "evaluation-create-base-type",
+    "evaluation-create-base-value",
+    "evaluation-create-head-type",
+    "evaluation-create-head-value",
+    "evaluation-create-submit",
+    "evaluation-create-status",
+    "evaluation-list",
+    "evaluation-empty",
+    "evaluation-loading",
+    "evaluation-error",
+    "evaluation-new-activity",
+    "evaluation-load-more",
   ]) {
-    assert.match(page, pattern);
+    assert.match(page, new RegExp(`id="${id}"`));
   }
+  assert.match(page, /<script src="\/assets\/evaluation\.js"><\/script>/);
+  assert.doesNotMatch(
+    page,
+    /evaluation-result\.js|evaluation-feedback\.js|waiver-batch\.js/,
+  );
 }
 
-const delivery = {
-  attempt_count: 1,
-  connection_identity: "connection-1",
-  last_attempt_at: "2026-07-28T12:00:00.000Z",
-  next_attempt_at: null,
-  provider_gate_until: null,
-  provider_gate_error: null,
-  reconciliation_required: false,
-  source_identity: "source-1",
-  target: '{"repository_id":101}',
-};
-
 /** @param {Record<string, any>} [overrides] */
-export const evaluation = (overrides = {}) => {
-  const value = /** @type {any} */ ({
-    base_commit: oid("1"),
-    base_selector: { type: "branch", value: "main" },
-    completed_at: "2026-07-28T12:00:00.000Z",
-    created_at: "2026-07-28T12:00:00.000Z",
-    effective_outcome: "clear",
-    exhausted_at: null,
-    execution_status: "completed",
-    head_commit: oid("2"),
-    head_selector: { type: "branch", value: "topic" },
-    id: "evaluation-complete",
-    next_attempt_at: null,
-    pre_start_attempt_count: 0,
-    provenance: "explicit",
-    retry_error: null,
-    retry_state: "ready",
-    repository: {
-      id: "repository-1",
-      url: "https://example.invalid/repository.git",
+export const evaluation = (overrides = {}) => ({
+  base_commit: oid("1"),
+  base_selector: { type: "branch", value: "main" },
+  completed_at: "2026-07-28T12:00:00.000Z",
+  created_at: "2026-07-28T12:00:00.000Z",
+  effective_outcome: "clear",
+  execution_status: "completed",
+  head_commit: oid("2"),
+  head_selector: { type: "branch", value: "topic" },
+  id: "evaluation-complete",
+  monitor: {
+    duration_ms: 1_000,
+    finding_counts: { advisory: 0, blocking: 0, total: 0 },
+    nodes: [
+      {
+        key: "preparing",
+        kind: "system",
+        label: "Preparing",
+        status: "completed",
+      },
+      {
+        kind: "review",
+        label: "Security",
+        review_id: "review-1",
+        review_version_id: "version-1",
+        status: "completed",
+      },
+      {
+        key: "finalizing",
+        kind: "system",
+        label: "Finalizing",
+        status: "completed",
+      },
+    ],
+    outcome_counts: { clear: 1, error: 0, not_applicable: 0, triggered: 0 },
+    review_counts: {
+      cancelled: 0,
+      completed: 1,
+      failed: 0,
+      queued: 0,
+      running: 0,
+      total: 1,
     },
-    ...overrides,
-  });
-  if (value.commit_status) {
-    value.commit_status = {
-      ...delivery,
-      external_id: null,
-      ...value.commit_status,
-    };
-  }
-  if (value.feedback) {
-    value.feedback = {
-      aggregate: { ...delivery, ...value.feedback.aggregate },
-      findings: value.feedback.findings.map((/** @type {any} */ finding) => ({
-        ...(finding.publication_status === "aggregate_only"
-          ? {
-              ...delivery,
-              attempt_count: 0,
-              connection_identity: null,
-              last_attempt_at: null,
-              target: "aggregate_only",
-            }
-          : delivery),
-        source_identity: finding.finding_id,
-        ...finding,
-      })),
-    };
-  }
-  return value;
-};
+  },
+  provenance: "explicit",
+  repository: {
+    id: "repository-1",
+    url: "https://example.invalid/repository.git",
+  },
+  retry_state: "ready",
+  ...overrides,
+});
 
 export function evaluationElements() {
   return /** @type {any} */ (
     new Map(
       [
         "evaluation-create-form",
-        "evaluation-repository",
-        "evaluation-base-type",
-        "evaluation-base-value",
-        "evaluation-head-type",
-        "evaluation-head-value",
+        "evaluation-create-toggle",
+        "evaluation-create-repository",
+        "evaluation-create-base-type",
+        "evaluation-create-base-value",
+        "evaluation-create-head-type",
+        "evaluation-create-head-value",
+        "evaluation-create-submit",
+        "evaluation-create-status",
+        "evaluation-filter-form",
+        "evaluation-filter-repository",
+        "evaluation-filter-status",
+        "evaluation-filter-outcome",
+        "evaluation-filter-query",
+        "evaluation-filter-start",
+        "evaluation-filter-end",
+        "evaluation-filter-reset",
         "evaluation-loading",
         "evaluation-empty",
-        "evaluation-state",
-        "evaluation-active",
-        "evaluation-recent",
-        "evaluation-attention",
-        "evaluation-more",
-        "evaluation-create-status",
+        "evaluation-error",
+        "evaluation-list",
+        "evaluation-new-activity",
+        "evaluation-load-more",
+        "evaluation-stat-workers",
+        "evaluation-stat-queue",
+        "evaluation-stat-pass-rate",
+        "evaluation-stat-p95",
+        "evaluation-stat-updated",
+        "evaluation-stat-window-24h",
+        "evaluation-stat-window-7d",
       ].map((id) => [id, browserElement({ hidden: true })]),
     )
   );
-}
-
-/** @param {string} path */
-export function reviewRunDiagnosticsResponse(path) {
-  return {
-    ok: true,
-    async json() {
-      return {
-        codex_cli_version: "0.145.0",
-        completed_at: "2026-07-28T12:00:01.000Z",
-        duration_ms: 1_000,
-        process: { code: 0, kind: "exit" },
-        review_run_id: path.split("/").at(-2),
-        started_at: "2026-07-28T12:00:00.000Z",
-        token_counters: {
-          cached_input_tokens: null,
-          input_tokens: null,
-          output_tokens: null,
-        },
-        transcript_chunks: [],
-      };
-    },
-  };
 }
