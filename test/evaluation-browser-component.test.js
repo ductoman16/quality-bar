@@ -24,7 +24,9 @@ function response(body, ok = true) {
 }
 
 async function settle() {
-  for (let index = 0; index < 20; index += 1) {await Promise.resolve();}
+  for (let index = 0; index < 20; index += 1) {
+    await Promise.resolve();
+  }
 }
 function monitorElement() {
   const value = browserElement();
@@ -66,32 +68,38 @@ function monitorContext(items) {
       /** @type {any} */ options = {},
     ) => {
       requests.push({ options, path });
-      if (path.startsWith("/api/v1/evaluations?")) {return response(collection);}
-      if (path === "/api/v1/repositories")
-        {return response({
+      if (path.startsWith("/api/v1/evaluations?")) {
+        return response(collection);
+      }
+      if (path === "/api/v1/repositories") {
+        return response({
           items: [
             {
               id: "repository-1",
               url: "https://example.invalid/repository.git",
             },
           ],
-        });}
-      if (path === "/api/v1/system")
-        {return response({
+        });
+      }
+      if (path === "/api/v1/system") {
+        return response({
           codex_execution: {
             concurrency: { maximum_running: 4, running_count: 2 },
             queue: { count: 3 },
           },
-        });}
-      if (path.startsWith("/api/v1/analytics?"))
-        {return response({
+        });
+      }
+      if (path.startsWith("/api/v1/analytics?")) {
+        return response({
           evaluation_overview: {
             p95_duration_ms: null,
             pass_rate: { denominator: 0, numerator: 0 },
           },
-        });}
-      if (path.endsWith("/cancel") || path.endsWith("/retry"))
-        {return response({});}
+        });
+      }
+      if (path.endsWith("/cancel") || path.endsWith("/retry")) {
+        return response({});
+      }
       throw new Error(`unexpected request: ${path}`);
     },
     window: {
@@ -163,7 +171,7 @@ test("Evaluation page has the live monitor structure and no result-renderer asse
 test("Evaluation monitor groups rows, uses monitor markers, filters, stats, actions, and no result fetches", async () => {
   const newest = evaluation({
     created_at: "2026-07-29T12:00:00.000Z",
-    execution_status: "running",
+    execution_status: "queued",
     id: "evaluation-running",
     retry_state: "exhausted",
     monitor: {

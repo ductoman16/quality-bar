@@ -21,20 +21,22 @@ test("Evaluation monitor distinguishes an empty ledger from a list dependency fa
     const context = {
       document: { createElement: () => browserElement() },
       async fetch(/** @type {string} */ path) {
-        if (path === "/api/v1/system")
-          {return response({
+        if (path === "/api/v1/system") {
+          return response({
             codex_execution: {
               concurrency: { maximum_running: 0, running_count: 0 },
               queue: { count: 0 },
             },
-          });}
-        if (path.startsWith("/api/v1/analytics?"))
-          {return response({
+          });
+        }
+        if (path.startsWith("/api/v1/analytics?")) {
+          return response({
             evaluation_overview: {
               p95_duration_ms: null,
               pass_rate: { denominator: 0, numerator: 0 },
             },
-          });}
+          });
+        }
         assert.match(path, /^\/api\/v1\/evaluations\?limit=50$/);
         return scenario === "empty"
           ? response({ items: [], next_cursor: null })
@@ -67,7 +69,9 @@ test("Evaluation monitor distinguishes an empty ledger from a list dependency fa
       readBrowserAsset("/assets/evaluation.js"),
       context,
     );
-    for (let index = 0; index < 24; index += 1) {await Promise.resolve();}
+    for (let index = 0; index < 24; index += 1) {
+      await Promise.resolve();
+    }
     if (scenario === "empty") {
       assert.equal(controls.get("evaluation-empty").hidden, false);
       assert.equal(controls.get("evaluation-error").hidden, true);
