@@ -304,17 +304,17 @@ export function createApplicationServer({
       const notReadyMessage = (() => {
         switch (durableCoreStatus.error) {
           case "storage_unavailable":
-            return "Quality Bar is not ready — storage is unavailable (disk full, permission, or SQLite failure). Check /var/lib/quality-bar permissions and free space, then restart.";
-          case "codex_not_configured":
-            return "Quality Bar is not ready — Codex is not configured. Run: docker compose run --rm --no-deps quality-bar codex login --device-auth, then restart.";
-          case "codex_terminated":
-            return "Quality Bar is not ready — Codex execution terminated unexpectedly. Check codex-home at /var/lib/quality-bar/codex-home and restart.";
+            return "Quality Bar is not ready — storage is unavailable. Verify the data volume is mounted and writable and that free space is available, then restart the service.";
           case "installation_not_ready":
-            return "Quality Bar is not ready — installation is not initialized. Run bootstrap: docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.js and ensure config.env/master-key are correct.";
-          case "shutdown_in_progress":
-            return "Quality Bar is not ready — shutdown in progress. Wait for graceful drain (up to 15m) or check docker logs.";
+            return "Quality Bar is not ready — installation is not ready. Complete first-time setup (configuration, master key, and operator password bootstrap) and restart.";
+          case "codex_termination_failed":
+            return "Quality Bar is not ready — Codex execution terminated unexpectedly. Review codex logs and restart the service.";
+          case "application_shutdown_failed":
+            return "Quality Bar is not ready — application shutdown failed. Check logs for the shutdown error and restart.";
+          case "schema_invalid":
+            return "Quality Bar is not ready — schema is invalid. The data volume was created by a newer code version; recreate the volume with the current code or restore a compatible backup, then restart.";
           default:
-            return `Quality Bar is not ready — ${durableCoreStatus.error}. Check docker logs and /health/ready for details; verify config.env, master-key, and codex login, then restart.`;
+            return `Quality Bar is not ready — ${durableCoreStatus.error}. Check server logs and /health/ready for the error code and restart after addressing the underlying condition.`;
         }
       })();
       writeError(response, 503, durableCoreStatus.error, notReadyMessage);
