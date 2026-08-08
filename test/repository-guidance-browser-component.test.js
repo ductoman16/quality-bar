@@ -247,7 +247,10 @@ test("the Repository Guidance component hard-fails an incomplete canonical docum
 test("the Repositories page owns one complete Guidance surface", () => {
   const page = operatorPage({ view: "repositories" });
 
-  assert.match(page, /<h2>Repository Guidance<\/h2>/);
+  assert.match(
+    page,
+    /<section class="qb-region qb-deep-surface" aria-labelledby="repository-guidance-title"><h2 id="repository-guidance-title">Repository Guidance<\/h2>/,
+  );
   assert.match(page, /id="repository-guidance-repository"/);
   assert.match(page, /id="repository-guidance-document"/);
   assert.match(
