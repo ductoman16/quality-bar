@@ -55,7 +55,9 @@
         "Criterion " + (index + 1) + " instruction";
       requiredDescendant(item, "label[for$='-impact']").textContent =
         "Criterion " + (index + 1) + " impact";
-      const removeButton = requiredDescendant(item, "button");
+      const removeButton = /** @type {HTMLButtonElement} */ (
+        requiredDescendant(item, "button")
+      );
       removeButton.textContent = "−";
       removeButton.ariaLabel = "Remove Criterion " + (index + 1);
       removeButton.title = "Remove Criterion " + (index + 1);
