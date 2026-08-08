@@ -294,7 +294,8 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
   );
 
   fixture.controls.get("evaluation-filter-status").value = "running";
-  fixture.controls.get("evaluation-filter-start").value = "2026-07-28T12:00";
+  const filterStart = "2026-07-28T12:00";
+  fixture.controls.get("evaluation-filter-start").value = filterStart;
   await fixture.controls.get("evaluation-filter-form").listener("submit")({
     preventDefault() {},
   });
@@ -305,7 +306,10 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
   assert.ok(filtered);
   assert.match(filtered.path, /limit=50/);
   assert.match(filtered.path, /execution_status=running/);
-  assert.match(filtered.path, /start=1785254400000/);
+  assert.match(
+    filtered.path,
+    new RegExp(`start=${new Date(filterStart).getTime()}`),
+  );
   const lastHistory = fixture.history.at(-1);
   assert.ok(lastHistory);
   assert.ok(lastHistory[2].includes("view=evaluations"));
