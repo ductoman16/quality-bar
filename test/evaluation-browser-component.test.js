@@ -1,181 +1,115 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
+import { URLSearchParams } from "node:url";
 import { test } from "node:test";
 
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import {
-  FAILED_REVIEW_RUN_EVALUATION_RESULT,
-  TRIGGERED_EVALUATION_RESULT,
-} from "./openapi-triggered-evaluation-result.js";
-import {
   assertEvaluationPage,
   evaluation,
   evaluationElements,
-  reviewRunDiagnosticsResponse,
 } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
-test("Evaluations renders no partial data before the complete first-valid Result", async () => {
-  const page = operatorPage({ view: "evaluations" });
-  assertEvaluationPage(page);
-  assert.equal(page, operatorPage({ view: "evaluations" }));
+/** @param {any} body @param {boolean} [ok] */
+function response(body, ok = true) {
+  return {
+    ok,
+    async json() {
+      return body;
+    },
+  };
+}
 
+async function settle() {
+  for (let index = 0; index < 20; index += 1) await Promise.resolve();
+}
+function monitorElement() {
+  const value = browserElement();
+  const append = value.append.bind(value);
+  value.append = (.../** @type {any[]} */ children) => children.forEach(append);
+  return value;
+}
+
+/** @param {any[]} items */
+function monitorContext(items) {
   const controls = evaluationElements();
-  controls.get("evaluation-base-type").value = "branch";
-  controls.get("evaluation-base-value").value = "main";
-  controls.get("evaluation-head-type").value = "branch";
-  controls.get("evaluation-head-value").value = "topic";
+  /** @type {Map<string, (...args: any[]) => any>} */
+  const documentListeners = new Map();
+  /** @type {Map<string, (...args: any[]) => any>} */
+  const windowListeners = new Map();
   /** @type {Array<{options: any, path: string}>} */
   const requests = [];
+  /** @type {any[][]} */
+  const history = [];
+  /** @type {{items: any[], next_cursor: string | null}} */
+  let collection = { items, next_cursor: null };
   const context = {
-    crypto: { randomUUID: () => "browser-idempotency-key" },
+    crypto: { randomUUID: () => "idempotency-key" },
+    URLSearchParams,
     document: {
-      createElement() {
-        return browserElement();
-      },
-    },
-    async fetch(/** @type {string} */ path, /** @type {any} */ options) {
-      requests.push({ options, path });
-      if (path === "/api/v1/evaluations") {
-        return {
-          ok: true,
-          async json() {
-            return {
-              items: [
-                evaluation({
-                  base_selector: { type: "branch", value: "failure" },
-                  id: "evaluation-result-failure",
-                  provenance: "automatic",
-                  pull_request: { number: 17 },
-                }),
-                evaluation({
-                  completed_at: null,
-                  effective_outcome: "pending",
-                  execution_status: "queued",
-                  id: "evaluation-delayed",
-                  next_attempt_at: "2026-07-28T12:05:00.000Z",
-                }),
-                evaluation({
-                  completed_at: null,
-                  effective_outcome: "pending",
-                  execution_status: "queued",
-                  id: "evaluation-not-ready",
-                }),
-                evaluation({
-                  effective_outcome: "error",
-                  execution_status: "failed",
-                  id: "evaluation-failed",
-                }),
-                evaluation({
-                  effective_outcome: "error",
-                  id: "evaluation-run-failed",
-                }),
-              ],
-              next_cursor: "cursor-2",
-            };
-          },
-        };
-      }
-      if (path === "/api/v1/evaluations/evaluation-triggered") {
-        return {
-          ok: true,
-          async json() {
-            return evaluation({
-              effective_outcome: "error",
-              id: "evaluation-triggered",
-            });
-          },
-        };
-      }
-      if (path === "/api/v1/evaluations?cursor=cursor-2") {
-        return {
-          ok: true,
-          async json() {
-            return {
-              items: [
-                evaluation({
-                  effective_outcome: "error",
-                  execution_status: "failed",
-                  id: "evaluation-older",
-                }),
-              ],
-              next_cursor: null,
-            };
-          },
-        };
-      }
-      if (path === "/api/v1/evaluations/evaluation-triggered/result") {
-        return {
-          ok: true,
-          async json() {
-            return {
-              ...TRIGGERED_EVALUATION_RESULT,
-              findings: TRIGGERED_EVALUATION_RESULT.findings.map((finding) => ({
-                ...finding,
-                impact: "advisory",
-              })),
-            };
-          },
-        };
-      }
-      if (
-        path === "/api/v1/evaluations/evaluation-triggered/waiver-adjudications"
+      addEventListener(
+        /** @type {string} */ name,
+        /** @type {(...args: any[]) => any} */ listener,
       ) {
-        return {
-          ok: true,
-          async json() {
-            return options?.method === "POST"
-              ? {
-                  adjudication: {
-                    execution_status: "queued",
-                    id: "waiver-adjudication-browser",
-                  },
-                }
-              : { items: [] };
+        documentListeners.set(name, listener);
+      },
+      createElement() {
+        return monitorElement();
+      },
+      hidden: false,
+    },
+    fetch: async (
+      /** @type {string} */ path,
+      /** @type {any} */ options = {},
+    ) => {
+      requests.push({ options, path });
+      if (path.startsWith("/api/v1/evaluations?")) return response(collection);
+      if (path === "/api/v1/repositories")
+        return response({
+          items: [
+            {
+              id: "repository-1",
+              url: "https://example.invalid/repository.git",
+            },
+          ],
+        });
+      if (path === "/api/v1/system")
+        return response({
+          codex_execution: {
+            concurrency: { maximum_running: 4, running_count: 2 },
+            queue: { count: 3 },
           },
-        };
-      }
-      if (path === "/api/v1/evaluations/evaluation-run-failed/result") {
-        return {
-          ok: true,
-          async json() {
-            return FAILED_REVIEW_RUN_EVALUATION_RESULT;
+        });
+      if (path.startsWith("/api/v1/analytics?"))
+        return response({
+          evaluation_overview: {
+            p95_duration_ms: null,
+            pass_rate: { denominator: 0, numerator: 0 },
           },
-        };
-      }
-      if (path === "/api/v1/evaluations/evaluation-result-failure/result") {
-        throw new Error("simulated Result transport failure");
-      }
-      if (path.endsWith("/waiver-adjudications")) {
-        return {
-          ok: true,
-          async json() {
-            return { items: [] };
-          },
-        };
-      }
-      if (path.endsWith("/diagnostics")) {
-        return reviewRunDiagnosticsResponse(path);
-      }
-      if (path === "/api/v1/repositories/repository-1/evaluations") {
-        return {
-          ok: true,
-          async json() {
-            return evaluation({ id: "evaluation-created" });
-          },
-        };
-      }
-      throw new Error(`unexpected fetch: ${path}`);
+        });
+      if (path.endsWith("/cancel") || path.endsWith("/retry"))
+        return response({});
+      throw new Error(`unexpected request: ${path}`);
     },
     window: {
-      location: {
-        search:
-          "?view=evaluations&evaluation_id=evaluation-triggered&file_change_id=file-change-1&side=head&start_line=2&end_line=3",
+      addEventListener(
+        /** @type {string} */ name,
+        /** @type {(...args: any[]) => any} */ listener,
+      ) {
+        windowListeners.set(name, listener);
       },
+      history: {
+        /** @param {...any} args */
+        replaceState(...args) {
+          history.push(args);
+        },
+      },
+      location: { search: "" },
       qualityBarOperator: {
-        csrfToken: () => "browser-csrf-owned-secret",
+        csrfToken: () => "csrf-token",
         async displayMutationFailure() {},
         async readRepositoryCollection() {
           return {
@@ -189,205 +123,200 @@ test("Evaluations renders no partial data before the complete first-valid Result
           };
         },
         requiredElement(/** @type {string} */ id) {
-          const element = controls.get(id);
-          if (!element) {
-            throw new Error(`missing element: ${id}`);
-          }
-          return element;
+          return controls.get(id);
         },
       },
+      scrollY: 0,
+      scrollTo() {},
     },
   };
-  for (const [sourcePath, route] of [
-    ["src/browser/waiver-batch.js", "/assets/waiver-batch.js"],
-    ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
-    ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
-    [
-      "src/browser/evaluation-active-controls.js",
-      "/assets/evaluation-active-controls.js",
-    ],
-    ["src/browser/evaluation.js", "/assets/evaluation.js"],
-  ]) {
-    executeServedBrowserAsset(
-      resolve("."),
-      sourcePath,
-      readBrowserAsset(route),
-      context,
-    );
-  }
-  await new Promise((resolvePromise) => setImmediate(resolvePromise));
+  return {
+    collection: (
+      /** @type {{items: any[], next_cursor: string | null}} */ value,
+    ) => {
+      collection = value;
+    },
+    context,
+    controls,
+    documentListeners,
+    history,
+    requests,
+    windowListeners,
+  };
+}
 
-  assert.equal(controls.get("evaluation-loading").hidden, true);
-  assert.equal(controls.get("evaluation-empty").hidden, true);
-  assert.match(
-    controls.get("evaluation-recent").options[0].textContent,
-    /automatic pull request #17 branch failure/,
+/** @param {Map<string, any>} controls */
+function firstRow(controls) {
+  return controls.get("evaluation-list").options[0].options[1];
+}
+
+test("Evaluation page has the live monitor structure and no result-renderer assets", () => {
+  const page = operatorPage({ view: "evaluations" });
+  assertEvaluationPage(page);
+  assert.doesNotMatch(
+    page,
+    /Needs attention|id="evaluation-active"|id="evaluation-recent"/i,
   );
-  assert.equal(
-    controls.get("evaluation-recent").options[0].options[0].textContent,
-    "Result failed to load",
-  );
-  assert.match(
-    controls.get("evaluation-active").options[0].textContent,
-    /delayed until 2026-07-28T12:05:00.000Z — pending/,
-  );
-  assert.equal(
-    controls.get("evaluation-active").options[0].options[0].textContent,
-    "Result not ready",
-  );
-  assert.match(
-    controls.get("evaluation-active").options[1].textContent,
-    /queued — pending/,
-  );
-  assert.equal(
-    controls.get("evaluation-active").options[1].options[0].textContent,
-    "Result not ready",
-  );
-  const failedRunResult = controls.get("evaluation-attention").options[1]
-    .options[0];
-  assert.equal(failedRunResult.textContent, "Result error");
-  assert.equal(
-    failedRunResult.options[0].options[0].textContent,
-    "Review review-1 review-version-1 — failed",
-  );
-  assert.equal(
-    failedRunResult.options[0].options[1].textContent,
-    "Error configuration_unavailable: Network-disabled Codex launch could not be constructed.",
-  );
-  assert.equal(
-    failedRunResult.options[1].options[0].textContent,
-    "Criterion criterion-completed-sibling — clear — Review review-completed review-version-completed",
-  );
-  assert.match(
-    controls.get("evaluation-attention").options[2].textContent,
-    /completed — error/,
-  );
-  const resultDetails = controls.get("evaluation-attention").options[2]
-    .options[0];
-  assert.equal(resultDetails.textContent, "Result error");
-  const criterionDetails = resultDetails.options[0];
-  assert.equal(
-    criterionDetails.options[0].textContent,
-    "Criterion criterion-1 — triggered — Review review-1 review-version-1",
-  );
-  const findingDetails = criterionDetails.options[1];
-  assert.equal(criterionDetails.open, true);
-  assert.equal(findingDetails.open, true);
-  assert.equal(
-    findingDetails.options[0].textContent,
-    "Finding finding-1 — advisory",
-  );
-  assert.equal(
-    findingDetails.options[1].textContent,
-    "Evidence: The changed branch returns stale state.",
-  );
-  assert.equal(
-    findingDetails.options[2].textContent,
-    "Remediation: Return the newly computed state.",
-  );
-  assert.deepEqual(
-    {
-      href: findingDetails.options[3].href,
-      textContent: findingDetails.options[3].textContent,
+  assert.match(page, /aria-pressed="true" id="evaluation-stat-window-24h"/);
+});
+
+test("Evaluation monitor groups rows, uses monitor markers, filters, stats, actions, and no result fetches", async () => {
+  const newest = evaluation({
+    created_at: "2026-07-29T12:00:00.000Z",
+    execution_status: "running",
+    id: "evaluation-running",
+    retry_state: "exhausted",
+    monitor: {
+      ...evaluation().monitor,
+      duration_ms: null,
+      nodes: [
+        {
+          key: "preparing",
+          kind: "system",
+          label: "Preparing",
+          status: "completed",
+        },
+        {
+          kind: "review",
+          label: "Security",
+          review_id: "review-1",
+          review_version_id: "version-1",
+          status: "running",
+        },
+        {
+          key: "finalizing",
+          kind: "system",
+          label: "Finalizing",
+          status: "queued",
+        },
+      ],
     },
-    {
-      href: "/?view=evaluations&evaluation_id=evaluation-triggered&file_change_id=file-change-1&side=head&start_line=2&end_line=3",
-      textContent: "head src/current.js:2-3",
-    },
-  );
-  const frozenDiff = findingDetails.options[5];
-  assert.equal(frozenDiff.open, true);
-  assert.equal(
-    frozenDiff.options[0].textContent,
-    "Frozen diff — head src/current.js:2-3",
-  );
-  assert.match(frozenDiff.options[1].textContent, /-old state\n\+new state/);
-  const rationale = findingDetails.options[4];
-  rationale.value = "This generated state is required for this deployment.";
-  const waiverForm = resultDetails.options[3];
-  await waiverForm.listener("submit")({ preventDefault() {} });
-  const waiverSubmission = requests.find(
-    ({ options, path }) =>
-      path ===
-        "/api/v1/evaluations/evaluation-triggered/waiver-adjudications" &&
-      options?.method === "POST",
-  );
-  assert.ok(waiverSubmission);
-  assert.deepEqual(JSON.parse(waiverSubmission.options.body), {
-    requests: [
-      {
-        finding_id: "finding-1",
-        rationale: "This generated state is required for this deployment.",
-      },
-    ],
   });
+  const fixture = monitorContext([evaluation(), newest]);
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation.js",
+    readBrowserAsset("/assets/evaluation.js"),
+    fixture.context,
+  );
+  await settle();
+
+  const row = firstRow(fixture.controls);
+  assert.equal(row["data-evaluation-id"], "evaluation-running");
   assert.equal(
-    waiverForm.options[1].textContent,
-    "Waiver Adjudication waiver-adjudication-browser queued.",
+    row.options[1].className,
+    "qb-timeline evaluation-row__timeline",
+  );
+  assert.match(row.options[1].options[0].className, /qb-timeline-node--system/);
+  assert.match(row.options[1].options[2].className, /qb-timeline-node--review/);
+  assert.equal(
+    fixture.controls.get("evaluation-stat-workers").textContent,
+    "2 / 4",
+  );
+  assert.equal(fixture.controls.get("evaluation-stat-queue").textContent, "3");
+  assert.equal(
+    fixture.controls.get("evaluation-stat-pass-rate").textContent,
+    "No data",
   );
   assert.equal(
-    resultDetails.options[1].options[0].textContent,
-    "Criterion criterion-2 — not applicable — Review review-1 review-version-1",
-  );
-  assert.equal(
-    resultDetails.options[2].options[0].textContent,
-    "Criterion criterion-3 — error — Review review-1 review-version-1",
-  );
-  assert.equal(
-    resultDetails.options[2].options[1].textContent,
-    "Error required_evidence_unavailable: The required generated file is absent from the head.",
-  );
-  assert.match(
-    controls.get("evaluation-attention").options[0].textContent,
-    /failed — error/,
-  );
-  assert.equal(controls.get("evaluation-more").hidden, false);
-  await controls.get("evaluation-more").listener("click")();
-  assert.equal(controls.get("evaluation-more").hidden, true);
-  assert.match(
-    controls.get("evaluation-attention").options[3].textContent,
-    /failed — error/,
+    fixture.controls.get("evaluation-stat-p95").textContent,
+    "No data",
   );
   assert.ok(
-    requests.some(({ path }) => path === "/api/v1/evaluations?cursor=cursor-2"),
-  );
-  assert.ok(
-    requests.some(
-      ({ path }) => path === "/api/v1/evaluations/evaluation-triggered",
+    fixture.requests.every(
+      ({ path }) => !/\/result|waiver|findings|diagnostics/.test(path),
     ),
   );
 
-  controls.get("evaluation-repository").value = "repository-1";
-  await controls.get("evaluation-create-form").listener("submit")({
+  await row.options[0].options[0].listener("click")();
+  const expandedRow = firstRow(fixture.controls);
+  const preview = expandedRow.options.at(-1);
+  assert.equal(preview.className, "evaluation-expanded");
+  assert.match(
+    preview.options[0].options[0].options[0].className,
+    /qb-timeline-node--system/,
+  );
+  assert.match(
+    preview.options[1].options[0].options[0].className,
+    /qb-timeline-node--review/,
+  );
+
+  fixture.controls.get("evaluation-filter-status").value = "running";
+  fixture.controls.get("evaluation-filter-start").value = "2026-07-28T12:00";
+  await fixture.controls.get("evaluation-filter-form").listener("submit")({
     preventDefault() {},
   });
+  await settle();
+  const filtered = fixture.requests.findLast(({ path }) =>
+    path.startsWith("/api/v1/evaluations?"),
+  );
+  assert.ok(filtered);
+  assert.match(filtered.path, /limit=50/);
+  assert.match(filtered.path, /execution_status=running/);
+  assert.match(filtered.path, /start=1785254400000/);
+  const lastHistory = fixture.history.at(-1);
+  assert.ok(lastHistory);
+  assert.ok(lastHistory[2].includes("view=evaluations"));
+
+  const actions = firstRow(fixture.controls).options.find(
+    (/** @type {any} */ child) => child.className === "evaluation-actions",
+  );
+  assert.ok(actions);
+  const cancel = actions.options[0];
+  const retry = actions.options[1];
+  await retry.listener("click")();
   assert.ok(
-    requests.filter(({ path }) => path === "/api/v1/evaluations").length >= 2,
+    fixture.requests.some(
+      ({ path, options }) =>
+        path === "/api/v1/evaluations/evaluation-running/retry" &&
+        options.headers["idempotency-key"] === "idempotency-key" &&
+        options.headers["x-quality-bar-csrf"] === "csrf-token",
+    ),
   );
-  const creation = requests.find(
-    ({ path }) => path === "/api/v1/repositories/repository-1/evaluations",
+  await cancel.listener("click")();
+  assert.ok(
+    fixture.requests.some(
+      ({ path, options }) =>
+        path === "/api/v1/evaluations/evaluation-running/cancel" &&
+        options.headers["x-quality-bar-csrf"] === "csrf-token",
+    ),
   );
-  assert.deepEqual(JSON.parse(JSON.stringify(creation)), {
-    options: {
-      body: JSON.stringify({
-        base: { type: "branch", value: "main" },
-        head: { type: "branch", value: "topic" },
+});
+
+test("Evaluation monitor holds new polling activity behind an explicit cue", async () => {
+  const initial = evaluation({ id: "evaluation-old" });
+  const fixture = monitorContext([initial]);
+  executeServedBrowserAsset(
+    resolve("."),
+    "src/browser/evaluation.js",
+    readBrowserAsset("/assets/evaluation.js"),
+    fixture.context,
+  );
+  await settle();
+  fixture.collection({
+    items: [
+      evaluation({
+        created_at: "2026-07-29T12:00:00.000Z",
+        id: "evaluation-new",
       }),
-      headers: {
-        "content-type": "application/json",
-        "idempotency-key": "browser-idempotency-key",
-        "x-quality-bar-csrf": "browser-csrf-owned-secret",
-      },
-      method: "POST",
-    },
-    path: "/api/v1/repositories/repository-1/evaluations",
+      initial,
+    ],
+    next_cursor: null,
   });
+  const visibilityChange = fixture.documentListeners.get("visibilitychange");
+  assert.ok(visibilityChange);
+  await visibilityChange();
+  await settle();
+  assert.equal(fixture.controls.get("evaluation-new-activity").hidden, false);
   assert.equal(
-    controls.get("evaluation-create-status").textContent,
-    "Evaluation evaluation-created completed.",
+    firstRow(fixture.controls)["data-evaluation-id"],
+    "evaluation-old",
   );
-  assert.doesNotMatch(
-    JSON.stringify([...controls.values()]),
-    /browser-csrf-owned-secret|authorization|cookie/i,
+  await fixture.controls.get("evaluation-new-activity").listener("click")();
+  await settle();
+  assert.equal(fixture.controls.get("evaluation-new-activity").hidden, true);
+  assert.equal(
+    firstRow(fixture.controls)["data-evaluation-id"],
+    "evaluation-new",
   );
 });

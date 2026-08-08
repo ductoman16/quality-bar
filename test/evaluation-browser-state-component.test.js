@@ -1,41 +1,52 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { test } from "node:test";
+
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { evaluationElements } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
-test("Evaluations distinguishes an empty workspace from a hard dependency gate", async () => {
+/** @param {any} body @param {boolean} [ok] */
+const response = (body, ok = true) => ({
+  ok,
+  async json() {
+    return body;
+  },
+});
+
+test("Evaluation monitor distinguishes an empty ledger from a list dependency failure", async () => {
   for (const scenario of ["empty", "gated"]) {
     const controls = evaluationElements();
     const context = {
-      document: {
-        createElement() {
-          return browserElement();
-        },
-      },
+      document: { createElement: () => browserElement() },
       async fetch(/** @type {string} */ path) {
-        assert.equal(path, "/api/v1/evaluations");
+        if (path === "/api/v1/system")
+          return response({
+            codex_execution: {
+              concurrency: { maximum_running: 0, running_count: 0 },
+              queue: { count: 0 },
+            },
+          });
+        if (path.startsWith("/api/v1/analytics?"))
+          return response({
+            evaluation_overview: {
+              p95_duration_ms: null,
+              pass_rate: { denominator: 0, numerator: 0 },
+            },
+          });
+        assert.match(path, /^\/api\/v1\/evaluations\?limit=50$/);
         return scenario === "empty"
-          ? {
-              ok: true,
-              async json() {
-                return { items: [], next_cursor: null };
+          ? response({ items: [], next_cursor: null })
+          : response(
+              {
+                error: {
+                  message:
+                    "A required runtime filesystem is below the free-space reserve",
+                },
               },
-            }
-          : {
-              ok: false,
-              status: 503,
-              async json() {
-                return {
-                  error: {
-                    message:
-                      "A required runtime filesystem is below the free-space reserve",
-                  },
-                };
-              },
-            };
+              false,
+            );
       },
       window: {
         qualityBarOperator: {
@@ -50,33 +61,22 @@ test("Evaluations distinguishes an empty workspace from a hard dependency gate",
         },
       },
     };
-    for (const [sourcePath, route] of [
-      ["src/browser/waiver-batch.js", "/assets/waiver-batch.js"],
-      ["src/browser/evaluation-result.js", "/assets/evaluation-result.js"],
-      ["src/browser/evaluation-feedback.js", "/assets/evaluation-feedback.js"],
-      [
-        "src/browser/evaluation-active-controls.js",
-        "/assets/evaluation-active-controls.js",
-      ],
-      ["src/browser/evaluation.js", "/assets/evaluation.js"],
-    ]) {
-      executeServedBrowserAsset(
-        resolve("."),
-        sourcePath,
-        readBrowserAsset(route),
-        context,
-      );
-    }
-    await new Promise((resolvePromise) => setImmediate(resolvePromise));
+    executeServedBrowserAsset(
+      resolve("."),
+      "src/browser/evaluation.js",
+      readBrowserAsset("/assets/evaluation.js"),
+      context,
+    );
+    for (let index = 0; index < 24; index += 1) await Promise.resolve();
     if (scenario === "empty") {
       assert.equal(controls.get("evaluation-empty").hidden, false);
-      assert.equal(controls.get("evaluation-state").hidden, true);
+      assert.equal(controls.get("evaluation-error").hidden, true);
     } else {
       assert.equal(controls.get("evaluation-empty").hidden, true);
-      assert.equal(controls.get("evaluation-state").hidden, false);
+      assert.equal(controls.get("evaluation-error").hidden, false);
       assert.equal(
-        controls.get("evaluation-state").textContent,
-        "Evaluations unavailable: A required runtime filesystem is below the free-space reserve",
+        controls.get("evaluation-error").textContent,
+        "A required runtime filesystem is below the free-space reserve",
       );
     }
   }
