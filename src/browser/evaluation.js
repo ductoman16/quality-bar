@@ -270,7 +270,8 @@
       new Date(millis).getDate(),
     ).getTime();
     if (start === todayStart) return "Today";
-    if (start === todayStart - 86_400_000) return "Yesterday";
+    const yesterdayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).getTime();
+    if (start === yesterdayStart) return "Yesterday";
     return localDay(millis);
   }
 
@@ -327,7 +328,7 @@
       actions.append(mutationButton("Cancel", evaluation, "cancel"));
       hasAction = true;
     }
-    if (evaluation.retry_state === "exhausted") {
+    if (evaluation.execution_status === "queued" && evaluation.retry_state === "exhausted") {
       actions.append(mutationButton("Retry", evaluation, "retry"));
       hasAction = true;
     }
@@ -581,11 +582,8 @@
         )
           changed = true;
         known.set(evaluation.id, evaluation);
-        if (evaluations.has(evaluation.id))
-          evaluations.set(evaluation.id, evaluation);
       }
       if (!firstListResponse && changed) newActivity.hidden = false;
-      if (visibleIds.some((id) => evaluations.has(id))) renderLedger();
       loadMore.disabled = false;
       firstListResponse = false;
       return;
