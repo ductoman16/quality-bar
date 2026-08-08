@@ -81,6 +81,20 @@ function queryFilter(value) {
   return value;
 }
 
+/** @param {string | undefined} value */
+function repositoryFilter(value) {
+  if (value === undefined) {
+    return null;
+  }
+  if (value.length === 0) {
+    throw invalidQuery(
+      "evaluation_filter_invalid",
+      "Evaluation collection repository filter is invalid",
+    );
+  }
+  return value;
+}
+
 /** @param {{[key: string]: string | undefined}} query */
 export function readEvaluationCollectionFilters(query) {
   const start = epochMilliseconds(query.start);
@@ -114,7 +128,7 @@ export function readEvaluationCollectionFilters(query) {
         ])
       ),
     query: queryFilter(query.query),
-    repository_id: query.repository_id ?? null,
+    repository_id: repositoryFilter(query.repository_id),
     start,
   };
 }
