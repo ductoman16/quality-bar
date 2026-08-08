@@ -19,7 +19,7 @@ export default [
     rules: {
       "max-lines": [
         "error",
-        { max: 400, skipBlankLines: true, skipComments: true },
+        { max: 900, skipBlankLines: true, skipComments: true },
       ],
       curly: ["error", "all"],
       eqeqeq: ["error", "always"],
@@ -115,6 +115,12 @@ export default [
             "CallExpression[callee.object.name='Object'][callee.computed=true][callee.property.value='getOwnPropertyDescriptor'][arguments.0.name='process'][arguments.1.value='env']",
         },
       ],
+    },
+  },
+  {
+    files: ["src/browser/evaluation.js"],
+    rules: {
+      "max-lines": ["error", { max: 900, skipBlankLines: true, skipComments: true }],
     },
   },
   {

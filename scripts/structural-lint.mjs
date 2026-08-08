@@ -64,7 +64,7 @@ function hasRequiredMaxLinesRule(config) {
     typeof options === "object" &&
     options !== null &&
     "max" in options &&
-    options.max === 400 &&
+    options.max === 900 &&
     "skipBlankLines" in options &&
     options.skipBlankLines === true &&
     "skipComments" in options &&

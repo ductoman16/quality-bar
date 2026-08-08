@@ -80,7 +80,7 @@
     for (const pair of search.replace(/^\?/, "").split("&")) {
       const separator = pair.indexOf("=");
       const key = separator === -1 ? pair : pair.slice(0, separator);
-      if (key !== name) continue;
+      if (key !== name) {continue;}
       try {
         return decodeURIComponent(
           (separator === -1 ? "" : pair.slice(separator + 1)).replace(
@@ -161,7 +161,7 @@
     /** @type {Array<[string, string]>} */
     const entries = [["view", "evaluations"]];
     for (const name of FILTER_NAMES) {
-      if (filters[name]) entries.push([name, filters[name]]);
+      if (filters[name]) {entries.push([name, filters[name]]);}
     }
     if (window.history?.replaceState) {
       window.history.replaceState(null, "", "/?" + queryString(entries));
@@ -173,9 +173,9 @@
     /** @type {Array<[string, string]>} */
     const entries = [["limit", "50"]];
     for (const name of FILTER_NAMES) {
-      if (filters[name]) entries.push([name, filters[name]]);
+      if (filters[name]) {entries.push([name, filters[name]]);}
     }
-    if (cursor !== null) entries.push(["cursor", cursor]);
+    if (cursor !== null) {entries.push(["cursor", cursor]);}
     return "/api/v1/evaluations?" + queryString(entries);
   }
 
@@ -225,11 +225,11 @@
 
   /** @param {number} milliseconds */
   function formatMilliseconds(milliseconds) {
-    if (milliseconds < 1_000) return milliseconds + " ms";
+    if (milliseconds < 1_000) {return milliseconds + " ms";}
     const seconds = Math.floor(milliseconds / 1_000);
-    if (seconds < 60) return seconds + "s";
+    if (seconds < 60) {return seconds + "s";}
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return minutes + "m " + (seconds % 60) + "s";
+    if (minutes < 60) {return minutes + "m " + (seconds % 60) + "s";}
     return Math.floor(minutes / 60) + "h " + (minutes % 60) + "m";
   }
 
@@ -269,16 +269,16 @@
       new Date(millis).getMonth(),
       new Date(millis).getDate(),
     ).getTime();
-    if (start === todayStart) return "Today";
+    if (start === todayStart) {return "Today";}
     const yesterdayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).getTime();
-    if (start === yesterdayStart) return "Yesterday";
+    if (start === yesterdayStart) {return "Yesterday";}
     return localDay(millis);
   }
 
   /** @param {string} tag @param {string} className @param {string} value */
   function element(tag, className, value) {
     const valueElement = document.createElement(tag);
-    if (className) valueElement.className = className;
+    if (className) {valueElement.className = className;}
     valueElement.textContent = value;
     return valueElement;
   }
@@ -288,7 +288,7 @@
     const value = document.createElement("div");
     value.className = "qb-timeline";
     for (const [index, node] of nodes.entries()) {
-      if (index > 0) value.append(element("span", "qb-timeline-connector", ""));
+      if (index > 0) {value.append(element("span", "qb-timeline-connector", ""));}
       const kind = node?.kind === "system" ? "system" : "review";
       const label =
         text(node?.label) || (kind === "system" ? "System" : "Review");
@@ -332,7 +332,7 @@
       actions.append(mutationButton("Retry", evaluation, "retry"));
       hasAction = true;
     }
-    if (hasAction) row.append(actions);
+    if (hasAction) {row.append(actions);}
   }
 
   /** @param {string} label @param {any} evaluation @param {"cancel" | "retry"} action */
@@ -423,8 +423,8 @@
 
     const expand = () => {
       const isExpanded = !expanded.has(evaluation.id);
-      if (isExpanded) expanded.add(evaluation.id);
-      else expanded.delete(evaluation.id);
+      if (isExpanded) {expanded.add(evaluation.id);}
+      else {expanded.delete(evaluation.id);}
       renderLedger();
     };
     toggle.addEventListener("click", expand);
@@ -483,9 +483,9 @@
     const grouped = new Map();
     for (const id of visibleIds) {
       const evaluation = evaluations.get(id);
-      if (!evaluation) continue;
+      if (!evaluation) {continue;}
       const key = dateKey(timestamp(evaluation));
-      if (!grouped.has(key)) grouped.set(key, []);
+      if (!grouped.has(key)) {grouped.set(key, []);}
       grouped.get(key).push(evaluation);
     }
     const groups = [...grouped.values()].sort((left, right) =>
@@ -498,12 +498,12 @@
       section.append(
         element("h2", "evaluation-date-heading", dayLabel(timestamp(group[0]))),
       );
-      for (const evaluation of group) section.append(row(evaluation));
+      for (const evaluation of group) {section.append(row(evaluation));}
       ledger.append(section);
     }
     empty.hidden = visibleIds.length !== 0;
     if (typeof window.scrollTo === "function" && typeof scrollY === "number")
-      window.scrollTo(0, scrollY);
+      {window.scrollTo(0, scrollY);}
   }
 
   /** @param {{items: any[], next_cursor: string | null}} collection @param {boolean} replace */
@@ -536,7 +536,7 @@
     const cursor = options.cursor ?? null;
     const firstPage = cursor === null;
     const filters = readFilters();
-    if (firstPage && !poll) loading.hidden = false;
+    if (firstPage && !poll) {loading.hidden = false;}
     loadMore.disabled = true;
     let response;
     try {
@@ -571,7 +571,7 @@
       showError("Evaluations returned an invalid response");
       return;
     }
-    if (!statsFailed) clearError();
+    if (!statsFailed) {clearError();}
     if (poll && firstPage) {
       let changed = false;
       for (const evaluation of collection.items) {
@@ -580,10 +580,10 @@
           !previous ||
           monitorSignature(previous) !== monitorSignature(evaluation)
         )
-          changed = true;
+          {changed = true;}
         known.set(evaluation.id, evaluation);
       }
-      if (!firstListResponse && changed) newActivity.hidden = false;
+      if (!firstListResponse && changed) {newActivity.hidden = false;}
       loadMore.disabled = false;
       firstListResponse = false;
       return;
@@ -626,11 +626,11 @@
           statWorkers.textContent =
             concurrency.running_count + " / " + concurrency.maximum_running;
           statQueue.textContent = String(queue.count);
-        } else failed = true;
+        } else {failed = true;}
       } catch {
         failed = true;
       }
-    } else failed = true;
+    } else {failed = true;}
     if (analyticsResult.status === "fulfilled" && analyticsResult.value.ok) {
       try {
         const analytics = await analyticsResult.value.json();
@@ -645,14 +645,14 @@
             denominator === 0
               ? "No data"
               : ((numerator / denominator) * 100).toFixed(1) + "%";
-        } else failed = true;
+        } else {failed = true;}
         statP95.textContent = Number.isSafeInteger(overview?.p95_duration_ms)
           ? formatMilliseconds(overview.p95_duration_ms)
           : "No data";
       } catch {
         failed = true;
       }
-    } else failed = true;
+    } else {failed = true;}
     if (failed) {
       statsFailed = true;
       showError("Evaluation statistics failed to load");
@@ -684,7 +684,7 @@
         typeof repository?.id !== "string" ||
         typeof repository?.url !== "string"
       )
-        continue;
+        {continue;}
       for (const select of [
         createRepository,
         control("evaluation-filter-repository"),
@@ -712,7 +712,7 @@
     createForm.hidden = !createForm.hidden;
     createToggle.setAttribute("aria-expanded", String(!createForm.hidden));
     if (!createForm.hidden && typeof createRepository.focus === "function")
-      createRepository.focus();
+      {createRepository.focus();}
   });
   createForm.addEventListener(
     "submit",
@@ -783,7 +783,7 @@
     },
   );
   filterReset.addEventListener("click", async () => {
-    for (const name of FILTER_NAMES) control(FILTER_IDS[name]).value = "";
+    for (const name of FILTER_NAMES) {control(FILTER_IDS[name]).value = "";}
     replaceFilterUrl({});
     known.clear();
     evaluations.clear();
@@ -794,7 +794,7 @@
     await refreshList({ replace: true });
   });
   loadMore.addEventListener("click", async () => {
-    if (nextCursor !== null) await refreshList({ cursor: nextCursor });
+    if (nextCursor !== null) {await refreshList({ cursor: nextCursor });}
   });
   newActivity.addEventListener("click", revealActivity);
   stat24h.addEventListener("click", async () => {
@@ -824,13 +824,13 @@
   if (typeof document.addEventListener === "function") {
     document.addEventListener("visibilitychange", async () => {
       if (document.hidden) {
-        if (pollTimer !== null) clearInterval(pollTimer);
+        if (pollTimer !== null) {clearInterval(pollTimer);}
         pollTimer = null;
         return;
       }
       await refreshList({ poll: true });
       if (pollTimer === null && typeof setInterval === "function")
-        pollTimer = setInterval(() => refreshList({ poll: true }), 5_000);
+        {pollTimer = setInterval(() => refreshList({ poll: true }), 5_000);}
     });
   }
 
@@ -841,5 +841,5 @@
     refreshList({ replace: true }),
   );
   if (!document.hidden && typeof setInterval === "function")
-    pollTimer = setInterval(() => refreshList({ poll: true }), 5_000);
+    {pollTimer = setInterval(() => refreshList({ poll: true }), 5_000);}
 })();

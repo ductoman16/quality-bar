@@ -106,7 +106,7 @@ export function operatorPage({ view }) {
       '<script src="/assets/analytics-matching-facts.js"></script>' +
       '<script src="/assets/analytics-state.js"></script>';
   }
-  let evaluationSection =
+  const evaluationSection =
     view === "evaluations"
       ? `<section class="evaluation-monitor" id="evaluation-monitor" aria-label="Evaluation monitor">
 <header class="qb-toolbar evaluation-monitor__header"><button id="evaluation-create-toggle" type="button" aria-expanded="false" aria-controls="evaluation-create-form">New evaluation</button></header>
