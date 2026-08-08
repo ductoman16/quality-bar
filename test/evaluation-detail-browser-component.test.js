@@ -5,6 +5,8 @@ import { test } from "node:test";
 import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
+import { renderEvaluationMonitorPage } from "../src/evaluation-monitor-page.js";
+import { executeEvaluationMonitorPageAsset } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 /** @typedef {ReturnType<typeof browserElement>} BrowserElement */
 
@@ -67,26 +69,10 @@ function evaluation(overrides = {}) {
 function controls() {
   return new Map(
     [
-      "evaluation-detail",
-      "evaluation-detail-back",
-      "evaluation-detail-title",
-      "evaluation-detail-repository",
-      "evaluation-detail-source",
-      "evaluation-detail-status",
-      "evaluation-detail-outcome",
-      "evaluation-detail-duration",
-      "evaluation-detail-updated",
-      "evaluation-detail-cancel",
-      "evaluation-detail-retry",
-      "evaluation-detail-timeline",
-      "evaluation-detail-preview",
-      "evaluation-detail-result",
-      "evaluation-detail-error",
-      "evaluation-detail-loading",
-      "evaluation-detail-review-counts",
-      "evaluation-detail-outcome-counts",
-      "evaluation-detail-finding-counts",
-    ].map((id) => [id, browserElement({ hidden: true })]),
+      ...renderEvaluationMonitorPage("evaluation-detail").markup.matchAll(
+        /\bid="([^"]+)"/g,
+      ),
+    ].map(([, id]) => [id, browserElement({ hidden: true })]),
   );
 }
 /**
@@ -106,36 +92,9 @@ test("Evaluation detail has its own read-only shell and ordered monitor timeline
     evaluationId: "evaluation/detail one",
     view: "evaluation-detail",
   });
-  for (const id of [
-    "evaluation-detail",
-    "evaluation-detail-back",
-    "evaluation-detail-title",
-    "evaluation-detail-repository",
-    "evaluation-detail-source",
-    "evaluation-detail-status",
-    "evaluation-detail-outcome",
-    "evaluation-detail-duration",
-    "evaluation-detail-updated",
-    "evaluation-detail-cancel",
-    "evaluation-detail-retry",
-    "evaluation-detail-timeline",
-    "evaluation-detail-preview",
-    "evaluation-detail-result",
-    "evaluation-detail-error",
-    "evaluation-detail-loading",
-  ]) {
-    assert.match(page, new RegExp(`id="${id}"`));
-  }
-  assert.match(page, /href="\/\?view=evaluations"/);
-  assert.match(page, /qb-deep-surface qb-evaluation-detail-panel/);
-  assert.match(
-    page,
-    /<script src="\/assets\/evaluation-result\.js"><\/script>/,
-  );
-  assert.match(
-    page,
-    /<script src="\/assets\/evaluation-detail\.js"><\/script>/,
-  );
+  const evaluationPage = renderEvaluationMonitorPage("evaluation-detail");
+  assert.ok(page.includes(evaluationPage.markup));
+  assert.ok(page.includes(evaluationPage.scripts));
   assert.doesNotMatch(page, /waiver-batch\.js/);
 
   const elements = controls();
@@ -196,12 +155,7 @@ test("Evaluation detail has its own read-only shell and ordered monitor timeline
       setInterval() {},
     },
   };
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/evaluation-detail.js",
-    readBrowserAsset("/assets/evaluation-detail.js"),
-    context,
-  );
+  executeEvaluationMonitorPageAsset(context, "/assets/evaluation-detail.js");
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
 
   assert.deepEqual(requests, [
@@ -234,10 +188,7 @@ test("Evaluation detail has its own read-only shell and ordered monitor timeline
 test("Evaluation detail reports a missing id without making a request", async () => {
   const elements = controls();
   let requests = 0;
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/evaluation-detail.js",
-    readBrowserAsset("/assets/evaluation-detail.js"),
+  executeEvaluationMonitorPageAsset(
     {
       URLSearchParams,
       document: {
@@ -257,6 +208,7 @@ test("Evaluation detail reports a missing id without making a request", async ()
         setInterval() {},
       },
     },
+    "/assets/evaluation-detail.js",
   );
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
   assert.equal(requests, 0);

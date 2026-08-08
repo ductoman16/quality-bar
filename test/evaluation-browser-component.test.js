@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
 import { URLSearchParams } from "node:url";
 import { test } from "node:test";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
-import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import {
   assertEvaluationPage,
   evaluation,
   evaluationElements,
+  executeEvaluationMonitorContract,
+  executeEvaluationMonitorPageAsset,
 } from "./evaluation-browser-component-support.js";
 import { browserElement } from "./repository-browser-component-support.js";
 
@@ -168,6 +167,46 @@ test("Evaluation page has the live monitor structure and no result-renderer asse
   assert.match(page, /aria-pressed="true" id="evaluation-stat-window-24h"/);
 });
 
+test("Evaluation monitor interface validates resources and owns mutations", async () => {
+  /** @type {Array<{options: any, path: string}>} */
+  const requests = [];
+  const context = {
+    crypto: { randomUUID: () => "idempotency-key" },
+    async fetch(/** @type {string} */ path, /** @type {any} */ options) {
+      requests.push({ options, path });
+      return response({});
+    },
+    window: {},
+  };
+  executeEvaluationMonitorContract(context);
+  const monitor = /** @type {any} */ (context.window)
+    .qualityBarEvaluationMonitor;
+  assert.equal(monitor.validEvaluation(evaluation()), true);
+  assert.equal(
+    monitor.validCollection({ items: [evaluation()], next_cursor: null }),
+    true,
+  );
+  assert.equal(
+    monitor.validEvaluation({ ...evaluation(), monitor: { nodes: [] } }),
+    false,
+  );
+  assert.equal(monitor.isTerminalStatus("completed"), true);
+  assert.equal(monitor.isTerminalStatus("running"), false);
+  await monitor.mutate({
+    action: "retry",
+    csrfToken: "csrf-token",
+    evaluationId: "evaluation/1",
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].path, "/api/v1/evaluations/evaluation%2F1/retry");
+  assert.equal(requests[0].options.method, "POST");
+  assert.equal(
+    requests[0].options.headers["idempotency-key"],
+    "idempotency-key",
+  );
+  assert.equal(requests[0].options.headers["x-quality-bar-csrf"], "csrf-token");
+});
+
 test("Evaluation monitor groups rows, uses monitor markers, filters, stats, actions, and no result fetches", async () => {
   const newest = evaluation({
     created_at: "2026-07-29T12:00:00.000Z",
@@ -201,12 +240,7 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
     },
   });
   const fixture = monitorContext([evaluation(), newest]);
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/evaluation.js",
-    readBrowserAsset("/assets/evaluation.js"),
-    fixture.context,
-  );
+  executeEvaluationMonitorPageAsset(fixture.context, "/assets/evaluation.js");
   await settle();
 
   const row = firstRow(fixture.controls);
@@ -294,12 +328,7 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
 test("Evaluation monitor holds new polling activity behind an explicit cue", async () => {
   const initial = evaluation({ id: "evaluation-old" });
   const fixture = monitorContext([initial]);
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/evaluation.js",
-    readBrowserAsset("/assets/evaluation.js"),
-    fixture.context,
-  );
+  executeEvaluationMonitorPageAsset(fixture.context, "/assets/evaluation.js");
   await settle();
   fixture.collection({
     items: [
