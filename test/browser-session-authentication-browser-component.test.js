@@ -156,7 +156,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
 
   const evaluations = await fetch(`${origin}/`, { headers: { cookie } });
   const evaluationsHtml = await evaluations.text();
-  assert.match(evaluationsHtml, /<h1>Evaluations<\/h1>/);
+  assert.match(evaluationsHtml, /<h1[^>]*>Evaluations<\/h1>/);
   assert.match(evaluationsHtml, /aria-label="Primary"/);
   for (const resource of [
     "Evaluations",
@@ -172,7 +172,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
 
   const system = await fetch(`${origin}/?view=system`, { headers: { cookie } });
   const systemHtml = await system.text();
-  assert.match(systemHtml, /<h1>System<\/h1>/);
+  assert.match(systemHtml, /<h1[^>]*>System<\/h1>/);
   assert.match(systemHtml, /id="system-facts"/);
   assert.match(systemHtml, /<script src="\/assets\/operator\.js"><\/script>/);
 
@@ -180,7 +180,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
     headers: { cookie },
   });
   const reviewsHtml = await reviews.text();
-  assert.match(reviewsHtml, /<h1>Reviews<\/h1>/);
+  assert.match(reviewsHtml, /<h1[^>]*>Reviews<\/h1>/);
   assert.match(reviewsHtml, /id="review-create-form"/);
   assert.match(reviewsHtml, /id="review-criteria"/);
   assert.match(reviewsHtml, /id="review-add-criterion"[^>]*>\+<\/button>/);
