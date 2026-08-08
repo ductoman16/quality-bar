@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-08T15:00:00.000Z",
+  "title": "Design System: Quality Bar",
+  "extensions": {
+    "colorMeta": {
+      "sage-canvas": { "role": "primary", "displayName": "Pale Sage Canvas", "canonical": "oklch(90% 0.02 125)", "tonalRamp": ["#d7dbd2", "#c9cec6", "#b9bebb"] },
+      "ink": { "role": "neutral", "displayName": "Near-Black Ink", "canonical": "oklch(15% 0.01 125)", "tonalRamp": ["#0f1410", "#1a1f1a", "#2a2f2a"] },
+      "muted-slate": { "role": "neutral", "displayName": "Muted Slate", "canonical": "oklch(50% 0.02 125)", "tonalRamp": ["#545a54", "#6d736d", "#8a8f8a"] },
+      "line": { "role": "neutral", "displayName": "Line", "canonical": "oklch(78% 0.01 125)", "tonalRamp": ["#b9bebb", "#a8adac", "#979b9a"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page h1, hidden on monitor where nav carries wayfinding." },
+      "body": { "displayName": "Body", "purpose": "Prose and table body, capped 65-75ch." },
+      "mono": { "displayName": "Mono", "purpose": "Times, durations, commit-adjacent values." },
+      "label": { "displayName": "Label", "purpose": "Filter labels, table headers, stat labels, status text." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "Chevron rotation 0.15s, hover transitions." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "720px" },
+      { "name": "mid", "value": "980px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Header",
+      "kind": "nav",
+      "refersTo": "header",
+      "description": "Sticky horizontal header with QB mark, title, left/right nav groups, and theme/avatar actions.",
+      "html": "<header class=\"qb-header\"><a class=\"qb-brand\" aria-label=\"Quality Bar\">QB</a><span class=\"qb-brand-title\">Quality Bar</span><nav class=\"qb-primary-nav\" aria-label=\"Primary\"><div class=\"qb-nav-group\"><a aria-current=\"page\">Evaluations</a></div><div class=\"qb-nav-group\"><a>Analytics</a></div></nav><div class=\"qb-header-actions\"><button class=\"qb-theme-toggle\">☼</button></div></header>",
+      "css": ".qb-header{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;padding:10px 20px;background:#d7dbd2;border-bottom:1px solid #b9bebb}.qb-brand{width:36px;height:36px;display:grid;place-items:center;background:#0f1410;color:#d7dbd2;border-radius:8px;font-weight:800}.qb-primary-nav a[aria-current=\"page\"]{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}"
+    },
+    {
+      "name": "Stat Strip",
+      "kind": "custom",
+      "refersTo": "stat",
+      "description": "Fleet statistics strip for evaluations monitor.",
+      "html": "<section class=\"qb-stat-strip\"><div class=\"qb-stat evaluation-stat\"><span>Workers</span><output>2 / 4</output></div></section>",
+      "css": ".qb-stat-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin:0 -26px;padding:0 26px;border-bottom:1px solid #b9bebb}.qb-stat{padding:18px 24px;border-left:1px solid #b9bebb}"
+    },
+    {
+      "name": "Ledger Row",
+      "kind": "custom",
+      "refersTo": "evaluation-row",
+      "description": "Compact ledger row with time, repo, PR, status, duration, timeline.",
+      "html": "<div class=\"evaluation-row\"><div class=\"evaluation-row__summary\"></div><div class=\"qb-timeline\"><span class=\"qb-timeline-node--system\"></span><span class=\"qb-timeline-connector\"></span><span class=\"qb-timeline-node--review\"></span></div></div>",
+      "css": ".evaluation-row{display:grid;grid-template-columns:1fr 190px 22px;gap:14px;padding:10px 0;border-top:1px solid #b9bebb}.qb-timeline-node--system::before{width:10px;height:10px;background:#0f1410}.qb-timeline-node--review::before{width:10px;height:10px;background:#0f1410;border-radius:50%}.qb-timeline-connector{height:1px;background:#0f1410;opacity:.85}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Operational Ledger",
+    "overview": "Quality Bar is the quiet console for an owner/operator glancing at a 27\" monitor in a calm, well-lit room to confirm the system is working. Monochrome and flat — like an old LCD screen without the pixels: pale sage canvas, near-black ink, layered greys, 1px rules, compact rows, no shadows.",
+    "keyCharacteristics": [
+      "One chronological ledger grouped by local day, newest first",
+      "System (square) vs Review (circle) with stable order",
+      "No fabrication — only existing API semantics",
+      "Truthful metrics with No data states"
+    ],
+    "rules": [
+      { "name": "The Sage-Only Rule", "body": "The only background is Pale Sage Canvas #d7dbd2.", "section": "colors" },
+      { "name": "The Flat-By-Default Rule", "body": "No box-shadow; depth via 1px rules and type.", "section": "elevation" }
+    ],
+    "dos": ["Do use one sage canvas for every background.", "Do keep square vs circle plus status text."],
+    "donts": ["Don't add lighter tints.", "Don't use pill badges or sidebars.", "Don't use gradient text or glassmorphism."]
+  }
+}
