@@ -62,7 +62,6 @@
   /** @type {string | null} */
   let nextCursor = null;
   let firstListResponse = true;
-  let statsWindowHours = 24;
   let statsFailed = false;
   /** @type {ReturnType<typeof setInterval> | null} */
   let pollTimer = null;
@@ -81,35 +80,24 @@
     error.textContent = "";
   }
 
+  function resetListState() {
+    known.clear();
+    evaluations.clear();
+    visibleIds = [];
+    expanded.clear();
+    nextCursor = null;
+    firstListResponse = true;
+  }
+
   /** @param {string} search @param {string} name */
   function searchValue(search, name) {
-    for (const pair of search.replace(/^\?/, "").split("&")) {
-      const separator = pair.indexOf("=");
-      const key = separator === -1 ? pair : pair.slice(0, separator);
-      if (key !== name) {
-        continue;
-      }
-      try {
-        return decodeURIComponent(
-          (separator === -1 ? "" : pair.slice(separator + 1)).replace(
-            /\+/g,
-            " ",
-          ),
-        );
-      } catch {
-        return null;
-      }
-    }
-    return null;
+    return new URLSearchParams(search).get(name);
   }
 
   /** @param {string | null} value */
   function localDateTime(value) {
-    if (value === null || !/^\d+$/.test(value)) {
-      return "";
-    }
-    const date = new Date(Number(value));
-    if (Number.isNaN(date.getTime())) {
+    const date = value === null ? null : new Date(Number(value));
+    if (!date || !/^\d+$/.test(value ?? "") || Number.isNaN(date.getTime())) {
       return "";
     }
     const offset = date.getTimezoneOffset() * 60_000;
@@ -118,10 +106,7 @@
 
   /** @param {string} value */
   function epochMilliseconds(value) {
-    if (value === "") {
-      return null;
-    }
-    const parsed = new Date(value).getTime();
+    const parsed = value === "" ? NaN : new Date(value).getTime();
     return Number.isSafeInteger(parsed) && parsed >= 0 ? String(parsed) : null;
   }
 
@@ -133,14 +118,11 @@
       if (typeof value !== "string" || value === "") {
         continue;
       }
-      if (name === "start" || name === "end") {
-        const epoch = epochMilliseconds(value);
-        if (epoch !== null) {
-          result[name] = epoch;
-        }
-        continue;
+      const normalized =
+        name === "start" || name === "end" ? epochMilliseconds(value) : value;
+      if (normalized !== null) {
+        result[name] = normalized;
       }
-      result[name] = value;
     }
     return result;
   }
@@ -164,15 +146,20 @@
       .join("&");
   }
 
-  /** @param {Record<string, string>} filters */
-  function replaceFilterUrl(filters) {
-    /** @type {Array<[string, string]>} */
-    const entries = [["view", "evaluations"]];
+  /** @param {Record<string, string>} filters @param {Array<[string, string]>} entries */
+  function appendFilterEntries(filters, entries) {
     for (const name of FILTER_NAMES) {
       if (filters[name]) {
         entries.push([name, filters[name]]);
       }
     }
+    return entries;
+  }
+
+  /** @param {Record<string, string>} filters */
+  function replaceFilterUrl(filters) {
+    /** @type {Array<[string, string]>} */
+    const entries = appendFilterEntries(filters, [["view", "evaluations"]]);
     if (window.history?.replaceState) {
       window.history.replaceState(null, "", "/?" + queryString(entries));
     }
@@ -181,12 +168,7 @@
   /** @param {Record<string, string>} filters @param {string | null} cursor */
   function listUrl(filters, cursor) {
     /** @type {Array<[string, string]>} */
-    const entries = [["limit", "50"]];
-    for (const name of FILTER_NAMES) {
-      if (filters[name]) {
-        entries.push([name, filters[name]]);
-      }
-    }
+    const entries = appendFilterEntries(filters, [["limit", "50"]]);
     if (cursor !== null) {
       entries.push(["cursor", cursor]);
     }
@@ -256,8 +238,10 @@
   /** @param {number} millis */
   function localTime(millis) {
     return new Intl.DateTimeFormat(undefined, {
+      hour12: false,
       hour: "numeric",
       minute: "2-digit",
+      second: "2-digit",
     }).format(new Date(millis));
   }
 
@@ -271,52 +255,102 @@
   }
 
   /** @param {number} millis */
-  function dateKey(millis) {
-    const date = new Date(millis);
-    return [date.getFullYear(), date.getMonth(), date.getDate()].join("-");
-  }
+  const dateKey = (millis) => new Date(millis).toLocaleDateString();
 
   /** @param {number} millis */
   function dayLabel(millis) {
+    const date = new Date(millis);
     const today = new Date();
-    const todayStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    ).getTime();
-    const start = new Date(
-      new Date(millis).getFullYear(),
-      new Date(millis).getMonth(),
-      new Date(millis).getDate(),
-    ).getTime();
-    if (start === todayStart) {
+    if (date.toDateString() === today.toDateString()) {
       return "Today";
     }
-    const yesterdayStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate() - 1,
-    ).getTime();
-    if (start === yesterdayStart) {
+    today.setDate(today.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) {
       return "Yesterday";
     }
     return localDay(millis);
   }
 
-  /** @param {string} tag @param {string} className @param {string} value */
-  function element(tag, className, value) {
+  /** @param {string} tag @param {string} className @param {string} value @param {Node[]} [children] */
+  function element(tag, className, value, children = []) {
     const valueElement = document.createElement(tag);
     if (className) {
       valueElement.className = className;
     }
     valueElement.textContent = value;
+    children.forEach((child) => valueElement.append(child));
     return valueElement;
+  }
+
+  /** @param {string} id */
+  const evaluationUrl = (id) =>
+    "/?view=evaluation-detail&evaluation_id=" + encodeURIComponent(id);
+
+  /** @param {string} value */
+  function shortSelector(value) {
+    return /^[0-9a-f]{12,}$/.test(value) ? value.slice(0, 7) : value;
+  }
+
+  /** @param {any} evaluation */
+  function repositoryLabel(evaluation) {
+    const id = text(evaluation?.repository?.id);
+    if (id && !/^repository-[a-z0-9-]+$/i.test(id)) {
+      return id;
+    }
+    try {
+      const path = new URL(text(evaluation?.repository?.url)).pathname;
+      const last = path.split("/").filter(Boolean).at(-1) ?? "";
+      return last.replace(/\.git$/i, "") || id || "Repository";
+    } catch {
+      return id || "Repository";
+    }
+  }
+
+  const NODE_STATUS = /** @type {Record<string, string[]>} */ ({
+    cancelled: ["skipped", "Skipped"],
+    completed: ["complete", "OK"],
+    failed: ["failed", "Failed"],
+    queued: ["pending", "Queued"],
+    running: ["pending", "Running"],
+  });
+  const EXECUTION_STATUS = /** @type {Record<string, string[]>} */ ({
+    cancelled: ["Skipped", "skipped"],
+    failed: ["Failed", "failed"],
+    queued: ["Queued", "pending"],
+    running: ["Running", "active"],
+  });
+
+  /** @param {string} value */
+  function nodeStatus(value) {
+    return NODE_STATUS[value] ?? ["pending", "Unknown"];
+  }
+
+  /** @param {any} evaluation */
+  function evaluationStatus(evaluation) {
+    const execution = EXECUTION_STATUS[evaluation?.execution_status];
+    if (execution) {
+      return { label: execution[0], tone: execution[1] };
+    }
+    const outcome = evaluation?.effective_outcome;
+    const result = /** @type {Record<string, string[]>} */ ({
+      clear: ["Passed", "passed"],
+      pending: ["Pending", "pending"],
+    })[outcome] ?? [
+      text(outcome).replace(/^./, (value) => value.toUpperCase()) ||
+        "Completed",
+      "failed",
+    ];
+    return { label: result[0], tone: result[1] };
   }
 
   /** @param {any[]} nodes @param {boolean} withStatus */
   function timeline(nodes, withStatus) {
     const value = document.createElement("div");
     value.className = "qb-timeline";
+    value.setAttribute(
+      "aria-label",
+      withStatus ? "Evaluation steps" : "Step progress",
+    );
     for (const [index, node] of nodes.entries()) {
       if (index > 0) {
         value.append(element("span", "qb-timeline-connector", ""));
@@ -325,30 +359,20 @@
       const label =
         text(node?.label) || (kind === "system" ? "System" : "Review");
       const status = text(node?.status) || "unknown";
-      value.append(
-        element(
-          "span",
-          "qb-timeline-node qb-timeline-node--" + kind,
-          withStatus ? label + " " + status : label,
-        ),
+      const statusState = nodeStatus(status);
+      const nodeElement = element(
+        "span",
+        "qb-timeline-node qb-timeline-node--" +
+          kind +
+          " qb-timeline-node--" +
+          statusState[0],
+        withStatus ? label + " " + statusState[1] : "",
       );
+      nodeElement.setAttribute("aria-label", label + ": " + statusState[1]);
+      nodeElement.title = label + ": " + statusState[1];
+      value.append(nodeElement);
     }
     return value;
-  }
-
-  /** @param {any} evaluation */
-  function sourceContext(evaluation) {
-    if (
-      evaluation?.provenance === "automatic" &&
-      Number.isSafeInteger(evaluation?.pull_request?.number)
-    ) {
-      return "PR #" + evaluation.pull_request.number;
-    }
-    return (
-      text(evaluation?.base_selector?.value) +
-      " → " +
-      text(evaluation?.head_selector?.value)
-    );
   }
 
   /** @param {HTMLElement} row @param {any} evaluation */
@@ -401,6 +425,58 @@
     return button;
   }
 
+  /** @param {number} index @param {any} node */
+  function expandedStep(index, node) {
+    const kind = node?.kind === "system" ? "system" : "review";
+    const status = text(node?.status) || "unknown";
+    const label =
+      text(node?.label) || (kind === "system" ? "System" : "Review");
+    const finished = text(node?.completed_at || node?.finished_at);
+    const statusState = nodeStatus(status);
+    return element("div", "evaluation-expanded__row evaluation-node", "", [
+      element("div", "evaluation-step", "", [
+        element("span", "evaluation-step__number", String(index + 1)),
+        element(
+          "span",
+          "evaluation-step__marker evaluation-step__marker--" + kind,
+          "",
+        ),
+        element("span", "evaluation-step__label", label),
+      ]),
+      element(
+        "span",
+        "evaluation-node-status evaluation-node-status--" + statusState[0],
+        "",
+        [
+          element("span", "evaluation-node-status__icon", ""),
+          element("span", "", statusState[1]),
+        ],
+      ),
+      element(
+        "span",
+        "",
+        Number.isSafeInteger(node?.duration_ms)
+          ? formatMilliseconds(node.duration_ms)
+          : "—",
+      ),
+      element(
+        "time",
+        "",
+        finished && !Number.isNaN(new Date(finished).getTime())
+          ? localTime(new Date(finished).getTime())
+          : "—",
+      ),
+    ]);
+  }
+
+  /** @param {string} label @param {Record<string, unknown>} values */
+  function countLine(label, values) {
+    const counts = Object.entries(values)
+      .map(([key, value]) => " " + key + " " + value)
+      .join(",");
+    return element("div", "evaluation-counts", label + counts);
+  }
+
   /** @param {any} evaluation */
   function row(evaluation) {
     const article = document.createElement("article");
@@ -412,40 +488,67 @@
     toggle.className = "evaluation-row__toggle";
     toggle.setAttribute("aria-controls", expandedId);
     toggle.setAttribute("aria-expanded", String(expanded.has(evaluation.id)));
-    toggle.textContent = expanded.has(evaluation.id) ? "Hide" : "Show";
+    toggle.setAttribute(
+      "aria-label",
+      (expanded.has(evaluation.id) ? "Collapse" : "Expand") +
+        " evaluation " +
+        evaluation.id,
+    );
+    toggle.append(element("span", "evaluation-row__chevron", ""));
 
     const summary = document.createElement("div");
     summary.className = "evaluation-row__summary";
     const created = timestamp(evaluation);
     summary.append(
       toggle,
-      element("time", "", created ? localTime(created) : "—"),
-    );
-    const link = document.createElement("a");
-    link.href =
-      "/?view=evaluation-detail&evaluation_id=" +
-      encodeURIComponent(evaluation.id);
-    link.textContent = text(evaluation.repository?.id);
-    summary.append(link);
-    summary.append(
       element(
-        "span",
-        "evaluation-row__meta",
-        sourceContext(evaluation) +
-          " · " +
-          text(evaluation.effective_outcome) +
-          " · " +
-          text(evaluation.execution_status) +
-          " · " +
-          formatDuration(evaluation),
+        "time",
+        "evaluation-row__time",
+        created ? localTime(created) : "—",
       ),
     );
-    const compactTimeline = timeline(
-      Array.isArray(evaluation.monitor?.nodes) ? evaluation.monitor.nodes : [],
-      false,
+    const link = document.createElement("a");
+    link.href = evaluationUrl(evaluation.id);
+    link.className = "evaluation-row__repository";
+    link.textContent = repositoryLabel(evaluation);
+    const sourceKind =
+      evaluation?.provenance === "automatic" &&
+      Number.isSafeInteger(evaluation?.pull_request?.number)
+        ? "PR #" + evaluation.pull_request.number
+        : shortSelector(text(evaluation?.base_selector?.value));
+    const sourceValue = shortSelector(text(evaluation?.head_selector?.value));
+    const sourceElement = element("span", "evaluation-row__source", "", [
+      element("span", "evaluation-row__source-kind", sourceKind || "—"),
+      element("span", "evaluation-row__source-value", sourceValue || "—"),
+    ]);
+    const status = evaluationStatus(evaluation);
+    const statusElement = element(
+      "span",
+      "evaluation-row__outcome evaluation-status--" + status.tone,
+      "",
+      [
+        element("span", "evaluation-status__icon", ""),
+        element("span", "evaluation-status__label", status.label),
+      ],
     );
+    summary.append(
+      link,
+      sourceElement,
+      statusElement,
+      element("span", "evaluation-row__duration", formatDuration(evaluation)),
+    );
+    /** @type {any[]} */
+    const nodes = Array.isArray(evaluation.monitor?.nodes)
+      ? evaluation.monitor.nodes
+      : [];
+    const compactTimeline = timeline(nodes, false);
     compactTimeline.className += " evaluation-row__timeline";
-    article.append(summary, compactTimeline);
+    const detailLink = document.createElement("a");
+    detailLink.className = "evaluation-row__detail";
+    detailLink.href = evaluationUrl(evaluation.id);
+    detailLink.setAttribute("aria-label", "Open evaluation " + evaluation.id);
+    detailLink.textContent = "›";
+    article.append(summary, compactTimeline, detailLink);
     appendActions(article, evaluation);
 
     const expand = () => {
@@ -462,45 +565,27 @@
       const preview = document.createElement("section");
       preview.id = expandedId;
       preview.className = "evaluation-expanded";
-      for (const node of Array.isArray(evaluation.monitor?.nodes)
-        ? evaluation.monitor.nodes
-        : []) {
-        const nodeRow = document.createElement("div");
-        nodeRow.className = "evaluation-node";
-        nodeRow.append(timeline([node], true));
-        preview.append(nodeRow);
-      }
-      const outcomes = evaluation.monitor?.outcome_counts;
-      if (outcomes !== null && typeof outcomes === "object") {
-        preview.append(
-          element(
-            "div",
-            "evaluation-counts",
-            "Outcomes: clear " +
-              outcomes.clear +
-              ", triggered " +
-              outcomes.triggered +
-              ", not applicable " +
-              outcomes.not_applicable +
-              ", error " +
-              outcomes.error,
+      const table = document.createElement("div");
+      table.className = "evaluation-expanded__table";
+      table.append(
+        element(
+          "div",
+          "evaluation-expanded__row evaluation-expanded__row--header",
+          "",
+          ["Step", "Status", "Duration", "Finished"].map((label) =>
+            element("span", "", label),
           ),
-        );
-      }
-      const findings = evaluation.monitor?.finding_counts;
-      if (findings !== null && typeof findings === "object") {
-        preview.append(
-          element(
-            "div",
-            "evaluation-counts",
-            "Findings: total " +
-              findings.total +
-              ", advisory " +
-              findings.advisory +
-              ", blocking " +
-              findings.blocking,
-          ),
-        );
+        ),
+      );
+      nodes.forEach((node, index) => table.append(expandedStep(index, node)));
+      preview.append(table);
+      for (const [label, counts] of [
+        ["Outcomes:", evaluation.monitor?.outcome_counts],
+        ["Findings:", evaluation.monitor?.finding_counts],
+      ]) {
+        if (counts !== null && typeof counts === "object") {
+          preview.append(countLine(label, counts));
+        }
       }
       article.append(preview);
     }
@@ -517,10 +602,9 @@
         continue;
       }
       const key = dateKey(timestamp(evaluation));
-      if (!grouped.has(key)) {
-        grouped.set(key, []);
-      }
-      grouped.get(key).push(evaluation);
+      const group = grouped.get(key) ?? [];
+      group.push(evaluation);
+      grouped.set(key, group);
     }
     const groups = [...grouped.values()].sort((left, right) =>
       newestFirst(left[0], right[0]),
@@ -529,12 +613,24 @@
       group.sort(newestFirst);
       const section = document.createElement("section");
       section.className = "evaluation-date-group";
-      section.append(
-        element("h2", "evaluation-date-heading", dayLabel(timestamp(group[0]))),
+      const groupTimestamp = timestamp(group[0]);
+      const relativeDate = dayLabel(groupTimestamp);
+      const dateHeading = element(
+        "h2",
+        "evaluation-date-heading",
+        relativeDate,
       );
-      for (const evaluation of group) {
-        section.append(row(evaluation));
+      if (relativeDate === "Today" || relativeDate === "Yesterday") {
+        dateHeading.append(
+          element(
+            "span",
+            "evaluation-date-heading__date",
+            localDay(groupTimestamp),
+          ),
+        );
       }
+      section.append(dateHeading);
+      section.append(...group.map(row));
       ledger.append(section);
     }
     empty.hidden = visibleIds.length !== 0;
@@ -704,7 +800,7 @@
       showError("Evaluation statistics failed to load");
     } else {
       statsFailed = false;
-      statUpdated.textContent = localTime(now);
+      statUpdated.textContent = "Just now";
     }
   }
 
@@ -821,12 +917,7 @@
     async (/** @type {SubmitEvent} */ event) => {
       event.preventDefault();
       replaceFilterUrl(readFilters());
-      known.clear();
-      evaluations.clear();
-      visibleIds = [];
-      expanded.clear();
-      nextCursor = null;
-      firstListResponse = true;
+      resetListState();
       await refreshList({ replace: true });
     },
   );
@@ -835,12 +926,7 @@
       control(FILTER_IDS[name]).value = "";
     }
     replaceFilterUrl({});
-    known.clear();
-    evaluations.clear();
-    visibleIds = [];
-    expanded.clear();
-    nextCursor = null;
-    firstListResponse = true;
+    resetListState();
     await refreshList({ replace: true });
   });
   loadMore.addEventListener("click", async () => {
@@ -850,26 +936,19 @@
   });
   newActivity.addEventListener("click", revealActivity);
   stat24h.addEventListener("click", async () => {
-    statsWindowHours = 24;
     stat24h.setAttribute("aria-pressed", "true");
     stat7d.setAttribute("aria-pressed", "false");
-    await refreshStats(statsWindowHours);
+    await refreshStats(24);
   });
   stat7d.addEventListener("click", async () => {
-    statsWindowHours = 24 * 7;
     stat24h.setAttribute("aria-pressed", "false");
     stat7d.setAttribute("aria-pressed", "true");
-    await refreshStats(statsWindowHours);
+    await refreshStats(24 * 7);
   });
   if (typeof window.addEventListener === "function") {
     window.addEventListener("popstate", async () => {
       setFiltersFromLocation();
-      known.clear();
-      evaluations.clear();
-      visibleIds = [];
-      expanded.clear();
-      nextCursor = null;
-      firstListResponse = true;
+      resetListState();
       await refreshList({ replace: true });
     });
   }
@@ -892,7 +971,7 @@
   setFiltersFromLocation();
   newActivity.hidden = true;
   loadMore.hidden = true;
-  Promise.all([loadRepositories(), refreshStats(statsWindowHours)]).then(() =>
+  Promise.all([loadRepositories(), refreshStats(24)]).then(() =>
     refreshList({ replace: true }),
   );
   if (!document.hidden && typeof setInterval === "function") {

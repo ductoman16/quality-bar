@@ -19,6 +19,7 @@ test("Evaluation monitor distinguishes an empty ledger from a list dependency fa
   for (const scenario of ["empty", "gated"]) {
     const controls = evaluationElements();
     const context = {
+      URLSearchParams,
       document: { createElement: () => browserElement() },
       async fetch(/** @type {string} */ path) {
         if (path === "/api/v1/system") {
