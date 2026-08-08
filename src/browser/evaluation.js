@@ -85,17 +85,7 @@
 
   /** @param {string} search @param {string} name */
   function searchValue(search, name) {
-    const match = search
-      .replace(/^\?/, "")
-      .match(new RegExp("(?:^|&)" + name + "=([^&]*)"));
-    if (!match) {
-      return null;
-    }
-    try {
-      return decodeURIComponent(match[1].replace(/\+/g, " "));
-    } catch {
-      return null;
-    }
+    return new URLSearchParams(search).get(name);
   }
 
   /** @param {string | null} value */
