@@ -27,6 +27,7 @@
     "src/browser/evaluation-feedback.js",
     "src/browser/evaluation-active-controls.js",
     "src/browser/evaluation.js",
+    "src/browser/evaluation-detail.js",
     "src/browser/system-attention.js",
     "src/browser/system-execution.js",
     "src/browser/system-polling-delivery-contract.js",
@@ -52,7 +53,6 @@
     "src/browser/review-reactivation.js",
     "src/browser/review-archival.js",
     "src/browser/review-delete.js",
-    "src/browser/review-assignment.js",
-    "src/browser/evaluation-detail.js"
+    "src/browser/review-assignment.js"
   ]
 }
