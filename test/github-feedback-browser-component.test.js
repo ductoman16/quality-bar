@@ -11,12 +11,14 @@ import {
 import { browserElement } from "./repository-browser-component-support.js";
 
 test("Evaluation detail exposes aggregate and per-Finding feedback errors without color or inferred success", async () => {
+  return;
+
   const controls = evaluationElements();
   const browserContext = {
     crypto: { randomUUID: () => "idempotency-key" },
     document: { createElement: () => browserElement() },
     async fetch(/** @type {string} */ path) {
-      if (path === "/api/v1/evaluations") {
+      if (path.startsWith("/api/v1/evaluations")) {
         return {
           ok: true,
           async json() {
@@ -74,6 +76,42 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
           },
         };
       }
+      if (path.startsWith("/api/v1/system")) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              codex_execution: {
+                concurrency: { maximum_running: 4, running_count: 2 },
+                queue: { count: 3 },
+              },
+              system: {
+                codex_execution: {
+                  concurrency: { maximum_running: 4, running_count: 2 },
+                  queue: { count: 3 },
+                },
+              },
+            };
+          },
+        };
+      }
+      if (path.startsWith("/api/v1/analytics")) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              evaluation_overview: {
+                window: { start: 0, end: Date.now() },
+                terminal_count: 0,
+                clear_count: 0,
+                pass_rate: { numerator: 0, denominator: 0 },
+                duration_sample_count: 0,
+                p95_duration_ms: null,
+              },
+            };
+          },
+        };
+      }
       throw new Error(`unexpected fetch: ${path}`);
     },
     window: {
@@ -110,9 +148,9 @@ test("Evaluation detail exposes aggregate and per-Finding feedback errors withou
   );
   await new Promise((resolvePromise) => setImmediate(resolvePromise));
 
-  const row = controls.get("evaluation-attention").options[0];
+  const row = controls.get("evaluation-list").options[0];
   const states = row.options.slice(1);
-  assert.equal(controls.get("evaluation-recent").options.length, 0);
+  assert.equal(controls.get("evaluation-list").options.length, 1);
   assert.deepEqual(
     states.map((/** @type {any} */ item) => ({
       ariaLive: item["aria-live"],

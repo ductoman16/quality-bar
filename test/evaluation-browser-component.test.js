@@ -171,7 +171,7 @@ test("Evaluation page has the live monitor structure and no result-renderer asse
 test("Evaluation monitor groups rows, uses monitor markers, filters, stats, actions, and no result fetches", async () => {
   const newest = evaluation({
     created_at: "2026-07-29T12:00:00.000Z",
-    execution_status: "running",
+    execution_status: "queued",
     id: "evaluation-running",
     retry_state: "exhausted",
     monitor: {
