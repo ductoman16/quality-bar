@@ -53,6 +53,22 @@ chmod 0400 "$QUALITY_BAR_CONFIG_FILE" "$QUALITY_BAR_MASTER_KEY_FILE"
 docker compose run --rm --no-deps quality-bar codex login --device-auth
 ```
 
+
+If you are logging into an already-running temporary instance from a non-TTY path (the error `cannot attach stdin to a TTY-enabled container`), run:
+
+```sh
+docker exec -i quality-bar-local codex login --device-auth
+```
+
+If you previously started the device-auth flow as `root` (for example with `-u 0:0`), fix ownership before retrying as the service user:
+
+```sh
+docker exec quality-bar-local chown -R 10001:10001 /var/lib/quality-bar/codex-home
+```
+
+Then restart that container after the browser flow completes.
+
+
 Docker Desktop/macOS can skip the Linux-only `chown` line.
 
 The command writes only to the named state volume. A missing or invalid login leaves the durable System surface available but marks Codex unavailable and gates every new Codex start; it does not use an environment token, another home directory, or a fallback provider.

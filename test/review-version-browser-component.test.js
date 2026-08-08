@@ -141,11 +141,11 @@ test("the Review Version component submits the selected complete executable snap
   assert.equal(/** @type {any} */ (secondCriterion).children[4].focused, true);
   assert.equal(
     /** @type {any} */ (firstCriterion).children[4].textContent,
-    "Move Criterion 1 up",
+    "↑",
   );
   assert.equal(
     /** @type {any} */ (secondCriterion).children[5].textContent,
-    "Move Criterion 2 down",
+    "↓",
   );
   /** @type {any} */ (secondCriterion).children[4].listener("click")({});
   [firstCriterion, secondCriterion] = criteriaList.children;

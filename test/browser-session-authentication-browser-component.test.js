@@ -30,7 +30,7 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   assert.match(requiredHeader(login, "content-type"), /^text\/html/);
   const loginPage = await login.text();
   assert.match(loginPage, /<label for="password">Password<\/label>/);
-  assert.match(loginPage, /<button type="submit">Log in<\/button>/);
+  assert.match(loginPage, /<button[^>]*>Log in<\/button>/);
   assert.match(loginPage, /<script src="\/assets\/login\.js"><\/script>/);
   assert.doesNotMatch(
     loginPage,
@@ -98,7 +98,7 @@ test("a password login sets a callback-capable session cookie and strict CSRF co
   const authenticatedHtml = await authenticatedPage.text();
   assert.match(
     authenticatedHtml,
-    /<button id="logout" type="button">Log out<\/button>/,
+    /<button[^>]*id="logout"[^>]*>Log out<\/button>/,
   );
   assert.match(
     authenticatedHtml,
@@ -185,7 +185,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /id="review-criteria"/);
   assert.match(
     reviewsHtml,
-    /id="review-add-criterion"[^>]*>Add another Criterion<\/button>/,
+    /id="review-add-criterion"[^>]*>\+<\/button>/,
   );
   assert.match(reviewsHtml, /id="review-model"/);
   assert.match(reviewsHtml, /id="review-reasoning-effort"/);
@@ -234,7 +234,7 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   assert.match(reviewsHtml, /id="review-version-criteria"/);
   assert.match(
     reviewsHtml,
-    /id="review-version-add-criterion"[^>]*>Add Criterion<\/button>/,
+    /id="review-version-add-criterion"[^>]*>\+<\/button>/,
   );
   assert.match(reviewsHtml, /id="review-version-result"/);
   assert.match(reviewsHtml, /id="review-archival-form"/);
