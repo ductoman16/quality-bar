@@ -43,29 +43,32 @@ export function createEvaluationCollectionReader(durableCore, masterKey) {
       }
       if (filters.query !== null) {
         conditions.push(`(
-          lower(repository_id) LIKE '%' || lower(?) || '%'
-          OR lower(normalized_url) LIKE '%' || lower(?) || '%'
-          OR lower(base_selector_value) LIKE '%' || lower(?) || '%'
-          OR lower(head_selector_value) LIKE '%' || lower(?) || '%'
-          OR lower(base_commit) LIKE lower(?) || '%'
-          OR lower(head_commit) LIKE lower(?) || '%'
+          lower(repository_id) LIKE '%' || ? || '%' ESCAPE '\\'
+          OR lower(normalized_url) LIKE '%' || ? || '%' ESCAPE '\\'
+          OR lower(base_selector_value) LIKE '%' || ? || '%' ESCAPE '\\'
+          OR lower(head_selector_value) LIKE '%' || ? || '%' ESCAPE '\\'
+          OR lower(base_commit) LIKE ? || '%' ESCAPE '\\'
+          OR lower(head_commit) LIKE ? || '%' ESCAPE '\\'
           OR (
             ? = 1
             AND automatic_pull_request_number = ?
           )
         )`);
+        const escapedQuery = filters.query
+          .toLowerCase()
+          .replace(/[\\%_]/g, "\\$&");
         const pullRequestNumber =
           /^[0-9]+$/.test(filters.query) &&
           Number.isSafeInteger(Number(filters.query))
             ? Number(filters.query)
             : null;
         parameters.push(
-          filters.query,
-          filters.query,
-          filters.query,
-          filters.query,
-          filters.query,
-          filters.query,
+          escapedQuery,
+          escapedQuery,
+          escapedQuery,
+          escapedQuery,
+          escapedQuery,
+          escapedQuery,
           pullRequestNumber === null ? 0 : 1,
           pullRequestNumber,
         );

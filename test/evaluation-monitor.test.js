@@ -6,6 +6,7 @@ import {
   readEvaluationCollectionFilters,
 } from "../src/evaluation-collection.js";
 import { readEvaluationMonitors } from "../src/evaluation-monitor.js";
+import { createEvaluationCollectionReader } from "../src/evaluation-collection-reader.js";
 
 /**
  * @param {string} id
@@ -259,4 +260,58 @@ test("collection filters canonicalize inputs and bind cursor fingerprints", () =
     { code: "cursor_invalid" },
   );
   collection.destroy();
+});
+
+test("collection applies every filter together with escaped case-insensitive text matching", () => {
+  let statement = "";
+  /** @type {import("node:sqlite").SQLInputValue[]} */
+  let parameters = [];
+  const reader = createEvaluationCollectionReader(
+    {
+      /**
+       * @param {string} sql
+       * @param {...import("node:sqlite").SQLInputValue} values
+       */
+      all(sql, ...values) {
+        statement = sql;
+        parameters = values;
+        return [];
+      },
+      get() {
+        return undefined;
+      },
+    },
+    Buffer.alloc(32, 7),
+  );
+  reader.collection.read({
+    effective_outcome: "blocking",
+    end: "20",
+    execution_status: "completed",
+    query: "Repo_%",
+    repository_id: "repository-1",
+    start: "10",
+  });
+  assert.match(statement, /repository_id = \?/);
+  assert.match(statement, /execution_status = \?/);
+  assert.match(statement, /CASE[\s\S]*END = \?/);
+  assert.match(statement, /created_at >= \?/);
+  assert.match(statement, /created_at < \?/);
+  assert.match(statement, /ESCAPE '\\'/);
+  assert.deepEqual(parameters, [
+    "repository-1",
+    "completed",
+    "blocking",
+    10,
+    20,
+    "repo\\_\\%",
+    "repo\\_\\%",
+    "repo\\_\\%",
+    "repo\\_\\%",
+    "repo\\_\\%",
+    "repo\\_\\%",
+    0,
+    null,
+    51,
+  ]);
+  reader.collection.destroy();
 });
