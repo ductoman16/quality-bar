@@ -52,6 +52,7 @@ export function loginPage(intendedDestination) {
 
 /** @param {{ view: string, evaluationId?: string | null }} options */
 export function operatorPage({ view, evaluationId }) {
+  void evaluationId;
   const leftNavigation = ["evaluations", "reviews", "repositories"];
   const rightNavigation = ["analytics", "system"];
   /** @param {string} name */
@@ -111,7 +112,7 @@ export function operatorPage({ view, evaluationId }) {
       '<script src="/assets/analytics-matching-facts.js"></script>' +
       '<script src="/assets/analytics-state.js"></script>';
   }
-  const evaluationSection =
+  let evaluationSection =
     view === "evaluations"
       ? `<section class="evaluation-monitor" id="evaluation-monitor" aria-label="Evaluation monitor">
 <header class="qb-toolbar evaluation-monitor__header"><button id="evaluation-create-toggle" type="button" aria-expanded="false" aria-controls="evaluation-create-form">New evaluation</button></header>
