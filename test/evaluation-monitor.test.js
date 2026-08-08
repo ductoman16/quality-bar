@@ -229,10 +229,9 @@ test("collection filters canonicalize inputs and bind cursor fingerprints", () =
   assert.throws(() => readEvaluationCollectionFilters({ query: "" }), {
     code: "evaluation_filter_invalid",
   });
-  assert.throws(
-    () => readEvaluationCollectionFilters({ repository_id: "" }),
-    { code: "evaluation_filter_invalid" },
-  );
+  assert.throws(() => readEvaluationCollectionFilters({ repository_id: "" }), {
+    code: "evaluation_filter_invalid",
+  });
   assert.throws(
     () => readEvaluationCollectionFilters({ end: "10", start: "10" }),
     { code: "evaluation_filter_invalid" },

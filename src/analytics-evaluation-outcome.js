@@ -9,8 +9,7 @@ export function evaluationOutcome(row) {
     currentWaiverErrorCount: row?.current_waiver_error_count,
     unwaivedAdvisoryFindingCount: row?.unwaived_advisory_finding_count,
   };
-  const storedOutcome =
-    row?.effective_outcome_source ?? row?.result_outcome;
+  const storedOutcome = row?.effective_outcome_source ?? row?.result_outcome;
   const executionStatus = row?.execution_status;
   if (
     !Object.values(facts).every(
