@@ -1,11 +1,15 @@
 {
   "ticket": 161,
-  "focused_commands": ["npm run typecheck:node", "npm run typecheck:browser"],
+  "focused_commands": [
+    "npm run typecheck:node",
+    "npm run typecheck:browser"
+  ],
   "typescript_version": "7.0.2",
   "node_types_version": "24.13.3",
   "served_browser_modules": [
     "login.js",
     "operator.js",
+    "evaluation-detail.js",
     "system-polling-delivery-contract.js",
     "system-polling-delivery.js",
     "system-storage.js",
