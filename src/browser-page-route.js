@@ -74,7 +74,13 @@ export function createBrowserPageRoute({
           channel: "browser_session",
           outcome: "success",
         });
-        writeHtml(response, operatorPage({ view }));
+        writeHtml(
+          response,
+          operatorPage({
+            evaluationId: requestUrl.searchParams.get("evaluation_id"),
+            view,
+          }),
+        );
       } else {
         if (sessionSecret(request) !== undefined) {
           recordAuthorityAttribution({

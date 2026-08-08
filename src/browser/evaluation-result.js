@@ -173,8 +173,22 @@
     return reviewRunDiagnostics(run, await response.json());
   }
 
-  /** @param {any} target @param {any} evaluation @param {any} result @param {string} search @param {any[]} adjudications */
-  async function render(target, evaluation, result, search, adjudications) {
+  /**
+   * @param {any} target
+   * @param {any} evaluation
+   * @param {any} result
+   * @param {string} search
+   * @param {any[]} adjudications
+   * @param {{ allowWaiverActions?: boolean }} [options]
+   */
+  async function render(
+    target,
+    evaluation,
+    result,
+    search,
+    adjudications,
+    { allowWaiverActions = true } = {},
+  ) {
     if (
       !result ||
       typeof result.outcome !== "string" ||
@@ -365,7 +379,7 @@
           findingDetails.append(fact);
         }
         findingDetails.append(findingLocation(evaluation.id, finding));
-        if (finding.impact === "advisory") {
+        if (finding.impact === "advisory" && allowWaiverActions) {
           const rationale = document.createElement("textarea");
           rationale.setAttribute(
             "aria-label",
@@ -393,22 +407,24 @@
       }
       target.append(criterionDetails);
     }
-    const waiverBatch = Reflect.get(window, "qualityBarWaiverBatch");
-    if (waiverRationales.length > 0) {
-      if (typeof waiverBatch?.createForm !== "function") {
-        throw new Error("waiver_batch_boundary_unavailable");
+    if (allowWaiverActions) {
+      const waiverBatch = Reflect.get(window, "qualityBarWaiverBatch");
+      if (waiverRationales.length > 0) {
+        if (typeof waiverBatch?.createForm !== "function") {
+          throw new Error("waiver_batch_boundary_unavailable");
+        }
+        target.append(waiverBatch.createForm(evaluation.id, waiverRationales));
       }
-      target.append(waiverBatch.createForm(evaluation.id, waiverRationales));
-    }
-    if (adjudications.length > 0) {
-      if (typeof waiverBatch?.renderAdjudications !== "function") {
-        throw new Error("waiver_batch_boundary_unavailable");
+      if (adjudications.length > 0) {
+        if (typeof waiverBatch?.renderAdjudications !== "function") {
+          throw new Error("waiver_batch_boundary_unavailable");
+        }
+        waiverBatch.renderAdjudications(target, evaluation.id, adjudications);
       }
-      waiverBatch.renderAdjudications(target, evaluation.id, adjudications);
-    }
-    for (const run of result.review_runs) {
-      if (run.started_at !== null) {
-        target.append(await loadReviewRunDiagnostics(evaluation.id, run));
+      for (const run of result.review_runs) {
+        if (run.started_at !== null) {
+          target.append(await loadReviewRunDiagnostics(evaluation.id, run));
+        }
       }
     }
   }
