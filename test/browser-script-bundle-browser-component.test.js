@@ -81,6 +81,7 @@ function topLevelDeclarations(source, sourcePath) {
 test("operator pages compile served scripts without duplicate global bindings", () => {
   for (const view of [
     "evaluations",
+    "evaluation-detail",
     "reviews",
     "repositories",
     "analytics",

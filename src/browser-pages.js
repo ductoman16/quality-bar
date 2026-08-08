@@ -29,9 +29,14 @@ export function safeInternalDestination(value) {
 export function browserView(requestUrl) {
   const view = requestUrl.searchParams.get("view") ?? "evaluations";
   if (
-    !["evaluations", "reviews", "repositories", "analytics", "system"].includes(
-      view,
-    )
+    ![
+      "evaluations",
+      "evaluation-detail",
+      "reviews",
+      "repositories",
+      "analytics",
+      "system",
+    ].includes(view)
   ) {
     throw Object.assign(new Error("Resource was not found"), {
       code: "not_found",
@@ -45,8 +50,8 @@ export function loginPage(intendedDestination) {
   return `<main><form id="login-form"><label for="password">Password</label><input autocomplete="current-password" id="password" name="password" required type="password"><button title="Log in" type="submit">Log in</button><p hidden id="error" role="alert"></p></form></main><script id="browser-configuration" type="application/json">${browserConfiguration({ intendedDestination })}</script><script src="/assets/login.js"></script>`;
 }
 
-/** @param {{ view: string }} options */
-export function operatorPage({ view }) {
+/** @param {{ view: string, evaluationId?: string | null }} options */
+export function operatorPage({ view, evaluationId }) {
   const leftNavigation = ["evaluations", "reviews", "repositories"];
   const rightNavigation = ["analytics", "system"];
   /** @param {string} name */
@@ -185,6 +190,15 @@ export function operatorPage({ view }) {
     '<output aria-live="polite" id="repository-lifecycle-result"></output>',
     '<output aria-live="polite" id="repository-lifecycle-result" tabindex="-1"></output>',
   );
+  const evaluationDetailSection =
+    view === "evaluation-detail"
+      ? `<section id="evaluation-detail"><a id="evaluation-detail-back" href="/?view=evaluations">Back to evaluations</a><div class="qb-evaluation-detail-meta"><h1 id="evaluation-detail-title">Evaluation</h1><dl><dt>Repository</dt><dd id="evaluation-detail-repository"></dd><dt>Source</dt><dd id="evaluation-detail-source"></dd><dt>Status</dt><dd id="evaluation-detail-status"></dd><dt>Outcome</dt><dd id="evaluation-detail-outcome"></dd><dt>Duration</dt><dd id="evaluation-detail-duration"></dd><dt>Last refreshed</dt><dd id="evaluation-detail-updated"></dd></dl><div hidden id="evaluation-detail-error" role="alert" tabindex="-1"></div><p id="evaluation-detail-loading">Loading evaluation…</p><div><button hidden id="evaluation-detail-cancel" type="button">Cancel</button><button hidden id="evaluation-detail-retry" type="button">Retry</button></div></div><section class="qb-deep-surface qb-evaluation-detail-panel" aria-label="Evaluation detail"><div class="qb-evaluation-detail-grid"><ol id="evaluation-detail-timeline"></ol><section id="evaluation-detail-preview" aria-label="Evaluation summary"><h2>Summary</h2><dl><dt>Review counts</dt><dd id="evaluation-detail-review-counts"></dd><dt>Outcome counts</dt><dd id="evaluation-detail-outcome-counts"></dd><dt>Finding counts</dt><dd id="evaluation-detail-finding-counts"></dd></dl></section></div><section id="evaluation-detail-result" aria-label="Evaluation result"></section></section><style>.qb-evaluation-detail-meta{display:grid;gap:1rem;margin-block:1rem}.qb-evaluation-detail-meta dl,.qb-evaluation-detail-meta dl+div{margin:0}.qb-evaluation-detail-meta dl{display:grid;gap:.3rem 1rem;grid-template-columns:max-content minmax(0,1fr)}.qb-evaluation-detail-meta dt{color:var(--qb-muted-ink)}.qb-evaluation-detail-panel{margin-top:1.5rem;padding:clamp(1rem,3vw,2rem)}.qb-evaluation-detail-grid{display:grid;gap:2rem;grid-template-columns:minmax(14rem,1fr) minmax(18rem,1fr)}#evaluation-detail-timeline{display:grid;gap:.9rem;list-style:none;margin:0;padding:0}.qb-timeline-node{align-items:center;display:grid;gap:.65rem;grid-template-columns:1rem minmax(0,1fr);position:relative}.qb-timeline-node:not(:last-child)::after{background:var(--qb-line);content:"";height:calc(100% + .9rem);left:.45rem;position:absolute;top:.75rem;width:1px}.qb-timeline-node__marker{background:var(--qb-system-marker);height:.9rem;width:.9rem;z-index:1}.qb-timeline-node--review .qb-timeline-node__marker{border-radius:50%;background:var(--qb-review-marker)}.qb-timeline-node__status{color:var(--qb-muted-ink);font-size:.9em}@media(max-width:760px){.qb-evaluation-detail-grid{grid-template-columns:1fr}.qb-evaluation-detail-meta dl{grid-template-columns:1fr}.qb-evaluation-detail-meta dt{margin-top:.5rem}}</style></section>`
+      : "";
+  evaluationSection += evaluationDetailSection;
+  evaluationSection +=
+    view === "evaluation-detail"
+      ? '<script src="/assets/evaluation-result.js"></script><script src="/assets/evaluation-detail.js"></script>'
+      : "";
   /** @param {string} markup */
   const compactRegions = (markup) =>
     markup
