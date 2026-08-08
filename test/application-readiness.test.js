@@ -443,3 +443,30 @@ test("an undecryptable installation key keeps product traffic unavailable", asyn
     "master_key_undecryptable",
   );
 });
+test("product surface not-ready returns descriptive message for each code", async () => {
+  for (const [code, expected] of /** @type {Array<[string, RegExp]>} */ ([
+    ["storage_unavailable", /storage is unavailable/],
+    ["installation_not_ready", /installation is not ready/],
+    ["codex_termination_failed", /Codex execution terminated/],
+    ["application_shutdown_failed", /application shutdown failed/],
+    ["schema_invalid", /schema is invalid/],
+    ["custom_io_error", /custom_io_error/],
+  ])) {
+    const { application, origin } = await startApplication(
+      temporaryDatabasePath(),
+      {
+        loadInstallation: () => {
+          throw Object.assign(new Error("test not-ready"), { code });
+        },
+      },
+    );
+    const response = await fetch(`${origin}/api/v1/system`);
+    assert.equal(response.status, 503);
+    const body = /** @type {any} */ (await response.json());
+    assert.equal(body.error.code, code);
+    assert.match(body.error.message, expected);
+    assert.match(body.error.message, /Quality Bar is not ready/);
+    await application.close();
+    applications.splice(applications.indexOf(application), 1);
+  }
+});

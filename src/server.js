@@ -301,12 +301,23 @@ export function createApplicationServer({
       if (typeof durableCoreStatus.error !== "string") {
         throw new TypeError("not-ready status must provide an error code");
       }
-      writeError(
-        response,
-        503,
-        durableCoreStatus.error,
-        "Quality Bar is not ready",
-      );
+      const notReadyMessage = (() => {
+        switch (durableCoreStatus.error) {
+          case "storage_unavailable":
+            return "Quality Bar is not ready — storage is unavailable. Verify the data volume is mounted and writable and that free space is available, then restart the service.";
+          case "installation_not_ready":
+            return "Quality Bar is not ready — installation is not ready. Complete first-time setup (configuration, master key, and operator password bootstrap) and restart.";
+          case "codex_termination_failed":
+            return "Quality Bar is not ready — Codex execution terminated unexpectedly. Review codex logs and restart the service.";
+          case "application_shutdown_failed":
+            return "Quality Bar is not ready — application shutdown failed. Check logs for the shutdown error and restart.";
+          case "schema_invalid":
+            return "Quality Bar is not ready — schema is invalid. The data volume was created by a newer code version; recreate the volume with the current code or restore a compatible backup, then restart.";
+          default:
+            return `Quality Bar is not ready — ${durableCoreStatus.error}. Check server logs and /health/ready for the error code and restart after addressing the underlying condition.`;
+        }
+      })();
+      writeError(response, 503, durableCoreStatus.error, notReadyMessage);
       return;
     }
     try {
