@@ -1,4 +1,6 @@
 import { closedObject } from "./canonical-schema.js";
+import { canonicalEvaluationMonitorSchemas } from "./canonical-evaluation-monitor-components.js";
+import { canonicalEvaluationSelectorSchemas } from "./canonical-evaluation-selector-components.js";
 import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
 import {
   GITHUB_DELIVERY_REQUIRED,
@@ -18,32 +20,8 @@ export function canonicalEvaluationSchemas() {
     ...canonicalGitHubFeedbackSchemas(),
     ...canonicalReviewRunSchemas(),
     ...canonicalWaiverSchemas(),
-    EvaluationSelector: {
-      oneOf: [
-        closedObject(
-          {
-            type: { const: "branch", type: "string" },
-            value: {
-              minLength: 1,
-              pattern:
-                "^(?!@$)(?![./])(?!.*(?:\\.\\.|//|@\\{|[\\u0000-\\u0020\\u007f~^:?*\\[\\\\]))(?!.*(?:^|/)\\.)(?!.*\\.lock(?:/|$))(?!.*[./]$).+$",
-              type: "string",
-            },
-          },
-          ["type", "value"],
-        ),
-        closedObject(
-          {
-            type: { const: "commit", type: "string" },
-            value: {
-              pattern: "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$",
-              type: "string",
-            },
-          },
-          ["type", "value"],
-        ),
-      ],
-    },
+    ...canonicalEvaluationMonitorSchemas(),
+    ...canonicalEvaluationSelectorSchemas(),
     ExplicitEvaluationRequest: closedObject(
       {
         base: { $ref: "#/components/schemas/EvaluationSelector" },
@@ -131,6 +109,7 @@ export function canonicalEvaluationSchemas() {
           type: "string",
         },
         head_selector: { $ref: "#/components/schemas/EvaluationSelector" },
+        monitor: { $ref: "#/components/schemas/EvaluationMonitor" },
         id: { minLength: 1, type: "string" },
         next_attempt_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
@@ -167,6 +146,7 @@ export function canonicalEvaluationSchemas() {
         "effective_outcome",
         "created_at",
         "completed_at",
+        "monitor",
       ],
     ),
     EvaluationCollection: closedObject(

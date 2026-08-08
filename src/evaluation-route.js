@@ -18,6 +18,36 @@ export function decodeEvaluationPathSegment(segment) {
   }
 }
 
+const EVALUATION_COLLECTION_PARAMETERS = new Set([
+  "cursor",
+  "effective_outcome",
+  "end",
+  "execution_status",
+  "limit",
+  "query",
+  "repository_id",
+  "start",
+]);
+
+/** @param {URL} requestUrl */
+function collectionQuery(requestUrl) {
+  /** @type {Record<string, string | undefined>} */
+  const query = {};
+  for (const key of requestUrl.searchParams.keys()) {
+    if (
+      !EVALUATION_COLLECTION_PARAMETERS.has(key) ||
+      requestUrl.searchParams.getAll(key).length !== 1
+    ) {
+      throw Object.assign(
+        new Error("Evaluation collection filter is invalid"),
+        { code: "evaluation_filter_invalid" },
+      );
+    }
+    query[key] = requestUrl.searchParams.get(key) ?? undefined;
+  }
+  return query;
+}
+
 /** @param {string | undefined} method @param {string} path */
 export function matchEvaluationRoute(method, path) {
   const createMatch = path.match(
@@ -157,19 +187,11 @@ export function createEvaluationRoute({
       return true;
     }
     try {
-      assertAllowedQueryParameters(
-        requestUrl,
-        collection ? new Set(["cursor", "limit"]) : new Set(),
-      );
+      if (!collection) {
+        assertAllowedQueryParameters(requestUrl, new Set());
+      }
       if (collection) {
-        writeJson(
-          response,
-          200,
-          evaluations.list({
-            cursor: requestUrl.searchParams.get("cursor") ?? undefined,
-            limit: requestUrl.searchParams.get("limit") ?? undefined,
-          }),
-        );
+        writeJson(response, 200, evaluations.list(collectionQuery(requestUrl)));
         return true;
       }
       if (method === "GET" && resultMatch) {

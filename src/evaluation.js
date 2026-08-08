@@ -22,7 +22,10 @@ import {
 } from "./automatic-evaluation-provider.js";
 import { createEvaluationResultResourceReader } from "./evaluation-result-resource.js";
 import { createEvaluationReviewRunDiagnosticsReader } from "./evaluation-review-run-diagnostics.js";
-import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
+import {
+  EVALUATION_SELECTION,
+  readEvaluationWithMonitor,
+} from "./evaluation-resource.js";
 import {
   enqueueReviewRuns,
   insertApplicabilityResults,
@@ -95,7 +98,7 @@ export function createEvaluationService(
   ) {
     throw new TypeError("Evaluation dependencies are invalid");
   }
-  const { collection, read } = createEvaluationCollectionReader(
+  const { collection, read, serialize } = createEvaluationCollectionReader(
     durableCore,
     masterKey,
   );
@@ -248,7 +251,8 @@ export function createEvaluationService(
       cancelledRunningReviewRunIds,
       createdAt,
       evaluationId,
-      resource: readEvaluation(
+      resource: readEvaluationWithMonitor(
+        transaction,
         transaction.get(
           `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
           evaluationId,
@@ -276,11 +280,22 @@ export function createEvaluationService(
     destroy() {
       collection.destroy();
     },
-    /** @param {{cursor?: string, limit?: string}} [query] */
-    list({ cursor, limit } = {}) {
-      const page = collection.read({ cursor, limit });
+    /**
+     * @param {{
+     *   cursor?: string,
+     *   effective_outcome?: string,
+     *   end?: string,
+     *   execution_status?: string,
+     *   limit?: string,
+     *   query?: string,
+     *   repository_id?: string,
+     *   start?: string
+     * }} [query]
+     */
+    list(query = {}) {
+      const page = collection.read(query);
       return {
-        items: page.items.map(readEvaluation),
+        items: serialize(page.items),
         next_cursor: page.next_cursor,
       };
     },

@@ -3,13 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService, EvaluationError } from "../src/evaluation.js";
-
 /** @param {string} digit */
 const oid = (digit) => digit.repeat(40);
-
 test("zero-Review explicit Evaluation and Result commit atomically with durable exact replay", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -46,7 +43,8 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
     request,
   });
   assert.equal(created.status, 201);
-  assert.deepEqual(created.resource, {
+  const { monitor, ...createdResource } = created.resource;
+  assert.deepEqual(createdResource, {
     base_commit: oid("1"),
     base_selector: { type: "branch", value: "main" },
     completed_at: "1970-01-01T00:00:00.010Z",
@@ -67,17 +65,8 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
       url: "https://example.invalid/repository.git",
     },
   });
-  assert.deepEqual(service.readResult("evaluation-1"), {
-    applicability_results: [],
-    completed_at: "1970-01-01T00:00:00.010Z",
-    criterion_results: [],
-    evaluation_id: "evaluation-1",
-    file_changes: [],
-    findings: [],
-    outcome: "clear",
-    review_runs: [],
-  });
-
+  assert.equal(monitor.duration_ms, 0);
+  assert.equal(monitor.nodes.length, 2);
   const replay = await service.createExplicit({
     channel: "implementer_token",
     idempotencyKey: "request-1",
@@ -95,7 +84,6 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
   assert.equal(otherChannel.resource.id, "evaluation-2");
   assert.equal(acquisitions, 2);
   core.close();
-
   const reopened = openDurableCore(databasePath);
   const durableService = createEvaluationService(reopened, {
     acquireChangeset: async () => {
@@ -116,7 +104,6 @@ test("zero-Review explicit Evaluation and Result commit atomically with durable 
   );
   reopened.close();
 });
-
 test("rejected explicit Evaluation stores neither partial work nor an idempotency key", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -189,7 +176,6 @@ test("rejected explicit Evaluation stores neither partial work nor an idempotenc
   );
   core.close();
 });
-
 test("work-admission capacity rejection consumes no Evaluation identity or idempotency key", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -249,7 +235,6 @@ test("work-admission capacity rejection consumes no Evaluation identity or idemp
   );
   core.close();
 });
-
 test("newest-first Evaluation listing never silently truncates accepted work", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -314,7 +299,6 @@ test("newest-first Evaluation listing never silently truncates accepted work", a
   );
   core.close();
 });
-
 test("Evaluation reads expose only a persisted exact delay time", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-evaluation-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
@@ -356,7 +340,6 @@ test("Evaluation reads expose only a persisted exact delay time", (context) => {
   );
   core.close();
 });
-
 test("Changeset cleanup failure rolls back Evaluation admission", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-cleanup-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));

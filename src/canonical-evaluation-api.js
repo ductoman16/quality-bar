@@ -1,5 +1,6 @@
 import { canonicalWaiverRecoveryOperation } from "./canonical-waiver-recovery-api.js";
 import { canonicalEvaluationPreStartRetryOperation } from "./canonical-evaluation-pre-start-retry.js";
+import { EVALUATION_LIST_PARAMETERS } from "./canonical-evaluation-list-parameters.js";
 
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
@@ -84,22 +85,7 @@ export function canonicalEvaluationPaths(errorResponse) {
     "/api/v1/evaluations": {
       get: {
         operationId: "listEvaluations",
-        parameters: [
-          {
-            in: "query",
-            name: "cursor",
-            schema: { minLength: 1, type: "string" },
-          },
-          {
-            in: "query",
-            name: "limit",
-            schema: {
-              maximum: 100,
-              minimum: 1,
-              type: "integer",
-            },
-          },
-        ],
+        parameters: EVALUATION_LIST_PARAMETERS,
         responses: {
           200: {
             content: {

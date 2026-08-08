@@ -20,6 +20,33 @@ test("runtime conformance accepts exact aggregate and per-Finding feedback state
       base_selector: { type: "commit", value: base },
       completed_at: "2026-07-29T12:00:00.000Z",
       created_at: "2026-07-29T11:00:00.000Z",
+      monitor: {
+        duration_ms: 3_600_000,
+        finding_counts: { advisory: 0, blocking: 1, total: 1 },
+        nodes: [
+          {
+            key: "preparing",
+            kind: "system",
+            label: "Preparing",
+            status: "completed",
+          },
+          {
+            key: "finalizing",
+            kind: "system",
+            label: "Finalizing",
+            status: "completed",
+          },
+        ],
+        outcome_counts: { clear: 0, error: 0, not_applicable: 0, triggered: 1 },
+        review_counts: {
+          cancelled: 0,
+          completed: 1,
+          failed: 0,
+          queued: 0,
+          running: 0,
+          total: 1,
+        },
+      },
       effective_outcome: "blocking",
       execution_status: "completed",
       exhausted_at: null,

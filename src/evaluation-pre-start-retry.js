@@ -7,7 +7,10 @@ import {
 } from "./evaluation-validation.js";
 import { assertReviewRunCapacity } from "./review-run-admission.js";
 import { assertWaiverRecoveryRepositoryAvailable } from "./waiver-recovery-admission.js";
-import { EVALUATION_SELECTION, readEvaluation } from "./evaluation-resource.js";
+import {
+  EVALUATION_SELECTION,
+  readEvaluationWithMonitor,
+} from "./evaluation-resource.js";
 
 /** @param {any} access @param {string} route @param {string} key @param {string} hash */
 function readReplay(access, route, key, hash) {
@@ -221,7 +224,8 @@ export function createEvaluationPreStartRetryService(
             );
           }
         }
-        const resource = readEvaluation(
+        const resource = readEvaluationWithMonitor(
+          transaction,
           transaction.get(
             `${EVALUATION_SELECTION} WHERE evaluations.id = ?`,
             evaluationId,

@@ -19,6 +19,7 @@ export function evaluationFailureStatus(failure) {
   if (
     [
       "cursor_invalid",
+      "evaluation_filter_invalid",
       "idempotency_key_required",
       "page_size_invalid",
       "request_malformed",
