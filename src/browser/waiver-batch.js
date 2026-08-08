@@ -162,7 +162,7 @@
     const form = document.createElement("form");
     const submit = document.createElement("button");
     submit.type = "submit";
-    submit.textContent = "Submit waiver batch";
+    submit.textContent = submit.title = "Submit waiver batch";
     form.append(submit);
     const status = document.createElement("output");
     status.setAttribute("aria-live", "polite");
@@ -234,7 +234,7 @@
     });
     const submit = document.createElement("button");
     submit.type = "submit";
-    submit.textContent = "Retry errored waiver";
+    submit.textContent = submit.title = "Retry errored waiver";
     form.append(submit);
     const status = document.createElement("output");
     status.setAttribute("aria-live", "polite");
@@ -291,7 +291,7 @@
     const form = document.createElement("form");
     const submit = document.createElement("button");
     submit.type = "submit";
-    submit.textContent = "Retry Waiver Adjudication";
+    submit.textContent = submit.title = "Retry Waiver Adjudication";
     form.append(submit);
     const status = document.createElement("output");
     status.setAttribute("aria-live", "polite");

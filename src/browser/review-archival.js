@@ -104,6 +104,7 @@
     const review = reviews.get(selector.value);
     submit.disabled = pending || !review;
     submit.textContent = state.value === "archived" ? "Restore" : "Archive";
+    submit.title = submit.textContent;
     syncDeleteAvailability();
   }
 

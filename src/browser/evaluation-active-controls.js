@@ -38,6 +38,7 @@
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.textContent = "Cancel " + evaluation.id;
+    cancel.title = "Cancel " + evaluation.id;
     cancel.addEventListener("click", async () => {
       const response = await fetch(
         "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/cancel",
@@ -68,6 +69,7 @@
     const retry = document.createElement("button");
     retry.type = "button";
     retry.textContent = "Retry " + evaluation.id;
+    retry.title = "Retry " + evaluation.id;
     retry.addEventListener("click", async () => {
       const response = await fetch(
         "/api/v1/evaluations/" + encodeURIComponent(evaluation.id) + "/retry",

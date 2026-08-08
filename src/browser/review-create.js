@@ -55,8 +55,12 @@
         "Criterion " + (index + 1) + " instruction";
       requiredDescendant(item, "label[for$='-impact']").textContent =
         "Criterion " + (index + 1) + " impact";
-      requiredDescendant(item, "button").textContent =
-        "Remove Criterion " + (index + 1);
+      const removeButton = /** @type {HTMLButtonElement} */ (
+        requiredDescendant(item, "button")
+      );
+      removeButton.textContent = "−";
+      removeButton.ariaLabel = "Remove Criterion " + (index + 1);
+      removeButton.title = "Remove Criterion " + (index + 1);
     });
   }
 
@@ -77,6 +81,7 @@
     impactLabel.htmlFor = impact.id;
     const remove = document.createElement("button");
     remove.type = "button";
+    remove.title = "Remove criterion";
     remove.addEventListener("click", () => {
       item.remove();
       updateCriterionLabels();

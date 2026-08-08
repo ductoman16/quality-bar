@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { operatorPage } from "../src/browser-pages.js";
+import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
 import {
   browserContext,
   element,
@@ -13,11 +14,11 @@ test("GitHub Connection control has semantic live states, deterministic focus, a
   const page = operatorPage({ view: "repositories" });
   assert.match(
     page,
-    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<textarea hidden id="github-connection-pem"><\/textarea>.*<button id="github-connection-submit" type="submit">Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*<form hidden id="github-repository-selection-form">.*<fieldset id="github-repository-selection-fieldset">.*<legend>GitHub Repositories<\/legend>.*<button id="github-repository-selection-submit" type="submit">Register selected Repositories<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
+    /<section aria-labelledby="github-connection-title">.*<form id="github-connection-form">.*<textarea hidden id="github-connection-pem"><\/textarea>.*<button[^>]*id="github-connection-submit"[^>]*>Connect GitHub App<\/button>.*<dl>.*<dt>Identity<\/dt>.*<dt>API profile<\/dt>.*<dt>Health<\/dt>.*<dt>Permissions<\/dt>.*<dt>Capabilities<\/dt>.*<dt>Latest verification<\/dt>.*<h4>Verification history<\/h4>.*<form hidden id="github-repository-selection-form">.*<fieldset id="github-repository-selection-fieldset">.*<legend>GitHub Repositories<\/legend>.*<button[^>]*id="github-repository-selection-submit"[^>]*>Register selected Repositories<\/button>.*aria-live="polite" id="github-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
   );
-  assert.match(page, /@media\(max-width:40rem\)/);
-  assert.match(page, /thead\{position:absolute/);
-  assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(FONO_LCD_STYLE, /@media/);
+  assert.match(FONO_LCD_STYLE, /thead/);
+  assert.match(FONO_LCD_STYLE, /prefers-reduced-motion/);
   assert.match(
     page,
     /<script src="\/assets\/github-connection\.js"><\/script>/,

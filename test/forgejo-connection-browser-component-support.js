@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
 
 /** @param {string} page */
 export function assertForgejoPage(page) {
@@ -7,8 +8,8 @@ export function assertForgejoPage(page) {
     page,
     /<fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories<\/legend><div id="forgejo-connection-repositories"><\/div><\/fieldset>.*aria-live="polite" id="forgejo-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
   );
-  assert.match(page, /@media\(max-width:40rem\)/);
-  assert.match(page, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(FONO_LCD_STYLE, /@media/);
+  assert.match(FONO_LCD_STYLE, /prefers-reduced-motion/);
 }
 
 /** @param {Map<string, any>} controls */

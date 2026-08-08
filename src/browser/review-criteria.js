@@ -90,6 +90,7 @@
 
         const handle = document.createElement("button");
         handle.ariaLabel = `Drag Criterion ${index + 1}`;
+        handle.title = `Drag Criterion ${index + 1}`;
         handle.draggable = true;
         handle.textContent = "↕";
         handle.type = "button";
@@ -111,8 +112,9 @@
 
         const moveUp = document.createElement("button");
         moveUp.ariaLabel = `Move Criterion ${index + 1} up`;
+        moveUp.title = `Move Criterion ${index + 1} up`;
         moveUp.disabled = index === 0;
-        moveUp.textContent = moveUp.ariaLabel;
+        moveUp.textContent = "↑";
         moveUp.type = "button";
         moveUp.addEventListener("click", () => {
           moveCriterion(criterion.key, index - 1, "up");
@@ -120,8 +122,9 @@
 
         const moveDown = document.createElement("button");
         moveDown.ariaLabel = `Move Criterion ${index + 1} down`;
+        moveDown.title = `Move Criterion ${index + 1} down`;
         moveDown.disabled = index === authoredCriteria.length - 1;
-        moveDown.textContent = moveDown.ariaLabel;
+        moveDown.textContent = "↓";
         moveDown.type = "button";
         moveDown.addEventListener("click", () => {
           moveCriterion(criterion.key, index + 1, "down");
@@ -129,8 +132,9 @@
 
         const retire = document.createElement("button");
         retire.ariaLabel = `Retire Criterion ${index + 1}`;
+        retire.title = `Retire Criterion ${index + 1}`;
         retire.disabled = authoredCriteria.length === 1;
-        retire.textContent = retire.ariaLabel;
+        retire.textContent = "−";
         retire.type = "button";
         retire.addEventListener("click", () => {
           if (
