@@ -61,7 +61,7 @@ export function operatorPage({ view }) {
     view === "system" ? "" : "<style>main > details{display:none}</style>"
   }`;
   const heading = view[0].toUpperCase() + view.slice(1);
-  const systemSection =
+  let systemSection =
     view === "system"
       ? '<section aria-live="polite" id="system-facts"></section><section aria-labelledby="system-polling-title"><h2 id="system-polling-title">Polling</h2><ol id="system-polling-connections"></ol></section><section aria-labelledby="system-delivery-title"><h2 id="system-delivery-title">Delivery</h2><ol id="system-delivery-surfaces"></ol></section><section aria-labelledby="codex-execution-title"><h2 id="codex-execution-title">Codex execution</h2><dl id="codex-execution-concurrency"></dl><h3>Queued</h3><ol id="codex-execution-queue"></ol><h3>Running</h3><ol id="codex-execution-running"></ol><h3>Failures</h3><ol id="codex-execution-failures"></ol></section><section aria-labelledby="storage-reserve-title"><h2 id="storage-reserve-title">Storage reserve</h2><dl id="storage-reserve-facts"></dl></section><section aria-labelledby="system-storage-title"><h2 id="system-storage-title">Storage, backup, and migration</h2><dl id="system-storage-facts"></dl></section><section aria-labelledby="waiver-adjudicator-configuration-title"><h2 id="waiver-adjudicator-configuration-title">Waiver Adjudicator Configuration</h2><form hidden id="waiver-adjudicator-configuration-form"><label for="waiver-adjudicator-model">Model</label><select id="waiver-adjudicator-model" required></select><label for="waiver-adjudicator-reasoning-effort">Reasoning effort</label><select id="waiver-adjudicator-reasoning-effort" required></select><label for="waiver-adjudicator-service-tier">Service tier</label><select id="waiver-adjudicator-service-tier" required></select><button id="waiver-adjudicator-configuration-submit" type="submit">Save configuration</button><output aria-label="Waiver Adjudicator Configuration status" aria-live="polite" id="waiver-adjudicator-configuration-status"></output><p hidden id="waiver-adjudicator-configuration-error" role="alert" tabindex="-1"></p></form></section><script src="/assets/system-polling-delivery-contract.js"></script><script src="/assets/system-polling-delivery.js"></script><script src="/assets/system-storage.js"></script>'
       : "";
@@ -136,8 +136,16 @@ export function operatorPage({ view }) {
       ? '<section aria-labelledby="review-create-title"><h2 id="review-create-title">Create Review</h2><form id="review-create-form"><label for="review-name">Name</label><input id="review-name" name="name" required type="text"><label for="review-description">Description</label><textarea id="review-description" name="description" required></textarea><ol id="review-criteria"></ol><button aria-label="Add another Criterion" id="review-add-criterion" title="Add another Criterion" type="button">+</button><label for="review-model">Codex model</label><select id="review-model" name="model" required></select><label for="review-reasoning-effort">Reasoning effort</label><select id="review-reasoning-effort" name="reasoning_effort" required></select><label for="review-service-tier">Service tier</label><select id="review-service-tier" name="service_tier" required></select><button id="review-create-submit" title="Create Review" type="submit">Create Review</button><output aria-live="polite" id="review-create-result"></output></form></section><section aria-labelledby="review-metadata-title"><h2 id="review-metadata-title">Review Metadata</h2><form hidden id="review-metadata-form"><label for="review-metadata-review">Review</label><select id="review-metadata-review"></select><input id="review-metadata-id" type="hidden"><label for="review-metadata-name">Lineage name</label><input aria-describedby="review-metadata-name-error" aria-required="true" id="review-metadata-name" type="text"><p hidden id="review-metadata-name-error"></p><label for="review-metadata-description">Lineage description</label><textarea aria-describedby="review-metadata-description-error" aria-required="true" id="review-metadata-description"></textarea><p hidden id="review-metadata-description-error"></p><button id="review-metadata-submit" title="Save metadata" type="submit">Save metadata</button><output aria-live="polite" id="review-metadata-result"></output></form></section><section aria-labelledby="review-version-title"><h2 id="review-version-title">Review Versions</h2><form hidden id="review-version-form"><label for="review-version-review">Executable snapshot</label><select id="review-version-review"></select><input id="review-version-id" type="hidden"><label for="review-version-activation">Prior Version</label><select id="review-version-activation"></select><button id="review-version-activate" title="Reactivate" type="button">Reactivate</button><ol id="review-version-criteria"></ol><button aria-label="Add Criterion" id="review-version-add-criterion" title="Add Criterion" type="button">+</button><label for="review-version-applicability-rule">Applicability Rule</label><textarea id="review-version-applicability-rule"></textarea><label for="review-version-model">Version Codex model</label><select id="review-version-model" required></select><label for="review-version-reasoning-effort">Version reasoning effort</label><select id="review-version-reasoning-effort" required></select><label for="review-version-service-tier">Version service tier</label><select id="review-version-service-tier" required></select><button id="review-version-submit" title="Save Review Version" type="submit">Save Review Version</button><output aria-live="polite" id="review-version-result"></output></form></section><section aria-labelledby="review-assignment-title"><h2 id="review-assignment-title">Review Assignment</h2><form hidden id="review-assignment-form"><label for="review-assignment-review">Review Assignment</label><select id="review-assignment-review"></select><label for="review-assignment-scope">Scope</label><select id="review-assignment-scope"><option value="installation_wide">Installation-wide</option><option value="repository_set">Repository-specific</option></select><label for="review-assignment-repositories">Repositories</label><select id="review-assignment-repositories" multiple required></select><button id="review-assignment-submit" title="Save Assignment" type="submit">Save Assignment</button><output aria-live="polite" id="review-assignment-result"></output></form></section><section aria-labelledby="review-archival-title"><h2 id="review-archival-title">Review Archival</h2><form hidden id="review-archival-form"><label for="review-archival-state">State</label><select id="review-archival-state"><option value="active">Active</option><option value="archived">Archived</option></select><label for="review-archival-review">Lineage</label><select id="review-archival-review"></select><button id="review-archival-submit" title="Archive or restore review" type="button"></button><output aria-live="polite" id="review-archival-result"></output></form>'
       : "";
   reviewSection = reviewSection.replace(
+    '<button id="review-archival-submit" title="Archive or restore review" type="button"></button>',
+    '<button id="review-archival-submit" type="button"></button>',
+  );
+  reviewSection = reviewSection.replace(
     '<button id="review-archival-submit" type="button"></button><output aria-live="polite" id="review-archival-result"></output></form>',
     '<button id="review-archival-submit" type="button"></button><button disabled id="review-delete" title="Delete Review" type="button">Delete Review</button><output aria-live="polite" id="review-archival-result" tabindex="-1"></output></form></section><dialog aria-labelledby="review-delete-confirmation-title" id="review-delete-confirmation"><form id="review-delete-confirmation-form"><h2 id="review-delete-confirmation-title">Delete Review permanently</h2><p id="review-delete-confirmation-message"></p><label for="review-delete-confirmation-input">Review name</label><input autocomplete="off" id="review-delete-confirmation-input" required type="text"><button id="review-delete-confirmation-cancel" title="Cancel" type="button">Cancel</button><button title="Delete permanently" type="submit">Delete permanently</button></form></dialog>',
+  );
+  reviewSection = reviewSection.replace(
+    '<button id="review-archival-submit" type="button"></button>',
+    '<button id="review-archival-submit" title="Archive or restore review" type="button"></button>',
   );
   let repositorySection =
     view === "repositories"
@@ -168,5 +176,96 @@ export function operatorPage({ view }) {
     '<output aria-live="polite" id="repository-lifecycle-result"></output>',
     '<output aria-live="polite" id="repository-lifecycle-result" tabindex="-1"></output>',
   );
+  const compactRegions = (markup) =>
+    markup
+      .replaceAll("<section ", '<section class="qb-region" ')
+      .replaceAll("<section>", '<section class="qb-region">');
+  const deepDetailRegions = (markup, titles) =>
+    titles.reduce(
+      (result, title) =>
+        result.replace(
+          `class="qb-region" aria-labelledby="${title}"`,
+          `class="qb-region qb-deep-surface" aria-labelledby="${title}"`,
+        ),
+      markup,
+    );
+  if (systemSection) {
+    const systemScripts = systemSection.slice(systemSection.indexOf("<script"));
+    const systemFacts = systemSection.match(
+      /<section aria-live="polite" id="system-facts"><\/section>/,
+    )?.[0];
+    const systemRegion = (title) =>
+      systemSection.match(
+        new RegExp(
+          `<section aria-labelledby="${title}">[\\s\\S]*?<\\/section>`,
+        ),
+      )?.[0];
+    const orderedSystemRegions = [
+      systemRegion("codex-execution-title"),
+      systemFacts,
+      systemRegion("storage-reserve-title"),
+      systemRegion("system-storage-title"),
+      systemRegion("system-polling-title"),
+      systemRegion("system-delivery-title"),
+      systemRegion("waiver-adjudicator-configuration-title"),
+    ];
+    if (orderedSystemRegions.some((region) => region === undefined)) {
+      throw new Error("system_region_markup_missing");
+    }
+    systemSection = deepDetailRegions(
+      compactRegions(orderedSystemRegions.join("") + systemScripts),
+      ["waiver-adjudicator-configuration-title"],
+    );
+  }
+  if (reviewSection) {
+    reviewSection = deepDetailRegions(compactRegions(reviewSection), [
+      "review-metadata-title",
+      "review-version-title",
+      "review-assignment-title",
+      "review-archival-title",
+    ]);
+  }
+  if (repositorySection) {
+    repositorySection = deepDetailRegions(compactRegions(repositorySection), [
+      "github-connection-state-title",
+      "forgejo-connection-state-title",
+    ])
+      .replace(
+        '<section class="qb-region"><h2>Repository Guidance</h2>',
+        '<section class="qb-region qb-deep-surface" aria-labelledby="repository-guidance-title"><h2 id="repository-guidance-title">Repository Guidance</h2>',
+      )
+      .replace(
+        "<table><thead><tr><th>Provider and Connection</th>",
+        '<section class="qb-region" aria-labelledby="repository-inventory-title"><h2 id="repository-inventory-title">Repository inventory</h2><table><thead><tr><th>Provider and Connection</th>',
+      )
+      .replace(
+        '</tbody></table><section class="qb-region qb-deep-surface" aria-labelledby="repository-guidance-title">',
+        '</tbody></table></section><section class="qb-region qb-deep-surface" aria-labelledby="repository-guidance-title">',
+      )
+      .replace(
+        '<form id="repository-lifecycle-form">',
+        '<section class="qb-region qb-deep-surface" aria-labelledby="repository-lifecycle-title"><h2 id="repository-lifecycle-title">Repository lifecycle</h2><form id="repository-lifecycle-form">',
+      )
+      .replace(
+        '</form><dialog aria-labelledby="repository-delete-confirmation-title"',
+        '</form></section><dialog aria-labelledby="repository-delete-confirmation-title"',
+      )
+      .replace(
+        '<output aria-live="polite" id="github-connection-status"',
+        '<output class="qb-status" aria-live="polite" id="github-connection-status"',
+      )
+      .replace(
+        '<output aria-live="polite" id="forgejo-connection-status"',
+        '<output class="qb-status" aria-live="polite" id="forgejo-connection-status"',
+      );
+  }
+  if (analyticsSection) {
+    analyticsSection = deepDetailRegions(compactRegions(analyticsSection), [
+      "analytics-matching-facts-title",
+    ]).replace(
+      '<form id="analytics-filters">',
+      '<form class="qb-filter-bar" id="analytics-filters">',
+    );
+  }
   return `<div class="qb-app-shell"><header class="qb-header"><a class="qb-brand" href="/?view=evaluations">Quality Bar</a><nav aria-label="Primary" class="qb-primary-nav">${navigationLinks}</nav>${attention}</header><main class="qb-main"><h1 class="qb-page-heading">${heading}</h1>${evaluationSection}${reviewSection}${repositorySection}${analyticsSection}${systemSection}<details><summary>Operator</summary><form id="password-change-form"><label for="password-change-current-password">Current password for password change</label><input autocomplete="current-password" id="password-change-current-password" name="current_password" required type="password"><label for="password-change-new-password">New password</label><input autocomplete="new-password" id="password-change-new-password" name="new_password" required type="password"><button title="Change password" type="submit">Change password</button></form><form id="session-revocation-form"><label for="session-revocation-password">Current password for session revocation</label><input autocomplete="current-password" id="session-revocation-password" name="password" required type="password"><label for="session-revocation-confirmation">Confirmation: REVOKE ALL SESSIONS</label><input id="session-revocation-confirmation" name="confirmation" required type="text"><button title="Revoke all sessions" type="submit">Revoke all sessions</button></form><form id="implementer-token-create-form"><label for="implementer-token-create-password">Current password for implementer token creation</label><input autocomplete="current-password" id="implementer-token-create-password" name="password" required type="password"><button title="Create implementer token" type="submit">Create implementer token</button></form><form id="implementer-token-rotate-form"><label for="implementer-token-rotate-password">Current password for implementer token rotation</label><input autocomplete="current-password" id="implementer-token-rotate-password" name="password" required type="password"><button title="Rotate implementer token" type="submit">Rotate implementer token</button></form><form id="implementer-token-revoke-form"><label for="implementer-token-revoke-password">Current password for implementer token revocation</label><input autocomplete="current-password" id="implementer-token-revoke-password" name="password" required type="password"><button title="Revoke implementer token" type="submit">Revoke implementer token</button></form><button id="logout" title="Log out" type="button">Log out</button></details><dialog aria-labelledby="implementer-token-reveal-title" id="implementer-token-reveal"><h2 id="implementer-token-reveal-title">Implementer token</h2><output id="implementer-token-value"></output><button id="implementer-token-reveal-close" title="Done" type="button">Done</button></dialog><p hidden id="error" role="alert" tabindex="-1"></p></main></div><script id="browser-configuration" type="application/json">${browserConfiguration({ csrfCookieName: BROWSER_CSRF_COOKIE_NAME })}</script><script src="/assets/system-attention.js"></script><script src="/assets/operator.js"></script>${view === "evaluations" ? '<script src="/assets/evaluation.js"></script>' : ""}${view === "repositories" ? '<script src="/assets/github-connection-contract.js"></script><script src="/assets/github-connection-lifecycle-confirmation.js"></script><script src="/assets/github-connection-submission.js"></script><script src="/assets/github-connection.js"></script><script src="/assets/repository.js"></script><script src="/assets/repository-delete.js"></script><script src="/assets/repository-guidance.js"></script>' : ""}${view === "reviews" ? '<script src="/assets/review-create.js"></script><script src="/assets/review-metadata.js"></script><script src="/assets/review-criteria.js"></script><script src="/assets/review-version-contract.js"></script><script src="/assets/review-version.js"></script><script src="/assets/review-reactivation.js"></script><script src="/assets/review-assignment.js"></script><script src="/assets/review-archival.js"></script><script src="/assets/review-delete.js"></script>' : ""}${view === "analytics" ? '<script src="/assets/analytics.js"></script>' : ""}${view === "system" ? '<script src="/assets/system-execution.js"></script><script src="/assets/storage-reserve.js"></script><script src="/assets/waiver-adjudicator-configuration.js"></script>' : ""}`;
 }
