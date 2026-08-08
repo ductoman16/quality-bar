@@ -190,6 +190,16 @@ test("Evaluation monitor interface validates resources and owns mutations", asyn
     monitor.validEvaluation({ ...evaluation(), monitor: { nodes: [] } }),
     false,
   );
+  assert.equal(
+    monitor.validEvaluation({
+      ...evaluation(),
+      monitor: {
+        ...evaluation().monitor,
+        review_counts: { ...evaluation().monitor.review_counts, total: 2 },
+      },
+    }),
+    false,
+  );
   assert.equal(monitor.isTerminalStatus("completed"), true);
   assert.equal(monitor.isTerminalStatus("running"), false);
   await monitor.mutate({

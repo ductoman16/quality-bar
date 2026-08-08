@@ -14,10 +14,11 @@ export function assertEvaluationPage(page) {
   const evaluationPage = renderEvaluationMonitorPage("evaluations");
   assert.ok(page.includes(evaluationPage.markup));
   assert.ok(page.includes(evaluationPage.scripts));
-  assert.ok(
-    page.indexOf("/assets/operator.js") <
-      page.indexOf("/assets/evaluation-monitor.js"),
-  );
+  const operatorIndex = page.indexOf("/assets/operator.js");
+  const monitorIndex = page.indexOf("/assets/evaluation-monitor.js");
+  const evaluationIndex = page.indexOf("/assets/evaluation.js");
+  assert.ok(operatorIndex < monitorIndex);
+  assert.ok(monitorIndex < evaluationIndex);
   assert.doesNotMatch(
     page,
     /evaluation-result\.js|evaluation-feedback\.js|waiver-batch\.js/,

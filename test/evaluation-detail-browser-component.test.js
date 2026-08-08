@@ -95,6 +95,13 @@ test("Evaluation detail has its own read-only shell and ordered monitor timeline
   const evaluationPage = renderEvaluationMonitorPage("evaluation-detail");
   assert.ok(page.includes(evaluationPage.markup));
   assert.ok(page.includes(evaluationPage.scripts));
+  const operatorIndex = page.indexOf("/assets/operator.js");
+  const monitorIndex = page.indexOf("/assets/evaluation-monitor.js");
+  const resultIndex = page.indexOf("/assets/evaluation-result.js");
+  const detailIndex = page.indexOf("/assets/evaluation-detail.js");
+  assert.ok(operatorIndex < monitorIndex);
+  assert.ok(monitorIndex < resultIndex);
+  assert.ok(resultIndex < detailIndex);
   assert.doesNotMatch(page, /waiver-batch\.js/);
 
   const elements = controls();

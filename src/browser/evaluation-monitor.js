@@ -34,6 +34,7 @@
     }
     if (value.kind === "system") {
       return (
+        Object.keys(value).length === 4 &&
         ["preparing", "finalizing"].includes(
           /** @type {string} */ (value.key),
         ) &&
@@ -42,6 +43,7 @@
     }
     return (
       value.kind === "review" &&
+      Object.keys(value).length === 5 &&
       typeof value.label === "string" &&
       value.label.length > 0 &&
       typeof value.review_id === "string" &&
@@ -63,6 +65,7 @@
     const first = value.nodes[0];
     const last = value.nodes.at(-1);
     return (
+      Object.keys(value).length === 5 &&
       value.nodes.every(validNode) &&
       record(first) &&
       first.kind === "system" &&
@@ -89,7 +92,10 @@
         validCounts(value.finding_counts, ["total", "advisory", "blocking"])) &&
       (value.duration_ms === null ||
         (Number.isSafeInteger(value.duration_ms) &&
-          /** @type {number} */ (value.duration_ms) >= 0))
+          /** @type {number} */ (value.duration_ms) >= 0)) &&
+      /** @type {Record<string, number>} */ (value.review_counts).total ===
+        value.nodes.filter((node) => record(node) && node.kind === "review")
+          .length
     );
   }
 
