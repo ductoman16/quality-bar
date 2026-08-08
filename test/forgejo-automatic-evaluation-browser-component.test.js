@@ -13,9 +13,9 @@ import {
 import { browserElement } from "./repository-browser-component-support.js";
 
 test("a newly ready Forgejo Evaluation has provider-neutral semantic operator state", async () => {
-  const page = operatorPage({ view: "evaluations" });
   assert.match(FONO_LCD_STYLE, /@media/);
   assert.match(FONO_LCD_STYLE, /prefers-reduced-motion/);
+  assert.match(operatorPage({ view: "evaluations" }), /Evaluations/);
   const controls = evaluationElements();
   const automatic = evaluation({
     completed_at: null,
