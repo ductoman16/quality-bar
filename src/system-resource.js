@@ -13,6 +13,32 @@ import {
 
 const DEFAULT_PAGE_SIZE = 50;
 
+/** @param {{ error?: string, status: string }} codex */
+function executionProviders(codex) {
+  const provider = {
+    id: "codex",
+    name: "Codex",
+    status: codex.status,
+  };
+  if (codex.status === "unavailable") {
+    if (codex.error !== "codex_authentication_unavailable") {
+      throw new Error("execution_provider_failure_unsupported");
+    }
+    return [
+      {
+        ...provider,
+        error: {
+          code: codex.error,
+          message: "Codex is not signed in for this Quality Bar installation.",
+          recovery:
+            "Run `docker compose run --rm --no-deps quality-bar codex login --device-auth` from the Quality Bar installation directory, then restart Quality Bar.",
+        },
+      },
+    ];
+  }
+  return [provider];
+}
+
 /** @param {string} code */
 function invalidQuery(code) {
   return Object.assign(new Error(code), { code });
@@ -219,6 +245,7 @@ export function createSystemResource(
           ...codex,
           catalog: readCodexCapabilityCatalog(),
         },
+        execution_providers: executionProviders(codex),
         codex_execution: readSystemCodexExecutionFacts(durableCore, {
           codex,
           now: timestamp,

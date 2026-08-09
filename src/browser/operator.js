@@ -428,6 +428,12 @@ fetch("/api/v1/system")
      *     error?: string,
      *     status: string
      *   },
+     *   execution_providers: Array<{
+     *     error?: {code: string, message: string, recovery: string},
+     *     id: string,
+     *     name: string,
+     *     status: string
+     *   }>,
      *   durable_core: { status: string },
      *   implementer_token: { status: string },
      *   storage: unknown
@@ -455,11 +461,6 @@ fetch("/api/v1/system")
       };
       addFact("Bootstrap", system.bootstrap.status);
       addFact("Durable core", system.durable_core.status);
-      addFact(
-        "Codex",
-        system.codex.status +
-          (system.codex.error ? " (" + system.codex.error + ")" : ""),
-      );
       const models = document.createElement("ul");
       models.className = "system-model-list";
       for (const model of system.codex.catalog.models) {
@@ -473,7 +474,7 @@ fetch("/api/v1/system")
           ")";
         models.append(item);
       }
-      addFact("Models", models);
+      addFact("Codex models", models);
       addFact("Browser sessions", String(system.browser_sessions.active_count));
       addFact("Implementer token", system.implementer_token.status);
       systemFacts.replaceChildren(heading, facts);

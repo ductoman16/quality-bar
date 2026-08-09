@@ -422,6 +422,11 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           },
           delivery: { $ref: "#/components/schemas/SystemDeliveryFact" },
           durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
+          execution_providers: {
+            items: { $ref: "#/components/schemas/ExecutionProviderFact" },
+            minItems: 1,
+            type: "array",
+          },
           implementer_token: {
             $ref: "#/components/schemas/ImplementerTokenFact",
           },
@@ -438,6 +443,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "codex_execution",
           "delivery",
           "durable_core",
+          "execution_providers",
           "implementer_token",
           "polling",
           "storage",
