@@ -1,4 +1,5 @@
 import { currentGitHubConnectionRotationMigration } from "./github-connection-schema-migration.js";
+import { ONBOARDING_TOKEN_SCHEMA } from "./onboarding-token-schema.js";
 import { fail } from "./durable-error.js";
 import { validateResultingSchema } from "./durable-schema-validation.js";
 export {
@@ -183,7 +184,7 @@ export function migrateSchema(
     }
     ${
       schemaVersion === CURRENT_SCHEMA_VERSION
-        ? `${HOST_ATTRIBUTION_MIGRATION}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${FORGEJO_FEEDBACK_SCHEMA}${FORGEJO_DELIVERY_SCHEMA}${WAIVER_FOLLOWUP_SCHEMA}${RETENTION_BACKFILL}`
+        ? `${HOST_ATTRIBUTION_MIGRATION}${ONBOARDING_TOKEN_SCHEMA}${FORGEJO_CONNECTION_SCHEMA}${FORGEJO_POLLING_MIGRATION}${WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA}${reviewRunEvidenceStatements}${fileChangeTableExists && !fileChangeHasKinds ? EVALUATION_FILE_CHANGE_KIND_MIGRATION : ""}${evaluationCancellationStatements}${waiverAdjudicationStatements}${retrySummaryColumnMigration(database)}${RETENTION_SCHEMA}${EVALUATION_SCHEMA}${WAIVER_BATCH_SCHEMA}${waiverAdjudicationRecoveryStatements}${reviewRunPreStartStatements}${repositoryHasUsageMarker || migrationCreatesUsageMarker ? "" : REPOSITORY_USAGE_MIGRATION}${REPOSITORY_USAGE_INTEGRITY}${reviewHasDeletionMarker || migrationCreatesDeletionMarker ? "" : REVIEW_DELETION_COLUMN_MIGRATION}${REVIEW_DELETION_INTEGRITY}${GITHUB_FEEDBACK_SCHEMA}${FORGEJO_FEEDBACK_SCHEMA}${FORGEJO_DELIVERY_SCHEMA}${WAIVER_FOLLOWUP_SCHEMA}${RETENTION_BACKFILL}`
         : ""
     }
     UPDATE quality_bar_metadata
@@ -222,7 +223,7 @@ export function finalizeSchemaMigration(
   if (
     ![
       29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
-      47, 48, 49, 50, 51,
+      47, 48, 49, 50, 51, 52,
     ].includes(version)
   ) {
     fail("schema_invalid", `SQLite schema version ${version} is not supported`);
@@ -268,7 +269,7 @@ export function finalizeSchemaMigration(
     WHERE applicability_sealed_at IS NULL;`,
   );
 }
-export const CURRENT_SCHEMA_VERSION = 52;
+export const CURRENT_SCHEMA_VERSION = 53;
 import { FORGEJO_CONNECTION_SCHEMA } from "./forgejo-connection-schema.js";
 import { FORGEJO_POLLING_MIGRATION } from "./forgejo-polling-schema.js";
 import { WAIVER_ADJUDICATOR_CONFIGURATION_SCHEMA } from "./waiver-adjudicator-configuration.js";
@@ -325,7 +326,7 @@ export const REVIEW_RUN_REBUILD_CLEANUP = `
 export const AUTHORITY_ATTRIBUTION_SCHEMA = `
   CREATE TABLE authority_attributions (
     id TEXT PRIMARY KEY,
-    channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'host', 'implementer_token')),
+    channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'host', 'implementer_token', 'onboarding_token')),
     action TEXT NOT NULL,
     outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
     error_code TEXT,
@@ -341,7 +342,7 @@ export const HOST_ATTRIBUTION_MIGRATION = `
     RENAME TO authority_attributions_v21;
   CREATE TABLE authority_attributions (
     id TEXT PRIMARY KEY,
-    channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'host', 'implementer_token')),
+    channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'host', 'implementer_token', 'onboarding_token')),
     action TEXT NOT NULL,
     outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'forbidden')),
     error_code TEXT,

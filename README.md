@@ -2,6 +2,16 @@
 
 An AI code review management and execution platform
 
+## Repository onboarding skill
+
+Install the explicit onboarding skill with the standard Skills installer:
+
+```sh
+npx skills add ductoman16/quality-bar
+```
+
+Select `onboard-quality-bar-repo`, then invoke `$onboard-quality-bar-repo` from the repository being onboarded.
+
 ## First installation
 
 Run this from the repository root for a new local installation. It uses direct HTTP on `127.0.0.1:3000`. Create the files and export the Compose variables before running any Compose command; Compose must be able to resolve both bind-mount paths even for `stop` and `config`.

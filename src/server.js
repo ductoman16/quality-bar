@@ -7,10 +7,10 @@ import { createBrowserSessionRoute } from "./browser-session-route.js";
 import { createMcpRoute } from "./mcp-route.js";
 import {
   authenticationFailureStatus,
+  bearerToken,
   hasUrlToken,
   isProductSurface,
   isUnavailableError,
-  requireImplementerTokenAuthority,
   requireProductAuthority,
 } from "./http-request.js";
 import { requireCodedError } from "./coded-error.js";
@@ -18,6 +18,8 @@ import { writeError, writeJson } from "./http-response.js";
 import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
 import { createEvaluationRoute } from "./evaluation-route.js";
 import { createCodexExecutionConcurrencyRoute } from "./codex-execution-concurrency-route.js";
+import { createOnboardingApiRoute } from "./onboarding-api-route.js";
+import { createOnboardingOperations } from "./onboarding-operations.js";
 import {
   createProductRequestRunner,
   requireRequestFunction as requireFunction,
@@ -60,12 +62,20 @@ const TOKEN_METHODS = [
   "revoke",
   "rotate",
 ];
+const ONBOARDING_TOKEN_METHODS = [
+  "authenticate",
+  "create",
+  "list",
+  "revoke",
+  "selfRevoke",
+];
 
 /**
  * @param {{
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   browserAssetReader?: (path: string) => string,
  *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
+ *   onboardingTokens: ReturnType<typeof import("./onboarding-token.js").createOnboardingTokenService>,
  *   browserOrigin: string,
  *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
  *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
@@ -100,6 +110,7 @@ export function createApplicationServer({
   browserSessions,
   browserAssetReader = readBrowserAsset,
   implementerTokens,
+  onboardingTokens,
   browserOrigin,
   requestSecurity,
   repositories,
@@ -131,15 +142,23 @@ export function createApplicationServer({
   );
   requireBoundary(browserSessions, SESSION_METHODS, "browserSessions");
   requireBoundary(implementerTokens, TOKEN_METHODS, "implementerTokens");
+  requireBoundary(
+    onboardingTokens,
+    ONBOARDING_TOKEN_METHODS,
+    "onboardingTokens",
+  );
   if (typeof requestSecurity?.requestFacts !== "function") {
     throw new TypeError("requestSecurity must provide the request boundary");
   }
   requireFunction(readSystemStatus, "readSystemStatus must be a function");
   if (
     typeof reviews?.list !== "function" ||
+    typeof reviews.read !== "function" ||
     typeof reviews.create !== "function" ||
+    typeof reviews.createForRepository !== "function" ||
     typeof reviews.setArchived !== "function" ||
     typeof reviews.setAssignment !== "function" ||
+    typeof reviews.setForRepository !== "function" ||
     typeof reviews.selectForNewEvaluation !== "function" ||
     typeof reviews.updateMetadata !== "function"
   ) {
@@ -265,12 +284,26 @@ export function createApplicationServer({
     reviews,
     analytics: { read: evaluations.readAnalytics },
   });
+  const onboardingOperations = createOnboardingOperations({
+    evaluations,
+    onboardingTokens,
+    repositories,
+    repositoryGuidance,
+    reviews,
+  });
+  const handleOnboardingApi = createOnboardingApiRoute({
+    browserOrigin,
+    browserSessions,
+    onboardingTokens,
+    operations: onboardingOperations,
+  });
   const handleMcp = createMcpRoute({
     browserOrigin,
     evaluations,
     recordMcpOperation,
     repositories,
     repositoryGuidance,
+    onboardingOperations,
   });
 
   /**
@@ -360,7 +393,7 @@ export function createApplicationServer({
       writeError(response, 404, "not_found", "Resource was not found");
       return;
     }
-    /** @type {"callback" | "machine" | "operator" | undefined} */
+    /** @type {"callback" | "machine" | "onboarding" | "operator" | undefined} */
     let authority;
     if (isProductSurface(path)) {
       try {
@@ -372,13 +405,22 @@ export function createApplicationServer({
           ].includes(path)
         ) {
           authority = "callback";
-        } else if (path === "/mcp/v1") {
-          requireImplementerTokenAuthority(implementerTokens, request);
-          authority = "machine";
         } else {
+          if (
+            path === "/mcp/v1" &&
+            request.headers.authorization === undefined
+          ) {
+            throw Object.assign(
+              new Error("Machine authentication is invalid"),
+              {
+                code: "authentication_invalid",
+              },
+            );
+          }
           authority = requireProductAuthority(
             browserSessions,
             implementerTokens,
+            onboardingTokens,
             request,
             requestUrl,
           );
@@ -403,7 +445,45 @@ export function createApplicationServer({
         return;
       }
     }
-    if (await handleMcp(request, response, requestUrl)) {
+    const onboardingGrant =
+      authority === "onboarding"
+        ? onboardingTokens.authenticate(bearerToken(request))
+        : null;
+    if (
+      await handleMcp(
+        request,
+        response,
+        requestUrl,
+        authority,
+        onboardingGrant,
+        bearerToken(request),
+      )
+    ) {
+      return;
+    }
+    if (
+      await handleOnboardingApi(
+        request,
+        response,
+        requestUrl,
+        authority,
+        onboardingGrant,
+      )
+    ) {
+      return;
+    }
+    if (authority === "onboarding") {
+      recordAuthorityAttribution({
+        action: "onboarding_scope",
+        channel: "onboarding_token",
+        outcome: "forbidden",
+      });
+      writeError(
+        response,
+        403,
+        "onboarding_scope_forbidden",
+        "Onboarding token cannot access this resource",
+      );
       return;
     }
     if (

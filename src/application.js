@@ -25,6 +25,10 @@ import {
   createUnavailableImplementerTokenService,
 } from "./implementer-token.js";
 import {
+  createOnboardingTokenService,
+  createUnavailableOnboardingTokenService,
+} from "./onboarding-token.js";
+import {
   createGitHubConnectionService,
   createUnavailableGitHubConnectionService,
 } from "./github-connection.js";
@@ -141,6 +145,7 @@ export function createApplication({
   writeLog = createApplicationLog(writeLog, () => durableCore, knownSecrets);
   let browserSessions = null,
     implementerTokens = null,
+    onboardingTokens = null,
     reviews = null;
   let browserOrigin = "",
     requestSecurity = null;
@@ -288,6 +293,10 @@ export function createApplication({
     }
     browserSessions = createBrowserSessionService(durableCore, { now });
     implementerTokens = createImplementerTokenService(durableCore, { now });
+    onboardingTokens = createOnboardingTokenService(durableCore, {
+      now,
+      registerSecret,
+    });
     reviews = createReviews(durableCore, { now });
     repositoryGuidance = createRepositoryGuidance(durableCore);
     waiverAdjudicatorConfiguration = createWaiverAdjudicatorConfiguration(
@@ -345,6 +354,7 @@ export function createApplication({
     browserSessions = createUnavailableBrowserSessionService(startupFailure);
     implementerTokens =
       createUnavailableImplementerTokenService(startupFailure);
+    onboardingTokens = createUnavailableOnboardingTokenService(startupFailure);
     reviews = createUnavailableReviewService(startupFailure);
     repositories = createUnavailableRepositoryService(startupFailure);
     evaluations = createUnavailableEvaluationService(startupFailure);
@@ -375,6 +385,7 @@ export function createApplication({
     browserSessions,
     browserAssetReader: readBrowserAsset,
     implementerTokens,
+    onboardingTokens,
     browserOrigin,
     requestSecurity,
     repositories: /** @type {ReturnType<typeof createRepositoryService>} */ (
@@ -417,6 +428,7 @@ export function createApplication({
     server,
     durableCore,
     implementerTokens,
+    onboardingTokens,
     get codexCapability() {
       return readCodexCapability(codexCapabilityFailure);
     },

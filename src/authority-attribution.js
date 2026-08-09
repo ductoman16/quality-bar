@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-const CHANNELS = new Set(["browser_session", "host", "implementer_token"]);
+const CHANNELS = new Set([
+  "browser_session",
+  "host",
+  "implementer_token",
+  "onboarding_token",
+]);
 const OUTCOMES = new Set(["success", "failure", "forbidden"]);
 
 /**

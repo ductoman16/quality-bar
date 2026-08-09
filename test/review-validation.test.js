@@ -64,14 +64,8 @@ test("invalid Review definitions fail before a durable transaction can begin", (
       "review_criterion_impact_invalid",
     ],
     [
-      validDefinition({
-        assignment: { repository_ids: [], scope: "repository_set" },
-      }),
-      "review_assignment_malformed",
-    ],
-    [
       validDefinition({ assignment: { scope: "repository_set" } }),
-      "review_assignment_unsupported",
+      "review_assignment_malformed",
     ],
     [
       validDefinition({
@@ -96,7 +90,7 @@ test("invalid Review definitions fail before a durable transaction can begin", (
   assert.equal(transactionCount, 0);
 });
 
-test("Review Assignment validation accepts exactly one mode and a unique nonempty Repository set", () => {
+test("Review Assignment validation accepts exactly one mode and a unique Repository set", () => {
   assert.deepEqual(validateAssignmentRequest({ scope: "installation_wide" }), {
     scope: "installation_wide",
   });
@@ -110,11 +104,14 @@ test("Review Assignment validation accepts exactly one mode and a unique nonempt
       scope: "repository_set",
     },
   );
+  assert.deepEqual(
+    validateAssignmentRequest({
+      repository_ids: [],
+      scope: "repository_set",
+    }),
+    { repository_ids: [], scope: "repository_set" },
+  );
   for (const [assignment, code] of [
-    [
-      { repository_ids: [], scope: "repository_set" },
-      "review_assignment_repository_set_empty",
-    ],
     [
       {
         repository_ids: ["repository-1", "repository-1"],

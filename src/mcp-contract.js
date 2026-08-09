@@ -159,6 +159,110 @@ export const MCP_TOOLS = Object.freeze([
   },
 ]);
 
+export const ONBOARDING_MCP_TOOLS = Object.freeze([
+  ...MCP_TOOLS.filter(({ name }) =>
+    [
+      "quality_bar.list_repositories",
+      "quality_bar.get_repository_guidance",
+      "quality_bar.request_evaluation",
+      "quality_bar.get_evaluation",
+      "quality_bar.get_evaluation_result",
+    ].includes(name),
+  ),
+  {
+    description: "List active Reviews available during Repository onboarding.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      type: "object",
+    },
+    name: "quality_bar.list_reviews",
+  },
+  {
+    description:
+      "Register the public HTTPS Repository bound to the onboarding token.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: {
+        url: {
+          format: "uri",
+          pattern: "^[hH][tT][tT][pP][sS]://",
+          type: "string",
+        },
+      },
+      required: ["url"],
+      type: "object",
+    },
+    name: "quality_bar.register_repository",
+  },
+  {
+    description:
+      "Atomically set the Repository-specific Reviews selected for the bound Repository.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: {
+        repository_id: identifier,
+        review_ids: { items: identifier, type: "array", uniqueItems: true },
+      },
+      required: ["repository_id", "review_ids"],
+      type: "object",
+    },
+    name: "quality_bar.set_repository_reviews",
+  },
+  {
+    description:
+      "Create one approved Review assigned only to the bound Repository.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: { repository_id: identifier, review: { type: "object" } },
+      required: ["repository_id", "review"],
+      type: "object",
+    },
+    name: "quality_bar.create_repository_review",
+  },
+  {
+    description:
+      "Update metadata for a Review assigned only to the bound Repository.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: {
+        description: identifier,
+        name: identifier,
+        review_id: identifier,
+      },
+      required: ["review_id", "name", "description"],
+      type: "object",
+    },
+    name: "quality_bar.update_repository_review_metadata",
+  },
+  {
+    description:
+      "Save an approved version for a Review assigned only to the bound Repository.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      properties: { review_id: identifier, version: { type: "object" } },
+      required: ["review_id", "version"],
+      type: "object",
+    },
+    name: "quality_bar.save_repository_review_version",
+  },
+  {
+    description:
+      "Revoke the active onboarding token after acceptance or cancellation.",
+    inputSchema: {
+      $schema: JSON_SCHEMA_2020_12,
+      additionalProperties: false,
+      type: "object",
+    },
+    name: "quality_bar.revoke_onboarding_token",
+  },
+]);
+
 export const MCP_RESOURCE_TEMPLATES = Object.freeze([
   {
     description: "Canonical Repository resource.",

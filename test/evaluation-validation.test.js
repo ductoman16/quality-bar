@@ -46,10 +46,13 @@ test("explicit Evaluation accepts exactly typed pushed branch and commit selecto
   );
 });
 
-test("Evaluation HTTP operations advertise browser and implementer-token authority", () => {
+test("Evaluation HTTP operations advertise their exact authorities", () => {
   const paths = canonicalOpenApiDocument().paths;
+  assert.deepEqual(paths["/api/v1/evaluations"].get.security, [
+    { browser_session: [] },
+    { implementer_token: [] },
+  ]);
   for (const operation of [
-    paths["/api/v1/evaluations"].get,
     paths["/api/v1/evaluations/{evaluation_id}"].get,
     paths["/api/v1/evaluations/{evaluation_id}/result"].get,
     paths["/api/v1/repositories/{repository_id}/evaluations"].post,
@@ -57,6 +60,7 @@ test("Evaluation HTTP operations advertise browser and implementer-token authori
     assert.deepEqual(operation.security, [
       { browser_session: [] },
       { implementer_token: [] },
+      { onboarding_token: [] },
     ]);
   }
   const branchPattern =

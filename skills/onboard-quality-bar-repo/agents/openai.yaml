@@ -1,0 +1,6 @@
+interface:
+  display_name: "Onboard Quality Bar Repo"
+  short_description: "Onboard this repository into a Quality Bar instance"
+  default_prompt: "Use $onboard-quality-bar-repo to onboard the current repository into Quality Bar."
+policy:
+  allow_implicit_invocation: false

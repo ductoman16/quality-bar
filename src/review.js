@@ -46,6 +46,12 @@ export function createReviewService(
   }
 
   return {
+    /** @param {string} reviewId */
+    read(reviewId) {
+      return durableCore.transaction((transaction) =>
+        readReview(transaction, reviewId),
+      );
+    },
     /** @param {unknown} [state] */
     list(state) {
       const validatedState = validateReviewListState(state);
@@ -124,7 +130,7 @@ export function createReviewService(
             validated.codexConfiguration.model,
             validated.codexConfiguration.reasoning_effort,
             validated.codexConfiguration.service_tier,
-            null,
+            validated.applicabilityRule,
             createdAt,
           );
           createReviewAssignment(
@@ -166,7 +172,7 @@ export function createReviewService(
 
       return {
         active_version: {
-          applicability_rule: null,
+          applicability_rule: validated.applicabilityRule,
           codex_configuration: validated.codexConfiguration,
           criteria,
           id: versionId,
@@ -180,7 +186,7 @@ export function createReviewService(
         name: validated.name,
         versions: [
           {
-            applicability_rule: null,
+            applicability_rule: validated.applicabilityRule,
             codex_configuration: validated.codexConfiguration,
             criteria,
             id: versionId,
@@ -188,6 +194,104 @@ export function createReviewService(
           },
         ],
       };
+    },
+    /** @param {string} repositoryId @param {unknown} definition */
+    createForRepository(repositoryId, definition) {
+      if (
+        !definition ||
+        Array.isArray(definition) ||
+        typeof definition !== "object"
+      ) {
+        return this.create(definition);
+      }
+      return this.create({
+        ...definition,
+        assignment: {
+          repository_ids: [repositoryId],
+          scope: "repository_set",
+        },
+      });
+    },
+    /** @param {string} repositoryId @param {unknown} request */
+    setForRepository(repositoryId, request) {
+      const candidate = /** @type {{review_ids?: unknown}} */ (request);
+      if (
+        !request ||
+        Array.isArray(request) ||
+        typeof request !== "object" ||
+        Object.keys(request).length !== 1 ||
+        !Array.isArray(candidate.review_ids) ||
+        candidate.review_ids.some(
+          (id) => typeof id !== "string" || id.length === 0,
+        ) ||
+        new Set(candidate.review_ids).size !== candidate.review_ids.length
+      ) {
+        fail(
+          "review_selection_request_malformed",
+          "Review selection must contain unique Review identities",
+        );
+      }
+      const selected = new Set(/** @type {string[]} */ (candidate.review_ids));
+      return durableCore.transaction((transaction) => {
+        if (
+          !transaction.get(
+            "SELECT 1 FROM repositories WHERE id = ?",
+            repositoryId,
+          )
+        ) {
+          fail(
+            "review_assignment_repository_not_found",
+            "Review Assignment Repository was not found",
+          );
+        }
+        const active = readReviewCollection(
+          transaction,
+          "SELECT id FROM reviews WHERE archived_at IS NULL ORDER BY created_at, id",
+          "review_list_invalid",
+        );
+        const selectable = new Set(
+          active
+            .filter((review) => review.assignment.scope === "repository_set")
+            .map((review) => review.id),
+        );
+        if ([...selected].some((id) => !selectable.has(id))) {
+          fail("review_not_found", "Review was not found");
+        }
+        /** @type {string[]} */
+        const added_review_ids = [];
+        /** @type {string[]} */
+        const removed_review_ids = [];
+        for (const review of active) {
+          if (review.assignment.scope !== "repository_set") {
+            continue;
+          }
+          const repositoryIds = /** @type {string[]} */ (
+            review.assignment.repository_ids
+          );
+          const reviewId = /** @type {string} */ (review.id);
+          const includes = repositoryIds.includes(repositoryId);
+          const shouldInclude = selected.has(reviewId);
+          if (includes === shouldInclude) {
+            continue;
+          }
+          const nextRepositoryIds = shouldInclude
+            ? [...repositoryIds, repositoryId]
+            : repositoryIds.filter((id) => id !== repositoryId);
+          changeReviewAssignment(
+            transaction,
+            reviewId,
+            {
+              repository_ids: nextRepositoryIds.toSorted(),
+              scope: "repository_set",
+            },
+            now,
+          );
+          (shouldInclude ? added_review_ids : removed_review_ids).push(
+            reviewId,
+          );
+        }
+        return { added_review_ids, removed_review_ids };
+      });
     },
     /**
      * @param {string} reviewId
@@ -427,13 +531,16 @@ export function createUnavailableReviewService(error) {
   }
   return {
     create: unavailable,
+    createForRepository: unavailable,
     list: unavailable,
+    read: unavailable,
     reactivateVersion: unavailable,
     remove: unavailable,
     saveVersion: unavailable,
     selectForNewEvaluation: unavailable,
     setArchived: unavailable,
     setAssignment: unavailable,
+    setForRepository: unavailable,
     updateMetadata: unavailable,
   };
 }

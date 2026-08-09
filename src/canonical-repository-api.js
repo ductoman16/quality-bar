@@ -80,7 +80,11 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
           500: errorResponse,
           503: errorResponse,
         },
-        security: [{ browser_session: [] }, { implementer_token: [] }],
+        security: [
+          { browser_session: [] },
+          { implementer_token: [] },
+          { onboarding_token: [] },
+        ],
       },
       post: {
         operationId: "registerGenericRepository",
@@ -199,7 +203,11 @@ export function canonicalRepositoryPath(mutationParameters, errorResponse) {
           500: errorResponse,
           503: errorResponse,
         },
-        security: [{ browser_session: [] }, { implementer_token: [] }],
+        security: [
+          { browser_session: [] },
+          { implementer_token: [] },
+          { onboarding_token: [] },
+        ],
       },
     },
     "/api/v1/repositories/{repository_id}/lifecycle": {

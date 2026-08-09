@@ -160,7 +160,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   );
   assert.deepEqual(
     contract.components.schemas.AuthorityAttribution.properties.channel.enum,
-    ["browser_session", "host", "implementer_token"],
+    ["browser_session", "host", "implementer_token", "onboarding_token"],
   );
   assert.ok(contract.paths["/api/v1/system/authority-attributions"]);
   assert.ok(contract.paths["/api/v1/reviews"]);
@@ -182,6 +182,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   ]);
   assert.deepEqual(contract.paths["/api/v1/reviews"].get.security, [
     { browser_session: [] },
+    { onboarding_token: [] },
   ]);
   const reviewStateParameter =
     contract.paths["/api/v1/reviews"].get.parameters[0];
@@ -193,6 +194,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.deepEqual(contract.paths["/api/v1/repositories"].get.security, [
     { browser_session: [] },
     { implementer_token: [] },
+    { onboarding_token: [] },
   ]);
   assert.deepEqual(contract.paths["/api/v1/repositories"].post.security, [
     { browser_session: [] },
@@ -200,7 +202,11 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   assert.deepEqual(
     contract.paths["/api/v1/repositories/{repository_id}/guidance"].get
       .security,
-    [{ browser_session: [] }, { implementer_token: [] }],
+    [
+      { browser_session: [] },
+      { implementer_token: [] },
+      { onboarding_token: [] },
+    ],
   );
   assert.deepEqual(
     contract.paths["/api/v1/repositories"].get.parameters.map(

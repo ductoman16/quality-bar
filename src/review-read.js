@@ -131,7 +131,6 @@ export function readReview(transaction, reviewId) {
       )
       .map((row) => row?.repository_id);
     if (
-      repositoryIds.length === 0 ||
       repositoryIds.some((repositoryId) => typeof repositoryId !== "string")
     ) {
       throw new Error("review_assignment_invalid");
