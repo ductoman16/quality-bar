@@ -263,10 +263,14 @@ export function finalizeSchemaMigration(
         ? ""
         : "ALTER TABLE evaluations ADD COLUMN applicability_sealed_at INTEGER;"
     }
-    ${version === 40 || version === 41 ? WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION : ""}
-    UPDATE evaluations
-    SET applicability_sealed_at = created_at
-    WHERE applicability_sealed_at IS NULL;`,
+    ${
+      version <= 30
+        ? `UPDATE evaluations
+           SET applicability_sealed_at = created_at
+           WHERE applicability_sealed_at IS NULL;`
+        : ""
+    }
+    ${version === 40 || version === 41 ? WAIVER_REQUEST_LIFECYCLE_MIGRATION_VALIDATION : ""}`,
   );
 }
 export const CURRENT_SCHEMA_VERSION = 53;

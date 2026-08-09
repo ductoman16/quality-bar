@@ -100,6 +100,63 @@ test("schema v30 adds Applicability Results without inventing historical facts",
   );
 });
 
+test("schema v52 preserves an active Evaluation with unsealed Applicability", (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-applicability-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const databasePath = join(directory, "quality-bar.sqlite3");
+  const prior = openDurableCore(databasePath);
+  prior.transaction((transaction) => {
+    transaction.run(
+      "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+      "repository-1",
+      "https://example.invalid/repository.git",
+      1,
+      1,
+    );
+    transaction.run(
+      "INSERT INTO reviews (id, name, description, archived_at, active_version_id, hard_delete_pending, created_at) VALUES ('review-1', 'Review', 'Description', NULL, 'version-1', 0, 1)",
+    );
+    transaction.run(
+      "INSERT INTO review_versions (id, review_id, number, applicability_rule, model, reasoning_effort, service_tier, created_at, sealed_at) VALUES ('version-1', 'review-1', 1, NULL, 'gpt-5.6-terra', 'high', 'standard', 1, 1)",
+    );
+    transaction.run(
+      "INSERT INTO review_assignments (review_id, scope, created_at) VALUES ('review-1', 'installation_wide', 1)",
+    );
+    transaction.run(
+      `INSERT INTO evaluations (
+         id, repository_id, provenance,
+         base_selector_type, base_selector_value,
+         head_selector_type, head_selector_value,
+         base_commit, head_commit, execution_status, created_at
+      ) VALUES (?, ?, 'explicit', 'commit', ?, 'commit', ?, ?, ?, 'queued', ?)`,
+      "evaluation-active",
+      "repository-1",
+      "1".repeat(40),
+      "2".repeat(40),
+      "1".repeat(40),
+      "2".repeat(40),
+      50,
+    );
+    transaction.run("DROP TABLE onboarding_tokens");
+    transaction.run(
+      "UPDATE quality_bar_metadata SET value = '52' WHERE key = 'schema_version'",
+    );
+    transaction.run("PRAGMA user_version = 52");
+  });
+  prior.close();
+
+  const migrated = openDurableCore(databasePath);
+  context.after(() => migrated.close());
+  assert.equal(migrated.facts.schemaVersion, 53);
+  assert.deepEqual(
+    migrated.get(
+      "SELECT applicability_sealed_at FROM evaluations WHERE id = ?",
+      "evaluation-active",
+    ),
+    { applicability_sealed_at: null },
+  );
+});
+
 test("schema v30 migration adds the Applicability authority seal when absent", () => {
   let migration = "";
   let metadataReads = 0;
