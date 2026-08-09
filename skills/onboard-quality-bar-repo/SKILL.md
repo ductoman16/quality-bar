@@ -30,12 +30,13 @@ Onboard the current repository through one chosen Quality Bar transport. Intervi
 
 This step is complete when the target remote URL and the completion conditions are explicit.
 
-## 2. Choose one transport
+## 2. Choose and prove one transport
 
-1. If a Quality Bar MCP server is configured, list its tools.
-2. Choose MCP only when it exposes the onboarding tools. Otherwise choose HTTP.
-3. Read [references/transports.md](references/transports.md). For HTTP, require `QUALITY_BAR_URL` and a private token file at `QUALITY_BAR_ONBOARDING_TOKEN_FILE`. Use `scripts/quality-bar-http.sh` for requests.
-4. Make one authenticated read. Stop if authentication or transport fails.
+1. Read [references/transports.md](references/transports.md).
+2. Ask the user to choose MCP or HTTP. Recommend MCP.
+3. For MCP, list the available tools. When any onboarding tool is absent, complete the MCP bootstrap checkpoint in the transport reference and stop this run. Resume in a fresh task after every onboarding tool is visible.
+4. For HTTP, require `QUALITY_BAR_URL` and a private token file at `QUALITY_BAR_ONBOARDING_TOKEN_FILE`. Use `scripts/quality-bar-http.sh` for requests.
+5. Make one authenticated read. Stop if authentication or transport fails.
 
 This step is complete when one transport has made an authenticated read and the other transport is out of scope for this run.
 
