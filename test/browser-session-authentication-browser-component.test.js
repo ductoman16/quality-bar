@@ -181,62 +181,69 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
   });
   const reviewsHtml = await reviews.text();
   assert.match(reviewsHtml, /<h1[^>]*>Reviews<\/h1>/);
+  assert.match(reviewsHtml, /id="review-catalog"/);
   assert.match(reviewsHtml, /id="review-create-form"/);
   assert.match(reviewsHtml, /id="review-criteria"/);
   assert.match(reviewsHtml, /id="review-add-criterion"[^>]*>\+<\/button>/);
   assert.match(reviewsHtml, /id="review-model"/);
   assert.match(reviewsHtml, /id="review-reasoning-effort"/);
   assert.match(reviewsHtml, /id="review-service-tier"/);
+  assert.match(reviewsHtml, /review-create-result/);
   assert.match(reviewsHtml, /<script src="\/assets\/operator\.js"><\/script>/);
+  assert.match(
+    reviewsHtml,
+    /<script src="\/assets\/review-catalog\.js"><\/script>/,
+  );
   assert.match(
     reviewsHtml,
     /<script src="\/assets\/review-create\.js"><\/script>/,
   );
   assert.match(
     reviewsHtml,
-    /<script src="\/assets\/review-metadata\.js"><\/script>/,
-  );
-  assert.match(
-    reviewsHtml,
     /<script src="\/assets\/review-criteria\.js"><\/script>/,
   );
+
+  const reviewDetail = await fetch(`${origin}/?view=review-detail`, {
+    headers: { cookie },
+  });
+  const reviewDetailHtml = await reviewDetail.text();
+  assert.match(reviewDetailHtml, /id="review-detail"/);
+  assert.match(reviewDetailHtml, /id="review-metadata-form"/);
+  assert.match(reviewDetailHtml, /id="review-metadata-name"/);
+  assert.match(reviewDetailHtml, /id="review-metadata-description"/);
+  assert.match(reviewDetailHtml, /id="review-metadata-result"/);
+  assert.match(reviewDetailHtml, /id="review-version-form"/);
+  assert.match(reviewDetailHtml, /id="review-version-activation"/);
   assert.match(
-    reviewsHtml,
-    /<script src="\/assets\/review-version-contract\.js"><\/script>/,
+    reviewDetailHtml,
+    /id="review-version-activate"[^>]*>Reactivate<\/button>/,
+  );
+  assert.match(reviewDetailHtml, /id="review-version-applicability-rule"/);
+  assert.match(reviewDetailHtml, /id="review-version-criteria"/);
+  assert.match(
+    reviewDetailHtml,
+    /id="review-version-add-criterion"[^>]*>\+<\/button>/,
+  );
+  assert.match(reviewDetailHtml, /id="review-version-result"/);
+  assert.match(reviewDetailHtml, /id="review-archival-form"/);
+  assert.match(reviewDetailHtml, /id="review-archival-state"/);
+  assert.match(reviewDetailHtml, /id="review-archival-result"/);
+  assert.match(
+    reviewDetailHtml,
+    /<script src="\/assets\/review-detail\.js"><\/script>/,
   );
   assert.match(
-    reviewsHtml,
+    reviewDetailHtml,
     /<script src="\/assets\/review-version\.js"><\/script>/,
   );
   assert.match(
-    reviewsHtml,
+    reviewDetailHtml,
     /<script src="\/assets\/review-reactivation\.js"><\/script>/,
   );
   assert.match(
-    reviewsHtml,
+    reviewDetailHtml,
     /<script src="\/assets\/review-archival\.js"><\/script>/,
   );
-  assert.match(reviewsHtml, /review-create-result/);
-  assert.match(reviewsHtml, /id="review-metadata-form"/);
-  assert.match(reviewsHtml, /id="review-metadata-name"/);
-  assert.match(reviewsHtml, /id="review-metadata-description"/);
-  assert.match(reviewsHtml, /id="review-metadata-result"/);
-  assert.match(reviewsHtml, /id="review-version-form"/);
-  assert.match(reviewsHtml, /id="review-version-activation"/);
-  assert.match(
-    reviewsHtml,
-    /id="review-version-activate"[^>]*>Reactivate<\/button>/,
-  );
-  assert.match(reviewsHtml, /id="review-version-applicability-rule"/);
-  assert.match(reviewsHtml, /id="review-version-criteria"/);
-  assert.match(
-    reviewsHtml,
-    /id="review-version-add-criterion"[^>]*>\+<\/button>/,
-  );
-  assert.match(reviewsHtml, /id="review-version-result"/);
-  assert.match(reviewsHtml, /id="review-archival-form"/);
-  assert.match(reviewsHtml, /id="review-archival-state"/);
-  assert.match(reviewsHtml, /id="review-archival-result"/);
 });
 
 test("a malformed login request creates no session", async () => {

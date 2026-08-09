@@ -52,6 +52,6 @@
     "src/browser/review-delete.js",
     "src/browser/review-assignment.js",
     "src/browser/review-catalog.js",
-    "src/browser/review-editor.js"
+    "src/browser/review-detail.js"
   ]
 }

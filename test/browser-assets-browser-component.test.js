@@ -73,7 +73,9 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
       new Script(
         [
           readBrowserAsset("/assets/operator.js"),
+          readBrowserAsset("/assets/review-catalog.js"),
           readBrowserAsset("/assets/review-create.js"),
+          readBrowserAsset("/assets/review-detail.js"),
           readBrowserAsset("/assets/review-metadata.js"),
           readBrowserAsset("/assets/review-criteria.js"),
           readBrowserAsset("/assets/review-version-contract.js"),
@@ -85,7 +87,7 @@ test("the Reviews page composes its exact classic scripts and owns metadata vali
         ].join("\n"),
       ),
   );
-  const page = operatorPage({ view: "reviews" });
+  const page = operatorPage({ view: "review-detail" });
   assert.match(
     page,
     /aria-required="true" id="review-metadata-name".*aria-required="true" id="review-metadata-description"/,

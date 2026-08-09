@@ -82,40 +82,17 @@
     return { total: criteria.length, blocking, advisory };
   }
 
-  /** @param {string} label @param {string} value */
-  function fact(label, value) {
-    const wrapper = node("div", "review-fact");
-    wrapper.append(
-      node("span", "review-fact__label", label),
-      node("span", "review-fact__value", value),
-    );
-    return wrapper;
-  }
+  /** @param {string} reviewId */
+  const detailUrl = (reviewId) =>
+    "/?view=review-detail&review_id=" + encodeURIComponent(reviewId);
 
-  /** @param {CatalogReview} review */
+  /**
+   * Compact read-only preview: the criteria at a glance, with a link to the
+   * dedicated detail page for anything more.
+   * @param {CatalogReview} review
+   */
   function expandedDetail(review) {
     const detail = node("div", "review-expanded");
-
-    const reviewGroup = node("div", "review-owner");
-    reviewGroup.append(node("div", "review-owner__title", "Review"));
-    const reviewFacts = node("div", "review-facts");
-    reviewFacts.append(
-      fact("Assignment", scopeLabel(review)),
-      fact("State", review.archived ? "Archived" : "Active"),
-    );
-    reviewGroup.append(reviewFacts);
-
-    const number = review.active_version?.number;
-    const versionGroup = node("div", "review-owner review-owner--version");
-    versionGroup.append(
-      node(
-        "div",
-        "review-owner__title",
-        "Active version" +
-          (Number.isSafeInteger(number) ? " · v" + number : ""),
-      ),
-    );
-
     const criteria = review.active_version?.criteria ?? [];
     const list = node("ol", "review-criteria-read");
     if (criteria.length === 0) {
@@ -137,46 +114,10 @@
       item.append(head, instruction);
       list.append(item);
     }
-
-    const rule = review.active_version?.applicability_rule;
-    const applicability = node("div", "review-applicability-read");
-    applicability.append(node("span", "review-fact__label", "Applies when"));
-    if (typeof rule === "string" && rule.trim().length > 0) {
-      applicability.append(
-        node("pre", "review-applicability-read__rule", rule),
-      );
-    } else {
-      applicability.append(
-        node("span", "review-applicability-read__always", "Always applies"),
-      );
-    }
-
-    const versionFacts = node("div", "review-facts");
-    versionFacts.append(
-      fact(
-        "Codex model",
-        text(review.active_version?.codex_configuration?.model) || "—",
-      ),
-    );
-    versionGroup.append(list, applicability, versionFacts);
-
-    const edit = node("button", "review-edit", "Edit in configuration");
-    edit.setAttribute("type", "button");
-    edit.addEventListener("click", () => openInEditor(review.id));
-
-    detail.append(reviewGroup, versionGroup, edit);
+    const link = node("a", "review-expanded__link", "View details");
+    link.setAttribute("href", detailUrl(review.id));
+    detail.append(list, link);
     return detail;
-  }
-
-  /** @param {string} reviewId */
-  function openInEditor(reviewId) {
-    document.dispatchEvent(
-      new CustomEvent("review-editor:select", { detail: reviewId }),
-    );
-    const editor = document.getElementById("reviews-editor");
-    if (editor && typeof editor.scrollIntoView === "function") {
-      editor.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   }
 
   /** @param {CatalogReview} review @param {number} index */
@@ -226,6 +167,10 @@
       ),
     );
 
+    const open = node("a", "review-row__open", "›");
+    open.setAttribute("href", detailUrl(review.id));
+    open.setAttribute("aria-label", "Open review " + review.name);
+
     const summaryGrid = node("div", "review-row__summary");
     summaryGrid.append(
       toggle,
@@ -238,12 +183,13 @@
         "review-row__model",
         text(review.active_version?.codex_configuration?.model) || "—",
       ),
+      open,
     );
     article.append(summaryGrid);
 
     toggle.addEventListener("click", () => {
-      const open = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", String(!open));
+      const isOpen = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!isOpen));
       const existing = document.getElementById(panelId);
       if (existing) {
         existing.remove();
@@ -301,7 +247,19 @@
   document.addEventListener("quality-bar:system-loaded", () => {
     void load();
   });
-  document.addEventListener("quality-bar:review-created", () => {
+  document.addEventListener("quality-bar:review-created", (event) => {
+    const created =
+      event instanceof CustomEvent
+        ? event.detail
+        : /** @type {unknown} */ (null);
+    const id =
+      created && typeof created === "object" && "id" in created
+        ? /** @type {{ id?: unknown }} */ (created).id
+        : null;
+    if (typeof id === "string" && id.length > 0) {
+      window.location.assign(detailUrl(id));
+      return;
+    }
     void load();
   });
 }

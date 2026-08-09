@@ -32,7 +32,7 @@
     "review-delete.js",
     "review-assignment.js",
     "review-catalog.js",
-    "review-editor.js"
+    "review-detail.js"
   ],
   "initial_production_diagnostics": [
     {

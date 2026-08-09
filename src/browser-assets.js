@@ -214,9 +214,9 @@ const browserAssets = [
     url: new URL("./browser/review-catalog.js", import.meta.url),
   },
   {
-    route: "/assets/review-editor.js",
-    sourcePath: "src/browser/review-editor.js",
-    url: new URL("./browser/review-editor.js", import.meta.url),
+    route: "/assets/review-detail.js",
+    sourcePath: "src/browser/review-detail.js",
+    url: new URL("./browser/review-detail.js", import.meta.url),
   },
 ];
 
