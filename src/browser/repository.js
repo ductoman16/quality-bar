@@ -92,7 +92,42 @@ const repositorySubscribers = new Set();
 
 function publishRepositoryResources() {
   const resources = [...repositoryResources.values()];
+  renderRepositoryOverview(resources);
   repositorySubscribers.forEach((subscriber) => subscriber(resources));
+}
+
+/** @param {RepositoryResource[]} resources */
+function renderRepositoryOverview(resources) {
+  let enabled = 0;
+  let disabled = 0;
+  let retired = 0;
+  let errors = 0;
+  for (const repository of resources) {
+    if (repository.lifecycle === "enabled") {
+      enabled += 1;
+    } else if (repository.lifecycle === "disabled") {
+      disabled += 1;
+    } else if (repository.lifecycle === "retired") {
+      retired += 1;
+    }
+    if (repository.health === "error") {
+      errors += 1;
+    }
+  }
+  /** @type {[string, number][]} */
+  const counters = [
+    ["repository-overview-total", resources.length],
+    ["repository-overview-enabled", enabled],
+    ["repository-overview-disabled", disabled],
+    ["repository-overview-retired", retired],
+    ["repository-overview-errors", errors],
+  ];
+  for (const [id, value] of counters) {
+    const element = document.getElementById?.(id);
+    if (element) {
+      element.textContent = String(value);
+    }
+  }
 }
 
 Reflect.set(
@@ -196,6 +231,11 @@ function renderRepository(repository) {
   for (const [label, value] of values) {
     const cell = document.createElement("td");
     cell.setAttribute("data-label", label);
+    if (label === "Lifecycle") {
+      cell.setAttribute("data-lifecycle", repository.lifecycle);
+    } else if (label === "Health") {
+      cell.setAttribute("data-health", repository.health);
+    }
     cell.textContent = value;
     row.append(cell);
   }
