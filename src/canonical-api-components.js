@@ -30,7 +30,12 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           action: { type: "string" },
           channel: {
-            enum: ["browser_session", "host", "implementer_token"],
+            enum: [
+              "browser_session",
+              "host",
+              "implementer_token",
+              "onboarding_token",
+            ],
             type: "string",
           },
           error_code: { type: "string" },
@@ -150,7 +155,6 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
             {
               repository_ids: {
                 items: { minLength: 1, pattern: "\\S", type: "string" },
-                minItems: 1,
                 type: "array",
                 uniqueItems: true,
               },
@@ -160,15 +164,15 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           ),
         ],
       },
-      ReviewCreationAssignment: closedObject(
-        { scope: { const: "installation_wide", type: "string" } },
-        ["scope"],
-      ),
+      ReviewCreationAssignment: {
+        $ref: "#/components/schemas/ReviewAssignment",
+      },
       ReviewCreateRequest: closedObject(
         {
           assignment: {
             $ref: "#/components/schemas/ReviewCreationAssignment",
           },
+          applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
             $ref: "#/components/schemas/CodexConfiguration",
           },
@@ -194,6 +198,94 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           name: { minLength: 1, pattern: "\\S", type: "string" },
         },
         ["name", "description"],
+      ),
+      EmptyRequest: closedObject({}, []),
+      OnboardingTokenCreateRequest: closedObject(
+        {
+          repository_url: {
+            format: "uri",
+            pattern: "^https://",
+            type: "string",
+          },
+        },
+        ["repository_url"],
+      ),
+      OnboardingToken: closedObject(
+        {
+          created_at: { minimum: 0, type: "integer" },
+          expires_at: { minimum: 0, type: "integer" },
+          id: { minLength: 1, type: "string" },
+          repository_url: { format: "uri", type: "string" },
+        },
+        ["id", "repository_url", "created_at", "expires_at"],
+      ),
+      OnboardingTokenReveal: closedObject(
+        {
+          created_at: { minimum: 0, type: "integer" },
+          expires_at: { minimum: 0, type: "integer" },
+          id: { minLength: 1, type: "string" },
+          repository_url: { format: "uri", type: "string" },
+          token: { minLength: 43, maxLength: 43, type: "string" },
+        },
+        ["id", "repository_url", "created_at", "expires_at", "token"],
+      ),
+      OnboardingRepositoryRegistrationRequest: closedObject(
+        {
+          url: {
+            format: "uri",
+            pattern: "^[hH][tT][tT][pP][sS]://",
+            type: "string",
+          },
+        },
+        ["url"],
+      ),
+      OnboardingTokenCollection: closedObject(
+        {
+          onboarding_tokens: {
+            items: { $ref: "#/components/schemas/OnboardingToken" },
+            type: "array",
+          },
+        },
+        ["onboarding_tokens"],
+      ),
+      OnboardingReviewSelectionRequest: closedObject(
+        {
+          review_ids: {
+            items: { minLength: 1, type: "string" },
+            type: "array",
+            uniqueItems: true,
+          },
+        },
+        ["review_ids"],
+      ),
+      OnboardingReviewSelectionResult: closedObject(
+        {
+          added_review_ids: { items: { type: "string" }, type: "array" },
+          removed_review_ids: { items: { type: "string" }, type: "array" },
+        },
+        ["added_review_ids", "removed_review_ids"],
+      ),
+      OnboardingReviewCreateRequest: closedObject(
+        {
+          applicability_rule: { type: ["string", "null"] },
+          codex_configuration: {
+            $ref: "#/components/schemas/CodexConfiguration",
+          },
+          criteria: {
+            items: { $ref: "#/components/schemas/CriterionCreateRequest" },
+            minItems: 1,
+            type: "array",
+          },
+          description: { minLength: 1, pattern: "\\S", type: "string" },
+          name: { minLength: 1, pattern: "\\S", type: "string" },
+        },
+        [
+          "name",
+          "description",
+          "codex_configuration",
+          "criteria",
+          "applicability_rule",
+        ],
       ),
       ReviewArchivalRequest: closedObject({ archived: { type: "boolean" } }, [
         "archived",
@@ -363,6 +455,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         type: "apiKey",
       },
       implementer_token: { scheme: "bearer", type: "http" },
+      onboarding_token: { scheme: "bearer", type: "http" },
     },
   };
 }

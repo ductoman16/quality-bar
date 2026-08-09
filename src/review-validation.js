@@ -92,12 +92,6 @@ export function validateAssignmentRequest(assignment) {
       "Review Assignment must contain exactly one supported scope",
     );
   }
-  if (assignment.repository_ids.length === 0) {
-    fail(
-      "review_assignment_repository_set_empty",
-      "Repository-specific Review Assignment must select at least one Repository",
-    );
-  }
   const repositoryIds = assignment.repository_ids.map((repositoryId) =>
     validateNonblank(
       repositoryId,
@@ -119,25 +113,10 @@ export function validateAssignmentRequest(assignment) {
 
 /**
  * @param {unknown} assignment
- * @returns {{scope: "installation_wide"}}
+ * @returns {ValidatedReviewAssignment}
  */
 function validateCreationAssignment(assignment) {
-  if (
-    !isExactObject(assignment, ["scope"]) ||
-    typeof assignment.scope !== "string"
-  ) {
-    fail(
-      "review_assignment_malformed",
-      "Review Assignment must contain only an exact scope",
-    );
-  }
-  if (assignment.scope !== "installation_wide") {
-    fail(
-      "review_assignment_unsupported",
-      "Only an installation-wide Review Assignment is supported at creation",
-    );
-  }
-  return { scope: "installation_wide" };
+  return validateAssignmentRequest(assignment);
 }
 
 /** @param {unknown} criteria */
@@ -224,21 +203,31 @@ function validateVersionCriteria(criteria) {
 
 /** @param {unknown} definition */
 export function validateDefinition(definition) {
+  const keys = [
+    "assignment",
+    "codex_configuration",
+    "criteria",
+    "description",
+    "name",
+  ];
   if (
-    !isExactObject(definition, [
-      "assignment",
-      "codex_configuration",
-      "criteria",
-      "description",
-      "name",
-    ])
+    !isExactObject(definition, keys) &&
+    !isExactObject(definition, [...keys, "applicability_rule"])
   ) {
     fail(
       "review_request_malformed",
       "Review request contains unsupported or missing fields",
     );
   }
+  const applicabilityRule = Object.hasOwn(definition, "applicability_rule")
+    ? validateExecutableSnapshot({
+        applicability_rule: definition.applicability_rule,
+        codex_configuration: definition.codex_configuration,
+        criteria: definition.criteria,
+      }).applicabilityRule
+    : null;
   return {
+    applicabilityRule,
     assignment: validateCreationAssignment(definition.assignment),
     codexConfiguration: validateCodexConfiguration(
       definition.codex_configuration,

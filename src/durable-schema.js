@@ -38,6 +38,7 @@ import * as reviewDeletionSchema from "./review-deletion-schema.js";
 import { WAIVER_BATCH_SCHEMA } from "./waiver-batch-schema.js";
 import { WAIVER_FOLLOWUP_SCHEMA } from "./waiver-followup-schema.js";
 import { REVIEW_SCHEMA } from "./review-schema.js";
+import { ONBOARDING_TOKEN_SCHEMA } from "./onboarding-token-schema.js";
 export const SCHEMA_VERSION = schemaMigration.CURRENT_SCHEMA_VERSION;
 export function initializeOrValidateSchema(
   /** @type {import("node:sqlite").DatabaseSync} */ database,
@@ -83,6 +84,7 @@ export function initializeOrValidateSchema(
         last_authenticated_at INTEGER NOT NULL
       ) STRICT;
       ${schemaMigration.AUTHORITY_ATTRIBUTION_SCHEMA}
+      ${ONBOARDING_TOKEN_SCHEMA}
       ${REVIEW_SCHEMA}
       ${repositorySchema.REPOSITORY_SCHEMA}
       ${REPOSITORY_CREDENTIAL_SCHEMA}
