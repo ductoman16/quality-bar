@@ -21,7 +21,7 @@ test("secondary views use the shared shell and compact detail hierarchy", () => 
     assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
     assert.doesNotMatch(page, /<aside\b/);
   }
-  assert.match(operatorPage({ view: "reviews" }), /qb-deep-surface/);
+  assert.match(operatorPage({ view: "review-detail" }), /qb-deep-surface/);
   assert.match(operatorPage({ view: "repositories" }), /qb-deep-surface/);
   assert.match(operatorPage({ view: "analytics" }), /qb-deep-surface/);
   const system = operatorPage({ view: "system" });
