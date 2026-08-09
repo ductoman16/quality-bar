@@ -469,14 +469,6 @@
     ]);
   }
 
-  /** @param {string} label @param {Record<string, unknown>} values */
-  function countLine(label, values) {
-    const counts = Object.entries(values)
-      .map(([key, value]) => " " + key + " " + value)
-      .join(",");
-    return element("div", "evaluation-counts", label + counts);
-  }
-
   /** @param {any} evaluation */
   function row(evaluation) {
     const article = document.createElement("article");
@@ -543,6 +535,9 @@
       : [];
     const compactTimeline = timeline(nodes, false);
     compactTimeline.className += " evaluation-row__timeline";
+    if (evaluation.execution_status === "cancelled") {
+      compactTimeline.className += " evaluation-row__timeline--skipped";
+    }
     const detailLink = document.createElement("a");
     detailLink.className = "evaluation-row__detail";
     detailLink.href = evaluationUrl(evaluation.id);
@@ -579,14 +574,6 @@
       );
       nodes.forEach((node, index) => table.append(expandedStep(index, node)));
       preview.append(table);
-      for (const [label, counts] of [
-        ["Outcomes:", evaluation.monitor?.outcome_counts],
-        ["Findings:", evaluation.monitor?.finding_counts],
-      ]) {
-        if (counts !== null && typeof counts === "object") {
-          preview.append(countLine(label, counts));
-        }
-      }
       article.append(preview);
     }
     return article;
