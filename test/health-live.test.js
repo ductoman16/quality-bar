@@ -103,6 +103,19 @@ function applicationServerOptions() {
         throw new Error("unused implementer token rotate");
       },
     },
+    onboardingTokens: {
+      authenticate() {
+        return null;
+      },
+      create() {
+        throw new Error("unused onboarding token create");
+      },
+      list() {
+        return [];
+      },
+      revoke() {},
+      selfRevoke() {},
+    },
     listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
     recordAuthorityAttribution() {},
     recordMcpOperation() {},
@@ -262,6 +275,19 @@ test("the application server rejects a missing request-security boundary", () =>
           rotate() {
             throw new Error("unused implementer token rotate");
           },
+        },
+        onboardingTokens: {
+          authenticate() {
+            return null;
+          },
+          create() {
+            throw new Error("unused onboarding token create");
+          },
+          list() {
+            return [];
+          },
+          revoke() {},
+          selfRevoke() {},
         },
         listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
         recordAuthorityAttribution() {},

@@ -5,6 +5,7 @@ import { EVALUATION_LIST_PARAMETERS } from "./canonical-evaluation-list-paramete
 /** @param {object} errorResponse */
 export function canonicalEvaluationPaths(errorResponse) {
   const authenticated = [{ browser_session: [] }, { implementer_token: [] }];
+  const onboardingAuthenticated = [...authenticated, { onboarding_token: [] }];
   const evaluationResponse = {
     content: {
       "application/json": {
@@ -113,7 +114,7 @@ export function canonicalEvaluationPaths(errorResponse) {
           404: errorResponse,
           503: errorResponse,
         },
-        security: authenticated,
+        security: onboardingAuthenticated,
       },
     },
     "/api/v1/evaluations/{evaluation_id}/result": {
@@ -135,7 +136,7 @@ export function canonicalEvaluationPaths(errorResponse) {
           409: errorResponse,
           503: errorResponse,
         },
-        security: authenticated,
+        security: onboardingAuthenticated,
       },
     },
     "/api/v1/evaluations/{evaluation_id}/retry": {
@@ -382,7 +383,7 @@ export function canonicalEvaluationPaths(errorResponse) {
           422: errorResponse,
           503: errorResponse,
         },
-        security: authenticated,
+        security: onboardingAuthenticated,
       },
     },
   };

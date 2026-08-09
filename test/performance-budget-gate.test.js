@@ -13,6 +13,7 @@ import { createReviewService } from "../src/review.js";
 import {
   CODEX_EXECUTION_DEADLINE_MS,
   PERFORMANCE_EXECUTION_PROFILE,
+  PERFORMANCE_GATE_TEST_NAME,
   PERFORMANCE_PROFILE,
   PERFORMANCE_SAMPLE_COUNT,
   createPerformanceFacts,
@@ -248,7 +249,7 @@ async function measureReadyQueueClaim() {
   return samples;
 }
 
-test("controlled personal-v1 performance fixtures hard-fail budget regressions", async () => {
+test(PERFORMANCE_GATE_TEST_NAME, async () => {
   assert.deepEqual(
     PERFORMANCE_EXECUTION_PROFILE,
     PERFORMANCE_PROFILE,

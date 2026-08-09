@@ -348,7 +348,7 @@ export function requireBrowserMutationWithQuery(
 }
 
 /** @param {import("node:http").IncomingMessage} request */
-function bearerToken(request) {
+export function bearerToken(request) {
   const value = request.headers.authorization;
   const match =
     typeof value === "string"
@@ -381,13 +381,15 @@ export function hasUrlToken(requestUrl) {
 /**
  * @param {BrowserSessionAuthority} browserSessions
  * @param {ImplementerTokenAuthority} implementerTokens
+ * @param {{authenticate: (token: string | undefined) => unknown}} onboardingTokens
  * @param {import("node:http").IncomingMessage} request
  * @param {URL} requestUrl
- * @returns {"machine" | "operator"}
+ * @returns {"machine" | "onboarding" | "operator"}
  */
 export function requireProductAuthority(
   browserSessions,
   implementerTokens,
+  onboardingTokens,
   request,
   requestUrl,
 ) {
@@ -399,8 +401,17 @@ export function requireProductAuthority(
     );
   }
   if (request.headers.authorization !== undefined) {
-    requireImplementerTokenAuthority(implementerTokens, request);
-    return "machine";
+    const token = bearerToken(request);
+    if (implementerTokens.authenticate(token)) {
+      return "machine";
+    }
+    if (onboardingTokens.authenticate(token)) {
+      return "onboarding";
+    }
+    throw browserMutationError(
+      "authentication_invalid",
+      "Machine authentication is invalid",
+    );
   }
   if (!browserSessions.authenticate(sessionSecret(request))) {
     throw browserMutationError(

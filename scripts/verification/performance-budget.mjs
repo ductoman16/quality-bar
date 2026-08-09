@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { REVIEW_RUN_DEADLINE_MILLISECONDS } from "../../src/review-run-deadline.js";
 
 export const PERFORMANCE_SAMPLE_COUNT = 20;
+export const PERFORMANCE_GATE_TEST_NAME =
+  "controlled personal-v1 performance fixtures hard-fail budget regressions";
 export const PERFORMANCE_PROFILE = Object.freeze({
   cpu_cores: 4,
   memory_gib: 8,

@@ -313,7 +313,7 @@ test("schema 38 adds GitHub feedback without losing the canonical waiver schema"
 
   const migrated = openDurableCore(databasePath);
   context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 52);
+  assert.equal(migrated.facts.schemaVersion, 53);
   assert.deepEqual(
     migrated.all(
       `SELECT name FROM sqlite_schema

@@ -264,6 +264,19 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
         throw new Error("unused implementer token rotate");
       },
     },
+    onboardingTokens: {
+      authenticate() {
+        return null;
+      },
+      create() {
+        throw new Error("unused onboarding token create");
+      },
+      list() {
+        return [];
+      },
+      revoke() {},
+      selfRevoke() {},
+    },
     listAuthorityAttributions: () => ({ items: [], next_cursor: null }),
     recordAuthorityAttribution() {
       throw failure;

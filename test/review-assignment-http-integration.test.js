@@ -98,7 +98,7 @@ test("the authenticated Review Assignment resource changes one exact scope witho
     `/api/v1/reviews/${created.id}/assignment`,
     {
       body: JSON.stringify({
-        repository_ids: [],
+        repository_ids: [""],
         scope: "repository_set",
       }),
       headers,
@@ -108,7 +108,7 @@ test("the authenticated Review Assignment resource changes one exact scope witho
   assert.equal(malformed.status, 422);
   assert.equal(
     await responseErrorCode(malformed),
-    "review_assignment_repository_set_empty",
+    "review_assignment_repository_invalid",
   );
 
   const archived = await request(`/api/v1/reviews/${created.id}/archival`, {

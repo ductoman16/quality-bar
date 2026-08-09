@@ -10,6 +10,7 @@ import {
   MCP_RESOURCE_TEMPLATES,
   MCP_PROTOCOL_VERSION,
   MCP_TOOLS,
+  ONBOARDING_MCP_TOOLS,
   mcpInitializeResult,
 } from "./mcp-contract.js";
 import {
@@ -35,6 +36,7 @@ import {
 } from "./mcp-repository.js";
 import { isClosedMcpRecord } from "./mcp-validation.js";
 import { executeWaiverTool } from "./mcp-waiver.js";
+import { executeOnboardingTool } from "./mcp-onboarding.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
@@ -201,6 +203,7 @@ function toolFailure(error) {
  *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
  *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
  *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>
+ *   onboardingOperations: ReturnType<typeof import("./onboarding-operations.js").createOnboardingOperations>
  * }} dependencies
  */
 export function createMcpRoute({
@@ -209,13 +212,21 @@ export function createMcpRoute({
   recordMcpOperation,
   repositories,
   repositoryGuidance,
+  onboardingOperations,
 }) {
   /**
    * @param {import("node:http").IncomingMessage} request
    * @param {import("node:http").ServerResponse} response
    * @param {URL} requestUrl
    */
-  return async function handleMcp(request, response, requestUrl) {
+  return async function handleMcp(
+    /** @type {import("node:http").IncomingMessage} */ request,
+    /** @type {import("node:http").ServerResponse} */ response,
+    /** @type {URL} */ requestUrl,
+    /** @type {"callback" | "machine" | "onboarding" | "operator" | undefined} */ authority,
+    /** @type {unknown} */ onboardingGrant,
+    /** @type {unknown} */ token,
+  ) {
     if (requestUrl.pathname !== "/mcp/v1") {
       return false;
     }
@@ -298,7 +309,9 @@ export function createMcpRoute({
       if (!hasEmptyMcpParameters(message.params)) {
         writeProtocolError(response, message.id, -32602, "Invalid params");
       } else {
-        writeResult(response, message.id, { tools: MCP_TOOLS });
+        writeResult(response, message.id, {
+          tools: authority === "onboarding" ? ONBOARDING_MCP_TOOLS : MCP_TOOLS,
+        });
       }
       return true;
     }
@@ -307,7 +320,8 @@ export function createMcpRoute({
         writeProtocolError(response, message.id, -32602, "Invalid params");
       } else {
         writeResult(response, message.id, {
-          resourceTemplates: MCP_RESOURCE_TEMPLATES,
+          resourceTemplates:
+            authority === "onboarding" ? [] : MCP_RESOURCE_TEMPLATES,
         });
       }
       return true;
@@ -333,22 +347,26 @@ export function createMcpRoute({
         message.id,
         name,
       );
-      if (
-        typeof name !== "string" ||
-        ![
-          "quality_bar.list_repositories",
-          "quality_bar.get_repository_guidance",
-          "quality_bar.request_evaluation",
-          "quality_bar.get_evaluation",
-          "quality_bar.get_evaluation_result",
-          "quality_bar.submit_waiver_requests",
-          "quality_bar.get_waiver_adjudication",
-        ].includes(name)
-      ) {
+      const allowedTools =
+        authority === "onboarding"
+          ? ONBOARDING_MCP_TOOLS.map((tool) => tool.name)
+          : MCP_TOOLS.map((tool) => tool.name);
+      if (typeof name !== "string" || !allowedTools.includes(name)) {
         writeProtocolError(response, message.id, -32602, "Unknown tool");
         return true;
       }
       try {
+        if (authority === "onboarding") {
+          const document = await executeOnboardingTool(
+            name,
+            message.params.arguments ?? {},
+            { grant: onboardingGrant, operations: onboardingOperations, token },
+          );
+          const result = toolSuccess(document, []);
+          recordOutcome("success", []);
+          writeResult(response, message.id, result);
+          return true;
+        }
         if (name === "quality_bar.list_repositories") {
           const page = repositories.listPage(
             listRepositoryArguments(message.params.arguments ?? {}),
@@ -420,6 +438,15 @@ export function createMcpRoute({
       );
       if (!isResourceReadParameters(message.params)) {
         writeProtocolError(response, message.id, -32602, "Invalid params");
+        return true;
+      }
+      if (authority === "onboarding") {
+        writeProtocolError(
+          response,
+          message.id,
+          -32602,
+          "Invalid resource URI",
+        );
         return true;
       }
       const uri = message.params.uri;

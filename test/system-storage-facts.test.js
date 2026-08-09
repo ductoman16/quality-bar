@@ -6,14 +6,14 @@ import { readSystemStorageFacts } from "../src/system-storage-facts.js";
 const NOW = Date.parse("2026-08-02T12:00:00.000Z");
 const KEY_IDENTITY = `sha256:${"a".repeat(64)}`;
 
-function durableCore(schemaVersionBeforeMigration = 52) {
+function durableCore(schemaVersionBeforeMigration = 53) {
   return {
     facts: {
       databaseVersion: "3.49.1",
       foreignKeys: true,
       integrity: "ok",
       journalMode: "wal",
-      schemaVersion: 52,
+      schemaVersion: 53,
       schemaVersionBeforeMigration,
       synchronous: "full",
     },
@@ -21,7 +21,7 @@ function durableCore(schemaVersionBeforeMigration = 52) {
 }
 
 /** @param {"daily" | "pre-migration"} kind @param {number} createdAt @param {number} [schemaVersion] */
-function backup(kind, createdAt, schemaVersion = 52) {
+function backup(kind, createdAt, schemaVersion = 53) {
   return {
     applicationVersion: "1.2.3",
     createdAt: new Date(createdAt).toISOString(),
@@ -58,7 +58,7 @@ test("System storage facts expose current identity, backup, and migration state"
       application_version: "1.2.3",
       error: null,
       installation_key_identity: KEY_IDENTITY,
-      schema_version: 52,
+      schema_version: 53,
       status: "available",
     },
     backup: {
@@ -68,17 +68,17 @@ test("System storage facts expose current identity, backup, and migration state"
         created_at: daily.createdAt,
         installation_key_identity: KEY_IDENTITY,
         kind: "daily",
-        schema_version: 52,
+        schema_version: 53,
       },
       status: "current",
     },
     migration: {
       error: null,
-      from_schema_version: 52,
+      from_schema_version: 53,
       pre_migration_snapshot: null,
       pre_migration_snapshot_status: "not_applicable",
       status: "not_required",
-      to_schema_version: 52,
+      to_schema_version: 53,
     },
   });
 });
@@ -110,7 +110,7 @@ test("System storage facts distinguish empty and stale backups", () => {
     created_at: stale.createdAt,
     installation_key_identity: KEY_IDENTITY,
     kind: "daily",
-    schema_version: 52,
+    schema_version: 53,
   });
 });
 
@@ -161,6 +161,6 @@ test("System storage facts require a retained pre-migration snapshot after migra
     pre_migration_snapshot: null,
     pre_migration_snapshot_status: "missing",
     status: "unavailable",
-    to_schema_version: 52,
+    to_schema_version: 53,
   });
 });

@@ -65,17 +65,17 @@ test("System renders storage, cleanup, backup, and migration facts without opera
         application_version: "1.2.3",
         error: null,
         installation_key_identity: `sha256:${"a".repeat(64)}`,
-        schema_version: 52,
+        schema_version: 53,
         status: "available",
       },
       backup: { error: null, last_successful: null, status: "empty" },
       migration: {
         error: null,
-        from_schema_version: 52,
+        from_schema_version: 53,
         pre_migration_snapshot: null,
         pre_migration_snapshot_status: "not_applicable",
         status: "not_required",
-        to_schema_version: 52,
+        to_schema_version: 53,
       },
       storage: {
         cleanup: {
@@ -98,13 +98,13 @@ test("System renders storage, cleanup, backup, and migration facts without opera
       "Installation key identity",
       `sha256:${"a".repeat(64)}`,
       "Schema",
-      "52",
+      "53",
       "Owned cleanup",
       "available — artifacts 2 — sessions 1",
       "Last successful backup",
       "empty — none",
       "Migration",
-      "not_required — 52 to 52",
+      "not_required — 53 to 53",
     ],
   );
 
@@ -114,17 +114,17 @@ test("System renders storage, cleanup, backup, and migration facts without opera
         application_version: "1.2.3",
         error: null,
         installation_key_identity: `sha256:${"a".repeat(64)}`,
-        schema_version: 52,
+        schema_version: 53,
         status: "available",
       },
       backup: { error: null, last_successful: null, status: "empty" },
       migration: {
         error: null,
-        from_schema_version: 52,
+        from_schema_version: 53,
         pre_migration_snapshot: null,
         pre_migration_snapshot_status: "not_applicable",
         status: "not_required",
-        to_schema_version: 52,
+        to_schema_version: 53,
       },
       storage: {
         cleanup: {

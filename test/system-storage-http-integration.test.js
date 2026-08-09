@@ -19,7 +19,7 @@ test("the authenticated System API exposes storage identity, cleanup, backup, an
     application_version: "1.2.3",
     error: null,
     installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
-    schema_version: 52,
+    schema_version: 53,
     status: "available",
   });
   assert.deepEqual(system.backup, {
@@ -29,18 +29,18 @@ test("the authenticated System API exposes storage identity, cleanup, backup, an
   });
   assert.deepEqual(system.migration, {
     error: null,
-    from_schema_version: 52,
+    from_schema_version: 53,
     pre_migration_snapshot: null,
     pre_migration_snapshot_status: "not_applicable",
     status: "not_required",
-    to_schema_version: 52,
+    to_schema_version: 53,
   });
   assert.deepEqual(system.durable_core, {
     database_version: system.durable_core.database_version,
     foreign_keys: true,
     integrity: "ok",
     journal_mode: "wal",
-    schema_version: 52,
+    schema_version: 53,
     schema_version_before_migration: 0,
     status: "ready",
     synchronous: "full",

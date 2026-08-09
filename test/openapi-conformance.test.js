@@ -32,8 +32,8 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
 
   assert.deepEqual(facts, {
     documents: 1,
-    operations: 63,
-    responseStatuses: 430,
+    operations: 72,
+    responseStatuses: 502,
     version: "3.1.0",
   });
   assert.equal(
@@ -41,12 +41,7 @@ test("the complete published contract is structurally valid OpenAPI 3.1", async 
     "#/components/schemas/ReviewCreationAssignment",
   );
   assert.deepEqual(contract.components.schemas.ReviewCreationAssignment, {
-    additionalProperties: false,
-    properties: {
-      scope: { const: "installation_wide", type: "string" },
-    },
-    required: ["scope"],
-    type: "object",
+    $ref: "#/components/schemas/ReviewAssignment",
   });
   assert.deepEqual(
     contract.components.schemas.GitHubRepositoryEvidence.required,

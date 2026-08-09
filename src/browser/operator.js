@@ -275,6 +275,130 @@ requiredElement("implementer-token-reveal-close").addEventListener(
 requiredElement("implementer-token-reveal").addEventListener("close", () => {
   requiredElement("implementer-token-value").textContent = "";
 });
+
+function createOnboardingControls() {
+  const logout = requiredElement("logout");
+  if (typeof (/** @type {any} */ (logout).before) !== "function") {
+    return;
+  }
+  const section = document.createElement("section");
+  const heading = document.createElement("h2");
+  heading.id = "onboarding-tokens-title";
+  heading.textContent = "Onboarding tokens";
+  section.setAttribute("aria-labelledby", heading.id);
+  const form = document.createElement("form");
+  form.id = "onboarding-token-create-form";
+  const label = document.createElement("label");
+  label.htmlFor = "onboarding-token-repository-url";
+  label.textContent = "Repository URL";
+  const input = document.createElement("input");
+  input.id = label.htmlFor;
+  input.name = "repository_url";
+  input.required = true;
+  input.type = "url";
+  const submit = document.createElement("button");
+  submit.textContent = "Create onboarding token";
+  submit.type = "submit";
+  form.append(label, input, submit);
+  const table = document.createElement("table");
+  const header = table.createTHead().insertRow();
+  for (const name of ["Repository", "Expires", "Action"]) {
+    const cell = document.createElement("th");
+    cell.textContent = name;
+    header.append(cell);
+  }
+  const list = table.createTBody();
+  list.id = "onboarding-token-list";
+  section.append(heading, form, table);
+  logout.before(section);
+
+  const dialog = document.createElement("dialog");
+  dialog.id = "onboarding-token-reveal";
+  const dialogHeading = document.createElement("h2");
+  dialogHeading.id = "onboarding-token-reveal-title";
+  dialogHeading.textContent = "Onboarding token";
+  dialog.setAttribute("aria-labelledby", dialogHeading.id);
+  const value = document.createElement("output");
+  value.id = "onboarding-token-value";
+  const warning = document.createElement("p");
+  warning.role = "status";
+  warning.textContent = "Shown once.";
+  const close = document.createElement("button");
+  close.textContent = "Done";
+  close.type = "button";
+  dialog.append(dialogHeading, value, warning, close);
+  requiredElement("implementer-token-reveal").after(dialog);
+  close.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    value.textContent = "";
+  });
+
+  async function loadTokens() {
+    const response = await fetch("/api/v1/onboarding-tokens");
+    if (!response.ok) {
+      await displayMutationFailure(response);
+      return;
+    }
+    const body =
+      /** @type {{onboarding_tokens: Array<{id: string, repository_url: string, expires_at: number}>}} */ (
+        await response.json()
+      );
+    list.replaceChildren();
+    for (const token of body.onboarding_tokens) {
+      const row = list.insertRow();
+      row.insertCell().textContent = token.repository_url;
+      row.insertCell().textContent = new Date(
+        token.expires_at,
+      ).toLocaleString();
+      const revoke = document.createElement("button");
+      revoke.textContent = "Revoke";
+      revoke.type = "button";
+      revoke.addEventListener("click", async () => {
+        const response = await fetch(
+          `/api/v1/onboarding-tokens/${encodeURIComponent(token.id)}`,
+          {
+            body: "{}",
+            headers: {
+              "content-type": "application/json",
+              "x-quality-bar-csrf": csrfToken(),
+            },
+            method: "DELETE",
+          },
+        );
+        if (response.ok) {
+          await loadTokens();
+        } else {
+          await displayMutationFailure(response);
+        }
+      });
+      row.insertCell().append(revoke);
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const response = await fetch("/api/v1/onboarding-tokens", {
+      body: JSON.stringify({ repository_url: input.value }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": csrfToken(),
+      },
+      method: "POST",
+    });
+    if (!response.ok) {
+      await displayMutationFailure(response);
+      return;
+    }
+    value.textContent = /** @type {{token: string}} */ (
+      await response.json()
+    ).token;
+    form.reset();
+    dialog.showModal();
+    await loadTokens();
+  });
+  void loadTokens();
+}
+
 requiredElement("logout").addEventListener("click", async () => {
   error.hidden = true;
   const response = await fetch("/api/v1/session/logout", {
@@ -288,6 +412,9 @@ requiredElement("logout").addEventListener("click", async () => {
   await displayMutationFailure(response);
 });
 const systemFacts = document.getElementById("system-facts");
+if (systemFacts) {
+  createOnboardingControls();
+}
 fetch("/api/v1/system")
   .then(async (response) => {
     if (!response.ok) {
