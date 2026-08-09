@@ -344,6 +344,19 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       error: "codex_authentication_unavailable",
       status: "unavailable",
     },
+    execution_providers: [
+      {
+        error: {
+          code: "codex_authentication_unavailable",
+          message: "Codex is not signed in for this Quality Bar installation.",
+          recovery:
+            "Run `docker compose run --rm --no-deps quality-bar codex login --device-auth` from the Quality Bar installation directory, then restart Quality Bar.",
+        },
+        id: "codex",
+        name: "Codex",
+        status: "unavailable",
+      },
+    ],
     codex_execution: {
       concurrency: {
         maximum_running: 1,

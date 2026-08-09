@@ -92,6 +92,23 @@ export function canonicalSystemFactSchemas(codexCapabilityCatalog) {
         "synchronous",
       ],
     ),
+    ExecutionProviderError: closedObject(
+      {
+        code: { minLength: 1, type: "string" },
+        message: { minLength: 1, type: "string" },
+        recovery: { minLength: 1, type: "string" },
+      },
+      ["code", "message", "recovery"],
+    ),
+    ExecutionProviderFact: openObject(
+      {
+        error: { $ref: "#/components/schemas/ExecutionProviderError" },
+        id: { minLength: 1, type: "string" },
+        name: { minLength: 1, type: "string" },
+        status: { enum: ["available", "unavailable"], type: "string" },
+      },
+      ["id", "name", "status"],
+    ),
     ImplementerTokenFact: openObject(
       { status: { enum: ["active", "revoked"], type: "string" } },
       ["status"],
