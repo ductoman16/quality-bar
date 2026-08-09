@@ -50,6 +50,8 @@
     "src/browser/review-reactivation.js",
     "src/browser/review-archival.js",
     "src/browser/review-delete.js",
-    "src/browser/review-assignment.js"
+    "src/browser/review-assignment.js",
+    "src/browser/review-catalog.js",
+    "src/browser/review-editor.js"
   ]
 }

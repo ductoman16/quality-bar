@@ -208,6 +208,16 @@ const browserAssets = [
     sourcePath: "src/browser/review-assignment.js",
     url: new URL("./browser/review-assignment.js", import.meta.url),
   },
+  {
+    route: "/assets/review-catalog.js",
+    sourcePath: "src/browser/review-catalog.js",
+    url: new URL("./browser/review-catalog.js", import.meta.url),
+  },
+  {
+    route: "/assets/review-editor.js",
+    sourcePath: "src/browser/review-editor.js",
+    url: new URL("./browser/review-editor.js", import.meta.url),
+  },
 ];
 
 export const BROWSER_ASSET_SOURCE_PATHS = browserAssets.map(

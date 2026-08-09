@@ -1,9 +1,6 @@
 {
   "ticket": 161,
-  "focused_commands": [
-    "npm run typecheck:node",
-    "npm run typecheck:browser"
-  ],
+  "focused_commands": ["npm run typecheck:node", "npm run typecheck:browser"],
   "typescript_version": "7.0.2",
   "node_types_version": "24.13.3",
   "served_browser_modules": [
@@ -33,7 +30,9 @@
     "review-reactivation.js",
     "review-archival.js",
     "review-delete.js",
-    "review-assignment.js"
+    "review-assignment.js",
+    "review-catalog.js",
+    "review-editor.js"
   ],
   "initial_production_diagnostics": [
     {
