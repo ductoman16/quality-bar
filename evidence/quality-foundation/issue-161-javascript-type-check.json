@@ -21,7 +21,7 @@
     "forgejo-connection.js",
     "repository.js",
     "repository-delete.js",
-    "repository-guidance.js",
+    "repository-detail.js",
     "review-metadata.js",
     "review-create.js",
     "review-criteria.js",

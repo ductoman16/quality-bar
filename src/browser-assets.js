@@ -159,9 +159,9 @@ const browserAssets = [
     url: new URL("./browser/repository-delete.js", import.meta.url),
   },
   {
-    route: "/assets/repository-guidance.js",
-    sourcePath: "src/browser/repository-guidance.js",
-    url: new URL("./browser/repository-guidance.js", import.meta.url),
+    route: "/assets/repository-detail.js",
+    sourcePath: "src/browser/repository-detail.js",
+    url: new URL("./browser/repository-detail.js", import.meta.url),
   },
   {
     route: "/assets/review-metadata.js",

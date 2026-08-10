@@ -20,6 +20,14 @@ export function browserElement(properties = {}) {
     append(child) {
       this.options.push(child);
     },
+    click() {
+      const listener = listeners.get("click");
+      return listener ? listener({}) : undefined;
+    },
+    requestSubmit() {
+      const listener = listeners.get("submit");
+      return listener ? listener({ preventDefault() {} }) : undefined;
+    },
     close() {
       this.open = false;
     },
@@ -54,6 +62,45 @@ export function browserElement(properties = {}) {
 }
 
 /**
+ * Depth-first collect the `data-label` cells rendered inside an inventory row,
+ * regardless of how deeply the ledger nests them.
+ * @param {{options?: any[], [key: string]: any}} node
+ * @returns {{label: string, textContent: string}[]}
+ */
+export function labeledCells(node) {
+  const cells = [];
+  for (const child of node.options ?? []) {
+    if (typeof child?.["data-label"] === "string") {
+      cells.push({
+        label: child["data-label"],
+        textContent: child.textContent,
+      });
+    }
+    cells.push(...labeledCells(child));
+  }
+  return cells;
+}
+
+/**
+ * Depth-first find the first descendant whose textContent matches `text`.
+ * @param {{options?: any[], textContent?: string}} node
+ * @param {string} text
+ * @returns {any}
+ */
+export function findByText(node, text) {
+  for (const child of node.options ?? []) {
+    if (child?.textContent === text) {
+      return child;
+    }
+    const found = findByText(child, text);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+/**
  * @param {[string, ReturnType<typeof browserElement>][]} overrides
  */
 export function repositoryBrowserElements(overrides) {
@@ -71,6 +118,12 @@ export function repositoryBrowserElements(overrides) {
   for (const id of [
     "error",
     "repository-inventory",
+    "repository-inventory-empty",
+    "repository-overview-total",
+    "repository-overview-enabled",
+    "repository-overview-disabled",
+    "repository-overview-retired",
+    "repository-overview-errors",
     "repository-lifecycle-form",
     "repository-lifecycle-repository",
     "repository-lifecycle-state",
