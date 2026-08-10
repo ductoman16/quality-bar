@@ -4,6 +4,8 @@ import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
 /** @param {string} page */
 export function assertForgejoPage(page) {
   assert.match(page, /<form hidden id="forgejo-connection-form">/);
+  assert.match(page, /<form hidden id="forgejo-connection-reactivation-form">/);
+  assert.match(page, /<form hidden id="forgejo-connection-lifecycle-form">/);
   assert.match(
     page,
     /<fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories<\/legend><div id="forgejo-connection-repositories"><\/div><\/fieldset>.*aria-live="polite" id="forgejo-connection-status" tabindex="-1".*role="alert" tabindex="-1"/,
