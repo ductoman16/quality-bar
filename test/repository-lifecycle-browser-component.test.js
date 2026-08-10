@@ -6,6 +6,8 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import {
   browserElement,
+  findByText,
+  labeledCells,
   repositoryBrowserElements,
 } from "./repository-browser-component-support.js";
 
@@ -219,7 +221,7 @@ test("the Repository component displays lifecycle separately from health and sur
 
   assert.deepEqual(
     inventory.options.map((row) =>
-      row.options.map(
+      labeledCells(row).map(
         (/** @type {{textContent: string}} */ cell) => cell.textContent,
       ),
     ),
@@ -259,7 +261,7 @@ test("the Repository component displays lifecycle separately from health and sur
   assert.equal(error.hidden, false);
   assert.equal(lifecycleResult.textContent, "");
   assert.deepEqual(
-    inventory.options[0].options.map(
+    labeledCells(inventory.options[0]).map(
       (/** @type {{textContent: string}} */ cell) => cell.textContent,
     ),
     [
@@ -308,7 +310,7 @@ test("the Repository component displays lifecycle separately from health and sur
     "Disable https://example.com/error.git? New work will be rejected; already-created work may finish.",
   );
   assert.deepEqual(
-    inventory.options[1].options.map(
+    labeledCells(inventory.options[1]).map(
       (/** @type {{textContent: string}} */ cell) => cell.textContent,
     ),
     [
@@ -381,4 +383,139 @@ test("the Repository component displays lifecycle separately from health and sur
   assert.equal(inventory.options.length, 0);
   assert.equal(lifecycleRepository.options.length, 0);
   assert.equal(lifecycleSubmit.disabled, true);
+});
+
+test("inventory row actions drive lifecycle, credential rotation, and deletion", async () => {
+  const inventory = browserElement();
+  const error = browserElement({ hidden: true });
+  const lifecycleRepository = browserElement();
+  const lifecycleState = browserElement({ value: "enabled" });
+  const repositoryDelete = browserElement();
+  const repositoryDeleteConfirmation = browserElement();
+  const repositoryDeleteConfirmationMessage = browserElement();
+  const elements = repositoryBrowserElements([
+    ["error", error],
+    ["repository-inventory", inventory],
+    ["repository-lifecycle-repository", lifecycleRepository],
+    ["repository-lifecycle-state", lifecycleState],
+    ["repository-delete", repositoryDelete],
+    ["repository-delete-confirmation", repositoryDeleteConfirmation],
+    [
+      "repository-delete-confirmation-message",
+      repositoryDeleteConfirmationMessage,
+    ],
+  ]);
+  /** @type {string[]} */
+  const confirmations = [];
+  /** @type {{path: string, options: any}[]} */
+  const requests = [];
+  const repository = {
+    credential_type: "username_token",
+    deletion_eligible: true,
+    health: "healthy",
+    health_error: null,
+    id: "repository-row",
+    lifecycle: "enabled",
+    url: "https://example.com/row.git",
+  };
+  const browserContext = {
+    Date,
+    document: {
+      cookie: "quality_bar_configured_csrf=csrf-token",
+      addEventListener() {},
+      createElement() {
+        return browserElement();
+      },
+      /** @param {string} id */
+      getElementById(id) {
+        return elements.get(id) ?? null;
+      },
+    },
+    /** @param {string} path @param {any} [options] */
+    async fetch(path, options) {
+      requests.push({ options, path });
+      if (path === "/api/v1/repositories" && !options) {
+        return {
+          ok: true,
+          async json() {
+            return { items: [{ ...repository }], next_cursor: null };
+          },
+        };
+      }
+      if (path.endsWith("/lifecycle")) {
+        return {
+          ok: true,
+          async json() {
+            return { ...repository, lifecycle: "disabled" };
+          },
+        };
+      }
+      if (path.endsWith("/credential/rotate")) {
+        return {
+          ok: true,
+          async json() {
+            return { ...repository, lifecycle: "disabled" };
+          },
+        };
+      }
+      throw new Error(`unexpected request: ${path}`);
+    },
+    window: {
+      /** @param {string} message */
+      confirm(message) {
+        confirmations.push(message);
+        return true;
+      },
+    },
+  };
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/operator.js",
+    readBrowserAsset("/assets/operator.js"),
+    browserContext,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository.js",
+    readBrowserAsset("/assets/repository.js"),
+    browserContext,
+  );
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/repository-delete.js",
+    readBrowserAsset("/assets/repository-delete.js"),
+    browserContext,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const row = inventory.options[0];
+  // Expand the row to reveal its inline actions.
+  row.options[0].listener("click")({});
+  assert.equal(row.options[0]["aria-expanded"], "true");
+
+  // Disable via the row action drives the (hidden) lifecycle form.
+  findByText(row, "Disable").listener("click")({});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    confirmations.at(-1),
+    "Disable https://example.com/row.git? New work will be rejected; already-created work may finish.",
+  );
+  assert.ok(requests.some(({ path }) => path.endsWith("/lifecycle")));
+
+  // Rotate credential via the row action reveals inputs and drives the form.
+  const rotate = findByText(inventory.options[0], "Rotate credential");
+  rotate.listener("click")({});
+  findByText(inventory.options[0], "Save credential").listener("click")({});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(requests.some(({ path }) => path.endsWith("/credential/rotate")));
+
+  // Delete via the row action opens the confirmation dialog.
+  findByText(inventory.options[0], "Delete").listener("click")({});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(lifecycleRepository.value, "repository-row");
+  assert.equal(repositoryDeleteConfirmation.open, true);
+  assert.equal(
+    repositoryDeleteConfirmationMessage.textContent,
+    "Delete https://example.com/row.git permanently. This cannot be undone.",
+  );
 });

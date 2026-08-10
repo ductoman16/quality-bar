@@ -6,6 +6,7 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import {
   browserElement,
+  labeledCells,
   repositoryBrowserElements,
 } from "./repository-browser-component-support.js";
 import {
@@ -114,9 +115,9 @@ test("the Repository inventory keeps GitHub identity, metadata, lifecycle, healt
     elements.get("repository-delete-confirmation-message")?.textContent,
     "Delete GitHub Repository 101 on Connection connection-1 permanently. This cannot be undone.",
   );
-  const cells = /** @type {any[]} */ (inventory.options[0].options);
+  const cells = labeledCells(inventory.options[0]);
   assert.deepEqual(
-    cells.map(({ "data-label": label, textContent }) => ({
+    cells.map(({ label, textContent }) => ({
       label,
       textContent,
     })),

@@ -1,21 +1,24 @@
 const OVERVIEW_SECTION =
   '<section class="qb-region repo-overview" aria-labelledby="repository-overview-title"><h2 class="qb-visually-hidden" id="repository-overview-title">Overview</h2><div class="repo-stat-strip"><div class="repo-stat"><span class="repo-stat__label">Repositories</span><output class="repo-stat__value" id="repository-overview-total">—</output></div><div class="repo-stat" data-mark="filled"><span class="repo-stat__label">Enabled</span><output class="repo-stat__value" id="repository-overview-enabled">—</output></div><div class="repo-stat" data-mark="hollow"><span class="repo-stat__label">Disabled</span><output class="repo-stat__value" id="repository-overview-disabled">—</output></div><div class="repo-stat" data-mark="dashed"><span class="repo-stat__label">Retired</span><output class="repo-stat__value" id="repository-overview-retired">—</output></div><div class="repo-stat" data-mark="filled"><span class="repo-stat__label">Health errors</span><output class="repo-stat__value" id="repository-overview-errors">—</output></div></div></section>';
 
+// The inventory is an interactive ledger: repository.js renders one expandable
+// `.repo-row` per repository into #repository-inventory, each carrying its own
+// lifecycle / credential / delete actions.
 const INVENTORY_SECTION =
-  '<section class="qb-region repo-inventory" aria-labelledby="repository-inventory-title"><h2 id="repository-inventory-title">Repository inventory</h2><table><thead><tr><th>Provider and Connection</th><th>Identity</th><th>Lifecycle</th><th>Health</th><th>Assignments</th><th>Latest verification</th></tr></thead><tbody id="repository-inventory"></tbody></table></section>';
+  '<section class="qb-region repo-inventory" aria-labelledby="repository-inventory-title"><h2 id="repository-inventory-title">Repository inventory</h2><div class="repo-ledger" id="repository-inventory"></div><p class="repo-ledger__empty" hidden id="repository-inventory-empty">No repositories registered yet.</p></section>';
 
+// Lifecycle and credential rotation remain as forms so their exact request,
+// confirmation, and reconciliation behavior is reused; the ledger row actions
+// drive them. They are visually clipped because the row actions are the operator
+// surface, but stay in the accessibility tree and operable.
 const LIFECYCLE_FORM =
   '<form id="repository-lifecycle-form"><label for="repository-lifecycle-repository">Repository lifecycle</label><select disabled id="repository-lifecycle-repository" required></select><label for="repository-lifecycle-state">State</label><select id="repository-lifecycle-state" required><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="retired">Retired</option></select><button disabled id="repository-lifecycle-submit" type="submit">Apply lifecycle</button><button disabled id="repository-delete" type="button">Delete Repository</button><output aria-live="polite" id="repository-lifecycle-result" tabindex="-1"></output></form>';
 
 const CREDENTIAL_FORM =
   '<form id="repository-credential-rotate-form"><label for="repository-credential-rotate-repository">Credential Repository</label><select disabled id="repository-credential-rotate-repository" required></select><label for="repository-credential-rotate-username">Replacement username</label><input autocomplete="off" id="repository-credential-rotate-username" required type="text"><label for="repository-credential-rotate-token">Replacement token</label><input autocomplete="off" id="repository-credential-rotate-token" required type="password"><button disabled id="repository-credential-rotate-submit" type="submit">Rotate credential</button><output aria-live="polite" id="repository-credential-rotate-result"></output></form>';
 
-const MANAGE_SECTION =
-  '<section class="qb-region qb-deep-surface repo-manage" aria-labelledby="repository-manage-title"><h2 id="repository-manage-title">Manage a repository</h2><div class="repo-manage__bands"><div class="repo-band"><h3 class="repo-band__title">Lifecycle and deletion</h3>' +
-  LIFECYCLE_FORM +
-  '</div><div class="repo-band"><h3 class="repo-band__title">Credential rotation</h3>' +
-  CREDENTIAL_FORM +
-  "</div></div></section>";
+const ENGINE_SECTION =
+  '<div class="repo-engine">' + LIFECYCLE_FORM + CREDENTIAL_FORM + "</div>";
 
 const DELETE_DIALOG =
   '<dialog aria-labelledby="repository-delete-confirmation-title" id="repository-delete-confirmation"><form id="repository-delete-confirmation-form"><h2 id="repository-delete-confirmation-title">Delete Repository permanently</h2><p id="repository-delete-confirmation-message"></p><label for="repository-delete-confirmation-input">Repository identity</label><input autocomplete="off" id="repository-delete-confirmation-input" required type="text"><button id="repository-delete-confirmation-cancel" type="button">Cancel</button><button id="repository-delete-confirmation-submit" type="submit">Delete permanently</button></form></dialog>';
@@ -44,6 +47,7 @@ const FORGEJO_SECTION =
 
 const REPOSITORY_STYLE =
   "<style>" +
+  "[hidden]{display:none!important}" +
   ".repo-overview{padding-top:18px}" +
   ".repo-stat-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}" +
   ".repo-stat{display:grid;gap:9px;padding:18px 16px 18px 0;min-width:0}" +
@@ -54,24 +58,41 @@ const REPOSITORY_STYLE =
   '.repo-stat[data-mark="filled"] .repo-stat__value::before{background:var(--qb-ink)}' +
   '.repo-stat[data-mark="hollow"] .repo-stat__value::before{background:transparent}' +
   '.repo-stat[data-mark="dashed"] .repo-stat__value::before{background:transparent;border-style:dashed}' +
-  ".repo-inventory table{table-layout:auto}" +
-  '.repo-inventory td[data-label="Provider and Connection"]{white-space:normal;font-size:12px}' +
-  '.repo-inventory td[data-label="Identity"]{font-family:var(--font-mono);font-size:12px;color:var(--qb-muted-ink);white-space:normal;overflow-wrap:anywhere}' +
-  '.repo-inventory td[data-label="Assignments"],.repo-inventory td[data-label="Latest verification"]{font-family:var(--font-mono);font-size:12px;color:var(--qb-muted-ink);white-space:nowrap}' +
-  ".repo-inventory td[data-lifecycle]{text-transform:capitalize;white-space:nowrap}" +
-  '.repo-inventory td[data-lifecycle]::before{content:"";display:inline-block;width:8px;height:8px;margin-right:9px;border:1px solid var(--qb-ink);border-radius:50%;vertical-align:middle}' +
-  '.repo-inventory td[data-lifecycle="enabled"]::before{background:var(--qb-ink)}' +
-  '.repo-inventory td[data-lifecycle="disabled"]::before{background:transparent}' +
-  '.repo-inventory td[data-lifecycle="retired"]::before{background:transparent;border-style:dashed}' +
-  '.repo-inventory td[data-health="error"]{color:var(--qb-ink);font-weight:650}' +
+  ".repo-ledger{border-top:1px solid var(--qb-line)}" +
+  ".repo-ledger__empty{margin:14px 0 0;color:var(--qb-muted-ink);font-size:13px}" +
+  ".repo-row{border-bottom:1px solid var(--qb-line)}" +
+  ".repo-row__summary{display:grid;grid-template-columns:9px 11px minmax(0,1.4fr) minmax(0,0.9fr) 92px minmax(0,1.2fr) 96px 152px;align-items:center;gap:16px;width:100%;padding:14px 4px;border:0;border-radius:0;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}" +
+  ".repo-row__summary:hover{border-color:transparent}" +
+  ".repo-row__caret{width:8px;height:8px;border-right:1.7px solid var(--qb-ink);border-bottom:1.7px solid var(--qb-ink);transform:rotate(-45deg);transition:transform .15s}" +
+  '.repo-row__summary[aria-expanded="true"] .repo-row__caret{transform:rotate(45deg)}' +
+  ".repo-row__mark{width:10px;height:10px;border:1px solid var(--qb-ink);border-radius:50%}" +
+  '.repo-row__mark[data-lifecycle="enabled"]{background:var(--qb-ink)}' +
+  '.repo-row__mark[data-lifecycle="disabled"]{background:transparent}' +
+  '.repo-row__mark[data-lifecycle="retired"]{background:transparent;border-style:dashed}' +
+  '.repo-row__mark[data-health="error"]{background:var(--qb-ink);box-shadow:inset 0 0 0 2px var(--qb-canvas)}' +
+  ".repo-row__identity{display:none}" +
+  ".repo-row__name{min-width:0;font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  ".repo-row__provider{min-width:0;color:var(--qb-muted-ink);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  ".repo-row__lifecycle{font-size:12px;text-transform:capitalize;white-space:nowrap}" +
+  ".repo-row__health{min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  '.repo-row[data-health="error"] .repo-row__health{color:var(--qb-ink);font-weight:650}' +
+  ".repo-row__assignments{font-family:var(--font-mono);font-size:12px;color:var(--qb-muted-ink);white-space:nowrap}" +
+  ".repo-row__verified{font-family:var(--font-mono);font-size:11px;color:var(--qb-muted-ink);white-space:nowrap}" +
+  ".repo-row__detail{padding:2px 8px 22px 40px;display:grid;gap:18px}" +
+  ".repo-row__facts{grid-template-columns:max-content minmax(0,1fr);gap:7px 18px;margin:0;max-width:64ch}" +
+  ".repo-row__facts dt{color:var(--qb-muted-ink);font-size:11px}" +
+  ".repo-row__facts dd{margin:0;font-size:13px}" +
+  ".repo-row__mono{font-family:var(--font-mono);font-size:12px;overflow-wrap:anywhere}" +
+  ".repo-row__actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}" +
+  ".repo-row__action{min-height:30px;padding:4px 13px;border-radius:6px;font-size:12px}" +
+  ".repo-row__action--danger{margin-left:auto}" +
+  ".repo-row__credential{display:flex;flex-wrap:wrap;align-items:center;gap:8px}" +
+  ".repo-row__credential input{min-height:30px;font-size:12px}" +
+  ".repo-engine{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}" +
   "#repository-guidance-repository{max-width:34rem}" +
   "#repository-guidance-document{max-height:320px;overflow:auto;margin:14px 0 0;padding:14px 16px;border:1px solid var(--qb-line);border-radius:6px;font-size:12px;line-height:1.5}" +
   "#repository-guidance-document:empty{display:none}" +
-  ".repo-manage__bands{display:grid;gap:28px}" +
-  ".repo-band__title{margin:0 0 14px;font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--qb-muted-ink)}" +
-  ".repo-band form{padding:0}" +
-  "@media(max-width:900px){.repo-stat-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.repo-stat{padding-right:12px}}" +
-  "@media(max-width:40rem){.repo-inventory td{position:relative}.repo-inventory td::before{content:attr(data-label);display:block;margin-bottom:3px;color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}}" +
+  "@media(max-width:900px){.repo-stat-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.repo-stat{padding-right:12px}.repo-row__summary{grid-template-columns:9px 11px minmax(0,1fr) 90px;gap:10px 14px}.repo-row__provider,.repo-row__health,.repo-row__assignments,.repo-row__verified{display:none}}" +
   "</style>";
 
 const REPOSITORY_SCRIPTS =
@@ -87,16 +108,16 @@ const REPOSITORY_SCRIPTS =
   '<script src="/assets/repository-guidance.js"></script>';
 
 /**
- * Render the operator Repositories view: an overview strip, the repository
- * inventory, a management workbench, guidance, HTTPS registration, and the
- * provider connection panels.
+ * Render the operator Repositories view: an overview strip, an interactive
+ * inventory ledger with inline per-repository actions, guidance, HTTPS
+ * registration, and the provider connection panels.
  */
 export function renderRepositoryPage() {
   return Object.freeze({
     markup:
       OVERVIEW_SECTION +
       INVENTORY_SECTION +
-      MANAGE_SECTION +
+      ENGINE_SECTION +
       DELETE_DIALOG +
       GUIDANCE_SECTION +
       REGISTER_SECTION +
