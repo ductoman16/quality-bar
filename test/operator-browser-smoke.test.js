@@ -115,7 +115,7 @@ afterEach(() => {
   }
 });
 
-test("Firefox completes the fixed authenticated operator-browser plumbing smoke", async () => {
+test("Firefox keeps a Forgejo verification failure visible on Repositories", async () => {
   const directory = temporaryDirectory("quality-bar-operator-browser-");
   const databasePath = join(directory, "quality-bar.sqlite3");
   const application = createApplication({
@@ -148,6 +148,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   }
   const applicationOrigin = `http://127.0.0.1:${applicationAddress.port}`;
   let sawAuthenticatedShell = false;
+  let sawForgejoDiscovery = false;
+  let sawForgejoError = false;
   let sawSystemFetch = false;
   /** @type {string[]} */
   const requestFacts = [];
@@ -158,6 +160,16 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
   const completed = new Promise((resolve) => {
     complete = () => resolve(undefined);
   });
+  const completeWhenProven = () => {
+    if (
+      sawAuthenticatedShell &&
+      sawForgejoDiscovery &&
+      sawForgejoError &&
+      sawSystemFetch
+    ) {
+      complete();
+    }
+  };
   const proxy = createServer(async (request, response) => {
     if (!request.method || !request.url) {
       throw new Error("operator_browser_proxy_request_invalid");
@@ -176,6 +188,36 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
         "content-type": "text/javascript; charset=utf-8",
       });
       response.end(automatedLoginScript());
+      return;
+    }
+    if (
+      request.method === "POST" &&
+      request.url === "/api/v1/forgejo-connections/discover"
+    ) {
+      sawForgejoDiscovery = true;
+      response.writeHead(502, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          error: { message: "Controlled Forgejo verification failure" },
+        }),
+      );
+      completeWhenProven();
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      request.url.startsWith("/operator-browser-complete?")
+    ) {
+      const facts = new URL(request.url, "http://127.0.0.1");
+      assert.equal(facts.searchParams.get("path"), "/?view=repositories");
+      assert.equal(
+        facts.searchParams.get("error"),
+        "Controlled Forgejo verification failure",
+      );
+      sawForgejoError = true;
+      response.writeHead(204);
+      response.end();
+      completeWhenProven();
       return;
     }
     const body = ["GET", "HEAD"].includes(request.method)
@@ -199,8 +241,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       upstream.headers.get("content-type") ?? "application/octet-stream";
     if (
       request.method === "GET" &&
-      request.url === "/" &&
-      !request.headers.cookie &&
+      (!request.headers.cookie || request.url === "/?view=repositories") &&
       contentType.startsWith("text/html")
     ) {
       responseBody = automatedLoginPage(responseBody);
@@ -212,15 +253,13 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
         : {}),
     });
     response.end(responseBody);
-    if (request.url === "/" && request.headers.cookie) {
+    if (request.url === "/?view=repositories" && request.headers.cookie) {
       sawAuthenticatedShell = true;
     }
     if (request.url === "/api/v1/system" && request.headers.cookie) {
       sawSystemFetch = true;
     }
-    if (sawAuthenticatedShell && sawSystemFetch) {
-      complete();
-    }
+    completeWhenProven();
   });
   await listen(proxy);
   const proxyAddress = proxy.address();
@@ -235,7 +274,7 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
     "--no-remote",
     "--profile",
     firefoxProfilePath,
-    `${proxyOrigin}/`,
+    `${proxyOrigin}/?return_to=%2F%3Fview%3Drepositories`,
   ]);
   let firefoxStandardError = "";
   firefox.stderr.on("data", (chunk) => {
@@ -267,6 +306,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       );
     }
     assert.equal(sawAuthenticatedShell, true);
+    assert.equal(sawForgejoDiscovery, true);
+    assert.equal(sawForgejoError, true);
     assert.equal(sawSystemFetch, true);
   } finally {
     firefox.kill("SIGTERM");
@@ -280,6 +321,8 @@ test("Firefox completes the fixed authenticated operator-browser plumbing smoke"
       executableVersion: execFileSync(firefoxBinary(), ["--version"], {
         encoding: "utf8",
       }).trim(),
+      forgejoDiscovery: sawForgejoDiscovery,
+      forgejoErrorVisible: sawForgejoError,
       systemFetch: sawSystemFetch,
     })}`,
   );
