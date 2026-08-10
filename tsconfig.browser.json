@@ -41,7 +41,7 @@
     "src/browser/forgejo-connection.js",
     "src/browser/repository.js",
     "src/browser/repository-delete.js",
-    "src/browser/repository-guidance.js",
+    "src/browser/repository-detail.js",
     "src/browser/review-metadata.js",
     "src/browser/review-create.js",
     "src/browser/review-criteria.js",

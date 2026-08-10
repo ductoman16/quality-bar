@@ -88,11 +88,52 @@ async function submitRepositoryMutation(
 
 const repositoryRows = new Map(),
   repositoryResources = new Map();
+/** @type {Set<string>} */
+const expandedRepositoryIds = new Set();
 const repositorySubscribers = new Set();
 
 function publishRepositoryResources() {
   const resources = [...repositoryResources.values()];
+  renderRepositoryOverview(resources);
   repositorySubscribers.forEach((subscriber) => subscriber(resources));
+}
+
+/** @param {RepositoryResource[]} resources */
+function renderRepositoryOverview(resources) {
+  let enabled = 0;
+  let disabled = 0;
+  let retired = 0;
+  let errors = 0;
+  for (const repository of resources) {
+    if (repository.lifecycle === "enabled") {
+      enabled += 1;
+    } else if (repository.lifecycle === "disabled") {
+      disabled += 1;
+    } else if (repository.lifecycle === "retired") {
+      retired += 1;
+    }
+    if (repository.health === "error") {
+      errors += 1;
+    }
+  }
+  /** @type {[string, number][]} */
+  const counters = [
+    ["repository-overview-total", resources.length],
+    ["repository-overview-enabled", enabled],
+    ["repository-overview-disabled", disabled],
+    ["repository-overview-retired", retired],
+    ["repository-overview-errors", errors],
+  ];
+  for (const [id, value] of counters) {
+    const element = document.getElementById?.(id);
+    if (element) {
+      element.textContent = String(value);
+    }
+  }
+  const empty = document.getElementById?.("repository-inventory-empty");
+  if (empty) {
+    empty.hidden = resources.length > 0;
+  }
 }
 
 Reflect.set(
@@ -130,6 +171,33 @@ Reflect.set(
   }),
 );
 
+/**
+ * @param {string} tag
+ * @param {string} className
+ * @param {string} [text]
+ */
+function repositoryElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) {
+    element.setAttribute("class", className);
+  }
+  if (text !== undefined) {
+    element.textContent = text;
+  }
+  return element;
+}
+
+/** @param {RepositoryResource["credential_type"]} credentialType */
+function repositoryCredentialLabel(credentialType) {
+  if (credentialType === "forge_connection") {
+    return "Provider connection";
+  }
+  if (credentialType === "username_token") {
+    return "Username and token";
+  }
+  return "None";
+}
+
 /** @param {RepositoryResource} repository */
 function renderRepository(repository) {
   if (typeof repository.deletion_eligible !== "boolean") {
@@ -151,14 +219,6 @@ function renderRepository(repository) {
     throw new Error("repository_lifecycle_invalid");
   }
   repositoryResources.set(repository.id, repository);
-  let row = repositoryRows.get(repository.id);
-  if (!row) {
-    row = document.createElement("tr");
-    row.id = `repository-${repository.id}`;
-    repositoryRows.set(repository.id, row);
-    requiredRepositoryElement("repository-inventory").append(row);
-  }
-  row.replaceChildren();
   let provider = "Generic HTTPS Git";
   let identity = repository.url;
   let assignments = "Unavailable";
@@ -185,20 +245,262 @@ function renderRepository(repository) {
       /** @type {number} */ (repository.verified_at),
     ).toISOString();
   }
-  const values = [
-    ["Provider and Connection", provider],
-    ["Identity", identity],
-    ["Lifecycle", repository.lifecycle],
-    ["Health", observedHealth],
-    ["Assignments", assignments],
-    ["Latest verification", latestVerification],
-  ];
-  for (const [label, value] of values) {
-    const cell = document.createElement("td");
-    cell.setAttribute("data-label", label);
-    cell.textContent = value;
-    row.append(cell);
+
+  let row = repositoryRows.get(repository.id);
+  if (!row) {
+    row = repositoryElement("div", "repo-row");
+    row.id = `repository-${repository.id}`;
+    repositoryRows.set(repository.id, row);
+    requiredRepositoryElement("repository-inventory").append(row);
   }
+  row.replaceChildren();
+  row.setAttribute("data-lifecycle", repository.lifecycle);
+  row.setAttribute("data-health", repository.health);
+
+  const expanded = expandedRepositoryIds.has(repository.id);
+  const detailHref = `/?view=repository-detail&repository_id=${encodeURIComponent(repository.id)}`;
+  const summary = repositoryElement("div", "repo-row__summary");
+
+  const toggle = /** @type {HTMLButtonElement} */ (
+    repositoryElement("button", "repo-row__toggle")
+  );
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  toggle.setAttribute("aria-label", "Toggle repository details");
+  toggle.append(repositoryElement("span", "repo-row__caret"));
+  toggle.addEventListener("click", () => toggleRepositoryRow(repository.id));
+  summary.append(toggle);
+
+  const mark = repositoryElement("span", "repo-row__mark");
+  mark.setAttribute("data-lifecycle", repository.lifecycle);
+  mark.setAttribute("data-health", repository.health);
+  summary.append(mark);
+
+  const primaryName =
+    repository.provider === "github" || repository.provider === "forgejo"
+      ? /** @type {string} */ (repository.name)
+      : repository.url;
+  const name = /** @type {HTMLAnchorElement} */ (
+    repositoryElement("a", "repo-row__name", primaryName)
+  );
+  name.href = detailHref;
+  summary.append(name);
+
+  /** @type {[string, string, string][]} */
+  const fields = [
+    ["Provider and Connection", "repo-row__provider", provider],
+    ["Identity", "repo-row__identity", identity],
+    ["Lifecycle", "repo-row__lifecycle", repository.lifecycle],
+    ["Health", "repo-row__health", observedHealth],
+    ["Assignments", "repo-row__assignments", assignments],
+    ["Latest verification", "repo-row__verified", latestVerification],
+  ];
+  for (const [label, className, value] of fields) {
+    const cell = repositoryElement("span", className, value);
+    cell.setAttribute("data-label", label);
+    if (label === "Lifecycle") {
+      cell.setAttribute("data-lifecycle", repository.lifecycle);
+    } else if (label === "Health") {
+      cell.setAttribute("data-health", repository.health);
+    }
+    summary.append(cell);
+  }
+
+  const open = /** @type {HTMLAnchorElement} */ (
+    repositoryElement("a", "repo-row__open", "›")
+  );
+  open.href = detailHref;
+  open.setAttribute("aria-label", "Open repository");
+  summary.append(open);
+  row.append(summary);
+
+  const detail = repositoryElement("div", "repo-row__detail");
+  detail.hidden = !expanded;
+  renderRepositoryDetail(repository, detail);
+  row.append(detail);
+}
+
+/**
+ * @param {RepositoryResource} repository
+ * @param {HTMLElement} detail
+ */
+function renderRepositoryDetail(repository, detail) {
+  detail.replaceChildren();
+
+  const definitions = document.createElement("dl");
+  definitions.setAttribute("class", "repo-row__facts");
+  /** @type {[string, string][]} */
+  const facts = [];
+  if (repository.provider === "github" || repository.provider === "forgejo") {
+    facts.push(
+      ["Provider", repository.provider === "github" ? "GitHub" : "Forgejo"],
+      ["Connection", /** @type {string} */ (repository.forge_connection_id)],
+      ["Forge repository", `#${repository.forge_repository_id}`],
+      ["Clone URL", repository.url],
+      ["Web URL", /** @type {string} */ (repository.web_url)],
+      ["API URL", /** @type {string} */ (repository.api_url)],
+    );
+  } else {
+    facts.push(
+      ["Provider", "Generic HTTPS Git"],
+      ["Clone URL", repository.url],
+    );
+  }
+  facts.push([
+    "Credential",
+    repositoryCredentialLabel(repository.credential_type),
+  ]);
+  if (repository.health === "error" && repository.health_error) {
+    facts.push(["Health error", repository.health_error.message]);
+  }
+  for (const [term, value] of facts) {
+    definitions.append(repositoryElement("dt", "", term));
+    const description = repositoryElement("dd", "", value);
+    if (term.endsWith("URL") || term === "Clone URL") {
+      description.setAttribute("class", "repo-row__mono");
+    }
+    definitions.append(description);
+  }
+  detail.append(definitions);
+
+  const actions = repositoryElement("div", "repo-row__actions");
+  /** @type {[RepositoryResource["lifecycle"], string][]} */
+  const lifecycleActions = [
+    ["enabled", "Enable"],
+    ["disabled", "Disable"],
+    ["retired", "Retire"],
+  ];
+  for (const [lifecycle, label] of lifecycleActions) {
+    if (lifecycle === repository.lifecycle) {
+      continue;
+    }
+    const button = /** @type {HTMLButtonElement} */ (
+      repositoryElement("button", "repo-row__action", label)
+    );
+    button.type = "button";
+    button.addEventListener("click", () =>
+      driveRepositoryLifecycle(repository.id, lifecycle),
+    );
+    actions.append(button);
+  }
+
+  if (repository.credential_type === "username_token") {
+    const rotate = /** @type {HTMLButtonElement} */ (
+      repositoryElement("button", "repo-row__action", "Rotate credential")
+    );
+    rotate.type = "button";
+    actions.append(rotate);
+    const credential = repositoryElement("div", "repo-row__credential");
+    credential.hidden = true;
+    const username = /** @type {HTMLInputElement} */ (
+      document.createElement("input")
+    );
+    username.setAttribute("autocomplete", "off");
+    username.setAttribute("aria-label", "Replacement username");
+    username.setAttribute("placeholder", "Username");
+    const token = /** @type {HTMLInputElement} */ (
+      document.createElement("input")
+    );
+    token.type = "password";
+    token.setAttribute("autocomplete", "off");
+    token.setAttribute("aria-label", "Replacement token");
+    token.setAttribute("placeholder", "Token");
+    const confirm = /** @type {HTMLButtonElement} */ (
+      repositoryElement("button", "repo-row__action", "Save credential")
+    );
+    confirm.type = "button";
+    confirm.addEventListener("click", () => {
+      driveRepositoryCredential(repository.id, username.value, token.value);
+      username.value = "";
+      token.value = "";
+      credential.hidden = true;
+    });
+    credential.append(username);
+    credential.append(token);
+    credential.append(confirm);
+    rotate.addEventListener("click", () => {
+      credential.hidden = !credential.hidden;
+    });
+    detail.append(actions);
+    detail.append(credential);
+  } else {
+    detail.append(actions);
+  }
+
+  if (repository.deletion_eligible) {
+    const remove = /** @type {HTMLButtonElement} */ (
+      repositoryElement(
+        "button",
+        "repo-row__action repo-row__action--danger",
+        "Delete",
+      )
+    );
+    remove.type = "button";
+    remove.addEventListener("click", () => driveRepositoryDeletion(repository));
+    actions.append(remove);
+  }
+}
+
+/** @param {string} repositoryId */
+function toggleRepositoryRow(repositoryId) {
+  if (expandedRepositoryIds.has(repositoryId)) {
+    expandedRepositoryIds.delete(repositoryId);
+  } else {
+    expandedRepositoryIds.add(repositoryId);
+  }
+  const repository = repositoryResources.get(repositoryId);
+  if (repository) {
+    renderRepository(repository);
+  }
+}
+
+/**
+ * Drive the (hidden) lifecycle form for a specific Repository so a row action
+ * reuses the exact confirmation, request, and reconciliation behavior.
+ * @param {string} repositoryId
+ * @param {RepositoryResource["lifecycle"]} lifecycle
+ */
+function driveRepositoryLifecycle(repositoryId, lifecycle) {
+  /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  ).value = repositoryId;
+  /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-state")
+  ).value = lifecycle;
+  /** @type {HTMLFormElement} */ (
+    requiredRepositoryElement("repository-lifecycle-form")
+  ).requestSubmit();
+}
+
+/**
+ * @param {string} repositoryId
+ * @param {string} username
+ * @param {string} token
+ */
+function driveRepositoryCredential(repositoryId, username, token) {
+  /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-credential-rotate-repository")
+  ).value = repositoryId;
+  /** @type {HTMLInputElement} */ (
+    requiredRepositoryElement("repository-credential-rotate-username")
+  ).value = username;
+  /** @type {HTMLInputElement} */ (
+    requiredRepositoryElement("repository-credential-rotate-token")
+  ).value = token;
+  /** @type {HTMLFormElement} */ (
+    requiredRepositoryElement("repository-credential-rotate-form")
+  ).requestSubmit();
+}
+
+/** @param {RepositoryResource} repository */
+function driveRepositoryDeletion(repository) {
+  /** @type {HTMLSelectElement} */ (
+    requiredRepositoryElement("repository-lifecycle-repository")
+  ).value = repository.id;
+  syncRepositoryDeleteAvailability();
+  /** @type {HTMLButtonElement} */ (
+    requiredRepositoryElement("repository-delete")
+  ).click();
 }
 
 /** @param {RepositoryResource} repository */
