@@ -201,7 +201,7 @@ export const APPLICATION_COVERAGE_TEST_PATHS = Object.freeze([
   "test/review-delete-browser-component.test.js",
   "test/review-applicability-rule-browser-component.test.js",
   "test/review-assignment-browser-component.test.js",
-  "test/repository-guidance-browser-component.test.js",
+  "test/repository-detail-browser-component.test.js",
   "test/review-archival-sqlite-integration.test.js",
   "test/review-removal-sqlite-integration.test.js",
   "test/review-applicability-rule-sqlite-integration.test.js",

@@ -258,12 +258,19 @@ function renderRepository(repository) {
   row.setAttribute("data-health", repository.health);
 
   const expanded = expandedRepositoryIds.has(repository.id);
-  const summary = /** @type {HTMLButtonElement} */ (
-    repositoryElement("button", "repo-row__summary")
+  const detailHref = `/?view=repository-detail&repository_id=${encodeURIComponent(repository.id)}`;
+  const summary = repositoryElement("div", "repo-row__summary");
+
+  const toggle = /** @type {HTMLButtonElement} */ (
+    repositoryElement("button", "repo-row__toggle")
   );
-  summary.type = "button";
-  summary.setAttribute("aria-expanded", expanded ? "true" : "false");
-  summary.append(repositoryElement("span", "repo-row__caret"));
+  toggle.type = "button";
+  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  toggle.setAttribute("aria-label", "Toggle repository details");
+  toggle.append(repositoryElement("span", "repo-row__caret"));
+  toggle.addEventListener("click", () => toggleRepositoryRow(repository.id));
+  summary.append(toggle);
+
   const mark = repositoryElement("span", "repo-row__mark");
   mark.setAttribute("data-lifecycle", repository.lifecycle);
   mark.setAttribute("data-health", repository.health);
@@ -273,7 +280,10 @@ function renderRepository(repository) {
     repository.provider === "github" || repository.provider === "forgejo"
       ? /** @type {string} */ (repository.name)
       : repository.url;
-  const name = repositoryElement("span", "repo-row__name", primaryName);
+  const name = /** @type {HTMLAnchorElement} */ (
+    repositoryElement("a", "repo-row__name", primaryName)
+  );
+  name.href = detailHref;
   summary.append(name);
 
   /** @type {[string, string, string][]} */
@@ -295,7 +305,13 @@ function renderRepository(repository) {
     }
     summary.append(cell);
   }
-  summary.addEventListener("click", () => toggleRepositoryRow(repository.id));
+
+  const open = /** @type {HTMLAnchorElement} */ (
+    repositoryElement("a", "repo-row__open", "›")
+  );
+  open.href = detailHref;
+  open.setAttribute("aria-label", "Open repository");
+  summary.append(open);
   row.append(summary);
 
   const detail = repositoryElement("div", "repo-row__detail");

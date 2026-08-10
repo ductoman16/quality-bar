@@ -489,9 +489,10 @@ test("inventory row actions drive lifecycle, credential rotation, and deletion",
   await new Promise((resolve) => setImmediate(resolve));
 
   const row = inventory.options[0];
-  // Expand the row to reveal its inline actions.
-  row.options[0].listener("click")({});
-  assert.equal(row.options[0]["aria-expanded"], "true");
+  // Expand the row (the summary's toggle button) to reveal its inline actions.
+  const toggle = row.options[0].options[0];
+  toggle.listener("click")({});
+  assert.equal(row.options[0].options[0]["aria-expanded"], "true");
 
   // Disable via the row action drives the (hidden) lifecycle form.
   findByText(row, "Disable").listener("click")({});
