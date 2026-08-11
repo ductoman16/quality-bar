@@ -1,6 +1,20 @@
 "use strict";
 
 const systemAttention = document.getElementById("attention");
+
+/** @param {number} bytes */
+function humanizeAttentionBytes(bytes) {
+  const units = ["bytes", "KiB", "MiB", "GiB", "TiB", "PiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = unit === 0 ? value : Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} ${units[unit]}`;
+}
 const executionProviderFacts = document.getElementById(
   "execution-provider-facts",
 );
@@ -65,8 +79,8 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     systemAttention.hidden = false;
     systemAttention.textContent =
       "Storage reserve unavailable: " +
-      storage.reserve_bytes +
-      " bytes reserved";
+      humanizeAttentionBytes(storage.reserve_bytes) +
+      " reserved";
     return;
   }
   const unavailableProviders = detail.execution_providers.filter(
