@@ -8,6 +8,7 @@ const port = readHttpPort(process.env.QUALITY_BAR_HTTP_PORT);
 const databasePath = "/var/lib/quality-bar/quality-bar.sqlite3";
 const application = await createInstalledApplication({
   applicationVersion: process.env.QUALITY_BAR_VERSION,
+  certificateAuthorityPath: process.env.NODE_EXTRA_CA_CERTS,
   databasePath,
 });
 const { server } = application;
