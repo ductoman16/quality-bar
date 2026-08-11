@@ -214,6 +214,10 @@ export function createForgejoV16PullRequestReader({
         const pull = object(candidate);
         const base = object(pull?.base);
         const head = object(pull?.head);
+        const gitObjectsAreValid =
+          oneGitObjectFormat(pull?.merge_base, head?.sha) &&
+          (oneGitObjectFormat(pull?.merge_base, base?.sha) ||
+            (pull?.state === "closed" && base?.sha === ""));
         if (
           !pull ||
           !Number.isSafeInteger(pull.number) ||
@@ -222,7 +226,7 @@ export function createForgejoV16PullRequestReader({
           !["closed", "open"].includes(/** @type {string} */ (pull.state)) ||
           typeof pull.draft !== "boolean" ||
           typeof pull.merged !== "boolean" ||
-          !oneGitObjectFormat(pull.merge_base, base?.sha, head?.sha) ||
+          !gitObjectsAreValid ||
           (pull.merged_at !== null &&
             (typeof pull.merged_at !== "string" ||
               !Number.isSafeInteger(Date.parse(pull.merged_at)))) ||

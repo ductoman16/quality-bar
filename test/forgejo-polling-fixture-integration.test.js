@@ -73,6 +73,28 @@ test("Forgejo polling fixture does not mistake a server page cap for completion"
   );
 });
 
+test("Forgejo polling accepts a closed pull request whose base branch no longer exists", async () => {
+  const closed = {
+    ...pullRequest(119),
+    base: { sha: "" },
+    state: "closed",
+  };
+  const verifier = createForgejoV16Verifier({
+    async fetch(url) {
+      return Response.json(
+        new URL(url).searchParams.get("page") === "1" ? [closed] : [],
+      );
+    },
+  });
+
+  const snapshot = await verifier.listPullRequests(
+    { baseUrl: "https://forgejo.example", token: "pat" },
+    { full_name: "operator/private", id: 101 },
+  );
+
+  assert.deepEqual(snapshot, [closed]);
+});
+
 test("Forgejo polling fixture rejects an incomplete later page", async () => {
   const verifier = createForgejoV16Verifier({
     async fetch(url) {
@@ -105,6 +127,7 @@ test("Forgejo polling fixture rejects inexact object IDs and timestamps", async 
     { ...pullRequest(1), head: { sha: "a".repeat(42) } },
     { ...pullRequest(1), head: { sha: "a".repeat(64) } },
     { ...pullRequest(1), merged_at: "not-a-timestamp" },
+    { ...pullRequest(1), base: { sha: "" } },
   ];
   for (const invalid of invalidPullRequests) {
     const verifier = createForgejoV16Verifier({

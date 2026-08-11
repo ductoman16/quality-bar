@@ -11,6 +11,7 @@ function validPullRequest(value) {
     return false;
   }
   const pullRequest = /** @type {Record<string, any>} */ (value);
+  const baseSha = pullRequest.base?.sha;
   return (
     Number.isSafeInteger(pullRequest.number) &&
     pullRequest.number > 0 &&
@@ -21,10 +22,11 @@ function validPullRequest(value) {
     (pullRequest.merged_at === null ||
       (typeof pullRequest.merged_at === "string" &&
         Number.isSafeInteger(Date.parse(pullRequest.merged_at)))) &&
-    validGitObjectId(pullRequest.base?.sha) &&
     validGitObjectId(pullRequest.head?.sha) &&
-    pullRequest.merge_base.length === pullRequest.base.sha.length &&
-    pullRequest.merge_base.length === pullRequest.head.sha.length
+    pullRequest.merge_base.length === pullRequest.head.sha.length &&
+    ((validGitObjectId(baseSha) &&
+      pullRequest.merge_base.length === baseSha.length) ||
+      (pullRequest.state === "closed" && baseSha === ""))
   );
 }
 

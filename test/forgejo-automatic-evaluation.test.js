@@ -99,6 +99,15 @@ test("Forgejo observation rejects an invalid provider snapshot with its owning e
   );
 });
 
+test("Forgejo observation retains a closed pull request whose base branch no longer exists", () => {
+  const closed = pullRequest(119, {
+    base: { sha: "" },
+    state: "closed",
+  });
+
+  assert.deepEqual(newlyEligibleForgejoPullRequests([], [closed]), []);
+});
+
 test("Forgejo acquisition passes the stored merge-base and current head exactly", async () => {
   /** @type {unknown} */
   let resolved;
