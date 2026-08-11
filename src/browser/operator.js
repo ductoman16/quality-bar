@@ -415,6 +415,83 @@ const systemFacts = document.getElementById("system-facts");
 if (systemFacts) {
   createOnboardingControls();
 }
+
+/** @param {string} value */
+function humanizeStatus(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return "Unknown";
+  }
+  const spaced = value.replace(/_/g, " ");
+  return spaced[0].toUpperCase() + spaced.slice(1);
+}
+
+/**
+ * Populate the System health strip with status marks. Runs on every operator
+ * page but no-ops unless the strip is present (the System view), reading the
+ * same /api/v1/system payload the detail bands consume.
+ * @param {any} system
+ */
+function renderSystemHealth(system) {
+  const strip = document.getElementById("system-health");
+  if (!strip) {
+    return;
+  }
+  const providers = Array.isArray(system?.execution_providers)
+    ? system.execution_providers
+    : [];
+  const codexOk =
+    providers.length > 0 &&
+    providers.every(
+      (/** @type {any} */ provider) => provider?.status === "available",
+    );
+  const backupStatus = system?.backup?.status;
+  const migrationStatus = system?.migration?.status;
+  /** @type {Array<[string, "ok" | "warn" | "idle", string]>} */
+  const tiles = [
+    ["codex", codexOk ? "ok" : "warn", codexOk ? "Available" : "Unavailable"],
+    [
+      "durable",
+      system?.durable_core?.status === "ready" ? "ok" : "warn",
+      humanizeStatus(system?.durable_core?.status),
+    ],
+    [
+      "storage",
+      system?.storage?.status === "available" ? "ok" : "warn",
+      humanizeStatus(system?.storage?.status),
+    ],
+    [
+      "backups",
+      backupStatus === "current"
+        ? "ok"
+        : backupStatus === "empty"
+          ? "idle"
+          : "warn",
+      humanizeStatus(backupStatus),
+    ],
+    [
+      "migration",
+      migrationStatus === "completed" || migrationStatus === "not_required"
+        ? "ok"
+        : "warn",
+      humanizeStatus(migrationStatus),
+    ],
+    [
+      "bootstrap",
+      system?.bootstrap?.status === "complete" ? "ok" : "warn",
+      humanizeStatus(system?.bootstrap?.status),
+    ],
+  ];
+  for (const [id, state, value] of tiles) {
+    const tile = document.getElementById(`system-health-${id}`);
+    const output = document.getElementById(`system-health-${id}-value`);
+    if (tile) {
+      tile.setAttribute("data-state", state);
+    }
+    if (output) {
+      output.textContent = value;
+    }
+  }
+}
 fetch("/api/v1/system")
   .then(async (response) => {
     if (!response.ok) {
@@ -447,6 +524,7 @@ fetch("/api/v1/system")
         },
       }),
     );
+    renderSystemHealth(system);
     if (systemFacts) {
       const heading = document.createElement("h2");
       heading.textContent = "System status";

@@ -2,6 +2,20 @@
 
 const reserveFacts = document.getElementById("storage-reserve-facts");
 
+/** @param {number} bytes */
+function humanizeReserveBytes(bytes) {
+  const units = ["bytes", "KiB", "MiB", "GiB", "TiB", "PiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = unit === 0 ? value : Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} ${units[unit]}`;
+}
+
 document.addEventListener("quality-bar:system-loaded", (event) => {
   const detail = /** @type {any} */ (event).detail;
   const storage = detail?.storage;
@@ -18,7 +32,7 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
   const reserveTerm = document.createElement("dt");
   reserveTerm.textContent = "Reserved free space";
   const reserveDescription = document.createElement("dd");
-  reserveDescription.textContent = storage.reserve_bytes + " bytes";
+  reserveDescription.textContent = humanizeReserveBytes(storage.reserve_bytes);
   reserveFacts.append(reserveTerm, reserveDescription);
   for (const filesystem of storage.filesystems) {
     if (
@@ -39,8 +53,8 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     description.textContent =
       filesystem.path +
       " — " +
-      filesystem.available_bytes +
-      " bytes available — " +
+      humanizeReserveBytes(filesystem.available_bytes) +
+      " available — " +
       filesystem.status;
     reserveFacts.append(term, description);
   }
