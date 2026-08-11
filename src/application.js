@@ -89,6 +89,7 @@ import { installationKeyIdentity as computeInstallationKeyIdentity } from "./sql
  * @param {{
  *   applicationVersion?: string,
  *   backupsPath?: string,
+ *   certificateAuthorityPath?: string,
  *   databasePath: string,
  *   loadInstallation?: typeof loadInstallationConfiguration,
  *   validateInstallation?: typeof validateInstallationFilesystem,
@@ -114,6 +115,7 @@ import { installationKeyIdentity as computeInstallationKeyIdentity } from "./sql
 export function createApplication({
   applicationVersion,
   backupsPath = BACKUPS_PATH,
+  certificateAuthorityPath,
   databasePath,
   loadInstallation = loadInstallationConfiguration,
   validateInstallation = validateInstallationFilesystem,
@@ -262,6 +264,7 @@ export function createApplication({
           getRepositories: () => repositories,
         }),
         externalOrigin: installation.externalOrigin,
+        certificateAuthorityPath,
         masterKey: installation.masterKey,
         now,
         registerSecret,

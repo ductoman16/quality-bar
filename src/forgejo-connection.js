@@ -79,20 +79,21 @@ function discoveryRequest(input) {
 
 /**
  * @param {{all: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => (Record<string, import("node:sqlite").SQLInputValue> | undefined)[], get: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => Record<string, import("node:sqlite").SQLInputValue> | undefined, transaction: <Result>(callback: (transaction: {run: (sql: string, ...parameters: import("node:sqlite").SQLInputValue[]) => unknown}) => Result) => Result}} durableCore
- * @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "forgejo", pullRequestNumber: number, repositoryId: string}) => any, createId?: () => string | undefined, externalOrigin?: string, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, publishAggregateFeedback?: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number>, publishCommitStatus?: (connection: any, repository: any, status: any) => Promise<number>, publishInlineFeedback?: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number>, reconcileAggregateFeedback?: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number | null>, reconcileCommitStatus?: (connection: any, repository: any, status: any) => Promise<number | null>, reconcileInlineFeedback?: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number | null>, verify: (input: any) => Promise<any>}}} options
+ * @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "forgejo", pullRequestNumber: number, repositoryId: string}) => any, certificateAuthorityPath?: string, createId?: () => string | undefined, externalOrigin?: string, masterKey: Buffer, now?: () => number, registerSecret?: (secret: string) => unknown, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, verifier?: {listPullRequests: (connection: any, repository: any) => Promise<any[]>, publishAggregateFeedback?: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number>, publishCommitStatus?: (connection: any, repository: any, status: any) => Promise<number>, publishInlineFeedback?: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number>, reconcileAggregateFeedback?: (connection: any, repository: any, pullRequestNumber: number, body: string) => Promise<number | null>, reconcileCommitStatus?: (connection: any, repository: any, status: any) => Promise<number | null>, reconcileInlineFeedback?: (connection: any, repository: any, pullRequestNumber: number, comment: any) => Promise<number | null>, verify: (input: any) => Promise<any>}}} options
  */
 export function createForgejoConnectionService(
   durableCore,
   {
     acquirePullRequestChangeset,
     admitAutomaticEvaluation,
+    certificateAuthorityPath,
     createId = randomUUID,
     externalOrigin = "http://quality-bar.example",
     masterKey,
     now = () => Date.now(),
     registerSecret,
     storageReserve,
-    verifier = createForgejoV16Verifier(),
+    verifier = createForgejoV16Verifier({ certificateAuthorityPath }),
   },
 ) {
   if (

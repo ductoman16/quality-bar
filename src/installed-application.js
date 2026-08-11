@@ -87,6 +87,7 @@ async function closeAfterBackupFailure(application, failure) {
  * @param {{
  *   applicationVersion: string | undefined,
  *   backupsPath?: string,
+ *   certificateAuthorityPath?: string,
  *   clearBackupTimer?: (timer: BackupTimer) => unknown,
  *   createRuntime?: typeof createApplication,
  *   databasePath: string,
@@ -105,6 +106,7 @@ async function closeAfterBackupFailure(application, failure) {
 export async function createInstalledApplication({
   applicationVersion,
   backupsPath = BACKUPS_PATH,
+  certificateAuthorityPath,
   clearBackupTimer = (timer) =>
     clearTimeout(/** @type {ReturnType<typeof setTimeout>} */ (timer)),
   createRuntime = createApplication,
@@ -166,6 +168,7 @@ export async function createInstalledApplication({
       application = createRuntime({
         applicationVersion,
         backupsPath,
+        certificateAuthorityPath,
         databasePath,
         installationKeyIdentity: keyIdentity,
         validateSources() {
@@ -199,6 +202,7 @@ export async function createInstalledApplication({
   const application = createRuntime({
     applicationVersion,
     backupsPath,
+    certificateAuthorityPath,
     databasePath,
     installationKeyIdentity: keyIdentity,
     loadInstallation: () =>
