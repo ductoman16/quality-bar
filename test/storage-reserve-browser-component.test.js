@@ -108,17 +108,17 @@ test("System renders exact state and checkout reserve facts and exposes low-spac
     ),
     [
       "Reserved free space",
-      "5368709120 bytes",
+      "5 GiB",
       "State filesystem",
-      "/var/lib/quality-bar — 6442450944 bytes available — available",
+      "/var/lib/quality-bar — 6 GiB available — available",
       "Checkout filesystem",
-      "/var/cache/quality-bar/checkouts — 4294967296 bytes available — unavailable",
+      "/var/cache/quality-bar/checkouts — 4 GiB available — unavailable",
     ],
   );
   assert.equal(attention.hidden, false);
   assert.equal(
     attention.textContent,
-    "Storage reserve unavailable: 5368709120 bytes reserved",
+    "Storage reserve unavailable: 5 GiB reserved",
   );
 });
 

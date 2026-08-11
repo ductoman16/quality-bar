@@ -33,6 +33,15 @@ const unavailableTokensStatus = document.getElementById(
 );
 const filterForm = document.getElementById("analytics-filters");
 const analyticsError = document.getElementById("analytics-error");
+const overviewEvaluations = document.getElementById(
+  "analytics-overview-evaluations",
+);
+const overviewClear = document.getElementById("analytics-overview-clear");
+const overviewBlocking = document.getElementById("analytics-overview-blocking");
+const overviewError = document.getElementById("analytics-overview-error");
+const overviewReviewSuccess = document.getElementById(
+  "analytics-overview-review-success",
+);
 let invalidDenominator = false;
 
 const analyticsWindow = /** @type {any} */ (window);
@@ -55,9 +64,24 @@ const {
 function rateText(rate) {
   if (rate.denominator === 0) {
     invalidDenominator = true;
-    return "Invalid denominator";
+    return "—";
   }
   return `${rate.numerator}/${rate.denominator}`;
+}
+
+/** @param {{numerator: number, denominator: number}} rate */
+function percentText(rate) {
+  if (rate.denominator === 0) {
+    return "—";
+  }
+  return `${Math.round((rate.numerator / rate.denominator) * 100)}%`;
+}
+
+/** @param {HTMLElement | null} target @param {string} value */
+function setOverview(target, value) {
+  if (target) {
+    target.textContent = value;
+  }
 }
 
 /** @param {number | null} value */
@@ -165,6 +189,18 @@ function render(document) {
     ` · ${document.population.matching_waiver_decisions} Waiver Decisions` +
     ` · ${document.population.matching_waiver_adjudications} Waiver Adjudications`;
   populationStatus.hidden = false;
+  const outcomes = document.evaluation_outcomes;
+  setOverview(
+    overviewEvaluations,
+    String(document.population.matching_evaluations),
+  );
+  setOverview(overviewClear, percentText(outcomes.clear_rate));
+  setOverview(overviewBlocking, percentText(outcomes.blocking_rate));
+  setOverview(overviewError, percentText(outcomes.error_rate));
+  setOverview(
+    overviewReviewSuccess,
+    percentText(document.review_run_reliability.successful_rate),
+  );
   const transitions = document.pull_request_criterion_transitions;
   transitionsBody.append(
     row([
@@ -355,6 +391,15 @@ function showQueryFailure(error) {
     throw new Error("analytics_error_surface_missing", { cause: error });
   }
   analyticsState.clear();
+  for (const target of [
+    overviewEvaluations,
+    overviewClear,
+    overviewBlocking,
+    overviewError,
+    overviewReviewSuccess,
+  ]) {
+    setOverview(target, "—");
+  }
   analyticsError.hidden = false;
   analyticsError.textContent = error.message;
 }
