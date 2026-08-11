@@ -116,8 +116,9 @@ function routeArray(value, route, field) {
   }
 }
 
-/** @param {{fetch?: typeof fetch, now?: () => number, verifyGit?: typeof verifyRepositoryRead}} [options] */
+/** @param {{certificateAuthorityPath?: string, fetch?: typeof fetch, now?: () => number, verifyGit?: typeof verifyRepositoryRead}} [options] */
 export function createForgejoV16Verifier({
+  certificateAuthorityPath,
   fetch: fetchRequest = fetch,
   now = () => Date.now(),
   verifyGit = verifyRepositoryRead,
@@ -362,7 +363,11 @@ export function createForgejoV16Verifier({
           await verifyGit(
             selectedRepository.clone_url,
             { token, username: "oauth2" },
-            { definitiveHttpStatuses: [401, 403, 404], followRedirects: false },
+            {
+              certificateAuthorityPath,
+              definitiveHttpStatuses: [401, 403, 404],
+              followRedirects: false,
+            },
           );
           if (index === selected.length - 1) {
             capabilityEvidence.private_git_read = "verified";

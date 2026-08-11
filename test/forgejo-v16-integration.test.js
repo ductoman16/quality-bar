@@ -119,11 +119,12 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   context.after(() => new Promise((resolve) => server.close(resolve)));
   const address = server.address();
   assert.ok(address && typeof address !== "string");
-  /** @type {{token: string, url: string, username: string}[]} */
+  /** @type {{certificateAuthorityPath: string | undefined, token: string, url: string, username: string}[]} */
   const gitReads = [];
   const verifier = createForgejoV16Verifier({
+    certificateAuthorityPath: "/run/secrets/forgejo-ca.pem",
     fetch,
-    verifyGit: async (url, credential) => {
+    verifyGit: async (url, credential, options) => {
       if (repositoryFailure === "git") {
         throw Object.assign(new Error("Forgejo Repository Git read failed"), {
           code: "repository_git_read_failed",
@@ -133,6 +134,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
         throw new Error("forgejo_git_credential_missing");
       }
       gitReads.push({
+        certificateAuthorityPath: options?.certificateAuthorityPath,
         token: credential.token,
         url,
         username: credential.username,
@@ -175,6 +177,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   });
   assert.deepEqual(gitReads, [
     {
+      certificateAuthorityPath: "/run/secrets/forgejo-ca.pem",
       token: "operator-created-pat",
       url: "https://forgejo.example/operator/private.git",
       username: "oauth2",
