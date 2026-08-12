@@ -43,13 +43,14 @@
     }
     return (
       value.kind === "review" &&
-      Object.keys(value).length === 5 &&
+      Object.keys(value).length === 6 &&
       typeof value.label === "string" &&
       value.label.length > 0 &&
       typeof value.review_id === "string" &&
       value.review_id.length > 0 &&
       typeof value.review_version_id === "string" &&
-      value.review_version_id.length > 0
+      value.review_version_id.length > 0 &&
+      [null, "clear", "advisory", "blocking", "error"].includes(value.outcome)
     );
   }
 
@@ -134,6 +135,26 @@
     return typeof status === "string" && TERMINAL_STATUSES.has(status);
   }
 
+  /** @param {unknown} value */
+  function nodeVisualState(value) {
+    if (!record(value)) {
+      return "pending";
+    }
+    if (value.status === "failed" || value.outcome === "error") {
+      return "error";
+    }
+    if (value.outcome === "blocking") {
+      return "blocking";
+    }
+    if (value.outcome === "advisory") {
+      return "advisory";
+    }
+    if (value.status === "completed") {
+      return "complete";
+    }
+    return value.status === "running" ? "running" : "pending";
+  }
+
   /**
    * @param {{action: "cancel" | "retry", csrfToken: string, evaluationId: string}} input
    */
@@ -171,6 +192,7 @@
     Object.freeze({
       isTerminalStatus,
       mutate,
+      nodeVisualState,
       validCollection,
       validEvaluation,
     }),

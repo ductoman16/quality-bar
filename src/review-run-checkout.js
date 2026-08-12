@@ -207,6 +207,7 @@ async function runGit(arguments_, cwd, spawnProcess, credential, signal) {
 /**
  * @param {{
  *   baseCommit: string,
+ *   certificateAuthorityPath?: string,
  *   checkoutRoot: string,
  *   credential?: {token: string, username: string},
  *   fencingToken: number,
@@ -219,6 +220,7 @@ async function runGit(arguments_, cwd, spawnProcess, credential, signal) {
  */
 export async function prepareReviewRunCheckout({
   baseCommit,
+  certificateAuthorityPath,
   checkoutRoot,
   credential,
   fencingToken,
@@ -250,7 +252,7 @@ export async function prepareReviewRunCheckout({
     mkdirSync(claimRoot, { recursive: false });
     await runGit(
       [
-        ...secureGitConfiguration(credential, undefined, false),
+        ...secureGitConfiguration(credential, certificateAuthorityPath, false),
         "-c",
         "core.hooksPath=/dev/null",
         "-c",

@@ -28,6 +28,9 @@ function summary(id, status, { result = null, counts = {} } = {}) {
     review_completed: status === "completed" ? 1 : 0,
     review_execution_status: status,
     review_failed: status === "failed" ? 1 : 0,
+    review_has_blocking: 0,
+    review_has_error: 0,
+    review_has_advisory: 0,
     review_id: "review-1",
     review_name: "Review one",
     review_queued: status === "queued" ? 1 : 0,
@@ -54,6 +57,9 @@ function noRuns(id, result = null) {
     review_completed: 0,
     review_execution_status: null,
     review_failed: 0,
+    review_has_blocking: 0,
+    review_has_error: 0,
+    review_has_advisory: 0,
     review_id: null,
     review_name: null,
     review_queued: 0,
@@ -141,6 +147,7 @@ test("monitor preserves review query order and exposes immutable result counts",
         result: "parallel",
       }),
       review_id: "review-1",
+      review_has_blocking: 1,
       review_name: "First review",
       review_run_id: "run-2",
       review_version_id: "version-1",
@@ -159,14 +166,34 @@ test("monitor preserves review query order and exposes immutable result counts",
         result: "parallel",
       }),
       review_id: "review-2",
+      review_has_error: 1,
       review_name: "Second review",
       review_run_id: "run-1",
       review_version_id: "version-2",
     },
+    {
+      ...summary("parallel", "completed", {
+        counts: {
+          finding_advisory: 1,
+          finding_blocking: 2,
+          finding_total: 3,
+          outcome_clear: 4,
+          outcome_error: 1,
+          outcome_not_applicable: 2,
+          outcome_triggered: 3,
+        },
+        result: "parallel",
+      }),
+      review_has_advisory: 1,
+      review_id: "review-3",
+      review_name: "Third review",
+      review_run_id: "run-3",
+      review_version_id: "version-3",
+    },
   ];
   for (const row of rows) {
-    row.review_total = 2;
-    row.review_completed = 2;
+    row.review_total = 3;
+    row.review_completed = 3;
   }
   const value = monitors(rows, [evaluation("parallel", "completed", 11)]).get(
     "parallel",
@@ -174,8 +201,15 @@ test("monitor preserves review query order and exposes immutable result counts",
   assert.deepEqual(
     value?.nodes
       .slice(1, -1)
-      .map((/** @type {{review_id?: string}} */ node) => node.review_id),
-    ["review-1", "review-2"],
+      .map((/** @type {{outcome?: string, review_id?: string}} */ node) => [
+        node.review_id,
+        node.outcome,
+      ]),
+    [
+      ["review-1", "blocking"],
+      ["review-2", "error"],
+      ["review-3", "advisory"],
+    ],
   );
   assert.deepEqual(value?.outcome_counts, {
     clear: 4,

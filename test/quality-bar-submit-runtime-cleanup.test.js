@@ -14,7 +14,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { removeOwnedFile } from "../src/quality-bar-submit-runtime.js";
+import {
+  outerProcessId,
+  removeOwnedFile,
+} from "../src/quality-bar-submit-runtime.js";
+
+test("uses the outer PID when the submitter runs in a PID namespace", () => {
+  assert.equal(outerProcessId("Name:\tnode\nNSpid:\t4321\t7\n", 7), 4321);
+  assert.equal(outerProcessId("Name:\tnode\n", 7), 7);
+});
 
 test("installed submission cleanup reclaims its validated inode", (context) => {
   const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-runtime-reclaimed-"));

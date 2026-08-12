@@ -12,6 +12,7 @@ test("Forge Repository selector acquisition uses its owning Connection credentia
   /** @type {any[]} */
   const observed = [];
   const resolver = createRepositorySelectorResolver({
+    certificateAuthorityPath: "/run/secrets/private-ca.pem",
     credentialCipher: /** @type {any} */ ({}),
     find: () => ({}),
     objectDatabaseRoot: "/owned/checkouts",
@@ -63,7 +64,10 @@ test("Forge Repository selector acquisition uses its owning Connection credentia
         username: "x-access-token",
       },
       request,
-      { objectDatabaseRoot: "/owned/checkouts" },
+      {
+        certificateAuthorityPath: "/run/secrets/private-ca.pem",
+        objectDatabaseRoot: "/owned/checkouts",
+      },
     ],
   ]);
 });

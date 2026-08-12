@@ -2,6 +2,7 @@ import { fail, failUnavailable } from "./repository-validation.js";
 
 /**
  * @param {{
+ *   certificateAuthorityPath?: string,
  *   credentialCipher: ReturnType<typeof import("./repository-credential.js").createRepositoryCredentialCipher>,
  *   find: (id: string) => Record<string, import("node:sqlite").SQLInputValue>,
  *   objectDatabaseRoot: string,
@@ -11,11 +12,12 @@ import { fail, failUnavailable } from "./repository-validation.js";
  *     normalizedUrl: string,
  *     credential: {token: string, username: string} | undefined,
  *     request: unknown,
- *     options: {objectDatabaseRoot: string, pullRequestProvider?: "forgejo" | "github", useMergeBase?: boolean}
+ *     options: {certificateAuthorityPath?: string, objectDatabaseRoot: string, pullRequestProvider?: "forgejo" | "github", useMergeBase?: boolean}
  *   ) => Promise<import("./repository-git.js").ResolvedPushedCommitSelectors>
  * }} dependencies
  */
 export function createRepositorySelectorResolver({
+  certificateAuthorityPath,
   credentialCipher,
   find,
   objectDatabaseRoot,
@@ -64,6 +66,7 @@ export function createRepositorySelectorResolver({
       }
     }
     return resolveSelectors(repository.url, credential, request, {
+      certificateAuthorityPath,
       objectDatabaseRoot,
       ...("pullRequestProvider" in options
         ? { pullRequestProvider: options.pullRequestProvider }

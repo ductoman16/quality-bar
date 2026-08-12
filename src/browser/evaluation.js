@@ -15,6 +15,7 @@
     !monitor ||
     typeof monitor.isTerminalStatus !== "function" ||
     typeof monitor.mutate !== "function" ||
+    typeof monitor.nodeVisualState !== "function" ||
     typeof monitor.validCollection !== "function"
   ) {
     throw new Error("evaluation_monitor_boundary_unavailable");
@@ -38,7 +39,7 @@
   const stat7d = control("evaluation-stat-window-7d");
   const statWorkers = control("evaluation-stat-workers");
   const statQueue = control("evaluation-stat-queue");
-  const statPassRate = control("evaluation-stat-pass-rate");
+  const statClearRate = control("evaluation-stat-clear-rate");
   const statP95 = control("evaluation-stat-p95");
   const statUpdated = control("evaluation-stat-updated");
 
@@ -54,15 +55,14 @@
   const FILTER_NAMES = /** @type {Array<keyof typeof FILTER_IDS>} */ (
     Object.keys(FILTER_IDS)
   );
-  const known = new Map();
-  const evaluations = new Map();
+  const [known, evaluations, repositories] = [new Map(), new Map(), new Map()];
   const expanded = new Set();
   /** @type {string[]} */
   let visibleIds = [];
   /** @type {string | null} */
   let nextCursor = null;
-  let firstListResponse = true;
-  let statsFailed = false;
+  let firstListResponse = true,
+    statsFailed = false;
   /** @type {ReturnType<typeof setInterval> | null} */
   let pollTimer = null;
 
@@ -286,44 +286,53 @@
   const evaluationUrl = (id) =>
     "/?view=evaluation-detail&evaluation_id=" + encodeURIComponent(id);
 
-  /** @param {string} value */
-  function shortSelector(value) {
-    return /^[0-9a-f]{12,}$/.test(value) ? value.slice(0, 7) : value;
+  /** @param {string} href @param {string} className @param {string} value @param {Node[]} [children] */
+  const link = (href, className, value, children = []) =>
+    Object.assign(element("a", className, value, children), { href });
+  const externalLink = { rel: "noopener", target: "_blank" };
+
+  /** @param {string} href @param {string} className @param {string} value */
+  const source = (href, className, value) =>
+    href
+      ? Object.assign(link(href, className, value), externalLink)
+      : element("span", className, value);
+
+  /** @param {any} repository @param {any} selector */
+  function commitUrl(repository, selector) {
+    const value = text(selector?.value),
+      webUrl = text(repository?.web_url);
+    return webUrl && /^[0-9a-f]{40,64}$/.test(value)
+      ? webUrl.replace(/\/$/, "") + "/commit/" + value
+      : "";
   }
+
+  /** @param {string} value */
+  const shortSelector = (value) =>
+    /^[0-9a-f]{12,}$/.test(value) ? value.slice(0, 7) : value;
 
   /** @param {any} evaluation */
   function repositoryLabel(evaluation) {
     const id = text(evaluation?.repository?.id);
-    if (id && !/^repository-[a-z0-9-]+$/i.test(id)) {
-      return id;
-    }
-    try {
-      const path = new URL(text(evaluation?.repository?.url)).pathname;
-      const last = path.split("/").filter(Boolean).at(-1) ?? "";
-      return last.replace(/\.git$/i, "") || id || "Repository";
-    } catch {
-      return id || "Repository";
-    }
+    const last = text(evaluation?.repository?.url).replace(/^.*\//, "");
+    return last.replace(/\.git$/i, "") || id || "Repository";
   }
 
   const NODE_STATUS = /** @type {Record<string, string[]>} */ ({
-    cancelled: ["skipped", "Skipped"],
-    completed: ["complete", "OK"],
-    failed: ["failed", "Failed"],
-    queued: ["pending", "Queued"],
-    running: ["pending", "Running"],
-  });
-  const EXECUTION_STATUS = /** @type {Record<string, string[]>} */ ({
-    cancelled: ["Skipped", "skipped"],
-    failed: ["Failed", "failed"],
-    queued: ["Queued", "pending"],
-    running: ["Running", "active"],
-  });
-
-  /** @param {string} value */
-  function nodeStatus(value) {
-    return NODE_STATUS[value] ?? ["pending", "Unknown"];
-  }
+      cancelled: ["skipped", "Skipped"],
+      completed: ["complete", "Completed"],
+      failed: ["failed", "Failed"],
+      queued: ["pending", "Queued"],
+      running: ["pending", "Running"],
+    }),
+    EXECUTION_STATUS = /** @type {Record<string, string[]>} */ ({
+      cancelled: ["Skipped", "skipped"],
+      failed: ["Error", "error"],
+      queued: ["Queued", "pending"],
+      running: ["Running", "active"],
+    }),
+    OUTCOMES = new Set(["advisory", "blocking", "clear", "error", "pending"]);
+  const nodeStatus = (/** @type {string} */ value) =>
+    NODE_STATUS[value] ?? ["pending", "Unknown"];
 
   /** @param {any} evaluation */
   function evaluationStatus(evaluation) {
@@ -331,15 +340,11 @@
     if (execution) {
       return { label: execution[0], tone: execution[1] };
     }
-    const outcome = evaluation?.effective_outcome;
-    const result = /** @type {Record<string, string[]>} */ ({
-      clear: ["Passed", "passed"],
-      pending: ["Pending", "pending"],
-    })[outcome] ?? [
-      text(outcome).replace(/^./, (value) => value.toUpperCase()) ||
-        "Completed",
-      "failed",
-    ];
+    const outcome = text(evaluation?.effective_outcome),
+      label = outcome.replace(/^./, (value) => value.toUpperCase()),
+      result = OUTCOMES.has(outcome)
+        ? [label, outcome]
+        : [label || "Completed", "failed"];
     return { label: result[0], tone: result[1] };
   }
 
@@ -358,18 +363,22 @@
       const kind = node?.kind === "system" ? "system" : "review";
       const label =
         text(node?.label) || (kind === "system" ? "System" : "Review");
-      const status = text(node?.status) || "unknown";
-      const statusState = nodeStatus(status);
+      const status = text(node?.status) || "unknown",
+        statusState = nodeStatus(status),
+        outcome = text(node?.outcome),
+        statusLabel = OUTCOMES.has(outcome)
+          ? outcome.replace(/^./, (value) => value.toUpperCase())
+          : statusState[1];
       const nodeElement = element(
         "span",
         "qb-timeline-node qb-timeline-node--" +
           kind +
           " qb-timeline-node--" +
-          statusState[0],
-        withStatus ? label + " " + statusState[1] : "",
+          monitor.nodeVisualState(node),
+        withStatus ? label + " " + statusLabel : "",
       );
-      nodeElement.setAttribute("aria-label", label + ": " + statusState[1]);
-      nodeElement.title = label + ": " + statusState[1];
+      nodeElement.setAttribute("aria-label", label + ": " + statusLabel);
+      nodeElement.title = label + ": " + statusLabel;
       value.append(nodeElement);
     }
     return value;
@@ -491,31 +500,52 @@
     const summary = document.createElement("div");
     summary.className = "evaluation-row__summary";
     const created = timestamp(evaluation);
+    const detailUrl = evaluationUrl(evaluation.id),
+      repositoryId = text(evaluation?.repository?.id),
+      repository = repositories.get(repositoryId);
     summary.append(
       toggle,
-      element(
-        "time",
+      link(
+        detailUrl,
         "evaluation-row__time",
         created ? localTime(created) : "—",
       ),
     );
-    const link = document.createElement("a");
-    link.href = evaluationUrl(evaluation.id);
-    link.className = "evaluation-row__repository";
-    link.textContent = repositoryLabel(evaluation);
-    const sourceKind =
+    const repositoryLink = link(
+      "/?view=repository-detail&repository_id=" +
+        encodeURIComponent(repositoryId),
+      "evaluation-row__repository",
+      repositoryLabel(evaluation),
+    );
+    const pullRequestNumber =
       evaluation?.provenance === "automatic" &&
       Number.isSafeInteger(evaluation?.pull_request?.number)
-        ? "PR #" + evaluation.pull_request.number
-        : shortSelector(text(evaluation?.base_selector?.value));
-    const sourceValue = shortSelector(text(evaluation?.head_selector?.value));
+        ? evaluation.pull_request.number
+        : null;
+    const { base_commit: base, head_commit: head } = evaluation;
+    /** @param {string} commit */
+    const commitSource = (commit) =>
+      source(
+        commitUrl(repository, { value: commit }),
+        "evaluation-row__source-commit",
+        shortSelector(commit) || "—",
+      );
     const sourceElement = element("span", "evaluation-row__source", "", [
-      element("span", "evaluation-row__source-kind", sourceKind || "—"),
-      element("span", "evaluation-row__source-value", sourceValue || "—"),
+      commitSource(base),
+      commitSource(head),
+      source(
+        pullRequestNumber && repository?.web_url
+          ? repository.web_url.replace(/\/$/, "") +
+              (repository.provider === "github" ? "/pull/" : "/pulls/") +
+              pullRequestNumber
+          : "",
+        "evaluation-row__source-pull-request",
+        pullRequestNumber ? "PR #" + pullRequestNumber : "",
+      ),
     ]);
     const status = evaluationStatus(evaluation);
-    const statusElement = element(
-      "span",
+    const statusElement = link(
+      detailUrl,
       "evaluation-row__outcome evaluation-status--" + status.tone,
       "",
       [
@@ -524,7 +554,7 @@
       ],
     );
     summary.append(
-      link,
+      repositoryLink,
       sourceElement,
       statusElement,
       element("span", "evaluation-row__duration", formatDuration(evaluation)),
@@ -535,12 +565,9 @@
       : [];
     const compactTimeline = timeline(nodes, false);
     compactTimeline.className += " evaluation-row__timeline";
-    if (evaluation.execution_status === "cancelled") {
-      compactTimeline.className += " evaluation-row__timeline--skipped";
-    }
     const detailLink = document.createElement("a");
     detailLink.className = "evaluation-row__detail";
-    detailLink.href = evaluationUrl(evaluation.id);
+    detailLink.href = detailUrl;
     detailLink.setAttribute("aria-label", "Open evaluation " + evaluation.id);
     detailLink.textContent = "›";
     article.append(summary, compactTimeline, detailLink);
@@ -760,13 +787,13 @@
       try {
         const analytics = await analyticsResult.value.json();
         const overview = analytics?.evaluation_overview;
-        const numerator = overview?.pass_rate?.numerator;
-        const denominator = overview?.pass_rate?.denominator;
+        const numerator = overview?.clear_rate?.numerator;
+        const denominator = overview?.clear_rate?.denominator;
         if (
           Number.isSafeInteger(numerator) &&
           Number.isSafeInteger(denominator)
         ) {
-          statPassRate.textContent =
+          statClearRate.textContent =
             denominator === 0
               ? "No data"
               : ((numerator / denominator) * 100).toFixed(1) + "%";
@@ -815,6 +842,7 @@
       ) {
         continue;
       }
+      repositories.set(repository.id, repository);
       for (const select of [
         createRepository,
         control("evaluation-filter-repository"),

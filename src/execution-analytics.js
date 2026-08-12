@@ -79,7 +79,7 @@ export function deriveEvaluationOverview(rows, outcome, window) {
     clear_count: clearCount,
     duration_sample_count: durations.length,
     p95_duration_ms: nearestRankP95(durations),
-    pass_rate: rate(clearCount, terminalCount),
+    clear_rate: rate(clearCount, terminalCount),
     terminal_count: terminalCount,
     window,
   };

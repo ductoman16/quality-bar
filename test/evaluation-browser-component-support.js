@@ -70,6 +70,7 @@ export const evaluation = (overrides = {}) => ({
       {
         kind: "review",
         label: "Security",
+        outcome: "clear",
         review_id: "review-1",
         review_version_id: "version-1",
         status: "completed",
