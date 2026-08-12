@@ -45,7 +45,7 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
     clear_count: 0,
     duration_sample_count: 0,
     p95_duration_ms: null,
-    pass_rate: { denominator: 0, numerator: 0 },
+    clear_rate: { denominator: 0, numerator: 0 },
     terminal_count: 0,
     window: { end: 100, start: 0 },
   });

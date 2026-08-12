@@ -328,7 +328,7 @@ if (runtime !== null) {
     token = undefined;
     trustedProcess = null;
   }
-  const clientPid = process.pid;
+  const clientPid = helpers.submissionClientPid();
   const clientStartIdentity = trustedProcess?.client_start_identity;
   const clientProcessGroupId = trustedProcess?.client_process_group_id;
   if (

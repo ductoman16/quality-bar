@@ -58,6 +58,7 @@ function readExecutionCorrelation(durableCore, claim) {
 
 /**
  * @param {{
+ *   certificateAuthorityPath?: string,
  *   createCodexRuntime: (...parameters: any[]) => any,
  *   now: () => number,
  *   spawnProcess?: typeof spawn,
@@ -67,6 +68,7 @@ function readExecutionCorrelation(durableCore, claim) {
  * }} dependencies
  */
 export function createApplicationExecutionRuntime({
+  certificateAuthorityPath,
   createCodexRuntime,
   now,
   spawnProcess: spawnChild = spawn,
@@ -110,6 +112,7 @@ export function createApplicationExecutionRuntime({
     /** @param {any} durableCore @param {any} repositories @param {any} storageReserve */
     createCodexRuntime(durableCore, repositories, storageReserve) {
       return createCodexRuntime(durableCore, {
+        certificateAuthorityPath,
         ioPool,
         now,
         repositories,

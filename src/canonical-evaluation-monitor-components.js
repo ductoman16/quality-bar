@@ -18,6 +18,15 @@ export function canonicalEvaluationMonitorSchemas() {
       {
         kind: { const: "review", type: "string" },
         label: { minLength: 1, type: "string" },
+        outcome: {
+          oneOf: [
+            {
+              enum: ["clear", "advisory", "blocking", "error"],
+              type: "string",
+            },
+            { type: "null" },
+          ],
+        },
         review_id: { minLength: 1, type: "string" },
         review_version_id: { minLength: 1, type: "string" },
         status: {
@@ -25,7 +34,7 @@ export function canonicalEvaluationMonitorSchemas() {
           type: "string",
         },
       },
-      ["kind", "review_id", "review_version_id", "label", "status"],
+      ["kind", "review_id", "review_version_id", "label", "outcome", "status"],
     ),
     EvaluationMonitor: closedObject(
       {

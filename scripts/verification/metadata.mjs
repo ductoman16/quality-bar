@@ -72,7 +72,7 @@ export function readVerificationMetadata(repositoryRoot) {
   const packagedNodeVersion = readRequiredMatch(
     repositoryRoot,
     "Dockerfile",
-    /^FROM node:(\d+\.\d+\.\d+)-alpine@sha256:/m,
+    /^(?:ARG BUNDLED_NODE_IMAGE=|FROM )node:(\d+\.\d+\.\d+)-alpine@sha256:/m,
     "a digest-pinned Node version",
   );
   const formatterVersion = captureCommand(

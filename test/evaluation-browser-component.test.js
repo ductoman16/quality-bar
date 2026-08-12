@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { URLSearchParams } from "node:url";
+import { URL, URLSearchParams } from "node:url";
 import { test } from "node:test";
 
 import { operatorPage } from "../src/browser-pages.js";
@@ -49,6 +49,7 @@ function monitorContext(items) {
   let collection = { items, next_cursor: null };
   const context = {
     crypto: { randomUUID: () => "idempotency-key" },
+    URL,
     URLSearchParams,
     document: {
       addEventListener(
@@ -92,7 +93,7 @@ function monitorContext(items) {
         return response({
           evaluation_overview: {
             p95_duration_ms: null,
-            pass_rate: { denominator: 0, numerator: 0 },
+            clear_rate: { denominator: 0, numerator: 0 },
           },
         });
       }
@@ -124,7 +125,16 @@ function monitorContext(items) {
             items: [
               {
                 id: "repository-1",
+                provider: "github",
                 url: "https://example.invalid/repository.git",
+                web_url: "https://github.com/example/repository",
+              },
+              {
+                id: "c358ade1-1e17-4d5a-a88e-3af7666874ee",
+                name: "repository",
+                provider: "forgejo",
+                url: "https://forgejo.example/operator/repository.git",
+                web_url: "https://forgejo.example/operator/repository",
               },
             ],
           };
@@ -165,6 +175,67 @@ test("Evaluation page has the live monitor structure and no result-renderer asse
     /Needs attention|id="evaluation-active"|id="evaluation-recent"/i,
   );
   assert.match(page, /aria-pressed="true" id="evaluation-stat-window-24h"/);
+  assert.match(
+    page,
+    /evaluation-status--advisory.*border:0;border-radius:0;background:transparent.*content:"△"/,
+  );
+  assert.match(
+    page,
+    /evaluation-status--blocking.*border:1px solid.*background:linear-gradient\(45deg.*center\/9px 9px no-repeat.*content:none/,
+  );
+  assert.match(page, /evaluation-status--error.*content:"!"/);
+  assert.match(page, /qb-timeline-node--pending.*border:1px dashed/);
+  assert.match(page, /qb-timeline-node--advisory.*clip-path:polygon/);
+  assert.match(
+    page,
+    /qb-timeline-node--blocking.*content:"";box-sizing:border-box.*border:1px solid.*center\/7px 7px no-repeat/,
+  );
+  assert.match(page, /qb-timeline-node--error.*content:"!".*border:0/);
+  assert.match(page, /source-commit:first-child::after\{content:"→"/);
+  assert.match(page, /source-pull-request\{font-weight:700\}/);
+});
+
+test("Evaluation outcomes use canonical outcome language", async () => {
+  const cases = [
+    ["clear", "completed", "clear", "Clear"],
+    ["advisory", "completed", "advisory", "Advisory"],
+    ["blocking", "completed", "blocking", "Blocking"],
+    ["error", "completed", "error", "Error"],
+  ];
+  const fixture = monitorContext(
+    cases.map(([outcome, execution, tone]) =>
+      evaluation({
+        effective_outcome: outcome,
+        execution_status: execution,
+        id: `evaluation-${outcome}-${execution}`,
+        monitor: {
+          ...evaluation().monitor,
+          nodes: evaluation().monitor.nodes.map((node) =>
+            node.kind === "review" ? { ...node, outcome: tone } : node,
+          ),
+        },
+      }),
+    ),
+  );
+  executeEvaluationMonitorPageAsset(fixture.context, "/assets/evaluation.js");
+  await settle();
+  const rows = fixture.controls.get("evaluation-list").options[0].options;
+  for (const [outcome, execution, tone, label] of cases) {
+    const row = rows.find(
+      (/** @type {any} */ candidate) =>
+        candidate["data-evaluation-id"] ===
+        `evaluation-${outcome}-${execution}`,
+    );
+    const status = row.options[0].options[4];
+    assert.match(status.className, new RegExp(`evaluation-status--${tone}`));
+    assert.equal(status.options[1].textContent, label);
+    assert.match(row.options[1].options[0].className, /--complete/);
+    assert.match(
+      row.options[1].options[2].className,
+      new RegExp(`--${tone === "clear" ? "complete" : tone}`),
+    );
+    assert.equal(row.options[1].options[2]["aria-label"], `Security: ${label}`);
+  }
 });
 
 test("Evaluation monitor interface validates resources and owns mutations", async () => {
@@ -202,6 +273,16 @@ test("Evaluation monitor interface validates resources and owns mutations", asyn
   );
   assert.equal(monitor.isTerminalStatus("completed"), true);
   assert.equal(monitor.isTerminalStatus("running"), false);
+  assert.equal(monitor.nodeVisualState({ status: "completed" }), "complete");
+  assert.equal(
+    monitor.nodeVisualState({ outcome: "blocking", status: "completed" }),
+    "blocking",
+  );
+  assert.equal(
+    monitor.nodeVisualState({ outcome: "advisory", status: "completed" }),
+    "advisory",
+  );
+  assert.equal(monitor.nodeVisualState({ status: "failed" }), "error");
   await monitor.mutate({
     action: "retry",
     csrfToken: "csrf-token",
@@ -219,10 +300,20 @@ test("Evaluation monitor interface validates resources and owns mutations", asyn
 
 test("Evaluation monitor groups rows, uses monitor markers, filters, stats, actions, and no result fetches", async () => {
   const newest = evaluation({
+    base_commit: "a".repeat(40),
+    base_selector: { type: "commit", value: "a".repeat(40) },
     created_at: "2026-07-29T12:00:00.000Z",
     execution_status: "queued",
+    head_commit: "b".repeat(40),
+    head_selector: { type: "commit", value: "b".repeat(40) },
     id: "evaluation-running",
+    provenance: "automatic",
+    pull_request: { number: 344 },
     retry_state: "exhausted",
+    repository: {
+      id: "c358ade1-1e17-4d5a-a88e-3af7666874ee",
+      url: "https://forgejo.example/operator/repository.git",
+    },
     monitor: {
       ...evaluation().monitor,
       duration_ms: null,
@@ -236,6 +327,7 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
         {
           kind: "review",
           label: "Security",
+          outcome: null,
           review_id: "review-1",
           review_version_id: "version-1",
           status: "running",
@@ -249,25 +341,85 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
       ],
     },
   });
-  const fixture = monitorContext([evaluation(), newest]);
+  const fixture = monitorContext([
+    evaluation({
+      base_commit: "c".repeat(40),
+      base_selector: { type: "commit", value: "c".repeat(40) },
+      head_commit: "d".repeat(40),
+      head_selector: { type: "commit", value: "d".repeat(40) },
+    }),
+    newest,
+  ]);
   executeEvaluationMonitorPageAsset(fixture.context, "/assets/evaluation.js");
   await settle();
 
   const row = firstRow(fixture.controls);
+  const summary = row.options[0];
   assert.equal(row["data-evaluation-id"], "evaluation-running");
+  assert.equal(
+    summary.options[1].href,
+    "/?view=evaluation-detail&evaluation_id=evaluation-running",
+  );
+  assert.equal(summary.options[2].textContent, "repository");
+  assert.equal(
+    summary.options[2].href,
+    "/?view=repository-detail&repository_id=c358ade1-1e17-4d5a-a88e-3af7666874ee",
+  );
+  assert.equal(summary.options[1].target, undefined);
+  assert.equal(summary.options[2].target, undefined);
+  assert.equal(
+    summary.options[3].options[0].href,
+    "https://forgejo.example/operator/repository/commit/" + "a".repeat(40),
+  );
+  assert.equal(
+    summary.options[3].options[1].href,
+    "https://forgejo.example/operator/repository/commit/" + "b".repeat(40),
+  );
+  assert.equal(
+    summary.options[3].options[2].href,
+    "https://forgejo.example/operator/repository/pulls/344",
+  );
+  assert.equal(summary.options[3].options[0].target, "_blank");
+  assert.equal(summary.options[3].options[0].rel, "noopener");
+  assert.equal(summary.options[3].options[1].target, "_blank");
+  assert.equal(summary.options[3].options[2].target, "_blank");
+  assert.equal(
+    summary.options[3].options[2].className,
+    "evaluation-row__source-pull-request",
+  );
+  assert.equal(
+    summary.options[4].href,
+    "/?view=evaluation-detail&evaluation_id=evaluation-running",
+  );
+  assert.equal(summary.options[4].target, undefined);
+  const explicitSource =
+    fixture.controls.get("evaluation-list").options[1].options[1].options[0]
+      .options[3];
+  assert.equal(
+    explicitSource.options[0].href,
+    "https://github.com/example/repository/commit/" + "c".repeat(40),
+  );
+  assert.equal(
+    explicitSource.options[1].href,
+    "https://github.com/example/repository/commit/" + "d".repeat(40),
+  );
+  assert.equal(explicitSource.options[2].textContent, "");
+  assert.equal(explicitSource.options[2].href, undefined);
   assert.equal(
     row.options[1].className,
     "qb-timeline evaluation-row__timeline",
   );
   assert.match(row.options[1].options[0].className, /qb-timeline-node--system/);
   assert.match(row.options[1].options[2].className, /qb-timeline-node--review/);
+  assert.match(row.options[1].options[2].className, /--running/);
+  assert.match(row.options[1].options[4].className, /--pending/);
   assert.equal(
     fixture.controls.get("evaluation-stat-workers").textContent,
     "2 / 4",
   );
   assert.equal(fixture.controls.get("evaluation-stat-queue").textContent, "3");
   assert.equal(
-    fixture.controls.get("evaluation-stat-pass-rate").textContent,
+    fixture.controls.get("evaluation-stat-clear-rate").textContent,
     "No data",
   );
   assert.equal(

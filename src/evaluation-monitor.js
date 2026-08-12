@@ -52,13 +52,16 @@ function validNode(node) {
   }
   return (
     candidate.kind === "review" &&
-    Object.keys(candidate).length === 5 &&
+    Object.keys(candidate).length === 6 &&
     typeof candidate.review_id === "string" &&
     candidate.review_id.length > 0 &&
     typeof candidate.review_version_id === "string" &&
     candidate.review_version_id.length > 0 &&
     typeof candidate.label === "string" &&
     candidate.label.length > 0 &&
+    [null, "clear", "advisory", "blocking", "error"].includes(
+      /** @type {string | null} */ (candidate.outcome),
+    ) &&
     typeof candidate.status === "string" &&
     EXECUTION_STATUSES.has(candidate.status)
   );
@@ -247,6 +250,31 @@ export function readEvaluationMonitors(durableCore, evaluations) {
         review_runs.review_id,
         review_runs.review_version_id,
         review_runs.execution_status AS review_execution_status,
+        EXISTS (
+          SELECT 1 FROM criterion_results AS review_criterion_results
+          WHERE review_criterion_results.review_run_id = review_runs.id
+            AND review_criterion_results.outcome = 'error'
+        ) AS review_has_error,
+        EXISTS (
+          SELECT 1
+          FROM criterion_results AS review_criterion_results
+          JOIN review_version_criteria
+            ON review_version_criteria.review_version_id = review_runs.review_version_id
+           AND review_version_criteria.criterion_id = review_criterion_results.criterion_id
+          WHERE review_criterion_results.review_run_id = review_runs.id
+            AND review_criterion_results.outcome = 'triggered'
+            AND review_version_criteria.impact = 'blocking'
+        ) AS review_has_blocking,
+        EXISTS (
+          SELECT 1
+          FROM criterion_results AS review_criterion_results
+          JOIN review_version_criteria
+            ON review_version_criteria.review_version_id = review_runs.review_version_id
+           AND review_version_criteria.criterion_id = review_criterion_results.criterion_id
+          WHERE review_criterion_results.review_run_id = review_runs.id
+            AND review_criterion_results.outcome = 'triggered'
+            AND review_version_criteria.impact = 'advisory'
+        ) AS review_has_advisory,
         reviews.name AS review_name
       FROM requested
       LEFT JOIN evaluation_results
@@ -315,6 +343,9 @@ export function readEvaluationMonitors(durableCore, evaluations) {
       typeof row.review_version_id !== "string" ||
       typeof row.review_name !== "string" ||
       row.review_name.length === 0 ||
+      ![0, 1].includes(row.review_has_error) ||
+      ![0, 1].includes(row.review_has_blocking) ||
+      ![0, 1].includes(row.review_has_advisory) ||
       !EXECUTION_STATUSES.has(row.review_execution_status)
     ) {
       throw new TypeError("Evaluation monitor review row is invalid");
@@ -322,6 +353,16 @@ export function readEvaluationMonitors(durableCore, evaluations) {
     monitor.nodes.push({
       kind: "review",
       label: row.review_name,
+      outcome:
+        !hasResult || row.review_execution_status !== "completed"
+          ? null
+          : row.review_has_error === 1
+            ? "error"
+            : row.review_has_blocking === 1
+              ? "blocking"
+              : row.review_has_advisory === 1
+                ? "advisory"
+                : "clear",
       review_id: row.review_id,
       review_version_id: row.review_version_id,
       status: row.review_execution_status,

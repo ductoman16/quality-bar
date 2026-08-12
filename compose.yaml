@@ -7,6 +7,15 @@ services:
       args:
         QUALITY_BAR_VERSION: ${QUALITY_BAR_VERSION:?QUALITY_BAR_VERSION must be set}
     user: "10001:10001"
+    cap_add:
+      - SETGID
+      - SETUID
+      - SYS_ADMIN
+      - SYS_CHROOT
+      - SYS_PTRACE
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
     restart: unless-stopped
     stop_grace_period: 15m5s
     network_mode: host

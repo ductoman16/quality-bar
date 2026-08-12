@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createCodexExecutionClaimService } from "./codex-execution-claim.js";
 import { executeClaimWithOwningAdapter } from "./codex-execution-dispatch.js";
 import { createCodexExecutionWorker } from "./codex-execution-worker.js";
+import { prepareReviewRunCheckout } from "./review-run-checkout.js";
 import { executeReviewRun } from "./review-run-execution.js";
 import { createReviewRunResultService } from "./review-run-result.js";
 import { executeWaiverAdjudication } from "./waiver-adjudication-execution.js";
@@ -60,6 +61,7 @@ export function createStorageGuardedClaimService(claimService, storageReserve) {
 /**
  * @param {any} durableCore
  * @param {{
+ *   certificateAuthorityPath?: string,
  *   ioPool: any,
  *   now?: () => number,
  *   repositories: {acquireGitCredential: (repositoryId: string) => Promise<any>},
@@ -71,6 +73,7 @@ export function createStorageGuardedClaimService(claimService, storageReserve) {
 export function createCodexExecutionRuntime(
   durableCore,
   {
+    certificateAuthorityPath,
     ioPool,
     now = () => Date.now(),
     repositories,
@@ -110,6 +113,11 @@ export function createCodexExecutionRuntime(
     );
   }
 
+  /** @param {Parameters<typeof prepareReviewRunCheckout>[0]} input */
+  function prepareCheckout(input) {
+    return prepareReviewRunCheckout({ ...input, certificateAuthorityPath });
+  }
+
   return createCodexExecutionWorker({
     claimService,
     reportFailure,
@@ -120,6 +128,7 @@ export function createCodexExecutionRuntime(
             acquireCheckoutCredential: () => credential(reviewClaim),
             claimService: guardedClaimService,
             ioPool,
+            prepareCheckout,
             resultService: reviewResults,
             spawnProcess,
           });
@@ -129,6 +138,7 @@ export function createCodexExecutionRuntime(
             acquireCheckoutCredential: () => credential(adjudicationClaim),
             claimService: guardedClaimService,
             ioPool,
+            prepareCheckout,
             resultService: waiverResults,
             spawnProcess,
           });

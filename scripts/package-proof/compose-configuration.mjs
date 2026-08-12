@@ -15,11 +15,13 @@ import assert from "node:assert/strict";
  *   services: Record<string, {
  *     platform: string,
  *     image: string,
+ *     cap_add: string[],
  *     profiles?: unknown,
  *     depends_on?: unknown,
  *     network_mode: string,
  *     stop_grace_period?: string,
  *     ports?: unknown,
+ *     security_opt: string[],
  *     volumes: ComposeVolume[],
  *   }>,
  *   volumes: Record<string, object>,
@@ -46,6 +48,17 @@ export function assertComposeConfiguration(fixture) {
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
   assert.equal(configuration.services[serviceName].network_mode, "host");
+  assert.deepEqual(configuration.services[serviceName].cap_add, [
+    "SETGID",
+    "SETUID",
+    "SYS_ADMIN",
+    "SYS_CHROOT",
+    "SYS_PTRACE",
+  ]);
+  assert.deepEqual(configuration.services[serviceName].security_opt, [
+    "apparmor=unconfined",
+    "seccomp=unconfined",
+  ]);
   assert.equal(configuration.services[serviceName].stop_grace_period, "15m5s");
   assert.equal(configuration.services[serviceName].ports, undefined);
 

@@ -47,6 +47,7 @@ export { RepositoryError };
 /**
  * @param {RepositoryDurableCore} durableCore
  * @param {{
+ *   certificateAuthorityPath?: string,
  *   createId?: () => string,
  *   masterKey: Buffer,
  *   now?: () => number,
@@ -62,13 +63,14 @@ export { RepositoryError };
  *     normalizedUrl: string,
  *     credential: {token: string, username: string} | undefined,
  *     request: unknown,
- *     options: {objectDatabaseRoot: string, pullRequestProvider?: "forgejo" | "github", useMergeBase?: boolean}
+ *     options: {certificateAuthorityPath?: string, objectDatabaseRoot: string, pullRequestProvider?: "forgejo" | "github", useMergeBase?: boolean}
  *   ) => Promise<import("./repository-git.js").ResolvedPushedCommitSelectors>
  * }} options
  */
 export function createRepositoryService(
   durableCore,
   {
+    certificateAuthorityPath,
     createId = randomUUID,
     masterKey,
     now = () => Date.now(),
@@ -199,6 +201,7 @@ export function createRepositoryService(
     },
   );
   const resolvePushedSelectors = createRepositorySelectorResolver({
+    certificateAuthorityPath,
     credentialCipher,
     find,
     objectDatabaseRoot,

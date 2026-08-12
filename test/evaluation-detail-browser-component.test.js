@@ -24,6 +24,7 @@ function monitor() {
       {
         kind: "review",
         label: "Security",
+        outcome: "clear",
         review_id: "review-1",
         review_version_id: "review-version-1",
         status: "completed",
@@ -93,6 +94,10 @@ test("Evaluation detail has its own read-only shell and ordered monitor timeline
     view: "evaluation-detail",
   });
   const evaluationPage = renderEvaluationMonitorPage("evaluation-detail");
+  assert.match(
+    evaluationPage.markup,
+    /#evaluation-detail-timeline \.qb-timeline-node::before\{content:none\}/,
+  );
   assert.ok(page.includes(evaluationPage.markup));
   assert.ok(page.includes(evaluationPage.scripts));
   const operatorIndex = page.indexOf("/assets/operator.js");

@@ -183,6 +183,7 @@ test("credentialed checkout keeps credentials out of Git arguments, environment,
   const captures = [];
   const prepared = await prepareReviewRunCheckout({
     baseCommit: base,
+    certificateAuthorityPath: "/run/secrets/private-ca.pem",
     checkoutRoot: join(directory, "checkouts"),
     credential,
     fencingToken: 7,
@@ -204,6 +205,10 @@ test("credentialed checkout keeps credentials out of Git arguments, environment,
   assert.doesNotMatch(
     JSON.stringify(captures),
     /private-git-token-value|private-git-user/,
+  );
+  assert.match(
+    JSON.stringify(captures[0]?.arguments),
+    /http\.sslCAInfo=\/run\/secrets\/private-ca\.pem/,
   );
   assert.equal(
     JSON.stringify(captures).match(/"GIT_LFS_SKIP_SMUDGE":"1"/g)?.length,

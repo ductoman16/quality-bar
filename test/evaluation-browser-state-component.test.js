@@ -34,7 +34,7 @@ test("Evaluation monitor distinguishes an empty ledger from a list dependency fa
           return response({
             evaluation_overview: {
               p95_duration_ms: null,
-              pass_rate: { denominator: 0, numerator: 0 },
+              clear_rate: { denominator: 0, numerator: 0 },
             },
           });
         }

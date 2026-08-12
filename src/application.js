@@ -178,6 +178,7 @@ export function createApplication({
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
   const executionRuntime = createApplicationExecutionRuntime({
+    certificateAuthorityPath,
     createCodexRuntime,
     now,
     stopIoDuties: stopProductWork,
@@ -275,6 +276,7 @@ export function createApplication({
           getForgejoConnections: () => forgejoConnections,
           getGitHubConnections: () => githubConnections,
         }),
+        certificateAuthorityPath,
         masterKey: installation.masterKey,
         now,
         registerSecret,

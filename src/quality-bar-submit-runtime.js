@@ -79,6 +79,26 @@ function restoreQuarantinedArtifact(path, quarantinePath, current) {
 export class InvalidResponseError extends Error {}
 export class SubmissionTooLargeError extends Error {}
 
+/** @param {string} status @param {number} fallback */
+export function outerProcessId(status, fallback) {
+  const match = /^NSpid:\s+([0-9]+)(?:\s+[0-9]+)*\s*$/m.exec(status);
+  const candidate = Number(match?.[1]);
+  return Number.isSafeInteger(candidate) && candidate > 0
+    ? candidate
+    : fallback;
+}
+
+export function submissionClientPid() {
+  try {
+    return outerProcessId(
+      fs.readFileSync("/proc/self/status", "utf8"),
+      process.pid,
+    );
+  } catch {
+    return process.pid;
+  }
+}
+
 /**
  * @param {number} descriptor
  * @param {number} maxBytes

@@ -209,7 +209,7 @@ export function canonicalAnalyticsSchemas() {
         clear_count: count,
         duration_sample_count: count,
         p95_duration_ms: nullableCount,
-        pass_rate: rate,
+        clear_rate: rate,
         terminal_count: count,
         window: closedObject(
           {
@@ -223,7 +223,7 @@ export function canonicalAnalyticsSchemas() {
         "window",
         "terminal_count",
         "clear_count",
-        "pass_rate",
+        "clear_rate",
         "duration_sample_count",
         "p95_duration_ms",
       ],
