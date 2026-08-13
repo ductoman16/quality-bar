@@ -31,7 +31,6 @@ test("secondary views use the shared shell and compact detail hierarchy", () => 
     /aria-current="page" href="\/\?view=repositories"/,
   );
   assert.match(operatorPage({ view: "repositories" }), /qb-deep-surface/);
-  assert.match(operatorPage({ view: "analytics" }), /qb-deep-surface/);
   const system = operatorPage({ view: "system" });
   assert.match(system, /qb-deep-surface/);
   assert.ok(

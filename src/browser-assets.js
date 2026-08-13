@@ -22,11 +22,6 @@ const browserAssets = [
     url: new URL("./browser/analytics-contract.js", import.meta.url),
   },
   {
-    route: "/assets/analytics-matching-facts.js",
-    sourcePath: "src/browser/analytics-matching-facts.js",
-    url: new URL("./browser/analytics-matching-facts.js", import.meta.url),
-  },
-  {
     route: "/assets/analytics-state.js",
     sourcePath: "src/browser/analytics-state.js",
     url: new URL("./browser/analytics-state.js", import.meta.url),

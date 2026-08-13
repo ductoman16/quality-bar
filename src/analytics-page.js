@@ -175,44 +175,6 @@ const RELIABILITY_SECTION =
   ) +
   "</section>";
 
-// Matching facts are the raw supporting rows; keep them as a de-emphasized deep
-// surface (the secondary-shell test requires a qb-deep-surface band here).
-const MATCHING_SECTION =
-  '<section class="qb-region qb-deep-surface an-matching" aria-labelledby="analytics-matching-facts-title" id="analytics-matching-facts"><h2 id="analytics-matching-facts-title">Matching facts</h2>' +
-  metric(
-    "Evaluations",
-    table("analytics-matching-evaluations", [
-      "Evaluation identity",
-      "Repository identity",
-      "Pull request number",
-      "Terminal Evaluation outcome",
-      "Evaluation created at",
-    ]),
-  ) +
-  metric(
-    "Review Runs",
-    table("analytics-matching-review-runs", [
-      "Review Run identity",
-      "Review Run Repository",
-      "Review Run Changeset",
-      "Review Run pull request",
-      "Evaluation for Review Run",
-      "Review for Review Run",
-      "Review Version for Review Run",
-      "Review Run configuration",
-      "Review Run status",
-      "Review Run cancellation",
-      "Criterion Results",
-      "Finding facts",
-      "Waiver Request facts",
-      "Waiver Decision facts",
-      "Review Run duration",
-      "Review Run tokens",
-      "Review Run failure code",
-    ]),
-  ) +
-  "</section>";
-
 const ERROR_MARKUP =
   '<p hidden id="analytics-error" role="alert" tabindex="-1"></p>';
 
@@ -241,7 +203,7 @@ const STYLE =
   ".an-filters #analytics-filters label{color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.06em}" +
   ".an-filters #analytics-filters input,.an-filters #analytics-filters select{border:0;border-bottom:1px solid var(--qb-line);border-radius:0;background:transparent;padding:5px 2px;min-height:1.9rem;font-family:var(--font-mono);font-size:12px}" +
   ".an-filters #analytics-filters button{grid-column:1/-1;justify-self:start;min-height:30px;padding:4px 16px;border-radius:6px;font-size:11px}" +
-  ".an-band>h2,.an-matching>h2{font-size:14px;letter-spacing:-.01em}" +
+  ".an-band>h2{font-size:14px;letter-spacing:-.01em}" +
   ".an-metric{margin-top:20px}" +
   ".an-metric:first-of-type{margin-top:6px}" +
   ".an-metric__title{margin:0 0 8px;color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase}" +
@@ -249,13 +211,11 @@ const STYLE =
   ".an-metric table{font-size:12px}" +
   ".an-metric th{font-size:10px}" +
   ".an-metric td{font-family:var(--font-mono);color:var(--qb-ink)}" +
-  ".an-matching td{color:var(--qb-muted-ink);white-space:nowrap}" +
   "@media(max-width:900px){.an-stat-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.an-stat{padding-right:12px}.an-filters #analytics-filters{grid-template-columns:max-content minmax(0,1fr)}}" +
   "</style>";
 
 const SCRIPTS =
   '<script src="/assets/analytics-contract.js"></script>' +
-  '<script src="/assets/analytics-matching-facts.js"></script>' +
   '<script src="/assets/analytics-state.js"></script>' +
   '<script src="/assets/analytics.js"></script>';
 
@@ -269,7 +229,6 @@ export function renderAnalyticsPage() {
       REVIEWS_SECTION +
       WAIVERS_SECTION +
       RELIABILITY_SECTION +
-      MATCHING_SECTION +
       ERROR_MARKUP +
       STYLE,
     scripts: SCRIPTS,
