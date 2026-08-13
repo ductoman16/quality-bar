@@ -27,6 +27,15 @@ test("the Review Version component submits the selected complete executable snap
     serviceTier,
   } = reviewVersionBrowserHarness();
 
+  /** @type {{review: {id: string}}[]} */
+  const reviewUpdatedEvents = [];
+  documentListeners.set(
+    "quality-bar:review-updated",
+    /** @param {{detail: {review: {id: string}}}} event */ (event) => {
+      reviewUpdatedEvents.push(event.detail);
+    },
+  );
+
   const systemLoaded = documentListeners.get("quality-bar:system-loaded");
   assert.ok(systemLoaded);
   await assert.rejects(
@@ -253,6 +262,7 @@ test("the Review Version component submits the selected complete executable snap
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(result.textContent, "Executable boundaries v2 unchanged.");
   assert.equal(error.hidden, true);
+  assert.equal(reviewUpdatedEvents.at(-1)?.review.id, "review/one");
 
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(

@@ -89,6 +89,8 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
       },
     },
   ];
+  /** @type {{type: string, detail: unknown}[]} */
+  const dispatchedEvents = [];
   const document = {
     /** @param {string} name @param {(event: any) => unknown} listener */
     addEventListener(name, listener) {
@@ -98,6 +100,11 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
     /** @param {string} tagName */
     createElement(tagName) {
       return browserElement({ tagName });
+    },
+    /** @param {{type: string, detail: unknown}} event */
+    dispatchEvent(event) {
+      dispatchedEvents.push({ detail: event.detail, type: event.type });
+      return true;
     },
     /** @param {string} id */
     getElementById(id) {
@@ -183,6 +190,14 @@ test("the Review lifecycle surface confirms archive and restores the same lineag
   assert.equal(submit.textContent, "Restore");
   assert.equal(result.textContent, "Review lifecycle archived.");
   assert.equal(error.hidden, true);
+  assert.deepEqual(
+    dispatchedEvents.map((event) => event.type),
+    ["quality-bar:review-updated"],
+  );
+  const updatedDetail = /** @type {{review: {id: string}}} */ (
+    dispatchedEvents[0].detail
+  );
+  assert.equal(updatedDetail.review.id, "review/one");
 
   await submit.listener("click")({ preventDefault() {} });
   assert.equal(error.textContent, "Review storage is unavailable");

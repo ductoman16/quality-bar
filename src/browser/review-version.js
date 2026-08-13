@@ -443,6 +443,11 @@
         throw new Error("Review Version response was invalid");
       }
       reviews.set(saved.review.id, saved.review);
+      document.dispatchEvent(
+        new CustomEvent("quality-bar:review-updated", {
+          detail: { review: saved.review },
+        }),
+      );
       if (matchesSubmission(currentSubmission)) {
         openReview(saved.review);
         result.textContent =

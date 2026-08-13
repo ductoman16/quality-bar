@@ -20,6 +20,14 @@ test("the Review authoring surface reactivates a selected immutable version", as
     requests,
     result,
   } = reviewVersionBrowserHarness();
+  /** @type {{review: {id: string}}[]} */
+  const reviewUpdatedEvents = [];
+  documentListeners.set(
+    "quality-bar:review-updated",
+    /** @param {{detail: {review: {id: string}}}} event */ (event) => {
+      reviewUpdatedEvents.push(event.detail);
+    },
+  );
   const systemLoaded = documentListeners.get("quality-bar:system-loaded");
   assert.ok(systemLoaded);
   await systemLoaded(
@@ -72,6 +80,7 @@ test("the Review authoring surface reactivates a selected immutable version", as
   });
   assert.equal(result.textContent, "Executable boundaries v1 active.");
   assert.equal(error.hidden, true);
+  assert.equal(reviewUpdatedEvents.at(-1)?.review.id, "review/one");
 
   activationSelector.value = current.id;
   activationSelector.listener("change")({});
