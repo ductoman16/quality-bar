@@ -146,6 +146,8 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
   ];
   /** @type {Array<{path: string, options?: object}>} */
   const requests = [];
+  /** @type {{type: string, detail: unknown}[]} */
+  const dispatchedEvents = [];
   const document = {
     /** @param {string} name @param {(event: any) => unknown} listener */
     addEventListener(name, listener) {
@@ -155,6 +157,11 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
     /** @param {string} tagName */
     createElement(tagName) {
       return browserElement({ selected: false, tagName });
+    },
+    /** @param {{type: string, detail: unknown}} event */
+    dispatchEvent(event) {
+      dispatchedEvents.push({ detail: event.detail, type: event.type });
+      return true;
     },
     /** @param {string} id */
     getElementById(id) {
@@ -242,6 +249,14 @@ test("the Review Assignment surface submits one exact mode and clears stale succ
   });
   assert.equal(result.textContent, "Assignment boundaries Assignment changed.");
   assert.equal(error.hidden, true);
+  assert.deepEqual(
+    dispatchedEvents.map((event) => event.type),
+    ["quality-bar:review-updated"],
+  );
+  const updatedDetail = /** @type {{review: {id: string}}} */ (
+    dispatchedEvents[0].detail
+  );
+  assert.equal(updatedDetail.review.id, "review/one");
 
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(error.hidden, false);

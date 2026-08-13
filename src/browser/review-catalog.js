@@ -262,4 +262,10 @@
     }
     void load();
   });
+  document.addEventListener("quality-bar:review-updated", () => {
+    if (!document.getElementById("review-catalog")) {
+      return;
+    }
+    void load();
+  });
 }

@@ -54,6 +54,8 @@ test("a Review metadata validation error preserves local values and focuses its 
   ]);
   /** @type {Map<string, (event: any) => unknown>} */
   const documentListeners = new Map();
+  /** @type {{type: string, detail: unknown}[]} */
+  const dispatchedEvents = [];
   /** @type {{path: string, options: object}[]} */
   const requests = [];
   /** @type {string[]} */
@@ -78,6 +80,11 @@ test("a Review metadata validation error preserves local values and focuses its 
         /** @param {string} eventName @param {(event: any) => unknown} listener */
         addEventListener(eventName, listener) {
           documentListeners.set(eventName, listener);
+        },
+        /** @param {{type: string, detail: unknown}} event */
+        dispatchEvent(event) {
+          dispatchedEvents.push({ detail: event.detail, type: event.type });
+          return true;
         },
         get cookie() {
           return browserCookie;
@@ -344,6 +351,14 @@ test("a Review metadata validation error preserves local values and focuses its 
 
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(result.textContent, "Saved lineage metadata saved.");
+  assert.deepEqual(
+    dispatchedEvents.map((event) => event.type),
+    ["quality-bar:review-updated"],
+  );
+  const updatedDetail = /** @type {{review: {id: string}}} */ (
+    dispatchedEvents[0].detail
+  );
+  assert.equal(updatedDetail.review.id, "review/lineage");
 
   await form.listener("submit")({ preventDefault() {} });
   assert.deepEqual(destinations, ["/?return_to=%2F%3Fview%3Dreviews"]);

@@ -349,6 +349,11 @@
           throw new Error("Review metadata response was invalid");
         }
         reviews.set(review.id, review);
+        document.dispatchEvent(
+          new CustomEvent("quality-bar:review-updated", {
+            detail: { review },
+          }),
+        );
         if (matchesSubmission(submitted)) {
           openReview(review);
           result.textContent = review.name + " metadata saved.";

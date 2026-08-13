@@ -213,6 +213,11 @@
       }
       state.value = archived ? "archived" : "active";
       render([updatedReview]);
+      document.dispatchEvent(
+        new CustomEvent("quality-bar:review-updated", {
+          detail: { review: updatedReview },
+        }),
+      );
       result.textContent = `${updatedReview.name} ${archived ? "archived" : "restored"}.`;
     } finally {
       pending = false;

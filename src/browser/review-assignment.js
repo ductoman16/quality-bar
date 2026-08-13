@@ -295,6 +295,11 @@
         throw new Error("Review Assignment response was invalid");
       }
       reviews.set(updated.id, updated);
+      document.dispatchEvent(
+        new CustomEvent("quality-bar:review-updated", {
+          detail: { review: updated },
+        }),
+      );
       result.textContent = `${updated.name} Assignment ${body.changed ? "changed" : "unchanged"}.`;
       showSelectedReview();
     } catch (cause) {

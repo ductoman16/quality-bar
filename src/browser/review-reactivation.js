@@ -169,6 +169,11 @@
           detail: { open, reactivated },
         }),
       );
+      document.dispatchEvent(
+        new CustomEvent("quality-bar:review-updated", {
+          detail: { review: reactivated.review },
+        }),
+      );
       if (!open) {
         updateAvailability();
       }
