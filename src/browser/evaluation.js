@@ -434,52 +434,32 @@
     return button;
   }
 
-  const EXECUTION_TONE = /** @type {Record<string, string>} */ ({
-    complete: "clear",
-    failed: "error",
-    pending: "pending",
-    skipped: "skipped",
-  });
-
-  /**
-   * The status a step shows, in the same vocabulary the row and timeline use.
-   * Review steps carry an outcome (Clear/Advisory/Blocking/Error); system steps
-   * (Preparing/Finalizing) have none, so they fall back to execution status.
-   * @param {any} node @param {"system" | "review"} kind
-   */
-  function stepStatus(node, kind) {
-    const outcome = text(node?.outcome);
-    if (kind === "review" && OUTCOMES.has(outcome) && outcome !== "pending") {
-      return {
-        label: outcome.replace(/^./, (value) => value.toUpperCase()),
-        tone: outcome,
-      };
-    }
-    const [state, label] = nodeStatus(text(node?.status) || "unknown");
-    return { label, tone: EXECUTION_TONE[state] ?? "pending" };
-  }
-
   /** @param {number} index @param {any} node */
   function expandedStep(index, node) {
     const kind = node?.kind === "system" ? "system" : "review";
     const label =
       text(node?.label) || (kind === "system" ? "System" : "Review");
     const finished = text(node?.completed_at || node?.finished_at);
-    const status = stepStatus(node, kind);
+    // Review steps show their outcome; system steps show execution status.
+    const outcome = text(node?.outcome);
+    const useOutcome =
+      kind === "review" && OUTCOMES.has(outcome) && outcome !== "pending";
+    const [state, execLabel] = nodeStatus(text(node?.status) || "unknown");
+    const execTone =
+      state === "complete" ? "clear" : state === "failed" ? "error" : state;
+    const tone = useOutcome ? outcome : execTone;
+    const statusLabel = useOutcome
+      ? outcome.replace(/^./, (value) => value.toUpperCase())
+      : execLabel;
     return element("div", "evaluation-expanded__row evaluation-node", "", [
       element("div", "evaluation-step", "", [
         element("span", "evaluation-step__number", String(index + 1)),
         element("span", "evaluation-step__label", label),
       ]),
-      element(
-        "span",
-        "evaluation-node-status evaluation-status--" + status.tone,
-        "",
-        [
-          element("span", "evaluation-status__icon", ""),
-          element("span", "evaluation-status__label", status.label),
-        ],
-      ),
+      element("span", "evaluation-node-status evaluation-status--" + tone, "", [
+        element("span", "evaluation-status__icon", ""),
+        element("span", "evaluation-status__label", statusLabel),
+      ]),
       element(
         "span",
         "",
