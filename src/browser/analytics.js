@@ -38,9 +38,8 @@ const overviewReviewSuccess = document.getElementById(
 );
 const analyticsWindow = /** @type {any} */ (window);
 const analyticsContract = analyticsWindow.qualityBarAnalyticsContract;
-const matchingFactsSurface = analyticsWindow.qualityBarAnalyticsMatchingFacts;
 const analyticsState = analyticsWindow.qualityBarAnalyticsState;
-if (!analyticsContract || !matchingFactsSurface || !analyticsState) {
+if (!analyticsContract || !analyticsState) {
   throw new Error("analytics_contract_unavailable");
 }
 if (!filterForm) {
@@ -49,7 +48,6 @@ if (!filterForm) {
 const {
   validCount: analyticsValidCount,
   validExecutionReliability: analyticsValidExecutionReliability,
-  validMatchingFacts: analyticsValidMatchingFacts,
 } = analyticsContract;
 
 /** @param {{numerator: number, denominator: number}} rate */
@@ -112,7 +110,6 @@ function render(document) {
     !Array.isArray(document?.criterion_outcomes) ||
     typeof document?.evaluation_outcomes !== "object" ||
     typeof document?.finding_impact !== "object" ||
-    !analyticsValidMatchingFacts(document?.matching_facts) ||
     typeof document?.waiver_analytics !== "object" ||
     typeof document?.waiver_analytics?.decision_history !== "object" ||
     typeof document?.population !== "object" ||
@@ -198,7 +195,6 @@ function render(document) {
       transitions.sample_size,
     ]),
   );
-  matchingFactsSurface.render(document.matching_facts);
   const evaluations = document.evaluation_outcomes;
   evaluationOutcomesBody.append(
     row([

@@ -6,10 +6,7 @@ import { executeServedBrowserAsset } from "../scripts/application-coverage-polic
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import { browserElement } from "./repository-browser-component-support.js";
-import {
-  analyticsMatchingFactsFixture,
-  assertAnalyticsBrowserStates,
-} from "./analytics-browser-state-support.js";
+import { assertAnalyticsBrowserStates } from "./analytics-browser-state-support.js";
 
 test("Analytics renders visible counts and numerator/denominator rates", () => {
   const page = operatorPage({ view: "analytics" });
@@ -27,15 +24,9 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   assert.match(page, /id="analytics-filters"/);
   assert.match(page, /id="analytics-population"/);
   assert.match(page, /id="analytics-transitions"/);
-  assert.match(page, /id="analytics-matching-evaluations"/);
-  assert.match(page, /id="analytics-matching-review-runs"/);
   assert.match(
     page,
     /<script src="\/assets\/analytics-contract\.js"><\/script>/,
-  );
-  assert.match(
-    page,
-    /<script src="\/assets\/analytics-matching-facts\.js"><\/script>/,
   );
   assert.match(page, /<script src="\/assets\/analytics-state\.js"><\/script>/);
   assert.match(page, /<script src="\/assets\/analytics\.js"><\/script>/);
@@ -56,8 +47,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const executionDuration = browserElement();
   const tokenCounters = browserElement();
   const transitions = browserElement();
-  const matchingEvaluations = browserElement();
-  const matchingReviewRuns = browserElement();
   const population = browserElement();
   const filters = browserElement();
   const error = browserElement({ hidden: true });
@@ -77,8 +66,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-execution-duration", executionDuration],
     ["analytics-token-counters", tokenCounters],
     ["analytics-transitions", transitions],
-    ["analytics-matching-evaluations", matchingEvaluations],
-    ["analytics-matching-review-runs", matchingReviewRuns],
     ["analytics-population", population],
     ["analytics-filters", filters],
     ["analytics-error", error],
@@ -105,12 +92,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     resolve("."),
     "src/browser/analytics-state.js",
     readBrowserAsset("/assets/analytics-state.js"),
-    context,
-  );
-  executeServedBrowserAsset(
-    resolve("."),
-    "src/browser/analytics-matching-facts.js",
-    readBrowserAsset("/assets/analytics-matching-facts.js"),
     context,
   );
   assert.throws(
@@ -175,7 +156,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
         numerator: 7,
       },
     },
-    matching_facts: analyticsMatchingFactsFixture(),
     population: {
       filters: {},
       matching_evaluations: 11,
@@ -374,8 +354,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     population.textContent,
     "Pending data · 11/11 Evaluations · 3 Waiver Requests · 5 Waiver Decisions · 1 Waiver Adjudications",
   );
-  assert.equal(matchingEvaluations.options.length, 1);
-  assert.equal(matchingReviewRuns.options.length, 1);
   assert.deepEqual(
     transitions.options[0].options.map(
       (/** @type {{textContent: string}} */ { textContent }) => textContent,
@@ -387,7 +365,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     context,
     error,
     evaluationOutcomes,
-    matchingEvaluations,
     page,
     population,
   });

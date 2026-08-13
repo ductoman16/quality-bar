@@ -24,12 +24,6 @@ function clearAnalyticsState() {
     population.hidden = true;
     population.textContent = "";
   }
-  const matchingFacts = /** @type {any} */ (window)
-    .qualityBarAnalyticsMatchingFacts;
-  if (!matchingFacts) {
-    throw new Error("analytics_matching_facts_unavailable");
-  }
-  matchingFacts.clear();
 }
 
 const analyticsStateWindow = /** @type {any} */ (window);

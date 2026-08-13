@@ -205,7 +205,6 @@ test("the JavaScript type-check evidence records the complete cleanup", () => {
           "src/browser/evaluation.js",
           "src/browser/analytics.js",
           "src/browser/analytics-contract.js",
-          "src/browser/analytics-matching-facts.js",
           "src/browser/analytics-state.js",
           "src/browser/storage-reserve.js",
           "src/browser/system-attention.js",
