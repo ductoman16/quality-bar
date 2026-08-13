@@ -238,6 +238,33 @@ test("Evaluation outcomes use canonical outcome language", async () => {
   }
 });
 
+test("Expanded review steps show their outcome in the shared vocabulary", async () => {
+  const fixture = monitorContext([
+    evaluation({
+      effective_outcome: "advisory",
+      id: "evaluation-advisory",
+      monitor: {
+        ...evaluation().monitor,
+        nodes: evaluation().monitor.nodes.map((node) =>
+          node.kind === "review" ? { ...node, outcome: "advisory" } : node,
+        ),
+      },
+    }),
+  ]);
+  executeEvaluationMonitorPageAsset(fixture.context, "/assets/evaluation.js");
+  await settle();
+  await firstRow(fixture.controls).options[0].options[0].listener("click")();
+  const preview = firstRow(fixture.controls).options.at(-1);
+  // A completed system step reads its execution status ("Completed"); a review
+  // step reads its outcome ("Advisory") in the same glyph vocabulary the row uses.
+  const systemStep = preview.options[0].options[1].options[1];
+  assert.match(systemStep.className, /evaluation-status--clear/);
+  assert.equal(systemStep.options[1].textContent, "Completed");
+  const reviewStep = preview.options[0].options[2].options[1];
+  assert.match(reviewStep.className, /evaluation-status--advisory/);
+  assert.equal(reviewStep.options[1].textContent, "Advisory");
+});
+
 test("Evaluation monitor interface validates resources and owns mutations", async () => {
   /** @type {Array<{options: any, path: string}>} */
   const requests = [];
@@ -436,14 +463,15 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
   const expandedRow = firstRow(fixture.controls);
   const preview = expandedRow.options.at(-1);
   assert.equal(preview.className, "evaluation-expanded");
-  assert.match(
-    preview.options[0].options[1].options[0].options[1].className,
-    /evaluation-step__marker--system/,
-  );
-  assert.match(
-    preview.options[0].options[2].options[0].options[1].className,
-    /evaluation-step__marker--review/,
-  );
+  // The expansion renders status in the shared `evaluation-status--` vocabulary
+  // (not a separate glyph set): a completed system step reads "Completed", a
+  // still-running review step (no outcome yet) reads "Running".
+  const systemStepStatus = preview.options[0].options[1].options[1];
+  assert.match(systemStepStatus.className, /evaluation-status--clear/);
+  assert.equal(systemStepStatus.options[1].textContent, "Completed");
+  const reviewStepStatus = preview.options[0].options[2].options[1];
+  assert.match(reviewStepStatus.className, /evaluation-status--pending/);
+  assert.equal(reviewStepStatus.options[1].textContent, "Running");
 
   fixture.controls.get("evaluation-filter-status").value = "running";
   const filterStart = "2026-07-28T12:00";

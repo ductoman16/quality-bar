@@ -537,8 +537,8 @@ fetch("/api/v1/system")
         description.append(value);
         facts.append(term, description);
       };
-      addFact("Bootstrap", system.bootstrap.status);
-      addFact("Durable core", system.durable_core.status);
+      // Bootstrap and Durable core are already in the top health strip; the
+      // "System status" section carries only the facts the strip doesn't show.
       const models = document.createElement("ul");
       models.className = "system-model-list";
       for (const model of system.codex.catalog.models) {

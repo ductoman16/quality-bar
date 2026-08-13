@@ -31,41 +31,14 @@
 
   const nameEl = element("review-detail-name");
   const stateEl = element("review-detail-state");
-  const metaEl = element("review-detail-meta");
   const versionLabel = element("review-editor-active-version");
   const errorEl = element("review-detail-error");
 
   const reviewId = new URLSearchParams(window.location.search).get("review_id");
 
-  /** @param {unknown} value */
-  const text = (value) => (typeof value === "string" ? value : "");
-
-  /** @param {DetailReview} review */
-  function scopeLabel(review) {
-    const assignment = review.assignment;
-    if (!assignment || assignment.scope === "installation_wide") {
-      return "Installation-wide";
-    }
-    const count = Array.isArray(assignment.repository_ids)
-      ? assignment.repository_ids.length
-      : 0;
-    return count === 1 ? "1 repository" : count + " repositories";
-  }
-
-  /** @param {string} label @param {string} value @param {boolean} [mono] */
-  function metaCell(label, value, mono) {
-    const cell = document.createElement("div");
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    if (mono) {
-      dd.className = "mono";
-    }
-    dd.textContent = value;
-    cell.append(dt, dd);
-    return cell;
-  }
-
+  // The name heading (identity), the state badge (lifecycle), the "Active
+  // version · vN" label, and the editors below each already show these facts,
+  // so the detail page carries no separate meta readout.
   /** @param {DetailReview} review */
   function render(review) {
     nameEl.textContent = review.name;
@@ -74,38 +47,6 @@
     versionLabel.textContent = Number.isSafeInteger(number)
       ? " · v" + number
       : "";
-
-    const configuration = review.active_version?.codex_configuration ?? {};
-    const criteria = review.active_version?.criteria ?? [];
-    const blocking = criteria.filter((c) => c?.impact === "blocking").length;
-    const advisory = criteria.filter((c) => c?.impact === "advisory").length;
-    const codex = [
-      text(configuration.model),
-      text(configuration.reasoning_effort),
-      text(configuration.service_tier),
-    ]
-      .filter((value) => value.length > 0)
-      .join(" · ");
-
-    metaEl.replaceChildren(
-      metaCell("Assignment", scopeLabel(review)),
-      metaCell(
-        "Active version",
-        Number.isSafeInteger(number) ? "v" + number : "—",
-        true,
-      ),
-      metaCell("Codex", codex || "—", true),
-      metaCell(
-        "Criteria",
-        criteria.length +
-          (criteria.length === 1 ? " criterion" : " criteria") +
-          " · " +
-          blocking +
-          " blocking · " +
-          advisory +
-          " advisory",
-      ),
-    );
   }
 
   /** @param {string} url */

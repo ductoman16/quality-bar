@@ -186,25 +186,29 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     : backup.error
       ? `${backup.error.code}: ${backup.error.detail}`
       : "none";
+  const humanizeStatus = (/** @type {string} */ status) =>
+    status.replace(/_/g, " ").replace(/^./, (letter) => letter.toUpperCase());
   const migrationValue = migration.error
-    ? `${migration.status} — ${migration.error.code}: ${migration.error.detail}`
-    : `${migration.status} — ${migration.from_schema_version} to ${migration.to_schema_version}`;
+    ? `${humanizeStatus(migration.status)} — ${migration.error.detail}`
+    : migration.from_schema_version === migration.to_schema_version
+      ? `${humanizeStatus(migration.status)} · schema ${migration.to_schema_version}`
+      : `${humanizeStatus(migration.status)} · schema ${migration.from_schema_version} → ${migration.to_schema_version}`;
   factsContainer.replaceChildren(
     ...[
       ...storageDefinition(
         "Application",
         application.error
-          ? `${application.status} — ${application.error.code}: ${application.error.detail}`
+          ? application.error.detail
           : `${application.application_version} — ${application.status}`,
       ),
       ...storageDefinition(
         "Installation key identity",
-        application.installation_key_identity ?? "unavailable",
+        application.installation_key_identity ?? "—",
       ),
       ...storageDefinition(
         "Schema",
         application.schema_version === null
-          ? "unavailable"
+          ? "—"
           : String(application.schema_version),
       ),
       ...storageDefinition("Owned cleanup", cleanupValue),

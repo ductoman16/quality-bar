@@ -437,30 +437,29 @@
   /** @param {number} index @param {any} node */
   function expandedStep(index, node) {
     const kind = node?.kind === "system" ? "system" : "review";
-    const status = text(node?.status) || "unknown";
     const label =
       text(node?.label) || (kind === "system" ? "System" : "Review");
     const finished = text(node?.completed_at || node?.finished_at);
-    const statusState = nodeStatus(status);
+    // Review steps show their outcome; system steps show execution status.
+    const outcome = text(node?.outcome);
+    const useOutcome =
+      kind === "review" && OUTCOMES.has(outcome) && outcome !== "pending";
+    const [state, execLabel] = nodeStatus(text(node?.status) || "unknown");
+    const execTone =
+      state === "complete" ? "clear" : state === "failed" ? "error" : state;
+    const tone = useOutcome ? outcome : execTone;
+    const statusLabel = useOutcome
+      ? outcome.replace(/^./, (value) => value.toUpperCase())
+      : execLabel;
     return element("div", "evaluation-expanded__row evaluation-node", "", [
       element("div", "evaluation-step", "", [
         element("span", "evaluation-step__number", String(index + 1)),
-        element(
-          "span",
-          "evaluation-step__marker evaluation-step__marker--" + kind,
-          "",
-        ),
         element("span", "evaluation-step__label", label),
       ]),
-      element(
-        "span",
-        "evaluation-node-status evaluation-node-status--" + statusState[0],
-        "",
-        [
-          element("span", "evaluation-node-status__icon", ""),
-          element("span", "", statusState[1]),
-        ],
-      ),
+      element("span", "evaluation-node-status evaluation-status--" + tone, "", [
+        element("span", "evaluation-status__icon", ""),
+        element("span", "evaluation-status__label", statusLabel),
+      ]),
       element(
         "span",
         "",

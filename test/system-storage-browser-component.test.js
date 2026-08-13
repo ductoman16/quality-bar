@@ -104,7 +104,7 @@ test("System renders storage, cleanup, backup, and migration facts without opera
       "Last successful backup",
       "empty — none",
       "Migration",
-      "not_required — 53 to 53",
+      "Not required · schema 53",
     ],
   );
 

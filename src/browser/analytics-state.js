@@ -24,15 +24,6 @@ function clearAnalyticsState() {
     population.hidden = true;
     population.textContent = "";
   }
-  for (const id of [
-    "analytics-invalid-denominator",
-    "analytics-unavailable-tokens",
-  ]) {
-    const status = document.getElementById(id);
-    if (status) {
-      status.hidden = true;
-    }
-  }
   const matchingFacts = /** @type {any} */ (window)
     .qualityBarAnalyticsMatchingFacts;
   if (!matchingFacts) {
