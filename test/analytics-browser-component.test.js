@@ -29,8 +29,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   assert.match(page, /id="analytics-transitions"/);
   assert.match(page, /id="analytics-matching-evaluations"/);
   assert.match(page, /id="analytics-matching-review-runs"/);
-  assert.match(page, /id="analytics-invalid-denominator" role="status"/);
-  assert.match(page, /id="analytics-unavailable-tokens" role="status"/);
   assert.match(
     page,
     /<script src="\/assets\/analytics-contract\.js"><\/script>/,
@@ -61,8 +59,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const matchingEvaluations = browserElement();
   const matchingReviewRuns = browserElement();
   const population = browserElement();
-  const invalidDenominator = browserElement({ hidden: true });
-  const unavailableTokens = browserElement({ hidden: true });
   const filters = browserElement();
   const error = browserElement({ hidden: true });
   const elements = new Map([
@@ -84,8 +80,6 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-matching-evaluations", matchingEvaluations],
     ["analytics-matching-review-runs", matchingReviewRuns],
     ["analytics-population", population],
-    ["analytics-invalid-denominator", invalidDenominator],
-    ["analytics-unavailable-tokens", unavailableTokens],
     ["analytics-filters", filters],
     ["analytics-error", error],
   ]);
@@ -374,7 +368,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     tokenCounters.options[1].options.map(
       (/** @type {{textContent: string}} */ { textContent }) => textContent,
     ),
-    ["Review Run", "Cached input tokens", "Unavailable", "Unavailable", "0/3"],
+    ["Review Run", "Cached input tokens", "—", "—", "0/3"],
   );
   assert.equal(
     population.textContent,
@@ -388,14 +382,11 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ),
     ["2", "1", "1", "4"],
   );
-  assert.equal(invalidDenominator.hidden, true);
-  assert.equal(unavailableTokens.hidden, false);
   assertAnalyticsBrowserStates({
     analyticsDocument,
     context,
     error,
     evaluationOutcomes,
-    invalidDenominator,
     matchingEvaluations,
     page,
     population,

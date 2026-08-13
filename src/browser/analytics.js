@@ -25,12 +25,6 @@ const executionDurationBody = document.getElementById(
 const tokenCountersBody = document.getElementById("analytics-token-counters");
 const transitionsBody = document.getElementById("analytics-transitions");
 const populationStatus = document.getElementById("analytics-population");
-const invalidDenominatorStatus = document.getElementById(
-  "analytics-invalid-denominator",
-);
-const unavailableTokensStatus = document.getElementById(
-  "analytics-unavailable-tokens",
-);
 const filterForm = document.getElementById("analytics-filters");
 const analyticsError = document.getElementById("analytics-error");
 const overviewEvaluations = document.getElementById(
@@ -42,8 +36,6 @@ const overviewError = document.getElementById("analytics-overview-error");
 const overviewReviewSuccess = document.getElementById(
   "analytics-overview-review-success",
 );
-let invalidDenominator = false;
-
 const analyticsWindow = /** @type {any} */ (window);
 const analyticsContract = analyticsWindow.qualityBarAnalyticsContract;
 const matchingFactsSurface = analyticsWindow.qualityBarAnalyticsMatchingFacts;
@@ -63,7 +55,6 @@ const {
 /** @param {{numerator: number, denominator: number}} rate */
 function rateText(rate) {
   if (rate.denominator === 0) {
-    invalidDenominator = true;
     return "—";
   }
   return `${rate.numerator}/${rate.denominator}`;
@@ -86,7 +77,7 @@ function setOverview(target, value) {
 
 /** @param {number | null} value */
 function measurementText(value) {
-  return value === null ? "Unavailable" : String(value);
+  return value === null ? "—" : String(value);
 }
 
 /** @param {unknown[]} values */
@@ -116,8 +107,6 @@ function render(document) {
     !tokenCountersBody ||
     !transitionsBody ||
     !populationStatus ||
-    !invalidDenominatorStatus ||
-    !unavailableTokensStatus ||
     !analyticsError ||
     !Array.isArray(document?.review_applicability) ||
     !Array.isArray(document?.criterion_outcomes) ||
@@ -172,7 +161,6 @@ function render(document) {
   executionDurationBody.replaceChildren();
   tokenCountersBody.replaceChildren();
   transitionsBody.replaceChildren();
-  invalidDenominator = false;
   const populationLabels = {
     no_evaluations: "No Evaluations",
     no_filter_match: "No filter match",
@@ -374,13 +362,6 @@ function render(document) {
       );
     }
   }
-  invalidDenominatorStatus.hidden = !invalidDenominator;
-  unavailableTokensStatus.hidden = ![reviewRuns, adjudications].some(
-    (reliability) =>
-      ["input_tokens", "cached_input_tokens", "output_tokens"].some(
-        (counter) => reliability.token_counters[counter].sum === null,
-      ),
-  );
   analyticsError.hidden = true;
   analyticsError.textContent = "";
 }

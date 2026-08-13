@@ -72,7 +72,6 @@ export function assertAnalyticsBrowserStates(input) {
     context,
     error,
     evaluationOutcomes,
-    invalidDenominator,
     matchingEvaluations,
     page,
     population,
@@ -167,7 +166,6 @@ export function assertAnalyticsBrowserStates(input) {
     population.textContent,
     "No filter match · 0/11 Evaluations · 0 Waiver Requests · 0 Waiver Decisions · 0 Waiver Adjudications",
   );
-  assert.equal(invalidDenominator.hidden, false);
   context.window.qualityBarAnalytics.showQueryFailure(
     new Error("analytics_query_failed: Analytics query failed"),
   );
