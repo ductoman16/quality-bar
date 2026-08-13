@@ -199,6 +199,25 @@ function repositoryCredentialLabel(credentialType) {
 }
 
 /** @param {RepositoryResource} repository */
+/**
+ * A compact display name for a repository URL — `owner/repo`, without the
+ * scheme or the trailing `.git`. Falls back to the raw URL if it can't parse.
+ * @param {string} url
+ */
+function repositoryDisplayName(url) {
+  const path = url
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+    .split(/[?#]/)[0]
+    .replace(/\.git$/i, "")
+    .replace(/\/+$/, "");
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length >= 3) {
+    return segments.slice(-2).join("/");
+  }
+  return segments[segments.length - 1] || url;
+}
+
+/** @param {any} repository */
 function renderRepository(repository) {
   if (typeof repository.deletion_eligible !== "boolean") {
     throw new Error("repository_deletion_eligibility_invalid");
@@ -221,8 +240,12 @@ function renderRepository(repository) {
   repositoryResources.set(repository.id, repository);
   let provider = "Generic HTTPS Git";
   let identity = repository.url;
-  let assignments = "Unavailable";
-  let latestVerification = "Unavailable";
+  const assignments = Number.isSafeInteger(repository.assignment_count)
+    ? String(/** @type {number} */ (repository.assignment_count))
+    : "—";
+  const latestVerification = Number.isSafeInteger(repository.verified_at)
+    ? new Date(/** @type {number} */ (repository.verified_at)).toISOString()
+    : "—";
   if (repository.provider === "github" || repository.provider === "forgejo") {
     if (
       repository.credential_type !== "forge_connection" ||
@@ -232,18 +255,12 @@ function renderRepository(repository) {
       typeof repository.name !== "string" ||
       typeof repository.api_url !== "string" ||
       typeof repository.web_url !== "string" ||
-      !Number.isSafeInteger(repository.assignment_count) ||
-      typeof repository.verification_id !== "string" ||
-      !Number.isSafeInteger(repository.verified_at)
+      typeof repository.verification_id !== "string"
     ) {
       throw new Error("forge_repository_response_invalid");
     }
     provider = `${repository.provider === "github" ? "GitHub" : "Forgejo"}; ${repository.forge_connection_id}`;
     identity = `${repository.name}; Forge Repository ${repository.forge_repository_id}; ${repository.url}; ${repository.web_url}; ${repository.api_url}`;
-    assignments = String(/** @type {number} */ (repository.assignment_count));
-    latestVerification = new Date(
-      /** @type {number} */ (repository.verified_at),
-    ).toISOString();
   }
 
   let row = repositoryRows.get(repository.id);
@@ -279,7 +296,7 @@ function renderRepository(repository) {
   const primaryName =
     repository.provider === "github" || repository.provider === "forgejo"
       ? /** @type {string} */ (repository.name)
-      : repository.url;
+      : repositoryDisplayName(repository.url);
   const name = /** @type {HTMLAnchorElement} */ (
     repositoryElement("a", "repo-row__name", primaryName)
   );
