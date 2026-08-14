@@ -1,10 +1,19 @@
-// The System view is the operator's "is everything OK?" console. It opens with
-// a health strip of status marks (populated best-effort by operator.js from the
-// same /api/v1/system payload the bands consume), then lays out the detail
-// bands as calm full-width LCD sections. Every id, heading, and the
-// codex-execution → storage-reserve ordering the served system scripts and the
-// secondary-shell test depend on are authored here verbatim; the
+// The System view is the operator's "is everything OK?" console. It is split
+// into two labelled zones so a glance answers the health question before any
+// admin plumbing: a HEALTH zone (summary strip, execution, codex, storage
+// status, polling, delivery) and, below a heavy divider, a de-emphasized
+// ADMINISTRATION zone (the operator.js-filled admin facts, storage reserve,
+// waiver configuration). Every id and heading is authored here verbatim, and
+// the codex-execution → storage-reserve ordering the served system scripts and
+// the secondary-shell test depend on is preserved because codex-execution lives
+// in Health (above) and storage-reserve in Administration (below). The
 // Waiver Adjudicator Configuration authoring band stays a qb-deep-surface.
+
+const HEALTH_ZONE_SECTION =
+  '<section class="qb-region sys-zone" aria-labelledby="system-zone-health-title"><h2 class="sys-zone__label" id="system-zone-health-title">Health</h2></section>';
+
+const ADMIN_ZONE_SECTION =
+  '<section class="qb-region sys-zone sys-zone--admin" aria-labelledby="system-zone-admin-title"><h2 class="sys-zone__label" id="system-zone-admin-title">Administration</h2></section>';
 
 /** @param {string} id @param {string} label */
 const healthTile = (id, label) =>
@@ -32,12 +41,13 @@ const EXECUTION_PROVIDERS_SECTION =
 const CODEX_EXECUTION_SECTION =
   '<section class="qb-region" aria-labelledby="codex-execution-title"><h2 id="codex-execution-title">Codex execution</h2><dl id="codex-execution-concurrency"></dl><div class="sys-lists"><div class="sys-list"><h3>Queued</h3><ol class="sys-log" data-empty="Nothing queued." id="codex-execution-queue"></ol></div><div class="sys-list"><h3>Running</h3><ol class="sys-log" data-empty="Nothing running." id="codex-execution-running"></ol></div><div class="sys-list"><h3>Failures</h3><ol class="sys-log" data-empty="No recent failures." id="codex-execution-failures"></ol></div></div></section>';
 
-// operator.js fills this section with the "System status" heading and facts.
+// An Administration band: operator.js fills it with the "Provider & access"
+// heading and admin facts (Codex models, Browser sessions, Implementer token).
 const SYSTEM_FACTS_SECTION =
-  '<section class="qb-region" aria-live="polite" id="system-facts"></section>';
+  '<section class="qb-region sys-admin" aria-live="polite" id="system-facts"></section>';
 
 const STORAGE_RESERVE_SECTION =
-  '<section class="qb-region" aria-labelledby="storage-reserve-title"><h2 id="storage-reserve-title">Storage reserve</h2><dl id="storage-reserve-facts"></dl></section>';
+  '<section class="qb-region sys-admin" aria-labelledby="storage-reserve-title"><h2 id="storage-reserve-title">Storage reserve</h2><dl id="storage-reserve-facts"></dl></section>';
 
 const STORAGE_SECTION =
   '<section class="qb-region" aria-labelledby="system-storage-title"><h2 id="system-storage-title">Storage, backup, and migration</h2><dl id="system-storage-facts"></dl></section>';
@@ -51,11 +61,16 @@ const DELIVERY_SECTION =
 // The waiver adjudicator configuration is a rare write action; it stays a
 // de-emphasized deep surface low on the page. Its form ids/behavior are intact.
 const WAIVER_CONFIG_SECTION =
-  '<section class="qb-region qb-deep-surface" aria-labelledby="waiver-adjudicator-configuration-title"><h2 id="waiver-adjudicator-configuration-title">Waiver Adjudicator Configuration</h2><form hidden id="waiver-adjudicator-configuration-form"><label for="waiver-adjudicator-model">Model</label><select id="waiver-adjudicator-model" required></select><label for="waiver-adjudicator-reasoning-effort">Reasoning effort</label><select id="waiver-adjudicator-reasoning-effort" required></select><label for="waiver-adjudicator-service-tier">Service tier</label><select id="waiver-adjudicator-service-tier" required></select><button id="waiver-adjudicator-configuration-submit" type="submit">Save configuration</button><output aria-label="Waiver Adjudicator Configuration status" aria-live="polite" id="waiver-adjudicator-configuration-status"></output><p hidden id="waiver-adjudicator-configuration-error" role="alert" tabindex="-1"></p></form></section>';
+  '<section class="qb-region qb-deep-surface sys-admin" aria-labelledby="waiver-adjudicator-configuration-title"><h2 id="waiver-adjudicator-configuration-title">Waiver Adjudicator Configuration</h2><form hidden id="waiver-adjudicator-configuration-form"><label for="waiver-adjudicator-model">Model</label><select id="waiver-adjudicator-model" required></select><label for="waiver-adjudicator-reasoning-effort">Reasoning effort</label><select id="waiver-adjudicator-reasoning-effort" required></select><label for="waiver-adjudicator-service-tier">Service tier</label><select id="waiver-adjudicator-service-tier" required></select><button id="waiver-adjudicator-configuration-submit" type="submit">Save configuration</button><output aria-label="Waiver Adjudicator Configuration status" aria-live="polite" id="waiver-adjudicator-configuration-status"></output><p hidden id="waiver-adjudicator-configuration-error" role="alert" tabindex="-1"></p></form></section>';
 
 const STYLE =
   "<style>" +
   "[hidden]{display:none!important}" +
+  ".sys-zone{padding:20px 0 6px}" +
+  ".sys-zone__label{margin:0;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--qb-muted-ink)}" +
+  ".sys-zone--admin{margin-top:16px;border-top-width:2px;border-top-color:var(--qb-ink)}" +
+  ".sys-zone--admin .sys-zone__label{color:var(--qb-ink)}" +
+  ".sys-admin>h2{color:var(--qb-muted-ink)}" +
   ".sys-summary{padding:20px 0 6px}" +
   ".sys-summary__line{margin:0;display:inline-flex;align-items:center;gap:9px;font-size:16px;font-weight:650}" +
   '.sys-summary[data-state="warn"] .sys-summary__line{font-weight:800}' +
@@ -101,15 +116,17 @@ const SCRIPTS =
 export function renderSystemPage() {
   return Object.freeze({
     markup:
+      HEALTH_ZONE_SECTION +
       HEALTH_SUMMARY_SECTION +
       HEALTH_SECTION +
       EXECUTION_PROVIDERS_SECTION +
       CODEX_EXECUTION_SECTION +
-      SYSTEM_FACTS_SECTION +
-      STORAGE_RESERVE_SECTION +
       STORAGE_SECTION +
       POLLING_SECTION +
       DELIVERY_SECTION +
+      ADMIN_ZONE_SECTION +
+      SYSTEM_FACTS_SECTION +
+      STORAGE_RESERVE_SECTION +
       WAIVER_CONFIG_SECTION +
       STYLE,
     scripts: SCRIPTS,
