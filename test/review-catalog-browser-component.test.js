@@ -17,6 +17,7 @@ function catalogElement(properties = {}) {
     className: "",
     hidden: false,
     id: "",
+    listeners,
     textContent: "",
     ...properties,
     /** @param {string} name @param {(event: any) => unknown} listener */
@@ -29,6 +30,10 @@ function catalogElement(properties = {}) {
     },
     replaceChildren() {
       this.children = [];
+    },
+    /** @param {string} name */
+    getAttribute(name) {
+      return /** @type {any} */ (this)[name] ?? null;
     },
     /** @param {string} name @param {string} value */
     setAttribute(name, value) {
@@ -68,6 +73,8 @@ test("the Reviews catalog refetches after an in-place mutation and stays inert w
     ["review-catalog-empty", empty],
     ["review-catalog-summary", summary],
     ["review-catalog-error", failure],
+    ["review-catalog-filter-active", catalogElement()],
+    ["review-catalog-filter-archived", catalogElement()],
   ]);
   /** @type {Map<string, (event: any) => unknown>} */
   const documentListeners = new Map();
@@ -171,4 +178,97 @@ test("the Reviews catalog refetches after an in-place mutation and stays inert w
     "/api/v1/reviews",
     "/api/v1/reviews",
   ]);
+});
+
+test("the catalog filters to archived reviews and restores them in place", async () => {
+  const catalog = catalogElement();
+  const loading = catalogElement();
+  const empty = catalogElement({ hidden: true });
+  const summary = catalogElement();
+  const failure = catalogElement({ hidden: true });
+  const filterArchived = catalogElement();
+  const elements = new Map([
+    ["review-catalog", catalog],
+    ["review-catalog-loading", loading],
+    ["review-catalog-empty", empty],
+    ["review-catalog-summary", summary],
+    ["review-catalog-error", failure],
+    ["review-catalog-filter-active", catalogElement()],
+    ["review-catalog-filter-archived", filterArchived],
+  ]);
+  /** @type {Map<string, (event: any) => unknown>} */
+  const documentListeners = new Map();
+  /** @type {Array<{ path: string, options: any }>} */
+  const requests = [];
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const archived = { ...catalogReview(), archived: true, id: "review/old" };
+
+  executeServedBrowserAsset(
+    repositoryRoot,
+    "src/browser/review-catalog.js",
+    readBrowserAsset("/assets/review-catalog.js"),
+    {
+      CustomEvent: FakeCustomEvent,
+      document: {
+        /** @param {string} name @param {(event: any) => unknown} listener */
+        addEventListener(name, listener) {
+          documentListeners.set(name, listener);
+        },
+        /** @param {string} tagName */
+        createElement(tagName) {
+          return catalogElement({ tagName });
+        },
+        /** @param {string} id */
+        getElementById(id) {
+          return elements.get(id) ?? null;
+        },
+      },
+      /** @param {string} path @param {any} [options] */
+      async fetch(path, options = {}) {
+        requests.push({ options, path });
+        const list = String(path).includes("state=archived")
+          ? [archived]
+          : [catalogReview()];
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return { reviews: list };
+          },
+        };
+      },
+      window: {
+        location: { assign() {} },
+        qualityBarOperator: { csrfToken: () => "csrf-token" },
+      },
+    },
+  );
+
+  const systemLoaded = documentListeners.get("quality-bar:system-loaded");
+  assert.ok(systemLoaded);
+  systemLoaded(new FakeCustomEvent("quality-bar:system-loaded"));
+  await flush();
+  assert.equal(requests[0].path, "/api/v1/reviews");
+
+  const archivedClick = filterArchived.listeners.get("click");
+  assert.ok(archivedClick);
+  archivedClick(/** @type {any} */ ({}));
+  await flush();
+  assert.equal(requests[1].path, "/api/v1/reviews?state=archived");
+  assert.equal(catalog.children.length, 1);
+  assert.equal(summary.textContent, "1 review · archived");
+
+  const article = /** @type {any} */ (catalog.children[0]);
+  const toggle = article.children[0].children[0];
+  toggle.listeners.get("click")(/** @type {any} */ ({}));
+  const panel = article.children[1];
+  const restore = panel.children[panel.children.length - 1];
+  restore.listeners.get("click")(/** @type {any} */ ({}));
+  await flush();
+
+  const patch = requests[2];
+  assert.equal(patch.path, "/api/v1/reviews/review%2Fold/archival");
+  assert.equal(patch.options.method, "PATCH");
+  assert.deepEqual(JSON.parse(patch.options.body), { archived: false });
+  assert.equal(requests[3].path, "/api/v1/reviews?state=archived");
 });
