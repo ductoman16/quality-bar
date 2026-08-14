@@ -491,6 +491,18 @@ function renderSystemHealth(system) {
       output.textContent = value;
     }
   }
+  const attention = tiles.filter(([, state]) => state === "warn").length;
+  const summary = document.getElementById("system-health-summary");
+  const summaryText = document.getElementById("system-health-summary-text");
+  if (summary) {
+    summary.setAttribute("data-state", attention > 0 ? "warn" : "ok");
+  }
+  if (summaryText) {
+    summaryText.textContent =
+      attention === 0
+        ? "All clear"
+        : `${attention} need${attention === 1 ? "s" : ""} attention`;
+  }
 }
 fetch("/api/v1/system")
   .then(async (response) => {

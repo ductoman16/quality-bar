@@ -10,6 +10,12 @@
 const healthTile = (id, label) =>
   `<div class="sys-health__tile" id="system-health-${id}"><span class="sys-health__label">${label}</span><span class="sys-health__value" id="system-health-${id}-value">—</span></div>`;
 
+// The at-a-glance verdict, above the strip: operator.js fills the text from the
+// same states it assigns the tiles and flips data-state to "warn" when any tile
+// is a problem, so a bad system announces itself before the strip is scanned.
+const HEALTH_SUMMARY_SECTION =
+  '<section class="qb-region sys-summary" aria-live="polite" aria-labelledby="system-health-summary-title" data-state="ok" id="system-health-summary"><h2 class="qb-visually-hidden" id="system-health-summary-title">Overview</h2><p class="sys-summary__line" id="system-health-summary-text">All clear</p></section>';
+
 const HEALTH_SECTION =
   '<section class="qb-region sys-overview" aria-labelledby="system-health-title"><h2 class="qb-visually-hidden" id="system-health-title">Health</h2><div class="sys-health" id="system-health">' +
   healthTile("codex", "Codex provider") +
@@ -50,6 +56,10 @@ const WAIVER_CONFIG_SECTION =
 const STYLE =
   "<style>" +
   "[hidden]{display:none!important}" +
+  ".sys-summary{padding:20px 0 6px}" +
+  ".sys-summary__line{margin:0;display:inline-flex;align-items:center;gap:9px;font-size:16px;font-weight:650}" +
+  '.sys-summary[data-state="warn"] .sys-summary__line{font-weight:800}' +
+  '.sys-summary[data-state="warn"] .sys-summary__line::before{content:"!";display:inline-grid;place-items:center;width:18px;height:18px;font-size:21px;font-weight:800;line-height:1}' +
   ".sys-overview{padding-top:18px}" +
   ".sys-health{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}" +
   ".sys-health__tile{display:grid;gap:9px;padding:18px 16px 18px 0;min-width:0}" +
@@ -58,8 +68,8 @@ const STYLE =
   '.sys-health__value::before{content:"";width:10px;height:10px;border:1px solid var(--qb-ink);border-radius:50%;flex:0 0 10px;background:transparent;border-style:dashed}' +
   '.sys-health__tile[data-state="ok"] .sys-health__value::before{background:var(--qb-ink);border-style:solid}' +
   '.sys-health__tile[data-state="idle"] .sys-health__value::before{background:transparent;border-style:solid}' +
-  '.sys-health__tile[data-state="warn"] .sys-health__value::before{background:var(--qb-ink);border-style:solid;box-shadow:inset 0 0 0 2px var(--qb-canvas)}' +
-  '.sys-health__tile[data-state="warn"] .sys-health__value{color:var(--qb-ink)}' +
+  '.sys-health__tile[data-state="warn"] .sys-health__value::before{content:"!";width:10px;height:auto;border:0;border-radius:0;background:transparent;font-size:19px;font-weight:800;line-height:.8;text-align:center}' +
+  '.sys-health__tile[data-state="warn"] .sys-health__value{color:var(--qb-ink);font-weight:800}' +
   "#execution-provider-facts{grid-template-columns:max-content minmax(0,1fr);gap:8px 18px}" +
   "#execution-provider-facts dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}" +
   "#execution-provider-facts strong{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--qb-muted-ink)}" +
@@ -91,6 +101,7 @@ const SCRIPTS =
 export function renderSystemPage() {
   return Object.freeze({
     markup:
+      HEALTH_SUMMARY_SECTION +
       HEALTH_SECTION +
       EXECUTION_PROVIDERS_SECTION +
       CODEX_EXECUTION_SECTION +
