@@ -539,7 +539,7 @@ fetch("/api/v1/system")
     renderSystemHealth(system);
     if (systemFacts) {
       const heading = document.createElement("h2");
-      heading.textContent = "System status";
+      heading.textContent = "Provider & access";
       const facts = document.createElement("dl");
       /** @param {string} name @param {string | Node} value */
       const addFact = (name, value) => {
@@ -549,8 +549,8 @@ fetch("/api/v1/system")
         description.append(value);
         facts.append(term, description);
       };
-      // Bootstrap and Durable core are already in the top health strip; the
-      // "System status" section carries only the facts the strip doesn't show.
+      // Bootstrap and Durable core are already in the top health strip; this
+      // Administration band carries only the admin facts the strip doesn't show.
       const models = document.createElement("ul");
       models.className = "system-model-list";
       for (const model of system.codex.catalog.models) {
