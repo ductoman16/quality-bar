@@ -1,10 +1,12 @@
 // The Analytics view is read-only reference. It opens with a humanized overview
 // strip (headline rates as percentages, where a percentage is the honest
 // reading), collapses the occasional filter behind a calm disclosure, and then
-// groups the deep count tables — which stay authoritative and keep their exact
+// frames the deep count tables — which stay authoritative and keep their exact
 // numerator/denominator values because several of the "rates" are ratios, not
-// percentages — into a few labeled bands. Every `<tbody id>`, `<th>` set, and
-// column order the served analytics scripts depend on is preserved verbatim.
+// percentages — around the operator's improvement decisions. Each band leads
+// with its key metric and folds the exhaustive breakdowns behind a native
+// disclosure. Every `<tbody id>`, `<th>` set, and column order the served
+// analytics scripts depend on is preserved verbatim.
 
 /** @param {string} id @param {string[]} headers */
 const table = (id, headers) =>
@@ -15,6 +17,12 @@ const table = (id, headers) =>
 /** @param {string} title @param {string} tableMarkup */
 const metric = (title, tableMarkup) =>
   `<div class="an-metric"><h3 class="an-metric__title">${title}</h3><div class="an-scroll">${tableMarkup}</div></div>`;
+
+// A demoted breakdown: same metric label, folded behind a native disclosure so
+// each band leads with its key table and the exhaustive detail is on-demand.
+/** @param {string} title @param {string} tableMarkup */
+const fold = (title, tableMarkup) =>
+  `<details class="an-metric an-fold"><summary class="an-metric__title">${title}</summary><div class="an-scroll">${tableMarkup}</div></details>`;
 
 // Overview: the page's at-a-glance answer. The outputs are populated
 // best-effort by analytics.js; static marks convey each rate's polarity.
@@ -29,7 +37,7 @@ const FILTER_SECTION =
   '<section class="qb-region an-filters-region" aria-labelledby="analytics-filters-title"><h2 class="qb-visually-hidden" id="analytics-filters-title">Filters</h2><details class="an-filters"><summary>Filters</summary><form id="analytics-filters"><label for="analytics-repository">Repository</label><input id="analytics-repository" name="repository_id"><label for="analytics-base">Base commit</label><input id="analytics-base" name="base_commit"><label for="analytics-head">Head commit</label><input id="analytics-head" name="head_commit"><label for="analytics-pull-request">Pull request</label><input id="analytics-pull-request" min="1" name="pull_request_number" type="number"><label for="analytics-review">Review</label><input id="analytics-review" name="review_id"><label for="analytics-review-version">Review Version</label><input id="analytics-review-version" name="review_version_id"><label for="analytics-criterion">Criterion</label><input id="analytics-criterion" name="criterion_id"><label for="analytics-model">Model</label><input id="analytics-model" name="model"><label for="analytics-reasoning">Reasoning effort</label><input id="analytics-reasoning" name="reasoning_effort"><label for="analytics-tier">Service tier</label><input id="analytics-tier" name="service_tier"><label for="analytics-outcome">Terminal outcome</label><select id="analytics-outcome" name="terminal_outcome"><option value="">All</option><option value="clear">Clear</option><option value="advisory">Advisory</option><option value="blocking">Blocking</option><option value="error">Error</option></select><label for="analytics-start">Start</label><input id="analytics-start" min="0" name="start" type="number"><label for="analytics-end">End</label><input id="analytics-end" min="0" name="end" type="number"><button type="submit">Filter</button></form></details></section>';
 
 const OUTCOMES_SECTION =
-  '<section class="qb-region an-band" aria-labelledby="analytics-outcomes-title"><h2 id="analytics-outcomes-title">Outcomes</h2>' +
+  '<section class="qb-region an-band" aria-labelledby="analytics-outcomes-title"><h2 id="analytics-outcomes-title">Are reviews catching the right things?</h2>' +
   metric(
     "Evaluation outcomes",
     table("analytics-evaluation-outcomes", [
@@ -44,7 +52,7 @@ const OUTCOMES_SECTION =
       "Error Evaluation share",
     ]),
   ) +
-  metric(
+  fold(
     "Finding impact",
     table("analytics-finding-impact", [
       "Advisory Finding count",
@@ -52,19 +60,10 @@ const OUTCOMES_SECTION =
       "Findings per triggered Criterion Result",
     ]),
   ) +
-  metric(
-    "Pull-request Criterion transitions",
-    table("analytics-transitions", [
-      "Triggered-to-clear transitions",
-      "No-longer-applicable transitions",
-      "Triggered-to-error transitions",
-      "Transition sample size",
-    ]),
-  ) +
   "</section>";
 
 const REVIEWS_SECTION =
-  '<section class="qb-region an-band" aria-labelledby="analytics-reviews-title"><h2 id="analytics-reviews-title">Reviews &amp; criteria</h2>' +
+  '<section class="qb-region an-band" aria-labelledby="analytics-reviews-title"><h2 id="analytics-reviews-title">Which reviews &amp; criteria pull their weight?</h2>' +
   metric(
     "Review applicability",
     table("analytics-applicability", [
@@ -76,7 +75,7 @@ const REVIEWS_SECTION =
       "Review applicability error rate",
     ]),
   ) +
-  metric(
+  fold(
     "Criterion outcomes",
     table("analytics-criteria", [
       "Criterion identity",
@@ -88,6 +87,15 @@ const REVIEWS_SECTION =
       "Criterion clear rate",
       "Criterion not-applicable rate",
       "Criterion error rate",
+    ]),
+  ) +
+  fold(
+    "Pull-request Criterion transitions",
+    table("analytics-transitions", [
+      "Triggered-to-clear transitions",
+      "No-longer-applicable transitions",
+      "Triggered-to-error transitions",
+      "Transition sample size",
     ]),
   ) +
   "</section>";
@@ -104,7 +112,7 @@ const WAIVERS_SECTION =
       "Waived-Finding rate",
     ]),
   ) +
-  metric(
+  fold(
     "Decision history",
     table("analytics-waiver-decisions", [
       "Accepted Decisions",
@@ -118,7 +126,7 @@ const WAIVERS_SECTION =
   "</section>";
 
 const RELIABILITY_SECTION =
-  '<section class="qb-region an-band" aria-labelledby="analytics-reliability-title"><h2 id="analytics-reliability-title">Reliability &amp; execution</h2>' +
+  '<section class="qb-region an-band" aria-labelledby="analytics-reliability-title"><h2 id="analytics-reliability-title">Is execution healthy?</h2>' +
   metric(
     "Review-Run reliability",
     table("analytics-review-run-reliability", [
@@ -133,7 +141,7 @@ const RELIABILITY_SECTION =
       "Superseded Review Run share",
     ]),
   ) +
-  metric(
+  fold(
     "Waiver-Adjudication reliability",
     table("analytics-waiver-adjudication-reliability", [
       "Completed Waiver Adjudications",
@@ -145,7 +153,7 @@ const RELIABILITY_SECTION =
       "Cancelled Waiver Adjudication share",
     ]),
   ) +
-  metric(
+  fold(
     "Execution failure codes",
     table("analytics-execution-failure-codes", [
       "Failure execution kind",
@@ -153,7 +161,7 @@ const RELIABILITY_SECTION =
       "Failure-code count",
     ]),
   ) +
-  metric(
+  fold(
     "Execution duration",
     table("analytics-execution-duration", [
       "Duration execution kind",
@@ -163,7 +171,7 @@ const RELIABILITY_SECTION =
       "Median duration (ms)",
     ]),
   ) +
-  metric(
+  fold(
     "Token counters",
     table("analytics-token-counters", [
       "Token execution kind",
@@ -205,8 +213,12 @@ const STYLE =
   ".an-filters #analytics-filters button{grid-column:1/-1;justify-self:start;min-height:30px;padding:4px 16px;border-radius:6px;font-size:11px}" +
   ".an-band>h2{font-size:14px;letter-spacing:-.01em}" +
   ".an-metric{margin-top:20px}" +
-  ".an-metric:first-of-type{margin-top:6px}" +
+  ".an-band>h2+.an-metric{margin-top:6px}" +
   ".an-metric__title{margin:0 0 8px;color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase}" +
+  ".an-fold>summary{list-style:none;cursor:pointer}" +
+  ".an-fold>summary::-webkit-details-marker{display:none}" +
+  '.an-fold>summary::before{content:"+";display:inline-block;width:16px;color:var(--qb-muted-ink);font-family:var(--font-mono)}' +
+  '.an-fold[open]>summary::before{content:"\\2013"}' +
   ".an-scroll{overflow-x:auto}" +
   ".an-metric table{font-size:12px}" +
   ".an-metric th{font-size:10px}" +
