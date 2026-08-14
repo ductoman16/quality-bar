@@ -48,6 +48,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const tokenCounters = browserElement();
   const transitions = browserElement();
   const dailyTrend = browserElement();
+  const tokensPerEval = browserElement();
+  const tokensPerBlocking = browserElement();
   const population = browserElement();
   const filters = browserElement();
   const error = browserElement({ hidden: true });
@@ -68,6 +70,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-token-counters", tokenCounters],
     ["analytics-transitions", transitions],
     ["analytics-daily-trend", dailyTrend],
+    ["analytics-overview-tokens-per-eval", tokensPerEval],
+    ["analytics-overview-tokens-per-blocking", tokensPerBlocking],
     ["analytics-population", population],
     ["analytics-filters", filters],
     ["analytics-error", error],
@@ -297,6 +301,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   context.window.qualityBarAnalytics.render(analyticsDocument);
   assert.equal(dailyTrend.options.length, 2);
   assert.equal(dailyTrend.options[0].options.length, 2);
+  assert.equal(tokensPerEval.textContent, "3");
+  assert.equal(tokensPerBlocking.textContent, "19");
 
   assert.deepEqual(
     applicability.options[0].options.map(

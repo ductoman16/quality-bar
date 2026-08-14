@@ -37,6 +37,12 @@ const overviewError = document.getElementById("analytics-overview-error");
 const overviewReviewSuccess = document.getElementById(
   "analytics-overview-review-success",
 );
+const overviewTokensPerEval = document.getElementById(
+  "analytics-overview-tokens-per-eval",
+);
+const overviewTokensPerBlocking = document.getElementById(
+  "analytics-overview-tokens-per-blocking",
+);
 const analyticsWindow = /** @type {any} */ (window);
 const analyticsContract = analyticsWindow.qualityBarAnalyticsContract;
 const analyticsState = analyticsWindow.qualityBarAnalyticsState;
@@ -219,6 +225,26 @@ function render(document) {
   setOverview(
     overviewReviewSuccess,
     percentText(document.review_run_reliability.successful_rate),
+  );
+  // Token-based cost efficiency (no invented dollar prices): total tokens
+  // per evaluation and per blocking finding. "—" when tokens are unreported.
+  const tokenCounters = document.review_run_reliability.token_counters;
+  const inputSum = tokenCounters.input_tokens.sum;
+  const outputSum = tokenCounters.output_tokens.sum;
+  const totalTokens =
+    inputSum === null || outputSum === null ? null : inputSum + outputSum;
+  /** @param {number} denominator */
+  const tokensPer = (denominator) =>
+    totalTokens === null || denominator === 0
+      ? "—"
+      : String(Math.round(totalTokens / denominator));
+  setOverview(
+    overviewTokensPerEval,
+    tokensPer(document.population.matching_evaluations),
+  );
+  setOverview(
+    overviewTokensPerBlocking,
+    tokensPer(document.finding_impact.blocking),
   );
   const transitions = document.pull_request_criterion_transitions;
   transitionsBody.append(
