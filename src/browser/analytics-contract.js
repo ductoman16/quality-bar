@@ -65,8 +65,29 @@ function validExecutionReliability(candidate, outcomes) {
   );
 }
 
+/** @param {unknown} candidate */
+function validDailyTrend(candidate) {
+  const keys = [
+    "advisory",
+    "blocking",
+    "clear",
+    "error",
+    "evaluations",
+    "pending",
+  ];
+  return (
+    Array.isArray(candidate) &&
+    candidate.every(
+      (/** @type {any} */ bucket) =>
+        typeof bucket?.date === "string" &&
+        keys.every((key) => validCount(bucket?.[key])),
+    )
+  );
+}
+
 const analyticsContractWindow = /** @type {any} */ (window);
 analyticsContractWindow.qualityBarAnalyticsContract = {
   validCount,
+  validDailyTrend,
   validExecutionReliability,
 };

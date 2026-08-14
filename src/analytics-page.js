@@ -33,6 +33,11 @@ const OVERVIEW_SECTION =
 // data leads. It must stay nested inside a <section> so the global
 // `main > details{display:none}` rule (which hides the Operator menu) never
 // catches it.
+// Daily trend: the "is quality improving?" signal — per-day evaluation volume
+// and outcome mix, populated by analytics.js. Sits directly under the Overview.
+const TREND_SECTION =
+  '<section class="qb-region an-trend-region" aria-labelledby="analytics-trend-title"><h2 id="analytics-trend-title">Daily trend</h2><div class="an-trend" id="analytics-daily-trend"></div></section>';
+
 const FILTER_SECTION =
   '<section class="qb-region an-filters-region" aria-labelledby="analytics-filters-title"><h2 class="qb-visually-hidden" id="analytics-filters-title">Filters</h2><details class="an-filters"><summary>Filters</summary><form id="analytics-filters"><label for="analytics-repository">Repository</label><input id="analytics-repository" name="repository_id"><label for="analytics-base">Base commit</label><input id="analytics-base" name="base_commit"><label for="analytics-head">Head commit</label><input id="analytics-head" name="head_commit"><label for="analytics-pull-request">Pull request</label><input id="analytics-pull-request" min="1" name="pull_request_number" type="number"><label for="analytics-review">Review</label><input id="analytics-review" name="review_id"><label for="analytics-review-version">Review Version</label><input id="analytics-review-version" name="review_version_id"><label for="analytics-criterion">Criterion</label><input id="analytics-criterion" name="criterion_id"><label for="analytics-model">Model</label><input id="analytics-model" name="model"><label for="analytics-reasoning">Reasoning effort</label><input id="analytics-reasoning" name="reasoning_effort"><label for="analytics-tier">Service tier</label><input id="analytics-tier" name="service_tier"><label for="analytics-outcome">Terminal outcome</label><select id="analytics-outcome" name="terminal_outcome"><option value="">All</option><option value="clear">Clear</option><option value="advisory">Advisory</option><option value="blocking">Blocking</option><option value="error">Error</option></select><label for="analytics-start">Start</label><input id="analytics-start" min="0" name="start" type="number"><label for="analytics-end">End</label><input id="analytics-end" min="0" name="end" type="number"><button type="submit">Filter</button></form></details></section>';
 
@@ -201,6 +206,12 @@ const STYLE =
   '.an-stat[data-mark="inset"] .an-stat__value::before{background:var(--qb-ink);box-shadow:inset 0 0 0 2px var(--qb-canvas)}' +
   ".an-population{display:block;margin-top:16px;font-family:var(--font-mono);font-size:12px;color:var(--qb-muted-ink)}" +
   ".an-population:empty{display:none}" +
+  ".an-trend{display:flex;align-items:flex-end;gap:2px;height:56px;margin-top:6px;overflow-x:auto}" +
+  ".an-trend__col{display:flex;flex-direction:column-reverse;width:10px;height:100%;flex:0 0 10px;border-bottom:1px solid var(--qb-line)}" +
+  ".an-trend__seg{display:block;width:100%}" +
+  ".an-trend__seg--clear{background:var(--qb-line)}" +
+  ".an-trend__seg--problem{background:var(--qb-ink)}" +
+  '.an-trend:empty::after{content:"No evaluations in range";color:var(--qb-muted-ink);font-size:12px}' +
   ".an-filters-region{padding:0}" +
   ".an-filters{border:0}" +
   ".an-filters>summary{padding:14px 0;color:var(--qb-muted-ink);font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;list-style:none;cursor:pointer}" +
@@ -236,6 +247,7 @@ export function renderAnalyticsPage() {
   return Object.freeze({
     markup:
       OVERVIEW_SECTION +
+      TREND_SECTION +
       FILTER_SECTION +
       OUTCOMES_SECTION +
       REVIEWS_SECTION +

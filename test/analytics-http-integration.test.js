@@ -12,6 +12,7 @@ import {
 
 const document = {
   criterion_outcomes: [],
+  daily_trend: [],
   evaluation_overview: {
     clear_count: 1,
     duration_sample_count: 1,

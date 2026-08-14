@@ -57,6 +57,63 @@ function countPopulation(rows, outcomes) {
   return counts;
 }
 
+/** @param {string} date */
+function emptyTrendBucket(date) {
+  return {
+    advisory: 0,
+    blocking: 0,
+    clear: 0,
+    date,
+    error: 0,
+    evaluations: 0,
+    pending: 0,
+  };
+}
+
+/** @param {number} ms */
+const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * Per-day evaluation volume and outcome mix over the matched rows, as a
+ * contiguous daily series (empty days filled with zeros) so the trend reads
+ * honestly. Bucketed by the evaluation's request timestamp (UTC).
+ * @param {Array<Record<string, import("node:sqlite").SQLInputValue>>} rows
+ */
+export function buildDailyTrend(rows) {
+  const buckets = new Map();
+  let earliest = null;
+  let latest = null;
+  for (const row of rows) {
+    const day = dayKey(Number(row.created_at));
+    if (earliest === null || day < earliest) {
+      earliest = day;
+    }
+    if (latest === null || day > latest) {
+      latest = day;
+    }
+    const bucket = buckets.get(day) ?? emptyTrendBucket(day);
+    const outcome =
+      /** @type {"advisory" | "blocking" | "clear" | "error" | "pending"} */ (
+        row.terminal_outcome
+      );
+    bucket[outcome] += 1;
+    bucket.evaluations += 1;
+    buckets.set(day, bucket);
+  }
+  if (earliest === null || latest === null) {
+    return [];
+  }
+  const trend = [];
+  const end = Date.parse(latest + "T00:00:00.000Z");
+  let cursor = Date.parse(earliest + "T00:00:00.000Z");
+  for (let guard = 0; cursor <= end && guard < 366; guard += 1) {
+    const day = dayKey(cursor);
+    trend.push(buckets.get(day) ?? emptyTrendBucket(day));
+    cursor += 86_400_000;
+  }
+  return trend;
+}
+
 /**
  * @param {{
  *   all(sql: string, ...parameters: import("node:sqlite").SQLInputValue[]): Array<Record<string, import("node:sqlite").SQLInputValue> | undefined>
@@ -280,6 +337,7 @@ export function createAnalyticsService(durableCore, { now = Date.now } = {}) {
               triggered: counts.triggered,
             };
           }),
+          daily_trend: buildDailyTrend(filteredEvaluationRows),
           evaluation_overview: deriveEvaluationOverview(
             evaluationOverviewRows,
             evaluationOutcome,
