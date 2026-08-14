@@ -101,7 +101,7 @@
     for (const criterion of criteria) {
       const item = node("li", "review-criteria-read__item");
       const impact = criterion?.impact === "blocking" ? "blocking" : "advisory";
-      const mark = node("span", "review-impact review-impact--" + impact);
+      const mark = node("span", "qb-outcome-icon qb-outcome--" + impact);
       mark.setAttribute("aria-hidden", "true");
       const badge = node("span", "review-impact-label", impact);
       const instruction = node(
