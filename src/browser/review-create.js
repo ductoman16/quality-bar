@@ -170,8 +170,12 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.hidden = true;
+    const applicabilityRule = controlValue("review-applicability-rule");
     const response = await fetch("/api/v1/reviews", {
       body: JSON.stringify({
+        ...(applicabilityRule.length > 0
+          ? { applicability_rule: applicabilityRule }
+          : {}),
         assignment: { scope: "installation_wide" },
         codex_configuration: {
           model: controlValue("review-model"),

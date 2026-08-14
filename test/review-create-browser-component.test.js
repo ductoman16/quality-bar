@@ -110,6 +110,10 @@ test("the Review create component submits one complete snapshot and opens its me
     ["review-reasoning-effort", reasoningEffort],
     ["review-service-tier", serviceTier],
     [
+      "review-applicability-rule",
+      Object.assign(new BrowserElement("textarea"), { value: "" }),
+    ],
+    [
       "review-description",
       Object.assign(new BrowserElement("textarea"), {
         value: "Protect public boundaries.",
@@ -163,7 +167,7 @@ test("the Review create component submits one complete snapshot and opens its me
       /** @param {string} path @param {object} options */
       async fetch(path, options) {
         requests.push({ options, path });
-        if (requests.length === 2) {
+        if (requests.length === 3) {
           return {
             ok: false,
             async json() {
@@ -252,6 +256,28 @@ test("the Review create component submits one complete snapshot and opens its me
     dispatchedEvents[0].detail
   );
   assert.equal(createdReview.id, "review-1");
+
+  const applicabilityRule = elements.get("review-applicability-rule");
+  assert.ok(applicabilityRule);
+  applicabilityRule.value = "repository.name == 'quality-bar'";
+  await form.listener("submit")({ preventDefault() {} });
+  assert.equal(
+    /** @type {{body: string}} */ (requests[1].options).body,
+    JSON.stringify({
+      applicability_rule: "repository.name == 'quality-bar'",
+      assignment: { scope: "installation_wide" },
+      codex_configuration: {
+        model: "gpt-5.6-terra",
+        reasoning_effort: "high",
+        service_tier: "standard",
+      },
+      criteria: [
+        { impact: "advisory", instruction: "Keep interfaces explicit." },
+      ],
+      description: "Protect public boundaries.",
+      name: "Public boundaries",
+    }),
+  );
 
   document.cookie = "";
   await assert.rejects(async () => {
