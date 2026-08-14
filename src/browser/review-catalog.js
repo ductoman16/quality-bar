@@ -33,6 +33,9 @@
   const empty = element("review-catalog-empty");
   const summary = element("review-catalog-summary");
   const failure = element("review-catalog-error");
+  const filterActive = element("review-catalog-filter-active");
+  const filterArchived = element("review-catalog-filter-archived");
+  let listState = "active";
 
   /** @param {unknown} value */
   const text = (value) => (typeof value === "string" ? value : "");
@@ -117,7 +120,48 @@
     const link = node("a", "review-expanded__link", "View details");
     link.setAttribute("href", detailUrl(review.id));
     detail.append(list, link);
+    if (review.archived) {
+      const restore = node("button", "review-expanded__restore", "Restore");
+      restore.setAttribute("type", "button");
+      restore.addEventListener("click", () => {
+        void restoreReview(review, restore);
+      });
+      detail.append(restore);
+    }
     return detail;
+  }
+
+  /** @param {CatalogReview} review @param {HTMLElement} button */
+  async function restoreReview(review, button) {
+    const operator = /** @type {any} */ (window).qualityBarOperator;
+    if (!operator || typeof operator.csrfToken !== "function") {
+      return;
+    }
+    /** @type {any} */ (button).disabled = true;
+    failure.hidden = true;
+    let response;
+    try {
+      response = await fetch(
+        "/api/v1/reviews/" + encodeURIComponent(review.id) + "/archival",
+        {
+          body: JSON.stringify({ archived: false }),
+          headers: {
+            "content-type": "application/json",
+            "x-quality-bar-csrf": operator.csrfToken(),
+          },
+          method: "PATCH",
+        },
+      );
+    } catch {
+      response = null;
+    }
+    if (!response || !response.ok) {
+      /** @type {any} */ (button).disabled = false;
+      failure.hidden = false;
+      failure.textContent = "Restore failed";
+      return;
+    }
+    void load();
   }
 
   /** @param {CatalogReview} review @param {number} index */
@@ -208,21 +252,25 @@
     reviews.forEach((review, index) => catalog.append(row(review, index)));
     empty.hidden = reviews.length !== 0;
     const active = reviews.filter((review) => !review.archived).length;
+    const trailer = listState === "archived" ? "archived" : active + " active";
     summary.textContent =
       reviews.length === 0
         ? ""
         : reviews.length +
           (reviews.length === 1 ? " review" : " reviews") +
           " · " +
-          active +
-          " active";
+          trailer;
   }
 
   async function load() {
     failure.hidden = true;
+    const url =
+      listState === "archived"
+        ? "/api/v1/reviews?state=archived"
+        : "/api/v1/reviews";
     let response;
     try {
-      response = await fetch("/api/v1/reviews");
+      response = await fetch(url);
     } catch {
       loading.hidden = true;
       failure.hidden = false;
@@ -268,4 +316,17 @@
     }
     void load();
   });
+
+  /** @param {string} next */
+  function applyState(next) {
+    if (listState === next) {
+      return;
+    }
+    listState = next;
+    filterActive.setAttribute("aria-pressed", String(next === "active"));
+    filterArchived.setAttribute("aria-pressed", String(next === "archived"));
+    void load();
+  }
+  filterActive.addEventListener("click", () => applyState("active"));
+  filterArchived.addEventListener("click", () => applyState("archived"));
 }
