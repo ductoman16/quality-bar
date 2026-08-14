@@ -10,6 +10,11 @@ import {
   repositoryBrowserElements,
 } from "./repository-browser-component-support.js";
 
+/** Read a `data-*` attribute the mock stores via `setAttribute` (Reflect.set).
+ * @param {unknown} element */
+const dataState = (element) =>
+  /** @type {Record<string, unknown>} */ (element)["data-state"];
+
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
 const HEALTH_IDS = [
@@ -127,9 +132,9 @@ test("the System page leads with an all-clear summary and the problem glyph in i
 test("a fully healthy system reads All clear with every tile ok", async () => {
   const { summary, summaryText, tiles } = await renderHealth(HEALTHY_SYSTEM);
   assert.equal(summaryText.textContent, "All clear");
-  assert.equal(summary["data-state"], "ok");
+  assert.equal(dataState(summary), "ok");
   for (const id of HEALTH_IDS) {
-    assert.equal(tiles[id]["data-state"], "ok");
+    assert.equal(dataState(tiles[id]), "ok");
   }
 });
 
@@ -139,10 +144,10 @@ test("a single problem reads 1 needs attention and marks only that tile warn", a
     backup: { status: "unavailable" },
   });
   assert.equal(summaryText.textContent, "1 needs attention");
-  assert.equal(summary["data-state"], "warn");
-  assert.equal(tiles.backups["data-state"], "warn");
+  assert.equal(dataState(summary), "warn");
+  assert.equal(dataState(tiles.backups), "warn");
   assert.equal(values.backups.textContent, "Unavailable");
-  assert.equal(tiles.storage["data-state"], "ok");
+  assert.equal(dataState(tiles.storage), "ok");
 });
 
 test("multiple problems read N need attention and flip the summary to warn", async () => {
@@ -152,9 +157,9 @@ test("multiple problems read N need attention and flip the summary to warn", asy
     storage: { status: "unavailable" },
   });
   assert.equal(summaryText.textContent, "2 need attention");
-  assert.equal(summary["data-state"], "warn");
-  assert.equal(tiles.backups["data-state"], "warn");
-  assert.equal(tiles.storage["data-state"], "warn");
+  assert.equal(dataState(summary), "warn");
+  assert.equal(dataState(tiles.backups), "warn");
+  assert.equal(dataState(tiles.storage), "warn");
 });
 
 test("an empty backup stays idle and does not count as needing attention", async () => {
@@ -163,6 +168,6 @@ test("an empty backup stays idle and does not count as needing attention", async
     backup: { status: "empty" },
   });
   assert.equal(summaryText.textContent, "All clear");
-  assert.equal(summary["data-state"], "ok");
-  assert.equal(tiles.backups["data-state"], "idle");
+  assert.equal(dataState(summary), "ok");
+  assert.equal(dataState(tiles.backups), "idle");
 });
