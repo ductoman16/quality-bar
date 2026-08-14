@@ -35,14 +35,15 @@ test("a verified normalized Repository identity is inserted once and failed veri
 
   const core = openDurableCore(databasePath);
   assert.equal(core.facts.schemaVersion, 53);
-  /** @type {string[]} */
-  const verifiedUrls = [];
+  /** @type {{credential: object | undefined, options: object | undefined, url: string}[]} */
+  const verifications = [];
   const repositories = createRepositoryService(core, {
+    certificateAuthorityPath: "/run/secrets/private-ca.pem",
     createId: () => "repository-1",
     masterKey: Buffer.alloc(32, 7),
     now: () => 47,
-    async verifyRead(url) {
-      verifiedUrls.push(url);
+    async verifyRead(url, credential, options) {
+      verifications.push({ credential, options, url });
       if (url.includes("unreachable")) {
         return Promise.reject(
           new RepositoryError(
@@ -80,9 +81,17 @@ test("a verified normalized Repository identity is inserted once and failed veri
     lifecycle: "enabled",
     url: "https://example.com/~team/repository.git",
   });
-  assert.deepEqual(verifiedUrls, [
-    "https://example.com/unreachable.git",
-    "https://example.com/~team/repository.git",
+  assert.deepEqual(verifications, [
+    {
+      credential: undefined,
+      options: { certificateAuthorityPath: "/run/secrets/private-ca.pem" },
+      url: "https://example.com/unreachable.git",
+    },
+    {
+      credential: undefined,
+      options: { certificateAuthorityPath: "/run/secrets/private-ca.pem" },
+      url: "https://example.com/~team/repository.git",
+    },
   ]);
   assert.deepEqual(
     core.all(
