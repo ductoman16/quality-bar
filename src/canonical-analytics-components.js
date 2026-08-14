@@ -70,6 +70,10 @@ export function canonicalAnalyticsSchemas() {
           items: { $ref: "#/components/schemas/CriterionOutcomeAnalytics" },
           type: "array",
         },
+        daily_trend: {
+          items: { $ref: "#/components/schemas/DailyTrendBucket" },
+          type: "array",
+        },
         evaluation_outcomes: {
           $ref: "#/components/schemas/EvaluationOutcomeAnalytics",
         },
@@ -102,6 +106,7 @@ export function canonicalAnalyticsSchemas() {
       },
       [
         "criterion_outcomes",
+        "daily_trend",
         "evaluation_outcomes",
         "evaluation_overview",
         "finding_impact",
@@ -115,6 +120,26 @@ export function canonicalAnalyticsSchemas() {
       ],
     ),
     ...canonicalAnalyticsMatchingSchemas(),
+    DailyTrendBucket: closedObject(
+      {
+        advisory: count,
+        blocking: count,
+        clear: count,
+        date: { type: "string" },
+        error: count,
+        evaluations: count,
+        pending: count,
+      },
+      [
+        "advisory",
+        "blocking",
+        "clear",
+        "date",
+        "error",
+        "evaluations",
+        "pending",
+      ],
+    ),
     AnalyticsPopulation: closedObject(
       {
         filters: analyticsFilters,

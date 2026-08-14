@@ -47,6 +47,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   const executionDuration = browserElement();
   const tokenCounters = browserElement();
   const transitions = browserElement();
+  const dailyTrend = browserElement();
   const population = browserElement();
   const filters = browserElement();
   const error = browserElement({ hidden: true });
@@ -66,6 +67,7 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     ["analytics-execution-duration", executionDuration],
     ["analytics-token-counters", tokenCounters],
     ["analytics-transitions", transitions],
+    ["analytics-daily-trend", dailyTrend],
     ["analytics-population", population],
     ["analytics-filters", filters],
     ["analytics-error", error],
@@ -124,6 +126,26 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
   );
 
   const analyticsDocument = {
+    daily_trend: [
+      {
+        advisory: 0,
+        blocking: 1,
+        clear: 2,
+        date: "2026-08-01",
+        error: 0,
+        evaluations: 3,
+        pending: 0,
+      },
+      {
+        advisory: 1,
+        blocking: 0,
+        clear: 1,
+        date: "2026-08-02",
+        error: 0,
+        evaluations: 2,
+        pending: 0,
+      },
+    ],
     criterion_outcomes: [
       {
         clear: 3,
@@ -273,6 +295,8 @@ test("Analytics renders visible counts and numerator/denominator rates", () => {
     },
   };
   context.window.qualityBarAnalytics.render(analyticsDocument);
+  assert.equal(dailyTrend.options.length, 2);
+  assert.equal(dailyTrend.options[0].options.length, 2);
 
   assert.deepEqual(
     applicability.options[0].options.map(

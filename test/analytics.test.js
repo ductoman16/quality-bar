@@ -1,7 +1,46 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createAnalyticsService } from "../src/analytics.js";
+import { buildDailyTrend, createAnalyticsService } from "../src/analytics.js";
+
+test("daily trend buckets evaluations by UTC day and fills empty days", () => {
+  const day = (/** @type {string} */ iso) => Date.parse(iso);
+  const trend = buildDailyTrend([
+    { created_at: day("2026-08-01T10:00:00Z"), terminal_outcome: "clear" },
+    { created_at: day("2026-08-01T23:30:00Z"), terminal_outcome: "blocking" },
+    { created_at: day("2026-08-03T05:00:00Z"), terminal_outcome: "advisory" },
+  ]);
+  assert.deepEqual(trend, [
+    {
+      advisory: 0,
+      blocking: 1,
+      clear: 1,
+      date: "2026-08-01",
+      error: 0,
+      evaluations: 2,
+      pending: 0,
+    },
+    {
+      advisory: 0,
+      blocking: 0,
+      clear: 0,
+      date: "2026-08-02",
+      error: 0,
+      evaluations: 0,
+      pending: 0,
+    },
+    {
+      advisory: 1,
+      blocking: 0,
+      clear: 0,
+      date: "2026-08-03",
+      error: 0,
+      evaluations: 1,
+      pending: 0,
+    },
+  ]);
+  assert.deepEqual(buildDailyTrend([]), []);
+});
 
 test("Analytics derives honest Review applicability and stable Criterion rates", () => {
   const queries = [];
@@ -74,6 +113,7 @@ test("Analytics derives honest Review applicability and stable Criterion rates",
         triggered: 0,
       },
     ],
+    daily_trend: [],
     evaluation_outcomes: {
       advisory: 0,
       advisory_rate: { denominator: 0, numerator: 0 },

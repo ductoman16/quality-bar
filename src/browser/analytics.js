@@ -24,6 +24,7 @@ const executionDurationBody = document.getElementById(
 );
 const tokenCountersBody = document.getElementById("analytics-token-counters");
 const transitionsBody = document.getElementById("analytics-transitions");
+const dailyTrendBody = document.getElementById("analytics-daily-trend");
 const populationStatus = document.getElementById("analytics-population");
 const filterForm = document.getElementById("analytics-filters");
 const analyticsError = document.getElementById("analytics-error");
@@ -47,8 +48,38 @@ if (!filterForm) {
 }
 const {
   validCount: analyticsValidCount,
+  validDailyTrend: analyticsValidDailyTrend,
   validExecutionReliability: analyticsValidExecutionReliability,
 } = analyticsContract;
+
+/** @param {any[]} trend */
+function renderDailyTrend(trend) {
+  if (!dailyTrendBody) {
+    return;
+  }
+  dailyTrendBody.replaceChildren();
+  const max = Math.max(1, ...trend.map((bucket) => bucket.evaluations));
+  for (const bucket of trend) {
+    const problems = bucket.advisory + bucket.blocking + bucket.error;
+    const column = document.createElement("div");
+    column.className = "an-trend__col";
+    column.setAttribute(
+      "title",
+      `${bucket.date}: ${bucket.evaluations} evaluations` +
+        ` · ${problems} advisory/blocking/error`,
+    );
+    for (const [kind, value] of [
+      ["clear", bucket.clear],
+      ["problem", problems],
+    ]) {
+      const segment = document.createElement("span");
+      segment.className = "an-trend__seg an-trend__seg--" + kind;
+      segment.setAttribute("style", `height:${(value / max) * 100}%`);
+      column.append(segment);
+    }
+    dailyTrendBody.append(column);
+  }
+}
 
 /** @param {{numerator: number, denominator: number}} rate */
 function rateText(rate) {
@@ -104,10 +135,12 @@ function render(document) {
     !executionDurationBody ||
     !tokenCountersBody ||
     !transitionsBody ||
+    !dailyTrendBody ||
     !populationStatus ||
     !analyticsError ||
     !Array.isArray(document?.review_applicability) ||
     !Array.isArray(document?.criterion_outcomes) ||
+    !analyticsValidDailyTrend(document?.daily_trend) ||
     typeof document?.evaluation_outcomes !== "object" ||
     typeof document?.finding_impact !== "object" ||
     typeof document?.waiver_analytics !== "object" ||
@@ -174,6 +207,7 @@ function render(document) {
     ` · ${document.population.matching_waiver_decisions} Waiver Decisions` +
     ` · ${document.population.matching_waiver_adjudications} Waiver Adjudications`;
   populationStatus.hidden = false;
+  renderDailyTrend(document.daily_trend);
   const outcomes = document.evaluation_outcomes;
   setOverview(
     overviewEvaluations,
