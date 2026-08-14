@@ -55,7 +55,8 @@ export { RepositoryError };
  *   objectDatabaseRoot?: string,
  *   verifyRead?: (
  *     normalizedUrl: string,
- *     credential?: {token: string, username: string}
+ *     credential: {token: string, username: string} | undefined,
+ *     options?: {certificateAuthorityPath?: string}
  *   ) => Promise<void>
  *   verifyForgeRepository?: (forgeRepositoryId: number, provider: "github" | "forgejo") => Promise<{commit?: (transaction: any) => void} | void>
  *   resolveForgeCredential?: (connectionId: string, provider: "github" | "forgejo") => Promise<{token: string, username: string}> | {token: string, username: string},
@@ -216,7 +217,8 @@ export function createRepositoryService(
     find,
     now,
     registerSecret,
-    verifyRead,
+    verifyRead: (url, credential) =>
+      verifyRead(url, credential, { certificateAuthorityPath }),
   });
 
   return {
