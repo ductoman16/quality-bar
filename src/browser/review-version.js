@@ -13,7 +13,8 @@
    *     service_tier: string
    *   },
    *   criteria: Array<{id: string, impact: string, instruction: string}>
-   * }
+   * },
+   * versions: Array<{number: number}>
    * }} Review
    * @typedef {{
    *   applicabilityRule: string,
@@ -137,6 +138,17 @@
     }
   }
 
+  /** @param {Review} review */
+  function nextVersionLabel(review) {
+    const numbers = review.versions
+      .map((version) => version.number)
+      .filter((number) => Number.isSafeInteger(number));
+    if (numbers.length === 0) {
+      return "Save Review Version";
+    }
+    return "Save as v" + (Math.max(...numbers) + 1);
+  }
+
   /** @param {string} selectedId */
   function renderReviewOptions(selectedId) {
     selector.replaceChildren(
@@ -218,6 +230,7 @@
         review.active_version.criteria,
       );
     }
+    submit.textContent = nextVersionLabel(review);
     form.hidden = false;
     document.dispatchEvent(
       new CustomEvent("quality-bar:review-opened", { detail: review }),

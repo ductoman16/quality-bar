@@ -106,7 +106,7 @@ export function reviewVersionBrowserHarness(options = {}) {
   const criteriaList = browserElement();
   const addCriterion = browserElement();
   const result = browserElement();
-  const submit = browserElement();
+  const submit = browserElement({ textContent: "Save Review Version" });
   const error = browserElement({ hidden: true });
   const elements = new Map([
     [
@@ -348,6 +348,7 @@ export function reviewVersionBrowserHarness(options = {}) {
     saved,
     selector,
     serviceTier,
+    submit,
   };
 }
 import { resolve } from "node:path";

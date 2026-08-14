@@ -25,7 +25,9 @@ test("the Review Version component submits the selected complete executable snap
     saved,
     selector,
     serviceTier,
+    submit,
   } = reviewVersionBrowserHarness();
+  assert.equal(submit.textContent, "Save Review Version");
 
   /** @type {{review: {id: string}}[]} */
   const reviewUpdatedEvents = [];
@@ -70,6 +72,7 @@ test("the Review Version component submits the selected complete executable snap
     }),
   );
   assert.equal(form.hidden, false, String(error.textContent));
+  assert.equal(submit.textContent, "Save as v2");
   assert.equal(selector.value, "review/one");
   assert.equal(model.value, "gpt-5.6-terra");
   assert.equal(reasoningEffort.value, "high");
@@ -261,6 +264,7 @@ test("the Review Version component submits the selected complete executable snap
   applicabilityRule.value = "true";
   await form.listener("submit")({ preventDefault() {} });
   assert.equal(result.textContent, "Executable boundaries v2 unchanged.");
+  assert.equal(submit.textContent, "Save as v3");
   assert.equal(error.hidden, true);
   assert.equal(reviewUpdatedEvents.at(-1)?.review.id, "review/one");
 
