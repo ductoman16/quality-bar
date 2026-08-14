@@ -175,15 +175,9 @@ test("Evaluation page has the live monitor structure and no result-renderer asse
     /Needs attention|id="evaluation-active"|id="evaluation-recent"/i,
   );
   assert.match(page, /aria-pressed="true" id="evaluation-stat-window-24h"/);
-  assert.match(
-    page,
-    /evaluation-status--advisory.*border:0;border-radius:0;background:transparent.*content:"△"/,
-  );
-  assert.match(
-    page,
-    /evaluation-status--blocking.*border:1px solid.*background:linear-gradient\(45deg.*center\/9px 9px no-repeat.*content:none/,
-  );
-  assert.match(page, /evaluation-status--error.*content:"!"/);
+  // Outcome glyph shapes now live in the shared shell stylesheet
+  // (`.qb-outcome-icon`, verified in secondary-shell-browser-component).
+  // The evaluation page keeps only its timeline-node shapes.
   assert.match(page, /qb-timeline-node--pending.*border:1px dashed/);
   assert.match(page, /qb-timeline-node--advisory.*clip-path:polygon/);
   assert.match(

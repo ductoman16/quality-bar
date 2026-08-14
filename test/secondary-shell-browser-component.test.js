@@ -2,6 +2,29 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { operatorPage } from "../src/browser-pages.js";
+import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";
+
+test("shared shell carries one status/outcome glyph vocabulary", () => {
+  // Single source of the clear/advisory/blocking/error shapes, aliased to
+  // both the shared `.qb-outcome-icon` and the existing evaluation classes.
+  assert.match(
+    FONO_LCD_STYLE,
+    /\.qb-outcome-icon,\.evaluation-status__icon\{display:inline-grid/,
+  );
+  assert.match(
+    FONO_LCD_STYLE,
+    /qb-outcome--clear.*evaluation-status--clear.*content:"✓"/,
+  );
+  assert.match(
+    FONO_LCD_STYLE,
+    /qb-outcome--advisory.*border:0;border-radius:0;background:transparent.*content:"△"/,
+  );
+  assert.match(
+    FONO_LCD_STYLE,
+    /qb-outcome--blocking.*border:1px solid.*background:linear-gradient\(45deg.*center\/9px 9px no-repeat.*content:none/,
+  );
+  assert.match(FONO_LCD_STYLE, /qb-outcome--error.*content:"!"/);
+});
 
 test("secondary views use the shared shell and compact detail hierarchy", () => {
   for (const view of [
