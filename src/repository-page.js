@@ -44,6 +44,22 @@ const GITHUB_SECTION =
 const FORGEJO_SECTION =
   '<section class="qb-region" aria-labelledby="forgejo-connection-title"><h2 id="forgejo-connection-title">Forgejo Connection</h2><form hidden id="forgejo-connection-form"><label for="forgejo-connection-base-url">Forgejo URL</label><input id="forgejo-connection-base-url" required type="url"><label for="forgejo-connection-token">Repository-scoped PAT</label><input autocomplete="off" id="forgejo-connection-token" required type="password"><fieldset disabled id="forgejo-connection-repository-fieldset"><legend>Forgejo Repositories</legend><div id="forgejo-connection-repositories"></div></fieldset><button id="forgejo-connection-submit" title="Verify and register Forgejo Repositories" type="submit">Verify and register Forgejo Repositories</button></form><section class="qb-region qb-deep-surface" aria-labelledby="forgejo-connection-state-title" hidden id="forgejo-connection-details"><h3 id="forgejo-connection-state-title">Connection state</h3><dl><dt>Repository owner</dt><dd id="forgejo-connection-identity"></dd><dt>Lifecycle</dt><dd id="forgejo-connection-lifecycle"></dd><dt>Health</dt><dd id="forgejo-connection-health"></dd><dt>Profile</dt><dd id="forgejo-connection-profile"></dd><dt>Required authorities</dt><dd id="forgejo-connection-scopes"></dd><dt>Capabilities</dt><dd id="forgejo-connection-capabilities"></dd><dt>Latest verification</dt><dd id="forgejo-connection-latest"></dd></dl><h4>Verification history</h4><ol id="forgejo-connection-history"></ol><h4>Polling</h4><ul aria-live="polite" id="forgejo-connection-polling"></ul></section><form hidden id="forgejo-connection-rotation-form"><label for="forgejo-connection-rotation-token">Replacement Repository-scoped PAT</label><input autocomplete="off" id="forgejo-connection-rotation-token" required type="password"><button id="forgejo-connection-rotation-submit" title="Rotate Forgejo PAT" type="submit">Rotate Forgejo PAT</button></form><form hidden id="forgejo-connection-reactivation-form"><label for="forgejo-connection-reactivation-token">Reactivation PAT</label><input autocomplete="off" id="forgejo-connection-reactivation-token" required type="password"><button id="forgejo-connection-reactivation-submit" title="Reactivate Forgejo Connection" type="submit">Reactivate Forgejo Connection</button></form><form hidden id="forgejo-connection-lifecycle-form"><button id="forgejo-connection-retire" title="Retire Forgejo Connection" type="button">Retire Forgejo Connection</button><button id="forgejo-connection-delete" title="Delete Forgejo Connection" type="button">Delete Forgejo Connection</button></form><dialog aria-labelledby="forgejo-connection-confirmation-title" id="forgejo-connection-confirmation"><form id="forgejo-connection-confirmation-form"><h4 id="forgejo-connection-confirmation-title">Confirm Forgejo Connection change</h4><p id="forgejo-connection-confirmation-message"></p><label hidden id="forgejo-connection-confirmation-label" for="forgejo-connection-confirmation-input">Type DELETE to confirm permanent deletion</label><input hidden id="forgejo-connection-confirmation-input" type="text"><button id="forgejo-connection-confirmation-cancel" title="Cancel" type="button">Cancel</button><button id="forgejo-connection-confirmation-submit" type="submit">Confirm</button></form></dialog><output class="qb-status" aria-live="polite" id="forgejo-connection-status" tabindex="-1"></output><p hidden id="forgejo-connection-error" role="alert" tabindex="-1"></p></section>';
 
+// Rep-1/Rep-4: the three provider registration surfaces above are an occasional
+// action, not the page's job. They are folded — markup intact, every id and
+// class preserved — into one disclosed "Add repository" flow: a filled primary
+// summary (the standardized Evaluations/Reviews create action) opens a provider
+// chooser that reveals exactly one surface at a time. Disclosure and selection
+// are pure CSS (native <details> + a visually-hidden radio group), so no new
+// browser asset and no requiredElement lookups are introduced.
+const ADD_SECTION =
+  '<details class="repo-add" id="repository-add"><summary class="repo-add__summary">Add repository</summary><input class="repo-add__radio" checked id="repository-add-provider-https" name="repository-add-provider" type="radio"><input class="repo-add__radio" id="repository-add-provider-github" name="repository-add-provider" type="radio"><input class="repo-add__radio" id="repository-add-provider-forgejo" name="repository-add-provider" type="radio"><div class="repo-add__chooser" role="group" aria-label="Repository provider"><label class="repo-add__choice" for="repository-add-provider-https">HTTPS</label><label class="repo-add__choice" for="repository-add-provider-github">GitHub</label><label class="repo-add__choice" for="repository-add-provider-forgejo">Forgejo</label></div><div class="repo-add__surfaces"><div class="repo-add__surface" data-provider="https">' +
+  REGISTER_SECTION +
+  '</div><div class="repo-add__surface" data-provider="github">' +
+  GITHUB_SECTION +
+  '</div><div class="repo-add__surface" data-provider="forgejo">' +
+  FORGEJO_SECTION +
+  "</div></div></details>";
+
 // The detail view reuses the (clipped) lifecycle/credential/create engine so
 // repository.js and repository-delete.js load and expose their tested mutation
 // behavior; repository-detail.js reads the repository_id, renders the readable
@@ -150,6 +166,26 @@ const BASE_STYLE =
   ".repo-engine{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}" +
   "@media(max-width:900px){.repo-stat-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.repo-stat{padding-right:12px}.repo-row__summary{grid-template-columns:16px 11px minmax(0,1fr) 90px 20px;gap:10px 14px}.repo-row__provider,.repo-row__health,.repo-row__assignments,.repo-row__verified{display:none}}";
 
+// The "Add repository" disclosure mirrors the Reviews authoring summary: a
+// filled --qb-ink primary summary, then a segmented provider chooser whose
+// checked radio reveals one surface. Surfaces default to display:none (not the
+// hidden attribute) so the [hidden] rule stays reserved for the forms' own JS.
+const ADD_STYLE =
+  ".repo-add{display:block;border:0;padding:16px 0 8px;margin:0}" +
+  ".repo-add>summary{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:4px 12px;border-radius:2px;background:var(--qb-ink);color:var(--qb-canvas);font-size:12px;font-weight:650;list-style:none;cursor:pointer}" +
+  ".repo-add>summary::-webkit-details-marker{display:none}" +
+  '.repo-add>summary::before{content:"+";font-family:var(--font-mono)}' +
+  ".repo-add>summary:hover{background:var(--qb-muted-ink)}" +
+  ".repo-add__radio{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}" +
+  ".repo-add__chooser{display:inline-flex;margin:18px 0 0;border:1px solid var(--qb-line);border-radius:6px;overflow:hidden}" +
+  ".repo-add__choice{padding:6px 15px;font-size:12px;font-weight:650;color:var(--qb-muted-ink);cursor:pointer;border-right:1px solid var(--qb-line)}" +
+  ".repo-add__choice:last-child{border-right:0}" +
+  ".repo-add__choice:hover{color:var(--qb-ink)}" +
+  '#repository-add-provider-https:checked~.repo-add__chooser .repo-add__choice[for="repository-add-provider-https"],#repository-add-provider-github:checked~.repo-add__chooser .repo-add__choice[for="repository-add-provider-github"],#repository-add-provider-forgejo:checked~.repo-add__chooser .repo-add__choice[for="repository-add-provider-forgejo"]{background:var(--qb-ink);color:var(--qb-canvas)}' +
+  ".repo-add__radio:focus-visible~.repo-add__chooser{outline:2px solid var(--qb-ink);outline-offset:2px}" +
+  ".repo-add__surface{display:none}" +
+  '#repository-add-provider-https:checked~.repo-add__surfaces .repo-add__surface[data-provider="https"],#repository-add-provider-github:checked~.repo-add__surfaces .repo-add__surface[data-provider="github"],#repository-add-provider-forgejo:checked~.repo-add__surfaces .repo-add__surface[data-provider="forgejo"]{display:block}';
+
 const LIST_SCRIPTS =
   '<script src="/assets/github-connection-contract.js"></script>' +
   '<script src="/assets/github-connection-lifecycle-confirmation.js"></script>' +
@@ -188,13 +224,12 @@ export function renderRepositoryPage(view) {
     markup:
       OVERVIEW_SECTION +
       INVENTORY_SECTION +
+      ADD_SECTION +
       ENGINE_SECTION +
       DELETE_DIALOG +
-      REGISTER_SECTION +
-      GITHUB_SECTION +
-      FORGEJO_SECTION +
       "<style>" +
       BASE_STYLE +
+      ADD_STYLE +
       "</style>",
     scripts: LIST_SCRIPTS,
   });
