@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const PERFORMANCE_CONTAINER_IMAGE =
-  "node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc";
+  "node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd";
 const PERFORMANCE_CONTAINER_MEMORY_BYTES = 8 * 1024 ** 3;
 
 /** @param {number} status */
