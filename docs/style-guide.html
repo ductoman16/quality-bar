@@ -1,0 +1,288 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quality Bar — Design System</title>
+<style>*,*::before,*::after{box-sizing:border-box}:root{color-scheme:light;--qb-canvas:#d7dbd2;--qb-surface:#d7dbd2;--qb-surface-deep:#d7dbd2;--qb-ink:#0f1410;--qb-muted-ink:#545a54;--qb-line:#868c83;--qb-focus:#0f1410;--qb-system-marker:#0f1410;--qb-review-marker:#0f1410;--bg:var(--qb-canvas);--panel:var(--qb-canvas);--panel-2:var(--qb-canvas);--ink:var(--qb-ink);--muted:var(--qb-muted-ink);--line:var(--qb-line);--line-2:var(--qb-line);--grey:var(--qb-muted-ink);--radius:10px;--radius-sm:8px;--shadow:none;--font-mono:'JetBrains Mono','SF Mono',ui-monospace,monospace}html{scroll-behavior:smooth;overflow-wrap:anywhere;background:var(--qb-canvas)}body{margin:0;min-height:100vh;background:var(--qb-canvas);color:var(--qb-ink);font-family:'Inter','Aeonik','Helvetica Neue',system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}a{color:inherit}::selection{background:var(--qb-ink);color:var(--qb-canvas)}code,pre{font-family:var(--font-mono)}.qb-app-shell{min-height:100vh;background:var(--qb-canvas)}.qb-header{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--qb-canvas);border-bottom:1px solid var(--qb-line)}.qb-brand{width:36px;height:36px;display:grid;place-items:center;background:var(--qb-ink);color:var(--qb-canvas);border-radius:8px;font-size:16px;font-weight:800;letter-spacing:-.06em;text-decoration:none;white-space:nowrap;flex-shrink:0}.qb-brand-title{font-size:15px;font-weight:650;letter-spacing:-.02em;white-space:nowrap}.qb-header-actions{margin-left:auto;display:flex;align-items:center;gap:12px}.qb-theme-toggle{width:28px;height:28px;display:grid;place-items:center;background:transparent;border:1px solid transparent;border-radius:50%;font-size:14px;cursor:pointer}.qb-theme-toggle:hover{background:var(--qb-surface)}.qb-brand:focus-visible{outline:2px solid var(--qb-focus);outline-offset:2px}.qb-primary-nav{display:flex;align-items:center;gap:24px;flex:1;min-width:0;margin-left:10px}.qb-nav-group{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.qb-nav-group + .qb-nav-group{margin-left:auto}.qb-primary-nav a{display:inline-flex;align-items:center;min-height:26px;padding:2px 0;font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;color:var(--qb-muted-ink);border-bottom:1.5px solid transparent}.qb-primary-nav a:hover{color:var(--qb-ink)}.qb-primary-nav a[aria-current="page"]{color:var(--qb-ink);border-bottom-color:var(--qb-ink)}.qb-primary-nav a:focus-visible{outline:2px solid var(--qb-focus);outline-offset:2px}.qb-main{max-width:1180px;margin:0 auto;padding:6px 24px 48px;display:grid;gap:0}.qb-page-heading{display:none}.qb-stat-strip{display:flex;flex-wrap:wrap;gap:0;padding:12px 0;border:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line);background:transparent}.qb-stat{flex:1 1 120px;min-width:120px;padding:8px 0;border:0;background:transparent;font-size:13px}.qb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 0;border:0;border-top:1px solid var(--qb-line);background:transparent}.qb-filter-bar{padding:14px 0 6px}.qb-deep-surface{background:transparent}.qb-status{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;font-size:12px;font-weight:650;letter-spacing:0.02em}.qb-inline-actions{display:flex;flex-wrap:wrap;gap:6px}.qb-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.qb-timeline{display:flex;align-items:center;gap:6px}.qb-timeline-node{display:inline-flex;align-items:center;gap:6px;font-size:12px}.qb-timeline-node--system::before{content:"";width:10px;height:10px;background:var(--qb-system-marker);border:1px solid var(--qb-ink);display:inline-block;flex-shrink:0}.qb-timeline-node--review::before{content:"";width:10px;height:10px;background:var(--qb-review-marker);border:1px solid var(--qb-ink);border-radius:999px;display:inline-block;flex-shrink:0}.qb-timeline-connector{width:16px;height:1px;background:var(--qb-line);flex-shrink:0}.qb-outcome-icon,.evaluation-status__icon{display:inline-grid;place-items:center;width:15px;height:15px;border:1px solid var(--qb-ink);border-radius:50%;font-size:10px;line-height:1}.qb-outcome--clear.qb-outcome-icon,.evaluation-status--clear .evaluation-status__icon{background:var(--qb-ink);color:var(--qb-canvas)}.qb-outcome--clear.qb-outcome-icon::before,.evaluation-status--clear .evaluation-status__icon::before{content:"✓"}.qb-outcome--advisory.qb-outcome-icon,.evaluation-status--advisory .evaluation-status__icon{border:0;border-radius:0;background:transparent;color:var(--qb-ink);font-size:17px}.qb-outcome--advisory.qb-outcome-icon::before,.evaluation-status--advisory .evaluation-status__icon::before{content:"△"}.qb-outcome--blocking.qb-outcome-icon,.evaluation-status--blocking .evaluation-status__icon{border:1px solid var(--qb-ink);border-radius:0;background:linear-gradient(45deg,transparent 43%,var(--qb-ink) 43% 57%,transparent 57%) center/9px 9px no-repeat,linear-gradient(-45deg,transparent 43%,var(--qb-ink) 43% 57%,transparent 57%) center/9px 9px no-repeat}.qb-outcome--blocking.qb-outcome-icon::before,.evaluation-status--blocking .evaluation-status__icon::before{content:none}.qb-outcome--error.qb-outcome-icon,.evaluation-status--error .evaluation-status__icon{border:0;border-radius:0;background:transparent;color:var(--qb-ink);font-size:17px}.qb-outcome--error.qb-outcome-icon::before,.evaluation-status--error .evaluation-status__icon::before{content:"!"}.qb-outcome--skipped.qb-outcome-icon::before,.evaluation-status--skipped .evaluation-status__icon::before{content:"−"}.qb-outcome--pending.qb-outcome-icon,.evaluation-status--active .evaluation-status__icon,.evaluation-status--pending .evaluation-status__icon{border-style:dashed}:focus-visible{outline:2px solid var(--qb-focus);outline-offset:2px}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--qb-focus);outline-offset:2px}button,input,select,textarea{font:inherit}input,select,textarea,button{max-width:100%;min-height:2.1rem;border:1px solid var(--qb-line);border-radius:6px;padding:4px 8px;background:transparent;color:inherit}button{cursor:pointer;font-weight:650;background:transparent}button:hover{border-color:var(--qb-ink)}button:disabled{opacity:0.45;cursor:not-allowed}label{color:var(--qb-muted-ink);font-size:12px;font-weight:650;letter-spacing:0.04em;text-transform:uppercase}form{display:grid;grid-template-columns:max-content minmax(8rem,1fr) max-content minmax(8rem,1fr);align-items:center;gap:10px 12px;max-width:100%;padding:0;border:0;background:transparent;border-radius:0}form>button,form>output,form>ol,form>ul,form>p,form>fieldset{grid-column:1/-1;justify-self:start}main>section,main>details{border:0;border-top:1px solid var(--qb-line);background:transparent;border-radius:0;padding:22px 0;overflow-x:auto}main>section>h2,main>section>h3{margin:0 0 14px}table{width:max-content;min-width:100%;border-collapse:collapse}th,td{padding:8px 10px;border-bottom:1px solid var(--qb-line);text-align:left;vertical-align:top;font-size:13px}th{color:var(--qb-muted-ink);font-size:12px;letter-spacing:0.06em;text-transform:uppercase;font-weight:650;white-space:nowrap}tr:last-child td{border-bottom:none}details>summary{cursor:pointer;font-weight:700}dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 12px}dt{color:var(--qb-muted-ink);font-weight:650}dd{margin:0}fieldset{border:0;padding:0;margin:0;min-width:0}legend{padding:0;margin:0 0 6px;color:var(--qb-muted-ink);font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}ol,ul{margin:0;padding-inline-start:1.25rem}#system-facts .system-model-list{display:grid;gap:4px}@media(max-width:40rem){.qb-primary-nav{gap:14px;margin-left:0}.qb-nav-group{gap:14px}body{padding:0}form{grid-template-columns:minmax(0,1fr)}form>label,form>input,form>select,form>textarea,form>button,form>output,form>ol,form>ul,form>p,form>fieldset{grid-column:1}table,thead,tbody,tr,th,td{display:block}thead{position:absolute;clip:rect(0 0 0 0)}tr{border-bottom:1px solid var(--qb-line)}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important;box-shadow:none!important}}</style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600;700&display=swap');
+
+/* === PROPOSED CANONICAL TOKENS (hybrid, inspiration-aligned) =========== */
+:root{
+  /* Warmer, paler canvas — closer to the thermostat's cream sage */
+  --qb-canvas:#eaece0;--qb-surface:#eaece0;--qb-surface-deep:#eaece0;--bg:#eaece0;
+  --qb-ink:#12160f;--qb-muted-ink:#565c50;--qb-line:#8a9081;
+  /* One geometric-mono voice (approximating Aeonik Fono until licensed) */
+  --qb-display:'Spline Sans Mono','JetBrains Mono',ui-monospace,monospace;
+  --font-mono:'Spline Sans Mono','JetBrains Mono',ui-monospace,monospace;
+  /* Radius: soft. Controls 8px, cards 20px, pills round, rules 0 */
+  --qb-radius:8px;--qb-radius-card:20px;--qb-radius-pill:999px;
+  --qb-space-1:4px;--qb-space-2:8px;--qb-space-3:12px;--qb-space-4:16px;--qb-space-5:22px;--qb-space-6:30px}
+html,body{background:var(--qb-canvas)}
+
+/* Display face carries titles, labels, and values — the single voice. */
+.sg-title,.sg-block__title,.qb-label,.sg-eyebrow,.sg-h,.sg-scale__label{font-family:var(--qb-display)}
+
+/* Buttons: one soft family. Primary fill · secondary outline · ghost text. */
+.qb-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:34px;padding:6px 16px;border:1px solid transparent;border-radius:var(--qb-radius);
+  font-family:var(--qb-display);font-size:13px;font-weight:600;letter-spacing:.01em;line-height:1;
+  white-space:nowrap;cursor:pointer;text-decoration:none}
+.qb-btn--primary{background:var(--qb-ink);color:var(--qb-canvas);border-color:var(--qb-ink)}
+.qb-btn--primary:hover{background:var(--qb-muted-ink);border-color:var(--qb-muted-ink)}
+.qb-btn--secondary{background:transparent;color:var(--qb-ink);border-color:var(--qb-line)}
+.qb-btn--secondary:hover{border-color:var(--qb-ink)}
+.qb-btn--compact{min-height:28px;padding:4px 12px;font-size:12px}
+.qb-btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Card: soft outlined container (no fill) for grouped dashboard data. */
+.qb-card{border:1px solid var(--qb-line);border-radius:var(--qb-radius-card);padding:20px 22px;background:transparent;min-width:0}
+.qb-card__label{font-family:var(--qb-display);font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--qb-muted-ink);margin:0 0 14px}
+.qb-cardrow{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:8px 0}
+.qb-cardrow+.qb-cardrow{border-top:1px solid var(--qb-line)}
+.qb-cardrow__k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--qb-muted-ink)}
+.qb-cardrow__v{font-family:var(--qb-display);font-size:22px;font-weight:500;line-height:1}
+
+/* Round controls (from the thermostat): pill toggle, circular icon button, ring. */
+.qb-iconbtn{width:28px;height:28px;min-height:0;display:grid;place-items:center;padding:0;border:1px solid var(--qb-line);border-radius:50%;background:transparent;color:var(--qb-ink);cursor:pointer}
+.qb-iconbtn:hover{border-color:var(--qb-ink)}
+.qb-iconbtn svg{display:block}
+.qb-toggle{position:relative;display:inline-flex;align-items:center;justify-content:center;width:58px;height:30px;border:1px solid transparent;border-radius:999px;background:var(--qb-ink);color:var(--qb-canvas);font-family:var(--qb-display);font-size:11px;font-weight:700;letter-spacing:.03em;cursor:pointer;vertical-align:middle}
+.qb-toggle__knob{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%;background:var(--qb-canvas)}
+.qb-toggle--off{padding-left:22px;background:transparent;border-color:var(--qb-line);color:var(--qb-muted-ink)}
+.qb-toggle--off .qb-toggle__knob{left:3px;background:var(--qb-ink)}
+.qb-toggle--on{padding-right:22px}
+.qb-toggle--on .qb-toggle__knob{right:3px}
+.qb-gauge{position:relative;display:inline-grid;place-items:center;width:76px;height:76px}
+.qb-gauge svg{position:absolute;inset:0;width:100%;height:100%}
+.qb-gauge__v{position:relative;font-family:var(--qb-display);font-size:15px;font-weight:600}
+
+/* Section label · back link · inline link. */
+.qb-label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--qb-muted-ink)}
+.qb-back{display:inline-block;font-family:var(--qb-display);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--qb-muted-ink);text-decoration:none}
+.qb-back::before{content:"‹ "}.qb-back:hover{color:var(--qb-ink)}
+.qb-link{color:var(--qb-ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--qb-line)}
+.qb-link:hover{text-decoration-color:var(--qb-ink)}
+
+/* Flat rule-rows (kept for lists/ledgers — the bottom half of the image). */
+.qb-rows{display:grid}
+.qb-row{display:grid;grid-template-columns:120px 90px 1fr auto;align-items:center;gap:16px;padding:13px 0;border-top:1px solid var(--qb-line);font-family:var(--qb-display);font-size:13px}
+.qb-row--on{font-weight:700}
+.qb-row__mut{color:var(--qb-muted-ink)}
+
+/* Gallery chrome (not part of the system) */
+.sg{max-width:1120px;margin:0 auto;padding:40px 26px 96px}
+.sg-lede{max-width:66ch}
+.sg-title{font-size:clamp(1.8rem,3vw,2.4rem);font-weight:600;letter-spacing:-.01em;margin:0 0 8px}
+.sg-sub{color:var(--qb-muted-ink);font-size:14px;margin:0 0 4px;max-width:60ch}
+.sg-eyebrow{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--qb-muted-ink)}
+.sg-principles{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:6px;max-width:74ch}
+.sg-principles li{padding-left:18px;position:relative;font-size:13px}
+.sg-principles li::before{content:"—";position:absolute;left:0;color:var(--qb-muted-ink)}
+.sg-section{padding-top:34px}
+.sg-h{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--qb-muted-ink);margin:0 0 2px}
+.sg-block{padding:22px 0;border-top:1px solid var(--qb-line);display:grid;gap:16px}
+.sg-block__name{font-family:var(--qb-display);font-size:12px;color:var(--qb-muted-ink)}
+.sg-block__title{font-size:15px;font-weight:600;margin:0 0 2px}
+.sg-block__use{font-size:13px;color:var(--qb-muted-ink);margin:0;max-width:66ch}
+.sg-demo{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:22px;border:1px solid var(--qb-line);border-radius:var(--qb-radius-card)}
+.sg-demo--plain{border:0;border-radius:0;padding:0}
+.sg-note{font-size:12px;color:var(--qb-muted-ink)}
+.sg-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.sg-swatch{border:1px solid var(--qb-line);border-radius:10px;overflow:hidden}
+.sg-swatch__chip{height:56px}
+.sg-swatch__meta{padding:8px 10px;font-size:11px}
+.sg-swatch__meta code{font-family:var(--qb-display);font-size:11px;color:var(--qb-muted-ink);display:block;margin-top:2px}
+.sg-scale{display:grid;gap:10px}
+.sg-scale__row{display:grid;grid-template-columns:120px 1fr;align-items:baseline;gap:16px}
+.sg-scale__label{font-size:11px;color:var(--qb-muted-ink)}
+.sg-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.sg-two{grid-template-columns:1fr}}
+.sg-space{display:flex;align-items:flex-end;gap:14px}
+.sg-space__bar{background:var(--qb-ink)}
+.sg-space__cap{display:block;font-family:var(--qb-display);font-size:10px;color:var(--qb-muted-ink);margin-top:6px;text-align:center}
+</style>
+</head><body>
+<div class="sg">
+  <header class="sg-lede">
+    <p class="sg-eyebrow">Quality Bar</p>
+    <h1 class="sg-title">Design System</h1>
+    <p class="sg-sub">A warm monochrome LCD language in one geometric-mono voice —
+      soft outlined cards for dashboards, flat hairline rows for lists.</p>
+    <ul class="sg-principles">
+      <li><strong>One voice.</strong> A single geometric-mono face (Aeonik Fono) carries titles, labels, and values alike.</li>
+      <li><strong>Warm &amp; pale.</strong> One cream-sage canvas, one warm ink; the only "color" is emphasis.</li>
+      <li><strong>Cards group, rules list.</strong> Soft outlined cards (no fill) group dashboard data; hairline rows carry scannable lists and ledgers.</li>
+      <li><strong>Round where you act.</strong> Controls are soft (8px), toggles and icon buttons are round — the surfaces you touch feel physical.</li>
+      <li><strong>Big, confident numbers.</strong> Values are the loudest thing on the screen. Secondary actions never shout.</li>
+    </ul>
+  </header>
+
+  <section class="sg-section">
+    <p class="sg-h">Foundations · Color</p>
+    <div class="sg-swatches">
+      <div class="sg-swatch"><div class="sg-swatch__chip" style="background:var(--qb-canvas);border-bottom:1px solid var(--qb-line)"></div><div class="sg-swatch__meta">Canvas<code>--qb-canvas</code></div></div>
+      <div class="sg-swatch"><div class="sg-swatch__chip" style="background:var(--qb-ink)"></div><div class="sg-swatch__meta">Ink<code>--qb-ink</code></div></div>
+      <div class="sg-swatch"><div class="sg-swatch__chip" style="background:var(--qb-muted-ink)"></div><div class="sg-swatch__meta">Muted ink<code>--qb-muted-ink</code></div></div>
+      <div class="sg-swatch"><div class="sg-swatch__chip" style="background:var(--qb-line)"></div><div class="sg-swatch__meta">Line<code>--qb-line</code></div></div>
+    </div>
+    <p class="sg-note" style="margin-top:12px">Warmer and paler than before — closer to the thermostat's cream. Ink for text and primary fills, muted ink for labels, line for every hairline and outline.</p>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Foundations · Type — one voice</p>
+    <div class="sg-scale">
+      <div class="sg-scale__row"><span class="sg-scale__label">display / 34</span><span style="font-family:var(--qb-display);font-size:34px;font-weight:600;letter-spacing:-.01em">Security Review</span></div>
+      <div class="sg-scale__row"><span class="sg-scale__label">value / 24</span><span style="font-family:var(--qb-display);font-size:24px;font-weight:500">1,284 evals · 14% clear</span></div>
+      <div class="sg-scale__row"><span class="sg-scale__label">heading / 15</span><span style="font-family:var(--qb-display);font-size:15px;font-weight:600">Active version</span></div>
+      <div class="sg-scale__row"><span class="sg-scale__label">label / 11</span><span class="qb-label">Blocking rate</span></div>
+      <div class="sg-scale__row"><span class="sg-scale__label">body / 13</span><span style="font-size:13px">Operators read this to decide what to do next.</span></div>
+    </div>
+    <p class="sg-note" style="margin-top:12px">Titles, labels, and data all speak in the geometric-mono display face — the inspiration's signature. Long-form body text stays in the reading sans. <strong>Note:</strong> shown in Spline Sans Mono; production intent is Aeonik Fono (a licensed face not yet loaded).</p>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Foundations · Space &amp; radius</p>
+    <div class="sg-space">
+      <div><div class="sg-space__bar" style="width:26px;height:4px"></div><span class="sg-space__cap">4</span></div><div><div class="sg-space__bar" style="width:26px;height:8px"></div><span class="sg-space__cap">8</span></div><div><div class="sg-space__bar" style="width:26px;height:12px"></div><span class="sg-space__cap">12</span></div><div><div class="sg-space__bar" style="width:26px;height:16px"></div><span class="sg-space__cap">16</span></div><div><div class="sg-space__bar" style="width:26px;height:22px"></div><span class="sg-space__cap">22</span></div><div><div class="sg-space__bar" style="width:26px;height:30px"></div><span class="sg-space__cap">30</span></div>
+    </div>
+    <p class="sg-note" style="margin-top:12px">A 4-based step scale. Radius is soft, not flat: <strong>8px</strong> on controls, <strong>20px</strong> on cards, round on toggles &amp; icon buttons, <strong>0</strong> on rule-rows and tables.</p>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Pattern · Cards group, rules list</p>
+    <div class="sg-block">
+      <div><p class="sg-block__title">The two containers</p><p class="sg-block__use">The core hybrid decision. Grouped, glanceable dashboard data (Analytics, System health) lives in soft outlined cards. Scannable lists and ledgers (Evaluations, Repositories) stay flat, separated by hairline rows.</p></div>
+      <div class="sg-demo sg-demo--plain">
+        <div class="sg-two" style="width:100%">
+          <div class="qb-card">
+            <p class="qb-card__label">REVIEW-RUN RELIABILITY</p>
+            <div class="qb-cardrow"><span class="qb-cardrow__k">Success rate</span><span class="qb-cardrow__v">71%</span></div>
+            <div class="qb-cardrow"><span class="qb-cardrow__k">P95 duration</span><span class="qb-cardrow__v">5m41s</span></div>
+          </div>
+          <div class="qb-card">
+            <p class="qb-card__label">FINDINGS</p>
+            <div class="qb-cardrow"><span class="qb-cardrow__k">Blocking</span><span class="qb-cardrow__v">2</span></div>
+            <div class="qb-cardrow"><span class="qb-cardrow__k">Advisory</span><span class="qb-cardrow__v">5</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="sg-demo sg-demo--plain" style="margin-top:4px">
+        <div class="qb-rows" style="width:100%">
+          <div class="qb-row"><a class="qb-link" href="#">payments-api</a><span class="qb-row__mut">github</span><span class="qb-row__mut">healthy · 128 evaluations</span><span class="qb-toggle qb-toggle--on"><span class="qb-toggle__knob"></span>ON</span></div>
+          <div class="qb-row"><a class="qb-link" href="#">data-pipeline</a><span class="qb-row__mut">github</span><span class="qb-row__mut">healthy · 64 evaluations</span><span class="qb-toggle qb-toggle--off"><span class="qb-toggle__knob"></span>OFF</span></div>
+          <div class="qb-row"><a class="qb-link" href="#">worker-service</a><span class="qb-row__mut">forgejo</span><span class="qb-row__mut" style="color:var(--qb-ink)">error · needs attention</span><span class="qb-toggle qb-toggle--on"><span class="qb-toggle__knob"></span>ON</span></div>
+        </div>
+      </div>
+      <div class="sg-block__name">.qb-card + .qb-cardrow  ·  .qb-rows + .qb-row</div>
+    </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Buttons</p>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Primary</p><p class="sg-block__use">The single most important action on a view — create, save, confirm. At most one per screen.</p></div>
+    <div class="sg-demo"><button class="qb-btn qb-btn--primary">+ New evaluation</button><button class="qb-btn qb-btn--primary">Save Review Version</button></div>
+    <div class="sg-block__name">.qb-btn .qb-btn--primary</div>
+    
+  </div>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Secondary</p><p class="sg-block__use">Supporting or reversible actions that shouldn't compete with the primary — Cancel a run, Retry, Restore an archived review. Outline that darkens on hover.</p></div>
+    <div class="sg-demo"><button class="qb-btn qb-btn--secondary">Cancel</button><button class="qb-btn qb-btn--secondary">Restore</button></div>
+    <div class="sg-block__name">.qb-btn .qb-btn--secondary</div>
+    
+  </div>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Compact</p><p class="sg-block__use">Any variant, shrunk for dense rows and toolbars — inline row actions like Cancel, Retry, Add criterion.</p></div>
+    <div class="sg-demo"><button class="qb-btn qb-btn--secondary qb-btn--compact">Cancel</button><button class="qb-btn qb-btn--secondary qb-btn--compact" disabled>Retry</button><button class="qb-btn qb-btn--primary qb-btn--compact">Add criterion</button></div>
+    <div class="sg-block__name">add .qb-btn--compact</div>
+    
+  </div>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Links, not buttons</p><p class="sg-block__use">Navigation and inline actions are plain underlined links — never outlined buttons. The underline is the whole affordance.</p></div>
+    <div class="sg-demo"><span style="font-size:13px">Finding in <a class="qb-link" href="#">payments-api</a> · <a class="qb-link" href="#">view evaluation</a></span></div>
+    <div class="sg-block__name">.qb-link</div>
+    
+  </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Round controls</p>
+    <div class="sg-block">
+      <div><p class="sg-block__title">Toggle · icon button</p><p class="sg-block__use">The soft, round controls — a toggle for binary state (enable/disable a repository) and a circular icon button for add/remove actions (a criterion in the review editor).</p></div>
+      <div class="sg-demo" style="gap:40px">
+        <span class="qb-toggle qb-toggle--on"><span class="qb-toggle__knob"></span>ON</span>
+        <span class="qb-toggle qb-toggle--off"><span class="qb-toggle__knob"></span>OFF</span>
+        <span style="display:inline-flex;align-items:center;gap:12px"><button class="qb-iconbtn" title="Add criterion"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="qb-iconbtn" title="Remove criterion"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span style="font-size:12px;color:var(--qb-muted-ink)">Add / remove criterion</span></span>
+      </div>
+      <div class="sg-block__name">.qb-toggle · .qb-iconbtn</div>
+    </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Metric dial</p>
+    <div class="sg-block">
+      <div><p class="sg-block__title">Headline rate</p><p class="sg-block__use">One hero dial per view, for a single rate whose goal is a full/ideal value and where "toward 100%" is the point — e.g. <strong>Review-run success</strong> on Analytics. The stat strip and trend still carry every detailed rate; the dial just makes the one number that matters land at a glance. Never one-per-rate — and not for things better read as a count (a near-full dial buries the exceptions; a "Health errors: 1" count surfaces them).</p></div>
+      <div class="sg-demo" style="gap:34px">
+        <span style="display:inline-flex;align-items:center;gap:16px"><span class="qb-gauge"><svg viewBox="0 0 100 100" fill="none">
+    <circle cx="50" cy="50" r="42" stroke="var(--qb-line)" stroke-width="8"/>
+    <circle cx="50" cy="50" r="42" stroke="var(--qb-ink)" stroke-width="8" stroke-linecap="round" stroke-dasharray="263.9" stroke-dashoffset="76.5" transform="rotate(-90 50 50)"/>
+  </svg><span class="qb-gauge__v">71%</span></span><span style="display:grid;gap:3px"><span style="font-family:var(--qb-display);font-size:15px;font-weight:600">Review-run success</span><span style="font-size:12px;color:var(--qb-muted-ink)">last 24h</span></span></span>
+      </div>
+      <div class="sg-block__name">.qb-gauge</div>
+    </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Status &amp; outcome glyphs</p>
+    <div class="sg-block">
+      <div><p class="sg-block__title">Outcome vocabulary</p><p class="sg-block__use">One shared glyph set for every evaluation outcome, everywhere it appears. Unchanged by the hybrid.</p></div>
+      <div class="sg-demo" style="gap:22px">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--clear"></span>Clear</span><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--advisory"></span>Advisory</span><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--blocking"></span>Blocking</span><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--error"></span>Error</span><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--skipped"></span>Skipped</span><span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600">
+     <span class="qb-outcome-icon qb-outcome--pending"></span>Pending</span>
+      </div>
+      <div class="sg-block__name">.qb-outcome-icon.qb-outcome--{clear|advisory|blocking|error|skipped|pending}</div>
+    </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Section label &amp; back link</p>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Section label</p><p class="sg-block__use">The uppercase, tracked heading that titles a region or a stat.</p></div>
+    <div class="sg-demo"><span class="qb-label">Evaluation outcomes</span></div>
+    <div class="sg-block__name">.qb-label</div>
+    
+  </div>
+    
+  <div class="sg-block">
+    <div><p class="sg-block__title">Back link</p><p class="sg-block__use">Breadcrumb up one level, at the top of every detail page.</p></div>
+    <div class="sg-demo"><a class="qb-back" href="#">Reviews</a></div>
+    <div class="sg-block__name">.qb-back</div>
+    
+  </div>
+  </section>
+
+  <section class="sg-section">
+    <p class="sg-h">Components · Table</p>
+    <div class="sg-block">
+      <div><p class="sg-block__title">Data table</p><p class="sg-block__use">For dense tabular data. Uppercase tracked header, hairline row rules, no outer border, no zebra.</p></div>
+      <div class="sg-demo" style="padding:0;display:block;border-radius:0;border:0">
+        <table style="width:100%">
+          <thead><tr><th>Criterion</th><th>Clear</th><th>Blocking</th><th>Clear rate</th></tr></thead>
+          <tbody>
+            <tr><td>criterion-1</td><td style="font-family:var(--qb-display)">3</td><td style="font-family:var(--qb-display)">2</td><td style="font-family:var(--qb-display)">3/5</td></tr>
+            <tr><td>criterion-2</td><td style="font-family:var(--qb-display)">0</td><td style="font-family:var(--qb-display)">0</td><td style="font-family:var(--qb-display)">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div></body></html>

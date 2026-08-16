@@ -2,6 +2,10 @@
 
 An AI code review management and execution platform
 
+## Design system
+
+The browser UI is built from a documented design system: a warm monochrome LCD language spoken in one geometric-mono voice, with soft outlined cards for dashboards and flat hairline rows for lists. The visual [style guide](docs/style-guide.html) is the reference for its tokens, components, and usage rules — open it in a browser. (A live in-app `?view=styleguide` route replaces this static page as the pages are migrated onto the system.)
+
 ## Repository onboarding skill
 
 Install the explicit onboarding skill with the standard Skills installer:
