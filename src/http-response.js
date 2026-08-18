@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import { currentIoOperationSignal } from "./io-operation-context.js";
 
 import { FONO_LCD_STYLE } from "./browser/style-tokens.js";
+import { DISPLAY_FONT_STYLE } from "./browser/display-font.js";
 
-const BROWSER_STYLE = FONO_LCD_STYLE;
+const BROWSER_STYLE = DISPLAY_FONT_STYLE + FONO_LCD_STYLE;
 
 function assertProductOutputAvailable() {
   currentIoOperationSignal()?.throwIfAborted();
