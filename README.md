@@ -6,15 +6,15 @@ An AI code review management and execution platform
 
 The browser UI is built from a documented design system: a warm monochrome LCD language spoken in one geometric-mono voice, with soft outlined cards for dashboards and flat hairline rows for lists. The visual [style guide](docs/style-guide.html) is the reference for its tokens, components, and usage rules — open it in a browser. (A live in-app `?view=styleguide` route replaces this static page as the pages are migrated onto the system.)
 
-## Repository onboarding skill
+## Agent skills
 
-Install the explicit onboarding skill with the standard Skills installer:
+Install the Quality Bar skills with the standard Skills installer:
 
 ```sh
 npx skills add ductoman16/quality-bar
 ```
 
-Select `onboard-quality-bar-repo`, then invoke `$onboard-quality-bar-repo` from the repository being onboarded.
+Select both skills. Invoke `$onboard-quality-bar-repo` from a Repository being onboarded; `use-quality-bar` guides normal work after onboarding.
 
 ## First installation
 
