@@ -409,6 +409,7 @@
   function mutationButton(label, evaluation, action) {
     const button = document.createElement("button");
     button.type = "button";
+    button.className = "qb-btn qb-btn--secondary qb-btn--compact";
     button.textContent = label;
     button.addEventListener("click", async () => {
       let response;
