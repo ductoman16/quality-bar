@@ -464,7 +464,7 @@ test("Evaluation monitor groups rows, uses monitor markers, filters, stats, acti
   assert.match(systemStepStatus.className, /evaluation-status--clear/);
   assert.equal(systemStepStatus.options[1].textContent, "Completed");
   const reviewStepStatus = preview.options[0].options[2].options[1];
-  assert.match(reviewStepStatus.className, /evaluation-status--pending/);
+  assert.match(reviewStepStatus.className, /evaluation-status--active/);
   assert.equal(reviewStepStatus.options[1].textContent, "Running");
 
   fixture.controls.get("evaluation-filter-status").value = "running";

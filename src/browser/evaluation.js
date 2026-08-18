@@ -318,15 +318,15 @@
   }
 
   const NODE_STATUS = /** @type {Record<string, string[]>} */ ({
-      cancelled: ["skipped", "Skipped"],
+      cancelled: ["cancelled", "Cancelled"],
       completed: ["complete", "Completed"],
       failed: ["failed", "Failed"],
       queued: ["pending", "Queued"],
-      running: ["pending", "Running"],
+      running: ["active", "Running"],
     }),
     EXECUTION_STATUS = /** @type {Record<string, string[]>} */ ({
-      cancelled: ["Skipped", "skipped"],
-      failed: ["Error", "error"],
+      cancelled: ["Cancelled", "cancelled"],
+      failed: ["Failed", "failed"],
       queued: ["Queued", "pending"],
       running: ["Running", "active"],
     }),
