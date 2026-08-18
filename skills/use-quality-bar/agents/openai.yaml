@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Quality Bar"
+  short_description: "Run Evaluations and Waivers in the right order"
+  default_prompt: "Use $use-quality-bar to evaluate the current change through Quality Bar."
