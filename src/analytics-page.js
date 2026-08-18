@@ -221,7 +221,7 @@ const STYLE =
   ".an-filters #analytics-filters{grid-template-columns:repeat(4,max-content minmax(6rem,1fr));align-items:end;gap:12px 18px;padding:4px 0 20px}" +
   ".an-filters #analytics-filters label{color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.06em}" +
   ".an-filters #analytics-filters input,.an-filters #analytics-filters select{border:0;border-bottom:1px solid var(--qb-line);border-radius:0;background:transparent;padding:5px 2px;min-height:1.9rem;font-family:var(--font-mono);font-size:12px}" +
-  ".an-filters #analytics-filters button{grid-column:1/-1;justify-self:start;min-height:30px;padding:4px 16px;border-radius:6px;font-size:11px}" +
+  ".an-filters #analytics-filters button{grid-column:1/-1;justify-self:start;min-height:30px;padding:4px 16px;border-radius:var(--qb-radius);font-size:11px}" +
   ".an-band>h2{font-size:14px;letter-spacing:-.01em}" +
   ".an-metric{margin-top:20px}" +
   ".an-band>h2+.an-metric{margin-top:6px}" +
