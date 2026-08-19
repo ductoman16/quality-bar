@@ -55,12 +55,17 @@ test("MCP exposes the same URL-bound onboarding authority without waiver access"
     { arguments: {}, name: "quality_bar.list_repositories" },
     2,
   );
+  assert.deepEqual(Object.keys(repositories.result.structuredContent).sort(), [
+    "items",
+    "next_cursor",
+  ]);
   assert.deepEqual(
     repositories.result.structuredContent.items.map(
       (/** @type {{id: string}} */ { id }) => id,
     ),
     ["mcp-target"],
   );
+  assert.equal(repositories.result.structuredContent.next_cursor, null);
 
   const forbidden = await call(
     "tools/call",

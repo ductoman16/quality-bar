@@ -37,7 +37,6 @@ test("a sole implementer bearer locates Repositories but cannot administer them"
   assert.deepEqual(await repositoryList.json(), {
     items: [],
     next_cursor: null,
-    repositories: [],
   });
   const forbiddenCredentialRotation = await request(
     "/api/v1/repositories/repository-1/credential/rotate",
@@ -90,15 +89,12 @@ test("the machine Repository collection uses validated opaque keyset pagination"
   assert.equal(firstResponse.status, 200);
   const firstPage = /** @type {{
    *   items: Array<{id: string}>,
-   *   next_cursor: string | null,
-   *   repositories: Array<{id: string}>
+   *   next_cursor: string | null
    * }} */ (await firstResponse.json());
+  assert.deepEqual(Object.keys(firstPage).sort(), ["items", "next_cursor"]);
   assert.equal(firstPage.items.length, 50);
   assert.equal(firstPage.items[0]?.id, "repository-00");
   assert.equal(firstPage.items[49]?.id, "repository-49");
-  assert.equal(firstPage.repositories.length, 51);
-  assert.equal(firstPage.repositories[0]?.id, "repository-00");
-  assert.equal(firstPage.repositories[50]?.id, "repository-50");
   assert.equal(typeof firstPage.next_cursor, "string");
   assert.doesNotMatch(
     /** @type {string} */ (firstPage.next_cursor),
@@ -114,9 +110,9 @@ test("the machine Repository collection uses validated opaque keyset pagination"
   assert.equal(secondResponse.status, 200);
   const secondPage = /** @type {{
    *   items: Array<{id: string}>,
-   *   next_cursor: string | null,
-   *   repositories: Array<{id: string}>
+   *   next_cursor: string | null
    * }} */ (await secondResponse.json());
+  assert.deepEqual(Object.keys(secondPage).sort(), ["items", "next_cursor"]);
   assert.deepEqual(secondPage.items, [
     {
       credential_type: "none",
@@ -129,9 +125,6 @@ test("the machine Repository collection uses validated opaque keyset pagination"
     },
   ]);
   assert.equal(secondPage.next_cursor, null);
-  assert.equal(secondPage.repositories.length, 51);
-  assert.equal(secondPage.repositories[0]?.id, "repository-00");
-  assert.equal(secondPage.repositories[50]?.id, "repository-50");
 
   const excessive = await request("/api/v1/repositories?limit=101", {
     headers,
@@ -229,17 +222,6 @@ test("an authenticated operator rotates a Generic credential through the secret-
       },
     ],
     next_cursor: null,
-    repositories: [
-      {
-        credential_type: "username_token",
-        deletion_eligible: true,
-        health: "healthy",
-        health_error: null,
-        id: "repository/private",
-        lifecycle: "enabled",
-        url: "https://example.com/private.git",
-      },
-    ],
   });
 
   const rotated = await request(

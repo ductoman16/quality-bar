@@ -61,12 +61,19 @@ test("an onboarding token can mutate only its bound Repository and revoke itself
 
   const repositories = await request("/api/v1/repositories", { headers });
   assert.equal(repositories.status, 200);
-  assert.deepEqual(
-    /** @type {{items: Array<{id: string}>}} */ (
+  const repositoryCollection =
+    /** @type {{items: Array<{id: string}>, next_cursor: string | null}} */ (
       await repositories.json()
-    ).items.map(({ id }) => id),
+    );
+  assert.deepEqual(Object.keys(repositoryCollection).sort(), [
+    "items",
+    "next_cursor",
+  ]);
+  assert.deepEqual(
+    repositoryCollection.items.map(({ id }) => id),
     ["target"],
   );
+  assert.equal(repositoryCollection.next_cursor, null);
 
   const selection = await request(
     "/api/v1/repositories/target/review-selection",

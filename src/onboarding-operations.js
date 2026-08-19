@@ -100,7 +100,7 @@ export function createOnboardingOperations({
       const page = repositories.listPage({
         remoteUrl: requireGrant(grant).repository_url,
       });
-      return { ...page, repositories: page.items };
+      return page;
     },
     listReviews() {
       return { reviews: reviews.list("active") };

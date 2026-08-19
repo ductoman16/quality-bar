@@ -268,15 +268,17 @@ test("MCP tools and resources return the canonical Repository and Guidance docum
     ),
   );
   assert.equal(listed.result.isError, false);
+  assert.deepEqual(Object.keys(httpListDocument).sort(), [
+    "items",
+    "next_cursor",
+  ]);
+  assert.deepEqual(Object.keys(listed.result.structuredContent).sort(), [
+    "items",
+    "next_cursor",
+  ]);
   assert.deepEqual(
-    {
-      items: listed.result.structuredContent.items,
-      repositories: listed.result.structuredContent.repositories,
-    },
-    {
-      items: httpListDocument.items,
-      repositories: httpListDocument.repositories,
-    },
+    listed.result.structuredContent.items,
+    httpListDocument.items,
   );
   assert.equal(typeof httpListDocument.next_cursor, "string");
   assert.equal(typeof listed.result.structuredContent.next_cursor, "string");

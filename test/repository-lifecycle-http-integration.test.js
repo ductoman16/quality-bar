@@ -109,20 +109,6 @@ test("an authenticated operator changes Repository lifecycle through the canonic
       },
     ],
     next_cursor: null,
-    repositories: [
-      {
-        credential_type: "none",
-        deletion_eligible: true,
-        health: "error",
-        health_error: {
-          code: "repository_git_read_failed",
-          message: "Repository Git read verification failed",
-        },
-        id: "repository/public",
-        lifecycle: "disabled",
-        url: "https://example.com/public.git",
-      },
-    ],
   });
 
   verificationFails = false;

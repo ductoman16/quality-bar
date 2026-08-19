@@ -4,16 +4,13 @@ import { writeError, writeJson } from "./http-response.js";
 
 /**
  * @param {import("node:http").ServerResponse} response
- * @param {Pick<ReturnType<typeof import("./repository.js").createRepositoryService>, "list" | "listPage">} repositories
+ * @param {Pick<ReturnType<typeof import("./repository.js").createRepositoryService>, "listPage">} repositories
  * @param {{cursor?: string, limit?: string}} query
  */
 export function writeRepositoryList(response, repositories, query) {
   try {
     const page = repositories.listPage(query);
-    writeJson(response, 200, {
-      ...page,
-      repositories: repositories.list(),
-    });
+    writeJson(response, 200, page);
   } catch (error) {
     const failure = requireCodedError(error);
     if (["cursor_invalid", "page_size_invalid"].includes(failure.code)) {

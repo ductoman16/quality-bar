@@ -219,19 +219,14 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     false,
   );
   assert.deepEqual(contract.components.schemas.RepositoryCollection.required, [
-    "repositories",
+    "items",
+    "next_cursor",
   ]);
   assert.deepEqual(
     Object.keys(
       contract.components.schemas.RepositoryCollection.properties,
     ).sort(),
-    ["items", "next_cursor", "repositories"],
-  );
-  assert.equal(
-    /** @type {{deprecated?: boolean}} */ (
-      contract.components.schemas.RepositoryCollection.properties.repositories
-    ).deprecated,
-    true,
+    ["items", "next_cursor"],
   );
   assert.deepEqual(
     contract.paths["/api/v1/reviews/{review_id}/archival"].patch.security,
