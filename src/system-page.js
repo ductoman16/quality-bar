@@ -76,7 +76,7 @@ const STYLE =
   '.sys-summary[data-state="warn"] .sys-summary__line{font-weight:800}' +
   '.sys-summary[data-state="warn"] .sys-summary__line::before{content:"!";display:inline-grid;place-items:center;width:18px;height:18px;font-size:21px;font-weight:800;line-height:1}' +
   ".sys-overview{padding-top:18px}" +
-  ".sys-health{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}" +
+  ".sys-health{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;border-bottom:1px solid var(--qb-line)}" +
   ".sys-health__tile{display:grid;gap:9px;padding:18px 16px 18px 0;min-width:0}" +
   ".sys-health__label{color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase}" +
   ".sys-health__value{display:inline-flex;align-items:center;gap:9px;font-size:15px;font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +

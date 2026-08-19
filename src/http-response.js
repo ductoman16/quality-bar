@@ -7,6 +7,12 @@ import { DISPLAY_FONT_STYLE } from "./browser/display-font.js";
 
 const BROWSER_STYLE = DISPLAY_FONT_STYLE + FONO_LCD_STYLE;
 
+// Applies the persisted (or system) theme before first paint to avoid a flash,
+// keeps the header toggle's icon in sync, and flips + persists the theme on
+// click via delegation (the toggle button is parsed after this head script).
+const THEME_SCRIPT =
+  '<script>(function(){var K="qb-theme",r=document.documentElement;function ic(){var b=document.querySelector(".qb-theme-toggle");if(b)b.textContent=r.getAttribute("data-theme")==="dark"?"\\u263e":"\\u263c";}function ap(t){t==="dark"?r.setAttribute("data-theme","dark"):r.removeAttribute("data-theme");ic();}try{ap(localStorage.getItem(K)||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"));}catch(e){}document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest(".qb-theme-toggle");if(t){var d=r.getAttribute("data-theme")==="dark"?"light":"dark";try{localStorage.setItem(K,d);}catch(e){}ap(d);}});document.addEventListener("DOMContentLoaded",ic);})();</script>';
+
 function assertProductOutputAvailable() {
   currentIoOperationSignal()?.throwIfAborted();
 }
@@ -62,7 +68,7 @@ export function writeHtml(response, body) {
   assertProductOutputAvailable();
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   response.end(
-    `<!doctype html><html lang="en"><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
+    `<!doctype html><html lang="en"><head>${BROWSER_STYLE}${THEME_SCRIPT}</head><body>${body}</body></html>`,
   );
 }
 
