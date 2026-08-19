@@ -34,7 +34,11 @@ import {
   guidanceArguments,
   listRepositoryArguments,
 } from "./mcp-repository.js";
-import { isClosedMcpRecord } from "./mcp-validation.js";
+import { mcpResourceLink } from "./mcp-resource-link.js";
+import {
+  isResourceReadParameters,
+  isToolCallParameters,
+} from "./mcp-validation.js";
 import { executeWaiverTool } from "./mcp-waiver.js";
 import { executeOnboardingTool } from "./mcp-onboarding.js";
 
@@ -95,50 +99,6 @@ function writeProtocolErrorWithData(response, id, code, message, data) {
 /** @param {import("node:http").ServerResponse} response */
 function writeAccepted(response) {
   writeStatus(response, 202);
-}
-
-/**
- * @param {unknown} params
- * @returns {params is {
- *   name: string,
- *   arguments?: Record<string, unknown>,
- *   _meta?: Record<string, unknown>
- * }}
- */
-function isToolCallParameters(params) {
-  return (
-    isClosedMcpRecord(params, new Set(["name", "arguments", "_meta"])) &&
-    typeof params.name === "string" &&
-    (!Object.hasOwn(params, "arguments") || isMcpRecord(params.arguments)) &&
-    (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
-  );
-}
-
-/**
- * @param {unknown} params
- * @returns {params is {uri: string, _meta?: Record<string, unknown>}}
- */
-function isResourceReadParameters(params) {
-  return (
-    isClosedMcpRecord(params, new Set(["uri", "_meta"])) &&
-    typeof params.uri === "string" &&
-    (!Object.hasOwn(params, "_meta") || isMcpRecord(params._meta))
-  );
-}
-
-/** @param {{id: string}} repository */
-function repositoryUri(repository) {
-  return `quality-bar://v1/repositories/${encodeURIComponent(repository.id)}`;
-}
-
-/** @param {{id: string}} repository */
-function repositoryLink(repository) {
-  return {
-    mimeType: "application/json",
-    name: repository.id,
-    type: "resource_link",
-    uri: repositoryUri(repository),
-  };
 }
 
 /**
@@ -372,7 +332,10 @@ export function createMcpRoute({
             listRepositoryArguments(message.params.arguments ?? {}),
           );
           const document = page;
-          const result = toolSuccess(document, page.items.map(repositoryLink));
+          const result = toolSuccess(
+            document,
+            page.items.map(({ id }) => mcpResourceLink("repositories", id)),
+          );
           recordOutcome(
             "success",
             page.items.map(({ id }) => id),
@@ -386,9 +349,13 @@ export function createMcpRoute({
           );
           const document = repositoryGuidance.read(repositoryId);
           const repository = document.repository;
-          const guidanceUri = `${repositoryUri(repository)}/guidance`;
+          const repositoryResource = mcpResourceLink(
+            "repositories",
+            repository.id,
+          );
+          const guidanceUri = `${repositoryResource.uri}/guidance`;
           const result = toolSuccess(document, [
-            repositoryLink(repository),
+            repositoryResource,
             {
               mimeType: "application/json",
               name: `${repository.id} Guidance`,
