@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { invokePaidCodexCanary } from "../scripts/verification/paid-codex-canary-invocation.mjs";
+import { invokePaidCodexCanary } from "../scripts/release-canary/paid-codex.mjs";
 import { releaseCanarySourceCommit } from "./release-canary-test-fixtures.js";
 
 test("the default Codex version probe receives only the host allowlist", async (context) => {

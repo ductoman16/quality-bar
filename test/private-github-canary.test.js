@@ -3,21 +3,15 @@ import {
   chmodSync,
   mkdtempSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import { tmpdir } from "node:os";
 
-import { readPrivateGitHubCanaryConfiguration } from "../scripts/verification/private-github-canary-configuration.mjs";
-import {
-  invokePrivateGitHubCanary,
-  mergePrivateGitHubCanaryEvidence,
-} from "../scripts/verification/private-github-canary.mjs";
-import { createGateDefinitions } from "../scripts/verification/gate-definitions.mjs";
-import { privateGitHubPass } from "./release-canary-test-fixtures.js";
+import { readPrivateGitHubCanaryConfiguration } from "../scripts/release-canary/private-github-configuration.mjs";
+import { invokePrivateGitHubCanary } from "../scripts/release-canary/private-github.mjs";
 
 const base = "a".repeat(40);
 const head = "b".repeat(40);
@@ -265,58 +259,6 @@ test("a status that GitHub creates but cannot reconcile fails at the owning surf
   assert.equal(evidence.observations, null);
 });
 
-test("shared evidence accepts only a passing same-commit cost-free manifest", () => {
-  const sourceCommit = "c".repeat(40);
-  const canary = privateGitHubPass({ sourceCommit });
-  const manifest = {
-    evidenceVersion: 1,
-    sourceCommit,
-    outcome: "pass",
-    failures: [],
-    verification: { kind: "cost-free" },
-  };
-  assert.deepEqual(
-    mergePrivateGitHubCanaryEvidence(manifest, canary).releaseCanaries,
-    { privateGitHub: canary },
-  );
-  assert.throws(
-    () =>
-      mergePrivateGitHubCanaryEvidence(
-        { ...manifest, outcome: "fail" },
-        canary,
-      ),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "private_github_canary_cost_free_evidence_invalid",
-  );
-  assert.throws(
-    () =>
-      mergePrivateGitHubCanaryEvidence(manifest, {
-        ...canary,
-        sourceCommit: "d".repeat(40),
-      }),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "private_github_canary_source_commit_mismatch",
-  );
-  assert.throws(
-    () =>
-      mergePrivateGitHubCanaryEvidence(
-        {
-          ...manifest,
-          releaseCanaries: { paidCodex: { kind: "paid-codex-canary" } },
-        },
-        canary,
-      ),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "private_github_canary_cost_free_evidence_invalid",
-  );
-});
-
 test("credential loading requires a private key outside the checkout", () => {
   const directory = mkdtempSync(join(tmpdir(), "private-github-canary-test-"));
   const checkout = join(directory, "checkout");
@@ -359,45 +301,4 @@ test("credential loading requires a private key outside the checkout", () => {
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
-});
-
-test("the explicit live canary is absent from every routine gate", () => {
-  const packageMetadata = JSON.parse(
-    readFileSync(resolve(import.meta.dirname, "../package.json"), "utf8"),
-  );
-  assert.equal(
-    packageMetadata.scripts["canary:private-github"],
-    "node scripts/run-with-exact-node.mjs scripts/verification/run-private-github-canary.mjs",
-  );
-  assert.equal(
-    JSON.stringify(
-      createGateDefinitions({
-        applicationVersion: "1.2.3",
-        coverageToolVersion: "12.0.0",
-        eslintPluginNodeVersion: "18.2.2",
-        eslintVersion: "9.39.1",
-        formatterVersion: "3.7.4",
-        jsonSchemaFormatsVersion: "3.0.1",
-        jsonSchemaValidatorVersion: "8.20.0",
-        openApiValidatorVersion: "2.9.0",
-        typeCheckerVersion: "7.0.2",
-      }),
-    ).includes("canary:private-github"),
-    false,
-  );
-
-  const evidence = JSON.parse(
-    readFileSync(
-      resolve(
-        import.meta.dirname,
-        "../evidence/quality-foundation/issue-126-private-github-canary.json",
-      ),
-      "utf8",
-    ),
-  );
-  assert.deepEqual(evidence.proof, ["private-github-canary"]);
-  assert.deepEqual(evidence.routine_gate_membership, []);
-  assert.equal(evidence.new_e2e_scenarios, 0);
-  assert.equal("live_blocker" in evidence, false);
-  assert.equal(evidence.final_outcome, "pass");
 });

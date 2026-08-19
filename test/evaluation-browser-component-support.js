@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
+import { executeServedBrowserAsset } from "./browser-asset-execution.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { renderEvaluationMonitorPage } from "../src/evaluation-monitor-page.js";
 import { browserElement } from "./repository-browser-component-support.js";

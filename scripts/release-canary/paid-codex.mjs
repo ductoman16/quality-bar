@@ -15,11 +15,7 @@ import {
   PAID_CODEX_SUBMISSION_COMMAND,
   readPaidCodexEventEvidence,
   safeProcessDiagnostics,
-} from "./paid-codex-canary-events.mjs";
-import {
-  validatePaidCodexCanaryEvidence,
-  validateRetainedReleaseCanaries,
-} from "./release-canary-schema.mjs";
+} from "./paid-codex-events.mjs";
 
 const KIND = "paid-codex-canary";
 const FIXTURE_ID = "paid-codex-canary-fixture-v1";
@@ -331,60 +327,4 @@ export async function invokePaidCodexCanary({
     }
   }
   return evidence;
-}
-
-/** @param {any} manifest @param {any} canary */
-export function mergePaidCodexCanaryEvidence(manifest, canary) {
-  if (
-    manifest?.evidenceVersion !== 1 ||
-    manifest?.outcome !== "pass" ||
-    manifest?.verification?.kind !== "cost-free" ||
-    !Array.isArray(manifest.failures) ||
-    manifest.failures.length !== 0
-  ) {
-    throw failure(
-      "paid_codex_canary_cost_free_evidence_invalid",
-      "paid Codex canary requires passing cost-free evidence",
-    );
-  }
-  if (
-    manifest.releaseCanaries !== null &&
-    manifest.releaseCanaries !== undefined
-  ) {
-    try {
-      validateRetainedReleaseCanaries(
-        manifest.releaseCanaries,
-        manifest.sourceCommit,
-      );
-    } catch {
-      throw failure(
-        "paid_codex_canary_cost_free_evidence_invalid",
-        "paid Codex canary requires valid retained release evidence",
-      );
-    }
-  }
-  try {
-    validatePaidCodexCanaryEvidence(canary);
-  } catch {
-    throw failure(
-      "paid_codex_canary_evidence_invalid",
-      "paid Codex canary evidence is invalid",
-    );
-  }
-  if (
-    !validCommit(manifest.sourceCommit) ||
-    canary.sourceCommit !== manifest.sourceCommit
-  ) {
-    throw failure(
-      "paid_codex_canary_source_commit_mismatch",
-      "paid Codex canary and cost-free evidence commits differ",
-    );
-  }
-  return {
-    ...manifest,
-    releaseCanaries: {
-      ...(manifest.releaseCanaries ?? {}),
-      paidCodex: canary,
-    },
-  };
 }

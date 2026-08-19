@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { URLSearchParams } from "node:url";
 import { test } from "node:test";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
+import { executeServedBrowserAsset } from "./browser-asset-execution.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import {

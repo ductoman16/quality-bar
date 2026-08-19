@@ -112,7 +112,7 @@ test("the Node boundary gate restricts console output and environment access", a
   const acceptedTestOwner = await runNodeBoundaryLint({
     files: [
       {
-        path: "test/verification-harness.test.js",
+        path: "scripts/release-canary/run-paid-codex.mjs",
         source: fixture("environment-access"),
       },
     ],
@@ -292,11 +292,11 @@ test("the Node boundary evidence records the complete ownership cleanup", () => 
   ]);
   assert.deepEqual(evidence.approved_environment_owners, [
     "scripts/package-proof/package-fixture.mjs",
-    "scripts/verification/harness.mjs",
+    "scripts/release-canary/run-paid-codex.mjs",
     "src/healthcheck.js",
     "src/main.js",
     "test/operator-browser-smoke.test.js",
-    "test/verification-harness.test.js",
+    "scripts/release-canary/run-private-github.mjs",
   ]);
   assert.equal(evidence.final_outcome, "pass");
 });

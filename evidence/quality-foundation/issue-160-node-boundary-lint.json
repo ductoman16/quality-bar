@@ -33,11 +33,11 @@
   ],
   "approved_environment_owners": [
     "scripts/package-proof/package-fixture.mjs",
-    "scripts/verification/harness.mjs",
+    "scripts/release-canary/run-paid-codex.mjs",
     "src/healthcheck.js",
     "src/main.js",
     "test/operator-browser-smoke.test.js",
-    "test/verification-harness.test.js"
+    "scripts/release-canary/run-private-github.mjs"
   ],
   "approved_node_builtin_exceptions": ["import.meta.main", "sqlite"],
   "representative_failures": {

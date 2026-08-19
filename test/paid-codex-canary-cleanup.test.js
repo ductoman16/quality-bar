@@ -10,7 +10,7 @@ import {
 import { basename, dirname } from "node:path";
 import { test } from "node:test";
 
-import { invokePaidCodexCanary } from "../scripts/verification/paid-codex-canary-invocation.mjs";
+import { invokePaidCodexCanary } from "../scripts/release-canary/paid-codex.mjs";
 import { releaseCanarySourceCommit } from "./release-canary-test-fixtures.js";
 
 test("paid fixture cleanup reclaims the owned fixture tree", async () => {

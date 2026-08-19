@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 import { Script } from "node:vm";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
+import { executeServedBrowserAsset } from "./browser-asset-execution.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 import { operatorPage } from "../src/browser-pages.js";
 import { FONO_LCD_STYLE } from "../src/browser/style-tokens.js";

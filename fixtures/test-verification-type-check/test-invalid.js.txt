@@ -1,4 +1,0 @@
-/** @type {number} */
-const testCount = "not a number";
-
-void testCount;
