@@ -2,6 +2,7 @@ import {
   assertNoMixedCredentials,
   authenticationFailureStatus,
   sessionSecret,
+  themePreference,
 } from "./http-request.js";
 import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
 import {
@@ -66,6 +67,7 @@ export function createBrowserPageRoute({
       writeError(response, 404, failure.code, failure.message);
       return true;
     }
+    const theme = themePreference(request);
     try {
       assertNoMixedCredentials(request);
       if (browserSessions.authenticate(sessionSecret(request))) {
@@ -80,6 +82,7 @@ export function createBrowserPageRoute({
             evaluationId: requestUrl.searchParams.get("evaluation_id"),
             view,
           }),
+          theme,
         );
       } else {
         if (sessionSecret(request) !== undefined) {
@@ -95,6 +98,7 @@ export function createBrowserPageRoute({
           loginPage(
             safeInternalDestination(requestUrl.searchParams.get("return_to")),
           ),
+          theme,
         );
       }
     } catch (error) {

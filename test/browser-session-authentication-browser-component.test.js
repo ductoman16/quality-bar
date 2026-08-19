@@ -42,6 +42,21 @@ test("the minimum unauthenticated surface exposes the password-only login and no
   assert.equal(await responseErrorCode(system), "authentication_required");
 });
 
+test("the operator theme cookie is honored server-side and validated", async () => {
+  const { origin } = await startApplication();
+  const read = async (/** @type {string | undefined} */ value) =>
+    (
+      await fetch(`${origin}/`, {
+        headers: value ? { cookie: `qb_theme=${value}` } : {},
+      })
+    ).text();
+
+  assert.match(await read("dark"), /<html lang="en" data-theme="dark">/);
+  assert.match(await read("light"), /<html lang="en" data-theme="light">/);
+  assert.match(await read("neon"), /<html lang="en"><head>/);
+  assert.match(await read(undefined), /<html lang="en"><head>/);
+});
+
 test("a password login sets a callback-capable session cookie and strict CSRF cookie", async () => {
   const { origin } = await startApplication({
     externalOrigin: "https://quality-bar.example",

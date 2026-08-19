@@ -577,7 +577,8 @@ fetch("/api/v1/system")
   });
 
 // Theme toggle: default follows the OS via prefers-color-scheme (CSS); the
-// button flips data-theme for the session. No client storage by policy.
+// button flips data-theme and persists it in a cookie the server reads back
+// on the next page load (no localStorage, matching the surface policy).
 const themeToggle = document.getElementById("qb-theme-toggle");
 if (themeToggle) {
   const root = document.documentElement;
@@ -591,10 +592,11 @@ if (themeToggle) {
   };
   syncThemeIcon();
   themeToggle.addEventListener("click", () => {
-    root.setAttribute(
-      "data-theme",
-      effectiveTheme() === "dark" ? "light" : "dark",
-    );
+    const next = effectiveTheme() === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    // Persist as a cookie the server reads back, so the choice survives the
+    // full page loads between views (no client storage, matching policy).
+    document.cookie = `qb_theme=${next};path=/;max-age=31536000;samesite=lax`;
     syncThemeIcon();
   });
 }
