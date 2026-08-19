@@ -22,29 +22,6 @@
     return value;
   }
 
-  /** @param {unknown} value */
-  function record(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-
-  /** @param {unknown} counts */
-  function countText(counts) {
-    if (counts === null) {
-      return "Not available";
-    }
-    if (!record(counts)) {
-      throw new Error("evaluation_detail_invalid");
-    }
-    return Object.entries(counts)
-      .map(([key, value]) => {
-        if (!Number.isSafeInteger(value) || value < 0) {
-          throw new Error("evaluation_detail_invalid");
-        }
-        return key.replaceAll("_", " ") + " " + value;
-      })
-      .join(", ");
-  }
-
   /** @param {number | null} duration */
   function durationText(duration) {
     if (duration === null) {
@@ -84,8 +61,20 @@
         node.kind === "review" ? "Review " + node.label : node.label;
       text.textContent = label + " — ";
       const status = document.createElement("span");
-      status.className = "qb-timeline-node__status";
-      status.textContent = node.status;
+      if (node.kind === "review" && typeof node.outcome === "string") {
+        // Fold each review's outcome onto its dot with the shared glyph.
+        status.className =
+          "qb-timeline-node__status evaluation-status--" + node.outcome;
+        const icon = document.createElement("span");
+        icon.className = "evaluation-status__icon";
+        icon.setAttribute("aria-hidden", "true");
+        const outcomeLabel = document.createElement("span");
+        outcomeLabel.textContent = node.outcome;
+        status.append(icon, outcomeLabel);
+      } else {
+        status.className = "qb-timeline-node__status";
+        status.textContent = node.status;
+      }
       text.append(status);
       item.append(marker);
       item.append(text);
@@ -110,15 +99,6 @@
       evaluation.effective_outcome;
     element("evaluation-detail-duration").textContent = durationText(
       evaluation.monitor.duration_ms,
-    );
-    element("evaluation-detail-review-counts").textContent = countText(
-      evaluation.monitor.review_counts,
-    );
-    element("evaluation-detail-outcome-counts").textContent = countText(
-      evaluation.monitor.outcome_counts,
-    );
-    element("evaluation-detail-finding-counts").textContent = countText(
-      evaluation.monitor.finding_counts,
     );
     element("evaluation-detail-updated").textContent =
       new Date().toLocaleTimeString();
