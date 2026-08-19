@@ -284,6 +284,26 @@ export function sessionSecret(request) {
 }
 
 /**
+ * The operator's explicit theme choice, persisted client-side as a cookie so
+ * the server can honor it across full page loads. Validated to the two known
+ * values so it is safe to place in the rendered `data-theme` attribute.
+ * @param {import("node:http").IncomingMessage} request
+ * @returns {"dark" | "light" | undefined}
+ */
+export function themePreference(request) {
+  // Return fixed literals rather than the cookie value itself, so no
+  // request-derived string flows onward into the rendered document.
+  const value = cookieValue(request, "qb_theme");
+  if (value === "dark") {
+    return "dark";
+  }
+  if (value === "light") {
+    return "light";
+  }
+  return undefined;
+}
+
+/**
  * @param {BrowserSessionAuthority} browserSessions
  * @param {import("node:http").IncomingMessage} request
  */

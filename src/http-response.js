@@ -57,12 +57,22 @@ export function writeJson(response, status, body, headers = {}) {
 /**
  * @param {import("node:http").ServerResponse} response
  * @param {string} body
+ * @param {"dark" | "light"} [theme] Operator's explicit theme; absent lets the
+ *   stylesheet follow the OS via prefers-color-scheme.
  */
-export function writeHtml(response, body) {
+export function writeHtml(response, body, theme) {
   assertProductOutputAvailable();
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  // Emit fixed literals (never the raw cookie value) so the attribute is
+  // provably free of reflected input.
+  const themeAttribute =
+    theme === "dark"
+      ? ' data-theme="dark"'
+      : theme === "light"
+        ? ' data-theme="light"'
+        : "";
   response.end(
-    `<!doctype html><html lang="en"><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
+    `<!doctype html><html lang="en"${themeAttribute}><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
   );
 }
 
