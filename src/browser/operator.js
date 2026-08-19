@@ -575,3 +575,26 @@ fetch("/api/v1/system")
       failure instanceof Error ? failure.message : "Unexpected failure";
     error.hidden = false;
   });
+
+// Theme toggle: default follows the OS via prefers-color-scheme (CSS); the
+// button flips data-theme for the session. No client storage by policy.
+const themeToggle = document.getElementById("qb-theme-toggle");
+if (themeToggle) {
+  const root = document.documentElement;
+  const prefersDark = () =>
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const effectiveTheme = () =>
+    root.getAttribute("data-theme") || (prefersDark() ? "dark" : "light");
+  const syncThemeIcon = () => {
+    themeToggle.textContent = effectiveTheme() === "dark" ? "☾" : "☼";
+  };
+  syncThemeIcon();
+  themeToggle.addEventListener("click", () => {
+    root.setAttribute(
+      "data-theme",
+      effectiveTheme() === "dark" ? "light" : "dark",
+    );
+    syncThemeIcon();
+  });
+}

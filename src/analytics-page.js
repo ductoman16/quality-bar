@@ -195,7 +195,7 @@ const STYLE =
   "<style>" +
   "[hidden]{display:none!important}" +
   ".an-overview{padding-top:18px}" +
-  ".an-stat-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}" +
+  ".an-stat-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border-bottom:1px solid var(--qb-line)}" +
   ".an-stat{display:grid;gap:9px;padding:18px 16px 18px 0;min-width:0}" +
   ".an-stat__label{color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase}" +
   ".an-stat__value{font-family:var(--font-mono);font-size:24px;font-weight:500;line-height:1}" +

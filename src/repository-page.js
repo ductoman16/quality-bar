@@ -120,7 +120,7 @@ const DETAIL_STYLE =
 const BASE_STYLE =
   "[hidden]{display:none!important}" +
   ".repo-overview{padding-top:18px}" +
-  ".repo-stat-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}" +
+  ".repo-stat-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border-bottom:1px solid var(--qb-line)}" +
   ".repo-stat{display:grid;gap:9px;padding:18px 16px 18px 0;min-width:0}" +
   ".repo-stat__label{color:var(--qb-muted-ink);font-size:10px;font-weight:650;letter-spacing:.07em;text-transform:uppercase}" +
   ".repo-stat__value{font-family:var(--font-mono);font-size:24px;font-weight:500;line-height:1}" +
