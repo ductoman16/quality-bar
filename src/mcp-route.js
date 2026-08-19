@@ -371,11 +371,7 @@ export function createMcpRoute({
           const page = repositories.listPage(
             listRepositoryArguments(message.params.arguments ?? {}),
           );
-          const document = {
-            items: page.items,
-            next_cursor: page.next_cursor,
-            repositories: repositories.list(),
-          };
+          const document = page;
           const result = toolSuccess(document, page.items.map(repositoryLink));
           recordOutcome(
             "success",

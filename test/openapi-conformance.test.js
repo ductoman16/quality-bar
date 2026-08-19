@@ -254,7 +254,7 @@ test("runtime conformance rejects invalid request, response, status, content typ
             url: "http://127.0.0.1/api/v1/repositories",
           },
           response: Response.json({
-            repositories: [
+            items: [
               {
                 credential_type: "none",
                 deletion_eligible: true,
@@ -268,6 +268,7 @@ test("runtime conformance rejects invalid request, response, status, content typ
                 url: "https://example.com/private.git",
               },
             ],
+            next_cursor: null,
           }),
         }),
       ),

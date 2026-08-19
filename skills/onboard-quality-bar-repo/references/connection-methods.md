@@ -1,5 +1,7 @@
 # Quality Bar Connection Methods
 
+Repository list responses contain exactly `items` and `next_cursor`.
+
 ## Create an onboarding token
 
 Use this checkpoint when the selected connection method has no valid onboarding token:
