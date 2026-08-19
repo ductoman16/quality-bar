@@ -1,42 +1,25 @@
-import { randomUUID } from "node:crypto";
-import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-/** @param {string} path @param {unknown} evidence @param {boolean} invalidate */
-export function writeCanaryEvidence(path, evidence, invalidate = false) {
-  mkdirSync(dirname(path), { recursive: true });
-  if (invalidate) {
-    rmSync(path, { force: true });
-  }
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(temporaryPath, `${JSON.stringify(evidence, null, 2)}\n`, {
-      flag: "wx",
-      mode: 0o600,
-    });
-    renameSync(temporaryPath, path);
-  } finally {
-    rmSync(temporaryPath, { force: true });
-  }
-}
-
 /**
- * @param {{attempt: any, evidencePath: string, failure: (error: unknown) => any, invoke: () => Promise<any>}} input
+ * @param {{evidencePath: string, failure: (error: unknown) => any, invocation: any, invoke: () => Promise<any>, sourceCommit: string}} input
  */
 export async function runReleaseCanary({
-  attempt,
   evidencePath,
   failure,
+  invocation,
   invoke,
+  sourceCommit,
 }) {
-  writeCanaryEvidence(evidencePath, attempt, true);
+  mkdirSync(dirname(evidencePath), { recursive: true });
+  rmSync(evidencePath, { force: true });
   let evidence;
   try {
     evidence = await invoke();
     if (
       !evidence ||
       !["fail", "pass"].includes(evidence.outcome) ||
-      evidence.sourceCommit !== attempt.sourceCommit
+      evidence.sourceCommit !== sourceCommit
     ) {
       throw Object.assign(
         new Error("release canary returned invalid evidence"),
@@ -48,7 +31,9 @@ export async function runReleaseCanary({
   } catch (error) {
     evidence = failure(error);
   }
-  const completed = { ...evidence, invocation: attempt.invocation };
-  writeCanaryEvidence(evidencePath, completed);
+  const completed = { ...evidence, invocation };
+  writeFileSync(evidencePath, `${JSON.stringify(completed, null, 2)}\n`, {
+    mode: 0o600,
+  });
   return completed;
 }

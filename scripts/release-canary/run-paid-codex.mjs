@@ -66,16 +66,9 @@ function failure(error) {
 }
 
 const evidence = await runReleaseCanary({
-  attempt: {
-    ...failure(
-      Object.assign(new Error("paid Codex canary attempt started"), {
-        code: "paid_codex_canary_attempt_started",
-      }),
-    ),
-    invocation: { attemptId, command: "canary:paid-codex" },
-  },
   evidencePath,
   failure,
+  invocation: { attemptId, command: "canary:paid-codex" },
   invoke: () =>
     invokePaidCodexCanary({
       applicationVersion: applicationVersion(),
@@ -83,6 +76,7 @@ const evidence = await runReleaseCanary({
       sourceCommit,
       sourceStatus,
     }),
+  sourceCommit,
 });
 
 if (evidence.outcome === "pass") {

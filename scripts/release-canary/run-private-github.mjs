@@ -73,16 +73,9 @@ function failure(error) {
 }
 
 const evidence = await runReleaseCanary({
-  attempt: {
-    ...failure(
-      Object.assign(new Error("private GitHub canary attempt started"), {
-        code: "private_github_canary_attempt_started",
-      }),
-    ),
-    invocation: { attemptId, command: "canary:private-github" },
-  },
   evidencePath,
   failure,
+  invocation: { attemptId, command: "canary:private-github" },
   invoke: async () => {
     if (sourceStatus.length > 0) {
       throw Object.assign(
@@ -103,6 +96,7 @@ const evidence = await runReleaseCanary({
       verifier: createGitHubVerifier(),
     });
   },
+  sourceCommit,
 });
 
 if (evidence.outcome === "pass") {
