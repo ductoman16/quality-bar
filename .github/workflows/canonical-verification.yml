@@ -1,4 +1,4 @@
-name: Canonical verification
+name: CI
 
 on:
   pull_request: {}
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Canonical verification
+  ci:
+    name: CI
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -41,20 +41,38 @@ jobs:
           test "$(uname -m)" = "x86_64"
           docker version
           docker compose version
-          docker run --rm --platform linux/amd64 --cpus 4 --memory 8589934592 node:24.18.0-alpine@sha256:4ba75f835bb8802193e4c114572113d4b26f95f6f094f4b5229d2a77773e0afc node --version
           firefox --version
           sudo sysctl --write kernel.apparmor_restrict_unprivileged_userns=0
           test "$(sysctl --values kernel.apparmor_restrict_unprivileged_userns)" = "0"
 
-      - name: Run canonical verification
-        run: npm run verify
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Check source structure
+        run: npm run lint:structure
+
+      - name: Check JavaScript correctness
+        run: npm run lint:correctness
+
+      - name: Check Node boundaries
+        run: npm run lint:boundaries
+
+      - name: Type-check Node source
+        run: npm run typecheck:node
+
+      - name: Type-check browser source
+        run: npm run typecheck:browser
+
+      - name: Type-check tests
+        run: npm run typecheck:tests
+
+      - name: Type-check scripts
+        run: npm run typecheck:scripts
+
+      - name: Run tests with coverage
+        run: npm run coverage
         env:
           QUALITY_BAR_FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
 
-      - name: Preserve canonical verification evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: canonical-verification-evidence
-          path: artifacts/verification/evidence.json
-          if-no-files-found: error
+      - name: Validate OpenAPI
+        run: npm run openapi:check

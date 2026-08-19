@@ -1,35 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { test } from "node:test";
 
-import {
-  invokePaidCodexCanary,
-  mergePaidCodexCanaryEvidence,
-} from "../scripts/verification/paid-codex-canary-invocation.mjs";
-import { mergePrivateGitHubCanaryEvidence } from "../scripts/verification/private-github-canary.mjs";
-import {
-  paidCodexFailure,
-  paidCodexPass,
-  privateGitHubPass,
-  releaseCanarySourceCommit,
-} from "./release-canary-test-fixtures.js";
+import { invokePaidCodexCanary } from "../scripts/release-canary/paid-codex.mjs";
+import { releaseCanarySourceCommit } from "./release-canary-test-fixtures.js";
 
 const sourceCommit = releaseCanarySourceCommit;
-
-function costFreeManifest() {
-  return {
-    evidenceVersion: 1,
-    failures: [],
-    outcome: "pass",
-    sourceCommit,
-    verification: { kind: "cost-free" },
-  };
-}
-
-function privateGitHubCanary() {
-  return privateGitHubPass();
-}
 
 test("paid Codex canary passes only after the fixed candidate reaches the accepted submission seam", async () => {
   /** @type {any[]} */
@@ -146,7 +121,7 @@ test("paid Codex canary fences a dirty source tree before provider launch", asyn
       return { diagnosticFailures: [] };
     },
     sourceCommit,
-    sourceStatus: " M scripts/verification/paid-codex-canary-invocation.mjs",
+    sourceStatus: " M scripts/release-canary/paid-codex.mjs",
   });
 
   assert.equal(launches, 0);
@@ -315,85 +290,4 @@ test("paid Codex canary reports bounded process diagnostics without transcript c
     },
   });
   assert.equal(JSON.stringify(evidence).includes("secret"), false);
-});
-
-test("release evidence retains private GitHub and paid Codex proof in either invocation order", () => {
-  const paidCodex = paidCodexPass();
-  const privateThenPaid = mergePaidCodexCanaryEvidence(
-    mergePrivateGitHubCanaryEvidence(costFreeManifest(), privateGitHubCanary()),
-    paidCodex,
-  );
-  const paidThenPrivate = mergePrivateGitHubCanaryEvidence(
-    mergePaidCodexCanaryEvidence(costFreeManifest(), paidCodex),
-    privateGitHubCanary(),
-  );
-
-  for (const manifest of [privateThenPaid, paidThenPrivate]) {
-    assert.deepEqual(manifest.releaseCanaries, {
-      paidCodex,
-      privateGitHub: privateGitHubCanary(),
-    });
-  }
-});
-
-test("a failed retry replaces stale passing paid evidence", () => {
-  const privateGitHub = privateGitHubCanary();
-  const failedPaidCodex = paidCodexFailure();
-  const merged = mergePaidCodexCanaryEvidence(
-    {
-      ...costFreeManifest(),
-      releaseCanaries: {
-        paidCodex: paidCodexPass(),
-        privateGitHub,
-      },
-    },
-    failedPaidCodex,
-  );
-  assert.deepEqual(merged.releaseCanaries, {
-    paidCodex: failedPaidCodex,
-    privateGitHub,
-  });
-});
-
-test("paid publication rejects incomplete retained release evidence", () => {
-  assert.throws(
-    () =>
-      mergePaidCodexCanaryEvidence(
-        {
-          ...costFreeManifest(),
-          releaseCanaries: {
-            privateGitHub: { kind: "private-github-canary" },
-          },
-        },
-        paidCodexPass(),
-      ),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "paid_codex_canary_cost_free_evidence_invalid",
-  );
-});
-
-test("the explicit paid canary remains outside every routine gate", () => {
-  const repositoryRoot = resolve(import.meta.dirname, "..");
-  const packageMetadata = JSON.parse(
-    readFileSync(resolve(repositoryRoot, "package.json"), "utf8"),
-  );
-  assert.equal(
-    packageMetadata.scripts["canary:paid-codex"],
-    "node scripts/run-with-exact-node.mjs scripts/verification/run-paid-codex-canary.mjs",
-  );
-  const ownership = JSON.parse(
-    readFileSync(
-      resolve(
-        repositoryRoot,
-        "evidence/quality-foundation/issue-125-paid-codex-canary.json",
-      ),
-      "utf8",
-    ),
-  );
-  assert.deepEqual(ownership.proof, ["paid-codex-canary"]);
-  assert.deepEqual(ownership.routine_gate_membership, []);
-  assert.equal(ownership.new_e2e_scenarios, 0);
-  assert.equal(ownership.final_outcome, "pending");
 });

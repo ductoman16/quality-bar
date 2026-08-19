@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { executeServedBrowserAsset } from "../scripts/application-coverage-policy.mjs";
+import { executeServedBrowserAsset } from "./browser-asset-execution.js";
 import { readBrowserAsset } from "../src/browser-assets.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");

@@ -26,7 +26,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
         return [
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-1",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "completed",
             result_outcome: "advisory",
@@ -34,7 +36,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-2",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "completed",
             result_outcome: "advisory",
@@ -42,7 +46,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-3",
             blocking_finding_count: 1,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "completed",
             result_outcome: "blocking",
@@ -50,7 +56,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-4",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "completed",
             result_outcome: "error",
@@ -58,7 +66,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-5",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 1,
             execution_status: "completed",
             result_outcome: "advisory",
@@ -66,7 +76,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 1,
+            analytics_evaluation_id: "evaluation-6",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "completed",
             result_outcome: "advisory",
@@ -74,7 +86,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-7",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "queued",
             result_outcome: null,
@@ -82,7 +96,9 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
           },
           {
             active_waiver_adjudication_count: 0,
+            analytics_evaluation_id: "evaluation-8",
             blocking_finding_count: 0,
+            created_at: 0,
             current_waiver_error_count: 0,
             execution_status: "failed",
             result_outcome: null,
@@ -188,6 +204,17 @@ test("Analytics derives current Evaluation, Finding, and waiver populations from
         not_applicable_rate: { denominator: 1, numerator: 0 },
         trigger_rate: { denominator: 1, numerator: 0 },
         triggered: 0,
+      },
+    ],
+    daily_trend: [
+      {
+        advisory: 1,
+        blocking: 1,
+        clear: 1,
+        date: "1970-01-01",
+        error: 3,
+        evaluations: 8,
+        pending: 2,
       },
     ],
     evaluation_outcomes: {

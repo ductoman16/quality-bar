@@ -3,10 +3,6 @@ import {
   formatGitHubAggregateFeedback,
   formatGitHubInlineFeedback,
 } from "../../src/github-feedback.js";
-import {
-  validatePrivateGitHubCanaryEvidence,
-  validateRetainedReleaseCanaries,
-} from "./release-canary-schema.mjs";
 
 const KIND = "private-github-canary";
 const REST_PROFILE = "2026-03-10";
@@ -317,60 +313,4 @@ export async function invokePrivateGitHubCanary({
       },
     };
   }
-}
-
-/** @param {any} manifest @param {any} canary */
-export function mergePrivateGitHubCanaryEvidence(manifest, canary) {
-  if (
-    manifest?.evidenceVersion !== 1 ||
-    manifest?.outcome !== "pass" ||
-    manifest?.verification?.kind !== "cost-free" ||
-    !Array.isArray(manifest.failures) ||
-    manifest.failures.length !== 0
-  ) {
-    throw failure(
-      "private_github_canary_cost_free_evidence_invalid",
-      "private GitHub canary requires passing cost-free evidence",
-    );
-  }
-  if (
-    manifest.releaseCanaries !== null &&
-    manifest.releaseCanaries !== undefined
-  ) {
-    try {
-      validateRetainedReleaseCanaries(
-        manifest.releaseCanaries,
-        manifest.sourceCommit,
-      );
-    } catch {
-      throw failure(
-        "private_github_canary_cost_free_evidence_invalid",
-        "private GitHub canary requires valid retained release evidence",
-      );
-    }
-  }
-  try {
-    validatePrivateGitHubCanaryEvidence(canary);
-  } catch {
-    throw failure(
-      "private_github_canary_evidence_invalid",
-      "private GitHub canary evidence is invalid",
-    );
-  }
-  if (
-    !validCommit(manifest.sourceCommit) ||
-    canary.sourceCommit !== manifest.sourceCommit
-  ) {
-    throw failure(
-      "private_github_canary_source_commit_mismatch",
-      "private GitHub canary and cost-free evidence commits differ",
-    );
-  }
-  return {
-    ...manifest,
-    releaseCanaries: {
-      ...(manifest.releaseCanaries ?? {}),
-      privateGitHub: canary,
-    },
-  };
 }

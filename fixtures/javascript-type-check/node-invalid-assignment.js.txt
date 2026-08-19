@@ -1,3 +1,0 @@
-/** @type {number} */
-const port = "3000";
-process.stdout.write(String(port));

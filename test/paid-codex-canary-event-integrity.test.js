@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { invokePaidCodexCanary } from "../scripts/verification/paid-codex-canary-invocation.mjs";
+import { invokePaidCodexCanary } from "../scripts/release-canary/paid-codex.mjs";
 
 const sourceCommit = "a".repeat(40);
 

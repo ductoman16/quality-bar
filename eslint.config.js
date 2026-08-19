@@ -138,9 +138,8 @@ export default [
   {
     files: [
       "scripts/package-proof/package-fixture.mjs",
-      "scripts/verification/harness.mjs",
-      "scripts/verification/run-paid-codex-canary.mjs",
-      "scripts/verification/run-private-github-canary.mjs",
+      "scripts/release-canary/run-paid-codex.mjs",
+      "scripts/release-canary/run-private-github.mjs",
       "src/healthcheck.js",
       "src/main.js",
       "src/operator-password-bootstrap.js",
@@ -150,7 +149,6 @@ export default [
       "src/restore-backup.js",
       "fixtures/test-probes/fake-codex-review-run.mjs",
       "test/operator-browser-smoke.test.js",
-      "test/verification-harness.test.js",
     ],
     rules: { "no-restricted-syntax": "off" },
   },
