@@ -7,14 +7,13 @@ import {
   initializeOrValidateSchema,
   SCHEMA_VERSION,
 } from "./durable-schema.js";
-import { validateResultingSchema } from "./durable-schema-migration.js";
+import { validateResultingSchema } from "./durable-schema-validation.js";
 
 export { DurableCoreError } from "./durable-error.js";
 const SQLITE_LOCK_WAIT_MILLISECONDS = 1_000;
 
 /** @param {DatabaseSync} database */
-/** @param {DatabaseSync} database @param {number} schemaVersionBeforeMigration */
-function readFacts(database, schemaVersionBeforeMigration) {
+function readFacts(database) {
   return {
     databaseVersion: /** @type {{ version: string }} */ (
       database.prepare("SELECT sqlite_version() AS version").get()
@@ -23,7 +22,6 @@ function readFacts(database, schemaVersionBeforeMigration) {
     integrity: "ok",
     journalMode: "wal",
     schemaVersion: SCHEMA_VERSION,
-    schemaVersionBeforeMigration,
     synchronous: "full",
   };
 }
@@ -34,7 +32,6 @@ function readFacts(database, schemaVersionBeforeMigration) {
  */
 export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   let database;
-  let schemaVersionBeforeMigration;
   const retentionCleanupState = { active: false };
   try {
     database = new DatabaseSync(databasePath, {
@@ -50,13 +47,10 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
       retentionCleanupState.active ? 1 : 0,
     );
     validateIntegrity(database);
-    schemaVersionBeforeMigration = /** @type {{ user_version: number }} */ (
+    const schemaVersion = /** @type {{ user_version: number }} */ (
       database.prepare("PRAGMA user_version").get()
     ).user_version;
-    if (
-      !Number.isSafeInteger(schemaVersionBeforeMigration) ||
-      schemaVersionBeforeMigration < 0
-    ) {
+    if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 0) {
       fail("schema_invalid", "SQLite schema version is invalid");
     }
     initializeOrValidateSchema(database);
@@ -70,10 +64,7 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   }
 
   return {
-    facts: readFacts(
-      database,
-      /** @type {number} */ (schemaVersionBeforeMigration),
-    ),
+    facts: readFacts(database),
     ...createDurableAccess(database, {
       onStorageUnavailable,
       retentionCleanupState,

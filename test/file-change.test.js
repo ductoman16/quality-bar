@@ -6,7 +6,6 @@ import {
   evaluateApplicabilityRule,
 } from "../src/applicability-evaluation.js";
 import { EvaluationError } from "../src/evaluation-validation.js";
-import { legacyFileChangeModified } from "../src/evaluation-file-change-schema.js";
 import { fileChangesFromGitNameStatus } from "../src/file-change.js";
 import { createGitPathMatcher } from "../src/git-path-matcher.js";
 
@@ -115,27 +114,6 @@ test("unsupported Git File Change states retain their exact owning error", () =>
       error instanceof EvaluationError &&
       error.code === "evaluation_file_change_invalid" &&
       error.message === "Git returned invalid UTF-8 File Change paths",
-  );
-});
-
-test("legacy rename migration requires exact Git similarity metadata", () => {
-  assert.throws(
-    () =>
-      legacyFileChangeModified(
-        "src/old.js",
-        "src/new.js",
-        "diff --git a/src/old.js b/src/new.js\n+similarity index 100%\n",
-      ),
-    /Legacy renamed File Change similarity metadata is invalid/,
-  );
-  assert.throws(
-    () =>
-      legacyFileChangeModified(
-        "src/entry",
-        "src/entry",
-        "diff --git a/src/entry b/src/entry\nold mode 100644\nnew mode 120000\n",
-      ),
-    /Legacy File Change kind is unsupported/,
   );
 });
 

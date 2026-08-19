@@ -29,7 +29,7 @@ function requireBackupRecord(record) {
     typeof record.created_at !== "string" ||
     typeof record.installation_key_identity !== "string" ||
     !KEY_IDENTITY.test(record.installation_key_identity) ||
-    !["daily", "pre-migration"].includes(record.kind) ||
+    record.kind !== "daily" ||
     !Number.isSafeInteger(record.schema_version) ||
     record.schema_version <= 0
   ) {
@@ -98,35 +98,6 @@ function requireStorageFacts(value) {
     throw new Error("system_storage_backup_invalid");
   }
 
-  const migration = value.migration;
-  if (
-    !migration ||
-    typeof migration !== "object" ||
-    !Number.isSafeInteger(migration.from_schema_version) ||
-    migration.from_schema_version <= 0 ||
-    !Number.isSafeInteger(migration.to_schema_version) ||
-    migration.to_schema_version <= 0 ||
-    !["available", "missing", "not_applicable", "unavailable"].includes(
-      migration.pre_migration_snapshot_status,
-    ) ||
-    !["completed", "not_required", "unavailable"].includes(migration.status) ||
-    !(
-      migration.pre_migration_snapshot === null ||
-      requireBackupRecord(migration.pre_migration_snapshot)
-    )
-  ) {
-    throw new Error("system_storage_migration_invalid");
-  }
-  if (migration.error !== null) {
-    requireError(migration.error);
-  }
-  if (migration.status === "unavailable") {
-    requireError(migration.error);
-  }
-  if (migration.status !== "unavailable" && migration.error !== null) {
-    throw new Error("system_storage_migration_invalid");
-  }
-
   const cleanup = value.storage?.cleanup;
   if (
     !cleanup ||
@@ -176,7 +147,7 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     throw new Error("system_storage_facts_missing");
   }
   const value = requireStorageFacts(/** @type {any} */ (event).detail);
-  const { application, backup, migration } = value;
+  const { application, backup } = value;
   const cleanup = value.storage.cleanup;
   const cleanupValue = cleanup.error
     ? `${cleanup.status} — ${cleanup.error.code}: ${cleanup.error.detail}`
@@ -186,13 +157,6 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
     : backup.error
       ? `${backup.error.code}: ${backup.error.detail}`
       : "none";
-  const humanizeStatus = (/** @type {string} */ status) =>
-    status.replace(/_/g, " ").replace(/^./, (letter) => letter.toUpperCase());
-  const migrationValue = migration.error
-    ? `${humanizeStatus(migration.status)} — ${migration.error.detail}`
-    : migration.from_schema_version === migration.to_schema_version
-      ? `${humanizeStatus(migration.status)} · schema ${migration.to_schema_version}`
-      : `${humanizeStatus(migration.status)} · schema ${migration.from_schema_version} → ${migration.to_schema_version}`;
   factsContainer.replaceChildren(
     ...[
       ...storageDefinition(
@@ -216,7 +180,6 @@ document.addEventListener("quality-bar:system-loaded", (event) => {
         "Last successful backup",
         `${backup.status} — ${backupValue}`,
       ),
-      ...storageDefinition("Migration", migrationValue),
     ],
   );
 });

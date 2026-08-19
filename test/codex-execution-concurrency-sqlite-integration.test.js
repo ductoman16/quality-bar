@@ -59,36 +59,6 @@ test("durable concurrency defaults to one and raising or lowering changes only n
   assert.equal(createCodexExecutionConcurrencyService(reopened).read(), 1);
 });
 
-test("schema 43 migrates to the default durable concurrency without changing queued work", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-concurrency-v43-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  seedQueuedCodexExecutionKinds(prior, {
-    adjudicationReadyAt: 10,
-    reviewRunReadyAt: 20,
-  });
-  prior.transaction((transaction) => {
-    transaction.run("DROP TABLE codex_execution_settings");
-    transaction.run(
-      "UPDATE quality_bar_metadata SET value = '43' WHERE key = 'schema_version'",
-    );
-    transaction.run("PRAGMA user_version = 43");
-  });
-  prior.close();
-
-  const migrated = openDurableCore(databasePath);
-  context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.equal(createCodexExecutionConcurrencyService(migrated).read(), 1);
-  assert.equal(
-    migrated.get(
-      "SELECT count(*) AS count FROM codex_execution_queue WHERE started_at IS NULL",
-    )?.count,
-    2,
-  );
-});
-
 test("claiming fails with the owning error when the durable concurrency is unavailable", (context) => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-concurrency-missing-"),

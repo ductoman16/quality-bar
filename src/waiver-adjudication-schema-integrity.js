@@ -116,32 +116,3 @@ export const WAIVER_ADJUDICATION_EXECUTION_INTEGRITY = `
 `;
 
 /** @param {import("node:sqlite").DatabaseSync} database */
-export function waiverAdjudicationExecutionMigration(database) {
-  const columns = new Set(
-    database
-      .prepare("PRAGMA table_info(waiver_adjudications)")
-      .all()
-      .map((column) => column.name),
-  );
-  if (columns.size === 0 || columns.has("codex_cli_version")) {
-    return "";
-  }
-  return `
-    ALTER TABLE waiver_adjudications ADD COLUMN error_code TEXT;
-    ALTER TABLE waiver_adjudications ADD COLUMN error_detail TEXT;
-    ALTER TABLE waiver_adjudications ADD COLUMN codex_cli_version TEXT;
-    ALTER TABLE waiver_adjudications ADD COLUMN process_exit_code INTEGER;
-    ALTER TABLE waiver_adjudications ADD COLUMN process_signal TEXT;
-    ALTER TABLE waiver_adjudications ADD COLUMN input_tokens INTEGER
-      CHECK (input_tokens IS NULL OR input_tokens >= 0);
-    ALTER TABLE waiver_adjudications ADD COLUMN cached_input_tokens INTEGER
-      CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0);
-    ALTER TABLE waiver_adjudications ADD COLUMN output_tokens INTEGER
-      CHECK (output_tokens IS NULL OR output_tokens >= 0);
-    ALTER TABLE waiver_adjudications
-      ADD COLUMN execution_evidence_recorded INTEGER NOT NULL DEFAULT 0
-      CHECK (execution_evidence_recorded IN (0, 1));
-    ${WAIVER_ADJUDICATION_EXECUTION_INTEGRITY}
-    UPDATE waiver_adjudications SET execution_status = execution_status;
-  `;
-}

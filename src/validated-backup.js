@@ -14,7 +14,7 @@ import { DatabaseSync } from "node:sqlite";
 import { isSqliteCorruption } from "./durable-integrity.js";
 import { owningBackupError } from "./sqlite-backup-error.js";
 
-const BACKUP_FILE = /^quality-bar-(daily|pre-migration)-(.+)\.(json|sqlite3)$/;
+const BACKUP_FILE = /^quality-bar-(daily)-(.+)\.(json|sqlite3)$/;
 
 /**
  * @typedef {{
@@ -144,7 +144,7 @@ function databaseIsValid(databasePath, schemaVersion) {
 /**
  * @param {{
  *   backupsPath: string,
- *   kind?: "daily" | "pre-migration",
+ *   kind?: "daily",
  * }} input
  */
 export function readValidatedBackups({ backupsPath, kind }) {
@@ -241,7 +241,7 @@ export function readValidatedBackups({ backupsPath, kind }) {
  * @param {{
  *   backupsPath: string,
  *   keep: number,
- *   kind: "daily" | "pre-migration",
+ *   kind: "daily",
  * }} input
  */
 export function retainLatestValidatedBackups({ backupsPath, keep, kind }) {

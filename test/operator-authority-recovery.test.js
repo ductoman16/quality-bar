@@ -20,7 +20,6 @@ function fixture() {
   );
   temporaryDirectories.push(directory);
   return {
-    backupsPath: join(directory, "backups"),
     databasePath: join(directory, "quality-bar.sqlite3"),
   };
 }
@@ -48,8 +47,6 @@ test("host recovery validates the stopped installation and replaces authority fr
   let receivedReserveBytes;
 
   await recoverOperatorAuthorityFromHost({
-    applicationVersion: "0.1.0",
-    backupsPath: input.backupsPath,
     databasePath: input.databasePath,
     loadInstallation: () => ({ freeSpaceReserveBytes, masterKey }),
     readPassword() {
@@ -87,8 +84,6 @@ test("cleanup failure cannot replace the owning recovery diagnostic", async () =
 
   await assert.rejects(
     recoverOperatorAuthorityFromHost({
-      applicationVersion: "0.1.0",
-      backupsPath: input.backupsPath,
       databasePath: input.databasePath,
       loadInstallation: () => ({
         freeSpaceReserveBytes: 5 * 1024 ** 3,
@@ -125,8 +120,6 @@ test("a post-commit cleanup failure reports that recovery committed and preserve
 
   await assert.rejects(
     recoverOperatorAuthorityFromHost({
-      applicationVersion: "0.1.0",
-      backupsPath: input.backupsPath,
       databasePath: input.databasePath,
       loadInstallation: () => ({
         freeSpaceReserveBytes: 5 * 1024 ** 3,
@@ -162,8 +155,6 @@ test("non-Error failures remain exact and cannot become inferred success", async
     let rejected = false;
     try {
       await recoverOperatorAuthorityFromHost({
-        applicationVersion: "0.1.0",
-        backupsPath: input.backupsPath,
         databasePath: input.databasePath,
         loadInstallation: () => ({
           freeSpaceReserveBytes: 5 * 1024 ** 3,

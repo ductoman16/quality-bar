@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 
 import { loadInstallationConfiguration } from "./installation-configuration.js";
 import {
-  BACKUPS_PATH,
   STATE_PATH,
   validateInstallationFilesystem,
   validateInstallationSources,
@@ -145,8 +144,6 @@ export function readOperatorPassword({
 
 /**
  * @param {{
- *   applicationVersion?: string,
- *   backupsPath?: string,
  *   databasePath?: string,
  *   loadInstallation?: () => {
  *     freeSpaceReserveBytes: number,
@@ -160,8 +157,6 @@ export function readOperatorPassword({
  * }} [options]
  */
 export async function bootstrapOperatorPasswordFromHost({
-  applicationVersion = process.env.QUALITY_BAR_VERSION,
-  backupsPath = BACKUPS_PATH,
   databasePath = DATABASE_PATH,
   loadInstallation = loadInstallationConfiguration,
   readPassword = readOperatorPassword,
@@ -169,8 +164,6 @@ export async function bootstrapOperatorPasswordFromHost({
   validateSources = validateInstallationSources,
 } = {}) {
   return runOperatorPasswordHostMutation({
-    applicationVersion,
-    backupsPath,
     databasePath,
     loadInstallation,
     mutate: bootstrapOperatorPassword,

@@ -22,94 +22,46 @@ function nextTurn(callback) {
   });
 }
 
-test("pre-migration finalization precedes the initial daily backup and next check", async () => {
+test("initial daily backup precedes the scheduled backup and cleanup", async () => {
   const workers = new AbortController();
   /** @type {string[]} */
   const events = [];
   /** @type {Array<() => void>} */
   const timerCallbacks = [];
-  const runtime = /** @type {any} */ ({
-    durableCore: {},
-    cleanupEligibleData() {
-      events.push("cleanup");
-    },
-    async close() {
-      events.push("close");
-    },
-    workerSignal: workers.signal,
-  });
-
   const application = await createInstalledApplication({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
-    clearBackupTimer() {
-      events.push("clear-timer");
-    },
     createRuntime() {
       events.push("create-runtime");
-      return runtime;
+      return /** @type {any} */ ({
+        durableCore: {},
+        cleanupEligibleData() {
+          events.push("cleanup");
+        },
+        async close() {},
+        workerSignal: workers.signal,
+      });
     },
     databasePath: "/quality-bar.sqlite3",
-    finalizeBackup() {
-      events.push("finalize");
-      return [];
-    },
-    loadInstallation() {
-      events.push("load-installation");
-      return installation();
-    },
-    now: () => Date.parse("2026-07-28T01:02:03Z"),
-    async prepareBackup() {
-      events.push("prepare");
-      return /** @type {any} */ ({ kind: "pre-migration" });
-    },
+    loadInstallation: installation,
     async runDailyBackup() {
       events.push("daily");
-      return /** @type {any} */ ({ status: "created" });
+      return { status: "created" };
     },
     setBackupTimer(callback) {
       events.push("set-timer");
       timerCallbacks.push(callback);
-      return /** @type {any} */ ({
-        unref() {
-          events.push("unref-timer");
-        },
-      });
+      return /** @type {any} */ ({ unref() {} });
     },
-    validateInstallation(options) {
-      events.push("validate-installation");
-      assert.deepEqual(options, { reserveBytes: 5 * 1024 ** 3 });
-      return { releaseInstallationLock() {} };
-    },
-    validateSources() {
-      events.push("validate-sources");
-    },
-    writeLog() {},
+    validateInstallation: () => ({ releaseInstallationLock() {} }),
+    validateSources() {},
   });
 
-  assert.deepEqual(events, [
-    "validate-sources",
-    "load-installation",
-    "validate-installation",
-    "prepare",
-    "create-runtime",
-    "finalize",
-    "daily",
-    "set-timer",
-    "unref-timer",
-  ]);
-
+  assert.deepEqual(events, ["create-runtime", "daily", "set-timer"]);
   timerCallbacks[0]();
   await nextTurn(() => {});
-  assert.deepEqual(events.slice(-4), [
-    "daily",
-    "cleanup",
-    "set-timer",
-    "unref-timer",
-  ]);
-
+  assert.deepEqual(events.slice(-3), ["daily", "cleanup", "set-timer"]);
   await application.close();
-  assert.deepEqual(events.slice(-2), ["clear-timer", "close"]);
 });
 
 test("an initial daily backup failure closes the runtime and surfaces exactly", async () => {
@@ -134,7 +86,6 @@ test("an initial daily backup failure closes the runtime and surfaces exactly", 
         }),
       databasePath: "/quality-bar.sqlite3",
       loadInstallation: installation,
-      prepareBackup: async () => null,
       async runDailyBackup() {
         throw failure;
       },
@@ -180,7 +131,6 @@ test("hard storage shutdown cancels the installed daily-backup worker until rest
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     async runDailyBackup() {
       backupRuns += 1;
       return /** @type {any} */ ({ status: "created" });
@@ -231,7 +181,6 @@ test("hard storage shutdown aborts an active installed daily backup", async () =
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     async runDailyBackup(input) {
       backupRuns += 1;
       if (backupRuns === 1) {
@@ -303,7 +252,6 @@ test("hard storage shutdown does not hide a different concurrent backup failure"
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     async runDailyBackup() {
       backupRuns += 1;
       return backupRuns === 1
@@ -374,7 +322,6 @@ test("a scheduled backup failure closes the runtime and surfaces exactly", async
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     async runDailyBackup() {
       backupRuns += 1;
       if (backupRuns === 2) {

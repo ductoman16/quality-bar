@@ -63,7 +63,7 @@ function synchronize(path) {
  *   backupsPath: string,
  *   database: DatabaseSync,
  *   keyIdentity: string,
- *   kind: "daily" | "pre-migration",
+ *   kind: "daily",
  *   now?: () => number,
  *   performBackup?: typeof backup,
  *   removeBackupOutput?: typeof rmSync,
@@ -87,7 +87,7 @@ export async function createValidatedBackup({
   if (!/^sha256:[0-9a-f]{64}$/.test(keyIdentity)) {
     throw new TypeError("Installation key identity must be a SHA-256 digest");
   }
-  if (!["daily", "pre-migration"].includes(kind)) {
+  if (kind !== "daily") {
     throw new TypeError("Backup kind is unsupported");
   }
 

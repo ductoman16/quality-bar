@@ -24,7 +24,7 @@ test("backup identity is stable without copying the installation master key", as
   temporaryDirectories.push(directory);
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
   database.exec(`
-    PRAGMA user_version = 20;
+    PRAGMA user_version = 53;
     CREATE TABLE retained_fact (value TEXT PRIMARY KEY) STRICT;
     INSERT INTO retained_fact (value) VALUES ('safe');
   `);

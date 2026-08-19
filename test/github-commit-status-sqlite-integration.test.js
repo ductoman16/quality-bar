@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DatabaseSync } from "node:sqlite";
 
 import { openDurableCore } from "../src/durable-core.js";
 
@@ -140,57 +139,4 @@ test("SQLite lets only the latest Evaluation for an exact head control its GitHu
     },
   );
   core.close();
-});
-
-test("schema 36 backfills a retired Connection status as exactly unavailable", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-status-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  const current = openDurableCore(databasePath);
-  arrangeGitHubRepository(current);
-  insertEvaluation(current, "evaluation-1", "2".repeat(40), 2);
-  current.run(
-    "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
-  );
-  current.run(
-    "UPDATE github_connections SET lifecycle = 'retired' WHERE id = 'connection-1'",
-  );
-  current.run(
-    "DELETE FROM github_connection_credentials WHERE connection_id = 'connection-1'",
-  );
-  current.close();
-  const legacy = new DatabaseSync(databasePath);
-  legacy.exec(`
-    DROP TRIGGER github_commit_status_admit;
-    DROP TRIGGER github_commit_status_complete;
-    DROP TABLE github_commit_statuses;
-    UPDATE quality_bar_metadata SET value = '36'
-      WHERE key = 'schema_version';
-    PRAGMA user_version = 36;
-  `);
-  legacy.close();
-
-  const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.equal(
-    migrated.get(
-      `SELECT count(*) AS count FROM sqlite_schema
-        WHERE type = 'table' AND name = 'github_commit_statuses'`,
-    )?.count,
-    1,
-  );
-  assert.deepEqual(
-    migrated.get(
-      `SELECT desired_state, publication_status, error_code, error_detail
-         FROM github_commit_statuses`,
-    ),
-    {
-      desired_state: "pending",
-      error_code: "github_connection_retired",
-      error_detail:
-        "GitHub commit status publication is unavailable because the GitHub Connection is retired",
-      publication_status: "unavailable",
-    },
-  );
-  migrated.close();
 });

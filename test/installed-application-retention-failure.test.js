@@ -12,41 +12,6 @@ function installation() {
   };
 }
 
-test("a preflight failure retains the installation lock until the unavailable runtime closes", async () => {
-  let released = 0;
-  let closed = 0;
-  const failure = Object.assign(new Error("preflight backup failed"), {
-    code: "backup_failed",
-  });
-  const application = await createInstalledApplication({
-    applicationVersion: "1.2.3",
-    createRuntime: () =>
-      /** @type {any} */ ({
-        durableCore: null,
-        async close() {
-          closed += 1;
-        },
-      }),
-    databasePath: "/quality-bar.sqlite3",
-    loadInstallation: installation,
-    prepareBackup: async () => {
-      throw failure;
-    },
-    validateInstallation: () => ({
-      releaseInstallationLock() {
-        released += 1;
-      },
-    }),
-    validateSources() {},
-    writeLog() {},
-  });
-
-  assert.equal(released, 0);
-  await application.close();
-  assert.equal(closed, 1);
-  assert.equal(released, 1);
-});
-
 test("a scheduled retention cleanup failure closes the runtime and surfaces exactly", async () => {
   const workers = new AbortController();
   const failure = new Error("retention cleanup failed");
@@ -82,7 +47,6 @@ test("a scheduled retention cleanup failure closes the runtime and surfaces exac
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     async runDailyBackup() {
       backupRuns += 1;
       return /** @type {any} */ ({ status: "created" });
@@ -144,7 +108,6 @@ test("a scheduled retention cleanup without a runtime capability fails closed", 
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     runDailyBackup: async () => /** @type {any} */ ({ status: "created" }),
     setBackupTimer(callback) {
       timerCallback = callback;
@@ -203,7 +166,6 @@ test("a non-error scheduled retention rejection is normalized and surfaced", asy
       }),
     databasePath: "/quality-bar.sqlite3",
     loadInstallation: installation,
-    prepareBackup: async () => null,
     runDailyBackup: async () => /** @type {any} */ ({ status: "created" }),
     setBackupTimer(callback) {
       timerCallback = callback;

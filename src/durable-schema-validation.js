@@ -8,19 +8,12 @@ export const EXPECTED_SCHEMA_TABLES = new Set(
 );
 
 /**
- * Validate the schema state that is about to become authoritative. This runs
- * while the forward migration transaction is still open so a failed check
- * cannot leave a partially migrated database behind.
+ * Validate the complete current schema before the database becomes authoritative.
  *
  * @param {import("node:sqlite").DatabaseSync} database
  * @param {number} schemaVersion
- * @param {number} currentSchemaVersion
  */
-export function validateResultingSchema(
-  database,
-  schemaVersion,
-  currentSchemaVersion = schemaVersion,
-) {
+export function validateResultingSchema(database, schemaVersion) {
   const userVersion = database
     .prepare("PRAGMA user_version")
     .get()?.user_version;
@@ -48,21 +41,19 @@ export function validateResultingSchema(
     );
   }
 
-  if (schemaVersion === currentSchemaVersion) {
-    const actualTables = new Set(
-      database
-        .prepare(
-          "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-        )
-        .all()
-        .map((table) => table.name),
-    );
-    const missingTable = [...EXPECTED_SCHEMA_TABLES].find(
-      (table) => !actualTables.has(table),
-    );
-    if (missingTable) {
-      fail("schema_invalid", `SQLite schema table ${missingTable} is missing`);
-    }
+  const actualTables = new Set(
+    database
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+      )
+      .all()
+      .map((table) => table.name),
+  );
+  const missingTable = [...EXPECTED_SCHEMA_TABLES].find(
+    (table) => !actualTables.has(table),
+  );
+  if (missingTable) {
+    fail("schema_invalid", `SQLite schema table ${missingTable} is missing`);
   }
 
   validateIntegrity(database);

@@ -14,7 +14,6 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
-import { APPLICABILITY_SEAL_SCHEMA } from "../src/applicability-seal-schema.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
 import { owningRestoreError } from "../src/offline-restore-error.js";
 import { restoreOfflineBackup } from "../src/offline-restore.js";
@@ -146,7 +145,7 @@ test("candidate directory failure and uncoded filesystem errors get restore owne
   assert.equal(failure.code, "restore_input_failed");
 });
 
-test("the copied candidate is revalidated before migration-capable access", async () => {
+test("the copied candidate is revalidated before durable access", async () => {
   const input = await restoreFixture();
   const substitutePath = join(
     input.backup.databasePath,
@@ -390,39 +389,5 @@ test("a validated snapshot replaces a missing stopped target", async () => {
   assert.equal(existsSync(input.databasePath), true);
   const restored = openDurableCore(input.databasePath);
   verifyInstallationKey(restored, input.masterKey);
-  restored.close();
-});
-
-test("a compatible current schema produced by migration remains restorable", async () => {
-  const input = await restoreFixture();
-  const migrated = new DatabaseSync(input.backup.databasePath);
-  migrated.exec(`
-    DROP TRIGGER evaluation_applicability_seal_complete_update;
-    ALTER TABLE reviews DROP COLUMN archived_at;
-    ALTER TABLE reviews ADD COLUMN archived_at INTEGER;
-    ${APPLICABILITY_SEAL_SCHEMA}
-  `);
-  migrated.close();
-  const current = openDurableCore(input.databasePath);
-  current.run(
-    "INSERT INTO quality_bar_metadata (key, value) VALUES ('post_backup_fact', 'must-disappear')",
-  );
-  current.close();
-
-  await restoreOfflineBackup({
-    applicationVersion: "0.1.0",
-    databasePath: input.databasePath,
-    manifestPath: input.backup.manifestPath,
-    masterKey: input.masterKey,
-    operatorPassword: "a replacement operator password",
-  });
-
-  const restored = openDurableCore(input.databasePath);
-  assert.equal(
-    restored.get(
-      "SELECT value FROM quality_bar_metadata WHERE key = 'post_backup_fact'",
-    ),
-    undefined,
-  );
   restored.close();
 });
