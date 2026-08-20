@@ -30,21 +30,17 @@ function assertExactUnavailableOutput(status, code, message) {
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {number} status
  * @param {unknown} body
  * @param {import("node:http").OutgoingHttpHeaders} headers
  */
 function writeJsonDocument(response, status, body, headers) {
-  response.writeHead(status, {
-    "content-type": "application/json",
-    ...headers,
-  });
-  response.end(JSON.stringify(body));
+  response.code(status).headers(headers).type("application/json").send(body);
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {number} status
  * @param {unknown} body
  * @param {import("node:http").OutgoingHttpHeaders} [headers]
@@ -55,14 +51,13 @@ export function writeJson(response, status, body, headers = {}) {
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {string} body
  * @param {"dark" | "light"} [theme] Operator's explicit theme; absent lets the
  *   stylesheet follow the OS via prefers-color-scheme.
  */
 export function writeHtml(response, body, theme) {
   assertProductOutputAvailable();
-  response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   // Emit fixed literals (never the raw cookie value) so the attribute is
   // provably free of reflected input.
   const themeAttribute =
@@ -71,48 +66,48 @@ export function writeHtml(response, body, theme) {
       : theme === "light"
         ? ' data-theme="light"'
         : "";
-  response.end(
-    `<!doctype html><html lang="en"${themeAttribute}><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
-  );
+  response
+    .type("text/html; charset=utf-8")
+    .send(
+      `<!doctype html><html lang="en"${themeAttribute}><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
+    );
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {string} body
  */
 export function writeJavascript(response, body) {
   assertProductOutputAvailable();
-  response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
-  response.end(body);
+  response.type("text/javascript; charset=utf-8").send(body);
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {import("node:http").OutgoingHttpHeaders} [headers]
  */
 export function writeEmpty(response, headers = {}) {
   assertProductOutputAvailable();
-  response.writeHead(204, headers);
-  response.end();
+  response.code(204).headers(headers).send();
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {number} status
  * @param {import("node:http").OutgoingHttpHeaders} [headers]
  */
 export function writeStatus(response, status, headers = {}) {
   assertProductOutputAvailable();
-  response.writeHead(status, headers);
-  response.end();
+  response.code(status).headers(headers).send();
 }
 
 /**
  * @param {string} code
  * @param {string} message
  * @param {Array<{ code: string, message: string, path: string }>} [fields]
+ * @param {string} [requestId]
  */
-export function createErrorDocument(code, message, fields) {
+export function createErrorDocument(code, message, fields, requestId) {
   const error = /** @type {{
    *   code: string,
    *   fields?: Array<{ code: string, message: string, path: string }>,
@@ -121,7 +116,7 @@ export function createErrorDocument(code, message, fields) {
    * }} */ ({
     code,
     message,
-    request_id: randomUUID(),
+    request_id: requestId ?? randomUUID(),
   });
   if (fields?.length) {
     error.fields = fields;
@@ -130,7 +125,7 @@ export function createErrorDocument(code, message, fields) {
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {number} status
  * @param {string} code
  * @param {string} message
@@ -139,6 +134,11 @@ export function createErrorDocument(code, message, fields) {
  */
 export function writeError(response, status, code, message, headers, fields) {
   assertExactUnavailableOutput(status, code, message);
-  const document = createErrorDocument(code, message, fields);
+  const document = createErrorDocument(
+    code,
+    message,
+    fields,
+    response.request?.id,
+  );
   writeJsonDocument(response, status, document, headers ?? {});
 }

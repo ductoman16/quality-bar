@@ -149,7 +149,7 @@ function codedShutdownFailure(error) {
  *   ioPool: {close: () => Promise<unknown>, drainCleanup: (reason: unknown) => unknown},
  *   releaseInstallationLock: (() => unknown) | null,
  *   repositories: {destroy?: () => unknown} | null,
- *   server: import("node:http").Server,
+ *   server: import("fastify").FastifyInstance,
  *   shutdownBoundary: ReturnType<typeof createApplicationShutdownBoundary>,
  *   writeLog: ((line: string) => unknown) & {host: (line: string) => unknown},
  * }} dependencies
@@ -187,12 +187,8 @@ export function createApplicationClose({
       let durableClosed = false;
       try {
         const codexDrain = codexRuntime?.close();
-        const serverDrain = server.listening
-          ? /** @type {Promise<void>} */ (
-              new Promise((resolve, reject) => {
-                server.close((error) => (error ? reject(error) : resolve()));
-              })
-            )
+        const serverDrain = server.server.listening
+          ? server.close()
           : Promise.resolve();
         githubConnections?.stopPolling?.();
         forgejoConnections?.stopPolling?.();

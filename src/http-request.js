@@ -18,7 +18,7 @@ const BROWSER_CSRF_COOKIE_SAME_SITE = "Strict";
  */
 
 /**
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  * @param {string} name
  */
 function cookieValue(request, name) {
@@ -28,92 +28,6 @@ function cookieValue(request, name) {
     .filter(([cookieName]) => cookieName === name)
     .map(([, value]) => value);
   return values.length === 1 ? values[0] : undefined;
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @param {string[]} fields
- * @returns {Promise<Record<string, string>>}
- */
-function readPasswordRequest(request, fields) {
-  return readJsonRequest(request).then((value) => {
-    if (
-      Object.keys(value).length !== fields.length ||
-      !fields.every((field) => typeof value[field] === "string")
-    ) {
-      throw browserMutationError("request_malformed", "request_malformed");
-    }
-    return /** @type {Record<string, string>} */ (value);
-  });
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @returns {Promise<Record<string, unknown>>}
- */
-export async function readJsonRequest(request) {
-  if (request.headers["content-type"] !== "application/json") {
-    throw browserMutationError("request_malformed", "request_malformed");
-  }
-  let body = "";
-  for await (const chunk of request) {
-    body += chunk;
-    if (Buffer.byteLength(body) > 8 * 1024) {
-      throw browserMutationError("request_malformed", "request_malformed");
-    }
-  }
-  try {
-    const value = /** @type {unknown} */ (JSON.parse(body));
-    if (!value || Array.isArray(value) || typeof value !== "object") {
-      throw browserMutationError("request_malformed", "request_malformed");
-    }
-    return /** @type {Record<string, unknown>} */ (value);
-  } catch (error) {
-    if (error instanceof Error && error.message === "request_malformed") {
-      throw error;
-    }
-    throw browserMutationError("request_malformed", "request_malformed");
-  }
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @returns {Promise<{ password: string }>}
- */
-export function readLoginRequest(request) {
-  return /** @type {Promise<{ password: string }>} */ (
-    readPasswordRequest(request, ["password"])
-  );
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @returns {Promise<{ current_password: string, new_password: string }>}
- */
-export function readPasswordChangeRequest(request) {
-  return /** @type {Promise<{ current_password: string, new_password: string }>} */ (
-    readPasswordRequest(request, ["current_password", "new_password"])
-  );
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @returns {Promise<{ confirmation: string, password: string }>}
- */
-export function readSessionRevocationRequest(request) {
-  return /** @type {Promise<{ confirmation: string, password: string }>} */ (
-    readPasswordRequest(request, ["confirmation", "password"])
-  );
-}
-
-/**
- * @param {import("node:http").IncomingMessage} request
- * @returns {Promise<{ password: string }>}
- */
-export function readImplementerTokenRequest(request) {
-  return /** @type {Promise<{ password: string }>} */ (
-    readPasswordRequest(request, ["password"])
-  );
 }
 
 /** @param {string} path */
@@ -265,7 +179,7 @@ export function browserMutationError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
-/** @param {import("node:http").IncomingMessage} request */
+/** @param {import("fastify").FastifyRequest} request */
 export function assertNoMixedCredentials(request) {
   if (
     request.headers.cookie !== undefined &&
@@ -278,7 +192,7 @@ export function assertNoMixedCredentials(request) {
   }
 }
 
-/** @param {import("node:http").IncomingMessage} request */
+/** @param {import("fastify").FastifyRequest} request */
 export function sessionSecret(request) {
   return cookieValue(request, BROWSER_SESSION_COOKIE_NAME);
 }
@@ -287,7 +201,7 @@ export function sessionSecret(request) {
  * The operator's explicit theme choice, persisted client-side as a cookie so
  * the server can honor it across full page loads. Validated to the two known
  * values so it is safe to place in the rendered `data-theme` attribute.
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  * @returns {"dark" | "light" | undefined}
  */
 export function themePreference(request) {
@@ -305,7 +219,7 @@ export function themePreference(request) {
 
 /**
  * @param {BrowserSessionAuthority} browserSessions
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  */
 export function requireBrowserSession(browserSessions, request) {
   const secret = sessionSecret(request);
@@ -321,7 +235,7 @@ export function requireBrowserSession(browserSessions, request) {
 
 /**
  * @param {BrowserSessionAuthority} browserSessions
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  * @param {string} browserOrigin
  */
 export function requireBrowserMutation(
@@ -346,28 +260,7 @@ export function requireBrowserMutation(
   return secret;
 }
 
-/**
- * @param {BrowserSessionAuthority} browserSessions
- * @param {import("node:http").IncomingMessage} request
- * @param {string} browserOrigin
- * @param {URL} requestUrl
- */
-export function requireBrowserMutationWithQuery(
-  browserSessions,
-  request,
-  browserOrigin,
-  requestUrl,
-) {
-  const secret = requireBrowserMutation(
-    browserSessions,
-    request,
-    browserOrigin,
-  );
-  assertAllowedQueryParameters(requestUrl, new Set());
-  return secret;
-}
-
-/** @param {import("node:http").IncomingMessage} request */
+/** @param {import("fastify").FastifyRequest} request */
 export function bearerToken(request) {
   const value = request.headers.authorization;
   const match =
@@ -379,7 +272,7 @@ export function bearerToken(request) {
 
 /**
  * @param {ImplementerTokenAuthority} implementerTokens
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  */
 export function requireImplementerTokenAuthority(implementerTokens, request) {
   assertNoMixedCredentials(request);
@@ -402,7 +295,7 @@ export function hasUrlToken(requestUrl) {
  * @param {BrowserSessionAuthority} browserSessions
  * @param {ImplementerTokenAuthority} implementerTokens
  * @param {{authenticate: (token: string | undefined) => unknown}} onboardingTokens
- * @param {import("node:http").IncomingMessage} request
+ * @param {import("fastify").FastifyRequest} request
  * @param {URL} requestUrl
  * @returns {"machine" | "onboarding" | "operator"}
  */
@@ -440,25 +333,4 @@ export function requireProductAuthority(
     );
   }
   return "operator";
-}
-
-/**
- * @param {URL} requestUrl
- * @param {Set<string>} allowed
- */
-export function assertAllowedQueryParameters(requestUrl, allowed) {
-  for (const key of requestUrl.searchParams.keys()) {
-    if (!allowed.has(key) || requestUrl.searchParams.getAll(key).length !== 1) {
-      throw browserMutationError("request_malformed", "Request is malformed");
-    }
-  }
-}
-
-/** @param {URL} requestUrl */
-export function readAuthorityAttributionQuery(requestUrl) {
-  assertAllowedQueryParameters(requestUrl, new Set(["cursor", "limit"]));
-  return {
-    cursor: requestUrl.searchParams.get("cursor") ?? undefined,
-    limit: requestUrl.searchParams.get("limit") ?? undefined,
-  };
 }

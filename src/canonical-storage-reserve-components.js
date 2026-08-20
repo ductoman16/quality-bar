@@ -5,11 +5,11 @@ export function canonicalStorageReserveSchemas() {
     StorageReserveFact: closedObject(
       {
         cleanup: {
-          $ref: "#/components/schemas/SystemStorageCleanupFact",
+          $ref: "SystemStorageCleanupFact#",
         },
         filesystems: {
           items: {
-            $ref: "#/components/schemas/StorageReserveFilesystemFact",
+            $ref: "StorageReserveFilesystemFact#",
           },
           maxItems: 2,
           minItems: 2,

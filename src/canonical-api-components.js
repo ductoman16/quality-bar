@@ -1,10 +1,10 @@
 import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
 import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
 import { closedObject, openObject } from "./canonical-schema.js";
-import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
+import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-components.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
-import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-api.js";
+import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-components.js";
 import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
 import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
 import { canonicalSystemPollingDeliverySchemas } from "./canonical-system-polling-delivery-components.js";
@@ -51,7 +51,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       AuthorityAttributionCollection: openObject(
         {
           items: {
-            items: { $ref: "#/components/schemas/AuthorityAttribution" },
+            items: { $ref: "AuthorityAttribution#" },
             type: "array",
           },
           next_cursor: { type: ["string", "null"] },
@@ -62,7 +62,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           code: { type: "string" },
           fields: {
-            items: { $ref: "#/components/schemas/FieldError" },
+            items: { $ref: "FieldError#" },
             type: "array",
           },
           message: { type: "string" },
@@ -78,10 +78,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["path", "code", "message"],
       ),
-      ErrorResponse: openObject(
-        { error: { $ref: "#/components/schemas/Error" } },
-        ["error"],
-      ),
+      ErrorResponse: {
+        ...openObject({ error: { $ref: "Error#" } }, ["error"]),
+        description: "A secret-safe canonical error",
+      },
       ...canonicalGitHubConnectionSchemas(),
       ...canonicalCodexExecutionConcurrencySchemas(),
       ...canonicalSystemExecutionSchemas(),
@@ -142,7 +142,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
             },
             ["id", "impact", "instruction"],
           ),
-          { $ref: "#/components/schemas/CriterionCreateRequest" },
+          { $ref: "CriterionCreateRequest#" },
         ],
       },
       ReviewAssignment: {
@@ -165,19 +165,19 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ],
       },
       ReviewCreationAssignment: {
-        $ref: "#/components/schemas/ReviewAssignment",
+        $ref: "ReviewAssignment#",
       },
       ReviewCreateRequest: closedObject(
         {
           assignment: {
-            $ref: "#/components/schemas/ReviewCreationAssignment",
+            $ref: "ReviewCreationAssignment#",
           },
           applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
+            $ref: "CodexConfiguration#",
           },
           criteria: {
-            items: { $ref: "#/components/schemas/CriterionCreateRequest" },
+            items: { $ref: "CriterionCreateRequest#" },
             minItems: 1,
             type: "array",
           },
@@ -242,7 +242,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       OnboardingTokenCollection: closedObject(
         {
           onboarding_tokens: {
-            items: { $ref: "#/components/schemas/OnboardingToken" },
+            items: { $ref: "OnboardingToken#" },
             type: "array",
           },
         },
@@ -269,10 +269,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
+            $ref: "CodexConfiguration#",
           },
           criteria: {
-            items: { $ref: "#/components/schemas/CriterionCreateRequest" },
+            items: { $ref: "CriterionCreateRequest#" },
             minItems: 1,
             type: "array",
           },
@@ -294,10 +294,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
+            $ref: "CodexConfiguration#",
           },
           criteria: {
-            items: { $ref: "#/components/schemas/CriterionVersionRequest" },
+            items: { $ref: "CriterionVersionRequest#" },
             minItems: 1,
             type: "array",
           },
@@ -327,10 +327,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           applicability_rule: { type: ["string", "null"] },
           codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
+            $ref: "CodexConfiguration#",
           },
           criteria: {
-            items: { $ref: "#/components/schemas/Criterion" },
+            items: { $ref: "Criterion#" },
             minItems: 1,
             type: "array",
           },
@@ -347,15 +347,15 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       Review: closedObject(
         {
-          active_version: { $ref: "#/components/schemas/ReviewVersion" },
+          active_version: { $ref: "ReviewVersion#" },
           archived: { type: "boolean" },
-          assignment: { $ref: "#/components/schemas/ReviewAssignment" },
+          assignment: { $ref: "ReviewAssignment#" },
           deletion_eligible: { type: "boolean" },
           description: { type: "string" },
           id: { type: "string" },
           name: { type: "string" },
           versions: {
-            items: { $ref: "#/components/schemas/ReviewVersion" },
+            items: { $ref: "ReviewVersion#" },
             minItems: 1,
             type: "array",
           },
@@ -374,35 +374,35 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ReviewVersionSaveResult: closedObject(
         {
           changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
+          review: { $ref: "Review#" },
         },
         ["changed", "review"],
       ),
       ReviewVersionReactivationResult: closedObject(
         {
           changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
+          review: { $ref: "Review#" },
         },
         ["changed", "review"],
       ),
       ReviewArchivalResult: closedObject(
         {
           changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
+          review: { $ref: "Review#" },
         },
         ["changed", "review"],
       ),
       ReviewAssignmentChangeResult: closedObject(
         {
           changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
+          review: { $ref: "Review#" },
         },
         ["changed", "review"],
       ),
       ReviewCollection: closedObject(
         {
           reviews: {
-            items: { $ref: "#/components/schemas/Review" },
+            items: { $ref: "Review#" },
             type: "array",
           },
         },
@@ -410,29 +410,29 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       ),
       System: openObject(
         {
-          application: { $ref: "#/components/schemas/SystemApplicationFact" },
-          backup: { $ref: "#/components/schemas/SystemBackupFact" },
-          bootstrap: { $ref: "#/components/schemas/BootstrapFact" },
+          application: { $ref: "SystemApplicationFact#" },
+          backup: { $ref: "SystemBackupFact#" },
+          bootstrap: { $ref: "BootstrapFact#" },
           browser_sessions: {
-            $ref: "#/components/schemas/BrowserSessionsFact",
+            $ref: "BrowserSessionsFact#",
           },
-          codex: { $ref: "#/components/schemas/CodexFact" },
+          codex: { $ref: "CodexFact#" },
           codex_execution: {
-            $ref: "#/components/schemas/CodexExecutionSystemFact",
+            $ref: "CodexExecutionSystemFact#",
           },
-          delivery: { $ref: "#/components/schemas/SystemDeliveryFact" },
-          durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
+          delivery: { $ref: "SystemDeliveryFact#" },
+          durable_core: { $ref: "DurableCoreFact#" },
           execution_providers: {
-            items: { $ref: "#/components/schemas/ExecutionProviderFact" },
+            items: { $ref: "ExecutionProviderFact#" },
             minItems: 1,
             type: "array",
           },
           implementer_token: {
-            $ref: "#/components/schemas/ImplementerTokenFact",
+            $ref: "ImplementerTokenFact#",
           },
-          polling: { $ref: "#/components/schemas/SystemPollingFact" },
-          storage: { $ref: "#/components/schemas/StorageReserveFact" },
-          migration: { $ref: "#/components/schemas/SystemMigrationFact" },
+          polling: { $ref: "SystemPollingFact#" },
+          storage: { $ref: "StorageReserveFact#" },
+          migration: { $ref: "SystemMigrationFact#" },
         },
         [
           "application",

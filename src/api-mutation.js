@@ -1,21 +1,19 @@
 import { requireCodedError } from "./coded-error.js";
 import {
   browserMutationFailureStatus,
-  readJsonRequest,
-  requireBrowserMutationWithQuery,
+  requireBrowserMutation,
 } from "./http-request.js";
 import { createErrorDocument, writeError, writeJson } from "./http-response.js";
 
 /**
- * @param {import("node:http").IncomingMessage} request
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyRequest} request
+ * @param {import("fastify").FastifyReply} response
  * @param {{
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   failureCode: string,
  *   failureDetails?: (code: string, error: unknown) => Record<string, unknown> | undefined,
  *   mutate: (body: unknown) => unknown,
- *   requestUrl: URL,
  *   statusFor: (code: string, error: unknown) => number,
  *   successStatus?: number,
  *   unexpectedMessage?: string
@@ -30,24 +28,14 @@ export async function writeBrowserJsonMutation(
     failureCode,
     failureDetails,
     mutate,
-    requestUrl,
     statusFor,
     successStatus = 200,
     unexpectedMessage,
   },
 ) {
   try {
-    requireBrowserMutationWithQuery(
-      browserSessions,
-      request,
-      browserOrigin,
-      requestUrl,
-    );
-    writeJson(
-      response,
-      successStatus,
-      await mutate(await readJsonRequest(request)),
-    );
+    requireBrowserMutation(browserSessions, request, browserOrigin);
+    writeJson(response, successStatus, await mutate(request.body));
   } catch (error) {
     if (
       error instanceof Error &&

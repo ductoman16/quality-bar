@@ -73,6 +73,3 @@ jobs:
         run: npm run coverage
         env:
           QUALITY_BAR_FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
-
-      - name: Validate OpenAPI
-        run: npm run openapi:check

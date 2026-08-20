@@ -71,11 +71,8 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
     writeLog() {},
   });
   context.after(() => application.close());
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = application.server.server.address();
   assert.ok(address && typeof address !== "string");
   const origin = `http://127.0.0.1:${address.port}`;
   const codexProcess = application.startCodexProcess(() =>

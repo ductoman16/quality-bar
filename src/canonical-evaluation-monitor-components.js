@@ -57,8 +57,8 @@ export function canonicalEvaluationMonitorSchemas() {
         nodes: {
           items: {
             oneOf: [
-              { $ref: "#/components/schemas/EvaluationMonitorSystemNode" },
-              { $ref: "#/components/schemas/EvaluationMonitorReviewNode" },
+              { $ref: "EvaluationMonitorSystemNode#" },
+              { $ref: "EvaluationMonitorReviewNode#" },
             ],
           },
           minItems: 2,

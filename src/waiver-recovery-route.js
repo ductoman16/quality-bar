@@ -1,7 +1,7 @@
 import { writeJson } from "./http-response.js";
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {ReturnType<typeof import("./evaluation.js").createEvaluationService>} evaluations
  * @param {string} adjudicationId
  * @param {unknown} idempotencyKey

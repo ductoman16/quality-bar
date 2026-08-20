@@ -1,246 +1,75 @@
-import { createServer } from "node:http";
 import { readBrowserAsset } from "./browser-assets.js";
-import { createApiRoute } from "./api-route.js";
+import { createApiOperations } from "./api-route.js";
 import { createBrowserAssetRoute } from "./browser-asset-route.js";
 import { createBrowserPageRoute } from "./browser-page-route.js";
-import { createBrowserSessionRoute } from "./browser-session-route.js";
-import { createMcpRoute } from "./mcp-route.js";
+import { createBrowserSessionOperations } from "./browser-session-route.js";
+import { createCanonicalComponents } from "./canonical-api-components.js";
+import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
+import { createCodexExecutionConcurrencyOperations } from "./codex-execution-concurrency-route.js";
+import { requireCodedError } from "./coded-error.js";
+import { createEvaluationOperations } from "./evaluation-route.js";
+import { createForgejoConnectionRoute } from "./forgejo-connection-route.js";
+import {
+  allowedSecuritySchemes,
+  createFastify,
+  notReadyMessage,
+  registerApiRoutes,
+  requestUrl,
+} from "./fastify-listener.js";
 import {
   authenticationFailureStatus,
   bearerToken,
   hasUrlToken,
   isProductSurface,
-  isUnavailableError,
   requireProductAuthority,
 } from "./http-request.js";
-import { requireCodedError } from "./coded-error.js";
-import { writeError, writeJson } from "./http-response.js";
-import { createWaiverAdjudicatorConfigurationRoute } from "./waiver-adjudicator-configuration-route.js";
-import { createEvaluationRoute } from "./evaluation-route.js";
-import { createCodexExecutionConcurrencyRoute } from "./codex-execution-concurrency-route.js";
-import { createOnboardingApiRoute } from "./onboarding-api-route.js";
+import { writeError } from "./http-response.js";
+import { createGitHubConnectionRoute } from "./github-connection-route.js";
+import { createMcpRoute } from "./mcp-route.js";
+import { createOnboardingApiOperations } from "./onboarding-api-route.js";
 import { createOnboardingOperations } from "./onboarding-operations.js";
-import {
-  createProductRequestRunner,
-  requireRequestFunction as requireFunction,
-} from "./product-request-runtime.js";
+import { createProductRequestRunner } from "./product-request-runtime.js";
+import { createWaiverAdjudicatorConfigurationOperations } from "./waiver-adjudicator-configuration-route.js";
+
+const JSON_TYPE = "application/json";
 
 /**
- * @param {unknown} value
- * @param {string[]} methods
- * @param {string} name
+ * @param {any} dependencies
+ * @returns {import("fastify").FastifyInstance}
  */
-function requireBoundary(value, methods, name) {
-  const boundaryName = methods === SESSION_METHODS ? "session" : "token";
-  if (!value || typeof value !== "object") {
-    throw new TypeError(`${name} must provide the ${boundaryName} boundary`);
-  }
-  for (const method of methods) {
-    if (
-      typeof (/** @type {Record<string, unknown>} */ (value)[method]) !==
-      "function"
-    ) {
-      throw new TypeError(`${name} must provide the ${boundaryName} boundary`);
-    }
-  }
-}
-
-const SESSION_METHODS = [
-  "authenticate",
-  "isBootstrapped",
-  "login",
-  "logout",
-  "changePassword",
-  "revokeAll",
-  "touch",
-  "verifyCsrf",
-];
-const TOKEN_METHODS = [
-  "authenticate",
-  "create",
-  "hasActiveToken",
-  "revoke",
-  "rotate",
-];
-const ONBOARDING_TOKEN_METHODS = [
-  "authenticate",
-  "create",
-  "list",
-  "revoke",
-  "selfRevoke",
-];
-
-/**
- * @param {{
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
- *   browserAssetReader?: (path: string) => string,
- *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
- *   onboardingTokens: ReturnType<typeof import("./onboarding-token.js").createOnboardingTokenService>,
- *   browserOrigin: string,
- *   requestSecurity: ReturnType<typeof import("./request-security.js").createRequestSecurityBoundary>,
- *   repositories: Omit<ReturnType<typeof import("./repository.js").createRepositoryService>, "resolvePushedSelectors" | "resolvePullRequestChangeset">,
- *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>,
- *   forgejoConnections?: ReturnType<typeof import("./forgejo-connection.js").createForgejoConnectionService>,
- *   repositoryGuidance: ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>,
- *   evaluations: ReturnType<typeof import("./evaluation.js").createEvaluationService>,
- *   reviews: ReturnType<typeof import("./review.js").createReviewService>,
- *   waiverAdjudicatorConfiguration: ReturnType<typeof import("./waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService>,
- *   codexExecutionConcurrency: ReturnType<typeof import("./codex-execution-concurrency.js").createCodexExecutionConcurrencyService>,
- *   readDurableCoreStatus: () => { error?: string, status: string },
- *   readSystemStatus: () => unknown,
- *   listAuthorityAttributions: (query: { cursor?: string, limit?: string }) => unknown,
- *   recordAuthorityAttribution: (event: {
- *     action: string,
- *     channel: string,
- *     errorCode?: string,
- *     outcome: string
- *   }) => void,
- *   recordMcpOperation: (event: {
- *     durationMs: number,
- *     errorCode?: string,
- *     operation: string,
- *     outcome: "success" | "failure",
- *     requestId: string,
- *     resourceIds: string[]
- *   }) => void,
- *   secureBrowserCookie?: boolean, workerSignal: AbortSignal
- * }} options
- */
-export function createApplicationServer({
-  browserSessions,
-  browserAssetReader = readBrowserAsset,
-  implementerTokens,
-  onboardingTokens,
-  browserOrigin,
-  requestSecurity,
-  repositories,
-  githubConnections,
-  forgejoConnections,
-  repositoryGuidance,
-  evaluations,
-  reviews,
-  waiverAdjudicatorConfiguration,
-  codexExecutionConcurrency,
-  readDurableCoreStatus,
-  readSystemStatus,
-  listAuthorityAttributions,
-  recordAuthorityAttribution,
-  recordMcpOperation,
-  secureBrowserCookie = false,
-  workerSignal,
-}) {
-  requireFunction(readDurableCoreStatus, "readDurableCoreStatus is required");
-  const runProductRequest = createProductRequestRunner(workerSignal);
-  requireFunction(browserAssetReader, "browserAssetReader must be a function");
-  requireFunction(
-    listAuthorityAttributions,
-    "listAuthorityAttributions must be a function",
-  );
-  requireFunction(
-    recordAuthorityAttribution,
-    "recordAuthorityAttribution must be a function",
-  );
-  requireBoundary(browserSessions, SESSION_METHODS, "browserSessions");
-  requireBoundary(implementerTokens, TOKEN_METHODS, "implementerTokens");
-  requireBoundary(
+export function createApplicationServer(dependencies) {
+  const {
+    browserSessions,
+    browserAssetReader = readBrowserAsset,
+    implementerTokens,
     onboardingTokens,
-    ONBOARDING_TOKEN_METHODS,
-    "onboardingTokens",
+    browserOrigin,
+    requestSecurity,
+    repositories,
+    githubConnections,
+    forgejoConnections,
+    repositoryGuidance,
+    evaluations,
+    reviews,
+    waiverAdjudicatorConfiguration,
+    codexExecutionConcurrency,
+    readDurableCoreStatus,
+    readSystemStatus,
+    listAuthorityAttributions,
+    recordAuthorityAttribution,
+    recordMcpOperation,
+    secureBrowserCookie = false,
+    workerSignal,
+  } = dependencies;
+  const server = createFastify(
+    createCanonicalComponents(readCodexCapabilityCatalog()),
   );
-  if (typeof requestSecurity?.requestFacts !== "function") {
-    throw new TypeError("requestSecurity must provide the request boundary");
-  }
-  requireFunction(readSystemStatus, "readSystemStatus must be a function");
-  if (
-    typeof reviews?.list !== "function" ||
-    typeof reviews.read !== "function" ||
-    typeof reviews.create !== "function" ||
-    typeof reviews.createForRepository !== "function" ||
-    typeof reviews.setArchived !== "function" ||
-    typeof reviews.setAssignment !== "function" ||
-    typeof reviews.setForRepository !== "function" ||
-    typeof reviews.selectForNewEvaluation !== "function" ||
-    typeof reviews.updateMetadata !== "function"
-  ) {
-    throw new TypeError("reviews must provide the Review resource");
-  }
-  if (
-    typeof waiverAdjudicatorConfiguration?.read !== "function" ||
-    typeof waiverAdjudicatorConfiguration.update !== "function" ||
-    typeof waiverAdjudicatorConfiguration.freezeForAdjudication !== "function"
-  ) {
-    throw new TypeError(
-      "waiverAdjudicatorConfiguration must provide the Waiver Adjudicator Configuration resource",
-    );
-  }
-  if (
-    typeof forgejoConnections?.read !== "function" ||
-    typeof forgejoConnections.connect !== "function" ||
-    typeof forgejoConnections.discover !== "function" ||
-    typeof forgejoConnections.rotate !== "function" ||
-    typeof forgejoConnections.reactivate !== "function" ||
-    typeof forgejoConnections.retire !== "function" ||
-    typeof forgejoConnections.remove !== "function"
-  ) {
-    throw new TypeError(
-      "forgejoConnections must provide the Forgejo Connection resource",
-    );
-  }
-  if (
-    typeof repositories?.list !== "function" ||
-    typeof repositories.listPage !== "function" ||
-    typeof repositories.register !== "function" ||
-    typeof repositories.remove !== "function" ||
-    typeof repositories.requireAcceptsNewWork !== "function" ||
-    typeof repositories.rotateCredential !== "function" ||
-    typeof repositories.setLifecycle !== "function"
-  ) {
-    throw new TypeError("repositories must provide the Repository resource");
-  }
-  if (
-    typeof githubConnections?.read !== "function" ||
-    typeof githubConnections.start !== "function" ||
-    typeof githubConnections.completeManifest !== "function" ||
-    typeof githubConnections.completeInstallation !== "function" ||
-    typeof githubConnections.rotate !== "function" ||
-    typeof githubConnections.selectRepositories !== "function" ||
-    typeof githubConnections.recordCallbackFailure !== "function" ||
-    typeof githubConnections.consumeCallbackFailure !== "function"
-  ) {
-    // prettier-ignore
-    throw new TypeError("githubConnections must provide the GitHub Connection resource");
-  }
-  if (typeof repositoryGuidance?.read !== "function") {
-    throw new TypeError(
-      "repositoryGuidance must provide the Repository Guidance resource",
-    );
-  }
-  if (
-    typeof evaluations?.destroy !== "function" ||
-    typeof evaluations?.createExplicit !== "function" ||
-    typeof evaluations.list !== "function" ||
-    typeof evaluations.read !== "function" ||
-    typeof evaluations.readAnalytics !== "function" ||
-    typeof evaluations.readResult !== "function" ||
-    typeof evaluations.readFinding !== "function" ||
-    typeof evaluations.readFindingById !== "function" ||
-    typeof evaluations.readReviewRun !== "function" ||
-    typeof evaluations.readReviewRunById !== "function" ||
-    typeof evaluations.readReviewRunDiagnostics !== "function" ||
-    typeof evaluations.submitWaiverBatch !== "function" ||
-    typeof evaluations.recoverWaiverAdjudication !== "function" ||
-    typeof evaluations.retryWaiverErrors !== "function" ||
-    typeof evaluations.retryPreStart !== "function"
-  ) {
-    throw new TypeError("evaluations must provide the Evaluation resource");
-  }
-  requireFunction(recordMcpOperation, "recordMcpOperation must be a function");
-
+  const runProductRequest = createProductRequestRunner(workerSignal);
   const handleBrowserAsset = createBrowserAssetRoute({
     browserAssetReader,
     browserSessions,
   });
-  const handleBrowserSession = createBrowserSessionRoute({
+  const sessionOperations = createBrowserSessionOperations({
     browserOrigin,
     browserSessions,
     implementerTokens,
@@ -252,37 +81,32 @@ export function createApplicationServer({
     implementerTokens,
     recordAuthorityAttribution,
   });
-  const handleWaiverAdjudicatorConfiguration =
-    createWaiverAdjudicatorConfigurationRoute({
+  const waiverConfigurationOperations =
+    createWaiverAdjudicatorConfigurationOperations({
       browserOrigin,
       browserSessions,
-      recordAuthorityAttribution,
       waiverAdjudicatorConfiguration,
     });
-  const handleEvaluation = createEvaluationRoute({
+  const evaluationOperations = createEvaluationOperations({
     browserOrigin,
     browserSessions,
     evaluations,
     recordAuthorityAttribution,
   });
-  const handleCodexExecutionConcurrency = createCodexExecutionConcurrencyRoute({
+  const concurrencyOperations = createCodexExecutionConcurrencyOperations({
     browserOrigin,
     browserSessions,
     codexExecutionConcurrency,
-    recordAuthorityAttribution,
   });
-  const handleApi = createApiRoute({
+  const apiOperations = createApiOperations({
+    analytics: { read: evaluations.readAnalytics },
     browserOrigin,
     browserSessions,
     listAuthorityAttributions,
     readSystemStatus,
-    recordAuthorityAttribution,
     repositories,
-    githubConnections,
-    forgejoConnections: /** @type {any} */ (forgejoConnections),
     repositoryGuidance,
     reviews,
-    analytics: { read: evaluations.readAnalytics },
   });
   const onboardingOperations = createOnboardingOperations({
     evaluations,
@@ -291,252 +115,255 @@ export function createApplicationServer({
     repositoryGuidance,
     reviews,
   });
-  const handleOnboardingApi = createOnboardingApiRoute({
-    browserOrigin,
-    browserSessions,
-    onboardingTokens,
-    operations: onboardingOperations,
-  });
+  const onboardingApiOperations =
+    /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */ (
+      createOnboardingApiOperations({
+        browserOrigin,
+        browserSessions,
+        onboardingTokens,
+        operations: onboardingOperations,
+      })
+    );
   const handleMcp = createMcpRoute({
     browserOrigin,
     evaluations,
+    onboardingOperations,
     recordMcpOperation,
     repositories,
     repositoryGuidance,
-    onboardingOperations,
   });
+  /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */
+  const standardOperationHandlers = {
+    ...apiOperations,
+    ...concurrencyOperations,
+    ...createForgejoConnectionRoute({
+      browserOrigin,
+      browserSessions,
+      forgejoConnections,
+    }),
+    ...createGitHubConnectionRoute({
+      browserOrigin,
+      browserSessions,
+      githubConnections,
+    }),
+    ...evaluationOperations,
+    ...sessionOperations,
+    ...waiverConfigurationOperations,
+  };
+  /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */
+  const operationHandlers = {
+    ...standardOperationHandlers,
+    ...onboardingApiOperations,
+  };
+  for (const operationId of [
+    "createExplicitEvaluation",
+    "getEvaluation",
+    "getEvaluationResult",
+    "getRepositoryGuidance",
+    "listGenericRepositories",
+    "listReviews",
+  ]) {
+    const standardHandler = standardOperationHandlers[operationId];
+    const onboardingHandler = onboardingApiOperations[operationId];
+    operationHandlers[operationId] = (request, reply) =>
+      /** @type {any} */ (request).authority === "onboarding"
+        ? onboardingHandler(request, reply)
+        : standardHandler(request, reply);
+  }
 
-  /**
-   * @param {import("node:http").IncomingMessage} request
-   * @param {import("node:http").ServerResponse} response
-   */
-  const handleRequest = async (request, response) => {
-    if (typeof request.url !== "string") {
-      throw new TypeError("request.url is required");
-    }
-    const requestUrl = new URL(request.url, "http://quality-bar.internal");
-    const path = requestUrl.pathname;
-    if (request.method === "GET" && path === "/health/live") {
-      writeJson(response, 200, { status: "live" });
-      return;
-    }
-
-    const durableCoreStatus = readDurableCoreStatus();
-    if (request.method === "GET" && path === "/health/ready") {
-      if (durableCoreStatus.status === "ready") {
-        writeJson(response, 200, { status: "ready" });
-      } else {
-        writeJson(response, 503, durableCoreStatus);
-      }
-      return;
-    }
-    if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
-      if (typeof durableCoreStatus.error !== "string") {
-        throw new TypeError("not-ready status must provide an error code");
-      }
-      const notReadyMessage = (() => {
-        switch (durableCoreStatus.error) {
-          case "storage_unavailable":
-            return "Quality Bar is not ready — storage is unavailable. Verify the data volume is mounted and writable and that free space is available, then restart the service.";
-          case "installation_not_ready":
-            return "Quality Bar is not ready — installation is not ready. Complete first-time setup (configuration, master key, and operator password bootstrap) and restart.";
-          case "codex_termination_failed":
-            return "Quality Bar is not ready — Codex execution terminated unexpectedly. Review codex logs and restart the service.";
-          case "application_shutdown_failed":
-            return "Quality Bar is not ready — application shutdown failed. Check logs for the shutdown error and restart.";
-          case "schema_invalid":
-            return "Quality Bar is not ready — schema is invalid. The data volume was created by a newer code version; recreate the volume with the current code or restore a compatible backup, then restart.";
-          default:
-            return `Quality Bar is not ready — ${durableCoreStatus.error}. Check server logs and /health/ready for the error code and restart after addressing the underlying condition.`;
+  server.register(async (routes) => {
+    routes.addHook("onRequest", (request, reply, done) => {
+      const productRequest = /** @type {any} */ (request);
+      const url = requestUrl(request);
+      const path = url.pathname;
+      runProductRequest(path, () => {
+        if (path === "/health/live" || path === "/health/ready") {
+          done();
+          return;
         }
-      })();
-      writeError(response, 503, durableCoreStatus.error, notReadyMessage);
-      return;
-    }
-    try {
-      requestSecurity.requestFacts(request);
-    } catch (error) {
-      const failure = requireCodedError(error);
-      writeError(
-        response,
-        failure.code === "https_required" ? 403 : 400,
-        failure.code,
-        failure.message,
-      );
-      return;
-    }
-    if (hasUrlToken(requestUrl)) {
-      recordAuthorityAttribution({
-        action: "authentication",
-        channel: "implementer_token",
-        errorCode: "authentication_invalid",
-        outcome: "failure",
-      });
-      writeError(
-        response,
-        401,
-        "authentication_invalid",
-        "Machine authentication is invalid",
-      );
-      return;
-    }
-    if (handleBrowserAsset(request, response, requestUrl)) {
-      return;
-    }
-    if (await handleBrowserSession(request, response, requestUrl)) {
-      return;
-    }
-    if (handleBrowserPage(request, response, requestUrl)) {
-      return;
-    }
-    if (path === "/api/v1/operator-password/bootstrap") {
-      writeError(response, 404, "not_found", "Resource was not found");
-      return;
-    }
-    /** @type {"callback" | "machine" | "onboarding" | "operator" | undefined} */
-    let authority;
-    if (isProductSurface(path)) {
-      try {
-        if (
-          request.method === "GET" &&
-          [
-            "/api/v1/github-connections/manifest/callback",
-            "/api/v1/github-connections/setup",
-          ].includes(path)
-        ) {
-          authority = "callback";
-        } else {
-          if (
-            path === "/mcp/v1" &&
-            request.headers.authorization === undefined
-          ) {
+        const durableCoreStatus = readDurableCoreStatus();
+        if (isProductSurface(path) && durableCoreStatus.status !== "ready") {
+          const code = durableCoreStatus.error;
+          if (typeof code !== "string") {
+            done(new TypeError("not-ready status must provide an error code"));
+            return;
+          }
+          writeError(reply, 503, code, notReadyMessage(code));
+          return;
+        }
+        try {
+          requestSecurity.requestFacts(request.raw);
+        } catch (error) {
+          const failure = requireCodedError(error);
+          writeError(
+            reply,
+            failure.code === "https_required" ? 403 : 400,
+            failure.code,
+            failure.message,
+          );
+          return;
+        }
+        try {
+          if (hasUrlToken(url)) {
             throw Object.assign(
               new Error("Machine authentication is invalid"),
-              {
-                code: "authentication_invalid",
-              },
+              { code: "authentication_invalid" },
             );
           }
-          authority = requireProductAuthority(
-            browserSessions,
-            implementerTokens,
-            onboardingTokens,
-            request,
-            requestUrl,
+          const schemes = allowedSecuritySchemes(request);
+          if (schemes.size > 0) {
+            if (
+              path === "/mcp/v1" &&
+              request.headers.authorization === undefined
+            ) {
+              throw Object.assign(
+                new Error("Machine authentication is invalid"),
+                { code: "authentication_invalid" },
+              );
+            }
+            productRequest.authority = requireProductAuthority(
+              browserSessions,
+              implementerTokens,
+              onboardingTokens,
+              request,
+              url,
+            );
+            const scheme = /** @type {Record<string, string>} */ ({
+              machine: "implementer_token",
+              onboarding: "onboarding_token",
+              operator: "browser_session",
+            })[productRequest.authority];
+            if (!schemes.has(scheme)) {
+              if (productRequest.authority === "onboarding") {
+                recordAuthorityAttribution({
+                  action: "onboarding_scope",
+                  channel: "onboarding_token",
+                  outcome: "forbidden",
+                });
+                writeError(
+                  reply,
+                  403,
+                  "onboarding_scope_forbidden",
+                  "Onboarding token cannot access this resource",
+                );
+                return;
+              }
+              throw Object.assign(new Error("Machine access is forbidden"), {
+                code: "authorization_forbidden",
+              });
+            }
+            productRequest.onboardingGrant =
+              productRequest.authority === "onboarding"
+                ? onboardingTokens.authenticate(bearerToken(request))
+                : null;
+          }
+        } catch (error) {
+          const failure = requireCodedError(error);
+          recordAuthorityAttribution({
+            action:
+              failure.code === "authorization_forbidden"
+                ? "authorization"
+                : "authentication",
+            channel:
+              request.headers.authorization === undefined
+                ? "browser_session"
+                : "implementer_token",
+            errorCode: failure.code,
+            outcome:
+              failure.code === "authorization_forbidden"
+                ? "forbidden"
+                : "failure",
+          });
+          writeError(
+            reply,
+            failure.code === "authorization_forbidden"
+              ? 403
+              : authenticationFailureStatus(failure.code),
+            failure.code,
+            failure.message,
           );
+          return;
         }
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: "authentication",
-          channel:
-            request.headers.authorization !== undefined
-              ? "implementer_token"
-              : "browser_session",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeError(
-          response,
-          authenticationFailureStatus(failure.code),
-          failure.code,
-          failure.message,
-        );
-        return;
-      }
-    }
-    const onboardingGrant =
-      authority === "onboarding"
-        ? onboardingTokens.authenticate(bearerToken(request))
-        : null;
-    if (
-      await handleMcp(
-        request,
-        response,
-        requestUrl,
-        authority,
-        onboardingGrant,
-        bearerToken(request),
-      )
-    ) {
-      return;
-    }
-    if (
-      await handleOnboardingApi(
-        request,
-        response,
-        requestUrl,
-        authority,
-        onboardingGrant,
-      )
-    ) {
-      return;
-    }
-    if (authority === "onboarding") {
-      recordAuthorityAttribution({
-        action: "onboarding_scope",
-        channel: "onboarding_token",
-        outcome: "forbidden",
+        if (
+          path !== "/mcp/v1" &&
+          request.routeOptions.schema?.body !== undefined &&
+          request.headers["content-type"] !== JSON_TYPE
+        ) {
+          writeError(reply, 400, "request_malformed", "Request is malformed");
+          return;
+        }
+        if (request.routeOptions.schema?.body === undefined) {
+          delete request.headers["content-type"];
+        }
+        done();
       });
-      writeError(
-        response,
-        403,
-        "onboarding_scope_forbidden",
-        "Onboarding token cannot access this resource",
-      );
-      return;
-    }
-    if (
-      await handleWaiverAdjudicatorConfiguration(
-        request,
-        response,
-        requestUrl,
-        authority,
-      )
-    ) {
-      return;
-    }
-    if (
-      await handleCodexExecutionConcurrency(
-        request,
-        response,
-        requestUrl,
-        authority,
-      )
-    ) {
-      return;
-    }
-    if (await handleEvaluation(request, response, requestUrl, authority)) {
-      return;
-    }
-    if (await handleApi(request, response, requestUrl, authority)) {
-      return;
-    }
-    writeError(response, 404, "not_found", "Resource was not found");
-  };
-  return createServer((request, response) => {
-    runProductRequest(request, response, handleRequest).catch((error) => {
-      const failure =
-        error instanceof Error
-          ? error
-          : new TypeError("Request handler rejected with a non-Error", {
-              cause: error,
-            });
-      if (response.headersSent) {
-        response.destroy(failure);
-        return;
-      }
-      if (isUnavailableError(failure)) {
-        const unavailableFailure = requireCodedError(failure);
-        writeError(
-          response,
-          503,
-          unavailableFailure.code,
-          unavailableFailure.message,
-        );
-        return;
-      }
-      writeError(response, 500, "internal_error", "Internal server error");
     });
+    routes.get("/health/live", () => ({ status: "live" }));
+    routes.get("/health/ready", (request, reply) => {
+      void request;
+      const status = readDurableCoreStatus();
+      return status.status === "ready"
+        ? { status: "ready" }
+        : reply.code(503).send(status);
+    });
+    routes.get("/", (request, reply) =>
+      handleBrowserPage(request, reply, requestUrl(request)),
+    );
+    routes.get(
+      "/assets/*",
+      {
+        schema: {
+          querystring: {
+            additionalProperties: false,
+            properties: {},
+            type: "object",
+          },
+        },
+      },
+      (request, reply) =>
+        handleBrowserAsset(request, reply, requestUrl(request)),
+    );
+    routes.post(
+      "/mcp/v1",
+      {
+        schema: {
+          body: {},
+          hide: true,
+          querystring: {
+            additionalProperties: false,
+            properties: {},
+            type: "object",
+          },
+          security: [{ implementer_token: [] }, { onboarding_token: [] }],
+        },
+      },
+      (request, reply) => {
+        const productRequest = /** @type {any} */ (request);
+        return handleMcp(
+          request,
+          reply,
+          productRequest.authority,
+          productRequest.onboardingGrant,
+          bearerToken(request),
+        );
+      },
+    );
+    routes.route({
+      handler() {},
+      method: ["DELETE", "GET", "PATCH", "PUT"],
+      onRequest(request, reply) {
+        void request;
+        writeError(reply, 405, "method_not_allowed", "Method is not allowed", {
+          allow: "POST",
+        });
+      },
+      schema: {
+        hide: true,
+        security: [{ implementer_token: [] }, { onboarding_token: [] }],
+      },
+      url: "/mcp/v1",
+    });
+    registerApiRoutes(routes, operationHandlers);
   });
+  return server;
 }

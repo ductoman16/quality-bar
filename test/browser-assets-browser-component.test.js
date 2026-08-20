@@ -123,11 +123,8 @@ async function startApplication(options = {}) {
     application.durableCore,
     "a correct operator password",
   );
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = application.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("browser_asset_server_address_unavailable");
   }

@@ -50,12 +50,12 @@ export function canonicalReviewRunSchemas() {
     completed_at: nullableTimestamp,
     created_at: { format: "date-time", type: "string" },
     criterion_results: {
-      items: { $ref: "#/components/schemas/CriterionResult" },
+      items: { $ref: "CriterionResult#" },
       type: "array",
     },
     evaluation_id: { minLength: 1, type: "string" },
     findings: {
-      items: { $ref: "#/components/schemas/Finding" },
+      items: { $ref: "Finding#" },
       type: "array",
     },
     id: { minLength: 1, type: "string" },
@@ -143,18 +143,18 @@ export function canonicalReviewRunSchemas() {
     ),
     ReviewRun: {
       oneOf: [
-        { $ref: "#/components/schemas/QueuedReviewRun" },
-        { $ref: "#/components/schemas/RunningReviewRun" },
-        { $ref: "#/components/schemas/CompletedReviewRun" },
-        { $ref: "#/components/schemas/FailedReviewRun" },
-        { $ref: "#/components/schemas/CancelledReviewRun" },
+        { $ref: "QueuedReviewRun#" },
+        { $ref: "RunningReviewRun#" },
+        { $ref: "CompletedReviewRun#" },
+        { $ref: "FailedReviewRun#" },
+        { $ref: "CancelledReviewRun#" },
       ],
     },
     TerminalReviewRun: {
       oneOf: [
-        { $ref: "#/components/schemas/CompletedReviewRun" },
-        { $ref: "#/components/schemas/FailedReviewRun" },
-        { $ref: "#/components/schemas/CancelledReviewRun" },
+        { $ref: "CompletedReviewRun#" },
+        { $ref: "FailedReviewRun#" },
+        { $ref: "CancelledReviewRun#" },
       ],
     },
   };

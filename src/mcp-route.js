@@ -1,11 +1,4 @@
-import { assertAllowedQueryParameters } from "./http-request.js";
-import { requireCodedError } from "./coded-error.js";
-import {
-  createErrorDocument,
-  writeError,
-  writeJson,
-  writeStatus,
-} from "./http-response.js";
+import { writeError } from "./http-response.js";
 import {
   MCP_RESOURCE_TEMPLATES,
   MCP_PROTOCOL_VERSION,
@@ -26,6 +19,16 @@ import {
 } from "./mcp-message.js";
 import { createMcpOutcomeRecorder } from "./mcp-operation.js";
 import {
+  resourceFailure,
+  toolFailure,
+  toolSuccess,
+  writeAccepted,
+  writeProtocolError,
+  writeProtocolErrorWithData,
+  writeProtocolVersionError,
+  writeResult,
+} from "./mcp-http-response.js";
+import {
   executeEvaluationTool,
   matchWorkflowResource,
   readWorkflowResource,
@@ -41,113 +44,6 @@ import {
 } from "./mcp-validation.js";
 import { executeWaiverTool } from "./mcp-waiver.js";
 import { executeOnboardingTool } from "./mcp-onboarding.js";
-
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {unknown} id
- * @param {unknown} result
- */
-function writeResult(response, id, result) {
-  writeJson(response, 200, { id, jsonrpc: "2.0", result });
-}
-
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {unknown} id
- * @param {number} code
- * @param {string} message
- */
-function writeProtocolError(response, id, code, message) {
-  writeJson(response, 200, {
-    error: { code, message },
-    id,
-    jsonrpc: "2.0",
-  });
-}
-
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {unknown} id
- */
-function writeProtocolVersionError(response, id) {
-  writeJson(response, 400, {
-    error: { code: -32600, message: "Invalid Request" },
-    id,
-    jsonrpc: "2.0",
-  });
-}
-
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {unknown} id
- * @param {number} code
- * @param {string} message
- * @param {unknown} [data]
- */
-function writeProtocolErrorWithData(response, id, code, message, data) {
-  const error =
-    /** @type {{code: number, data?: unknown, message: string}} */ ({
-      code,
-      message,
-    });
-  if (data !== undefined) {
-    error.data = data;
-  }
-  writeJson(response, 200, { error, id, jsonrpc: "2.0" });
-}
-
-/** @param {import("node:http").ServerResponse} response */
-function writeAccepted(response) {
-  writeStatus(response, 202);
-}
-
-/**
- * @param {unknown} document
- * @param {Array<Record<string, unknown>>} links
- */
-function toolSuccess(document, links) {
-  return {
-    content: [{ text: JSON.stringify(document), type: "text" }, ...links],
-    isError: false,
-    structuredContent: document,
-  };
-}
-
-/** @param {unknown} error */
-function errorDocument(error) {
-  try {
-    const failure = requireCodedError(error);
-    return createErrorDocument(failure.code, failure.message);
-  } catch {
-    return createErrorDocument("internal_error", "Internal server error");
-  }
-}
-
-/** @param {unknown} error */
-function resourceFailure(error) {
-  try {
-    const failure = requireCodedError(error);
-    return {
-      document: createErrorDocument(failure.code, failure.message),
-      protocolCode: /_not_found$/.test(failure.code) ? -32002 : -32000,
-    };
-  } catch {
-    return {
-      document: createErrorDocument("internal_error", "Internal server error"),
-      protocolCode: -32603,
-    };
-  }
-}
-
-/** @param {unknown} error */
-function toolFailure(error) {
-  const document = errorDocument(error);
-  return {
-    content: [{ text: JSON.stringify(document), type: "text" }],
-    isError: true,
-    structuredContent: document,
-  };
-}
 
 /**
  * @param {{
@@ -175,36 +71,19 @@ export function createMcpRoute({
   onboardingOperations,
 }) {
   /**
-   * @param {import("node:http").IncomingMessage} request
-   * @param {import("node:http").ServerResponse} response
-   * @param {URL} requestUrl
+   * @param {import("fastify").FastifyRequest} request
+   * @param {import("fastify").FastifyReply} response
    */
   return async function handleMcp(
-    /** @type {import("node:http").IncomingMessage} */ request,
-    /** @type {import("node:http").ServerResponse} */ response,
-    /** @type {URL} */ requestUrl,
+    /** @type {import("fastify").FastifyRequest} */ request,
+    /** @type {import("fastify").FastifyReply} */ response,
     /** @type {"callback" | "machine" | "onboarding" | "operator" | undefined} */ authority,
     /** @type {unknown} */ onboardingGrant,
     /** @type {unknown} */ token,
   ) {
-    if (requestUrl.pathname !== "/mcp/v1") {
-      return false;
-    }
     if (request.headers.origin && request.headers.origin !== browserOrigin) {
       writeError(response, 403, "origin_invalid", "Origin is invalid");
-      return true;
-    }
-    if (!["POST"].includes(request.method ?? "")) {
-      writeError(response, 405, "method_not_allowed", "Method is not allowed", {
-        allow: "POST",
-      });
-      return true;
-    }
-    try {
-      assertAllowedQueryParameters(requestUrl, new Set());
-    } catch {
-      writeProtocolError(response, null, -32600, "Invalid Request");
-      return true;
+      return;
     }
     const accept = request.headers.accept;
     const mediaTypes =
@@ -214,7 +93,7 @@ export function createMcpRoute({
       !mediaTypes.has("text/event-stream")
     ) {
       writeProtocolError(response, null, -32600, "Invalid Request");
-      return true;
+      return;
     }
 
     let message;

@@ -17,7 +17,7 @@ export function canonicalGitHubPollingSchemas() {
     ),
     GitHubPollingFailure: closedObject(
       {
-        error: { $ref: "#/components/schemas/GitHubPollingError" },
+        error: { $ref: "GitHubPollingError#" },
         forge_repository_id: {
           oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
         },
@@ -38,10 +38,7 @@ export function canonicalGitHubPollingSchemas() {
             type: "string",
           },
           error: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubPollingError" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubPollingError#" }, { type: "null" }],
           },
           forge_repository_id: { minimum: 1, type: "integer" },
           last_success_at: {
@@ -88,7 +85,7 @@ export function canonicalGitHubPollingSchemas() {
         {
           properties: {
             baseline_status: { const: "error" },
-            error: { $ref: "#/components/schemas/GitHubPollingError" },
+            error: { $ref: "GitHubPollingError#" },
           },
           required: ["baseline_status", "error"],
         },

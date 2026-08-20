@@ -23,15 +23,15 @@ const durationSummary = closedObject(
 const tokenCounters = closedObject(
   {
     cached_input_tokens: {
-      $ref: "#/components/schemas/TokenCounterAnalytics",
+      $ref: "TokenCounterAnalytics#",
     },
-    input_tokens: { $ref: "#/components/schemas/TokenCounterAnalytics" },
-    output_tokens: { $ref: "#/components/schemas/TokenCounterAnalytics" },
+    input_tokens: { $ref: "TokenCounterAnalytics#" },
+    output_tokens: { $ref: "TokenCounterAnalytics#" },
   },
   ["input_tokens", "cached_input_tokens", "output_tokens"],
 );
 const failureCodes = {
-  items: { $ref: "#/components/schemas/ExecutionFailureCodeAnalytics" },
+  items: { $ref: "ExecutionFailureCodeAnalytics#" },
   type: "array",
 };
 const analyticsFilters = closedObject(
@@ -67,41 +67,41 @@ export function canonicalAnalyticsSchemas() {
     Analytics: closedObject(
       {
         criterion_outcomes: {
-          items: { $ref: "#/components/schemas/CriterionOutcomeAnalytics" },
+          items: { $ref: "CriterionOutcomeAnalytics#" },
           type: "array",
         },
         daily_trend: {
-          items: { $ref: "#/components/schemas/DailyTrendBucket" },
+          items: { $ref: "DailyTrendBucket#" },
           type: "array",
         },
         evaluation_outcomes: {
-          $ref: "#/components/schemas/EvaluationOutcomeAnalytics",
+          $ref: "EvaluationOutcomeAnalytics#",
         },
         evaluation_overview: {
-          $ref: "#/components/schemas/EvaluationOverviewAnalytics",
+          $ref: "EvaluationOverviewAnalytics#",
         },
         finding_impact: {
-          $ref: "#/components/schemas/FindingImpactAnalytics",
+          $ref: "FindingImpactAnalytics#",
         },
         matching_facts: {
-          $ref: "#/components/schemas/AnalyticsMatchingFacts",
+          $ref: "AnalyticsMatchingFacts#",
         },
-        population: { $ref: "#/components/schemas/AnalyticsPopulation" },
+        population: { $ref: "AnalyticsPopulation#" },
         pull_request_criterion_transitions: {
-          $ref: "#/components/schemas/PullRequestCriterionTransitions",
+          $ref: "PullRequestCriterionTransitions#",
         },
         review_applicability: {
-          items: { $ref: "#/components/schemas/ReviewApplicabilityAnalytics" },
+          items: { $ref: "ReviewApplicabilityAnalytics#" },
           type: "array",
         },
         review_run_reliability: {
-          $ref: "#/components/schemas/ReviewRunReliabilityAnalytics",
+          $ref: "ReviewRunReliabilityAnalytics#",
         },
         waiver_analytics: {
-          $ref: "#/components/schemas/WaiverAnalytics",
+          $ref: "WaiverAnalytics#",
         },
         waiver_adjudication_reliability: {
-          $ref: "#/components/schemas/WaiverAdjudicationReliabilityAnalytics",
+          $ref: "WaiverAdjudicationReliabilityAnalytics#",
         },
       },
       [
@@ -380,7 +380,7 @@ export function canonicalAnalyticsSchemas() {
       {
         advisory_findings: count,
         decision_history: {
-          $ref: "#/components/schemas/WaiverDecisionHistoryAnalytics",
+          $ref: "WaiverDecisionHistoryAnalytics#",
         },
         requested_findings: count,
         waived_findings: count,

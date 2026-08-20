@@ -124,7 +124,7 @@ test("graceful close aborts bounded I/O and retains credentials until accepted w
     },
     releaseInstallationLock: () => order.push("lock-release"),
     repositories: { destroy: () => order.push("repositories-destroy") },
-    server: /** @type {any} */ ({ listening: false }),
+    server: /** @type {any} */ ({ server: { listening: false } }),
     shutdownBoundary,
     writeLog: Object.assign(() => order.push("durable-log"), {
       host: () => order.push("host-log"),
@@ -174,7 +174,7 @@ test("graceful close never reports completion when a finalizer fails", async () 
       throw failure;
     },
     repositories: null,
-    server: /** @type {any} */ ({ listening: false }),
+    server: /** @type {any} */ ({ server: { listening: false } }),
     shutdownBoundary: createApplicationShutdownBoundary(),
     writeLog: Object.assign(() => {}, {
       host: (/** @type {string} */ line) => hostLogs.push(JSON.parse(line)),

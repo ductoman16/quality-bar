@@ -53,11 +53,8 @@ test("browser product traffic cannot bootstrap an operator password", async () =
     throw new Error("operator_password_browser_application_not_ready");
   }
   applications.push(application);
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = application.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("operator_password_browser_address_unavailable");
   }

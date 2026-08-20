@@ -12,10 +12,7 @@ export function canonicalGitHubDeliveryProperties() {
     last_attempt_at: timestamp,
     next_attempt_at: timestamp,
     provider_gate_error: {
-      oneOf: [
-        { $ref: "#/components/schemas/GitHubFeedbackPublicationError" },
-        { type: "null" },
-      ],
+      oneOf: [{ $ref: "GitHubFeedbackPublicationError#" }, { type: "null" }],
     },
     provider_gate_until: timestamp,
     reconciliation_required: { type: "boolean" },
@@ -38,10 +35,7 @@ export const GITHUB_DELIVERY_REQUIRED = [
 
 export function canonicalGitHubFeedbackSchemas() {
   const error = {
-    oneOf: [
-      { $ref: "#/components/schemas/GitHubFeedbackPublicationError" },
-      { type: "null" },
-    ],
+    oneOf: [{ $ref: "GitHubFeedbackPublicationError#" }, { type: "null" }],
   };
   const externalId = {
     oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
@@ -103,11 +97,11 @@ export function canonicalGitHubFeedbackSchemas() {
     GitHubEvaluationFeedback: closedObject(
       {
         aggregate: {
-          $ref: "#/components/schemas/GitHubAggregateFeedbackPublication",
+          $ref: "GitHubAggregateFeedbackPublication#",
         },
         findings: {
           items: {
-            $ref: "#/components/schemas/GitHubFindingFeedbackPublication",
+            $ref: "GitHubFindingFeedbackPublication#",
           },
           type: "array",
         },

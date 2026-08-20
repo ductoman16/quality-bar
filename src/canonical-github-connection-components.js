@@ -141,38 +141,26 @@ export function canonicalGitHubConnectionSchemas() {
             ],
           },
           capabilities: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubCapabilityEvidence" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubCapabilityEvidence#" }, { type: "null" }],
           },
           error: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubVerificationError" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubVerificationError#" }, { type: "null" }],
           },
           id: { minLength: 1, type: "string" },
           outcome: { enum: ["success", "error"], type: "string" },
           permissions: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubPermissions" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubPermissions#" }, { type: "null" }],
           },
           principal: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubPrincipal" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubPrincipal#" }, { type: "null" }],
           },
           repositories: {
-            items: { $ref: "#/components/schemas/GitHubRepositoryEvidence" },
+            items: { $ref: "GitHubRepositoryEvidence#" },
             type: "array",
           },
           repository_checks: {
             items: {
-              $ref: "#/components/schemas/GitHubRepositoryVerificationCheck",
+              $ref: "GitHubRepositoryVerificationCheck#",
             },
             minItems: 1,
             type: "array",
@@ -211,12 +199,12 @@ export function canonicalGitHubConnectionSchemas() {
               type: "string",
             },
             capabilities: {
-              $ref: "#/components/schemas/GitHubCapabilityEvidence",
+              $ref: "GitHubCapabilityEvidence#",
             },
             error: { type: "null" },
             outcome: { const: "success" },
-            permissions: { $ref: "#/components/schemas/GitHubPermissions" },
-            principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+            permissions: { $ref: "GitHubPermissions#" },
+            principal: { $ref: "GitHubPrincipal#" },
             repositories: { minItems: 1 },
             repository_checks: {
               items: closedObject(
@@ -244,7 +232,7 @@ export function canonicalGitHubConnectionSchemas() {
         {
           properties: {
             error: {
-              $ref: "#/components/schemas/GitHubVerificationError",
+              $ref: "GitHubVerificationError#",
             },
             outcome: { const: "error" },
           },
@@ -259,33 +247,27 @@ export function canonicalGitHubConnectionSchemas() {
           app_id: { minimum: 1, type: "integer" },
           app_slug: { minLength: 1, type: "string" },
           capabilities: {
-            $ref: "#/components/schemas/GitHubCapabilityEvidence",
+            $ref: "GitHubCapabilityEvidence#",
           },
           health: { enum: ["healthy", "error"], type: "string" },
           health_error: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubConnectionHealthError" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubConnectionHealthError#" }, { type: "null" }],
           },
           id: { minLength: 1, type: "string" },
           lifecycle: { enum: ["enabled", "retired"], type: "string" },
-          permissions: { $ref: "#/components/schemas/GitHubPermissions" },
+          permissions: { $ref: "GitHubPermissions#" },
           polling: {
-            items: { $ref: "#/components/schemas/GitHubPollingState" },
+            items: { $ref: "GitHubPollingState#" },
             type: "array",
           },
           polling_failure: {
-            oneOf: [
-              { $ref: "#/components/schemas/GitHubPollingFailure" },
-              { type: "null" },
-            ],
+            oneOf: [{ $ref: "GitHubPollingFailure#" }, { type: "null" }],
           },
-          principal: { $ref: "#/components/schemas/GitHubPrincipal" },
+          principal: { $ref: "GitHubPrincipal#" },
           repository_count: { minimum: 1, type: "integer" },
           verification_history: {
             items: {
-              $ref: "#/components/schemas/GitHubConnectionVerification",
+              $ref: "GitHubConnectionVerification#",
             },
             minItems: 1,
             type: "array",
@@ -322,7 +304,7 @@ export function canonicalGitHubConnectionSchemas() {
           properties: {
             health: { const: "error" },
             health_error: {
-              $ref: "#/components/schemas/GitHubConnectionHealthError",
+              $ref: "GitHubConnectionHealthError#",
             },
           },
           required: ["health", "health_error"],

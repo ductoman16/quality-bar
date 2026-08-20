@@ -27,7 +27,7 @@ export function canonicalSystemFactSchemas(codexCapabilityCatalog) {
     ),
     CodexFact: openObject(
       {
-        catalog: { $ref: "#/components/schemas/CodexCapabilityCatalog" },
+        catalog: { $ref: "CodexCapabilityCatalog#" },
         error: { type: "string" },
         status: { enum: ["available", "unavailable"], type: "string" },
       },
@@ -41,7 +41,7 @@ export function canonicalSystemFactSchemas(codexCapabilityCatalog) {
             type: "string",
           },
           models: {
-            items: { $ref: "#/components/schemas/CodexModelCapability" },
+            items: { $ref: "CodexModelCapability#" },
             minItems: 1,
             type: "array",
           },
@@ -102,7 +102,7 @@ export function canonicalSystemFactSchemas(codexCapabilityCatalog) {
     ),
     ExecutionProviderFact: openObject(
       {
-        error: { $ref: "#/components/schemas/ExecutionProviderError" },
+        error: { $ref: "ExecutionProviderError#" },
         id: { minLength: 1, type: "string" },
         name: { minLength: 1, type: "string" },
         status: { enum: ["available", "unavailable"], type: "string" },

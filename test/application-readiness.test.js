@@ -92,11 +92,8 @@ async function startApplication(databasePath, options = {}) {
     createCodexRuntime: options.createCodexRuntime,
     writeLog: options.writeLog ?? (() => {}),
   });
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = application.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("application_readiness_address_unavailable");
   }

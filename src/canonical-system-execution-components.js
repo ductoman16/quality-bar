@@ -1,11 +1,11 @@
 import { closedObject } from "./canonical-schema.js";
 
 const failureDetail = {
-  $ref: "#/components/schemas/CodexExecutionSystemFailureDetail",
+  $ref: "CodexExecutionSystemFailureDetail#",
 };
 const retryError = { anyOf: [failureDetail, { type: "null" }] };
-const gate = { $ref: "#/components/schemas/CodexExecutionSystemGate" };
-const lease = { $ref: "#/components/schemas/CodexExecutionSystemLease" };
+const gate = { $ref: "CodexExecutionSystemGate#" };
+const lease = { $ref: "CodexExecutionSystemLease#" };
 
 /** @param {"queued" | "running"} executionStatus @param {Record<string, unknown>} resource */
 function executionRow(executionStatus, resource) {
@@ -65,16 +65,16 @@ export function canonicalSystemExecutionSchemas() {
     CodexExecutionSystemFact: closedObject(
       {
         concurrency: {
-          $ref: "#/components/schemas/CodexExecutionSystemConcurrency",
+          $ref: "CodexExecutionSystemConcurrency#",
         },
         failures: {
           items: {
-            $ref: "#/components/schemas/CodexExecutionSystemFailure",
+            $ref: "CodexExecutionSystemFailure#",
           },
           type: "array",
         },
-        queue: { $ref: "#/components/schemas/CodexExecutionSystemQueue" },
-        running: { $ref: "#/components/schemas/CodexExecutionSystemRunning" },
+        queue: { $ref: "CodexExecutionSystemQueue#" },
+        running: { $ref: "CodexExecutionSystemRunning#" },
       },
       ["concurrency", "queue", "running", "failures"],
     ),
@@ -91,7 +91,7 @@ export function canonicalSystemExecutionSchemas() {
         count: { minimum: 0, type: "integer" },
         rows: {
           items: {
-            $ref: "#/components/schemas/CodexExecutionSystemQueuedRow",
+            $ref: "CodexExecutionSystemQueuedRow#",
           },
           type: "array",
         },
@@ -103,7 +103,7 @@ export function canonicalSystemExecutionSchemas() {
         count: { minimum: 0, type: "integer" },
         rows: {
           items: {
-            $ref: "#/components/schemas/CodexExecutionSystemRunningRow",
+            $ref: "CodexExecutionSystemRunningRow#",
           },
           type: "array",
         },

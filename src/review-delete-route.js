@@ -2,20 +2,19 @@ import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { isUnavailableError } from "./http-request.js";
 
 /**
- * @param {import("node:http").IncomingMessage} request
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyRequest} request
+ * @param {import("fastify").FastifyReply} response
  * @param {{
  *   browserOrigin: string,
  *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   reviews: Pick<ReturnType<typeof import("./review.js").createReviewService>, "list" | "remove">,
  *   encodedReviewId: string,
- *   requestUrl: URL
  * }} options
  */
 export async function writeReviewDeletion(
   request,
   response,
-  { browserOrigin, browserSessions, reviews, encodedReviewId, requestUrl },
+  { browserOrigin, browserSessions, reviews, encodedReviewId },
 ) {
   /** @type {string | undefined} */
   let reviewId;
@@ -49,7 +48,6 @@ export async function writeReviewDeletion(
       reviews.remove(reviewId, body);
       return null;
     },
-    requestUrl,
     statusFor: (code, error) =>
       code === "request_malformed" ||
       code === "review_deletion_request_malformed"

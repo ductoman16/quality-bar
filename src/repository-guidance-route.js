@@ -3,7 +3,7 @@ import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson, writeStatus } from "./http-response.js";
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>} repositoryGuidance
  * @param {string} encodedRepositoryId
  * @param {string | string[] | undefined} ifNoneMatch

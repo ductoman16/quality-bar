@@ -141,8 +141,8 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
     application.durableCore,
     "a correct operator password",
   );
-  await listen(application.server);
-  const applicationAddress = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const applicationAddress = application.server.server.address();
   if (!applicationAddress || typeof applicationAddress === "string") {
     throw new Error("operator_browser_application_address_unavailable");
   }

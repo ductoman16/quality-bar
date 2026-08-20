@@ -1,5 +1,4 @@
 import {
-  assertAllowedQueryParameters,
   assertNoMixedCredentials,
   authenticationFailureStatus,
   browserMutationFailureStatus,
@@ -7,36 +6,16 @@ import {
   csrfCookie,
   implementerTokenFailureStatus,
   passwordMutationFailureStatus,
-  readImplementerTokenRequest,
-  readLoginRequest,
-  readPasswordChangeRequest,
-  readSessionRevocationRequest,
-  requireBrowserMutationWithQuery,
+  requireBrowserMutation,
   sessionCookie,
 } from "./http-request.js";
 import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeEmpty, writeError, writeJson } from "./http-response.js";
 
-const BROWSER_SESSION_ROUTES = new Map([
-  ["/api/v1/session/login", "login"],
-  ["/api/v1/session/logout", "session_logout"],
-  ["/api/v1/session/activity", "session_activity"],
-  ["/api/v1/session/password", "password_change"],
-  ["/api/v1/sessions/revoke", "session_revoke_all"],
-  ["/api/v1/implementer-token", "implementer_token_create"],
-  ["/api/v1/implementer-token/rotate", "implementer_token_rotate"],
-  ["/api/v1/implementer-token/revoke", "implementer_token_revoke"],
-]);
+/** @typedef {{action: string, channel: string, errorCode?: string, outcome: string}} AttributionEvent */
+/** @typedef {(request: import("fastify").FastifyRequest, response: import("fastify").FastifyReply) => unknown} HttpHandler */
 
-/**
- * @typedef {{
- *   action: string,
- *   channel: string,
- *   errorCode?: string,
- *   outcome: string
- * }} AttributionEvent
- */
 /** @param {ReturnType<typeof requireCodedError>} error */
 function loginRetryAfterSeconds(error) {
   if (
@@ -45,72 +24,104 @@ function loginRetryAfterSeconds(error) {
   ) {
     throw new TypeError(
       "login_throttled error must provide retryAfterSeconds",
-      {
-        cause: error,
-      },
+      { cause: error },
     );
   }
   return error.retryAfterSeconds;
 }
 
-/**
- * @param {import("node:http").ServerResponse} response
- * @param {ReturnType<typeof requireCodedError>} error
- * @param {(code: string) => number} status
- */
-function writeMalformedOrAuthenticationError(response, error, status) {
+/** @param {import("fastify").FastifyReply} response @param {ReturnType<typeof requireCodedError>} error @param {(code: string) => number} status */
+function writeAuthenticationError(response, error, status) {
   if (error.message === "request_malformed") {
     writeError(response, 400, "request_malformed", "Request is malformed");
-    return;
+  } else {
+    writeError(response, status(error.code), error.code, error.message);
   }
-  writeError(response, status(error.code), error.code, error.message);
 }
 
-/**
- * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
- *   implementerTokens: ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>,
- *   recordAuthorityAttribution: (event: AttributionEvent) => void,
- *   secureBrowserCookie: boolean
- * }} dependencies
- */
-export function createBrowserSessionRoute({
+/** @param {{browserOrigin: string, browserSessions: any, implementerTokens: any, recordAuthorityAttribution: (event: AttributionEvent) => void, secureBrowserCookie: boolean}} dependencies */
+export function createBrowserSessionOperations({
   browserOrigin,
   browserSessions,
   implementerTokens,
   recordAuthorityAttribution,
   secureBrowserCookie,
 }) {
-  /**
-   * @param {import("node:http").IncomingMessage} request
-   * @param {import("node:http").ServerResponse} response
-   * @param {URL} requestUrl
-   */
-  return async function handleBrowserSession(request, response, requestUrl) {
-    const { method } = request;
-    const path = requestUrl.pathname;
-    const route = method === "POST" ? BROWSER_SESSION_ROUTES.get(path) : null;
-    if (!route) {
-      return false;
-    }
-    if (
-      request.headers.authorization !== undefined &&
-      request.headers.cookie === undefined
-    ) {
-      writeMachineOperatorAccessDenial(
-        request,
-        response,
-        implementerTokens,
-        recordAuthorityAttribution,
+  /** @param {import("fastify").FastifyRequest} request */
+  const requireMutation = (request) =>
+    requireBrowserMutation(browserSessions, request, browserOrigin);
+
+  /** @param {string} action @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response @param {() => void} mutate */
+  function passwordMutation(action, request, response, mutate) {
+    try {
+      requireMutation(request);
+      mutate();
+    } catch (error) {
+      const failure = requireCodedError(error);
+      recordAuthorityAttribution({
+        action,
+        channel: "browser_session",
+        errorCode: failure.code,
+        outcome: "failure",
+      });
+      writeAuthenticationError(response, failure, (code) =>
+        browserMutationFailureStatus(code) === 403
+          ? 403
+          : passwordMutationFailureStatus(code),
       );
-      return true;
     }
-    if (route === "login") {
+  }
+
+  /** @param {"implementer_token_create" | "implementer_token_revoke" | "implementer_token_rotate"} action @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+  function implementerTokenMutation(action, request, response) {
+    try {
+      requireMutation(request);
+      const { password } = /** @type {{password: string}} */ (request.body);
+      if (action === "implementer_token_revoke") {
+        implementerTokens.revoke(password);
+        writeEmpty(response);
+      } else {
+        const rotating = action === "implementer_token_rotate";
+        const token = rotating
+          ? implementerTokens.rotate(password)
+          : implementerTokens.create(password);
+        writeJson(response, rotating ? 200 : 201, { token });
+      }
+    } catch (error) {
+      const failure = requireCodedError(error);
+      recordAuthorityAttribution({
+        action,
+        channel: "browser_session",
+        errorCode: failure.code,
+        outcome: "failure",
+      });
+      writeAuthenticationError(response, failure, (code) =>
+        browserMutationFailureStatus(code) === 403
+          ? 403
+          : implementerTokenFailureStatus(code),
+      );
+    }
+  }
+
+  /** @type {Record<string, HttpHandler>} */
+  const operations = {
+    /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+    loginOperator(request, response) {
+      if (
+        request.headers.authorization !== undefined &&
+        request.headers.cookie === undefined
+      ) {
+        writeMachineOperatorAccessDenial(
+          request,
+          response,
+          implementerTokens,
+          recordAuthorityAttribution,
+        );
+        return;
+      }
       try {
-        assertAllowedQueryParameters(requestUrl, new Set());
         assertNoMixedCredentials(request);
-        const { password } = await readLoginRequest(request);
+        const { password } = /** @type {{password: string}} */ (request.body);
         const { csrfToken, secret } = browserSessions.login(password);
         writeEmpty(response, {
           "set-cookie": [
@@ -128,37 +139,21 @@ export function createBrowserSessionRoute({
             outcome: "failure",
           });
         }
-        if (failure.message === "request_malformed") {
-          writeError(
-            response,
-            400,
-            "request_malformed",
-            "Request is malformed",
-          );
-        } else {
-          writeError(
-            response,
-            authenticationFailureStatus(failure.code),
-            failure.code,
-            failure.message,
-            failure.code === "login_throttled"
-              ? { "retry-after": String(loginRetryAfterSeconds(failure)) }
-              : undefined,
-          );
-        }
-      }
-      return true;
-    }
-    if (route === "session_logout") {
-      try {
-        browserSessions.logout(
-          requireBrowserMutationWithQuery(
-            browserSessions,
-            request,
-            browserOrigin,
-            requestUrl,
-          ),
+        writeError(
+          response,
+          authenticationFailureStatus(failure.code),
+          failure.code,
+          failure.message,
+          failure.code === "login_throttled"
+            ? { "retry-after": String(loginRetryAfterSeconds(failure)) }
+            : undefined,
         );
+      }
+    },
+    /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+    logoutOperator(request, response) {
+      try {
+        browserSessions.logout(requireMutation(request));
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
@@ -170,22 +165,17 @@ export function createBrowserSessionRoute({
           errorCode: failure.code,
           outcome: "failure",
         });
-        writeMalformedOrAuthenticationError(
+        writeAuthenticationError(
           response,
           failure,
           browserMutationFailureStatus,
         );
       }
-      return true;
-    }
-    if (route === "session_activity") {
+    },
+    /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+    recordBrowserSessionActivity(request, response) {
       try {
-        const secret = requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
+        const secret = requireMutation(request);
         if (
           !browserSessions.touch(
             secret,
@@ -207,54 +197,33 @@ export function createBrowserSessionRoute({
           errorCode: failure.code,
           outcome: "failure",
         });
-        writeMalformedOrAuthenticationError(
+        writeAuthenticationError(
           response,
           failure,
           browserMutationFailureStatus,
         );
       }
-      return true;
-    }
-    if (route === "password_change") {
-      try {
-        requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
+    },
+    /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+    changeOperatorPassword(request, response) {
+      passwordMutation("password_change", request, response, () => {
         const { current_password, new_password } =
-          await readPasswordChangeRequest(request);
+          /** @type {{current_password: string, new_password: string}} */ (
+            request.body
+          );
         browserSessions.changePassword(current_password, new_password);
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: "password_change",
-          channel: "browser_session",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeMalformedOrAuthenticationError(response, failure, (code) =>
-          browserMutationFailureStatus(code) === 403
-            ? 403
-            : passwordMutationFailureStatus(code),
-        );
-      }
-      return true;
-    }
-    if (route === "session_revoke_all") {
-      try {
-        requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
+      });
+    },
+    /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+    revokeBrowserSessions(request, response) {
+      passwordMutation("session_revoke_all", request, response, () => {
         const { confirmation, password } =
-          await readSessionRevocationRequest(request);
+          /** @type {{confirmation: string, password: string}} */ (
+            request.body
+          );
         if (confirmation !== "REVOKE ALL SESSIONS") {
           throw Object.assign(
             new Error("Global browser-session revocation must be confirmed"),
@@ -265,63 +234,14 @@ export function createBrowserSessionRoute({
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: "session_revoke_all",
-          channel: "browser_session",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeMalformedOrAuthenticationError(response, failure, (code) =>
-          browserMutationFailureStatus(code) === 403
-            ? 403
-            : passwordMutationFailureStatus(code),
-        );
-      }
-      return true;
-    }
-    if (route.startsWith("implementer_token_")) {
-      try {
-        requireBrowserMutationWithQuery(
-          browserSessions,
-          request,
-          browserOrigin,
-          requestUrl,
-        );
-        const { password } = await readImplementerTokenRequest(request);
-        if (route === "implementer_token_revoke") {
-          implementerTokens.revoke(password);
-          writeEmpty(response);
-        } else {
-          const token =
-            route === "implementer_token_rotate"
-              ? implementerTokens.rotate(password)
-              : implementerTokens.create(password);
-          writeJson(
-            response,
-            route === "implementer_token_rotate" ? 200 : 201,
-            {
-              token,
-            },
-          );
-        }
-      } catch (error) {
-        const failure = requireCodedError(error);
-        recordAuthorityAttribution({
-          action: route,
-          channel: "browser_session",
-          errorCode: failure.code,
-          outcome: "failure",
-        });
-        writeMalformedOrAuthenticationError(response, failure, (code) =>
-          browserMutationFailureStatus(code) === 403
-            ? 403
-            : implementerTokenFailureStatus(code),
-        );
-      }
-      return true;
-    }
-    return false;
+      });
+    },
+    createImplementerToken: (request, response) =>
+      implementerTokenMutation("implementer_token_create", request, response),
+    rotateImplementerToken: (request, response) =>
+      implementerTokenMutation("implementer_token_rotate", request, response),
+    revokeImplementerToken: (request, response) =>
+      implementerTokenMutation("implementer_token_revoke", request, response),
   };
+  return operations;
 }

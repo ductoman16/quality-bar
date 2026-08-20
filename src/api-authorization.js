@@ -15,7 +15,7 @@ import { writeError } from "./http-response.js";
  */
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
  */
 export function forbidMachineOperatorAccess(
@@ -37,8 +37,8 @@ export function forbidMachineOperatorAccess(
 }
 
 /**
- * @param {import("node:http").IncomingMessage} request
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyRequest} request
+ * @param {import("fastify").FastifyReply} response
  * @param {ReturnType<typeof import("./implementer-token.js").createImplementerTokenService>} implementerTokens
  * @param {(event: AttributionEvent) => void} recordAuthorityAttribution
  */

@@ -1,7 +1,7 @@
 import { closedObject } from "./canonical-schema.js";
 
 const error = {
-  $ref: "#/components/schemas/SystemPollingDeliveryError",
+  $ref: "SystemPollingDeliveryError#",
 };
 const nullableError = { oneOf: [error, { type: "null" }] };
 const nullableTimestamp = { format: "date-time", type: ["string", "null"] };
@@ -16,7 +16,7 @@ const pollingConnectionProperties = {
   rate_gate_until: nullableTimestamp,
   repositories: {
     items: {
-      $ref: "#/components/schemas/SystemPollingRepositoryFact",
+      $ref: "SystemPollingRepositoryFact#",
     },
     type: "array",
   },
@@ -71,8 +71,8 @@ export function canonicalSystemPollingDeliverySchemas() {
     ),
     SystemPollingExternalIdentity: {
       oneOf: [
-        { $ref: "#/components/schemas/SystemGitHubPollingExternalIdentity" },
-        { $ref: "#/components/schemas/SystemForgejoPollingExternalIdentity" },
+        { $ref: "SystemGitHubPollingExternalIdentity#" },
+        { $ref: "SystemForgejoPollingExternalIdentity#" },
       ],
     },
     SystemPollingRepositoryFact: closedObject(
@@ -115,7 +115,7 @@ export function canonicalSystemPollingDeliverySchemas() {
       {
         ...pollingConnectionProperties,
         external_identity: {
-          $ref: "#/components/schemas/SystemGitHubPollingExternalIdentity",
+          $ref: "SystemGitHubPollingExternalIdentity#",
         },
         provider: { const: "github", type: "string" },
       },
@@ -125,7 +125,7 @@ export function canonicalSystemPollingDeliverySchemas() {
       {
         ...pollingConnectionProperties,
         external_identity: {
-          $ref: "#/components/schemas/SystemForgejoPollingExternalIdentity",
+          $ref: "SystemForgejoPollingExternalIdentity#",
         },
         provider: { const: "forgejo", type: "string" },
       },
@@ -133,15 +133,15 @@ export function canonicalSystemPollingDeliverySchemas() {
     ),
     SystemPollingConnectionFact: {
       oneOf: [
-        { $ref: "#/components/schemas/SystemGitHubPollingConnectionFact" },
-        { $ref: "#/components/schemas/SystemForgejoPollingConnectionFact" },
+        { $ref: "SystemGitHubPollingConnectionFact#" },
+        { $ref: "SystemForgejoPollingConnectionFact#" },
       ],
     },
     SystemPollingFact: closedObject(
       {
         connections: {
           items: {
-            $ref: "#/components/schemas/SystemPollingConnectionFact",
+            $ref: "SystemPollingConnectionFact#",
           },
           type: "array",
         },
@@ -223,7 +223,7 @@ export function canonicalSystemPollingDeliverySchemas() {
       {
         surfaces: {
           items: {
-            $ref: "#/components/schemas/SystemDeliverySurfaceFact",
+            $ref: "SystemDeliverySurfaceFact#",
           },
           type: "array",
         },
