@@ -192,6 +192,35 @@ it("renders complete polling and delivery facts and saves configuration", async 
   expect(
     validSystem({ ...system, durable_core: { status: "probably-ready" } }),
   ).toBe(false);
+  expect(
+    validSystem({
+      ...system,
+      execution_providers: [
+        {
+          error: { code: "invalid", message: "Invalid", recovery: "Retry" },
+          id: "codex",
+          name: "Codex",
+          status: "available",
+        },
+      ],
+    }),
+  ).toBe(false);
+  expect(
+    validSystem({
+      ...system,
+      codex_execution: {
+        ...system.codex_execution,
+        failures: [
+          {
+            completed_at: timestamp,
+            error: null,
+            evaluation_id: "evaluation-1",
+            review_run_id: "run-1",
+          },
+        ],
+      },
+    }),
+  ).toBe(false);
   const wrapper = mount(SystemView, {
     props: { csrfCookieName: "qb_csrf" },
   });

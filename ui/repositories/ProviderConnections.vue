@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from "vue";
 import { csrfRequest, responseMessage } from "../browser.js";
 import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
 import GitHubManifestContinuation from "./GitHubManifestContinuation.vue";
+import ProviderConnectionFacts from "./ProviderConnectionFacts.vue";
 import {
   validForgejoChoices,
   validForgejoConnection,
@@ -73,11 +74,7 @@ async function startGitHub() {
       : "/api/v1/github-connections/manifest",
     reactivating ? { pem: githubPem.value } : {},
   );
-  await requireResponse(
-    response,
-    reactivating ? 200 : 201,
-    "GitHub App Manifest flow",
-  );
+  await requireResponse(response, 200, "GitHub App Manifest flow");
   if (reactivating) {
     const value = await response.json();
     if (value === null || !validGitHubConnection(value))
@@ -245,22 +242,7 @@ onMounted(() => safe(load));
       </button>
     </form>
     <template v-if="github"
-      ><dl>
-        <dt>Identity</dt>
-        <dd>{{ github.principal?.login }}</dd>
-        <dt>Lifecycle</dt>
-        <dd>{{ github.lifecycle }}</dd>
-        <dt>Health</dt>
-        <dd>{{ github.health_error?.message || github.health }}</dd>
-        <dt>Permissions</dt>
-        <dd>
-          {{
-            Object.entries(github.permissions || {})
-              .map(([name, value]) => `${name}: ${value}`)
-              .join("; ")
-          }}
-        </dd>
-      </dl>
+      ><ProviderConnectionFacts :connection="github" provider="GitHub" />
       <form
         v-if="github.lifecycle !== 'retired'"
         @submit.prevent="safe(rotateGitHub)"
@@ -351,14 +333,7 @@ onMounted(() => safe(load));
       </form></template
     >
     <template v-else
-      ><dl>
-        <dt>Repository owner</dt>
-        <dd>{{ forgejo.principal?.login }}</dd>
-        <dt>Lifecycle</dt>
-        <dd>{{ forgejo.lifecycle }}</dd>
-        <dt>Health</dt>
-        <dd>{{ forgejo.health_error?.message || forgejo.health }}</dd>
-      </dl>
+      ><ProviderConnectionFacts :connection="forgejo" provider="Forgejo" />
       <form
         v-if="forgejo.lifecycle !== 'retired'"
         @submit.prevent="safe(rotateForgejo)"

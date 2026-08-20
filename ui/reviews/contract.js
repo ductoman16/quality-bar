@@ -1,7 +1,8 @@
-import { modelCapability, nonempty, record } from "../contract.js";
+import { exact, modelCapability, nonempty, record } from "../contract.js";
 
 const criterion = (value) =>
   record(value) &&
+  exact(value, ["id", "impact", "instruction", "position"]) &&
   nonempty(value.id) &&
   Number.isSafeInteger(value.position) &&
   value.position > 0 &&
@@ -10,6 +11,13 @@ const criterion = (value) =>
 
 const version = (value) =>
   record(value) &&
+  exact(value, [
+    "applicability_rule",
+    "codex_configuration",
+    "criteria",
+    "id",
+    "number",
+  ]) &&
   nonempty(value.id) &&
   Number.isSafeInteger(value.number) &&
   value.number > 0 &&
@@ -18,6 +26,11 @@ const version = (value) =>
   value.criteria.length > 0 &&
   value.criteria.every(criterion) &&
   record(value.codex_configuration) &&
+  exact(value.codex_configuration, [
+    "model",
+    "reasoning_effort",
+    "service_tier",
+  ]) &&
   ["model", "reasoning_effort", "service_tier"].every((name) =>
     nonempty(value.codex_configuration[name]),
   );
@@ -39,6 +52,16 @@ export const matchesReviewVersion = (version, snapshot) =>
 
 export const validReview = (value) =>
   record(value) &&
+  exact(value, [
+    "active_version",
+    "archived",
+    "assignment",
+    "deletion_eligible",
+    "description",
+    "id",
+    "name",
+    "versions",
+  ]) &&
   nonempty(value.id) &&
   nonempty(value.name) &&
   nonempty(value.description) &&
@@ -46,9 +69,13 @@ export const validReview = (value) =>
   typeof value.deletion_eligible === "boolean" &&
   record(value.assignment) &&
   ["installation_wide", "repository_set"].includes(value.assignment.scope) &&
-  (value.assignment.scope === "installation_wide" ||
-    (Array.isArray(value.assignment.repository_ids) &&
-      value.assignment.repository_ids.every(nonempty))) &&
+  (value.assignment.scope === "installation_wide"
+    ? exact(value.assignment, ["scope"])
+    : exact(value.assignment, ["repository_ids", "scope"]) &&
+      Array.isArray(value.assignment.repository_ids) &&
+      new Set(value.assignment.repository_ids).size ===
+        value.assignment.repository_ids.length &&
+      value.assignment.repository_ids.every(nonempty)) &&
   version(value.active_version) &&
   Array.isArray(value.versions) &&
   value.versions.length > 0 &&
@@ -56,12 +83,14 @@ export const validReview = (value) =>
 
 export const validReviewChange = (value) =>
   record(value) &&
+  exact(value, ["changed", "review"]) &&
   typeof value.changed === "boolean" &&
   validReview(value.review);
 
 export const readReviewCollection = (value) => {
   if (
     !record(value) ||
+    !exact(value, ["reviews"]) ||
     !Array.isArray(value.reviews) ||
     !value.reviews.every(validReview)
   ) {

@@ -1,19 +1,4 @@
-import {
-  count,
-  errorFact,
-  exact,
-  httpsUrl,
-  nonempty,
-  record,
-} from "../contract.js";
-
-/** @param {any} value */
-const repositoryChoice = (value) =>
-  record(value) &&
-  Number.isSafeInteger(value.id) &&
-  value.id > 0 &&
-  nonempty(value.full_name) &&
-  typeof value.private === "boolean";
+import { count, exact, httpsUrl, nonempty, record } from "../contract.js";
 
 /** @param {any} value */
 export const validRepository = (value) =>
@@ -67,73 +52,66 @@ export const validRepository = (value) =>
       nonempty(value.web_url)));
 
 /** @param {any} value */
-export const validGuidance = (value) =>
-  record(value) &&
-  Array.isArray(value.reviews) &&
-  /** @type {any[]} */ (value.reviews).every(
-    (review) =>
-      record(review) &&
-      nonempty(review.id) &&
-      nonempty(review.name) &&
-      Array.isArray(review.criteria) &&
-      /** @type {any[]} */ (review.criteria).every(
-        (criterion) =>
-          record(criterion) &&
-          nonempty(criterion.id) &&
-          ["advisory", "blocking"].includes(criterion.impact) &&
-          nonempty(criterion.instruction),
-      ),
-  );
-
-/** @param {any} value */
-const validPrincipal = (value) =>
-  record(value) &&
-  Number.isSafeInteger(value.id) &&
-  value.id > 0 &&
-  nonempty(value.login);
-
-/** @param {any} value @param {(value: any) => boolean} [choice] */
-const validVerification = (value, choice = repositoryChoice) =>
-  record(value) &&
-  nonempty(value.id) &&
-  nonempty(value.trigger) &&
-  Number.isSafeInteger(value.verified_at) &&
-  Array.isArray(value.repositories) &&
-  value.repositories.every(choice);
-
-/** @param {any} value */
-const validGitHubVerification = (value) =>
-  validVerification(value) &&
-  ["onboarding", "repository_selection", "enablement", "rotation"].includes(
-    value.trigger,
-  ) &&
-  ["success", "error"].includes(value.outcome) &&
-  Array.isArray(value.affected_repository_ids) &&
-  value.affected_repository_ids.length > 0 &&
-  new Set(value.affected_repository_ids).size ===
-    value.affected_repository_ids.length &&
-  /** @type {any[]} */ (value.affected_repository_ids).every(
-    (id) => Number.isSafeInteger(id) && id > 0,
-  );
-
-/** @param {any} value */
-export const validGitHubConnection = (value) =>
-  value === null ||
-  (record(value) &&
-    nonempty(value.id) &&
-    ["enabled", "retired"].includes(value.lifecycle) &&
-    ["healthy", "error"].includes(value.health) &&
-    errorFact(value.health_error) &&
-    validPrincipal(value.principal) &&
-    record(value.permissions) &&
-    Object.values(value.permissions).every((permission) =>
-      nonempty(permission),
+export const validGuidance = (value) => {
+  const validReview = (/** @type {any} */ review) =>
+    record(review) &&
+    exact(review, [
+      "active_version",
+      "applicability",
+      "assignment",
+      "criteria",
+      "description",
+      "id",
+      "name",
+    ]) &&
+    nonempty(review.id) &&
+    nonempty(review.name) &&
+    nonempty(review.description) &&
+    record(review.active_version) &&
+    exact(review.active_version, ["id", "number"]) &&
+    nonempty(review.active_version.id) &&
+    Number.isSafeInteger(review.active_version.number) &&
+    review.active_version.number > 0 &&
+    record(review.assignment) &&
+    exact(review.assignment, ["scope"]) &&
+    ["installation_wide", "repository_specific"].includes(
+      review.assignment.scope,
     ) &&
-    Array.isArray(value.verification_history) &&
-    value.verification_history.length > 0 &&
-    /** @type {any[]} */ (value.verification_history).every(
-      validGitHubVerification,
-    ));
+    record(review.applicability) &&
+    (review.applicability.type === "unconditional"
+      ? exact(review.applicability, ["type"])
+      : review.applicability.type === "conditional" &&
+        exact(review.applicability, ["expression", "profile", "type"]) &&
+        nonempty(review.applicability.expression) &&
+        review.applicability.profile === "quality-bar-restricted-cel-v1") &&
+    Array.isArray(review.criteria) &&
+    review.criteria.length > 0 &&
+    review.criteria.every(
+      (criterion) =>
+        record(criterion) &&
+        exact(criterion, ["id", "impact", "instruction"]) &&
+        nonempty(criterion.id) &&
+        ["advisory", "blocking"].includes(criterion.impact) &&
+        nonempty(criterion.instruction),
+    );
+  return (
+    record(value) &&
+    exact(value, [
+      "guidance_revision",
+      "repository",
+      "reviews",
+      "schema_version",
+    ]) &&
+    value.schema_version === 1 &&
+    /^guidance-v1-[A-Za-z0-9_-]{43}$/.test(value.guidance_revision) &&
+    record(value.repository) &&
+    exact(value.repository, ["id", "url"]) &&
+    nonempty(value.repository.id) &&
+    httpsUrl(value.repository.url) &&
+    Array.isArray(value.reviews) &&
+    value.reviews.every(validReview)
+  );
+};
 
 /** @param {any} value @param {number[]} selected @param {string} requestId */
 export const validGitHubSelection = (value, selected, requestId) =>
@@ -149,52 +127,9 @@ export const validGitHubSelection = (value, selected, requestId) =>
   new Set(value.map((repository) => repository.forge_repository_id)).size ===
     selected.length;
 
-/** @param {any} value */
-const forgejoChoice = (value) =>
-  record(value) &&
-  Number.isSafeInteger(value.id) &&
-  value.id > 0 &&
-  nonempty(value.full_name);
-
-/** @param {any} value */
-export const validForgejoChoices = (value) =>
-  Array.isArray(value) && value.length > 0 && value.every(forgejoChoice);
-
-/** @param {any} value */
-export const validForgejoConnection = (value) =>
-  value === null ||
-  (record(value) &&
-    nonempty(value.id) &&
-    ["enabled", "retired"].includes(value.lifecycle) &&
-    ["healthy", "error"].includes(value.health) &&
-    errorFact(value.health_error) &&
-    validPrincipal(value.principal) &&
-    Array.isArray(value.verification_history) &&
-    value.verification_history.length > 0 &&
-    /** @type {any[]} */ (value.verification_history).every((item) =>
-      validVerification(
-        item,
-        (repository) =>
-          record(repository) &&
-          (Number.isSafeInteger(repository.id) ||
-            Number.isSafeInteger(repository.forge_repository_id)) &&
-          (nonempty(repository.full_name) || nonempty(repository.outcome)),
-      ),
-    ));
-
-/** @param {any} value */
-export const validManifestContinuation = (value) =>
-  record(value) &&
-  value.method === "POST" &&
-  typeof value.state === "string" &&
-  /^[A-Za-z0-9_-]{8,256}$/.test(value.state) &&
-  value.action ===
-    `https://github.com/settings/apps/new?state=${encodeURIComponent(value.state)}` &&
-  record(value.manifest) &&
-  Object.values(value.manifest).every(
-    (item) =>
-      typeof item === "string" ||
-      typeof item === "boolean" ||
-      Array.isArray(item) ||
-      record(item),
-  );
+export {
+  validForgejoChoices,
+  validForgejoConnection,
+  validGitHubConnection,
+  validManifestContinuation,
+} from "./provider-contract.js";

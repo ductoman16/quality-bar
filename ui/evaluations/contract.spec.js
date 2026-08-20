@@ -198,6 +198,15 @@ describe("Evaluation browser contract", () => {
       validEvaluationResult(
         {
           ...result,
+          review_runs: [{ ...result.review_runs[0], findings: [] }],
+        },
+        completed.id,
+      ),
+    ).toBe(false);
+    expect(
+      validEvaluationResult(
+        {
+          ...result,
           review_runs: [{ ...result.review_runs[0], measurements: undefined }],
         },
         completed.id,

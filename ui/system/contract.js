@@ -138,18 +138,25 @@ const execution = (value) => {
   );
 };
 
-const failure = (value) =>
-  record(value) &&
-  exact(value, [
-    "completed_at",
-    "error",
-    ...(value.evaluation_id ? ["evaluation_id", "review_run_id"] : []),
-    ...(value.waiver_adjudication_id ? ["waiver_adjudication_id"] : []),
-  ]) &&
-  value.completed_at !== null &&
-  timestamp(value.completed_at) &&
-  storageError(value.error) &&
-  (nonempty(value.evaluation_id) || nonempty(value.waiver_adjudication_id));
+const failure = (value) => {
+  const evaluation = nonempty(value?.evaluation_id);
+  const waiver = nonempty(value?.waiver_adjudication_id);
+  return (
+    record(value) &&
+    evaluation !== waiver &&
+    exact(value, [
+      "completed_at",
+      "error",
+      ...(evaluation ? ["evaluation_id", "review_run_id"] : []),
+      ...(waiver ? ["waiver_adjudication_id"] : []),
+    ]) &&
+    timestamp(value.completed_at) &&
+    value.completed_at !== null &&
+    value.error !== null &&
+    storageError(value.error) &&
+    (!evaluation || nonempty(value.review_run_id))
+  );
+};
 
 const repository = (value) =>
   record(value) &&
@@ -248,12 +255,13 @@ export const validSystem = (value) =>
       nonempty(provider.id) &&
       nonempty(provider.name) &&
       ["available", "unavailable"].includes(provider.status) &&
-      (provider.error === null ||
-        provider.error === undefined ||
-        (record(provider.error) &&
+      (provider.status === "available"
+        ? provider.error === undefined
+        : record(provider.error) &&
+          exact(provider.error, ["code", "message", "recovery"]) &&
           nonempty(provider.error.code) &&
           nonempty(provider.error.message) &&
-          nonempty(provider.error.recovery))),
+          nonempty(provider.error.recovery)),
   ) &&
   record(value.codex_execution) &&
   exact(value.codex_execution, [

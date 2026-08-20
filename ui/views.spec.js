@@ -58,6 +58,12 @@ describe("Vue operator views", () => {
     ]);
     expect(wrapper.get('a[aria-current="page"]').text()).toBe("Repositories");
     wrapper.unmount();
+
+    const detail = shallowMount(App, {
+      props: { authenticated: true, view: "evaluation-detail" },
+    });
+    expect(detail.get('a[aria-current="page"]').text()).toBe("Evaluations");
+    detail.unmount();
   });
 
   it("surfaces an invalid System attention document", async () => {
@@ -79,6 +85,51 @@ describe("Vue operator views", () => {
     await flushPromises();
     expect(wrapper.get('[role="alert"]').text()).toBe("Unavailable");
     expect(document.activeElement).toBe(wrapper.get('[role="alert"]').element);
+    wrapper.unmount();
+  });
+
+  it("rejects a noncanonical successful login status", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200 });
+    const wrapper = mount(LoginView, { attachTo: document.body });
+    await wrapper.get("input").setValue("operator password");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("login_response_invalid");
+    wrapper.unmount();
+  });
+
+  it("validates a registered Repository before clearing credentials", async () => {
+    document.cookie = "quality_bar_csrf=csrf-token";
+    const repository = {
+      credential_type: "none",
+      deletion_eligible: true,
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      url: "https://example.test/repository.git",
+    };
+    vi.mocked(fetch).mockImplementation(async (path, options) => {
+      if (path === "/api/v1/repositories" && !options) {
+        return {
+          json: async () => ({ items: [], next_cursor: null }),
+          ok: true,
+        };
+      }
+      if (path === "/api/v1/repositories" && options) {
+        return { json: async () => repository, ok: true, status: 200 };
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const wrapper = shallowMount(RepositoriesView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    await wrapper.get("#repository-url").setValue(repository.url);
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Repository registered");
+    expect(wrapper.get("#repository-url").element.value).toBe("");
     wrapper.unmount();
   });
 
@@ -317,6 +368,54 @@ describe("Vue operator views", () => {
     expect(wrapper.get("pre").text()).toBe("Review complete");
     expect(fetch).toHaveBeenCalledWith(
       "/api/v1/evaluations/evaluation-1/review-runs/run-1/diagnostics",
+    );
+    wrapper.unmount();
+  });
+
+  it("links frozen findings back to the Evaluation detail focus URL", () => {
+    const wrapper = mount(EvaluationResult, {
+      props: {
+        evaluation: { id: "evaluation-1" },
+        result: {
+          applicability_results: [],
+          criterion_results: [
+            {
+              criterion_id: "criterion-1",
+              outcome: "triggered",
+              review_run_id: "run-1",
+            },
+          ],
+          file_changes: [],
+          findings: [
+            {
+              criterion_id: "criterion-1",
+              evidence: "Evidence",
+              id: "finding-1",
+              impact: "blocking",
+              location: {
+                file_change_id: "change-1",
+                kind: "whole_side",
+                path: "src/index.js",
+                side: "head",
+              },
+              remediation: "Remediate",
+              review_run_id: "run-1",
+            },
+          ],
+          outcome: "blocking",
+          review_runs: [
+            {
+              execution_status: "completed",
+              id: "run-1",
+              review_id: "review-1",
+              review_version_id: "version-1",
+            },
+          ],
+        },
+      },
+    });
+    expect(wrapper.get("a").attributes("href")).toContain(
+      "view=evaluation-detail",
     );
     wrapper.unmount();
   });

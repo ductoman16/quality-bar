@@ -1,18 +1,14 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import {
-  csrfRequest,
-  repositoryCollection,
-  responseMessage,
-} from "../browser.js";
+import { csrfRequest, responseMessage } from "../browser.js";
 import { validRepository } from "./contract.js";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },
   repository: { required: true, type: Object },
 });
-const emit = defineEmits(["changed", "error"]);
+const emit = defineEmits(["changed", "error", "refresh"]);
 const credentialOpen = ref(false);
 const username = ref("");
 const token = ref("");
@@ -48,29 +44,24 @@ async function mutation(path, body, method, fallback) {
       return;
     }
     const value = await response.json();
-    if (response.status !== 200 || !validRepository(value)) {
+    if (
+      response.status !== 200 ||
+      !validRepository(value) ||
+      value.id !== props.repository.id ||
+      (method === "PATCH" && value.lifecycle !== body.lifecycle)
+    ) {
       emit("error", `${fallback} response is invalid`);
       return;
     }
     emit("changed", value);
   } catch (failure) {
-    if (!(failure instanceof TypeError)) {
-      emit(
-        "error",
-        failure instanceof Error ? failure.message : `${fallback} failed`,
-      );
-      return;
-    }
-    try {
-      const current = (await repositoryCollection()).find(
-        (repository) => repository.id === props.repository.id,
-      );
-      emit("changed", current ?? null);
-    } catch {
-      emit("error", `${fallback} reconciliation failed`);
-      return;
-    }
-    emit("error", fallback);
+    emit(
+      "error",
+      failure instanceof Error && !(failure instanceof TypeError)
+        ? failure.message
+        : fallback,
+    );
+    emit("refresh");
   } finally {
     busy.value = false;
   }

@@ -6,22 +6,49 @@ import { validGitHubSelection, validManifestContinuation } from "./contract.js";
 import { registerGitHubSelection } from "./github-selection.js";
 
 const connection = {
+  api_profile: "forgejo-v16",
+  base_url: "https://forgejo.example",
+  capabilities: {},
   health: "healthy",
   health_error: null,
   id: "forgejo-connection",
   lifecycle: "enabled",
+  polling: [],
+  polling_failure: null,
   principal: { id: 7, login: "operator" },
+  reported_version: "16.0.4",
+  scopes: ["read:repository", "write:issue", "write:repository"],
   verification_history: [
     {
+      api_profile: "forgejo-v16",
+      capabilities: {},
+      error: null,
       id: "verification-1",
-      repositories: [{ full_name: "operator/repository", id: 11 }],
+      outcome: "success",
+      principal: { id: 7, login: "operator" },
+      reported_version: "16.0.4",
+      repositories: [
+        {
+          api_url: "https://forgejo.example/api/v1/repos/operator/repository",
+          clone_url: "https://forgejo.example/operator/repository.git",
+          full_name: "operator/repository",
+          html_url: "https://forgejo.example/operator/repository",
+          id: 11,
+          outcome: "success",
+          permissions: { admin: true, pull: true, push: true },
+          private: true,
+        },
+      ],
+      scopes: ["read:repository", "write:issue", "write:repository"],
       trigger: "onboarding",
       verified_at: 1_000,
     },
   ],
+  verified_at: 1_000,
 };
 
 beforeEach(() => {
+  HTMLFormElement.prototype.submit = vi.fn();
   Object.defineProperty(document, "cookie", {
     configurable: true,
     value: "qb_csrf=csrf-token",
@@ -82,6 +109,10 @@ it("validates discovery and submits a Forgejo Connection mutation", async () => 
     method: "POST",
   });
   expect(wrapper.text()).toContain("Forgejo Connection verified");
+  expect(wrapper.text()).toContain("API profile");
+  expect(wrapper.text()).toContain("Required authorities");
+  expect(wrapper.text()).toContain("Verification history");
+  expect(wrapper.text()).toContain("Polling");
   wrapper.unmount();
 });
 
@@ -99,6 +130,40 @@ it("accepts only the state-bound GitHub manifest action", () => {
       action: "https://attacker.example/collect",
     }),
   ).toBe(false);
+});
+
+it("starts the GitHub App manifest flow with its canonical response", async () => {
+  const continuation = {
+    action: "https://github.com/settings/apps/new?state=manifest-state",
+    manifest: { default_events: [], public: false },
+    method: "POST",
+    state: "manifest-state",
+  };
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (
+      path === "/api/v1/github-connections" ||
+      (path === "/api/v1/forgejo-connections" && !options)
+    ) {
+      return { json: async () => null, ok: true, status: 200 };
+    }
+    if (path === "/api/v1/github-connections/manifest") {
+      return { json: async () => continuation, ok: true, status: 200 };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("form")
+    .find((form) => form.text().includes("Connect GitHub App"))
+    .trigger("submit");
+  await flushPromises();
+  expect(
+    wrapper.get('form[action*="github.com/settings/apps/new"]').exists(),
+  ).toBe(true);
+  wrapper.unmount();
 });
 
 it("accepts complete GitHub Repository selection evidence", async () => {
@@ -125,6 +190,14 @@ it("accepts complete GitHub Repository selection evidence", async () => {
   expect(validGitHubSelection([], [11], requestId)).toBe(false);
 
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
+  vi.mocked(fetch).mockResolvedValueOnce({
+    json: async () => [repository],
+    ok: true,
+    status: 201,
+  });
+  await expect(registerGitHubSelection("qb_csrf", [11])).resolves.toEqual({
+    registered: true,
+  });
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/github-connections/repositories" && options) {
       throw new TypeError("ambiguous network failure");

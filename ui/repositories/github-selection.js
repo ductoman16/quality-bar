@@ -17,7 +17,7 @@ export async function registerGitHubSelection(csrfCookieName, selected) {
   if (!response.ok) {
     return { response };
   }
-  if (response.status !== 200) {
+  if (response.status !== 201) {
     return { message: "GitHub Repository selection response is invalid" };
   }
   try {

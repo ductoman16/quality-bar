@@ -59,7 +59,16 @@ const response = (body, status = 200) => ({
   status,
 });
 const result = (outcome = "clear") => ({
-  applicability_results: [],
+  applicability_results: [
+    {
+      assignment: { scope: "installation_wide" },
+      evidence: { kind: "unconditional" },
+      outcome: "applicable",
+      review_id: "review-1",
+      review_version_id: "version-1",
+      rule: null,
+    },
+  ],
   completed_at: "2026-08-20T12:01:00.000Z",
   criterion_results: [],
   evaluation_id: "evaluation-1",
@@ -111,10 +120,21 @@ it("keeps not-ready results quiet and renders system markers", async () => {
     "",
     "/?view=evaluation-detail&evaluation_id=evaluation-1",
   );
+  const value = evaluation();
+  value.monitor.nodes.splice(1, 0, {
+    kind: "review",
+    label: "Boundaries",
+    outcome: "clear",
+    review_id: "review-1",
+    review_version_id: "version-1",
+    status: "completed",
+  });
+  value.monitor.review_counts.completed = 1;
+  value.monitor.review_counts.total = 1;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path) =>
-      String(path).endsWith("/result") ? notReady() : response(evaluation()),
+      String(path).endsWith("/result") ? notReady() : response(value),
     ),
   );
   const wrapper = mount(EvaluationDetailView, {
@@ -123,7 +143,8 @@ it("keeps not-ready results quiet and renders system markers", async () => {
   await flushPromises();
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   expect(wrapper.findAll(".qb-timeline-node--system")).toHaveLength(2);
-  expect(wrapper.findAll(".qb-timeline-node__marker")).toHaveLength(2);
+  expect(wrapper.findAll(".qb-timeline-node--review")).toHaveLength(1);
+  expect(wrapper.findAll(".qb-timeline-node__marker")).toHaveLength(3);
   wrapper.unmount();
 });
 
@@ -171,41 +192,67 @@ it.each(["queued", "running", "completed", "failed", "cancelled"])(
     expect(wrapper.get("#evaluation-detail-status").text()).toBe(status);
     expect(
       fetch.mock.calls.some(([path]) => String(path).endsWith("/result")),
-    ).toBe(["completed", "failed", "cancelled"].includes(status));
+    ).toBe(["completed", "failed"].includes(status));
     wrapper.unmount();
   },
 );
 
-it.each(["completed", "cancelled"])(
-  "renders a valid immutable %s result without mutation controls",
-  async (status) => {
-    history.replaceState(
-      null,
-      "",
-      "/?view=evaluation-detail&evaluation_id=evaluation-1",
-    );
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (path) =>
-        String(path).endsWith("/result")
-          ? response(result())
-          : response(evaluation(status)),
-      ),
-    );
-    const wrapper = mount(EvaluationDetailView, {
-      props: { csrfCookieName: "qb_csrf" },
-    });
-    await flushPromises();
-    expect(wrapper.get("#evaluation-detail-result").text()).toContain(
-      "Result clear",
-    );
-    expect(wrapper.find("textarea").exists()).toBe(false);
-    expect(wrapper.find("#evaluation-detail-result button").exists()).toBe(
-      false,
-    );
-    wrapper.unmount();
-  },
-);
+it("renders a valid immutable completed result without mutation controls", async () => {
+  const status = "completed";
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path) =>
+      String(path).endsWith("/result")
+        ? response(result())
+        : response(evaluation(status)),
+    ),
+  );
+  const wrapper = mount(EvaluationDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  expect(wrapper.get("#evaluation-detail-result").text()).toContain(
+    "Result clear",
+  );
+  expect(wrapper.find("textarea").exists()).toBe(false);
+  expect(wrapper.find("#evaluation-detail-result button").exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("preserves an open result disclosure and focus while polling", async () => {
+  vi.useFakeTimers();
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path) =>
+      String(path).endsWith("/result")
+        ? response(result())
+        : response(evaluation()),
+    ),
+  );
+  const wrapper = mount(EvaluationDetailView, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  const disclosure = wrapper.get("#evaluation-detail-result details");
+  disclosure.element.open = true;
+  disclosure.get("summary").element.focus();
+  await vi.advanceTimersByTimeAsync(5_000);
+  await flushPromises();
+  expect(disclosure.element.open).toBe(true);
+  expect(document.activeElement).toBe(disclosure.get("summary").element);
+  wrapper.unmount();
+});
 
 it("pauses polling while hidden and refreshes on return", async () => {
   vi.useFakeTimers();
@@ -287,5 +334,44 @@ it("refreshes the detail after cancellation", async () => {
     expect.objectContaining({ method: "POST" }),
   );
   expect(wrapper.text()).toContain("cancelled");
+  wrapper.unmount();
+});
+
+it("refreshes the detail after retry", async () => {
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  let current = {
+    ...evaluation("queued"),
+    exhausted_at: "2026-08-20T12:01:00.000Z",
+    retry_error: { code: "checkout_failed", detail: "Checkout failed" },
+    retry_state: "exhausted",
+  };
+  const fetch = vi.fn(async (path, options) => {
+    if (String(path).endsWith("/retry") && options?.method === "POST") {
+      current = evaluation("queued");
+      return response(current);
+    }
+    return response(current);
+  });
+  vi.stubGlobal("fetch", fetch);
+  const wrapper = mount(EvaluationDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Retry")
+    .trigger("click");
+  await flushPromises();
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/evaluations/evaluation-1/retry",
+    expect.objectContaining({ method: "POST" }),
+  );
+  expect(
+    wrapper.findAll("button").some((button) => button.text() === "Retry"),
+  ).toBe(false);
   wrapper.unmount();
 });

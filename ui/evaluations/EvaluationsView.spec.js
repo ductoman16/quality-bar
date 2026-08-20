@@ -146,6 +146,18 @@ describe("Evaluations view", () => {
     expect(wrapper.find("[data-evaluation-id='evaluation-2']").exists()).toBe(
       true,
     );
+    collection = [
+      evaluation("evaluation-2"),
+      {
+        ...evaluation(),
+        exhausted_at: null,
+        retry_error: null,
+        retry_state: "ready",
+      },
+    ];
+    await vi.advanceTimersByTimeAsync(5_000);
+    await flushPromises();
+    expect(wrapper.text()).toContain("New activity available");
     wrapper.unmount();
   });
 
@@ -155,6 +167,7 @@ describe("Evaluations view", () => {
       value: "qb_csrf=csrf-token",
     });
     let evaluationLoads = 0;
+    let systemLoads = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (path) => {
@@ -162,6 +175,7 @@ describe("Evaluations view", () => {
           return json({ items: [], next_cursor: null });
         }
         if (path === "/api/v1/system") {
+          systemLoads += 1;
           return json({
             codex_execution: {
               concurrency: { maximum_running: 1, running_count: 0 },
@@ -202,6 +216,7 @@ describe("Evaluations view", () => {
     });
     await flushPromises();
     const loadsBeforeMutation = evaluationLoads;
+    const statsBeforeMutation = systemLoads;
     await wrapper
       .findAll(".evaluation-actions button")
       .find((button) => button.text() === "Retry")
@@ -211,6 +226,7 @@ describe("Evaluations view", () => {
     expect(alert.text()).toBe("Retry unavailable");
     expect(document.activeElement).toBe(alert.element);
     expect(evaluationLoads).toBe(loadsBeforeMutation + 1);
+    expect(systemLoads).toBe(statsBeforeMutation + 1);
     wrapper.unmount();
   });
 });

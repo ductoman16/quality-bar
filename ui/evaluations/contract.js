@@ -1,9 +1,7 @@
 import { count, httpsUrl, nonempty, record, timestamp } from "../contract.js";
 
-export {
-  validEvaluationResult,
-  validReviewRunDiagnostics,
-} from "./result-contract.js";
+export { validReviewRunDiagnostics } from "./diagnostics-contract.js";
+export { validEvaluationResult } from "./result-contract.js";
 
 const EXECUTION_STATUSES = new Set([
   "cancelled",

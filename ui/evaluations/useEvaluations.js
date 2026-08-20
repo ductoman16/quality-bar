@@ -26,6 +26,7 @@ const signature = (evaluation) =>
   JSON.stringify([
     evaluation.execution_status,
     evaluation.effective_outcome,
+    evaluation.retry_state,
     evaluation.monitor.nodes.map((node) => [
       node.kind,
       node.status,
@@ -136,7 +137,6 @@ export function useEvaluations(csrfCookieName) {
   const showFailure = async (response) => {
     listError.value = await responseMessage(response);
   };
-
   async function refresh({
     cursor = null,
     poll = false,
@@ -286,7 +286,7 @@ export function useEvaluations(csrfCookieName) {
         throw new Error("evaluation_response_invalid");
       }
       createStatus.value = `Evaluation ${created.id} requested.`;
-      await refresh({ replace: true });
+      await Promise.all([refresh({ replace: true }), refreshStats()]);
     } catch (failure) {
       createStatus.value = listError.value =
         failure instanceof Error
@@ -318,7 +318,7 @@ export function useEvaluations(csrfCookieName) {
       failureMessage =
         failure instanceof Error ? failure.message : "Evaluation action failed";
     }
-    await refresh({ replace: true });
+    await Promise.all([refresh({ replace: true }), refreshStats()]);
     if (failureMessage) {
       listError.value = failureMessage;
     }

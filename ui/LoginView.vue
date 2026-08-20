@@ -20,13 +20,14 @@ async function submit() {
       headers: { "content-type": "application/json" },
       method: "POST",
     });
-    if (response.ok) {
+    if (response.ok && response.status === 204) {
       location.assign(props.intendedDestination);
       return;
     }
+    if (response.ok) throw new Error("login_response_invalid");
     error.value = await responseMessage(response);
-  } catch {
-    error.value = "Login failed";
+  } catch (failure) {
+    error.value = failure instanceof Error ? failure.message : "Login failed";
   } finally {
     busy.value = false;
     if (error.value) {

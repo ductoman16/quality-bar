@@ -28,6 +28,7 @@ const metadata = reactive({ description: "", name: "" });
 const assignment = reactive({ repositoryIds: [], scope: "installation_wide" });
 const deleteDialog = ref();
 const deleteInput = ref();
+const deleteTrigger = ref();
 const deleteName = ref("");
 const deleteError = ref("");
 const selectedVersionId = ref("");
@@ -201,6 +202,10 @@ async function openDelete() {
   await nextTick();
   deleteInput.value.focus();
 }
+function cancelDelete() {
+  deleteDialog.value.close();
+  deleteTrigger.value?.focus();
+}
 async function remove() {
   if (deleteName.value !== review.value.name) {
     deleteError.value = "Type the Review name to confirm permanent deletion";
@@ -336,6 +341,7 @@ onMounted(async () => {
           {{ review.archived ? "Restore" : "Archive" }}</button
         ><button
           v-if="review.deletion_eligible"
+          ref="deleteTrigger"
           type="button"
           @click="openDelete"
         >
@@ -345,7 +351,11 @@ onMounted(async () => {
     </section>
     <output aria-live="polite">{{ status }}</output>
   </section>
-  <dialog ref="deleteDialog" aria-labelledby="review-delete-title">
+  <dialog
+    ref="deleteDialog"
+    aria-labelledby="review-delete-title"
+    @cancel.prevent="cancelDelete"
+  >
     <form @submit.prevent="remove">
       <h2 id="review-delete-title">Delete Review permanently</h2>
       <p>
@@ -359,7 +369,7 @@ onMounted(async () => {
         required
       />
       <p v-if="deleteError" role="alert">{{ deleteError }}</p>
-      <button type="button" @click="deleteDialog.close()">Cancel</button
+      <button type="button" @click="cancelDelete">Cancel</button
       ><button type="submit">Delete permanently</button>
     </form>
   </dialog>

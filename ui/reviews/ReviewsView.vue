@@ -104,7 +104,11 @@ async function archive(review) {
     if (response.status !== 200)
       throw new Error("Review lifecycle response is invalid");
     const value = await response.json();
-    if (!validReviewChange(value) || value.review.archived !== archived) {
+    if (
+      !validReviewChange(value) ||
+      value.review.id !== review.id ||
+      value.review.archived !== archived
+    ) {
       throw new Error("Review lifecycle response is invalid");
     }
     const authoritative = await list(

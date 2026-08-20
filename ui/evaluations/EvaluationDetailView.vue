@@ -39,9 +39,7 @@ const statusLabel = (node) => {
 async function loadResult() {
   if (
     !evaluation.value ||
-    !["cancelled", "completed", "failed"].includes(
-      evaluation.value.execution_status,
-    )
+    !["completed", "failed"].includes(evaluation.value.execution_status)
   ) {
     result.value = null;
     resultEvaluationId = null;

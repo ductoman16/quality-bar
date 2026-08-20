@@ -32,7 +32,11 @@ async function load() {
       throw new Error(await responseMessage(response));
     }
     const body = await response.json();
-    if (!validGuidance(body)) {
+    if (
+      !validGuidance(body) ||
+      body.repository.id !== repository.value.id ||
+      body.repository.url !== repository.value.url
+    ) {
       throw new Error("repository_guidance_invalid");
     }
     guidance.value = body;
@@ -73,6 +77,7 @@ onMounted(load);
         :repository="repository"
         @changed="changed"
         @error="error = $event"
+        @refresh="load"
       />
       <section class="qb-region qb-deep-surface">
         <h2>Applicable reviews</h2>

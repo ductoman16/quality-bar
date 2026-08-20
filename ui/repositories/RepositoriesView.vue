@@ -8,6 +8,7 @@ import {
 } from "../browser.js";
 import ProviderConnections from "./ProviderConnections.vue";
 import RepositoryActions from "./RepositoryActions.vue";
+import { validRepository } from "./contract.js";
 import { consumeGitHubCallbackFailure } from "./github-callback.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 
@@ -55,7 +56,6 @@ async function register() {
       token: create.token,
     }),
   };
-  create.username = create.token = "";
   try {
     const response = await fetch("/api/v1/repositories", {
       body: JSON.stringify(body),
@@ -69,11 +69,18 @@ async function register() {
       error.value = await responseMessage(response);
       return;
     }
+    const registered = await response.json();
+    if (response.status !== 200 || !validRepository(registered)) {
+      throw new Error("repository_response_invalid");
+    }
     status.value = "Repository registered.";
-    create.url = "";
+    create.url = create.username = create.token = "";
     await load();
-  } catch {
-    error.value = "Repository registration failed";
+  } catch (failure) {
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Repository registration failed";
   }
 }
 const changed = async () => {
@@ -178,6 +185,7 @@ onMounted(async () => {
           :repository="repository"
           @changed="changed"
           @error="error = $event"
+          @refresh="load"
         />
       </div>
     </article>

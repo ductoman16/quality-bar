@@ -146,10 +146,16 @@ it("covers version, assignment, archival, and deletion controls", async () => {
     'Archive Review "Boundaries"? It will be excluded from new Evaluations.',
   );
 
-  await wrapper
+  const deleteButton = wrapper
     .findAll("button")
-    .find((button) => button.text() === "Delete Review")
+    .find((button) => button.text() === "Delete Review");
+  await deleteButton.trigger("click");
+  await wrapper
+    .findAll("dialog button")
+    .find((button) => button.text() === "Cancel")
     .trigger("click");
+  expect(document.activeElement).toBe(deleteButton.element);
+  await deleteButton.trigger("click");
   await wrapper.get("#review-delete-name").setValue("wrong");
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();

@@ -40,6 +40,7 @@ const component = computed(
 );
 const active = (name) =>
   props.view === name ||
+  (name === "evaluations" && props.view === "evaluation-detail") ||
   (name === "reviews" && props.view === "review-detail") ||
   (name === "repositories" && props.view === "repository-detail");
 const heading = computed(

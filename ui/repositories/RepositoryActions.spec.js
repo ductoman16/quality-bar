@@ -92,16 +92,10 @@ it("confirms lifecycle changes and exact-identity deletion with CSRF", async () 
   wrapper.unmount();
 });
 
-it("reconciles an ambiguous Repository deletion", async () => {
+it("refreshes authority without inferring an ambiguous Repository deletion", async () => {
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (options?.method === "DELETE") {
       throw new TypeError("network lost");
-    }
-    if (path === "/api/v1/repositories") {
-      return {
-        json: async () => ({ items: [], next_cursor: null }),
-        ok: true,
-      };
     }
     throw new Error(`unexpected request ${path}`);
   });
@@ -115,7 +109,8 @@ it("reconciles an ambiguous Repository deletion", async () => {
   await wrapper.get("input").setValue(repository.url);
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
-  expect(wrapper.emitted("changed")).toEqual([[null]]);
+  expect(wrapper.emitted("changed")).toBeUndefined();
+  expect(wrapper.emitted("refresh")).toEqual([[]]);
   expect(wrapper.emitted("error")).toEqual([["Repository deletion failed"]]);
   wrapper.unmount();
 });

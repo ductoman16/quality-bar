@@ -6,9 +6,7 @@ import {
   record,
   requiredTimestamp as timestamp,
 } from "../contract.js";
-
-/** @param {any} value */
-const validError = (value) =>
+const validError = (/** @type {any} */ value) =>
   record(value) &&
   Object.keys(value).length === 2 &&
   /^[a-z][a-z0-9_]*$/.test(value.code) &&
@@ -19,9 +17,20 @@ const validRule = (/** @type {any} */ value) =>
     exact(value, ["profile", "source"]) &&
     value.profile === "quality-bar-restricted-cel-v1" &&
     nonempty(value.source));
-
-/** @param {any} value */
-function validApplicabilityEvidence(value) {
+/** @returns {any} */
+const ordered = (/** @type {any} */ value) =>
+  Array.isArray(value)
+    ? value.map(ordered)
+    : record(value)
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((name) => [name, ordered(value[name])]),
+        )
+      : value;
+const same = (/** @type {any} */ left, /** @type {any} */ right) =>
+  JSON.stringify(ordered(left)) === JSON.stringify(ordered(right));
+function validApplicabilityEvidence(/** @type {any} */ value) {
   if (!record(value)) {
     return false;
   }
@@ -71,9 +80,7 @@ function validApplicabilityEvidence(value) {
     (value.kind !== "satisfied_branches" || value.predicate_ids.length > 0)
   );
 }
-
-/** @param {any} value */
-function validApplicability(value) {
+function validApplicability(/** @type {any} */ value) {
   const common =
     record(value) &&
     nonempty(value.review_id) &&
@@ -133,9 +140,7 @@ function validApplicability(value) {
       : value.rule !== null && evidenceKind === "failed_branches")
   );
 }
-
-/** @param {any} value */
-function validCriterionResult(value) {
+function validCriterionResult(/** @type {any} */ value) {
   const error = value?.outcome === "error";
   return (
     record(value) &&
@@ -152,8 +157,7 @@ function validCriterionResult(value) {
   );
 }
 
-/** @param {any} value */
-function validLocation(value) {
+function validLocation(/** @type {any} */ value) {
   if (
     !record(value) ||
     !["changeset", "whole_side", "line_range"].includes(value.kind)
@@ -187,8 +191,7 @@ function validLocation(value) {
   );
 }
 
-/** @param {any} value */
-function validFinding(value) {
+function validFinding(/** @type {any} */ value) {
   return (
     record(value) &&
     exact(value, [
@@ -210,7 +213,7 @@ function validFinding(value) {
   );
 }
 
-const validProcess = (/** @type {any} */ value) =>
+export const validProcess = (/** @type {any} */ value) =>
   record(value) &&
   ((value.kind === "exit" &&
     Object.keys(value).length === 2 &&
@@ -242,8 +245,10 @@ const validMeasurements = (/** @type {any} */ value) =>
       value.token_counters[name] === null || count(value.token_counters[name]),
   );
 
-/** @param {any} value @param {string} evaluationId */
-function validReviewRun(value, evaluationId) {
+function validReviewRun(
+  /** @type {any} */ value,
+  /** @type {string} */ evaluationId,
+) {
   const error = value?.execution_status !== "completed";
   return (
     record(value) &&
@@ -304,8 +309,10 @@ const validFileChange = (/** @type {any} */ value) =>
   ) &&
   typeof value.patch === "string";
 
-/** @param {unknown} value @param {string} evaluationId */
-export function validEvaluationResult(value, evaluationId) {
+export function validEvaluationResult(
+  /** @type {any} */ value,
+  /** @type {string} */ evaluationId,
+) {
   if (
     !record(value) ||
     !exact(value, [
@@ -345,56 +352,28 @@ export function validEvaluationResult(value, evaluationId) {
     value.criterion_results.every((criterion) =>
       runs.has(criterion.review_run_id),
     ) &&
+    value.review_runs.every(
+      (run) =>
+        same(
+          run.criterion_results,
+          value.criterion_results.filter(
+            (/** @type {any} */ criterion) =>
+              criterion.review_run_id === run.id,
+          ),
+        ) &&
+        same(
+          run.findings,
+          value.findings.filter(
+            (/** @type {any} */ finding) => finding.review_run_id === run.id,
+          ),
+        ),
+    ) &&
     value.findings.every(
       (finding) =>
         runs.has(finding.review_run_id) &&
         criteria.has(`${finding.review_run_id}:${finding.criterion_id}`) &&
         (finding.location.kind === "changeset" ||
           changes.has(finding.location.file_change_id)),
-    )
-  );
-}
-
-/** @param {any} value @param {string} reviewRunId */
-export function validReviewRunDiagnostics(value, reviewRunId) {
-  /** @param {any} item */
-  const counter = (item) => item === null || count(item);
-  return (
-    record(value) &&
-    exact(value, [
-      "codex_cli_version",
-      "completed_at",
-      "duration_ms",
-      "process",
-      "review_run_id",
-      "started_at",
-      "token_counters",
-      "transcript_chunks",
-    ]) &&
-    value.review_run_id === reviewRunId &&
-    (value.started_at === null || timestamp(value.started_at)) &&
-    (value.completed_at === null || timestamp(value.completed_at)) &&
-    (value.codex_cli_version === null || nonempty(value.codex_cli_version)) &&
-    counter(value.duration_ms) &&
-    validProcess(value.process) &&
-    record(value.token_counters) &&
-    exact(value.token_counters, [
-      "cached_input_tokens",
-      "input_tokens",
-      "output_tokens",
-    ]) &&
-    ["input_tokens", "cached_input_tokens", "output_tokens"].every((name) =>
-      counter(value.token_counters[name]),
-    ) &&
-    Array.isArray(value.transcript_chunks) &&
-    value.transcript_chunks.every(
-      (chunk) =>
-        record(chunk) &&
-        exact(chunk, ["content", "sequence", "stream"]) &&
-        Number.isSafeInteger(chunk.sequence) &&
-        chunk.sequence > 0 &&
-        ["stdout", "stderr"].includes(chunk.stream) &&
-        nonempty(chunk.content),
     )
   );
 }

@@ -36,7 +36,7 @@ const locationUrl = (finding) => {
     evaluation_id: props.evaluation.id,
     file_change_id: finding.location.file_change_id,
     side: finding.location.side,
-    view: "evaluations",
+    view: "evaluation-detail",
   });
   if (finding.location.kind === "line_range") {
     search.set("start_line", finding.location.start_line);
