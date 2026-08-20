@@ -125,6 +125,7 @@ export function validEvaluation(value) {
   );
 }
 
+/** @param {any} value @param {string} evaluationId @param {string} action */
 export const validEvaluationMutation = (value, evaluationId, action) =>
   validEvaluation(value) &&
   value.id === evaluationId &&
