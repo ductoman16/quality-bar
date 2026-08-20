@@ -216,16 +216,8 @@ const localTime = (value) =>
             ><span class="evaluation-status__icon"></span
             ><span>{{ nodeStatus(node)[1] }}</span></span
           >
-          <span>{{
-            Number.isSafeInteger(node.duration_ms)
-              ? formatDuration(node.duration_ms)
-              : "—"
-          }}</span>
-          <time>{{
-            node.completed_at || node.finished_at
-              ? localTime(node.completed_at || node.finished_at)
-              : "—"
-          }}</time>
+          <span>—</span>
+          <time>—</time>
         </div>
       </div>
     </section>

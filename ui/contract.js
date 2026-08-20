@@ -10,6 +10,34 @@ export const nonempty = (value) =>
 export const count = (value) =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
+/** @param {unknown} value @param {string[]} names */
+export const exact = (value, names) =>
+  record(value) &&
+  Object.keys(value).length === names.length &&
+  names.every((name) => Object.hasOwn(value, name));
+
+/** @param {any} value */
+export const requiredTimestamp = (value) =>
+  nonempty(value) &&
+  Number.isFinite(Date.parse(value)) &&
+  new Date(value).toISOString() === value;
+
+/** @param {unknown} value */
+export const timestamp = (value) => value === null || requiredTimestamp(value);
+
+/** @param {any} value @param {string} prefix */
+export const numberedId = (value, prefix) =>
+  nonempty(value) && new RegExp(`^${prefix}-[1-9][0-9]*$`).test(value);
+
+/** @param {any} value */
+export const httpsUrl = (value) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 /** @param {unknown} value */
 export const nullableString = (value) => value === null || nonempty(value);
 

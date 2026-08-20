@@ -76,12 +76,22 @@ const document_ = {
     error_rate: ratio(),
     pending: 0,
   },
+  evaluation_overview: {
+    clear_count: 1,
+    clear_rate: ratio(1, 1),
+    duration_sample_count: 1,
+    p95_duration_ms: 1_000,
+    terminal_count: 1,
+    window: { end: 2, start: 1 },
+  },
   finding_impact: {
     advisory: 0,
     blocking: 0,
     findings_per_triggered_criterion_result: ratio(),
   },
+  matching_facts: { evaluations: [], review_runs: [] },
   population: {
+    filters: { repository_id: "repository-1" },
     matching_evaluations: 1,
     matching_waiver_adjudications: 2,
     matching_waiver_decisions: 0,
@@ -152,6 +162,8 @@ it("renders every Analytics section and restores URL filters on navigation", asy
     "Pull-request Criterion transitions",
     "Execution failure codes",
     "Execution duration",
+    "Matching Evaluation facts",
+    "Matching Review Run facts",
     "Token counters",
   ]) {
     expect(wrapper.text()).toContain(title);

@@ -1,4 +1,4 @@
-import { count, nonempty, record } from "../contract.js";
+import { count, httpsUrl, nonempty, record, timestamp } from "../contract.js";
 
 export {
   validEvaluationResult,
@@ -25,21 +25,6 @@ const validSelector = (value) =>
   ["branch", "commit"].includes(value.type) &&
   nonempty(value.value) &&
   (value.type !== "commit" || commit(value.value));
-/** @param {any} value */
-const timestamp = (value) =>
-  value === null ||
-  (nonempty(value) &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString() === value);
-/** @param {any} value */
-const httpsUrl = (value) => {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
-};
-
 /** @param {unknown} value @param {string[]} names */
 function validCounts(value, names) {
   return (
@@ -139,6 +124,12 @@ export function validEvaluation(value) {
     validMonitor(value.monitor)
   );
 }
+
+export const validEvaluationMutation = (value, evaluationId, action) =>
+  validEvaluation(value) &&
+  value.id === evaluationId &&
+  (action !== "cancel" || value.execution_status === "cancelled") &&
+  (action !== "retry" || value.retry_state === "ready");
 
 /** @param {unknown} value */
 export function validCollection(value) {

@@ -7,6 +7,54 @@ export function supplementalTables(value, rate) {
   const waivers = value.waiver_analytics;
   return [
     {
+      title: "Matching Evaluation facts",
+      headers: [
+        "Evaluation",
+        "Repository",
+        "Base",
+        "Head",
+        "Pull request",
+        "Created",
+        "Outcome",
+      ],
+      rows: value.matching_facts.evaluations.map((fact) => [
+        fact.evaluation_id,
+        fact.repository_id,
+        fact.base_commit,
+        fact.head_commit,
+        fact.pull_request_number ?? "—",
+        fact.created_at,
+        fact.terminal_outcome,
+      ]),
+    },
+    {
+      title: "Matching Review Run facts",
+      headers: [
+        "Review Run",
+        "Evaluation",
+        "Review",
+        "Version",
+        "Model",
+        "Status",
+        "Criteria",
+        "Findings",
+        "Waiver requests",
+        "Waiver decisions",
+      ],
+      rows: value.matching_facts.review_runs.map((fact) => [
+        fact.review_run_id,
+        fact.evaluation_id,
+        fact.review_id,
+        fact.review_version_id,
+        `${fact.model}/${fact.reasoning_effort}/${fact.service_tier}`,
+        fact.execution_status,
+        fact.criterion_results.length,
+        fact.findings.length,
+        fact.waiver_requests.length,
+        fact.waiver_decisions.length,
+      ]),
+    },
+    {
       title: "Pull-request Criterion transitions",
       headers: [
         "Triggered-to-clear",

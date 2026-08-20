@@ -1,4 +1,11 @@
-import { count, errorFact, nonempty, record } from "../contract.js";
+import {
+  count,
+  errorFact,
+  exact,
+  httpsUrl,
+  nonempty,
+  record,
+} from "../contract.js";
 
 /** @param {any} value */
 const repositoryChoice = (value) =>
@@ -11,21 +18,53 @@ const repositoryChoice = (value) =>
 /** @param {any} value */
 export const validRepository = (value) =>
   record(value) &&
+  exact(value, [
+    "credential_type",
+    "deletion_eligible",
+    "health",
+    "health_error",
+    "id",
+    "lifecycle",
+    "url",
+    ...(value.credential_type === "forge_connection"
+      ? [
+          "api_url",
+          "assignment_count",
+          "forge_connection_id",
+          "forge_repository_id",
+          "name",
+          "provider",
+          "verification_id",
+          "verified_at",
+          "web_url",
+        ]
+      : []),
+  ]) &&
   nonempty(value.id) &&
-  nonempty(value.url) &&
-  (value.name === null || value.name === undefined || nonempty(value.name)) &&
-  (value.web_url === null ||
-    value.web_url === undefined ||
-    nonempty(value.web_url)) &&
-  (value.provider === null ||
-    value.provider === undefined ||
-    ["github", "forgejo"].includes(value.provider)) &&
+  httpsUrl(value.url) &&
   ["enabled", "disabled", "retired"].includes(value.lifecycle) &&
   ["healthy", "error"].includes(value.health) &&
-  errorFact(value.health_error) &&
-  nonempty(value.credential_type) &&
+  (value.health === "healthy"
+    ? value.health_error === null
+    : record(value.health_error) &&
+      exact(value.health_error, ["code", "message"]) &&
+      nonempty(value.health_error.code) &&
+      nonempty(value.health_error.message)) &&
+  ["forge_connection", "none", "username_token"].includes(
+    value.credential_type,
+  ) &&
   typeof value.deletion_eligible === "boolean" &&
-  count(value.assignment_count);
+  (value.credential_type !== "forge_connection" ||
+    (count(value.assignment_count) &&
+      nonempty(value.api_url) &&
+      nonempty(value.forge_connection_id) &&
+      Number.isSafeInteger(value.forge_repository_id) &&
+      value.forge_repository_id > 0 &&
+      nonempty(value.name) &&
+      ["github", "forgejo"].includes(value.provider) &&
+      nonempty(value.verification_id) &&
+      count(value.verified_at) &&
+      nonempty(value.web_url)));
 
 /** @param {any} value */
 export const validGuidance = (value) =>
@@ -109,33 +148,6 @@ export const validGitHubSelection = (value, selected, requestId) =>
   ) &&
   new Set(value.map((repository) => repository.forge_repository_id)).size ===
     selected.length;
-
-/** @param {any} connection @param {any[]} repositories @param {number[]} selected @param {string} requestId */
-export function reconciledGitHubSelection(
-  connection,
-  repositories,
-  selected,
-  requestId,
-) {
-  const verification = /** @type {any[] | undefined} */ (
-    connection?.verification_history
-  )?.find((item) => item.id === requestId);
-  return (
-    validGitHubConnection(connection) &&
-    verification?.trigger === "repository_selection" &&
-    verification.outcome === "success" &&
-    selected.every((id) => verification.affected_repository_ids.includes(id)) &&
-    selected.every((id) =>
-      repositories.some(
-        (repository) =>
-          validRepository(repository) &&
-          repository.provider === "github" &&
-          repository.forge_repository_id === id &&
-          repository.verification_id === requestId,
-      ),
-    )
-  );
-}
 
 /** @param {any} value */
 const forgejoChoice = (value) =>

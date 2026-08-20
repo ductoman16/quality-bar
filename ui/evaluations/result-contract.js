@@ -1,24 +1,19 @@
-import { count, nonempty, record } from "../contract.js";
+import {
+  count,
+  exact,
+  nonempty,
+  numberedId,
+  record,
+  requiredTimestamp as timestamp,
+} from "../contract.js";
 
-/** @param {any} value */
-const timestamp = (value) =>
-  nonempty(value) &&
-  Number.isFinite(Date.parse(value)) &&
-  new Date(value).toISOString() === value;
 /** @param {any} value */
 const validError = (value) =>
   record(value) &&
   Object.keys(value).length === 2 &&
   /^[a-z][a-z0-9_]*$/.test(value.code) &&
   nonempty(value.detail);
-/** @param {any} value @param {string[]} names */
-const exact = (value, names) =>
-  Object.keys(value).length === names.length &&
-  names.every((name) => Object.hasOwn(value, name));
-/** @param {any} value */
-const stringList = (value) => Array.isArray(value) && value.every(nonempty);
-/** @param {any} value */
-const validRule = (value) =>
+const validRule = (/** @type {any} */ value) =>
   value === null ||
   (record(value) &&
     exact(value, ["profile", "source"]) &&
@@ -35,6 +30,7 @@ function validApplicabilityEvidence(value) {
   }
   if (value.kind === "matched") {
     return (
+      exact(value, ["kind", "matches"]) &&
       Array.isArray(value.matches) &&
       value.matches.length > 0 &&
       value.matches.every(
@@ -49,9 +45,11 @@ function validApplicabilityEvidence(value) {
             "sides",
           ]) &&
           nonempty(match.file_change_id) &&
-          stringList(match.branch_ids) &&
+          Array.isArray(match.branch_ids) &&
+          match.branch_ids.every((id) => numberedId(id, "branch")) &&
           match.branch_ids.length > 0 &&
-          stringList(match.predicate_ids) &&
+          Array.isArray(match.predicate_ids) &&
+          match.predicate_ids.every((id) => numberedId(id, "predicate")) &&
           match.predicate_ids.length > 0 &&
           Array.isArray(match.sides) &&
           match.sides.length > 0 &&
@@ -66,8 +64,10 @@ function validApplicabilityEvidence(value) {
   return (
     ["satisfied_branches", "failed_branches"].includes(value.kind) &&
     exact(value, ["branch_ids", "kind", "predicate_ids"]) &&
-    stringList(value.branch_ids) &&
-    stringList(value.predicate_ids) &&
+    Array.isArray(value.branch_ids) &&
+    value.branch_ids.every((id) => numberedId(id, "branch")) &&
+    Array.isArray(value.predicate_ids) &&
+    value.predicate_ids.every((id) => numberedId(id, "predicate")) &&
     (value.kind !== "satisfied_branches" || value.predicate_ids.length > 0)
   );
 }
@@ -210,8 +210,7 @@ function validFinding(value) {
   );
 }
 
-/** @param {any} value */
-const validProcess = (value) =>
+const validProcess = (/** @type {any} */ value) =>
   record(value) &&
   ((value.kind === "exit" &&
     Object.keys(value).length === 2 &&
@@ -221,8 +220,7 @@ const validProcess = (value) =>
       nonempty(value.signal)) ||
     (value.kind === "unavailable" && Object.keys(value).length === 1));
 
-/** @param {any} value */
-const validMeasurements = (value) =>
+const validMeasurements = (/** @type {any} */ value) =>
   record(value) &&
   exact(value, [
     "codex_cli_version",
@@ -273,6 +271,10 @@ function validReviewRun(value, evaluationId) {
     ["completed", "failed", "cancelled"].includes(value.execution_status) &&
     (value.execution_status === "cancelled" || nonempty(value.started_at)) &&
     (value.execution_status === "completed" || validError(value.error)) &&
+    (value.execution_status !== "cancelled" ||
+      ["cancelled_by_operator", "cancelled_by_supersession"].includes(
+        value.error.code,
+      )) &&
     validMeasurements(value.measurements) &&
     Array.isArray(value.criterion_results) &&
     value.criterion_results.every(validCriterionResult) &&
@@ -281,8 +283,7 @@ function validReviewRun(value, evaluationId) {
   );
 }
 
-/** @param {any} value */
-const validFileChange = (value) =>
+const validFileChange = (/** @type {any} */ value) =>
   record(value) &&
   exact(value, [
     "added",

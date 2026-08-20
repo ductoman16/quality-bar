@@ -1,31 +1,37 @@
 <script setup>
 import { nextTick, reactive, ref } from "vue";
 
-const emit = defineEmits(["change", "error"]);
+const emit = defineEmits(["change"]);
 const dialog = ref();
 const input = ref();
+const confirmButton = ref();
+const error = ref("");
+let trigger;
 const value = reactive({ method: "PATCH", provider: "", text: "" });
 
 async function open(provider, method) {
   value.provider = provider;
   value.method = method;
   value.text = "";
+  error.value = "";
+  trigger = document.activeElement;
   dialog.value.showModal();
-  if (method === "DELETE") {
-    await nextTick();
-    input.value.focus();
-  }
+  await nextTick();
+  (method === "DELETE" ? input.value : confirmButton.value).focus();
 }
-function submit() {
+async function close() {
+  dialog.value.close();
+  await nextTick();
+  trigger?.focus();
+}
+async function submit() {
   if (value.method === "DELETE" && value.text !== "DELETE") {
-    emit(
-      "error",
-      `Type DELETE to confirm permanent ${value.provider} Connection deletion`,
-    );
+    error.value = `Type DELETE to confirm permanent ${value.provider} Connection deletion`;
+    await nextTick();
     input.value.focus();
     return;
   }
-  dialog.value.close();
+  await close();
   emit("change", { method: value.method, provider: value.provider });
 }
 defineExpose({ open });
@@ -52,8 +58,10 @@ defineExpose({ open });
         ref="input"
         v-model="value.text"
         required
-      /><button type="button" @click="dialog.close()">Cancel</button
-      ><button type="submit">Confirm</button>
+      />
+      <p v-if="error" role="alert">{{ error }}</p>
+      <button type="button" @click="close">Cancel</button
+      ><button ref="confirmButton" type="submit">Confirm</button>
     </form>
   </dialog>
 </template>

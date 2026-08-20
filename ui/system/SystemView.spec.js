@@ -5,7 +5,7 @@ import SystemView from "./SystemView.vue";
 import { validSystem } from "./contract.js";
 
 const configuration = {
-  model: "gpt-test",
+  model: "gpt-5.6-sol",
   reasoning_effort: "high",
   service_tier: "standard",
 };
@@ -34,14 +34,12 @@ const system = {
   browser_sessions: { active_count: 1, status: "available" },
   codex: {
     catalog: {
-      codex_cli_version: "1.2.3",
-      models: [
-        {
-          id: "gpt-test",
-          reasoning_efforts: ["high"],
-          service_tiers: ["standard"],
-        },
-      ],
+      codex_cli_version: "0.145.0",
+      models: ["sol", "terra", "luna"].map((name) => ({
+        id: `gpt-5.6-${name}`,
+        reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+        service_tiers: ["standard", "fast"],
+      })),
     },
     status: "available",
   },

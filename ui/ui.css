@@ -228,7 +228,6 @@
 }
 .qb-timeline-node--running::before {
   border: 1px solid var(--qb-ink);
-  background: linear-gradient(90deg, var(--qb-ink) 50%, transparent 50%);
 }
 .evaluation-row__detail {
   font-size: 26px;
@@ -278,7 +277,14 @@
 }
 .evaluation-detail-timeline {
   align-items: stretch;
+  margin: 0;
+}
+.evaluation-detail-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: 24px;
   margin-block: 24px;
+  padding: 20px;
 }
 .evaluation-detail-timeline .qb-timeline-node {
   width: auto;
@@ -328,6 +334,9 @@
   }
 }
 @media (max-width: 720px) {
+  .evaluation-detail-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .qb-stat-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -58,6 +58,26 @@ const response = (body, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
 });
+const result = (outcome = "clear") => ({
+  applicability_results: [],
+  completed_at: "2026-08-20T12:01:00.000Z",
+  criterion_results: [],
+  evaluation_id: "evaluation-1",
+  file_changes: [],
+  findings: [],
+  outcome,
+  review_runs: [],
+});
+const notReady = () =>
+  response(
+    {
+      error: {
+        code: "evaluation_result_not_ready",
+        message: "Result not ready",
+      },
+    },
+    409,
+  );
 
 beforeEach(() => {
   Object.defineProperty(document, "cookie", {
@@ -66,6 +86,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -93,17 +114,7 @@ it("keeps not-ready results quiet and renders system markers", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path) =>
-      String(path).endsWith("/result")
-        ? response(
-            {
-              error: {
-                code: "evaluation_result_not_ready",
-                message: "Result not ready",
-              },
-            },
-            409,
-          )
-        : response(evaluation()),
+      String(path).endsWith("/result") ? notReady() : response(evaluation()),
     ),
   );
   const wrapper = mount(EvaluationDetailView, {
@@ -113,6 +124,117 @@ it("keeps not-ready results quiet and renders system markers", async () => {
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   expect(wrapper.findAll(".qb-timeline-node--system")).toHaveLength(2);
   expect(wrapper.findAll(".qb-timeline-node__marker")).toHaveLength(2);
+  wrapper.unmount();
+});
+
+it("shows the safe not-found message", async () => {
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      response(
+        { error: { code: "evaluation_not_found", message: "Not found" } },
+        404,
+      ),
+    ),
+  );
+  const wrapper = mount(EvaluationDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  expect(wrapper.get("#evaluation-detail-error").text()).toBe("Not found");
+  wrapper.unmount();
+});
+
+it.each(["queued", "running", "completed", "failed", "cancelled"])(
+  "renders the %s lifecycle",
+  async (status) => {
+    history.replaceState(
+      null,
+      "",
+      "/?view=evaluation-detail&evaluation_id=evaluation-1",
+    );
+    const fetch = vi.fn(async (path) =>
+      String(path).endsWith("/result")
+        ? notReady()
+        : response(evaluation(status)),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const wrapper = mount(EvaluationDetailView, {
+      props: { csrfCookieName: "qb_csrf" },
+    });
+    await flushPromises();
+    expect(wrapper.get("#evaluation-detail-status").text()).toBe(status);
+    expect(
+      fetch.mock.calls.some(([path]) => String(path).endsWith("/result")),
+    ).toBe(["completed", "failed", "cancelled"].includes(status));
+    wrapper.unmount();
+  },
+);
+
+it.each(["completed", "cancelled"])(
+  "renders a valid immutable %s result without mutation controls",
+  async (status) => {
+    history.replaceState(
+      null,
+      "",
+      "/?view=evaluation-detail&evaluation_id=evaluation-1",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path) =>
+        String(path).endsWith("/result")
+          ? response(result())
+          : response(evaluation(status)),
+      ),
+    );
+    const wrapper = mount(EvaluationDetailView, {
+      props: { csrfCookieName: "qb_csrf" },
+    });
+    await flushPromises();
+    expect(wrapper.get("#evaluation-detail-result").text()).toContain(
+      "Result clear",
+    );
+    expect(wrapper.find("textarea").exists()).toBe(false);
+    expect(wrapper.find("#evaluation-detail-result button").exists()).toBe(
+      false,
+    );
+    wrapper.unmount();
+  },
+);
+
+it("pauses polling while hidden and refreshes on return", async () => {
+  vi.useFakeTimers();
+  let hidden = false;
+  Object.defineProperty(document, "hidden", {
+    configurable: true,
+    get: () => hidden,
+  });
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  const fetch = vi.fn(async () => response(evaluation("queued")));
+  vi.stubGlobal("fetch", fetch);
+  const wrapper = mount(EvaluationDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  hidden = true;
+  document.dispatchEvent(new Event("visibilitychange"));
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  hidden = false;
+  document.dispatchEvent(new Event("visibilitychange"));
+  await flushPromises();
+  expect(fetch).toHaveBeenCalledTimes(3);
   wrapper.unmount();
 });
 
@@ -149,11 +271,9 @@ it("refreshes the detail after cancellation", async () => {
   const fetch = vi.fn(async (path, options) => {
     if (options?.method === "POST") {
       current = evaluation("cancelled");
-      return response(null);
+      return response(current);
     }
-    return String(path).includes("/evaluations/")
-      ? response(current)
-      : response(null, 404);
+    return String(path).endsWith("/result") ? notReady() : response(current);
   });
   vi.stubGlobal("fetch", fetch);
   const wrapper = mount(EvaluationDetailView, {

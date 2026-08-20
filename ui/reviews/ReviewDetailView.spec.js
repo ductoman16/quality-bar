@@ -20,6 +20,7 @@ const version = {
       id: "criterion-1",
       impact: "blocking",
       instruction: "Preserve boundaries",
+      position: 1,
     },
   ],
   id: "version-1",
@@ -36,14 +37,12 @@ const review = {
   versions: [version],
 };
 const repository = {
-  assignment_count: 0,
   credential_type: "none",
   deletion_eligible: true,
   health: "healthy",
   health_error: null,
   id: "repository-1",
   lifecycle: "enabled",
-  provider: null,
   url: "https://example.test/repository.git",
 };
 
@@ -81,8 +80,14 @@ beforeEach(() => {
         return { json: async () => ({ reviews: [] }), ok: true };
       }
       if (options && String(path).startsWith("/api/v1/reviews/review-1/")) {
+        const body = JSON.parse(options.body);
         return {
-          json: async () => ({ changed: true, review }),
+          json: async () => ({
+            changed: true,
+            review: String(path).endsWith("/archival")
+              ? { ...review, archived: body.archived }
+              : review,
+          }),
           ok: true,
           status: 200,
         };

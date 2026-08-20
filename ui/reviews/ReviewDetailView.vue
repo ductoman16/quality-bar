@@ -8,6 +8,7 @@ import {
 } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import {
+  matchesReviewVersion,
   readModelCatalog,
   readReviewCollection,
   validReview,
@@ -72,6 +73,10 @@ async function save(path, body, method, fallback) {
     error.value = await responseMessage(response);
     return null;
   }
+  if (response.status !== 200) {
+    error.value = "Review response is invalid";
+    return null;
+  }
   error.value = "";
   try {
     return await response.json();
@@ -80,12 +85,17 @@ async function save(path, body, method, fallback) {
     return null;
   }
 }
-function requireReview(value, changed = false) {
-  if (!(changed ? validReviewChange(value) : validReview(value))) {
+function requireReview(value, changed = false, requested = () => true) {
+  const candidate = changed ? value?.review : value;
+  if (
+    !(changed ? validReviewChange(value) : validReview(value)) ||
+    candidate.id !== id ||
+    !requested(candidate)
+  ) {
     error.value = "Review response is invalid";
     return null;
   }
-  return changed ? value.review : value;
+  return candidate;
 }
 async function saveMetadata() {
   const value = await save(
@@ -95,7 +105,12 @@ async function saveMetadata() {
     "Review metadata failed to save",
   );
   if (!value) return;
-  const next = requireReview(value);
+  const next = requireReview(
+    value,
+    false,
+    (item) =>
+      item.name === metadata.name && item.description === metadata.description,
+  );
   if (!next) return;
   open(next);
   status.value = `${next.name} metadata saved.`;
@@ -108,7 +123,9 @@ async function saveVersion(snapshot) {
     "Review Version failed to save",
   );
   if (!value) return;
-  const next = requireReview(value, true);
+  const next = requireReview(value, true, (item) =>
+    matchesReviewVersion(item.active_version, snapshot),
+  );
   if (!next) return;
   open(next);
   status.value = `${next.name} v${next.active_version.number} ${value.changed ? "active" : "unchanged"}.`;
@@ -121,7 +138,11 @@ async function activateVersion() {
     "Review Version failed to reactivate",
   );
   if (!value) return;
-  const next = requireReview(value, true);
+  const next = requireReview(
+    value,
+    true,
+    (item) => item.active_version.id === selectedVersionId.value,
+  );
   if (next) open(next);
 }
 async function saveAssignment() {
@@ -139,7 +160,14 @@ async function saveAssignment() {
     "Review Assignment failed to save",
   );
   if (!value) return;
-  const next = requireReview(value, true);
+  const next = requireReview(
+    value,
+    true,
+    (item) =>
+      item.assignment.scope === body.scope &&
+      JSON.stringify(item.assignment.repository_ids ?? []) ===
+        JSON.stringify(body.repository_ids ?? []),
+  );
   if (!next) return;
   open(next);
   status.value = value.changed ? "Assignment saved." : "Assignment unchanged.";
@@ -161,7 +189,7 @@ async function archive() {
     "Review lifecycle failed",
   );
   if (!value) return;
-  const next = requireReview(value, true);
+  const next = requireReview(value, true, (item) => item.archived === archived);
   if (!next) return;
   open(next);
   status.value = `${next.name} ${archived ? "archived" : "restored"}.`;
@@ -206,10 +234,7 @@ async function remove() {
     return;
   }
   try {
-    if (!(await findReview())) {
-      location.assign("/?view=reviews");
-      return;
-    }
+    await findReview();
     error.value = "Review deletion result is unavailable";
   } catch (failure) {
     error.value =

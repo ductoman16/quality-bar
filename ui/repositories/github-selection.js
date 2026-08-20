@@ -1,13 +1,5 @@
-import {
-  csrfRequest,
-  repositoryCollection,
-  responseMessage,
-} from "../browser.js";
-import {
-  reconciledGitHubSelection,
-  validGitHubConnection,
-  validGitHubSelection,
-} from "./contract.js";
+import { csrfRequest } from "../browser.js";
+import { validGitHubSelection } from "./contract.js";
 
 /** @param {string} csrfCookieName @param {number[]} selected */
 export async function registerGitHubSelection(csrfCookieName, selected) {
@@ -20,42 +12,25 @@ export async function registerGitHubSelection(csrfCookieName, selected) {
       { repository_ids: selected, request_id: requestId },
     );
   } catch {
-    return reconcile(selected, requestId);
+    return { message: "GitHub Repository selection request failed" };
   }
   if (!response.ok) {
     return { response };
+  }
+  if (response.status !== 200) {
+    return { message: "GitHub Repository selection response is invalid" };
   }
   try {
     if (!validGitHubSelection(await response.json(), selected, requestId)) {
       throw new Error("github_repository_selection_response_invalid");
     }
     return { registered: true };
-  } catch {
-    return reconcile(selected, requestId);
-  }
-}
-
-/** @param {number[]} selected @param {string} requestId */
-async function reconcile(selected, requestId) {
-  try {
-    const response = await fetch("/api/v1/github-connections");
-    if (!response.ok) {
-      throw new Error(await responseMessage(response));
-    }
-    const connection = await response.json();
-    if (!validGitHubConnection(connection)) {
-      throw new Error("github_connection_response_invalid");
-    }
-    const repositories = await repositoryCollection();
-    return reconciledGitHubSelection(
-      connection,
-      repositories,
-      selected,
-      requestId,
-    )
-      ? { registered: true }
-      : { message: "GitHub Repository selection result is unavailable" };
-  } catch {
-    return { message: "GitHub Repository selection reconciliation failed" };
+  } catch (failure) {
+    return {
+      message:
+        failure instanceof Error
+          ? failure.message
+          : "GitHub Repository selection response is invalid",
+    };
   }
 }

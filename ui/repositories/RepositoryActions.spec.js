@@ -2,16 +2,15 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import RepositoryActions from "./RepositoryActions.vue";
+import { validRepository } from "./contract.js";
 
 const repository = {
-  assignment_count: 0,
   credential_type: "none",
   deletion_eligible: true,
   health: "healthy",
   health_error: null,
   id: "repository-1",
   lifecycle: "enabled",
-  provider: null,
   url: "https://example.test/repository.git",
 };
 
@@ -47,6 +46,10 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = vi.fn();
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("accepts the canonical Generic Repository body", () => {
+  expect(validRepository(repository)).toBe(true);
+});
 
 it("confirms lifecycle changes and exact-identity deletion with CSRF", async () => {
   const wrapper = mount(RepositoryActions, {
@@ -113,6 +116,6 @@ it("reconciles an ambiguous Repository deletion", async () => {
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
   expect(wrapper.emitted("changed")).toEqual([[null]]);
-  expect(wrapper.emitted("error")).toBeUndefined();
+  expect(wrapper.emitted("error")).toEqual([["Repository deletion failed"]]);
   wrapper.unmount();
 });

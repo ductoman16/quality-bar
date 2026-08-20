@@ -86,7 +86,7 @@ async function loadConfiguration() {
     throw new Error(await responseMessage(response));
   }
   const body = await response.json();
-  if (!validConfiguration(body)) {
+  if (!validConfiguration(body, system.value.codex.catalog.models)) {
     throw new Error("waiver_configuration_invalid");
   }
   if (body.configured) Object.assign(configuration, body.configuration);
@@ -128,7 +128,7 @@ async function saveConfiguration() {
       return;
     }
     const body = await response.json();
-    if (!validConfigurationChange(body))
+    if (!validConfigurationChange(body, system.value.codex.catalog.models))
       throw new Error("Configuration response is invalid");
     Object.assign(configuration, body.configuration);
     configurationStatus.value = body.changed ? "Saved" : "Unchanged";

@@ -32,19 +32,15 @@ async function mutation(path, body, method, fallback) {
   try {
     const response = await request(path, body, method);
     if (method === "DELETE") {
-      const current = (await repositoryCollection()).find(
-        (repository) => repository.id === props.repository.id,
-      );
-      if (!current) {
-        emit("changed", null);
+      if (!response.ok) {
+        emit("error", await responseMessage(response));
         return;
       }
-      emit(
-        "error",
-        response.ok
-          ? `${fallback} result is unavailable`
-          : await responseMessage(response),
-      );
+      if (response.status !== 200 || (await response.json()) !== null) {
+        emit("error", `${fallback} response is invalid`);
+        return;
+      }
+      emit("changed", null);
       return;
     }
     if (!response.ok) {
@@ -69,18 +65,12 @@ async function mutation(path, body, method, fallback) {
       const current = (await repositoryCollection()).find(
         (repository) => repository.id === props.repository.id,
       );
-      if (
-        (method === "DELETE" && !current) ||
-        (method === "PATCH" && current?.lifecycle === body.lifecycle)
-      ) {
-        emit("changed", current ?? null);
-        return;
-      }
+      emit("changed", current ?? null);
     } catch {
       emit("error", `${fallback} reconciliation failed`);
       return;
     }
-    emit("error", `${fallback} result is unavailable`);
+    emit("error", fallback);
   } finally {
     busy.value = false;
   }

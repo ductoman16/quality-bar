@@ -6,6 +6,7 @@ import { useAlertFocus } from "../useAlertFocus.js";
 import {
   readModelCatalog,
   readReviewCollection,
+  matchesReviewVersion,
   validReview,
   validReviewChange,
 } from "./contract.js";
@@ -63,8 +64,17 @@ async function create(snapshot) {
       "POST",
     );
     if (!response.ok) throw new Error(await responseMessage(response));
+    if (response.status !== 201)
+      throw new Error("Review creation response is invalid");
     const review = await response.json();
-    if (!validReview(review))
+    if (
+      !validReview(review) ||
+      review.name !== identity.name ||
+      review.description !== identity.description ||
+      review.archived ||
+      review.assignment.scope !== "installation_wide" ||
+      !matchesReviewVersion(review.active_version, snapshot)
+    )
       throw new Error("Review creation response is invalid");
     status.value = `${review.name} v${review.active_version.number} created.`;
     identity.name = identity.description = "";
@@ -91,6 +101,8 @@ async function archive(review) {
       "PATCH",
     );
     if (!response.ok) throw new Error(await responseMessage(response));
+    if (response.status !== 200)
+      throw new Error("Review lifecycle response is invalid");
     const value = await response.json();
     if (!validReviewChange(value) || value.review.archived !== archived) {
       throw new Error("Review lifecycle response is invalid");
@@ -108,8 +120,10 @@ async function archive(review) {
     await load();
     status.value = `${review.name} ${archived ? "archived" : "restored"}.`;
   } catch (failure) {
-    error.value =
+    const message =
       failure instanceof Error ? failure.message : "Review lifecycle failed";
+    if (failure instanceof TypeError) await load();
+    error.value = message;
   }
 }
 onMounted(async () => {

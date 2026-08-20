@@ -3,6 +3,8 @@ import { modelCapability, nonempty, record } from "../contract.js";
 const criterion = (value) =>
   record(value) &&
   nonempty(value.id) &&
+  Number.isSafeInteger(value.position) &&
+  value.position > 0 &&
   ["advisory", "blocking"].includes(value.impact) &&
   nonempty(value.instruction);
 
@@ -18,6 +20,21 @@ const version = (value) =>
   record(value.codex_configuration) &&
   ["model", "reasoning_effort", "service_tier"].every((name) =>
     nonempty(value.codex_configuration[name]),
+  );
+
+export const matchesReviewVersion = (version, snapshot) =>
+  version.applicability_rule === snapshot.applicability_rule &&
+  ["model", "reasoning_effort", "service_tier"].every(
+    (name) =>
+      version.codex_configuration[name] === snapshot.codex_configuration[name],
+  ) &&
+  version.criteria.length === snapshot.criteria.length &&
+  version.criteria.every(
+    (item, index) =>
+      item.position === index + 1 &&
+      item.impact === snapshot.criteria[index].impact &&
+      item.instruction === snapshot.criteria[index].instruction &&
+      (!snapshot.criteria[index].id || item.id === snapshot.criteria[index].id),
   );
 
 export const validReview = (value) =>

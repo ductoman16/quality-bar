@@ -1,22 +1,15 @@
 import {
   count,
   errorFact,
+  exact,
   modelCapability,
   nonempty,
   nullableString,
   record,
+  timestamp,
 } from "../contract.js";
-
-const timestamp = (value) =>
-  value === null ||
-  (nonempty(value) &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString() === value);
 const status = (value, allowed) =>
   record(value) && allowed.includes(value.status);
-const exact = (value, names) =>
-  Object.keys(value).length === names.length &&
-  names.every((name) => Object.hasOwn(value, name));
 const storageError = (value) =>
   value === null ||
   (record(value) &&
@@ -93,25 +86,69 @@ const backup = (value) =>
   storageError(value.error) &&
   (value.last_successful === null || backupRecord(value.last_successful));
 
-const execution = (value) =>
-  record(value) &&
-  nonempty(value.execution_status) &&
-  count(value.pre_start_attempt_count) &&
-  count(value.retry_cycle) &&
-  nonempty(value.retry_state) &&
-  record(value.lease) &&
-  nonempty(value.lease.status) &&
-  nullableString(value.lease.worker_id) &&
-  record(value.gate) &&
-  nonempty(value.gate.code) &&
-  (value.evaluation_id
-    ? nonempty(value.evaluation_id)
-    : nonempty(value.waiver_adjudication_id));
+const execution = (value) => {
+  if (!record(value)) {
+    return false;
+  }
+  const queued = value.execution_status === "queued";
+  const evaluation = nonempty(value.evaluation_id);
+  return (
+    exact(value, [
+      "execution_status",
+      "gate",
+      "lease",
+      "pre_start_attempt_count",
+      "retry_cycle",
+      "retry_error",
+      "retry_state",
+      ...(queued ? ["next_attempt_at", "queue_position"] : []),
+      ...(evaluation
+        ? ["evaluation_id", "review_run_id"]
+        : ["waiver_adjudication_id"]),
+    ]) &&
+    ["queued", "running"].includes(value.execution_status) &&
+    count(value.pre_start_attempt_count) &&
+    Number.isSafeInteger(value.retry_cycle) &&
+    value.retry_cycle > 0 &&
+    ["ready", "exhausted"].includes(value.retry_state) &&
+    storageError(value.retry_error) &&
+    record(value.lease) &&
+    exact(value.lease, [
+      "expires_at",
+      "fencing_token",
+      "status",
+      "worker_id",
+    ]) &&
+    ["unclaimed", "held", "released", "stuck", "running"].includes(
+      value.lease.status,
+    ) &&
+    timestamp(value.lease.expires_at) &&
+    count(value.lease.fencing_token) &&
+    nullableString(value.lease.worker_id) &&
+    record(value.gate) &&
+    exact(value.gate, ["code"]) &&
+    nonempty(value.gate.code) &&
+    (!queued ||
+      (Number.isSafeInteger(value.queue_position) &&
+        value.queue_position > 0 &&
+        timestamp(value.next_attempt_at))) &&
+    (evaluation
+      ? nonempty(value.review_run_id)
+      : nonempty(value.waiver_adjudication_id))
+  );
+};
 
 const failure = (value) =>
   record(value) &&
+  exact(value, [
+    "completed_at",
+    "error",
+    ...(value.evaluation_id ? ["evaluation_id", "review_run_id"] : []),
+    ...(value.waiver_adjudication_id ? ["waiver_adjudication_id"] : []),
+  ]) &&
+  value.completed_at !== null &&
   timestamp(value.completed_at) &&
-  errorFact(value.error) &&
+  storageError(value.error) &&
   (nonempty(value.evaluation_id) || nonempty(value.waiver_adjudication_id));
 
 const repository = (value) =>
@@ -219,14 +256,39 @@ export const validSystem = (value) =>
           nonempty(provider.error.recovery))),
   ) &&
   record(value.codex_execution) &&
+  exact(value.codex_execution, [
+    "concurrency",
+    "failures",
+    "queue",
+    "running",
+  ]) &&
   record(value.codex_execution.concurrency) &&
-  count(value.codex_execution.concurrency.maximum_running) &&
+  exact(value.codex_execution.concurrency, [
+    "maximum_running",
+    "running_count",
+    "start_gate",
+  ]) &&
+  Number.isSafeInteger(value.codex_execution.concurrency.maximum_running) &&
+  value.codex_execution.concurrency.maximum_running >= 1 &&
+  value.codex_execution.concurrency.maximum_running <= 4 &&
   count(value.codex_execution.concurrency.running_count) &&
-  nonempty(value.codex_execution.concurrency.start_gate) &&
+  ["available", "no_new_start"].includes(
+    value.codex_execution.concurrency.start_gate,
+  ) &&
   Array.isArray(value.codex_execution.queue?.rows) &&
+  exact(value.codex_execution.queue, ["count", "rows"]) &&
   value.codex_execution.queue.rows.every(execution) &&
+  count(value.codex_execution.queue.count) &&
+  value.codex_execution.queue.count ===
+    value.codex_execution.queue.rows.length &&
   Array.isArray(value.codex_execution.running?.rows) &&
+  exact(value.codex_execution.running, ["count", "rows"]) &&
   value.codex_execution.running.rows.every(execution) &&
+  count(value.codex_execution.running.count) &&
+  value.codex_execution.running.count ===
+    value.codex_execution.running.rows.length &&
+  value.codex_execution.concurrency.running_count ===
+    value.codex_execution.running.count &&
   Array.isArray(value.codex_execution.failures) &&
   value.codex_execution.failures.every(failure) &&
   Array.isArray(value.polling?.connections) &&
@@ -238,6 +300,15 @@ export const validSystem = (value) =>
   nonempty(value.codex.catalog.codex_cli_version) &&
   value.codex.catalog.models.length > 0 &&
   value.codex.catalog.models.every(modelCapability) &&
+  JSON.stringify(value.codex.catalog) ===
+    JSON.stringify({
+      codex_cli_version: "0.145.0",
+      models: ["sol", "terra", "luna"].map((name) => ({
+        id: `gpt-5.6-${name}`,
+        reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+        service_tiers: ["standard", "fast"],
+      })),
+    }) &&
   value.browser_sessions?.status === "available" &&
   count(value.browser_sessions.active_count) &&
   ["active", "revoked"].includes(value.implementer_token?.status) &&
@@ -253,17 +324,28 @@ export const validSystem = (value) =>
   backup(value.backup) &&
   status(value.bootstrap, ["complete", "required"]);
 
-export const validConfiguration = (value) =>
+export const validConfiguration = (value, models) =>
   record(value) &&
   typeof value.configured === "boolean" &&
   (!value.configured ||
     (record(value.configuration) &&
       ["model", "reasoning_effort", "service_tier"].every((name) =>
         nonempty(value.configuration[name]),
+      ) &&
+      models?.some(
+        (model) =>
+          model.id === value.configuration.model &&
+          model.reasoning_efforts.includes(
+            value.configuration.reasoning_effort,
+          ) &&
+          model.service_tiers.includes(value.configuration.service_tier),
       )));
 
 /** @param {any} value */
-export const validConfigurationChange = (value) =>
+export const validConfigurationChange = (value, models) =>
   record(value) &&
   typeof value.changed === "boolean" &&
-  validConfiguration({ configured: true, configuration: value.configuration });
+  validConfiguration(
+    { configured: true, configuration: value.configuration },
+    models,
+  );

@@ -58,7 +58,8 @@ const request = (path, body, method = "POST") =>
 async function passwordMutation(path, body) {
   error.value = "";
   const response = await request(path, body);
-  if (response.ok) location.assign("/");
+  if (response.ok && response.status === 204) location.assign("/");
+  else if (response.ok) await showError("operator_response_invalid");
   else await failure(response);
 }
 async function tokenMutation(path, password) {
@@ -74,7 +75,8 @@ async function tokenMutation(path, password) {
 }
 async function logout() {
   const response = await request("/api/v1/session/logout", {});
-  if (response.ok) location.assign("/");
+  if (response.ok && response.status === 204) location.assign("/");
+  else if (response.ok) await showError("operator_response_invalid");
   else await failure(response);
 }
 async function activity() {
@@ -86,6 +88,8 @@ async function activity() {
     method: "POST",
   });
   if (!response.ok) await failure(response);
+  else if (response.status !== 204)
+    await showError("operator_response_invalid");
 }
 async function loadOnboardingTokens() {
   if (!props.showOnboarding) return;
@@ -118,7 +122,8 @@ async function revokeOnboardingToken(id) {
     {},
     "DELETE",
   );
-  if (response.ok) await loadOnboardingTokens();
+  if (response.ok && response.status === 204) await loadOnboardingTokens();
+  else if (response.ok) await showError("onboarding_token_response_invalid");
   else await failure(response);
 }
 const recordActivity = () => void safe(activity);

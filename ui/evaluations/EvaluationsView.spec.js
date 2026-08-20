@@ -149,7 +149,7 @@ describe("Evaluations view", () => {
     wrapper.unmount();
   });
 
-  it("keeps a failed mutation visible without refreshing it away", async () => {
+  it("keeps a failed mutation visible after authoritative refresh", async () => {
     Object.defineProperty(document, "cookie", {
       configurable: true,
       value: "qb_csrf=csrf-token",
@@ -210,7 +210,7 @@ describe("Evaluations view", () => {
     const alert = wrapper.get('[role="alert"]');
     expect(alert.text()).toBe("Retry unavailable");
     expect(document.activeElement).toBe(alert.element);
-    expect(evaluationLoads).toBe(loadsBeforeMutation);
+    expect(evaluationLoads).toBe(loadsBeforeMutation + 1);
     wrapper.unmount();
   });
 });

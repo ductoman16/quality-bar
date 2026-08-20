@@ -1,5 +1,4 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
-
 import {
   csrfToken,
   repositoryCollection,
@@ -9,8 +8,8 @@ import {
   mutateEvaluation,
   validCollection,
   validEvaluation,
+  validEvaluationMutation,
 } from "./contract.js";
-
 const FILTER_NAMES = [
   "repository_id",
   "execution_status",
@@ -59,7 +58,6 @@ const validStatsAnalytics = (value) =>
   count(value.evaluation_overview.clear_rate.denominator) &&
   (value.evaluation_overview.p95_duration_ms === null ||
     count(value.evaluation_overview.p95_duration_ms));
-
 export function useEvaluations(csrfCookieName) {
   const evaluations = ref([]);
   const repositories = ref([]);
@@ -93,7 +91,6 @@ export function useEvaluations(csrfCookieName) {
   const known = new Map();
   let firstResponse = true;
   let timer = null;
-
   const groups = computed(() => {
     const grouped = new Map();
     for (const evaluation of evaluations.value) {
@@ -281,7 +278,11 @@ export function useEvaluations(csrfCookieName) {
         return showFailure(response);
       }
       const created = await response.json();
-      if (!validEvaluation(created)) {
+      if (
+        response.status !== 201 ||
+        !validEvaluation(created) ||
+        created.repository.id !== create.repositoryId
+      ) {
         throw new Error("evaluation_response_invalid");
       }
       createStatus.value = `Evaluation ${created.id} requested.`;
@@ -295,6 +296,7 @@ export function useEvaluations(csrfCookieName) {
   }
 
   async function mutate(evaluation, action) {
+    let failureMessage = "";
     try {
       const response = await mutateEvaluation(
         action,
@@ -302,14 +304,24 @@ export function useEvaluations(csrfCookieName) {
         csrfToken(csrfCookieName),
       );
       if (!response.ok) {
-        await showFailure(response);
-        return;
+        failureMessage = await responseMessage(response);
+      } else {
+        const body = await response.json();
+        if (
+          response.status !== 200 ||
+          !validEvaluationMutation(body, evaluation.id, action)
+        ) {
+          failureMessage = "evaluation_response_invalid";
+        }
       }
-    } catch {
-      listError.value = "Evaluation action failed";
-      return;
+    } catch (failure) {
+      failureMessage =
+        failure instanceof Error ? failure.message : "Evaluation action failed";
     }
     await refresh({ replace: true });
+    if (failureMessage) {
+      listError.value = failureMessage;
+    }
   }
   async function revealActivity() {
     await refresh({ replace: true });

@@ -25,13 +25,18 @@ const forge = reactive({
   selected: new Set(),
   token: "",
 });
-const status = ref("");
-const lifecycleDialog = ref();
-const busy = ref(false);
+const status = ref(""),
+  lifecycleDialog = ref(),
+  busy = ref(false);
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function fail(response, fallback) {
   throw new Error(response ? await responseMessage(response) : fallback);
+}
+async function requireResponse(response, expected, label) {
+  if (!response.ok) await fail(response, `${label} failed`);
+  if (response.status !== expected)
+    await fail(null, `${label} response is invalid`);
 }
 async function safe(action) {
   if (busy.value) return;
@@ -55,11 +60,10 @@ async function loadProvider(provider) {
   const validate =
     provider === "github" ? validGitHubConnection : validForgejoConnection;
   const response = await fetch(`/api/v1/${provider}-connections`);
-  if (!response.ok) await fail(response, "Connection loading failed");
+  await requireResponse(response, 200, "Connection loading");
   const value = await response.json();
   if (!validate(value)) throw new Error("connection_response_invalid");
   target.value = value;
-  return value;
 }
 async function startGitHub() {
   const reactivating = github.value?.lifecycle === "retired";
@@ -69,8 +73,11 @@ async function startGitHub() {
       : "/api/v1/github-connections/manifest",
     reactivating ? { pem: githubPem.value } : {},
   );
-  if (!response.ok)
-    return fail(response, "GitHub App Manifest flow could not start");
+  await requireResponse(
+    response,
+    reactivating ? 200 : 201,
+    "GitHub App Manifest flow",
+  );
   if (reactivating) {
     const value = await response.json();
     if (value === null || !validGitHubConnection(value))
@@ -93,9 +100,14 @@ async function registerGitHubRepositories() {
   const result = await registerGitHubSelection(props.csrfCookieName, [
     ...githubSelected,
   ]);
-  if (result.response)
+  if (result.response) {
+    await load();
     return fail(result.response, "GitHub Repository selection failed");
-  if (!result.registered) return fail(null, result.message);
+  }
+  if (!result.registered) {
+    await load();
+    return fail(null, result.message);
+  }
   status.value = "GitHub Repositories registered.";
   emit("changed");
   await load();
@@ -112,8 +124,7 @@ async function rotateGitHub() {
     "/api/v1/github-connections/credential/rotate",
     { pem: githubPem.value },
   );
-  if (!response.ok)
-    return fail(response, "GitHub App credential rotation failed");
+  await requireResponse(response, 200, "GitHub App credential rotation");
   const value = await response.json();
   if (value === null || !validGitHubConnection(value))
     return fail(null, "GitHub Connection response is invalid");
@@ -127,7 +138,7 @@ async function discoverForgejo() {
     base_url: forge.baseUrl,
     token: forge.token,
   });
-  if (!response.ok) return fail(response, "Forgejo verification failed");
+  await requireResponse(response, 200, "Forgejo verification");
   const choices = await response.json();
   if (!validForgejoChoices(choices))
     return fail(null, "Forgejo verification response is invalid");
@@ -143,7 +154,7 @@ async function connectForgejo() {
     repository_ids: [...forge.selected],
     token: forge.token,
   });
-  if (!response.ok) return fail(response, "Forgejo registration failed");
+  await requireResponse(response, 201, "Forgejo Connection");
   const value = await response.json();
   if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
@@ -163,7 +174,7 @@ async function rotateForgejo() {
     "/api/v1/forgejo-connections/credential/rotate",
     { token: forge.rotationToken },
   );
-  if (!response.ok) return fail(response, "Forgejo PAT rotation failed");
+  await requireResponse(response, 200, "Forgejo PAT rotation");
   const value = await response.json();
   if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
@@ -175,8 +186,7 @@ async function reactivateForgejo() {
   const response = await request("/api/v1/forgejo-connections/reactivate", {
     token: forge.reactivationToken,
   });
-  if (!response.ok)
-    return fail(response, "Forgejo Connection reactivation failed");
+  await requireResponse(response, 200, "Forgejo Connection reactivation");
   const value = await response.json();
   if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
@@ -196,18 +206,10 @@ async function lifecycle({ method, provider }) {
     );
   } catch (failure) {
     if (!(failure instanceof TypeError)) throw failure;
-    const current = await loadProvider(lower);
-    if (
-      (method === "DELETE" && current === null) ||
-      (method === "PATCH" && current?.lifecycle === "retired")
-    ) {
-      status.value = `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`;
-      return;
-    }
-    throw new Error(`${provider} Connection lifecycle result is unavailable`);
+    await loadProvider(lower);
+    throw new Error(`${provider} Connection lifecycle request failed`);
   }
-  if (!response.ok)
-    await fail(response, `${provider} Connection lifecycle failed`);
+  await requireResponse(response, 200, `${provider} Connection lifecycle`);
   const current = await response.json();
   const valid =
     method === "DELETE"
@@ -394,6 +396,5 @@ onMounted(() => safe(load));
   <ConnectionLifecycleDialog
     ref="lifecycleDialog"
     @change="safe(() => lifecycle($event))"
-    @error="emit('error', $event)"
   />
 </template>

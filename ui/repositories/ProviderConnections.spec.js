@@ -2,11 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ProviderConnections from "./ProviderConnections.vue";
-import {
-  reconciledGitHubSelection,
-  validGitHubSelection,
-  validManifestContinuation,
-} from "./contract.js";
+import { validGitHubSelection, validManifestContinuation } from "./contract.js";
 import { registerGitHubSelection } from "./github-selection.js";
 
 const connection = {
@@ -37,16 +33,17 @@ beforeEach(() => {
         path === "/api/v1/github-connections" ||
         (path === "/api/v1/forgejo-connections" && !options)
       ) {
-        return { json: async () => null, ok: true };
+        return { json: async () => null, ok: true, status: 200 };
       }
       if (path === "/api/v1/forgejo-connections/discover") {
         return {
           json: async () => [{ full_name: "operator/repository", id: 11 }],
           ok: true,
+          status: 200,
         };
       }
       if (path === "/api/v1/forgejo-connections" && options) {
-        return { json: async () => connection, ok: true };
+        return { json: async () => connection, ok: true, status: 201 };
       }
       throw new Error(`unexpected request ${path}`);
     }),
@@ -104,12 +101,14 @@ it("accepts only the state-bound GitHub manifest action", () => {
   ).toBe(false);
 });
 
-it("accepts and reconciles complete GitHub Repository selection evidence", async () => {
+it("accepts complete GitHub Repository selection evidence", async () => {
   const requestId = "00000000-0000-4000-8000-000000000001";
   const repository = {
+    api_url: "https://api.github.com/repos/operator/repository",
     assignment_count: 0,
     credential_type: "forge_connection",
     deletion_eligible: true,
+    forge_connection_id: "github-connection",
     forge_repository_id: 11,
     health: "healthy",
     health_error: null,
@@ -119,60 +118,21 @@ it("accepts and reconciles complete GitHub Repository selection evidence", async
     provider: "github",
     url: "https://github.com/operator/repository.git",
     verification_id: requestId,
+    verified_at: 1_000,
     web_url: "https://github.com/operator/repository",
   };
-  const github = {
-    health: "healthy",
-    health_error: null,
-    id: "github-connection",
-    lifecycle: "enabled",
-    permissions: { contents: "read" },
-    principal: { id: 7, login: "operator" },
-    verification_history: [
-      {
-        affected_repository_ids: [11],
-        id: requestId,
-        outcome: "success",
-        repositories: [
-          { full_name: "operator/repository", id: 11, private: true },
-        ],
-        trigger: "repository_selection",
-        verified_at: 1_000,
-      },
-    ],
-  };
   expect(validGitHubSelection([repository], [11], requestId)).toBe(true);
-  expect(reconciledGitHubSelection(github, [repository], [11], requestId)).toBe(
-    true,
-  );
   expect(validGitHubSelection([], [11], requestId)).toBe(false);
-  expect(
-    reconciledGitHubSelection(
-      github,
-      [{ ...repository, verification_id: "old" }],
-      [11],
-      requestId,
-    ),
-  ).toBe(false);
 
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/github-connections/repositories" && options) {
       throw new TypeError("ambiguous network failure");
     }
-    if (path === "/api/v1/github-connections") {
-      return { json: async () => github, ok: true };
-    }
-    if (path === "/api/v1/repositories") {
-      return {
-        json: async () => ({ items: [repository], next_cursor: null }),
-        ok: true,
-      };
-    }
     throw new Error(`unexpected request ${path}`);
   });
   await expect(registerGitHubSelection("qb_csrf", [11])).resolves.toEqual({
-    registered: true,
+    message: "GitHub Repository selection request failed",
   });
 });
 
@@ -182,7 +142,7 @@ it("emits malformed successful provider responses as errors", async () => {
       path === "/api/v1/github-connections" ||
       (path === "/api/v1/forgejo-connections" && !options)
     ) {
-      return { json: async () => null, ok: true };
+      return { json: async () => null, ok: true, status: 200 };
     }
     if (path === "/api/v1/forgejo-connections/discover") {
       return {
@@ -190,6 +150,7 @@ it("emits malformed successful provider responses as errors", async () => {
           throw new SyntaxError("invalid JSON");
         },
         ok: true,
+        status: 200,
       };
     }
     throw new Error(`unexpected request ${path}`);
@@ -214,16 +175,17 @@ it("rejects a null successful Forgejo registration", async () => {
       path === "/api/v1/github-connections" ||
       (path === "/api/v1/forgejo-connections" && !options)
     ) {
-      return { json: async () => null, ok: true };
+      return { json: async () => null, ok: true, status: 200 };
     }
     if (path === "/api/v1/forgejo-connections/discover") {
       return {
         json: async () => [{ full_name: "operator/repository", id: 11 }],
         ok: true,
+        status: 200,
       };
     }
     if (path === "/api/v1/forgejo-connections") {
-      return { json: async () => null, ok: true };
+      return { json: async () => null, ok: true, status: 201 };
     }
     throw new Error(`unexpected request ${path}`);
   });

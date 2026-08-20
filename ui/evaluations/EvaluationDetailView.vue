@@ -7,6 +7,7 @@ import {
   mutateEvaluation,
   nodeVisualState,
   validEvaluation,
+  validEvaluationMutation,
   validEvaluationResult,
 } from "./contract.js";
 import { formatDuration } from "./duration.js";
@@ -38,7 +39,9 @@ const statusLabel = (node) => {
 async function loadResult() {
   if (
     !evaluation.value ||
-    !["completed", "failed"].includes(evaluation.value.execution_status)
+    !["cancelled", "completed", "failed"].includes(
+      evaluation.value.execution_status,
+    )
   ) {
     result.value = null;
     resultEvaluationId = null;
@@ -57,6 +60,14 @@ async function loadResult() {
         body.error.message
       )
         return;
+      if (
+        typeof body?.error?.code === "string" &&
+        body.error.code &&
+        typeof body.error.message === "string" &&
+        body.error.message
+      ) {
+        throw new Error(body.error.message);
+      }
       throw new Error("evaluation_result_error_invalid");
     }
     if (!response.ok) return showError(await responseMessage(response));
@@ -103,17 +114,30 @@ async function refresh() {
 async function mutate(action) {
   if (!evaluation.value) return;
   busy.value = true;
+  let failureMessage = "";
   try {
     const response = await mutateEvaluation(
       action,
       evaluation.value.id,
       csrfToken(props.csrfCookieName),
     );
-    if (!response.ok) await showError(await responseMessage(response));
-    else await refresh();
-  } catch {
-    await showError("Evaluation action failed");
+    if (!response.ok) {
+      failureMessage = await responseMessage(response);
+    } else {
+      const body = await response.json();
+      if (
+        response.status !== 200 ||
+        !validEvaluationMutation(body, evaluation.value.id, action)
+      ) {
+        failureMessage = "evaluation_response_invalid";
+      }
+    }
+  } catch (failure) {
+    failureMessage =
+      failure instanceof Error ? failure.message : "Evaluation action failed";
   } finally {
+    await refresh();
+    if (failureMessage) await showError(failureMessage);
     busy.value = false;
   }
 }
@@ -137,20 +161,28 @@ onUnmounted(() => {
 
 <template>
   <section id="evaluation-detail">
-    <a class="qb-back" href="/?view=evaluations">Evaluations</a>
+    <a id="evaluation-detail-back" class="qb-back" href="/?view=evaluations"
+      >Evaluations</a
+    >
     <div v-if="evaluation" class="qb-evaluation-detail-meta">
-      <h1>Evaluation {{ evaluation.id }}</h1>
+      <h1 id="evaluation-detail-title">Evaluation {{ evaluation.id }}</h1>
       <dl>
         <dt>Repository</dt>
-        <dd>{{ evaluation.repository.url }}</dd>
+        <dd id="evaluation-detail-repository">
+          {{ evaluation.repository.url }}
+        </dd>
         <dt>Source</dt>
-        <dd>{{ evaluation.provenance ?? "Unknown" }}</dd>
+        <dd id="evaluation-detail-source">
+          {{ evaluation.provenance ?? "Unknown" }}
+        </dd>
         <dt>Status</dt>
-        <dd>{{ evaluation.execution_status }}</dd>
+        <dd id="evaluation-detail-status">{{ evaluation.execution_status }}</dd>
         <dt>Outcome</dt>
-        <dd>{{ evaluation.effective_outcome }}</dd>
+        <dd id="evaluation-detail-outcome">
+          {{ evaluation.effective_outcome }}
+        </dd>
         <dt>Duration</dt>
-        <dd>
+        <dd id="evaluation-detail-duration">
           {{
             evaluation.monitor.duration_ms === null
               ? "In progress"
@@ -158,10 +190,11 @@ onUnmounted(() => {
           }}
         </dd>
         <dt>Last refreshed</dt>
-        <dd>{{ lastRefreshed }}</dd>
+        <dd id="evaluation-detail-updated">{{ lastRefreshed }}</dd>
       </dl>
       <button
         v-if="['queued', 'running'].includes(evaluation.execution_status)"
+        id="evaluation-detail-cancel"
         :disabled="busy"
         type="button"
         @click="mutate('cancel')"
@@ -170,6 +203,7 @@ onUnmounted(() => {
       </button>
       <button
         v-if="evaluation.retry_state === 'exhausted'"
+        id="evaluation-detail-retry"
         :disabled="busy"
         type="button"
         @click="mutate('retry')"
@@ -177,38 +211,76 @@ onUnmounted(() => {
         Retry
       </button>
     </div>
-    <p v-if="loading">Loading Evaluation</p>
-    <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    <p v-if="loading" id="evaluation-detail-loading">Loading Evaluation</p>
+    <p
+      v-if="error"
+      id="evaluation-detail-error"
+      ref="errorElement"
+      role="alert"
+      tabindex="-1"
+    >
       {{ error }}
     </p>
-    <section
+    <div
       v-if="evaluation"
-      class="qb-timeline evaluation-detail-timeline"
-      aria-label="Evaluation steps"
+      id="evaluation-detail-preview"
+      class="qb-deep-surface evaluation-detail-preview"
     >
-      <template
-        v-for="(node, index) in evaluation.monitor.nodes"
-        :key="node.key ?? node.review_version_id"
+      <section
+        id="evaluation-detail-timeline"
+        class="qb-timeline evaluation-detail-timeline"
+        aria-label="Evaluation steps"
       >
-        <span v-if="index" class="qb-timeline-connector"></span>
-        <span
-          :class="`qb-timeline-node qb-timeline-node--${node.kind} qb-timeline-node--${nodeVisualState(node)}`"
-          :aria-label="`${node.label}: ${statusLabel(node)}`"
+        <template
+          v-for="(node, index) in evaluation.monitor.nodes"
+          :key="node.key ?? node.review_version_id"
         >
-          <span aria-hidden="true" class="qb-timeline-node__marker"></span>
+          <span v-if="index" class="qb-timeline-connector"></span>
           <span
-            >{{ node.kind === "review" ? "Review " : "" }}{{ node.label }}</span
-          ><span>{{ statusLabel(node) }}</span
-          ><span>{{
-            Number.isSafeInteger(node.duration_ms)
-              ? formatDuration(node.duration_ms)
-              : "—"
-          }}</span>
-        </span>
-      </template>
-    </section>
+            :class="`qb-timeline-node qb-timeline-node--${node.kind} qb-timeline-node--${nodeVisualState(node)}`"
+            :aria-label="`${node.label}: ${statusLabel(node)}`"
+          >
+            <span aria-hidden="true" class="qb-timeline-node__marker"></span>
+            <span
+              >{{ node.kind === "review" ? "Review " : ""
+              }}{{ node.label }}</span
+            ><span>{{ statusLabel(node) }}</span
+            ><span>—</span>
+          </span>
+        </template>
+      </section>
+      <aside aria-label="Outcome summary">
+        <h2>Outcome summary</h2>
+        <dl>
+          <dt>Review Runs</dt>
+          <dd>
+            {{ evaluation.monitor.review_counts.completed }} completed ·
+            {{ evaluation.monitor.review_counts.running }} running ·
+            {{ evaluation.monitor.review_counts.failed }} failed ·
+            {{ evaluation.monitor.review_counts.cancelled }} cancelled ·
+            {{ evaluation.monitor.review_counts.total }} total
+          </dd>
+          <dt>Review outcomes</dt>
+          <dd v-if="evaluation.monitor.outcome_counts">
+            {{ evaluation.monitor.outcome_counts.clear }} clear ·
+            {{ evaluation.monitor.outcome_counts.triggered }} triggered ·
+            {{ evaluation.monitor.outcome_counts.not_applicable }} not
+            applicable · {{ evaluation.monitor.outcome_counts.error }} error
+          </dd>
+          <dd v-else>Unavailable</dd>
+          <dt>Findings</dt>
+          <dd v-if="evaluation.monitor.finding_counts">
+            {{ evaluation.monitor.finding_counts.advisory }} advisory ·
+            {{ evaluation.monitor.finding_counts.blocking }} blocking ·
+            {{ evaluation.monitor.finding_counts.total }} total
+          </dd>
+          <dd v-else>Unavailable</dd>
+        </dl>
+      </aside>
+    </div>
     <EvaluationResult
       v-if="evaluation && result"
+      id="evaluation-detail-result"
       :evaluation="evaluation"
       :result="result"
       @error="showError"
