@@ -51,14 +51,6 @@ export const REPOSITORY_SCHEMA = `
   ${REPOSITORY_HEALTH_INTEGRITY}
 `;
 
-export const REPOSITORY_USAGE_MIGRATION = `
-  ALTER TABLE repositories ADD COLUMN has_been_used INTEGER NOT NULL DEFAULT 0
-    CHECK (has_been_used IN (0, 1));
-  ALTER TABLE repositories ADD COLUMN lifecycle_revision INTEGER NOT NULL DEFAULT 0
-    CHECK (lifecycle_revision >= 0);
-  UPDATE repositories SET has_been_used = 1;
-`;
-
 export const REPOSITORY_USAGE_INTEGRITY = `
   CREATE TRIGGER IF NOT EXISTS repository_usage_immutable
     BEFORE UPDATE OF has_been_used ON repositories
@@ -76,16 +68,4 @@ export const REPOSITORY_USAGE_INTEGRITY = `
       UPDATE repositories SET has_been_used = 1
       WHERE id = NEW.repository_id;
     END;
-`;
-
-export const REPOSITORY_LIFECYCLE_MIGRATION = `
-  ALTER TABLE repositories ADD COLUMN lifecycle TEXT NOT NULL
-    DEFAULT 'enabled'
-    CHECK (lifecycle IN ('enabled', 'disabled', 'retired'));
-  ALTER TABLE repositories ADD COLUMN health TEXT NOT NULL
-    DEFAULT 'healthy'
-    CHECK (health IN ('healthy', 'error'));
-  ALTER TABLE repositories ADD COLUMN health_error_code TEXT;
-  ALTER TABLE repositories ADD COLUMN health_error_message TEXT;
-  ${REPOSITORY_HEALTH_INTEGRITY}
 `;

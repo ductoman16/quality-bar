@@ -61,28 +61,3 @@ test("SQLite atomically preserves the one installation-wide Waiver Adjudicator C
     rmSync(directory, { force: true, recursive: true });
   }
 });
-
-test("SQLite migrates schema v19 to the singleton Waiver Adjudicator Configuration", () => {
-  const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-waiver-migration-"),
-  );
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  let core = openDurableCore(databasePath);
-  try {
-    core.run("DROP TABLE waiver_adjudicator_configuration");
-    core.run(
-      "UPDATE quality_bar_metadata SET value = '19' WHERE key = 'schema_version'",
-    );
-    core.run("PRAGMA user_version = 19");
-    core.close();
-
-    core = openDurableCore(databasePath);
-    assert.equal(core.facts.schemaVersion, 53);
-    assert.deepEqual(createWaiverAdjudicatorConfigurationService(core).read(), {
-      configured: false,
-    });
-  } finally {
-    core.close();
-    rmSync(directory, { force: true, recursive: true });
-  }
-});

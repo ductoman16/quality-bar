@@ -432,7 +432,6 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           },
           polling: { $ref: "#/components/schemas/SystemPollingFact" },
           storage: { $ref: "#/components/schemas/StorageReserveFact" },
-          migration: { $ref: "#/components/schemas/SystemMigrationFact" },
         },
         [
           "application",
@@ -447,7 +446,6 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
           "implementer_token",
           "polling",
           "storage",
-          "migration",
         ],
       ),
       ...canonicalStorageReserveSchemas(),

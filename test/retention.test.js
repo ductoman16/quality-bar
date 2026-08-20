@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
 import {
   RETENTION_PERIOD_MS,
   cleanupEligibleRetentionData,
 } from "../src/retention.js";
-import { hasRetentionSchema } from "../src/retention-schema.js";
 
 test("retention cleanup uses one exact ninety-day cutoff and deletes only eligible detail", () => {
   const calls = /** @type {[string, number][]} */ ([]);
@@ -73,17 +71,4 @@ test("retention cleanup fails fast when its guarded durable seam is absent", () 
       }),
     /retention transaction is required/,
   );
-});
-
-test("retention migration rejects a malformed application-log table", () => {
-  const database = new DatabaseSync(":memory:");
-  database.exec("CREATE TABLE application_logs (id TEXT PRIMARY KEY)");
-  assert.throws(
-    () => hasRetentionSchema(database),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "schema_invalid",
-  );
-  database.close();
 });

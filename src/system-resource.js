@@ -260,8 +260,6 @@ export function createSystemResource(
           integrity: durableCore.facts.integrity,
           journal_mode: durableCore.facts.journalMode,
           schema_version: durableCore.facts.schemaVersion,
-          schema_version_before_migration:
-            durableCore.facts.schemaVersionBeforeMigration,
           status: "ready",
           synchronous: durableCore.facts.synchronous,
         },

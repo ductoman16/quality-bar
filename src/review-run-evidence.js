@@ -69,29 +69,6 @@ export const REVIEW_RUN_EVIDENCE_SCHEMA = `
   ${REVIEW_RUN_EVIDENCE_INTEGRITY}
 `;
 
-/** @param {import("node:sqlite").DatabaseSync} database */
-export function reviewRunEvidenceMigration(database) {
-  const columns = new Set(
-    database
-      .prepare("PRAGMA table_info(review_runs)")
-      .all()
-      .map((column) => column.name),
-  );
-  if (columns.size === 0) {
-    return "";
-  }
-  return `
-    ${columns.has("codex_cli_version") ? "" : "ALTER TABLE review_runs ADD COLUMN codex_cli_version TEXT;"}
-    ${columns.has("process_exit_code") ? "" : "ALTER TABLE review_runs ADD COLUMN process_exit_code INTEGER;"}
-    ${columns.has("process_signal") ? "" : "ALTER TABLE review_runs ADD COLUMN process_signal TEXT;"}
-    ${columns.has("input_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN input_tokens INTEGER;"}
-    ${columns.has("cached_input_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN cached_input_tokens INTEGER;"}
-    ${columns.has("output_tokens") ? "" : "ALTER TABLE review_runs ADD COLUMN output_tokens INTEGER;"}
-    ${columns.has("execution_evidence_recorded") ? "" : "ALTER TABLE review_runs ADD COLUMN execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1));"}
-    ${REVIEW_RUN_EVIDENCE_SCHEMA}
-  `;
-}
-
 /** @param {unknown} value */
 function tokenCounter(value) {
   return Number.isSafeInteger(value) && /** @type {number} */ (value) >= 0

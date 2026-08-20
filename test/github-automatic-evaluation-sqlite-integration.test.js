@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DatabaseSync } from "node:sqlite";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
@@ -127,48 +126,6 @@ test("automatic Evaluation admission is durably unique for one frozen Changeset"
     },
   );
   core.close();
-});
-
-test("schema 34 upgrades the durable automatic Evaluation uniqueness boundary", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-github-auto-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  openDurableCore(databasePath).close();
-  const legacy = new DatabaseSync(databasePath);
-  legacy.exec(`
-    DROP TRIGGER github_feedback_bundle_admit;
-    DROP TRIGGER github_feedback_bundle_identity_update;
-    DROP TRIGGER github_feedback_bundle_delete;
-    DROP TRIGGER github_finding_feedback_identity_update;
-    DROP TRIGGER github_finding_feedback_delete;
-    DROP TABLE github_finding_feedback;
-    DROP TABLE github_feedback_bundles;
-    DROP TABLE github_automatic_evaluation_pull_requests;
-    DROP TABLE github_automatic_evaluations;
-    UPDATE quality_bar_metadata SET value = '34' WHERE key = 'schema_version';
-    PRAGMA user_version = 34;
-  `);
-  legacy.close();
-
-  const migrated = openDurableCore(databasePath);
-
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.equal(
-    migrated.get(
-      `SELECT count(*) AS count FROM sqlite_schema
-        WHERE type = 'table' AND name = 'github_automatic_evaluations'`,
-    )?.count,
-    1,
-  );
-  assert.equal(
-    migrated.get(
-      `SELECT count(*) AS count FROM sqlite_schema
-        WHERE type = 'table'
-          AND name = 'github_automatic_evaluation_pull_requests'`,
-    )?.count,
-    1,
-  );
-  migrated.close();
 });
 
 test("GitHub polling atomically admits one newly ready Changeset and observes drafts", async (context) => {

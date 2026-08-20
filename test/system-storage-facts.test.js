@@ -6,7 +6,7 @@ import { readSystemStorageFacts } from "../src/system-storage-facts.js";
 const NOW = Date.parse("2026-08-02T12:00:00.000Z");
 const KEY_IDENTITY = `sha256:${"a".repeat(64)}`;
 
-function durableCore(schemaVersionBeforeMigration = 53) {
+function durableCore() {
   return {
     facts: {
       databaseVersion: "3.49.1",
@@ -14,36 +14,35 @@ function durableCore(schemaVersionBeforeMigration = 53) {
       integrity: "ok",
       journalMode: "wal",
       schemaVersion: 53,
-      schemaVersionBeforeMigration,
       synchronous: "full",
     },
   };
 }
 
-/** @param {"daily" | "pre-migration"} kind @param {number} createdAt @param {number} [schemaVersion] */
-function backup(kind, createdAt, schemaVersion = 53) {
+/** @param {number} createdAt @param {number} [schemaVersion] */
+function backup(createdAt, schemaVersion = 53) {
   return {
     applicationVersion: "1.2.3",
     createdAt: new Date(createdAt).toISOString(),
-    databasePath: `/backups/${kind}.sqlite3`,
+    databasePath: "/backups/daily.sqlite3",
     keyIdentity: KEY_IDENTITY,
-    kind,
-    manifestPath: `/backups/${kind}.json`,
+    kind: "daily",
+    manifestPath: "/backups/daily.json",
     schemaVersion,
   };
 }
 
 /** @param {any[]} backups */
 function readFacts(backups) {
-  /** @param {{kind?: "daily" | "pre-migration"}} [input] */
+  /** @param {{kind?: "daily"}} [input] */
   function select({ kind } = {}) {
     return backups.filter((/** @type {any} */ backup) => backup.kind === kind);
   }
   return select;
 }
 
-test("System storage facts expose current identity, backup, and migration state", () => {
-  const daily = backup("daily", NOW);
+test("System storage facts expose current identity and backup state", () => {
+  const daily = backup(NOW);
   const facts = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
@@ -72,19 +71,11 @@ test("System storage facts expose current identity, backup, and migration state"
       },
       status: "current",
     },
-    migration: {
-      error: null,
-      from_schema_version: 53,
-      pre_migration_snapshot: null,
-      pre_migration_snapshot_status: "not_applicable",
-      status: "not_required",
-      to_schema_version: 53,
-    },
   });
 });
 
 test("System storage facts distinguish empty and stale backups", () => {
-  const stale = backup("daily", NOW - 24 * 60 * 60 * 1_000);
+  const stale = backup(NOW - 24 * 60 * 60 * 1_000);
   const empty = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
@@ -139,28 +130,5 @@ test("System storage facts retain exact backup failure and never infer success",
     },
     last_successful: null,
     status: "unavailable",
-  });
-});
-
-test("System storage facts require a retained pre-migration snapshot after migration", () => {
-  const facts = readSystemStorageFacts({
-    applicationVersion: "1.2.3",
-    backupsPath: "/backups",
-    durableCore: durableCore(51),
-    installationKeyIdentity: KEY_IDENTITY,
-    now: () => NOW,
-    readBackups: readFacts([]),
-  });
-
-  assert.deepEqual(facts.migration, {
-    error: {
-      code: "prior_image_backup_unavailable",
-      detail: "A validated prior-image backup is required before migration",
-    },
-    from_schema_version: 51,
-    pre_migration_snapshot: null,
-    pre_migration_snapshot_status: "missing",
-    status: "unavailable",
-    to_schema_version: 53,
   });
 });

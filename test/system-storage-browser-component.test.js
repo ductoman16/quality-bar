@@ -17,12 +17,9 @@ function element() {
   });
 }
 
-test("System renders storage, cleanup, backup, and migration facts without operational controls", () => {
+test("System renders storage, cleanup, and backup facts without operational controls", () => {
   const page = operatorPage({ view: "system" });
-  assert.match(
-    page,
-    /<h2 id="system-storage-title">Storage, backup, and migration<\/h2>/,
-  );
+  assert.match(page, /<h2 id="system-storage-title">Storage and backup<\/h2>/);
   assert.match(page, /id="system-storage-facts"/);
   assert.match(page, /<script src="\/assets\/system-storage\.js"><\/script>/);
   assert.doesNotMatch(
@@ -69,14 +66,6 @@ test("System renders storage, cleanup, backup, and migration facts without opera
         status: "available",
       },
       backup: { error: null, last_successful: null, status: "empty" },
-      migration: {
-        error: null,
-        from_schema_version: 53,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "not_applicable",
-        status: "not_required",
-        to_schema_version: 53,
-      },
       storage: {
         cleanup: {
           artifacts_removed: 2,
@@ -103,8 +92,6 @@ test("System renders storage, cleanup, backup, and migration facts without opera
       "available — artifacts 2 — sessions 1",
       "Last successful backup",
       "empty — none",
-      "Migration",
-      "Not required · schema 53",
     ],
   );
 
@@ -118,14 +105,6 @@ test("System renders storage, cleanup, backup, and migration facts without opera
         status: "available",
       },
       backup: { error: null, last_successful: null, status: "empty" },
-      migration: {
-        error: null,
-        from_schema_version: 53,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "not_applicable",
-        status: "not_required",
-        to_schema_version: 53,
-      },
       storage: {
         cleanup: {
           artifacts_removed: null,

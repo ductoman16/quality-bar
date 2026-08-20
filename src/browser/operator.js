@@ -445,7 +445,6 @@ function renderSystemHealth(system) {
       (/** @type {any} */ provider) => provider?.status === "available",
     );
   const backupStatus = system?.backup?.status;
-  const migrationStatus = system?.migration?.status;
   /** @type {Array<[string, "ok" | "warn" | "idle", string]>} */
   const tiles = [
     ["codex", codexOk ? "ok" : "warn", codexOk ? "Available" : "Unavailable"],
@@ -467,13 +466,6 @@ function renderSystemHealth(system) {
           ? "idle"
           : "warn",
       humanizeStatus(backupStatus),
-    ],
-    [
-      "migration",
-      migrationStatus === "completed" || migrationStatus === "not_required"
-        ? "ok"
-        : "warn",
-      humanizeStatus(migrationStatus),
     ],
     [
       "bootstrap",

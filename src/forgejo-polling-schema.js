@@ -32,14 +32,3 @@ export const FORGEJO_POLLING_SCHEMA = `
   CREATE INDEX IF NOT EXISTS forgejo_repository_polls_due
     ON forgejo_repository_polls (next_attempt_at);
 `;
-
-export const FORGEJO_POLLING_MIGRATION = `
-  ${FORGEJO_POLLING_SCHEMA}
-  INSERT OR IGNORE INTO forgejo_repository_polls (
-    connection_id, forge_repository_id, baseline_status, last_success_at,
-    error_code, error_message, rate_gate_until, next_attempt_at, snapshot
-  )
-  SELECT connection_id, forge_repository_id, 'pending', NULL,
-         NULL, NULL, NULL, 0, NULL
-    FROM forgejo_repositories;
-`;

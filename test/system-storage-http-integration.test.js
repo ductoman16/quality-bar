@@ -7,7 +7,7 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
-test("the authenticated System API exposes storage identity, cleanup, backup, and migration facts", async () => {
+test("the authenticated System API exposes storage identity, cleanup, and backup facts", async () => {
   const now = Date.parse("2026-08-02T12:00:00.000Z");
   const { request } = await startApplication({ now: () => now });
   const response = await request("/api/v1/system", {
@@ -27,21 +27,12 @@ test("the authenticated System API exposes storage identity, cleanup, backup, an
     last_successful: null,
     status: "empty",
   });
-  assert.deepEqual(system.migration, {
-    error: null,
-    from_schema_version: 53,
-    pre_migration_snapshot: null,
-    pre_migration_snapshot_status: "not_applicable",
-    status: "not_required",
-    to_schema_version: 53,
-  });
   assert.deepEqual(system.durable_core, {
     database_version: system.durable_core.database_version,
     foreign_keys: true,
     integrity: "ok",
     journal_mode: "wal",
     schema_version: 53,
-    schema_version_before_migration: 0,
     status: "ready",
     synchronous: "full",
   });

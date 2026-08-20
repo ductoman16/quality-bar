@@ -5,11 +5,7 @@ import {
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "./installation-environment.js";
-import {
-  finalizePreMigrationBackup,
-  preparePreMigrationBackup,
-  runDailyBackupIfDue,
-} from "./installed-backup.js";
+import { runDailyBackupIfDue } from "./installed-backup.js";
 import { SCHEMA_VERSION } from "./durable-schema.js";
 import { failBackup } from "./sqlite-backup-error.js";
 import { installationKeyIdentity } from "./sqlite-backup.js";
@@ -91,10 +87,8 @@ async function closeAfterBackupFailure(application, failure) {
  *   clearBackupTimer?: (timer: BackupTimer) => unknown,
  *   createRuntime?: typeof createApplication,
  *   databasePath: string,
- *   finalizeBackup?: typeof finalizePreMigrationBackup,
  *   loadInstallation?: typeof loadInstallationConfiguration,
  *   now?: () => number,
- *   prepareBackup?: typeof preparePreMigrationBackup,
  *   runDailyBackup?: typeof runDailyBackupIfDue,
  *   setBackupTimer?: (callback: () => void, delay: number) => BackupTimer,
  *   surfaceBackupFailure?: (failure: Error) => void,
@@ -111,10 +105,8 @@ export async function createInstalledApplication({
     clearTimeout(/** @type {ReturnType<typeof setTimeout>} */ (timer)),
   createRuntime = createApplication,
   databasePath,
-  finalizeBackup = finalizePreMigrationBackup,
   loadInstallation = loadInstallationConfiguration,
   now = () => Date.now(),
-  prepareBackup = preparePreMigrationBackup,
   runDailyBackup = runDailyBackupIfDue,
   setBackupTimer = (callback, delay) => setTimeout(callback, delay),
   surfaceBackupFailure = (failure) => {
@@ -141,7 +133,6 @@ export async function createInstalledApplication({
   /** @type {(() => void) | undefined} */
   let releaseInstallationLock;
   let preflightFailure;
-  let preMigrationBackup = null;
   let keyIdentity = "";
   try {
     validateSources();
@@ -150,13 +141,6 @@ export async function createInstalledApplication({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    preMigrationBackup = await prepareBackup({
-      backupsPath,
-      databasePath,
-      keyIdentity,
-      now,
-      targetSchemaVersion: SCHEMA_VERSION,
-    });
   } catch (error) {
     preflightFailure = error;
   }
@@ -219,16 +203,6 @@ export async function createInstalledApplication({
   if (!application.durableCore) {
     return application;
   }
-  if (preMigrationBackup) {
-    try {
-      finalizeBackup(backupsPath);
-    } catch (error) {
-      const failure = codedBackupFailure(error);
-      logBackupFailure(writeLog, failure);
-      throw await closeAfterBackupFailure(application, failure);
-    }
-  }
-
   const dailyBackupInput = {
     applicationVersion,
     backupsPath,

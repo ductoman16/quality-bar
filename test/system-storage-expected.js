@@ -14,15 +14,6 @@ export const expectedSystemBackup = {
   status: "empty",
 };
 
-export const expectedSystemMigration = {
-  error: null,
-  from_schema_version: 53,
-  pre_migration_snapshot: null,
-  pre_migration_snapshot_status: "not_applicable",
-  status: "not_required",
-  to_schema_version: 53,
-};
-
 /** @param {{database_version: string}} durableCore */
 export function expectedSystemDurableCore(durableCore) {
   return {
@@ -31,7 +22,6 @@ export function expectedSystemDurableCore(durableCore) {
     integrity: "ok",
     journal_mode: "wal",
     schema_version: 53,
-    schema_version_before_migration: 0,
     status: "ready",
     synchronous: "full",
   };

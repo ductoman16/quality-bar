@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DatabaseSync } from "node:sqlite";
 
 import { openDurableCore } from "../src/durable-core.js";
 import { createEvaluationService } from "../src/evaluation.js";
@@ -14,6 +13,21 @@ import {
   repositoryEvidence,
 } from "./forgejo-polling-sqlite-integration-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
+
+/** @param {number} number @param {Partial<{draft: boolean}>} [overrides] */
+function pullRequest(number, overrides = {}) {
+  return {
+    base: { sha: "a".repeat(40) },
+    draft: false,
+    head: { sha: "b".repeat(40) },
+    merge_base: "c".repeat(40),
+    merged: false,
+    merged_at: null,
+    number,
+    state: "open",
+    ...overrides,
+  };
+}
 
 test("Forgejo automatic Evaluation admission is durable, unique, and provider-owned", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-auto-"));
@@ -104,51 +118,6 @@ test("Forgejo automatic Evaluation admission is durable, unique, and provider-ow
   );
   core.close();
 });
-
-test("schema 48 adds the Forgejo automatic Evaluation boundary", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-auto-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  openDurableCore(databasePath).close();
-  const legacy = new DatabaseSync(databasePath);
-  legacy.exec(`
-    DROP TABLE forgejo_automatic_evaluation_pull_requests;
-    DROP TABLE forgejo_automatic_evaluations;
-    UPDATE quality_bar_metadata SET value = '48' WHERE key = 'schema_version';
-    PRAGMA user_version = 48;
-  `);
-  legacy.close();
-
-  const migrated = openDurableCore(databasePath);
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.deepEqual(
-    migrated.all(
-      `SELECT name FROM sqlite_schema
-        WHERE type = 'table' AND name LIKE 'forgejo_automatic_evaluation%'
-        ORDER BY name`,
-    ),
-    [
-      { name: "forgejo_automatic_evaluation_pull_requests" },
-      { name: "forgejo_automatic_evaluations" },
-    ],
-  );
-  migrated.close();
-});
-
-/** @param {number} number @param {Partial<{draft: boolean}>} [overrides] */
-function pullRequest(number, overrides = {}) {
-  return {
-    base: { sha: "a".repeat(40) },
-    draft: false,
-    head: { sha: "b".repeat(40) },
-    merge_base: "c".repeat(40),
-    merged: false,
-    merged_at: null,
-    number,
-    state: "open",
-    ...overrides,
-  };
-}
 
 test("Forgejo polling atomically admits a newly ready PR and observes a draft", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-auto-"));

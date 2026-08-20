@@ -17,14 +17,7 @@ const dataState = (element) =>
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
-const HEALTH_IDS = [
-  "codex",
-  "durable",
-  "storage",
-  "backups",
-  "migration",
-  "bootstrap",
-];
+const HEALTH_IDS = ["codex", "durable", "storage", "backups", "bootstrap"];
 
 class FakeCustomEvent {
   /** @param {string} type @param {{detail?: unknown}} [init] */
@@ -105,7 +98,6 @@ const HEALTHY_SYSTEM = {
   durable_core: { status: "ready" },
   execution_providers: [{ id: "codex", name: "Codex", status: "available" }],
   implementer_token: { status: "revoked" },
-  migration: { status: "completed" },
   storage: { status: "available" },
 };
 

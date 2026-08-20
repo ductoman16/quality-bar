@@ -1,6 +1,5 @@
 import { loadInstallationConfiguration } from "./installation-configuration.js";
 import {
-  BACKUPS_PATH,
   STATE_PATH,
   validateInstallationFilesystem,
   validateInstallationSources,
@@ -13,8 +12,6 @@ const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
 
 /**
  * @param {{
- *   applicationVersion?: string,
- *   backupsPath?: string,
  *   databasePath?: string,
  *   loadInstallation?: () => {
  *     freeSpaceReserveBytes: number,
@@ -29,8 +26,6 @@ const DATABASE_PATH = `${STATE_PATH}/quality-bar.sqlite3`;
  * }} [options]
  */
 export async function recoverOperatorAuthorityFromHost({
-  applicationVersion,
-  backupsPath = BACKUPS_PATH,
   databasePath = DATABASE_PATH,
   loadInstallation = loadInstallationConfiguration,
   onAuthorityRecovered,
@@ -39,8 +34,6 @@ export async function recoverOperatorAuthorityFromHost({
   validateSources = validateInstallationSources,
 } = {}) {
   return runOperatorPasswordHostMutation({
-    applicationVersion,
-    backupsPath,
     databasePath,
     loadInstallation,
     mutate: recoverOperatorAuthority,

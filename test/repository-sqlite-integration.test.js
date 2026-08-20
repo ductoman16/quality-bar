@@ -7,34 +7,10 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable-core.js";
 import { createRepositoryService, RepositoryError } from "../src/repository.js";
 
-/** @param {ReturnType<typeof openDurableCore>} core */
-function dropReviewAssignmentSchema(core) {
-  for (const trigger of [
-    "evaluation_applicability_seal_complete_update",
-    "review_hard_delete_lineage",
-    "review_assignment_repository_scope_insert",
-    "review_assignment_repository_scope_update",
-    "review_assignment_scope_update",
-  ]) {
-    core.run(`DROP TRIGGER ${trigger}`);
-  }
-  core.run("DROP TABLE review_assignment_repositories");
-}
-
 test("a verified normalized Repository identity is inserted once and failed verification stores nothing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  dropReviewAssignmentSchema(prior);
-  prior.run("DROP TABLE repositories");
-  prior.run(
-    "UPDATE quality_bar_metadata SET value = '8' WHERE key = 'schema_version'",
-  );
-  prior.run("PRAGMA user_version = 8");
-  prior.close();
-
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 53);
   /** @type {{credential: object | undefined, options: object | undefined, url: string}[]} */
   const verifications = [];
   const repositories = createRepositoryService(core, {
@@ -127,26 +103,7 @@ test("a verified normalized Repository identity is inserted once and failed veri
 test("credentialed registration atomically stores only a Repository-bound encrypted credential", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  dropReviewAssignmentSchema(prior);
-  prior.run("DROP TABLE repository_credentials");
-  prior.run("DROP TABLE repositories");
-  prior.run(
-    `CREATE TABLE repositories (
-      id TEXT PRIMARY KEY,
-      normalized_url TEXT NOT NULL UNIQUE,
-      created_at INTEGER NOT NULL,
-      verified_at INTEGER NOT NULL
-    ) STRICT`,
-  );
-  prior.run(
-    "UPDATE quality_bar_metadata SET value = '9' WHERE key = 'schema_version'",
-  );
-  prior.run("PRAGMA user_version = 9");
-  prior.close();
-
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 53);
   /** @type {object[]} */
   const verificationCredentials = [];
   const repositories = createRepositoryService(core, {
@@ -259,33 +216,7 @@ test("credentialed registration atomically stores only a Repository-bound encryp
 test("Repository lifecycle persists separately from observed health and preserves already-admitted work", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));
   const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  dropReviewAssignmentSchema(prior);
-  prior.run("DROP TABLE repository_credentials");
-  prior.run("DROP TABLE repositories");
-  prior.run(
-    `CREATE TABLE repositories (
-      id TEXT PRIMARY KEY,
-      normalized_url TEXT NOT NULL UNIQUE,
-      created_at INTEGER NOT NULL,
-      verified_at INTEGER NOT NULL
-    ) STRICT`,
-  );
-  prior.run(
-    `CREATE TABLE repository_credentials (
-      repository_id TEXT PRIMARY KEY REFERENCES repositories(id),
-      encrypted_credential TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    ) STRICT`,
-  );
-  prior.run(
-    "UPDATE quality_bar_metadata SET value = '10' WHERE key = 'schema_version'",
-  );
-  prior.run("PRAGMA user_version = 10");
-  prior.close();
-
   const core = openDurableCore(databasePath);
-  assert.equal(core.facts.schemaVersion, 53);
   let verificationFails = false;
   const repositories = createRepositoryService(core, {
     createId: () => "repository-lifecycle",

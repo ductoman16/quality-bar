@@ -8,7 +8,7 @@ const KEY_IDENTITY = /^sha256:[0-9a-f]{64}$/;
  *   applicationVersion: string,
  *   createdAt: string,
  *   keyIdentity: string,
- *   kind: "daily" | "pre-migration",
+ *   kind: "daily",
  *   schemaVersion: number
  * }} ValidatedBackup
  */
@@ -48,7 +48,7 @@ function requireBackup(value) {
     typeof record.createdAt !== "string" ||
     typeof record.keyIdentity !== "string" ||
     !KEY_IDENTITY.test(record.keyIdentity) ||
-    !["daily", "pre-migration"].includes(/** @type {string} */ (record.kind)) ||
+    record.kind !== "daily" ||
     !Number.isSafeInteger(record.schemaVersion) ||
     /** @type {number} */ (record.schemaVersion) <= 0
   ) {
@@ -80,7 +80,7 @@ function latestBackup(backups) {
  * @param {{
  *   applicationVersion?: string,
  *   backupsPath: string,
- *   durableCore: {facts: {schemaVersion: number, schemaVersionBeforeMigration?: number}},
+ *   durableCore: {facts: {schemaVersion: number}},
  *   installationKeyIdentity?: string,
  *   now?: () => number,
  *   readBackups?: typeof readValidatedBackups
@@ -143,9 +143,8 @@ export function readSystemStorageFacts({
         status: "available",
       };
 
-  /** @param {"daily" | "pre-migration"} kind */
-  function readBackupsFor(kind) {
-    const records = readBackups({ backupsPath, kind });
+  function readDailyBackups() {
+    const records = readBackups({ backupsPath, kind: "daily" });
     if (!Array.isArray(records)) {
       throw new TypeError("Validated backup facts are not an array");
     }
@@ -157,7 +156,7 @@ export function readSystemStorageFacts({
   let backupFailure = applicationError;
   if (!backupFailure) {
     try {
-      dailyBackups = readBackupsFor("daily");
+      dailyBackups = readDailyBackups();
     } catch (error) {
       backupFailure = errorFact(error);
     }
@@ -187,111 +186,5 @@ export function readSystemStorageFacts({
     };
   }
 
-  const storedSchemaVersionBeforeMigration =
-    durableCore.facts.schemaVersionBeforeMigration ?? currentSchemaVersion;
-  if (
-    !Number.isSafeInteger(storedSchemaVersionBeforeMigration) ||
-    storedSchemaVersionBeforeMigration < 0
-  ) {
-    throw new TypeError(
-      "System storage pre-migration schema version is invalid",
-    );
-  }
-  const schemaVersionBeforeMigration =
-    storedSchemaVersionBeforeMigration === 0
-      ? currentSchemaVersion
-      : storedSchemaVersionBeforeMigration;
-  if (schemaVersionBeforeMigration === currentSchemaVersion) {
-    return {
-      application,
-      backup,
-      migration: {
-        error: null,
-        from_schema_version: currentSchemaVersion,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "not_applicable",
-        status: "not_required",
-        to_schema_version: currentSchemaVersion,
-      },
-    };
-  }
-  if (schemaVersionBeforeMigration > currentSchemaVersion) {
-    return {
-      application,
-      backup,
-      migration: {
-        error: {
-          code: "migration_schema_version_invalid",
-          detail:
-            "The durable core schema version is newer than the application",
-        },
-        from_schema_version: schemaVersionBeforeMigration,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "unavailable",
-        status: "unavailable",
-        to_schema_version: currentSchemaVersion,
-      },
-    };
-  }
-
-  /** @type {ValidatedBackup[]} */
-  let preMigrationBackups = [];
-  let migrationFailure = applicationError;
-  if (!migrationFailure) {
-    try {
-      preMigrationBackups = readBackupsFor("pre-migration");
-    } catch (error) {
-      migrationFailure = errorFact(error);
-    }
-  }
-  const preMigration = latestBackup(
-    preMigrationBackups.filter(
-      (candidate) =>
-        candidate.schemaVersion === schemaVersionBeforeMigration &&
-        candidate.keyIdentity === installationKeyIdentity,
-    ),
-  );
-  if (migrationFailure) {
-    return {
-      application,
-      backup,
-      migration: {
-        error: migrationFailure,
-        from_schema_version: schemaVersionBeforeMigration,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "unavailable",
-        status: "unavailable",
-        to_schema_version: currentSchemaVersion,
-      },
-    };
-  }
-  if (!preMigration) {
-    return {
-      application,
-      backup,
-      migration: {
-        error: {
-          code: "prior_image_backup_unavailable",
-          detail: "A validated prior-image backup is required before migration",
-        },
-        from_schema_version: schemaVersionBeforeMigration,
-        pre_migration_snapshot: null,
-        pre_migration_snapshot_status: "missing",
-        status: "unavailable",
-        to_schema_version: currentSchemaVersion,
-      },
-    };
-  }
-  return {
-    application,
-    backup,
-    migration: {
-      error: null,
-      from_schema_version: schemaVersionBeforeMigration,
-      pre_migration_snapshot: backupDocument(preMigration),
-      pre_migration_snapshot_status: "available",
-      status: "completed",
-      to_schema_version: currentSchemaVersion,
-    },
-  };
+  return { application, backup };
 }

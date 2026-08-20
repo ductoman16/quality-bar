@@ -1,11 +1,5 @@
 import { openDurableCore } from "./durable-core.js";
-import { SCHEMA_VERSION } from "./durable-schema.js";
-import {
-  finalizePreMigrationBackup,
-  preparePreMigrationBackup,
-} from "./installed-backup.js";
 import { verifyInstallationKey } from "./installation-configuration.js";
-import { installationKeyIdentity } from "./sqlite-backup.js";
 
 /**
  * @param {Error} primaryFailure
@@ -32,8 +26,6 @@ function throwExactly(failure) {
 /**
  * @template Result
  * @param {{
- *   applicationVersion?: string,
- *   backupsPath: string,
  *   databasePath: string,
  *   loadInstallation: () => {
  *     freeSpaceReserveBytes: number,
@@ -53,7 +45,6 @@ function throwExactly(failure) {
  * @returns {Promise<Result>}
  */
 export async function runOperatorPasswordHostMutation({
-  backupsPath,
   databasePath,
   loadInstallation,
   mutate,
@@ -76,17 +67,8 @@ export async function runOperatorPasswordHostMutation({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    const preMigrationBackup = await preparePreMigrationBackup({
-      backupsPath,
-      databasePath,
-      keyIdentity: installationKeyIdentity(installation.masterKey),
-      targetSchemaVersion: SCHEMA_VERSION,
-    });
     durableCore = openDurableCore(databasePath);
     verifyInstallationKey(durableCore, installation.masterKey);
-    if (preMigrationBackup) {
-      finalizePreMigrationBackup(backupsPath);
-    }
     result = mutate(durableCore, await readPassword());
     onMutationCommitted?.();
   } catch (error) {
