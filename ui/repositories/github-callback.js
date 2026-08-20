@@ -1,4 +1,5 @@
 import { responseMessage } from "../browser.js";
+import { exact, nonempty, record } from "../contract.js";
 
 /** @param {(message: string) => void} showError */
 export async function consumeGitHubCallbackFailure(showError) {
@@ -22,14 +23,25 @@ export async function consumeGitHubCallbackFailure(showError) {
     showError(await responseMessage(response));
     return true;
   }
-  const failure = await response.json();
+  if (response.status !== 200) {
+    showError("GitHub callback error response is invalid");
+    return true;
+  }
+  let failure;
+  try {
+    failure = await response.json();
+  } catch {
+    showError("GitHub callback error response is invalid");
+    return true;
+  }
   if (failure === null) {
     return false;
   }
   if (
-    !failure ||
-    typeof failure.code !== "string" ||
-    typeof failure.message !== "string"
+    !record(failure) ||
+    !exact(failure, ["code", "message"]) ||
+    !nonempty(failure.code) ||
+    !nonempty(failure.message)
   ) {
     showError("GitHub callback error response is invalid");
     return true;

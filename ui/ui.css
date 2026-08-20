@@ -1,6 +1,9 @@
 [hidden] {
   display: none !important;
 }
+.qb-page-heading {
+  display: block !important;
+}
 
 .qb-login {
   min-height: 100vh;

@@ -62,12 +62,17 @@ describe("Vue operator views", () => {
     const detail = shallowMount(App, {
       props: { authenticated: true, view: "evaluation-detail" },
     });
+    expect(detail.get("h1").text()).toBe("Evaluation");
     expect(detail.get('a[aria-current="page"]').text()).toBe("Evaluations");
     detail.unmount();
   });
 
   it("surfaces an invalid System attention document", async () => {
-    vi.mocked(fetch).mockResolvedValue({ json: async () => ({}), ok: true });
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({}),
+      ok: true,
+      status: 200,
+    });
     const wrapper = shallowMount(App, {
       props: { authenticated: true, view: "evaluations" },
     });
@@ -210,6 +215,7 @@ describe("Vue operator views", () => {
         return { code: "manifest_failed", message: "Manifest failed" };
       },
       ok: true,
+      status: 200,
     });
     const showError = vi.fn();
     await expect(consumeGitHubCallbackFailure(showError)).resolves.toBe(true);

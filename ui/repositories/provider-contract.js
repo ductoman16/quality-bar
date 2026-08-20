@@ -1,4 +1,4 @@
-import { count, exact, httpsUrl, nonempty, record } from "../contract.js";
+import { count, exact, httpsUrl, nonempty, record, uri } from "../contract.js";
 
 /** @typedef {(value: any) => boolean} Validator */
 /** @type {Validator} */
@@ -26,7 +26,7 @@ const permissions = (value) =>
 /** @type {(value: any, github?: boolean) => boolean} */
 const principal = (value, github = false) =>
   record(value) &&
-  (!github || exact(value, ["id", "login", "type"])) &&
+  exact(value, github ? ["id", "login", "type"] : ["id", "login"]) &&
   positive(value.id) &&
   nonempty(value.login) &&
   (!github || value.type === "User");
@@ -256,9 +256,9 @@ const forgejoRepository = (value) => {
       permissions(value.permissions) &&
       positive(value.id) &&
       nonempty(value.full_name) &&
-      httpsUrl(value.api_url) &&
-      httpsUrl(value.clone_url) &&
-      httpsUrl(value.html_url) &&
+      uri(value.api_url) &&
+      uri(value.clone_url) &&
+      uri(value.html_url) &&
       typeof value.private === "boolean"
     );
   }
@@ -297,6 +297,10 @@ const forgejoVerification = (value) =>
   count(value.verified_at) &&
   Array.isArray(value.repositories) &&
   value.repositories.every(forgejoRepository) &&
+  (value.outcome !== "success" ||
+    value.repositories.every(
+      (/** @type {any} */ repository) => repository.outcome === "success",
+    )) &&
   (value.outcome === "success"
     ? value.api_profile === "forgejo-v16" &&
       record(value.capabilities) &&
@@ -335,7 +339,7 @@ export const validForgejoConnection = (/** @type {any} */ value) =>
       "verified_at",
     ]) &&
     value.api_profile === "forgejo-v16" &&
-    httpsUrl(value.base_url) &&
+    uri(value.base_url) &&
     record(value.capabilities) &&
     health(value) &&
     nonempty(value.id) &&
@@ -371,3 +375,11 @@ export const validManifestContinuation = (/** @type {any} */ value) =>
   value.action ===
     `https://github.com/settings/apps/new?state=${encodeURIComponent(value.state)}` &&
   record(value.manifest);
+
+/** @param {string} provider @param {string} method @param {any} value */
+export const validLifecycleChange = (provider, method, value) =>
+  method === "DELETE"
+    ? value === null
+    : (provider === "github"
+        ? validGitHubConnection(value)
+        : validForgejoConnection(value)) && value?.lifecycle === "retired";

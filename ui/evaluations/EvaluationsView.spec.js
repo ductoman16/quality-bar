@@ -119,7 +119,11 @@ describe("Evaluations view", () => {
     );
     await wrapper.get(".evaluation-row__toggle").trigger("click");
     expect(wrapper.find(".evaluation-expanded").exists()).toBe(true);
-    expect(wrapper.get(".evaluation-expanded").text()).toContain("Finalizing");
+    const expanded = wrapper.get(".evaluation-expanded").text();
+    expect(expanded).toContain("Finalizing");
+    expect(expanded).toContain(`branch main · ${"a".repeat(40)}`);
+    expect(expanded).toContain("Review statuses");
+    expect(expanded).toContain("FindingsUnavailable");
     await wrapper.get("#evaluation-filter-status").setValue("running");
     await wrapper.get(".evaluation-filter-form").trigger("submit");
     await flushPromises();

@@ -83,6 +83,14 @@ const localTime = (value) =>
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(value));
+const counts = (value) =>
+  value
+    ? Object.entries(value)
+        .map(([name, count]) => `${name.replaceAll("_", " ")} ${count}`)
+        .join(" · ")
+    : "Unavailable";
+const frozen = (selector, commit) =>
+  `${selector.type} ${selector.value} · ${commit}`;
 </script>
 
 <template>
@@ -197,29 +205,42 @@ const localTime = (value) =>
       :id="`evaluation-expanded-${evaluation.id}`"
       class="evaluation-expanded"
     >
-      <div class="evaluation-expanded__table">
-        <div class="evaluation-expanded__row evaluation-expanded__row--header">
-          <span>Step</span><span>Status</span><span>Duration</span
-          ><span>Finished</span>
-        </div>
-        <div
+      <dl>
+        <dt>Evaluation</dt>
+        <dd>{{ evaluation.id }}</dd>
+        <dt>Base</dt>
+        <dd>{{ frozen(evaluation.base_selector, evaluation.base_commit) }}</dd>
+        <dt>Head</dt>
+        <dd>{{ frozen(evaluation.head_selector, evaluation.head_commit) }}</dd>
+        <dt>Created</dt>
+        <dd>{{ evaluation.created_at }}</dd>
+        <dt>Completed</dt>
+        <dd>{{ evaluation.completed_at ?? "In progress" }}</dd>
+        <dt>Review statuses</dt>
+        <dd>{{ counts(evaluation.monitor.review_counts) }}</dd>
+        <dt>Review outcomes</dt>
+        <dd>{{ counts(evaluation.monitor.outcome_counts) }}</dd>
+        <dt>Findings</dt>
+        <dd>{{ counts(evaluation.monitor.finding_counts) }}</dd>
+      </dl>
+      <ol class="evaluation-expanded__table">
+        <li
           v-for="(node, index) in evaluation.monitor.nodes"
           :key="node.key ?? node.review_version_id"
-          class="evaluation-expanded__row evaluation-node"
+          class="evaluation-node"
         >
-          <div class="evaluation-step">
+          <span class="evaluation-step">
             <span class="evaluation-step__number">{{ index + 1 }}</span
             ><span>{{ node.label }}</span>
-          </div>
+          </span>
           <span
             :class="`evaluation-node-status evaluation-status--${nodeStatus(node)[0]}`"
             ><span class="evaluation-status__icon"></span
             ><span>{{ nodeStatus(node)[1] }}</span></span
           >
-          <span>—</span>
-          <time>—</time>
-        </div>
-      </div>
+        </li>
+      </ol>
+      <a :href="evaluationUrl">Open Evaluation detail</a>
     </section>
   </article>
 </template>

@@ -65,19 +65,29 @@ beforeEach(() => {
         return {
           json: async () => ({ codex: { catalog: { models: [model] } } }),
           ok: true,
+          status: 200,
         };
       }
       if (path === "/api/v1/repositories") {
         return {
           json: async () => ({ items: [repository], next_cursor: null }),
           ok: true,
+          status: 200,
         };
       }
       if (path === "/api/v1/reviews") {
-        return { json: async () => ({ reviews: [review] }), ok: true };
+        return {
+          json: async () => ({ reviews: [review] }),
+          ok: true,
+          status: 200,
+        };
       }
       if (path === "/api/v1/reviews?state=archived") {
-        return { json: async () => ({ reviews: [] }), ok: true };
+        return {
+          json: async () => ({ reviews: [] }),
+          ok: true,
+          status: 200,
+        };
       }
       if (options && String(path).startsWith("/api/v1/reviews/review-1/")) {
         const body = JSON.parse(options.body);
@@ -175,22 +185,29 @@ it("surfaces malformed mutation success and reconciles ambiguous deletion", asyn
       return {
         json: async () => ({ codex: { catalog: { models: [model] } } }),
         ok: true,
+        status: 200,
       };
     }
     if (path === "/api/v1/repositories") {
       return {
         json: async () => ({ items: [repository], next_cursor: null }),
         ok: true,
+        status: 200,
       };
     }
     if (path === "/api/v1/reviews") {
       return {
         json: async () => ({ reviews: deleted ? [] : [review] }),
         ok: true,
+        status: 200,
       };
     }
     if (path === "/api/v1/reviews?state=archived") {
-      return { json: async () => ({ reviews: [] }), ok: true };
+      return {
+        json: async () => ({ reviews: [] }),
+        ok: true,
+        status: 200,
+      };
     }
     if (String(path).endsWith("/metadata")) {
       return { json: async () => ({}), ok: true, status: 200 };

@@ -47,15 +47,23 @@ export async function responseMessage(response) {
   return (await responseError(response)).message;
 }
 
+/** @param {Response} response @param {number} expected @param {string} invalid */
+export async function requireStatus(response, expected, invalid) {
+  if (!response.ok) {
+    throw new Error(await responseMessage(response));
+  }
+  if (response.status !== expected) {
+    throw new Error(invalid);
+  }
+}
+
 export async function repositoryCollection() {
   const items = /** @type {any[]} */ ([]);
   const cursors = new Set();
   let path = "/api/v1/repositories";
   for (;;) {
     const response = await fetch(path);
-    if (!response.ok) {
-      throw new Error(await responseMessage(response));
-    }
+    await requireStatus(response, 200, "repository_collection_invalid");
     const body = await response.json();
     if (
       !Array.isArray(body.items) ||

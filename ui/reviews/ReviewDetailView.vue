@@ -4,6 +4,7 @@ import { nextTick, onMounted, reactive, ref } from "vue";
 import {
   csrfRequest,
   repositoryCollection,
+  requireStatus,
   responseMessage,
 } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
@@ -36,7 +37,7 @@ const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function list(path) {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(await responseMessage(response));
+  await requireStatus(response, 200, "review_collection_response_invalid");
   return readReviewCollection(await response.json());
 }
 function open(value) {
@@ -239,7 +240,11 @@ async function remove() {
     return;
   }
   try {
-    await findReview();
+    const current = await findReview();
+    if (!current) {
+      location.assign("/?view=reviews");
+      return;
+    }
     error.value = "Review deletion result is unavailable";
   } catch (failure) {
     error.value =
@@ -254,9 +259,7 @@ onMounted(async () => {
       fetch("/api/v1/system"),
       repositoryCollection(),
     ]);
-    if (!systemResponse.ok) {
-      throw new Error(await responseMessage(systemResponse));
-    }
+    await requireStatus(systemResponse, 200, "system_response_invalid");
     models.value = readModelCatalog(await systemResponse.json());
     repositories.value = repositoryItems;
     await load();
@@ -273,7 +276,7 @@ onMounted(async () => {
   <section v-if="review" class="qb-region review-detail">
     <a class="qb-back" href="/?view=reviews">Reviews</a>
     <div class="review-detail__head">
-      <h1>{{ review.name }}</h1>
+      <h2>{{ review.name }}</h2>
       <span>{{ review.archived ? "Archived" : "Active" }}</span>
     </div>
     <section class="review-group qb-deep-surface">

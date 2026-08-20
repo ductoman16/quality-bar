@@ -1,10 +1,11 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
-import { csrfToken, responseMessage } from "../browser.js";
+import { csrfToken, requireStatus, responseMessage } from "../browser.js";
 import EvaluationResult from "./EvaluationResult.vue";
 import {
   mutateEvaluation,
+  isTerminalStatus,
   nodeVisualState,
   validEvaluation,
   validEvaluationMutation,
@@ -35,6 +36,18 @@ const statusLabel = (node) => {
   return value
     .replaceAll("_", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
+};
+const selector = (value, commit) => `${value.type} ${value.value} · ${commit}`;
+const duration = (value) =>
+  value.monitor.duration_ms === null
+    ? isTerminalStatus(value.execution_status)
+      ? "Unavailable"
+      : "In progress"
+    : formatDuration(value.monitor.duration_ms);
+const feedback = (value) => {
+  if (!value) return "Not applicable";
+  const statuses = value.findings.map((item) => item.publication_status);
+  return `Aggregate ${value.aggregate.publication_status}; findings ${statuses.join(", ") || "none"}`;
 };
 async function loadResult() {
   if (
@@ -68,7 +81,7 @@ async function loadResult() {
       }
       throw new Error("evaluation_result_error_invalid");
     }
-    if (!response.ok) return showError(await responseMessage(response));
+    await requireStatus(response, 200, "evaluation_result_response_invalid");
     const body = await response.json();
     if (!validEvaluationResult(body, evaluation.value.id))
       throw new Error("evaluation_result_invalid");
@@ -94,7 +107,7 @@ async function refresh() {
       `/api/v1/evaluations/${encodeURIComponent(id)}`,
     );
     loading.value = false;
-    if (!response.ok) return showError(await responseMessage(response));
+    await requireStatus(response, 200, "evaluation_response_invalid");
     const body = await response.json();
     if (!validEvaluation(body) || body.id !== id)
       return showError("Evaluation failed to load");
@@ -102,9 +115,11 @@ async function refresh() {
     lastRefreshed.value = new Date().toLocaleTimeString();
     error.value = "";
     await loadResult();
-  } catch {
+  } catch (failure) {
     loading.value = false;
-    await showError("Evaluation failed to load");
+    await showError(
+      failure instanceof Error ? failure.message : "Evaluation failed to load",
+    );
   } finally {
     refreshing = false;
   }
@@ -163,7 +178,7 @@ onUnmounted(() => {
       >Evaluations</a
     >
     <div v-if="evaluation" class="qb-evaluation-detail-meta">
-      <h1 id="evaluation-detail-title">Evaluation {{ evaluation.id }}</h1>
+      <h2 id="evaluation-detail-title">Evaluation {{ evaluation.id }}</h2>
       <dl>
         <dt>Repository</dt>
         <dd id="evaluation-detail-repository">
@@ -171,8 +186,18 @@ onUnmounted(() => {
         </dd>
         <dt>Source</dt>
         <dd id="evaluation-detail-source">
-          {{ evaluation.provenance ?? "Unknown" }}
+          {{ evaluation.provenance }}
         </dd>
+        <dt>Base</dt>
+        <dd>
+          {{ selector(evaluation.base_selector, evaluation.base_commit) }}
+        </dd>
+        <dt>Head</dt>
+        <dd>
+          {{ selector(evaluation.head_selector, evaluation.head_commit) }}
+        </dd>
+        <dt>Pull request</dt>
+        <dd>{{ evaluation.pull_request?.number ?? "Not applicable" }}</dd>
         <dt>Status</dt>
         <dd id="evaluation-detail-status">{{ evaluation.execution_status }}</dd>
         <dt>Outcome</dt>
@@ -181,12 +206,18 @@ onUnmounted(() => {
         </dd>
         <dt>Duration</dt>
         <dd id="evaluation-detail-duration">
+          {{ duration(evaluation) }}
+        </dd>
+        <dt>Commit status</dt>
+        <dd>
           {{
-            evaluation.monitor.duration_ms === null
-              ? "In progress"
-              : formatDuration(evaluation.monitor.duration_ms)
+            evaluation.commit_status
+              ? `${evaluation.commit_status.state} · ${evaluation.commit_status.publication_status}`
+              : "Not applicable"
           }}
         </dd>
+        <dt>Feedback</dt>
+        <dd>{{ feedback(evaluation.feedback) }}</dd>
         <dt>Last refreshed</dt>
         <dd id="evaluation-detail-updated">{{ lastRefreshed }}</dd>
       </dl>

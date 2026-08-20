@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from "vue";
 
-import { repositoryCollection, responseMessage } from "../browser.js";
+import { repositoryCollection, requireStatus } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import RepositoryActions from "./RepositoryActions.vue";
 import { validGuidance } from "./contract.js";
@@ -28,9 +28,7 @@ async function load() {
     const response = await fetch(
       `/api/v1/repositories/${encodeURIComponent(id)}/guidance`,
     );
-    if (!response.ok) {
-      throw new Error(await responseMessage(response));
-    }
+    await requireStatus(response, 200, "repository_guidance_response_invalid");
     const body = await response.json();
     if (
       !validGuidance(body) ||
@@ -57,7 +55,7 @@ onMounted(load);
     <a class="qb-back" href="/?view=repositories">Repositories</a>
     <template v-if="repository"
       ><div class="repo-detail__head">
-        <h1>{{ repository.name || repository.url }}</h1>
+        <h2>{{ repository.name || repository.url }}</h2>
         <span>{{ repository.lifecycle }} · {{ repository.health }}</span>
       </div>
       <dl class="repo-detail__meta">
@@ -87,6 +85,25 @@ onMounted(load);
         <ol class="repo-guidance">
           <li v-for="review in guidance?.reviews" :key="review.id">
             <strong>{{ review.name }}</strong>
+            <span>
+              v{{ review.active_version.number }} ·
+              {{
+                review.criteria.filter(({ impact }) => impact === "blocking")
+                  .length
+              }}
+              blocking ·
+              {{
+                review.criteria.filter(({ impact }) => impact === "advisory")
+                  .length
+              }}
+              advisory ·
+              {{
+                review.applicability.type === "unconditional"
+                  ? "always applies"
+                  : "conditional"
+              }}
+              · {{ review.assignment.scope.replaceAll("_", " ") }}
+            </span>
             <ol>
               <li v-for="criterion in review.criteria" :key="criterion.id">
                 {{ criterion.impact }} · {{ criterion.instruction }}

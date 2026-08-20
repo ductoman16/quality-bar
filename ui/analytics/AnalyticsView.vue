@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 
-import { responseMessage } from "../browser.js";
+import { requireStatus } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import { validAnalytics } from "./contract.js";
 import MetricTable from "./MetricTable.vue";
@@ -238,7 +238,7 @@ async function load(updateUrl = false) {
     const response = await fetch(
       `/api/v1/analytics${search.size ? `?${search}` : ""}`,
     );
-    if (!response.ok) throw new Error(await responseMessage(response));
+    await requireStatus(response, 200, "analytics_response_invalid");
     const value = await response.json();
     if (!validAnalytics(value)) throw new Error("analytics_document_invalid");
     document_.value = value;

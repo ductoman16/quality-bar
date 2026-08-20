@@ -1,7 +1,11 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import { csrfRequest, responseMessage } from "../browser.js";
+import {
+  csrfRequest,
+  repositoryCollection,
+  responseMessage,
+} from "../browser.js";
 import { validRepository } from "./contract.js";
 
 const props = defineProps({
@@ -23,6 +27,28 @@ const identity = () =>
     : props.repository.url;
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
+async function reconcile(method, body, message) {
+  try {
+    const current = (await repositoryCollection()).find(
+      ({ id }) => id === props.repository.id,
+    );
+    if (method === "DELETE" && !current) {
+      emit("changed", null);
+      return;
+    }
+    if (method === "PATCH" && current?.lifecycle === body.lifecycle) {
+      emit("changed", current);
+      return;
+    }
+    emit("error", message);
+    emit("refresh");
+  } catch (failure) {
+    emit(
+      "error",
+      `${message}; ${failure instanceof Error ? failure.message : "repository_reconciliation_failed"}`,
+    );
+  }
+}
 async function mutation(path, body, method, fallback) {
   busy.value = true;
   try {
@@ -30,10 +56,11 @@ async function mutation(path, body, method, fallback) {
     if (method === "DELETE") {
       if (!response.ok) {
         emit("error", await responseMessage(response));
+        emit("refresh");
         return;
       }
       if (response.status !== 200 || (await response.json()) !== null) {
-        emit("error", `${fallback} response is invalid`);
+        await reconcile(method, body, `${fallback} response is invalid`);
         return;
       }
       emit("changed", null);
@@ -41,6 +68,7 @@ async function mutation(path, body, method, fallback) {
     }
     if (!response.ok) {
       emit("error", await responseMessage(response));
+      if (method === "PATCH") emit("refresh");
       return;
     }
     const value = await response.json();
@@ -50,18 +78,18 @@ async function mutation(path, body, method, fallback) {
       value.id !== props.repository.id ||
       (method === "PATCH" && value.lifecycle !== body.lifecycle)
     ) {
-      emit("error", `${fallback} response is invalid`);
+      await reconcile(method, body, `${fallback} response is invalid`);
       return;
     }
     emit("changed", value);
   } catch (failure) {
-    emit(
-      "error",
+    await reconcile(
+      method,
+      body,
       failure instanceof Error && !(failure instanceof TypeError)
         ? failure.message
         : fallback,
     );
-    emit("refresh");
   } finally {
     busy.value = false;
   }

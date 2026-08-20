@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive } from "vue";
 
-import { responseMessage } from "../browser.js";
+import { requireStatus } from "../browser.js";
 import { validReviewRunDiagnostics } from "./contract.js";
 
 const props = defineProps({
@@ -89,7 +89,7 @@ async function loadDiagnostics(event, run) {
     const response = await fetch(
       `/api/v1/evaluations/${encodeURIComponent(props.evaluation.id)}/review-runs/${encodeURIComponent(run.id)}/diagnostics`,
     );
-    if (!response.ok) throw new Error(await responseMessage(response));
+    await requireStatus(response, 200, "review_run_diagnostics_invalid");
     const value = await response.json();
     if (!validReviewRunDiagnostics(value, run.id))
       throw new Error("review_run_diagnostics_invalid");

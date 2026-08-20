@@ -2,7 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import SystemView from "./SystemView.vue";
-import { validSystem } from "./contract.js";
+import { validConfiguration, validSystem } from "./contract.js";
 
 const configuration = {
   model: "gpt-5.6-sol",
@@ -167,18 +167,20 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (path, options) => {
       if (path === "/api/v1/system") {
-        return { json: async () => system, ok: true };
+        return { json: async () => system, ok: true, status: 200 };
       }
       if (path === "/api/v1/waiver-adjudicator-configuration") {
         if (options) {
           return {
             json: async () => ({ changed: true, configuration }),
             ok: true,
+            status: 200,
           };
         }
         return {
           json: async () => ({ configured: true, configuration }),
           ok: true,
+          status: 200,
         };
       }
       throw new Error(`unexpected request ${path}`);
@@ -189,6 +191,12 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("renders complete polling and delivery facts and saves configuration", async () => {
   expect(validSystem(system)).toBe(true);
+  expect(
+    validConfiguration(
+      { configured: false, configuration },
+      system.codex.catalog.models,
+    ),
+  ).toBe(false);
   expect(
     validSystem({ ...system, durable_core: { status: "probably-ready" } }),
   ).toBe(false);
@@ -221,10 +229,23 @@ it("renders complete polling and delivery facts and saves configuration", async 
       },
     }),
   ).toBe(false);
+  expect(
+    validSystem({
+      ...system,
+      polling: { ...system.polling, extra: true },
+    }),
+  ).toBe(false);
+  expect(
+    validSystem({
+      ...system,
+      delivery: { ...system.delivery, extra: true },
+    }),
+  ).toBe(false);
   const wrapper = mount(SystemView, {
     props: { csrfCookieName: "qb_csrf" },
   });
   await flushPromises();
+  expect(wrapper.findAll("h2")[0].text()).toBe("Codex execution");
   expect(wrapper.text()).toContain(
     "App quality-bar (external 7), installation 9",
   );
@@ -251,12 +272,13 @@ it("renders complete polling and delivery facts and saves configuration", async 
 it("focuses the invalid configuration field", async () => {
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/system") {
-      return { json: async () => system, ok: true };
+      return { json: async () => system, ok: true, status: 200 };
     }
     if (!options) {
       return {
         json: async () => ({ configured: true, configuration }),
         ok: true,
+        status: 200,
       };
     }
     return {

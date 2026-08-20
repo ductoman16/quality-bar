@@ -58,6 +58,17 @@ const response = (body, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
 });
+const delivery = {
+  attempt_count: 1,
+  connection_identity: "connection-1",
+  last_attempt_at: "2026-08-20T12:01:00.000Z",
+  next_attempt_at: null,
+  provider_gate_error: null,
+  provider_gate_until: null,
+  reconciliation_required: false,
+  source_identity: "evaluation-1:commit-status",
+  target: "abc123",
+};
 const result = (outcome = "clear") => ({
   applicability_results: [
     {
@@ -190,6 +201,11 @@ it.each(["queued", "running", "completed", "failed", "cancelled"])(
     });
     await flushPromises();
     expect(wrapper.get("#evaluation-detail-status").text()).toBe(status);
+    if (["failed", "cancelled"].includes(status)) {
+      expect(wrapper.get("#evaluation-detail-duration").text()).toBe(
+        "Unavailable",
+      );
+    }
     expect(
       fetch.mock.calls.some(([path]) => String(path).endsWith("/result")),
     ).toBe(["completed", "failed"].includes(status));
@@ -204,12 +220,32 @@ it("renders a valid immutable completed result without mutation controls", async
     "",
     "/?view=evaluation-detail&evaluation_id=evaluation-1",
   );
+  const value = evaluation(status);
+  value.pull_request = { number: 42 };
+  value.commit_status = {
+    ...delivery,
+    context: "Quality Bar",
+    error: null,
+    external_id: 7,
+    head_commit: value.head_commit,
+    publication_status: "succeeded",
+    published_at: "2026-08-20T12:01:00.000Z",
+    state: "success",
+  };
+  value.feedback = {
+    aggregate: {
+      ...delivery,
+      error: null,
+      external_id: 8,
+      publication_status: "succeeded",
+      published_at: "2026-08-20T12:01:00.000Z",
+    },
+    findings: [],
+  };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path) =>
-      String(path).endsWith("/result")
-        ? response(result())
-        : response(evaluation(status)),
+      String(path).endsWith("/result") ? response(result()) : response(value),
     ),
   );
   const wrapper = mount(EvaluationDetailView, {
@@ -219,6 +255,10 @@ it("renders a valid immutable completed result without mutation controls", async
   expect(wrapper.get("#evaluation-detail-result").text()).toContain(
     "Result clear",
   );
+  expect(wrapper.text()).toContain(`branch main · ${value.base_commit}`);
+  expect(wrapper.text()).toContain("Pull request42");
+  expect(wrapper.text()).toContain("Commit statussuccess · succeeded");
+  expect(wrapper.text()).toContain("FeedbackAggregate succeeded");
   expect(wrapper.find("textarea").exists()).toBe(false);
   expect(wrapper.find("#evaluation-detail-result button").exists()).toBe(false);
   wrapper.unmount();

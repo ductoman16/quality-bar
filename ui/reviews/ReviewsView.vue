@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 
-import { csrfRequest, responseMessage } from "../browser.js";
+import { csrfRequest, requireStatus, responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import {
   readModelCatalog,
@@ -30,7 +30,7 @@ const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function list(path) {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(await responseMessage(response));
+  await requireStatus(response, 200, "review_collection_response_invalid");
   return readReviewCollection(await response.json());
 }
 async function load() {
@@ -134,17 +134,13 @@ onMounted(async () => {
   let modelError = "";
   try {
     const response = await fetch("/api/v1/system");
-    if (response.ok) {
-      try {
-        models.value = readModelCatalog(await response.json());
-      } catch {
-        modelError = "Codex model catalog is invalid";
-      }
-    } else {
-      modelError = await responseMessage(response);
-    }
-  } catch {
-    modelError = "Codex model catalog failed to load";
+    await requireStatus(response, 200, "system_response_invalid");
+    models.value = readModelCatalog(await response.json());
+  } catch (failure) {
+    modelError =
+      failure instanceof Error
+        ? failure.message
+        : "Codex model catalog failed to load";
   }
   await load();
   if (modelError) error.value = modelError;

@@ -1,7 +1,12 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
-import { csrfToken, responseError, responseMessage } from "../browser.js";
+import {
+  csrfToken,
+  requireStatus,
+  responseError,
+  responseMessage,
+} from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import {
   validConfiguration,
@@ -82,9 +87,7 @@ const filesystem = (name) =>
   system.value?.storage.filesystems.find((item) => item.filesystem === name);
 async function loadConfiguration() {
   const response = await fetch("/api/v1/waiver-adjudicator-configuration");
-  if (!response.ok) {
-    throw new Error(await responseMessage(response));
-  }
+  await requireStatus(response, 200, "waiver_configuration_response_invalid");
   const body = await response.json();
   if (!validConfiguration(body, system.value.codex.catalog.models)) {
     throw new Error("waiver_configuration_invalid");
@@ -95,7 +98,7 @@ async function loadConfiguration() {
 async function load() {
   try {
     const response = await fetch("/api/v1/system");
-    if (!response.ok) throw new Error(await responseMessage(response));
+    await requireStatus(response, 200, "system_response_invalid");
     const value = await response.json();
     if (!validSystem(value)) throw new Error("system_document_invalid");
     system.value = value;
@@ -127,6 +130,8 @@ async function saveConfiguration() {
       })[failure.code]?.value?.focus();
       return;
     }
+    if (response.status !== 200)
+      throw new Error("Configuration response is invalid");
     const body = await response.json();
     if (!validConfigurationChange(body, system.value.codex.catalog.models))
       throw new Error("Configuration response is invalid");
@@ -145,50 +150,6 @@ onMounted(load);
 
 <template>
   <template v-if="system">
-    <section class="qb-region sys-zone"><h2>Health</h2></section>
-    <section
-      class="qb-region sys-summary"
-      aria-live="polite"
-      :data-state="attention ? 'warn' : 'ok'"
-    >
-      <p>
-        {{
-          attention
-            ? `${attention} need${attention === 1 ? "s" : ""} attention`
-            : "All clear"
-        }}
-      </p>
-    </section>
-    <section class="qb-region sys-overview">
-      <div class="sys-health">
-        <div
-          v-for="[label, value, state] in health"
-          :key="label"
-          class="sys-health__tile"
-          :data-state="state"
-        >
-          <span>{{ label }}</span
-          ><strong>{{ humanize(value) }}</strong>
-        </div>
-      </div>
-    </section>
-    <section class="qb-region">
-      <h2>Execution providers</h2>
-      <dl>
-        <template
-          v-for="provider in system.execution_providers"
-          :key="provider.id"
-          ><dt>{{ provider.name }}</dt>
-          <dd>
-            {{ provider.status
-            }}<span v-if="provider.error">
-              · {{ provider.error.code }}: {{ provider.error.message }} ·
-              {{ provider.error.recovery }}</span
-            >
-          </dd></template
-        >
-      </dl>
-    </section>
     <section class="qb-region">
       <h2>Codex execution</h2>
       <dl>
@@ -234,6 +195,50 @@ onMounted(load);
           </ol>
         </div>
       </div>
+    </section>
+    <section class="qb-region sys-zone"><h2>Health</h2></section>
+    <section
+      class="qb-region sys-summary"
+      aria-live="polite"
+      :data-state="attention ? 'warn' : 'ok'"
+    >
+      <p>
+        {{
+          attention
+            ? `${attention} need${attention === 1 ? "s" : ""} attention`
+            : "All clear"
+        }}
+      </p>
+    </section>
+    <section class="qb-region sys-overview">
+      <div class="sys-health">
+        <div
+          v-for="[label, value, state] in health"
+          :key="label"
+          class="sys-health__tile"
+          :data-state="state"
+        >
+          <span>{{ label }}</span
+          ><strong>{{ humanize(value) }}</strong>
+        </div>
+      </div>
+    </section>
+    <section class="qb-region">
+      <h2>Execution providers</h2>
+      <dl>
+        <template
+          v-for="provider in system.execution_providers"
+          :key="provider.id"
+          ><dt>{{ provider.name }}</dt>
+          <dd>
+            {{ provider.status
+            }}<span v-if="provider.error">
+              · {{ provider.error.code }}: {{ provider.error.message }} ·
+              {{ provider.error.recovery }}</span
+            >
+          </dd></template
+        >
+      </dl>
     </section>
     <section class="qb-region">
       <h2>Storage and backup</h2>

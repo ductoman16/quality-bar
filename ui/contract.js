@@ -38,6 +38,15 @@ export const httpsUrl = (value) => {
   }
 };
 
+/** @param {any} value */
+export const uri = (value) => {
+  try {
+    return Boolean(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+};
+
 /** @param {unknown} value */
 export const nullableString = (value) => value === null || nonempty(value);
 
@@ -61,19 +70,25 @@ export const modelCapability = (value) =>
 
 /** @param {any} value */
 export const validTokenReveal = (value) =>
-  record(value) && nonempty(value.token);
+  record(value) && exact(value, ["token"]) && nonempty(value.token);
 
 /** @param {any} value */
 export const validOnboardingToken = (value) =>
   record(value) &&
+  exact(value, ["created_at", "expires_at", "id", "repository_url"]) &&
   nonempty(value.id) &&
-  nonempty(value.repository_url) &&
+  uri(value.repository_url) &&
   count(value.created_at) &&
   count(value.expires_at);
 
 /** @param {any} value */
 export const validOnboardingTokenReveal = (value) =>
-  validOnboardingToken(value) &&
+  record(value) &&
+  exact(value, ["created_at", "expires_at", "id", "repository_url", "token"]) &&
+  nonempty(value.id) &&
+  uri(value.repository_url) &&
+  count(value.created_at) &&
+  count(value.expires_at) &&
   typeof value.token === "string" &&
   value.token.length === 43;
 
@@ -81,6 +96,7 @@ export const validOnboardingTokenReveal = (value) =>
 export function readOnboardingTokens(value) {
   if (
     !record(value) ||
+    !exact(value, ["onboarding_tokens"]) ||
     !Array.isArray(value.onboarding_tokens) ||
     !value.onboarding_tokens.every(validOnboardingToken)
   ) {

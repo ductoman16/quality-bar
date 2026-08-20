@@ -7,11 +7,17 @@ const input = ref();
 const confirmButton = ref();
 const error = ref("");
 let trigger;
-const value = reactive({ method: "PATCH", provider: "", text: "" });
+const value = reactive({
+  identity: "",
+  method: "PATCH",
+  provider: "",
+  text: "",
+});
 
-async function open(provider, method) {
+async function open(provider, method, identity) {
   value.provider = provider;
   value.method = method;
+  value.identity = identity;
   value.text = "";
   error.value = "";
   trigger = document.activeElement;
@@ -38,7 +44,11 @@ defineExpose({ open });
 </script>
 
 <template>
-  <dialog ref="dialog" aria-labelledby="connection-confirmation-title">
+  <dialog
+    ref="dialog"
+    aria-labelledby="connection-confirmation-title"
+    @cancel.prevent="close"
+  >
     <form @submit.prevent="submit">
       <h3 id="connection-confirmation-title">
         Confirm {{ value.provider }} Connection change
@@ -46,8 +56,8 @@ defineExpose({ open });
       <p>
         {{
           value.method === "DELETE"
-            ? "This cannot be undone."
-            : "Its credential will be destroyed and reactivation requires verification."
+            ? `Delete ${value.provider} Connection for ${value.identity} permanently. This cannot be undone.`
+            : `Retire ${value.provider} Connection for ${value.identity}. Its credential will be destroyed and reactivation requires verification.`
         }}
       </p>
       <label v-if="value.method === 'DELETE'" for="connection-confirmation"

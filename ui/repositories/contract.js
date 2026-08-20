@@ -131,5 +131,6 @@ export {
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,
+  validLifecycleChange,
   validManifestContinuation,
 } from "./provider-contract.js";

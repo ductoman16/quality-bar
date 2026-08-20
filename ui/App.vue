@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
-import { responseMessage } from "./browser.js";
+import { requireStatus } from "./browser.js";
 import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import EvaluationsView from "./evaluations/EvaluationsView.vue";
 import LoginView from "./LoginView.vue";
@@ -44,7 +44,12 @@ const active = (name) =>
   (name === "reviews" && props.view === "review-detail") ||
   (name === "repositories" && props.view === "repository-detail");
 const heading = computed(
-  () => props.view[0].toUpperCase() + props.view.slice(1),
+  () =>
+    ({
+      "evaluation-detail": "Evaluation",
+      "repository-detail": "Repository",
+      "review-detail": "Review",
+    })[props.view] ?? props.view[0].toUpperCase() + props.view.slice(1),
 );
 const toggleTheme = () => {
   const root = document.documentElement;
@@ -62,11 +67,7 @@ onMounted(async () => {
   if (!props.authenticated) return;
   try {
     const response = await fetch("/api/v1/system");
-    if (!response.ok) {
-      attentionError.value = await responseMessage(response);
-      attention.value = 1;
-      return;
-    }
+    await requireStatus(response, 200, "system_response_invalid");
     const system = await response.json();
     if (!validSystem(system)) throw new Error("system_document_invalid");
     attention.value = [
@@ -142,14 +143,7 @@ onMounted(async () => {
       >
         {{ attentionError }}
       </p>
-      <h1
-        v-if="
-          !['evaluation-detail', 'review-detail', 'repository-detail'].includes(
-            view,
-          )
-        "
-        class="qb-page-heading"
-      >
+      <h1 class="qb-page-heading">
         {{ heading }}
       </h1>
       <component :is="component" :csrf-cookie-name="csrfCookieName" />

@@ -149,7 +149,7 @@ beforeEach(() => {
   history.replaceState(null, "", "/?view=analytics&repository_id=repository-1");
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({ json: async () => document_, ok: true })),
+    vi.fn(async () => ({ json: async () => document_, ok: true, status: 200 })),
   );
 });
 afterEach(() => vi.unstubAllGlobals());

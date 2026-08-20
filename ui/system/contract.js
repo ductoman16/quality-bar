@@ -1,6 +1,5 @@
 import {
   count,
-  errorFact,
   exact,
   modelCapability,
   nonempty,
@@ -8,6 +7,7 @@ import {
   record,
   timestamp,
 } from "../contract.js";
+import { validPollingDelivery } from "./polling-contract.js";
 const status = (value, allowed) =>
   record(value) && allowed.includes(value.status);
 const storageError = (value) =>
@@ -158,92 +158,6 @@ const failure = (value) => {
   );
 };
 
-const repository = (value) =>
-  record(value) &&
-  nonempty(value.repository_id) &&
-  Number.isSafeInteger(value.forge_repository_id) &&
-  value.forge_repository_id > 0 &&
-  nonempty(value.name) &&
-  ["enabled", "disabled", "retired"].includes(value.lifecycle) &&
-  ["healthy", "error"].includes(value.health) &&
-  errorFact(value.health_error) &&
-  ["pending", "complete", "error"].includes(value.baseline_status) &&
-  timestamp(value.last_success_at) &&
-  timestamp(value.next_attempt_at) &&
-  timestamp(value.rate_gate_until) &&
-  errorFact(value.error) &&
-  typeof value.next_attempt_after_correction === "boolean";
-
-const externalIdentity = (provider, value) =>
-  record(value) &&
-  Number.isSafeInteger(value.principal_id) &&
-  value.principal_id > 0 &&
-  nonempty(value.principal_login) &&
-  (provider === "github"
-    ? Number.isSafeInteger(value.app_id) &&
-      value.app_id > 0 &&
-      nonempty(value.app_slug) &&
-      Number.isSafeInteger(value.installation_id) &&
-      value.installation_id > 0
-    : nonempty(value.base_url) && nonempty(value.reported_version));
-
-const pollingConnection = (value) =>
-  record(value) &&
-  ["github", "forgejo"].includes(value.provider) &&
-  nonempty(value.connection_id) &&
-  ["enabled", "retired"].includes(value.lifecycle) &&
-  ["healthy", "error"].includes(value.health) &&
-  errorFact(value.health_error) &&
-  errorFact(value.error) &&
-  timestamp(value.next_attempt_at) &&
-  timestamp(value.rate_gate_until) &&
-  typeof value.next_attempt_after_correction === "boolean" &&
-  externalIdentity(value.provider, value.external_identity) &&
-  Array.isArray(value.repositories) &&
-  value.repositories.every(repository);
-
-const deliverySurface = (value) =>
-  record(value) &&
-  ["github", "forgejo"].includes(value.provider) &&
-  ["commit_status", "aggregate_feedback", "inline_feedback"].includes(
-    value.surface,
-  ) &&
-  [
-    "aggregate_only",
-    "waiting",
-    "retry_scheduled",
-    "reconciling",
-    "succeeded",
-    "unavailable",
-  ].includes(value.status) &&
-  ["aggregate_only", "waiting", "succeeded", "unavailable"].includes(
-    value.publication_status,
-  ) &&
-  ["evaluation", "adjudication", "decision"].includes(value.owner_kind) &&
-  (value.owner_kind === "evaluation"
-    ? value.adjudication_id === null && value.decision_id === null
-    : value.owner_kind === "adjudication"
-      ? nonempty(value.adjudication_id) && value.decision_id === null
-      : nonempty(value.adjudication_id) && nonempty(value.decision_id)) &&
-  ["repository_id", "connection_id", "evaluation_id", "source_identity"].every(
-    (name) => nonempty(value[name]),
-  ) &&
-  nullableString(value.adjudication_id) &&
-  nullableString(value.decision_id) &&
-  nullableString(value.finding_id) &&
-  nullableString(value.target) &&
-  (value.external_id === null ||
-    (Number.isSafeInteger(value.external_id) && value.external_id > 0)) &&
-  count(value.attempt_count) &&
-  timestamp(value.last_attempt_at) &&
-  timestamp(value.published_at) &&
-  timestamp(value.next_attempt_at) &&
-  timestamp(value.provider_gate_until) &&
-  errorFact(value.provider_gate_error) &&
-  errorFact(value.error) &&
-  typeof value.definitive === "boolean" &&
-  typeof value.reconciliation_required === "boolean";
-
 export const validSystem = (value) =>
   record(value) &&
   application(value.application) &&
@@ -299,10 +213,7 @@ export const validSystem = (value) =>
     value.codex_execution.running.count &&
   Array.isArray(value.codex_execution.failures) &&
   value.codex_execution.failures.every(failure) &&
-  Array.isArray(value.polling?.connections) &&
-  value.polling.connections.every(pollingConnection) &&
-  Array.isArray(value.delivery?.surfaces) &&
-  value.delivery.surfaces.every(deliverySurface) &&
+  validPollingDelivery(value.polling, value.delivery) &&
   Array.isArray(value.codex?.catalog?.models) &&
   ["available", "unavailable"].includes(value.codex.status) &&
   nonempty(value.codex.catalog.codex_cli_version) &&
@@ -335,8 +246,14 @@ export const validSystem = (value) =>
 export const validConfiguration = (value, models) =>
   record(value) &&
   typeof value.configured === "boolean" &&
-  (!value.configured ||
-    (record(value.configuration) &&
+  (value.configured
+    ? exact(value, ["configuration", "configured"]) &&
+      record(value.configuration) &&
+      exact(value.configuration, [
+        "model",
+        "reasoning_effort",
+        "service_tier",
+      ]) &&
       ["model", "reasoning_effort", "service_tier"].every((name) =>
         nonempty(value.configuration[name]),
       ) &&
@@ -347,11 +264,13 @@ export const validConfiguration = (value, models) =>
             value.configuration.reasoning_effort,
           ) &&
           model.service_tiers.includes(value.configuration.service_tier),
-      )));
+      )
+    : exact(value, ["configured"]));
 
 /** @param {any} value */
 export const validConfigurationChange = (value, models) =>
   record(value) &&
+  exact(value, ["changed", "configuration"]) &&
   typeof value.changed === "boolean" &&
   validConfiguration(
     { configured: true, configuration: value.configuration },

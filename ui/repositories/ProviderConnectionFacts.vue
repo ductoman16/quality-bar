@@ -22,6 +22,10 @@ const facts = (value) =>
     <dd>{{ connection.health_error?.message || connection.health }}</dd>
     <dt>API profile</dt>
     <dd>{{ connection.api_profile }}</dd>
+    <template v-if="provider === 'Forgejo'">
+      <dt>Version</dt>
+      <dd>{{ connection.reported_version }}</dd>
+    </template>
     <dt>
       {{ provider === "Forgejo" ? "Required authorities" : "Permissions" }}
     </dt>
@@ -46,6 +50,12 @@ const facts = (value) =>
   </details>
   <details>
     <summary>Polling</summary>
-    <pre>{{ JSON.stringify(connection.polling, null, 2) }}</pre>
+    <pre>{{
+      JSON.stringify(
+        { failure: connection.polling_failure, states: connection.polling },
+        null,
+        2,
+      )
+    }}</pre>
   </details>
 </template>

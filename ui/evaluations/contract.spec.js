@@ -67,6 +67,15 @@ describe("Evaluation browser contract", () => {
     expect(validEvaluation({ ...evaluation(), provenance: undefined })).toBe(
       false,
     );
+    expect(validEvaluation({ ...evaluation(), extra: true })).toBe(false);
+    expect(
+      validEvaluation({ ...evaluation(), pull_request: { number: 42 } }),
+    ).toBe(true);
+    expect(
+      validEvaluation({ ...evaluation(), pull_request: { number: "42" } }),
+    ).toBe(false);
+    expect(validEvaluation({ ...evaluation(), commit_status: {} })).toBe(false);
+    expect(validEvaluation({ ...evaluation(), feedback: {} })).toBe(false);
     expect(validCollection({ items: [evaluation()], next_cursor: null })).toBe(
       true,
     );

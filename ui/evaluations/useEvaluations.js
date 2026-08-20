@@ -2,6 +2,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import {
   csrfToken,
   repositoryCollection,
+  requireStatus,
   responseMessage,
 } from "../browser.js";
 import {
@@ -152,9 +153,7 @@ export function useEvaluations(csrfCookieName) {
     let collection;
     try {
       const response = await fetch(`/api/v1/evaluations?${search}`);
-      if (!response.ok) {
-        throw new Error(await responseMessage(response));
-      }
+      await requireStatus(response, 200, "evaluation_collection_invalid");
       collection = await response.json();
       if (!validCollection(collection)) {
         throw new Error("Evaluations returned an invalid response");
@@ -207,12 +206,8 @@ export function useEvaluations(csrfCookieName) {
         fetch("/api/v1/system"),
         fetch(`/api/v1/analytics?start=${now - hours * 3_600_000}&end=${now}`),
       ]);
-      if (!system.ok) {
-        throw new Error(await responseMessage(system));
-      }
-      if (!analytics.ok) {
-        throw new Error(await responseMessage(analytics));
-      }
+      await requireStatus(system, 200, "evaluation_statistics_invalid");
+      await requireStatus(analytics, 200, "evaluation_statistics_invalid");
       const [systemBody, analyticsBody] = await Promise.all([
         system.json(),
         analytics.json(),

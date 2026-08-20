@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
-import { csrfToken, responseMessage } from "./browser.js";
+import { csrfToken, requireStatus, responseMessage } from "./browser.js";
 import {
   readOnboardingTokens,
   validOnboardingTokenReveal,
@@ -94,7 +94,7 @@ async function activity() {
 async function loadOnboardingTokens() {
   if (!props.showOnboarding) return;
   const response = await fetch("/api/v1/onboarding-tokens");
-  if (!response.ok) return failure(response);
+  await requireStatus(response, 200, "onboarding_token_collection_invalid");
   try {
     onboardingTokens.value = readOnboardingTokens(await response.json());
   } catch {

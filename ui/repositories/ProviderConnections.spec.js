@@ -2,8 +2,15 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ProviderConnections from "./ProviderConnections.vue";
-import { validGitHubSelection, validManifestContinuation } from "./contract.js";
-import { registerGitHubSelection } from "./github-selection.js";
+import {
+  validForgejoConnection,
+  validGitHubSelection,
+  validManifestContinuation,
+} from "./contract.js";
+import {
+  reconciledGitHubSelection,
+  registerGitHubSelection,
+} from "./github-selection.js";
 
 const connection = {
   api_profile: "forgejo-v16",
@@ -79,7 +86,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 it("validates discovery and submits a Forgejo Connection mutation", async () => {
+  expect(
+    validForgejoConnection({
+      ...connection,
+      base_url: "http://forgejo.local",
+    }),
+  ).toBe(true);
+  const failed = structuredClone(connection);
+  failed.verification_history[0].repositories[0].outcome = "error";
+  expect(validForgejoConnection(failed)).toBe(false);
   const wrapper = mount(ProviderConnections, {
+    attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },
   });
   await flushPromises();
@@ -113,6 +130,7 @@ it("validates discovery and submits a Forgejo Connection mutation", async () => 
   expect(wrapper.text()).toContain("Required authorities");
   expect(wrapper.text()).toContain("Verification history");
   expect(wrapper.text()).toContain("Polling");
+  expect(document.activeElement).toBe(wrapper.get("output").element);
   wrapper.unmount();
 });
 
@@ -188,6 +206,23 @@ it("accepts complete GitHub Repository selection evidence", async () => {
   };
   expect(validGitHubSelection([repository], [11], requestId)).toBe(true);
   expect(validGitHubSelection([], [11], requestId)).toBe(false);
+  expect(
+    reconciledGitHubSelection(
+      {
+        verification_history: [
+          {
+            affected_repository_ids: [11],
+            id: requestId,
+            outcome: "success",
+            trigger: "repository_selection",
+          },
+        ],
+      },
+      [repository],
+      [11],
+      requestId,
+    ),
+  ).toBe(true);
 
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
   vi.mocked(fetch).mockResolvedValueOnce({
@@ -206,6 +241,7 @@ it("accepts complete GitHub Repository selection evidence", async () => {
   });
   await expect(registerGitHubSelection("qb_csrf", [11])).resolves.toEqual({
     message: "GitHub Repository selection request failed",
+    requestId,
   });
 });
 
