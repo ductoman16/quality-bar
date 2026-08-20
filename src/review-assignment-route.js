@@ -5,8 +5,6 @@ import { isUnavailableError } from "./http-request.js";
  * @param {import("fastify").FastifyRequest} request
  * @param {import("fastify").FastifyReply} response
  * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   reviewId: string,
  *   reviews: ReturnType<typeof import("./review.js").createReviewService>
  * }} dependencies
@@ -14,13 +12,11 @@ import { isUnavailableError } from "./http-request.js";
 export async function writeReviewAssignmentMutation(
   request,
   response,
-  { browserOrigin, browserSessions, reviewId, reviews },
+  { reviewId, reviews },
 ) {
   await writeBrowserJsonMutation(request, response, {
-    browserOrigin,
-    browserSessions,
     failureCode: "review_assignment_change_failed",
-    mutate: (body) => reviews.setAssignment(decodeURIComponent(reviewId), body),
+    mutate: (body) => reviews.setAssignment(reviewId, body),
     statusFor: (code, error) =>
       ["review_not_found", "review_assignment_repository_not_found"].includes(
         code,

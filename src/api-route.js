@@ -1,11 +1,7 @@
 import { writeAnalytics } from "./analytics-route.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { requireCodedError } from "./coded-error.js";
-import {
-  browserMutationFailureStatus,
-  isUnavailableError,
-  requireBrowserMutation,
-} from "./http-request.js";
+import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 import { writeRepositoryDeletion } from "./repository-delete-route.js";
 import { writeRepositoryGuidance } from "./repository-guidance-route.js";
@@ -36,8 +32,6 @@ function query(request) {
 
 /** @param {Omit<import("./api-route-contract.js").ApiRouteDependencies, "forgejoConnections" | "githubConnections" | "recordAuthorityAttribution">} dependencies */
 export function createApiOperations({
-  browserOrigin,
-  browserSessions,
   listAuthorityAttributions,
   readSystemStatus,
   repositories,
@@ -45,8 +39,6 @@ export function createApiOperations({
   reviews,
   analytics,
 }) {
-  const mutationOptions = { browserOrigin, browserSessions };
-
   /** @type {Record<string, HttpHandler>} */
   const operations = {
     getAnalytics(request, response) {
@@ -72,7 +64,6 @@ export function createApiOperations({
     },
     async setReviewArchived(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "review_archival_failed",
         mutate: (body) =>
           reviews.setArchived(pathParameter(request, "review_id"), body),
@@ -86,14 +77,12 @@ export function createApiOperations({
     },
     async setReviewAssignment(request, response) {
       await writeReviewAssignmentMutation(request, response, {
-        ...mutationOptions,
         reviewId: pathParameter(request, "review_id"),
         reviews,
       });
     },
     async createReview(request, response) {
       try {
-        requireBrowserMutation(browserSessions, request, browserOrigin);
         writeJson(response, 201, reviews.create(request.body));
       } catch (error) {
         if (
@@ -104,32 +93,16 @@ export function createApiOperations({
           return;
         }
         const failure = requireCodedError(error);
-        if (
-          [
-            "csrf_invalid",
-            "origin_invalid",
-            "authentication_required",
-          ].includes(failure.code)
-        ) {
-          writeError(
-            response,
-            browserMutationFailureStatus(failure.code),
-            failure.code,
-            failure.message,
-          );
-        } else {
-          writeError(
-            response,
-            isUnavailableError(error) ? 503 : 422,
-            failure.code,
-            failure.message,
-          );
-        }
+        writeError(
+          response,
+          isUnavailableError(error) ? 503 : 422,
+          failure.code,
+          failure.message,
+        );
       }
     },
     async registerGenericRepository(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "repository_registration_failed",
         mutate: (body) => repositories.register(body),
         statusFor: (code, error) =>
@@ -144,21 +117,18 @@ export function createApiOperations({
     },
     async deleteNeverUsedReview(request, response) {
       await writeReviewDeletion(request, response, {
-        ...mutationOptions,
         reviews,
-        encodedReviewId: pathParameter(request, "review_id"),
+        reviewId: pathParameter(request, "review_id"),
       });
     },
     async deleteNeverUsedRepository(request, response) {
       await writeRepositoryDeletion(request, response, {
-        ...mutationOptions,
         repositories,
-        encodedRepositoryId: pathParameter(request, "repository_id"),
+        repositoryId: pathParameter(request, "repository_id"),
       });
     },
     async rotateGenericRepositoryCredential(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "repository_credential_rotation_failed",
         mutate: (body) =>
           repositories.rotateCredential(
@@ -182,14 +152,12 @@ export function createApiOperations({
     },
     async setRepositoryLifecycle(request, response) {
       await writeRepositoryLifecycleChange(request, response, {
-        ...mutationOptions,
         repositories,
-        encodedRepositoryId: pathParameter(request, "repository_id"),
+        repositoryId: pathParameter(request, "repository_id"),
       });
     },
     async updateReviewMetadata(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "review_metadata_update_failed",
         mutate: (body) =>
           reviews.updateMetadata(pathParameter(request, "review_id"), body),
@@ -205,7 +173,6 @@ export function createApiOperations({
     },
     async saveReviewVersion(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "review_version_save_failed",
         mutate: (body) =>
           reviews.saveVersion(pathParameter(request, "review_id"), body),
@@ -221,7 +188,6 @@ export function createApiOperations({
     },
     async reactivateReviewVersion(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        ...mutationOptions,
         failureCode: "review_version_reactivation_failed",
         mutate: (body) =>
           reviews.reactivateVersion(pathParameter(request, "review_id"), body),

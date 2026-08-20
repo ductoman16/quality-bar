@@ -6,7 +6,6 @@ import {
   csrfCookie,
   implementerTokenFailureStatus,
   passwordMutationFailureStatus,
-  requireBrowserMutation,
   sessionCookie,
 } from "./http-request.js";
 import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
@@ -111,22 +110,20 @@ function writeAuthenticationError(response, error, status) {
   }
 }
 
-/** @param {{browserOrigin: string, browserSessions: any, implementerTokens: any, recordAuthorityAttribution: (event: AttributionEvent) => void, secureBrowserCookie: boolean}} dependencies */
+/** @param {{browserSessions: any, implementerTokens: any, recordAuthorityAttribution: (event: AttributionEvent) => void, secureBrowserCookie: boolean}} dependencies */
 export function createBrowserSessionOperations({
-  browserOrigin,
   browserSessions,
   implementerTokens,
   recordAuthorityAttribution,
   secureBrowserCookie,
 }) {
   /** @param {import("fastify").FastifyRequest} request */
-  const requireMutation = (request) =>
-    requireBrowserMutation(browserSessions, request, browserOrigin);
+  const verifiedSessionSecret = (request) =>
+    /** @type {string} */ (/** @type {any} */ (request).browserSessionSecret);
 
-  /** @param {string} action @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response @param {() => void} mutate */
-  function passwordMutation(action, request, response, mutate) {
+  /** @param {string} action @param {import("fastify").FastifyReply} response @param {() => void} mutate */
+  function passwordMutation(action, response, mutate) {
     try {
-      requireMutation(request);
       mutate();
     } catch (error) {
       const failure = requireCodedError(error);
@@ -136,10 +133,10 @@ export function createBrowserSessionOperations({
         errorCode: failure.code,
         outcome: "failure",
       });
-      writeAuthenticationError(response, failure, (code) =>
-        browserMutationFailureStatus(code) === 403
-          ? 403
-          : passwordMutationFailureStatus(code),
+      writeAuthenticationError(
+        response,
+        failure,
+        passwordMutationFailureStatus,
       );
     }
   }
@@ -147,7 +144,6 @@ export function createBrowserSessionOperations({
   /** @param {"implementer_token_create" | "implementer_token_revoke" | "implementer_token_rotate"} action @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
   function implementerTokenMutation(action, request, response) {
     try {
-      requireMutation(request);
       const { password } = /** @type {{password: string}} */ (request.body);
       if (action === "implementer_token_revoke") {
         implementerTokens.revoke(password);
@@ -167,10 +163,10 @@ export function createBrowserSessionOperations({
         errorCode: failure.code,
         outcome: "failure",
       });
-      writeAuthenticationError(response, failure, (code) =>
-        browserMutationFailureStatus(code) === 403
-          ? 403
-          : implementerTokenFailureStatus(code),
+      writeAuthenticationError(
+        response,
+        failure,
+        implementerTokenFailureStatus,
       );
     }
   }
@@ -204,7 +200,7 @@ export function createBrowserSessionOperations({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     logoutOperator(request, response) {
       try {
-        browserSessions.logout(requireMutation(request));
+        browserSessions.logout(verifiedSessionSecret(request));
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),
         });
@@ -226,7 +222,7 @@ export function createBrowserSessionOperations({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     recordBrowserSessionActivity(request, response) {
       try {
-        const secret = requireMutation(request);
+        const secret = verifiedSessionSecret(request);
         if (
           !browserSessions.touch(
             secret,
@@ -257,7 +253,7 @@ export function createBrowserSessionOperations({
     },
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     changeOperatorPassword(request, response) {
-      passwordMutation("password_change", request, response, () => {
+      passwordMutation("password_change", response, () => {
         const { current_password, new_password } =
           /** @type {{current_password: string, new_password: string}} */ (
             request.body
@@ -270,17 +266,8 @@ export function createBrowserSessionOperations({
     },
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     revokeBrowserSessions(request, response) {
-      passwordMutation("session_revoke_all", request, response, () => {
-        const { confirmation, password } =
-          /** @type {{confirmation: string, password: string}} */ (
-            request.body
-          );
-        if (confirmation !== "REVOKE ALL SESSIONS") {
-          throw Object.assign(
-            new Error("Global browser-session revocation must be confirmed"),
-            { code: "session_revocation_confirmation_invalid" },
-          );
-        }
+      passwordMutation("session_revoke_all", response, () => {
+        const { password } = /** @type {{password: string}} */ (request.body);
         browserSessions.revokeAll(password);
         writeEmpty(response, {
           "set-cookie": clearedSessionCookies(secureBrowserCookie),

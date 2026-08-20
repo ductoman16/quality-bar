@@ -35,13 +35,13 @@ export const repositoriesRoutes = [
     url: "/api/v1/repositories/:repository_id",
   },
   {
-    ...canonicalValidationError(
-      "repository_request_invalid",
-      "Repository registration request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "repository_request_invalid",
+        "Repository registration request is invalid",
+        422,
+      ),
       operationId: "registerGenericRepository",
       security: [
         {
@@ -62,13 +62,13 @@ export const repositoriesRoutes = [
     url: "/api/v1/repositories",
   },
   {
-    ...canonicalValidationError(
-      "repository_request_invalid",
-      "Repository credential rotation request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "repository_request_invalid",
+        "Repository credential rotation request is invalid",
+        422,
+      ),
       operationId: "rotateGenericRepositoryCredential",
       security: [
         {
@@ -123,13 +123,13 @@ export const repositoriesRoutes = [
     url: "/api/v1/repositories/:repository_id/guidance",
   },
   {
-    ...canonicalValidationError(
-      "repository_lifecycle_request_invalid",
-      "Repository lifecycle request is invalid",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "repository_lifecycle_request_invalid",
+        "Repository lifecycle request is invalid",
+        422,
+      ),
       operationId: "setRepositoryLifecycle",
       security: [
         {

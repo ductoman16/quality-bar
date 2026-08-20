@@ -1,4 +1,11 @@
 import { forgejoConnectionSchema } from "../forgejo-connection-http-schema.js";
+import { withValidationError } from "../canonical-schema.js";
+
+const forgejoUrl = withValidationError(
+  { format: "uri", type: "string" },
+  "forgejo_url_invalid",
+  "Forgejo URL is invalid",
+);
 
 export const forgejoSchemas = {
   GetForgejoConnection200Response: {
@@ -8,7 +15,7 @@ export const forgejoSchemas = {
   VerifyForgejoV16ConnectionRequest: {
     additionalProperties: false,
     properties: {
-      base_url: { format: "uri", type: "string" },
+      base_url: forgejoUrl,
       repository_ids: {
         items: { minimum: 1, type: "integer" },
         minItems: 1,
@@ -28,7 +35,7 @@ export const forgejoSchemas = {
   DiscoverForgejoV16RepositoriesRequest: {
     additionalProperties: false,
     properties: {
-      base_url: { format: "uri", type: "string" },
+      base_url: forgejoUrl,
       token: { minLength: 1, type: "string", writeOnly: true },
     },
     required: ["base_url", "token"],
@@ -75,13 +82,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections",
   },
   {
-    ...canonicalValidationError(
-      "forgejo_connection_request_invalid",
-      "Forgejo Connection request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "forgejo_connection_request_invalid",
+        "Forgejo Connection request is invalid",
+        422,
+      ),
       operationId: "verifyForgejoV16Connection",
       security: [
         {
@@ -103,13 +110,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections",
   },
   {
-    ...canonicalValidationError(
-      "forgejo_connection_request_invalid",
-      "Forgejo Connection request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "forgejo_connection_request_invalid",
+        "Forgejo Connection request is invalid",
+        422,
+      ),
       operationId: "discoverForgejoV16Repositories",
       security: [
         {
@@ -131,13 +138,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/discover",
   },
   {
-    ...canonicalValidationError(
-      "forgejo_connection_rotation_request_invalid",
-      "Forgejo PAT rotation request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "forgejo_connection_rotation_request_invalid",
+        "Forgejo PAT rotation request is invalid",
+        422,
+      ),
       operationId: "rotateForgejoConnectionPat",
       security: [
         {
@@ -159,13 +166,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/credential/rotate",
   },
   {
-    ...canonicalValidationError(
-      "request_malformed",
-      "Request is malformed",
-      400,
-    ),
     method: "DELETE",
     schema: {
+      ...canonicalValidationError(
+        "request_malformed",
+        "Request is malformed",
+        400,
+      ),
       operationId: "deleteNeverUsedForgejoConnection",
       security: [
         {
@@ -186,13 +193,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/lifecycle",
   },
   {
-    ...canonicalValidationError(
-      "forgejo_connection_lifecycle_request_invalid",
-      "Forgejo Connection lifecycle request must retire the Connection",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "forgejo_connection_lifecycle_request_invalid",
+        "Forgejo Connection lifecycle request must retire the Connection",
+        422,
+      ),
       operationId: "retireForgejoConnection",
       security: [
         {
@@ -214,13 +221,13 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/lifecycle",
   },
   {
-    ...canonicalValidationError(
-      "forgejo_connection_reactivation_request_invalid",
-      "Forgejo Connection reactivation requires one replacement PAT",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "forgejo_connection_reactivation_request_invalid",
+        "Forgejo Connection reactivation requires one replacement PAT",
+        422,
+      ),
       operationId: "reactivateForgejoConnection",
       security: [
         {

@@ -1,27 +1,62 @@
-import { closedObject } from "./canonical-schema.js";
+import { closedObject, withValidationError } from "./canonical-schema.js";
 
 export function canonicalReviewSchemas() {
+  const applicabilityRule = withValidationError(
+    { type: ["string", "null"] },
+    "review_applicability_rule_malformed",
+    "Applicability Rule must be a string or null",
+  );
+  const criterionImpact = withValidationError(
+    { enum: ["advisory", "blocking"], type: "string" },
+    "review_criterion_impact_invalid",
+    "Criterion {index} impact must be advisory or blocking",
+  );
+  const criterionInstruction = withValidationError(
+    { minLength: 1, pattern: "\\S", type: "string" },
+    "review_criterion_instruction_invalid",
+    "Criterion {index} instruction must be nonblank",
+  );
+  const criteria = (/** @type {Record<string, unknown>} */ items) =>
+    withValidationError(
+      { items, minItems: 1, type: "array" },
+      "review_criteria_invalid",
+      "Review must contain at least one Criterion",
+    );
+  const description = withValidationError(
+    { minLength: 1, pattern: "\\S", type: "string" },
+    "review_description_invalid",
+    "Review description must be nonblank",
+  );
+  const name = withValidationError(
+    { minLength: 1, pattern: "\\S", type: "string" },
+    "review_name_invalid",
+    "Review name must be nonblank",
+  );
   return {
-    CriterionCreateRequest: closedObject(
-      {
-        impact: { enum: ["advisory", "blocking"], type: "string" },
-        instruction: { minLength: 1, pattern: "\\S", type: "string" },
-      },
-      ["impact", "instruction"],
+    CriterionCreateRequest: withValidationError(
+      closedObject(
+        { impact: criterionImpact, instruction: criterionInstruction },
+        ["impact", "instruction"],
+      ),
+      "review_criterion_malformed",
+      "Criterion {index} is malformed",
     ),
-    CriterionVersionRequest: {
-      oneOf: [
-        closedObject(
-          {
-            id: { minLength: 1, pattern: "\\S", type: "string" },
-            impact: { enum: ["advisory", "blocking"], type: "string" },
-            instruction: { minLength: 1, pattern: "\\S", type: "string" },
-          },
-          ["id", "impact", "instruction"],
-        ),
-        { $ref: "CriterionCreateRequest#" },
-      ],
-    },
+    CriterionVersionRequest: withValidationError(
+      closedObject(
+        {
+          id: withValidationError(
+            { minLength: 1, pattern: "\\S", type: "string" },
+            "review_criterion_identity_invalid",
+            "Criterion {index} identity must be nonblank",
+          ),
+          impact: criterionImpact,
+          instruction: criterionInstruction,
+        },
+        ["impact", "instruction"],
+      ),
+      "review_criterion_malformed",
+      "Criterion {index} is malformed",
+    ),
     ReviewAssignment: {
       oneOf: [
         closedObject(
@@ -31,9 +66,19 @@ export function canonicalReviewSchemas() {
         closedObject(
           {
             repository_ids: {
-              items: { minLength: 1, pattern: "\\S", type: "string" },
+              items: withValidationError(
+                { minLength: 1, pattern: "\\S", type: "string" },
+                "review_assignment_repository_invalid",
+                "Review Assignment Repository identity must be nonblank",
+              ),
               type: "array",
               uniqueItems: true,
+              "x-quality-bar-error": {
+                code: "review_assignment_repository_duplicate",
+                message:
+                  "Review Assignment cannot select the same Repository more than once",
+                status: 422,
+              },
             },
             scope: { const: "repository_set", type: "string" },
           },
@@ -45,22 +90,18 @@ export function canonicalReviewSchemas() {
     ReviewCreateRequest: closedObject(
       {
         assignment: { $ref: "ReviewCreationAssignment#" },
-        applicability_rule: { type: ["string", "null"] },
+        applicability_rule: applicabilityRule,
         codex_configuration: { $ref: "CodexConfiguration#" },
-        criteria: {
-          items: { $ref: "CriterionCreateRequest#" },
-          minItems: 1,
-          type: "array",
-        },
-        description: { minLength: 1, pattern: "\\S", type: "string" },
-        name: { minLength: 1, pattern: "\\S", type: "string" },
+        criteria: criteria({ $ref: "CriterionCreateRequest#" }),
+        description,
+        name,
       },
       ["assignment", "codex_configuration", "criteria", "description", "name"],
     ),
     ReviewMetadataUpdateRequest: closedObject(
       {
-        description: { minLength: 1, pattern: "\\S", type: "string" },
-        name: { minLength: 1, pattern: "\\S", type: "string" },
+        description,
+        name,
       },
       ["name", "description"],
     ),
@@ -83,15 +124,11 @@ export function canonicalReviewSchemas() {
     ),
     OnboardingReviewCreateRequest: closedObject(
       {
-        applicability_rule: { type: ["string", "null"] },
+        applicability_rule: applicabilityRule,
         codex_configuration: { $ref: "CodexConfiguration#" },
-        criteria: {
-          items: { $ref: "CriterionCreateRequest#" },
-          minItems: 1,
-          type: "array",
-        },
-        description: { minLength: 1, pattern: "\\S", type: "string" },
-        name: { minLength: 1, pattern: "\\S", type: "string" },
+        criteria: criteria({ $ref: "CriterionCreateRequest#" }),
+        description,
+        name,
       },
       [
         "name",
@@ -106,13 +143,9 @@ export function canonicalReviewSchemas() {
     ]),
     ReviewVersionSaveRequest: closedObject(
       {
-        applicability_rule: { type: ["string", "null"] },
+        applicability_rule: applicabilityRule,
         codex_configuration: { $ref: "CodexConfiguration#" },
-        criteria: {
-          items: { $ref: "CriterionVersionRequest#" },
-          minItems: 1,
-          type: "array",
-        },
+        criteria: criteria({ $ref: "CriterionVersionRequest#" }),
       },
       ["applicability_rule", "codex_configuration", "criteria"],
     ),

@@ -1,6 +1,10 @@
 import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
 import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
-import { closedObject, openObject } from "./canonical-schema.js";
+import {
+  closedObject,
+  openObject,
+  withValidationError,
+} from "./canonical-schema.js";
 import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-components.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
@@ -25,6 +29,10 @@ import { canonicalReviewSchemas } from "./canonical-review-components.js";
 
 /** @param {CodexCapabilityCatalog} codexCapabilityCatalog */
 export function createCanonicalComponents(codexCapabilityCatalog) {
+  /** @param {"reasoning_efforts" | "service_tiers"} name */
+  const capabilityValues = (name) => [
+    ...new Set(codexCapabilityCatalog.models.flatMap((model) => model[name])),
+  ];
   return {
     schemas: {
       AuthorityAttribution: openObject(
@@ -110,21 +118,39 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ["confirmation", "password"],
       ),
       ...canonicalRepositorySchemas(),
-      CodexConfiguration: {
-        oneOf: codexCapabilityCatalog.models.map((model) =>
-          closedObject(
-            {
-              model: { const: model.id, type: "string" },
-              reasoning_effort: {
-                enum: model.reasoning_efforts,
+      CodexConfiguration: withValidationError(
+        closedObject(
+          {
+            model: withValidationError(
+              {
+                enum: codexCapabilityCatalog.models.map((model) => model.id),
                 type: "string",
               },
-              service_tier: { enum: model.service_tiers, type: "string" },
-            },
-            ["model", "reasoning_effort", "service_tier"],
-          ),
+              "codex_model_unsupported",
+              "Codex model is not supported by the pinned catalog",
+            ),
+            reasoning_effort: withValidationError(
+              {
+                enum: capabilityValues("reasoning_efforts"),
+                type: "string",
+              },
+              "codex_reasoning_effort_unsupported",
+              "Codex reasoning effort is not supported by the selected model",
+            ),
+            service_tier: withValidationError(
+              {
+                enum: capabilityValues("service_tiers"),
+                type: "string",
+              },
+              "codex_service_tier_unsupported",
+              "Codex service tier is not supported by the selected model",
+            ),
+          },
+          ["model", "reasoning_effort", "service_tier"],
         ),
-      },
+        "codex_configuration_malformed",
+        "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
+      ),
       ...canonicalWaiverAdjudicatorConfigurationSchemas(),
       ...canonicalReviewSchemas(),
       EmptyRequest: closedObject({}, []),

@@ -12,11 +12,6 @@ import { apiRoutes, apiSchemas } from "./http-routes/index.js";
 
 const JSON_TYPE = "application/json";
 const createValidatorCompiler = AjvCompiler();
-const OPENAPI_HEADER_NAMES = {
-  "idempotency-key": "Idempotency-Key",
-  "if-none-match": "If-None-Match",
-  origin: "Origin",
-};
 
 /** @param {any} reply @param {unknown} error */
 function writeUnhandledError(reply, error) {
@@ -51,30 +46,10 @@ function writeUnhandledError(reply, error) {
     const unavailable = requireCodedError(failure);
     writeError(reply, 503, unavailable.code, unavailable.message);
   } else if (fastifyFailure.validation) {
-    const canonical = fastifyFailure.validation.some(
-      (/** @type {any} */ diagnostic) =>
-        diagnostic.keyword === "maximum" &&
-        diagnostic.instancePath.endsWith("/limit"),
-    )
-      ? {
-          code: "page_size_invalid",
-          message: "Page size is invalid",
-          status: 400,
-        }
-      : reply.request.routeOptions.schema.operationId === "getAnalytics" &&
-          !fastifyFailure.validation.some(
-            (/** @type {any} */ diagnostic) =>
-              diagnostic.keyword === "additionalProperties",
-          )
-        ? {
-            code: "analytics_filter_invalid",
-            message: "Analytics filter is invalid",
-            status: 400,
-          }
-        : canonicalFastifyValidationError(
-            reply.request,
-            fastifyFailure.validation,
-          );
+    const canonical = canonicalFastifyValidationError(
+      reply.request,
+      fastifyFailure.validation,
+    );
     writeError(reply, canonical.status, canonical.code, canonical.message);
   } else if (
     fastifyFailure.code?.startsWith("FST_ERR_CTP_") ||
@@ -113,27 +88,17 @@ export function createFastify(components) {
       },
     },
   });
-  const validatorOptions = /** @type {const} */ ({
+  const validator = createValidatorCompiler(registeredSchemas, {
     customOptions: {
       allErrors: true,
       allowUnionTypes: true,
+      coerceTypes: false,
       removeAdditional: false,
       strict: false,
+      verbose: true,
     },
   });
-  const bodyValidator = createValidatorCompiler(registeredSchemas, {
-    ...validatorOptions,
-    customOptions: { ...validatorOptions.customOptions, coerceTypes: false },
-  });
-  const otherValidator = createValidatorCompiler(registeredSchemas, {
-    ...validatorOptions,
-    customOptions: { ...validatorOptions.customOptions, coerceTypes: true },
-  });
-  server.setValidatorCompiler((request) =>
-    (["body", "querystring"].includes(request.httpPart ?? "")
-      ? bodyValidator
-      : otherValidator)(request),
-  );
+  server.setValidatorCompiler(validator);
   server.register(swagger, {
     convertConstToEnum: false,
     openapi: {
@@ -146,31 +111,6 @@ export function createFastify(components) {
     refResolver: {
       buildLocalReference: (schema, ...context) =>
         String(schema.$id ?? `schema-${context[2]}`),
-    },
-    transformObject: (/** @type {any} */ { openapiObject }) => {
-      for (const path of Object.values(openapiObject.paths)) {
-        for (const operation of Object.values(/** @type {any} */ (path))) {
-          for (const parameter of /** @type {any} */ (operation).parameters ??
-            []) {
-            if (parameter.in === "header") {
-              parameter.name =
-                OPENAPI_HEADER_NAMES[
-                  /** @type {keyof typeof OPENAPI_HEADER_NAMES} */ (
-                    parameter.name
-                  )
-                ] ?? parameter.name;
-            }
-          }
-          /** @type {any} */ (operation).parameters?.sort(
-            (/** @type {any} */ left, /** @type {any} */ right) =>
-              (left.in === "path" ? 0 : 1) - (right.in === "path" ? 0 : 1),
-          );
-        }
-      }
-      return {
-        ...openapiObject,
-        jsonSchemaDialect: "https://spec.openapis.org/oas/3.1/dialect/base",
-      };
     },
   });
   for (const schema of Object.values(registeredSchemas)) {
@@ -203,11 +143,9 @@ export function allowedSecuritySchemes(request) {
   const declared = new Set(
     (request.routeOptions.schema?.security ?? []).flatMap(Object.keys),
   );
-  return declared.size > 0 ||
-    request.routeOptions.schema?.security !== undefined ||
-    !isProductSurface(requestUrl(request).pathname)
-    ? declared
-    : new Set(["browser_session", "implementer_token"]);
+  return request.is404 && isProductSurface(requestUrl(request).pathname)
+    ? new Set(["browser_session", "implementer_token"])
+    : declared;
 }
 
 /** @param {string} code */
@@ -230,6 +168,11 @@ export function notReadyMessage(code) {
 
 /** @param {any} route */
 function registeredSchema(route) {
+  if (route.schema.security === undefined) {
+    throw new TypeError(
+      `HTTP operation security is missing: ${route.schema.operationId ?? route.url}`,
+    );
+  }
   const schema = {
     querystring: route.schema.querystring ?? {
       additionalProperties: false,

@@ -54,13 +54,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections",
   },
   {
-    ...canonicalValidationError(
-      "request_malformed",
-      "Request is malformed",
-      400,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "request_malformed",
+        "Request is malformed",
+        400,
+      ),
       operationId: "startGitHubAppManifest",
       security: [
         {
@@ -81,13 +81,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections/manifest",
   },
   {
-    ...canonicalValidationError(
-      "github_connection_lifecycle_request_invalid",
-      "GitHub Connection lifecycle request must retire the Connection",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "github_connection_lifecycle_request_invalid",
+        "GitHub Connection lifecycle request must retire the Connection",
+        422,
+      ),
       operationId: "retireGitHubConnection",
       security: [
         {
@@ -108,13 +108,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections/lifecycle",
   },
   {
-    ...canonicalValidationError(
-      "request_malformed",
-      "Request is malformed",
-      400,
-    ),
     method: "DELETE",
     schema: {
+      ...canonicalValidationError(
+        "request_malformed",
+        "Request is malformed",
+        400,
+      ),
       operationId: "deleteNeverUsedGitHubConnection",
       security: [
         {
@@ -135,13 +135,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections/lifecycle",
   },
   {
-    ...canonicalValidationError(
-      "github_connection_reactivation_request_invalid",
-      "GitHub Connection reactivation requires one replacement private key",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "github_connection_reactivation_request_invalid",
+        "GitHub Connection reactivation requires one replacement private key",
+        422,
+      ),
       operationId: "reactivateGitHubConnection",
       security: [
         {
@@ -163,13 +163,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections/reactivate",
   },
   {
-    ...canonicalValidationError(
-      "github_repository_selection_invalid",
-      "GitHub Repository selection must contain unique stable Repository IDs",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "github_repository_selection_invalid",
+        "GitHub Repository selection must contain unique stable Repository IDs",
+        422,
+      ),
       operationId: "selectGitHubRepositories",
       security: [
         {
@@ -190,13 +190,13 @@ export const githubRoutes = [
     url: "/api/v1/github-connections/repositories",
   },
   {
-    ...canonicalValidationError(
-      "github_connection_rotation_request_invalid",
-      "GitHub App credential rotation request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "github_connection_rotation_request_invalid",
+        "GitHub App credential rotation request is invalid",
+        422,
+      ),
       operationId: "rotateGitHubConnectionCredentials",
       security: [
         {

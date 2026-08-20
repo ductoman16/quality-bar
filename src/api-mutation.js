@@ -1,16 +1,10 @@
 import { requireCodedError } from "./coded-error.js";
-import {
-  browserMutationFailureStatus,
-  requireBrowserMutation,
-} from "./http-request.js";
 import { createErrorDocument, writeError, writeJson } from "./http-response.js";
 
 /**
  * @param {import("fastify").FastifyRequest} request
  * @param {import("fastify").FastifyReply} response
  * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   failureCode: string,
  *   failureDetails?: (code: string, error: unknown) => Record<string, unknown> | undefined,
  *   mutate: (body: unknown) => unknown,
@@ -23,8 +17,6 @@ export async function writeBrowserJsonMutation(
   request,
   response,
   {
-    browserOrigin,
-    browserSessions,
     failureCode,
     failureDetails,
     mutate,
@@ -34,7 +26,6 @@ export async function writeBrowserJsonMutation(
   },
 ) {
   try {
-    requireBrowserMutation(browserSessions, request, browserOrigin);
     writeJson(response, successStatus, await mutate(request.body));
   } catch (error) {
     if (
@@ -52,19 +43,6 @@ export async function writeBrowserJsonMutation(
     const failure = requireCodedError(error);
     if (failure.message === "request_malformed") {
       writeError(response, 400, "request_malformed", "Request is malformed");
-      return;
-    }
-    if (
-      ["csrf_invalid", "origin_invalid", "authentication_required"].includes(
-        failure.code,
-      )
-    ) {
-      writeError(
-        response,
-        browserMutationFailureStatus(failure.code),
-        failure.code,
-        failure.message,
-      );
       return;
     }
     const status = statusFor(failure.code, error);

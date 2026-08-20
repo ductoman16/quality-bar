@@ -8,13 +8,13 @@ export const reviewsSchemas = {};
 
 export const reviewsRoutes = [
   {
-    ...canonicalValidationError(
-      "review_list_state_invalid",
-      "Review collection state must be active or archived",
-      400,
-    ),
     method: "GET",
     schema: {
+      ...canonicalValidationError(
+        "review_list_state_invalid",
+        "Review collection state must be active or archived",
+        400,
+      ),
       operationId: "listReviews",
       security: [
         {
@@ -47,13 +47,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews",
   },
   {
-    ...canonicalValidationError(
-      "review_request_malformed",
-      "Review request contains unsupported or missing fields",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "review_request_malformed",
+        "Review request contains unsupported or missing fields",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "createReview",
       security: [
@@ -75,13 +75,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews",
   },
   {
-    ...canonicalValidationError(
-      "review_assignment_malformed",
-      "Review Assignment must contain exactly one supported scope",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "review_assignment_malformed",
+        "Review Assignment must contain exactly one supported scope",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "setReviewAssignment",
       security: [
@@ -104,13 +104,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews/:review_id/assignment",
   },
   {
-    ...canonicalValidationError(
-      "review_archival_request_malformed",
-      "Review archival request must contain only an exact archived state",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "review_archival_request_malformed",
+        "Review archival request must contain only an exact archived state",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "setReviewArchived",
       security: [
@@ -133,13 +133,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews/:review_id/archival",
   },
   {
-    ...canonicalValidationError(
-      "review_deletion_request_malformed",
-      "Review deletion request must be an empty object",
-      400,
-    ),
     method: "DELETE",
     schema: {
+      ...canonicalValidationError(
+        "review_deletion_request_malformed",
+        "Review deletion request must be an empty object",
+        400,
+      ),
       headers: browserMutationHeaders(),
       operationId: "deleteNeverUsedReview",
       security: [
@@ -161,13 +161,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews/:review_id",
   },
   {
-    ...canonicalValidationError(
-      "review_metadata_request_malformed",
-      "Review metadata request contains unsupported or missing fields",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "review_metadata_request_malformed",
+        "Review metadata request contains unsupported or missing fields",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "updateReviewMetadata",
       security: [
@@ -189,13 +189,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews/:review_id/metadata",
   },
   {
-    ...canonicalValidationError(
-      "review_version_request_malformed",
-      "Review Version request contains unsupported or missing fields",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "review_version_request_malformed",
+        "Review Version request contains unsupported or missing fields",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "saveReviewVersion",
       security: [
@@ -218,13 +218,13 @@ export const reviewsRoutes = [
     url: "/api/v1/reviews/:review_id/versions",
   },
   {
-    ...canonicalValidationError(
-      "review_version_reactivation_request_malformed",
-      "Review Version reactivation request must contain only an exact Review Version identity",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "review_version_reactivation_request_malformed",
+        "Review Version reactivation request must contain only an exact Review Version identity",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "reactivateReviewVersion",
       security: [

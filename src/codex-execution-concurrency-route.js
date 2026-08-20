@@ -3,19 +3,6 @@ import { requireCodedError } from "./coded-error.js";
 import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {unknown} body */
-function readMaximumRunning(body) {
-  if (
-    !body ||
-    typeof body !== "object" ||
-    Array.isArray(body) ||
-    Object.keys(body).sort().join(",") !== "maximum_running"
-  ) {
-    return body;
-  }
-  return /** @type {any} */ (body).maximum_running;
-}
-
 /** @param {any} dependencies */
 export function createCodexExecutionConcurrencyOperations(dependencies) {
   if (
@@ -44,12 +31,10 @@ export function createCodexExecutionConcurrencyOperations(dependencies) {
     },
     async updateCodexExecutionConcurrency(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        browserOrigin: dependencies.browserOrigin,
-        browserSessions: dependencies.browserSessions,
         failureCode: "codex_execution_concurrency_change_failed",
         mutate: (body) => ({
           maximum_running: dependencies.codexExecutionConcurrency.set(
-            readMaximumRunning(body),
+            /** @type {{maximum_running: number}} */ (body).maximum_running,
           ),
         }),
         statusFor: (code, error) =>

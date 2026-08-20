@@ -26,13 +26,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens",
   },
   {
-    ...canonicalValidationError(
-      "onboarding_token_request_malformed",
-      "Onboarding token request must contain one Repository URL",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "onboarding_token_request_malformed",
+        "Onboarding token request must contain one Repository URL",
+        422,
+      ),
       operationId: "createOnboardingToken",
       security: [
         {
@@ -53,13 +53,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens",
   },
   {
-    ...canonicalValidationError(
-      "request_malformed",
-      "Request is malformed",
-      400,
-    ),
     method: "DELETE",
     schema: {
+      ...canonicalValidationError(
+        "request_malformed",
+        "Request is malformed",
+        400,
+      ),
       operationId: "revokeOnboardingToken",
       security: [
         {
@@ -80,13 +80,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens/:onboarding_token_id",
   },
   {
-    ...canonicalValidationError(
-      "request_malformed",
-      "Request is malformed",
-      400,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "request_malformed",
+        "Request is malformed",
+        400,
+      ),
       operationId: "revokeCurrentOnboardingToken",
       security: [
         {
@@ -107,13 +107,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-token/revoke",
   },
   {
-    ...canonicalValidationError(
-      "repository_request_invalid",
-      "Repository registration request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "repository_request_invalid",
+        "Repository registration request is invalid",
+        422,
+      ),
       operationId: "registerOnboardingRepository",
       security: [
         {
@@ -134,13 +134,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding/repository",
   },
   {
-    ...canonicalValidationError(
-      "review_selection_request_malformed",
-      "Review selection must contain unique Review identities",
-      422,
-    ),
     method: "PUT",
     schema: {
+      ...canonicalValidationError(
+        "review_selection_request_malformed",
+        "Review selection must contain unique Review identities",
+        422,
+      ),
       operationId: "setOnboardingRepositoryReviews",
       security: [
         {
@@ -161,13 +161,13 @@ export const onboardingRoutes = [
     url: "/api/v1/repositories/:repository_id/review-selection",
   },
   {
-    ...canonicalValidationError(
-      "review_request_malformed",
-      "Review request contains unsupported or missing fields",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "review_request_malformed",
+        "Review request contains unsupported or missing fields",
+        422,
+      ),
       operationId: "createOnboardingRepositoryReview",
       security: [
         {
@@ -188,13 +188,13 @@ export const onboardingRoutes = [
     url: "/api/v1/repositories/:repository_id/reviews",
   },
   {
-    ...canonicalValidationError(
-      "review_metadata_request_malformed",
-      "Review metadata request contains unsupported or missing fields",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "review_metadata_request_malformed",
+        "Review metadata request contains unsupported or missing fields",
+        422,
+      ),
       operationId: "updateOnboardingReviewMetadata",
       security: [
         {
@@ -215,13 +215,13 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding/reviews/:review_id/metadata",
   },
   {
-    ...canonicalValidationError(
-      "review_version_request_malformed",
-      "Review Version request contains unsupported or missing fields",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "review_version_request_malformed",
+        "Review Version request contains unsupported or missing fields",
+        422,
+      ),
       operationId: "saveOnboardingReviewVersion",
       security: [
         {

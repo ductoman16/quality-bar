@@ -1,8 +1,10 @@
+import { withValidationError } from "./canonical-schema.js";
+
 const errorResponse = { $ref: "ErrorResponse#" };
 
 /** @param {string} code @param {string} message @param {number} status */
 export function canonicalValidationError(code, message, status) {
-  return { config: { canonicalValidationError: { code, message, status } } };
+  return { "x-quality-bar-error": { code, message, status } };
 }
 
 /** @param {number[]} statuses */
@@ -42,9 +44,14 @@ export function authenticatedMutationHeaders(properties, required) {
   };
 }
 
-export const idempotencyKeyHeader = {
-  maxLength: 255,
-  minLength: 1,
-  pattern: "^[\\x21-\\x7e]+$",
-  type: "string",
-};
+export const idempotencyKeyHeader = withValidationError(
+  {
+    maxLength: 255,
+    minLength: 1,
+    pattern: "^[\\x21-\\x7e]+$",
+    type: "string",
+  },
+  "idempotency_key_required",
+  "A valid Idempotency-Key header is required",
+  400,
+);

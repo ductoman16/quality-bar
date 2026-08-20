@@ -13,9 +13,10 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
     Object.values(path).filter((operation) => operation.operationId),
   );
   assert.equal(document.openapi, "3.1.0");
-  assert.equal(
-    document.jsonSchemaDialect,
-    "https://spec.openapis.org/oas/3.1/dialect/base",
+  assert.deepEqual(
+    document.components.schemas.ReviewCreateRequest.properties
+      .applicability_rule.type,
+    ["string", "null"],
   );
   assert.equal(operations.length, 72);
   assert.equal(
@@ -25,31 +26,38 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   assert.deepEqual(
     document.paths[
       "/api/v1/repositories/{repository_id}/evaluations"
-    ].post.parameters.map((/** @type {any} */ parameter) => [
-      parameter.name,
-      parameter.required,
-    ]),
+    ].post.parameters
+      .map((/** @type {any} */ parameter) => [
+        parameter.name.toLowerCase(),
+        parameter.required,
+      ])
+      .toSorted(),
     [
+      ["idempotency-key", true],
+      ["origin", false],
       ["repository_id", true],
-      ["Origin", false],
       ["x-quality-bar-csrf", false],
-      ["Idempotency-Key", true],
-    ],
+    ].toSorted(),
   );
   assert.deepEqual(
-    document.paths["/api/v1/session/password"].post.parameters.map(
-      (/** @type {any} */ parameter) => [parameter.name, parameter.required],
-    ),
+    document.paths["/api/v1/session/password"].post.parameters
+      .map((/** @type {any} */ parameter) => [
+        parameter.name.toLowerCase(),
+        parameter.required,
+      ])
+      .toSorted(),
     [
-      ["Origin", true],
+      ["origin", true],
       ["x-quality-bar-csrf", true],
-    ],
+    ].toSorted(),
   );
   assert.deepEqual(
     document.paths[
       "/api/v1/repositories/{repository_id}/guidance"
-    ].get.parameters.map((/** @type {any} */ parameter) => parameter.name),
-    ["repository_id", "If-None-Match"],
+    ].get.parameters
+      .map((/** @type {any} */ parameter) => parameter.name.toLowerCase())
+      .toSorted(),
+    ["repository_id", "if-none-match"].toSorted(),
   );
   assert.equal(
     document.paths[

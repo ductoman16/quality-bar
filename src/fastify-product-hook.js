@@ -16,6 +16,7 @@ import {
   isProductSurface,
   requireBrowserMutation,
   requireProductAuthority,
+  sessionSecret,
 } from "./http-request.js";
 import { writeError } from "./http-response.js";
 
@@ -118,6 +119,10 @@ export function createFastifyProductHook({
             productRequest.authority === "onboarding"
               ? onboardingTokens.authenticate(bearerToken(request))
               : null;
+          productRequest.browserSessionSecret =
+            productRequest.authority === "operator"
+              ? sessionSecret(request)
+              : null;
         }
       } catch (error) {
         const failure = requireCodedError(error);
@@ -166,7 +171,12 @@ export function createFastifyProductHook({
         ["DELETE", "PATCH", "POST", "PUT"].includes(request.method)
       ) {
         try {
-          requireBrowserMutation(browserSessions, request, browserOrigin);
+          requireBrowserMutation(
+            browserSessions,
+            request,
+            browserOrigin,
+            productRequest.browserSessionSecret,
+          );
         } catch (error) {
           const failure = requireCodedError(error);
           recordBrowserSessionBoundaryFailure(

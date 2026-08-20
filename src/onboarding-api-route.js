@@ -1,10 +1,5 @@
 import { requireCodedError } from "./coded-error.js";
-import {
-  bearerToken,
-  browserMutationFailureStatus,
-  isUnavailableError,
-  requireBrowserMutation,
-} from "./http-request.js";
+import { bearerToken, isUnavailableError } from "./http-request.js";
 import { writeError, writeJson, writeStatus } from "./http-response.js";
 
 /** @param {import("fastify").FastifyRequest} request @param {string} name */
@@ -12,10 +7,8 @@ function pathParameter(request, name) {
   return /** @type {Record<string, string>} */ (request.params)[name];
 }
 
-/** @param {{browserOrigin: string, browserSessions: any, onboardingTokens: any, operations: any}} dependencies */
+/** @param {{onboardingTokens: any, operations: any}} dependencies */
 export function createOnboardingApiOperations({
-  browserOrigin,
-  browserSessions,
   onboardingTokens,
   operations,
 }) {
@@ -28,19 +21,13 @@ export function createOnboardingApiOperations({
       await operation(request, response);
     } catch (error) {
       const failure = requireCodedError(error);
-      const status = [
-        "csrf_invalid",
-        "origin_invalid",
-        "authentication_required",
-      ].includes(failure.code)
-        ? browserMutationFailureStatus(failure.code)
-        : /_not_found$/.test(failure.code)
-          ? 404
-          : /_conflict$|_already_active$/.test(failure.code)
-            ? 409
-            : isUnavailableError(error)
-              ? 503
-              : 422;
+      const status = /_not_found$/.test(failure.code)
+        ? 404
+        : /_conflict$|_already_active$/.test(failure.code)
+          ? 409
+          : isUnavailableError(error)
+            ? 503
+            : 422;
       writeError(response, status, failure.code, failure.message);
     }
   };
@@ -51,11 +38,9 @@ export function createOnboardingApiOperations({
       writeJson(response, 200, { onboarding_tokens: onboardingTokens.list() });
     }),
     createOnboardingToken: handle((request, response) => {
-      requireBrowserMutation(browserSessions, request, browserOrigin);
       writeJson(response, 201, onboardingTokens.create(request.body));
     }),
     revokeOnboardingToken: handle((request, response) => {
-      requireBrowserMutation(browserSessions, request, browserOrigin);
       onboardingTokens.revoke(pathParameter(request, "onboarding_token_id"));
       writeStatus(response, 204);
     }),

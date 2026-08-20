@@ -5,19 +5,15 @@ import { isUnavailableError } from "./http-request.js";
  * @param {import("fastify").FastifyRequest} request
  * @param {import("fastify").FastifyReply} response
  * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   repositories: Pick<ReturnType<typeof import("./repository.js").createRepositoryService>, "list" | "setLifecycle">,
- *   encodedRepositoryId: string,
+ *   repositoryId: string,
  * }} options
  */
 export async function writeRepositoryLifecycleChange(
   request,
   response,
-  { browserOrigin, browserSessions, repositories, encodedRepositoryId },
+  { repositories, repositoryId },
 ) {
-  /** @type {string | undefined} */
-  let repositoryId;
   const providerConflictCodes = new Set([
     "forgejo_repository_enablement_conflict",
     "forgejo_repository_identity_conflict",
@@ -39,34 +35,21 @@ export async function writeRepositoryLifecycleChange(
     );
   }
   await writeBrowserJsonMutation(request, response, {
-    browserOrigin,
-    browserSessions,
     failureCode: "repository_lifecycle_change_failed",
     failureDetails: (code) =>
       lifecycleConflictCodes.has(code) && repositoryId
         ? { current: currentRepository() }
         : undefined,
-    mutate: (body) => {
-      try {
-        repositoryId = decodeURIComponent(encodedRepositoryId);
-      } catch {
-        throw Object.assign(new Error("request_malformed"), {
-          code: "request_malformed",
-        });
-      }
-      return repositories.setLifecycle(repositoryId, body);
-    },
+    mutate: (body) => repositories.setLifecycle(repositoryId, body),
     statusFor: (code, error) =>
-      code === "request_malformed"
-        ? 400
-        : code === "repository_not_found"
-          ? 404
-          : lifecycleConflictCodes.has(code)
-            ? 409
-            : isUnavailableError(error) ||
-                code === "repository_git_verification_unavailable"
-              ? 503
-              : 422,
+      code === "repository_not_found"
+        ? 404
+        : lifecycleConflictCodes.has(code)
+          ? 409
+          : isUnavailableError(error) ||
+              code === "repository_git_verification_unavailable"
+            ? 503
+            : 422,
     unexpectedMessage: "Repository lifecycle change failed",
   });
 }

@@ -89,13 +89,13 @@ export const sessionsRoutes = [
     url: "/api/v1/session/password",
   },
   {
-    ...canonicalValidationError(
-      "session_revocation_confirmation_invalid",
-      "Global browser-session revocation must be confirmed",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "session_revocation_confirmation_invalid",
+        "Global browser-session revocation must be confirmed",
+        422,
+      ),
       headers: browserMutationHeaders(),
       operationId: "revokeBrowserSessions",
       security: [

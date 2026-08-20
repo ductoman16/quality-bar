@@ -29,13 +29,13 @@ export const waiversRoutes = [
     url: "/api/v1/waiver-adjudicator-configuration",
   },
   {
-    ...canonicalValidationError(
-      "codex_configuration_malformed",
-      "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "codex_configuration_malformed",
+        "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
+        422,
+      ),
       operationId: "updateWaiverAdjudicatorConfiguration",
       security: [
         {
@@ -78,13 +78,13 @@ export const waiversRoutes = [
     url: "/api/v1/evaluations/:evaluation_id/waiver-adjudications",
   },
   {
-    ...canonicalValidationError(
-      "waiver_batch_invalid",
-      "Waiver batch must contain unique Findings with nonblank rationales",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "waiver_batch_invalid",
+        "Waiver batch must contain unique Findings with nonblank rationales",
+        422,
+      ),
       headers: authenticatedMutationHeaders(
         { "idempotency-key": idempotencyKeyHeader },
         ["idempotency-key"],
@@ -112,13 +112,13 @@ export const waiversRoutes = [
     url: "/api/v1/evaluations/:evaluation_id/waiver-adjudications",
   },
   {
-    ...canonicalValidationError(
-      "waiver_error_retry_invalid",
-      "Waiver error retry must contain unique Request identities",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "waiver_error_retry_invalid",
+        "Waiver error retry must contain unique Request identities",
+        422,
+      ),
       headers: browserMutationHeaders(
         { "idempotency-key": idempotencyKeyHeader },
         ["idempotency-key"],

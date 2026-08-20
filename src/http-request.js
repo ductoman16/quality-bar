@@ -237,13 +237,14 @@ export function requireBrowserSession(browserSessions, request) {
  * @param {BrowserSessionAuthority} browserSessions
  * @param {import("fastify").FastifyRequest} request
  * @param {string} browserOrigin
+ * @param {string} secret
  */
 export function requireBrowserMutation(
   browserSessions,
   request,
   browserOrigin,
+  secret,
 ) {
-  const secret = requireBrowserSession(browserSessions, request);
   if (request.headers.origin !== browserOrigin) {
     throw browserMutationError("origin_invalid", "Browser origin is invalid");
   }

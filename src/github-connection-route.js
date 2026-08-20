@@ -54,16 +54,10 @@ export function createGitHubCallbackValidationErrorHandler(githubConnections) {
  */
 /**
  * @param {{
- *   browserOrigin: string,
- *   browserSessions: ReturnType<typeof import("./browser-session.js").createBrowserSessionService>,
  *   githubConnections: ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>
  * }} dependencies
  */
-export function createGitHubConnectionRoute({
-  browserOrigin,
-  browserSessions,
-  githubConnections,
-}) {
+export function createGitHubConnectionRoute({ githubConnections }) {
   return {
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     getGitHubConnection(request, response) {
@@ -73,17 +67,8 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     startGitHubAppManifest(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_manifest_start_failed",
-        mutate: (body) => {
-          if (Object.keys(/** @type {object} */ (body)).length !== 0) {
-            throw Object.assign(new Error("request_malformed"), {
-              code: "request_malformed",
-            });
-          }
-          return githubConnections.start();
-        },
+        mutate: () => githubConnections.start(),
         statusFor: (code, error) =>
           code === "github_connection_conflict"
             ? 409
@@ -96,8 +81,6 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     retireGitHubConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_connection_lifecycle_failed",
         mutate: (body) => githubConnections.retire(body),
         statusFor: (code, error) =>
@@ -114,15 +97,8 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     deleteNeverUsedGitHubConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_connection_delete_failed",
-        mutate: (body) => {
-          if (Object.keys(/** @type {object} */ (body)).length !== 0) {
-            throw Object.assign(new Error("request_malformed"), {
-              code: "request_malformed",
-            });
-          }
+        mutate: () => {
           githubConnections.remove();
           return null;
         },
@@ -141,8 +117,6 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     reactivateGitHubConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_connection_reactivation_failed",
         mutate: (body) => githubConnections.reactivate(body),
         statusFor: (code, error) =>
@@ -159,8 +133,6 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     selectGitHubRepositories(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_repository_selection_failed",
         mutate: (body) => githubConnections.selectRepositories(body),
         statusFor: (code, error) =>
@@ -181,8 +153,6 @@ export function createGitHubConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     rotateGitHubConnectionCredentials(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "github_connection_rotation_failed",
         mutate: (body) => githubConnections.rotate(body),
         statusFor: (code, error) =>

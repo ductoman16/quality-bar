@@ -67,6 +67,7 @@ export function createApplicationServer(dependencies) {
   const server = createFastify(
     createCanonicalComponents(readCodexCapabilityCatalog()),
   );
+  server.decorateRequest("browserSessionSecret", null);
   for (const method of METHODS) {
     if (!server.supportedMethods.includes(method)) {
       server.addHttpMethod(method);
@@ -78,7 +79,6 @@ export function createApplicationServer(dependencies) {
     browserSessions,
   });
   const sessionOperations = createBrowserSessionOperations({
-    browserOrigin,
     browserSessions,
     implementerTokens,
     recordAuthorityAttribution,
@@ -91,25 +91,17 @@ export function createApplicationServer(dependencies) {
   });
   const waiverConfigurationOperations =
     createWaiverAdjudicatorConfigurationOperations({
-      browserOrigin,
-      browserSessions,
       waiverAdjudicatorConfiguration,
     });
   const evaluationOperations = createEvaluationOperations({
-    browserOrigin,
-    browserSessions,
     evaluations,
     recordAuthorityAttribution,
   });
   const concurrencyOperations = createCodexExecutionConcurrencyOperations({
-    browserOrigin,
-    browserSessions,
     codexExecutionConcurrency,
   });
   const apiOperations = createApiOperations({
     analytics: { read: evaluations.readAnalytics },
-    browserOrigin,
-    browserSessions,
     listAuthorityAttributions,
     readSystemStatus,
     repositories,
@@ -126,8 +118,6 @@ export function createApplicationServer(dependencies) {
   const onboardingApiOperations =
     /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */ (
       createOnboardingApiOperations({
-        browserOrigin,
-        browserSessions,
         onboardingTokens,
         operations: onboardingOperations,
       })
@@ -145,13 +135,9 @@ export function createApplicationServer(dependencies) {
     ...apiOperations,
     ...concurrencyOperations,
     ...createForgejoConnectionRoute({
-      browserOrigin,
-      browserSessions,
       forgejoConnections,
     }),
     ...createGitHubConnectionRoute({
-      browserOrigin,
-      browserSessions,
       githubConnections,
     }),
     ...evaluationOperations,

@@ -137,13 +137,13 @@ export const systemRoutes = [
     url: "/api/v1/system/codex-concurrency",
   },
   {
-    ...canonicalValidationError(
-      "codex_execution_concurrency_invalid",
-      "Codex execution concurrency must be an integer from 1 through 4",
-      422,
-    ),
     method: "PATCH",
     schema: {
+      ...canonicalValidationError(
+        "codex_execution_concurrency_invalid",
+        "Codex execution concurrency must be an integer from 1 through 4",
+        422,
+      ),
       operationId: "updateCodexExecutionConcurrency",
       security: [
         {

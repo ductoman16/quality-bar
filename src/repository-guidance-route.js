@@ -5,17 +5,16 @@ import { writeError, writeJson, writeStatus } from "./http-response.js";
 /**
  * @param {import("fastify").FastifyReply} response
  * @param {ReturnType<typeof import("./repository-guidance.js").createRepositoryGuidanceService>} repositoryGuidance
- * @param {string} encodedRepositoryId
+ * @param {string} repositoryId
  * @param {string | string[] | undefined} ifNoneMatch
  */
 export function writeRepositoryGuidance(
   response,
   repositoryGuidance,
-  encodedRepositoryId,
+  repositoryId,
   ifNoneMatch,
 ) {
   try {
-    const repositoryId = decodeURIComponent(encodedRepositoryId);
     const guidance = repositoryGuidance.read(repositoryId);
     const entityTag = `"${guidance.guidance_revision}"`;
     if (ifNoneMatch === entityTag) {
@@ -24,10 +23,6 @@ export function writeRepositoryGuidance(
       writeJson(response, 200, guidance, { etag: entityTag });
     }
   } catch (error) {
-    if (error instanceof URIError) {
-      writeError(response, 400, "request_malformed", "Request is malformed");
-      return;
-    }
     const failure = requireCodedError(error);
     if (failure.code === "repository_not_found") {
       writeError(response, 404, failure.code, failure.message);

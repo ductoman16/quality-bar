@@ -1,6 +1,5 @@
 import { requireCodedError } from "./coded-error.js";
 import { evaluationFailureStatus } from "./evaluation-route-failure.js";
-import { requireBrowserMutation } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 import { writeWaiverRecovery } from "./waiver-recovery-route.js";
 
@@ -9,23 +8,14 @@ function pathParameter(request, name) {
   return /** @type {Record<string, string>} */ (request.params)[name];
 }
 
-/** @param {{browserOrigin: string, browserSessions: any, evaluations: any, recordAuthorityAttribution: (event: any) => void}} dependencies */
+/** @param {{evaluations: any, recordAuthorityAttribution: (event: any) => void}} dependencies */
 export function createEvaluationOperations({
-  browserOrigin,
-  browserSessions,
   evaluations,
   recordAuthorityAttribution,
 }) {
   /** @param {import("fastify").FastifyRequest} request */
   function authority(request) {
     return /** @type {any} */ (request).authority;
-  }
-
-  /** @param {import("fastify").FastifyRequest} request */
-  function requireMutation(request) {
-    if (authority(request) === "operator") {
-      requireBrowserMutation(browserSessions, request, browserOrigin);
-    }
   }
 
   /** @type {(operation: (request: import("fastify").FastifyRequest, response: import("fastify").FastifyReply) => unknown) => (request: import("fastify").FastifyRequest, response: import("fastify").FastifyReply) => Promise<void>} */
@@ -136,7 +126,6 @@ export function createEvaluationOperations({
       ),
     ),
     retryEvaluationPreStart: handle((request, response) => {
-      requireMutation(request);
       const retried = evaluations.retryPreStart({
         channel:
           authority(request) === "machine"
@@ -148,7 +137,6 @@ export function createEvaluationOperations({
       writeJson(response, retried.status, retried.resource);
     }),
     cancelEvaluation: handle((request, response) => {
-      requireMutation(request);
       writeJson(
         response,
         200,
@@ -156,7 +144,6 @@ export function createEvaluationOperations({
       );
     }),
     submitWaiverBatch: handle((request, response) => {
-      requireMutation(request);
       const created = evaluations.submitWaiverBatch({
         channel:
           authority(request) === "machine"
@@ -171,7 +158,6 @@ export function createEvaluationOperations({
       });
     }),
     retryWaiverErrors: handle((request, response) => {
-      requireMutation(request);
       const created = evaluations.retryWaiverErrors({
         channel: "browser_session",
         evaluationId: pathParameter(request, "evaluation_id"),
@@ -183,7 +169,6 @@ export function createEvaluationOperations({
       });
     }),
     recoverWaiverAdjudication: handle((request, response) => {
-      requireMutation(request);
       writeWaiverRecovery(
         response,
         evaluations,
@@ -192,7 +177,6 @@ export function createEvaluationOperations({
       );
     }),
     createExplicitEvaluation: handle(async (request, response) => {
-      requireMutation(request);
       const created = await evaluations.createExplicit({
         channel:
           authority(request) === "machine"

@@ -2,12 +2,8 @@ import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { isUnavailableError } from "./http-request.js";
 import { writeJson } from "./http-response.js";
 
-/** @param {{browserOrigin: string, browserSessions: any, forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown, reactivate: (body: unknown) => Promise<unknown>, remove: () => void, retire: (body: unknown) => unknown, rotate: (body: unknown) => Promise<unknown>}}} dependencies */
-export function createForgejoConnectionRoute({
-  browserOrigin,
-  browserSessions,
-  forgejoConnections,
-}) {
+/** @param {{forgejoConnections: {connect: (body: unknown) => Promise<unknown>, discover: (body: unknown) => Promise<unknown>, read: () => unknown, reactivate: (body: unknown) => Promise<unknown>, remove: () => void, retire: (body: unknown) => unknown, rotate: (body: unknown) => Promise<unknown>}}} dependencies */
+export function createForgejoConnectionRoute({ forgejoConnections }) {
   return {
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     getForgejoConnection(request, response) {
@@ -17,8 +13,6 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     verifyForgejoV16Connection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_failed",
         mutate: (body) => forgejoConnections.connect(body),
         statusFor: (code, error) =>
@@ -35,8 +29,6 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     discoverForgejoV16Repositories(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_discovery_failed",
         mutate: (body) => forgejoConnections.discover(body),
         statusFor: (...parameters) =>
@@ -48,8 +40,6 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     rotateForgejoConnectionPat(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_rotation_failed",
         mutate: (body) => forgejoConnections.rotate(body),
         statusFor: (code, error) =>
@@ -67,15 +57,8 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     deleteNeverUsedForgejoConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_delete_failed",
-        mutate: (body) => {
-          if (Object.keys(/** @type {object} */ (body)).length !== 0) {
-            throw Object.assign(new Error("request_malformed"), {
-              code: "request_malformed",
-            });
-          }
+        mutate: () => {
           forgejoConnections.remove();
           return null;
         },
@@ -95,8 +78,6 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     retireForgejoConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_lifecycle_failed",
         mutate: (body) => forgejoConnections.retire(body),
         statusFor: (code, error) =>
@@ -115,8 +96,6 @@ export function createForgejoConnectionRoute({
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     reactivateForgejoConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
-        browserOrigin,
-        browserSessions,
         failureCode: "forgejo_connection_reactivation_failed",
         mutate: (body) => forgejoConnections.reactivate(body),
         statusFor: (code, error) =>

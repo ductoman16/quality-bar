@@ -10,13 +10,13 @@ export const evaluationsSchemas = {};
 
 export const evaluationsRoutes = [
   {
-    ...canonicalValidationError(
-      "evaluation_filter_invalid",
-      "Evaluation filter is invalid",
-      400,
-    ),
     method: "GET",
     schema: {
+      ...canonicalValidationError(
+        "evaluation_filter_invalid",
+        "Evaluation filter is invalid",
+        400,
+      ),
       operationId: "listEvaluations",
       security: [
         {
@@ -232,13 +232,13 @@ export const evaluationsRoutes = [
     url: "/api/v1/evaluations/:evaluation_id/review-runs/:review_run_id/diagnostics",
   },
   {
-    ...canonicalValidationError(
-      "evaluation_request_invalid",
-      "Evaluation request is invalid",
-      422,
-    ),
     method: "POST",
     schema: {
+      ...canonicalValidationError(
+        "evaluation_request_invalid",
+        "Evaluation request is invalid",
+        422,
+      ),
       headers: authenticatedMutationHeaders(
         { "idempotency-key": idempotencyKeyHeader },
         ["idempotency-key"],

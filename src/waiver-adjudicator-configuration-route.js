@@ -3,7 +3,7 @@ import { requireCodedError } from "./coded-error.js";
 import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
-/** @param {{browserOrigin: string, browserSessions: any, waiverAdjudicatorConfiguration: any}} dependencies */
+/** @param {{waiverAdjudicatorConfiguration: any}} dependencies */
 export function createWaiverAdjudicatorConfigurationOperations(dependencies) {
   return {
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
@@ -28,8 +28,6 @@ export function createWaiverAdjudicatorConfigurationOperations(dependencies) {
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     async updateWaiverAdjudicatorConfiguration(request, response) {
       await writeBrowserJsonMutation(request, response, {
-        browserOrigin: dependencies.browserOrigin,
-        browserSessions: dependencies.browserSessions,
         failureCode: "waiver_adjudicator_configuration_change_failed",
         mutate: (body) =>
           dependencies.waiverAdjudicatorConfiguration.update(body),
