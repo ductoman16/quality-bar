@@ -21,7 +21,16 @@ const connection = {
   health_error: null,
   id: "forgejo-connection",
   lifecycle: "enabled",
-  polling: [],
+  polling: [
+    {
+      baseline_status: "complete",
+      error: null,
+      forge_repository_id: 11,
+      last_success_at: 1_000,
+      next_attempt_at: null,
+      rate_gate_until: 2_000,
+    },
+  ],
   polling_failure: null,
   principal: { id: 7, login: "operator" },
   reported_version: "16.0.4",
@@ -141,7 +150,9 @@ it("validates discovery and submits a Forgejo Connection mutation", async () => 
   expect(wrapper.text()).toContain("API profile");
   expect(wrapper.text()).toContain("Required authorities");
   expect(wrapper.text()).toContain("Verification history");
+  expect(wrapper.text()).toContain("Repository checks");
   expect(wrapper.text()).toContain("Polling");
+  expect(wrapper.text()).toContain("rate gate");
   expect(document.activeElement).toBe(wrapper.get("output").element);
   wrapper.unmount();
 });
@@ -332,7 +343,7 @@ it("rejects a null successful Forgejo registration", async () => {
   wrapper.unmount();
 });
 
-it("reconciles a committed Forgejo retirement after a lost response", async () => {
+it("refreshes a committed Forgejo retirement without hiding a lost response", async () => {
   HTMLDialogElement.prototype.showModal = vi.fn();
   HTMLDialogElement.prototype.close = vi.fn();
   let forgejoLoads = 0;
@@ -369,7 +380,46 @@ it("reconciles a committed Forgejo retirement after a lost response", async () =
     .trigger("click");
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
-  expect(wrapper.text()).toContain("Forgejo Connection retired");
-  expect(wrapper.emitted("error").at(-1)).toEqual([""]);
+  expect(wrapper.text()).toContain("Lifecycleretired");
+  expect(wrapper.text()).not.toContain("Forgejo Connection retired");
+  expect(wrapper.emitted("error").at(-1)).toEqual(["response lost"]);
+  wrapper.unmount();
+});
+
+it("hides stale Forgejo state when lifecycle reconciliation fails", async () => {
+  HTMLDialogElement.prototype.showModal = vi.fn();
+  HTMLDialogElement.prototype.close = vi.fn();
+  let forgejoLoads = 0;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/github-connections") {
+      return { json: async () => null, ok: true, status: 200 };
+    }
+    if (path === "/api/v1/forgejo-connections" && !options) {
+      forgejoLoads += 1;
+      if (forgejoLoads > 1) {
+        throw new Error("refresh failed");
+      }
+      return { json: async () => connection, ok: true, status: 200 };
+    }
+    if (path === "/api/v1/forgejo-connections/lifecycle") {
+      throw new TypeError("response lost");
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Retire Forgejo Connection")
+    .trigger("click");
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.text()).not.toContain("Identityoperator (7)");
+  expect(wrapper.emitted("error").at(-1)).toEqual([
+    "response lost; refresh failed",
+  ]);
   wrapper.unmount();
 });

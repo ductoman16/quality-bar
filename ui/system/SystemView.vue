@@ -80,9 +80,10 @@ const resource = (row) =>
     ? `Evaluation ${row.evaluation_id}${row.review_run_id ? `; Review Run ${row.review_run_id}` : ""}`
     : `Waiver Adjudication ${row.waiver_adjudication_id}`;
 const execution = (row) =>
-  `${resource(row)}. State ${row.execution_status}. Gate ${row.gate?.code}. Attempts ${row.pre_start_attempt_count} in cycle ${row.retry_cycle}. Retry ${row.retry_state}. Lease ${row.lease?.status}; worker ${row.lease?.worker_id ?? "none"}.`;
+  `${resource(row)}. State ${row.execution_status}${row.queue_position ? `; queue ${row.queue_position}` : ""}. Gate ${row.gate.code}. Attempts ${row.pre_start_attempt_count} in cycle ${row.retry_cycle}. Retry ${row.retry_state}${row.retry_error ? `; ${row.retry_error.code}: ${row.retry_error.detail}` : ""}. Lease ${row.lease.status}; worker ${row.lease.worker_id ?? "none"}; fencing ${row.lease.fencing_token}; expires ${row.lease.expires_at ?? "none"}.`;
 const failure = (row) =>
   `${resource(row)}. Failed ${row.completed_at}. Failure ${row.error?.code}: ${row.error?.detail}`;
+const problem = (value) => (value ? `${value.code}: ${value.detail}` : "none");
 const filesystem = (name) =>
   system.value?.storage.filesystems.find((item) => item.filesystem === name);
 async function loadConfiguration() {
@@ -122,12 +123,17 @@ async function saveConfiguration() {
     if (!response.ok) {
       const failure = await responseError(response);
       configurationStatus.value = failure.message;
-      await nextTick();
-      ({
+      const target = {
         codex_model_unsupported: modelElement,
         codex_reasoning_effort_unsupported: reasoningElement,
         codex_service_tier_unsupported: tierElement,
-      })[failure.code]?.value?.focus();
+      }[failure.code];
+      if (target) {
+        await nextTick();
+        target.value?.focus();
+      } else {
+        error.value = failure.message;
+      }
       return;
     }
     if (response.status !== 200)
@@ -164,6 +170,7 @@ onMounted(load);
         <div>
           <h3>Queued</h3>
           <ol>
+            <li v-if="!system.codex_execution.queue.rows.length">None</li>
             <li
               v-for="row in system.codex_execution.queue.rows"
               :key="resource(row)"
@@ -175,6 +182,7 @@ onMounted(load);
         <div>
           <h3>Running</h3>
           <ol>
+            <li v-if="!system.codex_execution.running.rows.length">None</li>
             <li
               v-for="row in system.codex_execution.running.rows"
               :key="resource(row)"
@@ -186,6 +194,7 @@ onMounted(load);
         <div>
           <h3>Failures</h3>
           <ol>
+            <li v-if="!system.codex_execution.failures.length">None</li>
             <li
               v-for="row in system.codex_execution.failures"
               :key="resource(row)"
@@ -244,7 +253,10 @@ onMounted(load);
       <h2>Storage and backup</h2>
       <dl>
         <dt>Application version</dt>
-        <dd>{{ system.application.application_version ?? "Unavailable" }}</dd>
+        <dd>
+          {{ system.application.application_version ?? "Unavailable" }} ·
+          {{ problem(system.application.error) }}
+        </dd>
         <dt>Schema version</dt>
         <dd>{{ system.application.schema_version ?? "Unavailable" }}</dd>
         <dt>Installation key</dt>
@@ -268,13 +280,22 @@ onMounted(load);
         <dd>
           {{ system.storage.cleanup.status }} ·
           {{ system.storage.cleanup.last_run_at ?? "Never" }} ·
-          {{ system.storage.cleanup.artifacts_removed ?? 0 }} artifacts ·
-          {{ system.storage.cleanup.sessions_removed ?? 0 }} sessions
+          {{ system.storage.cleanup.artifacts_removed ?? "none" }} artifacts ·
+          {{ system.storage.cleanup.sessions_removed ?? "none" }} sessions ·
+          {{ problem(system.storage.cleanup.error) }}
         </dd>
         <dt>Backup</dt>
         <dd>
           {{ system.backup.status }} ·
-          {{ system.backup.last_successful?.created_at ?? "Never" }}
+          {{ system.backup.last_successful?.created_at ?? "Never" }} ·
+          {{ system.backup.last_successful?.application_version ?? "none" }} ·
+          schema {{ system.backup.last_successful?.schema_version ?? "none" }} ·
+          key
+          {{
+            system.backup.last_successful?.installation_key_identity ?? "none"
+          }}
+          ·
+          {{ problem(system.backup.error) }}
         </dd>
       </dl>
     </section>

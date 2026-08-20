@@ -25,17 +25,6 @@ const timestamp = (evaluation) =>
   new Date(evaluation.created_at).getTime() || 0;
 const newestFirst = (left, right) =>
   timestamp(right) - timestamp(left) || right.id.localeCompare(left.id);
-const signature = (evaluation) =>
-  JSON.stringify([
-    evaluation.execution_status,
-    evaluation.effective_outcome,
-    evaluation.retry_state,
-    evaluation.monitor.nodes.map((node) => [
-      node.kind,
-      node.status,
-      node.outcome,
-    ]),
-  ]);
 const localDateTime = (value) => {
   if (!/^\d+$/.test(value ?? "")) {
     return "";
@@ -82,7 +71,6 @@ export function useEvaluations(csrfCookieName) {
     headValue: "",
     repositoryId: "",
   });
-  const known = new Map();
   let firstResponse = true;
   let timer = null;
   const groups = computed(() => {
@@ -161,22 +149,26 @@ export function useEvaluations(csrfCookieName) {
     loading.value = false;
     listError.value = "";
     if (poll) {
-      const changed = collection.items.some(
-        (evaluation) =>
-          !known.has(evaluation.id) ||
-          signature(known.get(evaluation.id)) !== signature(evaluation),
+      const incoming = new Map(
+        collection.items.map((evaluation) => [evaluation.id, evaluation]),
       );
-      collection.items.forEach((evaluation) =>
-        known.set(evaluation.id, evaluation),
+      const currentIds = evaluations.value
+        .slice(0, collection.items.length)
+        .map(({ id }) => id);
+      const incomingIds = collection.items.map(({ id }) => id);
+      evaluations.value = evaluations.value.map(
+        (evaluation) => incoming.get(evaluation.id) ?? evaluation,
       );
-      if (!firstResponse && changed) {
+      if (
+        !firstResponse &&
+        JSON.stringify(currentIds) !== JSON.stringify(incomingIds)
+      ) {
         newActivity.value = true;
       }
       firstResponse = false;
       return;
     }
     const items = collection.items.slice().sort(newestFirst);
-    items.forEach((evaluation) => known.set(evaluation.id, evaluation));
     evaluations.value =
       cursor && !replace
         ? [

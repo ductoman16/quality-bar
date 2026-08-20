@@ -164,7 +164,13 @@ describe("Evaluations view", () => {
     ];
     await vi.advanceTimersByTimeAsync(5_000);
     await flushPromises();
-    expect(wrapper.text()).toContain("New activity available");
+    expect(wrapper.text()).not.toContain("New activity available");
+    expect(
+      wrapper
+        .get("[data-evaluation-id='evaluation-1']")
+        .findAll(".evaluation-actions button")
+        .some((button) => button.text() === "Retry"),
+    ).toBe(false);
     wrapper.unmount();
   });
 

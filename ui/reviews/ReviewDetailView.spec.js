@@ -259,7 +259,7 @@ it("surfaces malformed mutation success and reconciles ambiguous deletion", asyn
   wrapper.unmount();
 });
 
-it("confirms archival from authority after a lost mutation response", async () => {
+it("refreshes archival state without hiding a lost mutation response", async () => {
   let archived = false;
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/system") {
@@ -307,7 +307,70 @@ it("confirms archival from authority after a lost mutation response", async () =
     .find((button) => button.text() === "Archive")
     .trigger("click");
   await flushPromises();
-  expect(wrapper.text()).toContain("Boundaries archived");
-  expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  expect(wrapper.text()).toContain("Archived");
+  expect(wrapper.get('[role="alert"]').text()).toBe("response lost");
+  wrapper.unmount();
+});
+
+it("surfaces deletion parsing and reconciliation failures", async () => {
+  let reviewLoads = 0;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/system") {
+      return {
+        json: async () => ({ codex: { catalog } }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/repositories") {
+      return {
+        json: async () => ({ items: [repository], next_cursor: null }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/reviews" && !options) {
+      reviewLoads += 1;
+      if (reviewLoads > 1) {
+        throw new Error("authority failed");
+      }
+      return {
+        json: async () => ({ reviews: [review] }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/reviews?state=archived") {
+      return { json: async () => ({ reviews: [] }), ok: true, status: 200 };
+    }
+    if (String(path).endsWith("/metadata")) {
+      return { json: async () => ({}), ok: true, status: 200 };
+    }
+    if (options?.method === "DELETE") {
+      return {
+        json: async () => {
+          throw new SyntaxError("invalid JSON");
+        },
+        ok: true,
+        status: 200,
+      };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ReviewDetailView, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Delete Review")
+    .trigger("click");
+  await wrapper.get("#review-delete-name").setValue(review.name);
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toBe(
+    "invalid JSON; authority failed",
+  );
   wrapper.unmount();
 });

@@ -198,6 +198,38 @@ it("renders complete polling and delivery facts and saves configuration", async 
     ),
   ).toBe(false);
   expect(
+    validSystem({
+      ...system,
+      execution_providers: [
+        { error: {}, id: "codex", name: "Codex", status: "available" },
+      ],
+    }),
+  ).toBe(false);
+  expect(
+    validSystem({
+      ...system,
+      codex: {
+        ...system.codex,
+        catalog: {
+          models: system.codex.catalog.models,
+          codex_cli_version: "0.145.0",
+        },
+      },
+    }),
+  ).toBe(true);
+  expect(
+    validSystem({
+      ...system,
+      storage: {
+        ...system.storage,
+        cleanup: {
+          ...system.storage.cleanup,
+          status: "unavailable",
+        },
+      },
+    }),
+  ).toBe(false);
+  expect(
     validSystem({ ...system, durable_core: { status: "probably-ready" } }),
   ).toBe(false);
   expect(
@@ -212,7 +244,7 @@ it("renders complete polling and delivery facts and saves configuration", async 
         },
       ],
     }),
-  ).toBe(false);
+  ).toBe(true);
   expect(
     validSystem({
       ...system,
@@ -252,6 +284,9 @@ it("renders complete polling and delivery facts and saves configuration", async 
   expect(wrapper.text()).toContain("Last success 2026-08-20T12:00:00.000Z");
   expect(wrapper.text()).toContain("External identity 42");
   expect(wrapper.text()).toContain("Source evaluation-1:commit-status");
+  expect(wrapper.text()).toContain("schema 1");
+  expect(wrapper.text()).toContain(keyIdentity);
+  expect(wrapper.text()).toContain("None");
   await wrapper.get("form").trigger("submit");
   await flushPromises();
   expect(fetch).toHaveBeenCalledWith(
@@ -269,7 +304,76 @@ it("renders complete polling and delivery facts and saves configuration", async 
   wrapper.unmount();
 });
 
+it("renders storage failures and queued execution diagnostics", async () => {
+  const unavailable = structuredClone(system);
+  unavailable.application.status = "unavailable";
+  unavailable.application.error = {
+    code: "application_unavailable",
+    detail: "Application facts failed",
+  };
+  unavailable.storage.cleanup = {
+    artifacts_removed: null,
+    error: { code: "cleanup_failed", detail: "Cleanup facts failed" },
+    last_run_at: null,
+    sessions_removed: null,
+    status: "unavailable",
+  };
+  unavailable.backup.status = "unavailable";
+  unavailable.backup.error = {
+    code: "backup_failed",
+    detail: "Backup facts failed",
+  };
+  unavailable.codex_execution.queue = {
+    count: 1,
+    rows: [
+      {
+        evaluation_id: "evaluation-1",
+        execution_status: "queued",
+        gate: { code: "retry_wait" },
+        lease: {
+          expires_at: timestamp,
+          fencing_token: 2,
+          status: "held",
+          worker_id: "worker-1",
+        },
+        next_attempt_at: timestamp,
+        pre_start_attempt_count: 2,
+        queue_position: 1,
+        retry_cycle: 1,
+        retry_error: { code: "busy", detail: "Try again" },
+        retry_state: "exhausted",
+        review_run_id: "run-1",
+      },
+    ],
+  };
+  vi.mocked(fetch).mockImplementation(async (path) => {
+    if (path === "/api/v1/system") {
+      return { json: async () => unavailable, ok: true, status: 200 };
+    }
+    return {
+      json: async () => ({ configured: true, configuration }),
+      ok: true,
+      status: 200,
+    };
+  });
+  const wrapper = mount(SystemView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  expect(wrapper.text()).toContain(
+    "application_unavailable: Application facts failed",
+  );
+  expect(wrapper.text()).toContain("cleanup_failed: Cleanup facts failed");
+  expect(wrapper.text()).toContain("none artifacts");
+  expect(wrapper.text()).toContain("backup_failed: Backup facts failed");
+  expect(wrapper.text()).toContain("queue 1");
+  expect(wrapper.text()).toContain("busy: Try again");
+  expect(wrapper.text()).toContain("fencing 2");
+  wrapper.unmount();
+});
+
 it("focuses the invalid configuration field", async () => {
+  let mapped = true;
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/system") {
       return { json: async () => system, ok: true, status: 200 };
@@ -284,8 +388,12 @@ it("focuses the invalid configuration field", async () => {
     return {
       json: async () => ({
         error: {
-          code: "codex_service_tier_unsupported",
-          message: "Service tier is unsupported",
+          code: mapped
+            ? "codex_service_tier_unsupported"
+            : "configuration_failed",
+          message: mapped
+            ? "Service tier is unsupported"
+            : "Configuration unavailable",
           request_id: "request-1",
         },
       }),
@@ -302,5 +410,12 @@ it("focuses the invalid configuration field", async () => {
   await flushPromises();
   expect(wrapper.get("output").text()).toBe("Service tier is unsupported");
   expect(document.activeElement).toBe(wrapper.get("#waiver-tier").element);
+  mapped = false;
+  await wrapper.get("form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toBe(
+    "Configuration unavailable",
+  );
+  expect(document.activeElement).toBe(wrapper.get('[role="alert"]').element);
   wrapper.unmount();
 });

@@ -1,11 +1,7 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import {
-  csrfRequest,
-  repositoryCollection,
-  responseMessage,
-} from "../browser.js";
+import { csrfRequest, responseMessage } from "../browser.js";
 import { validRepository } from "./contract.js";
 
 const props = defineProps({
@@ -27,27 +23,9 @@ const identity = () =>
     : props.repository.url;
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
-async function reconcile(method, body, message) {
-  try {
-    const current = (await repositoryCollection()).find(
-      ({ id }) => id === props.repository.id,
-    );
-    if (method === "DELETE" && !current) {
-      emit("changed", null);
-      return;
-    }
-    if (method === "PATCH" && current?.lifecycle === body.lifecycle) {
-      emit("changed", current);
-      return;
-    }
-    emit("error", message);
-    emit("refresh");
-  } catch (failure) {
-    emit(
-      "error",
-      `${message}; ${failure instanceof Error ? failure.message : "repository_reconciliation_failed"}`,
-    );
-  }
+function reconcile(message) {
+  emit("error", message);
+  emit("refresh");
 }
 async function mutation(path, body, method, fallback) {
   busy.value = true;
@@ -60,7 +38,7 @@ async function mutation(path, body, method, fallback) {
         return;
       }
       if (response.status !== 200 || (await response.json()) !== null) {
-        await reconcile(method, body, `${fallback} response is invalid`);
+        reconcile(`${fallback} response is invalid`);
         return;
       }
       emit("changed", null);
@@ -78,14 +56,12 @@ async function mutation(path, body, method, fallback) {
       value.id !== props.repository.id ||
       (method === "PATCH" && value.lifecycle !== body.lifecycle)
     ) {
-      await reconcile(method, body, `${fallback} response is invalid`);
+      reconcile(`${fallback} response is invalid`);
       return;
     }
     emit("changed", value);
   } catch (failure) {
-    await reconcile(
-      method,
-      body,
+    reconcile(
       failure instanceof Error && !(failure instanceof TypeError)
         ? failure.message
         : fallback,

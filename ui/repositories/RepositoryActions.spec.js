@@ -93,7 +93,7 @@ it("confirms lifecycle changes and exact-identity deletion with CSRF", async () 
   wrapper.unmount();
 });
 
-it("recognizes an authoritatively absent ambiguous Repository deletion", async () => {
+it("preserves an ambiguous Repository deletion error after refresh", async () => {
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (options?.method === "DELETE") {
       throw new TypeError("network lost");
@@ -117,8 +117,8 @@ it("recognizes an authoritatively absent ambiguous Repository deletion", async (
   await wrapper.get("input").setValue(repository.url);
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
-  expect(wrapper.emitted("changed")).toEqual([[null]]);
-  expect(wrapper.emitted("refresh")).toBeUndefined();
-  expect(wrapper.emitted("error")).toBeUndefined();
+  expect(wrapper.emitted("changed")).toBeUndefined();
+  expect(wrapper.emitted("refresh")).toEqual([[]]);
+  expect(wrapper.emitted("error")).toEqual([["Repository deletion failed"]]);
   wrapper.unmount();
 });

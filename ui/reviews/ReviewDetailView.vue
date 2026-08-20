@@ -64,26 +64,21 @@ async function findReview() {
   ].find((item) => item.id === id);
 }
 async function save(path, body, method, fallback) {
-  let response;
   try {
-    response = await request(path, body, method);
-  } catch {
-    error.value = fallback;
-    return null;
-  }
-  if (!response.ok) {
-    error.value = await responseMessage(response);
-    return null;
-  }
-  if (response.status !== 200) {
-    error.value = "Review response is invalid";
-    return null;
-  }
-  error.value = "";
-  try {
-    return await response.json();
-  } catch {
-    error.value = "Review response is invalid";
+    const response = await request(path, body, method);
+    if (!response.ok) {
+      error.value = await responseMessage(response);
+      return null;
+    }
+    if (response.status !== 200) {
+      error.value = "Review response is invalid";
+      return null;
+    }
+    const value = await response.json();
+    error.value = "";
+    return value;
+  } catch (failure) {
+    error.value = fail(failure, fallback);
     return null;
   }
 }
@@ -197,11 +192,16 @@ async function archive() {
   try {
     authoritative = await findReview();
   } catch (failure) {
-    error.value = fail(failure, "Review refresh failed");
+    error.value = `${error.value || "Review lifecycle failed"}; ${fail(failure, "Review refresh failed")}`;
     return;
   }
-  if (authoritative?.archived !== archived) {
-    if (next) error.value = "Review lifecycle result is unavailable";
+  if (!value) {
+    if (authoritative) open(authoritative);
+    else review.value = undefined;
+    return;
+  }
+  if (!next || authoritative?.archived !== archived) {
+    error.value = "Review lifecycle result is unavailable";
     return;
   }
   error.value = "";
@@ -226,52 +226,31 @@ async function remove() {
     return;
   }
   deleteDialog.value.close();
-  let response;
+  let mutationError = "";
   try {
-    response = await request(
+    const response = await request(
       `/api/v1/reviews/${encodeURIComponent(id)}`,
       {},
       "DELETE",
     );
-  } catch (failure) {
-    if (!(failure instanceof TypeError)) {
-      error.value = "Review deletion failed";
-      return;
-    }
-  }
-  if (response) {
     if (!response.ok) {
-      const message = await responseMessage(response);
-      try {
-        await findReview();
-      } catch (failure) {
-        error.value = `${message}; ${fail(failure, "Review deletion reconciliation failed")}`;
-        return;
-      }
-      error.value = message;
-      return;
-    }
-    if (response.status !== 200 || (await response.json()) !== null) {
-      const current = await findReview();
-      if (!current) {
-        location.assign("/?view=reviews");
-        return;
-      }
-      error.value = "Review deletion response is invalid";
-      return;
-    }
-    location.assign("/?view=reviews");
-    return;
-  }
-  try {
-    const current = await findReview();
-    if (!current) {
+      mutationError = await responseMessage(response);
+    } else if (response.status !== 200 || (await response.json()) !== null) {
+      mutationError = "Review deletion response is invalid";
+    } else {
       location.assign("/?view=reviews");
       return;
     }
-    error.value = "Review deletion result is unavailable";
   } catch (failure) {
-    error.value = fail(failure, "Review deletion reconciliation failed");
+    mutationError = fail(failure, "Review deletion failed");
+  }
+  try {
+    const current = await findReview();
+    if (current) open(current);
+    else review.value = undefined;
+    error.value = mutationError;
+  } catch (failure) {
+    error.value = `${mutationError}; ${fail(failure, "Review deletion reconciliation failed")}`;
   }
 }
 onMounted(async () => {

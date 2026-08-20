@@ -25,6 +25,7 @@ const providerIdentity = (connection) =>
   <section class="qb-region">
     <h2>Polling</h2>
     <ol>
+      <li v-if="!polling.connections.length">None</li>
       <li
         v-for="connection in polling.connections"
         :key="connection.connection_id"
@@ -63,6 +64,7 @@ const providerIdentity = (connection) =>
   <section class="qb-region">
     <h2>Delivery</h2>
     <ol>
+      <li v-if="!delivery.surfaces.length">None</li>
       <li
         v-for="surface in delivery.surfaces"
         :key="`${surface.surface}:${surface.evaluation_id}`"

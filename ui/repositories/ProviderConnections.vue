@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import {
   csrfRequest,
   repositoryCollection,
@@ -15,7 +15,6 @@ import {
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,
-  validLifecycleChange,
   validManifestContinuation,
 } from "./contract.js";
 import {
@@ -45,6 +44,8 @@ const status = ref(""),
   busy = ref(false);
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
+const failureMessage = (failure, fallback) =>
+  failure instanceof Error ? failure.message : fallback;
 async function safe(action) {
   if (busy.value) return;
   busy.value = true;
@@ -53,10 +54,7 @@ async function safe(action) {
   try {
     await action();
   } catch (failure) {
-    emit(
-      "error",
-      failure instanceof Error ? failure.message : "connection_request_failed",
-    );
+    emit("error", failureMessage(failure, "connection_request_failed"));
   } finally {
     busy.value = false;
   }
@@ -66,8 +64,8 @@ async function announce(message) {
   await nextTick();
   statusElement.value?.focus();
 }
-const load = () =>
-  Promise.all([loadProvider("github"), loadProvider("forgejo")]);
+const load = () => Promise.all(["github", "forgejo"].map(loadProvider));
+const githubChoices = computed(() => githubRepositoryChoices(github.value));
 async function loadProvider(provider) {
   const target = provider === "github" ? github : forgejo;
   const validate =
@@ -101,7 +99,6 @@ async function startGitHub() {
     throw new Error("GitHub App Manifest response is invalid");
   manifest.value = body;
 }
-const githubChoices = () => githubRepositoryChoices(github.value);
 async function registerGitHubRepositories() {
   if (!githubSelected.size)
     throw new Error("Select at least one GitHub Repository");
@@ -219,13 +216,6 @@ async function reactivateForgejo() {
 }
 const openLifecycle = (provider, method, identity) =>
   lifecycleDialog.value.open(provider, method, identity);
-async function finishLifecycle(provider, method, current) {
-  (provider === "github" ? github : forgejo).value = current;
-  await announce(
-    `${provider === "github" ? "GitHub" : "Forgejo"} Connection ${method === "DELETE" ? "deleted" : "retired"}.`,
-  );
-  emit("changed");
-}
 async function lifecycle({ method, provider }) {
   const lower = provider.toLowerCase();
   try {
@@ -234,13 +224,22 @@ async function lifecycle({ method, provider }) {
       lower,
       method,
     );
-    await finishLifecycle(lower, method, current);
+    (lower === "github" ? github : forgejo).value = current;
+    await announce(
+      `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`,
+    );
+    emit("changed");
   } catch (failure) {
-    await loadProvider(lower);
-    const current = (lower === "github" ? github : forgejo).value;
-    if (validLifecycleChange(lower, method, current))
-      return finishLifecycle(lower, method, current);
-    throw failure;
+    const message = failureMessage(failure, "Connection lifecycle failed");
+    try {
+      await loadProvider(lower);
+    } catch (refreshFailure) {
+      (lower === "github" ? github : forgejo).value = null;
+      throw new Error(
+        `${message}; ${failureMessage(refreshFailure, "Connection refresh failed")}`,
+      );
+    }
+    throw new Error(message);
   }
 }
 onMounted(() => safe(load));
@@ -278,12 +277,12 @@ onMounted(() => safe(load));
         ><button type="submit">Rotate GitHub App credentials</button>
       </form>
       <form
-        v-if="githubChoices().length && github.lifecycle !== 'retired'"
+        v-if="githubChoices.length && github.lifecycle !== 'retired'"
         @submit.prevent="safe(registerGitHubRepositories)"
       >
         <fieldset>
           <legend>GitHub Repositories</legend>
-          <label v-for="item in githubChoices()" :key="item.id"
+          <label v-for="item in githubChoices" :key="item.id"
             ><input
               type="checkbox"
               :checked="githubSelected.has(item.id)"

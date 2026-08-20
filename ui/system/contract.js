@@ -17,7 +17,23 @@ const CATALOG = {
   })),
 };
 export const validModelCatalog = (value) =>
-  JSON.stringify(value) === JSON.stringify(CATALOG);
+  record(value) &&
+  exact(value, ["codex_cli_version", "models"]) &&
+  value.codex_cli_version === CATALOG.codex_cli_version &&
+  Array.isArray(value.models) &&
+  value.models.length === CATALOG.models.length &&
+  value.models.every((model, index) => {
+    const expected = CATALOG.models[index];
+    return (
+      record(model) &&
+      exact(model, ["id", "reasoning_efforts", "service_tiers"]) &&
+      model.id === expected.id &&
+      JSON.stringify(model.reasoning_efforts) ===
+        JSON.stringify(expected.reasoning_efforts) &&
+      JSON.stringify(model.service_tiers) ===
+        JSON.stringify(expected.service_tiers)
+    );
+  });
 const status = (value, allowed) =>
   record(value) && allowed.includes(value.status);
 const storageError = (value) =>
@@ -36,8 +52,10 @@ const application = (value) =>
     "status",
   ]) &&
   ["available", "unavailable"].includes(value.status) &&
-  (value.application_version === null || nonempty(value.application_version)) &&
+  (value.application_version === null ||
+    /^\d+\.\d+\.\d+$/.test(value.application_version)) &&
   storageError(value.error) &&
+  (value.status === "unavailable") === (value.error !== null) &&
   (value.installation_key_identity === null ||
     /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity)) &&
   (value.schema_version === null ||
@@ -55,6 +73,7 @@ const cleanup = (value) =>
     (name) => value[name] === null || count(value[name]),
   ) &&
   storageError(value.error) &&
+  (value.status === "unavailable") === (value.error !== null) &&
   timestamp(value.last_run_at);
 const storage = (value) =>
   status(value, ["available", "unavailable"]) &&
@@ -94,6 +113,7 @@ const backup = (value) =>
   status(value, ["current", "empty", "stale", "unavailable"]) &&
   exact(value, ["error", "last_successful", "status"]) &&
   storageError(value.error) &&
+  (value.status === "unavailable") === (value.error !== null) &&
   (value.last_successful === null || backupRecord(value.last_successful));
 
 const execution = (value) => {
@@ -179,13 +199,12 @@ export const validSystem = (value) =>
       nonempty(provider.id) &&
       nonempty(provider.name) &&
       ["available", "unavailable"].includes(provider.status) &&
-      (provider.status === "available"
-        ? provider.error === undefined
-        : record(provider.error) &&
+      (provider.error === undefined ||
+        (record(provider.error) &&
           exact(provider.error, ["code", "message", "recovery"]) &&
           nonempty(provider.error.code) &&
           nonempty(provider.error.message) &&
-          nonempty(provider.error.recovery)),
+          nonempty(provider.error.recovery))),
   ) &&
   record(value.codex_execution) &&
   exact(value.codex_execution, [
@@ -226,6 +245,7 @@ export const validSystem = (value) =>
   validPollingDelivery(value.polling, value.delivery) &&
   Array.isArray(value.codex?.catalog?.models) &&
   ["available", "unavailable"].includes(value.codex.status) &&
+  (value.codex.error === undefined || typeof value.codex.error === "string") &&
   nonempty(value.codex.catalog.codex_cli_version) &&
   value.codex.catalog.models.length > 0 &&
   value.codex.catalog.models.every(modelCapability) &&

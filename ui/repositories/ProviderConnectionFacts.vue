@@ -7,23 +7,22 @@ const props = defineProps({
 });
 const latest = computed(() => props.connection.verification_history.at(-1));
 const facts = (value) =>
-  Object.entries(value)
+  Object.entries(value ?? {})
     .map(([name, state]) => `${name}: ${state}`)
     .join("; ");
 const error = (value) =>
   value ? `${value.message} (${value.code})` : "No error";
-const verification = (value) =>
-  `${value.trigger}; ${value.outcome}; ${new Date(value.verified_at).toLocaleString()}; Repositories ${
-    value.repositories
-      .map((item) => item.full_name ?? item.forge_repository_id ?? item.id)
-      .join(", ") ||
-    value.affected_repository_ids?.join(", ") ||
-    "none"
-  }; ${error(value.error)}`;
+const verification = (value) => {
+  const checks = (value.repository_checks ?? value.repositories).map(
+    (item) =>
+      `${item.full_name ?? item.repository_id ?? item.forge_repository_id ?? item.id}: ${item.outcome ?? "enumerated"}`,
+  );
+  return `${value.trigger}; ${value.outcome}; ${new Date(value.verified_at).toLocaleString()}; Principal ${value.principal ? `${value.principal.login} (${value.principal.id})` : "not completed"}; Authorities ${facts(value.permissions) || value.scopes?.join(", ") || "not completed"}; Capabilities ${facts(value.capabilities) || "not completed"}; Repository checks ${checks.join(", ") || "none"}; ${error(value.error)}`;
+};
 const polling = (value) =>
-  `Repository ${value.forge_repository_id}; ${value.baseline_status}; last success ${value.last_success_at ? new Date(value.last_success_at).toLocaleString() : "none"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "none"}; ${error(value.error)}`;
+  `Repository ${value.forge_repository_id}; ${value.baseline_status}; last success ${value.last_success_at ? new Date(value.last_success_at).toLocaleString() : "none"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "after correction"}; rate gate ${value.rate_gate_until ? new Date(value.rate_gate_until).toLocaleString() : "none"}; ${error(value.error)}`;
 const pollingFailure = (value) =>
-  `Repository ${value.forge_repository_id ?? "connection"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "none"}; ${error(value.error)}`;
+  `Repository ${value.forge_repository_id ?? "connection"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "after correction"}; rate gate ${value.rate_gate_until ? new Date(value.rate_gate_until).toLocaleString() : "none"}; ${error(value.error)}`;
 </script>
 
 <template>
