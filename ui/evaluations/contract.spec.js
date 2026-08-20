@@ -42,7 +42,7 @@ function evaluation() {
   };
 }
 
-describe("evaluation browser contract", () => {
+describe("Evaluation browser contract", () => {
   it("validates collections and sends scoped mutations", async () => {
     expect(validEvaluation(evaluation())).toBe(true);
     expect(validCollection({ items: [evaluation()], next_cursor: null })).toBe(

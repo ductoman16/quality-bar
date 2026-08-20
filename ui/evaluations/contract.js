@@ -105,11 +105,21 @@ export const isTerminalStatus = (status) => TERMINAL_STATUSES.has(status);
 
 /** @param {unknown} node */
 export function nodeVisualState(node) {
-  if (!record(node)) {return "pending";}
-  if (node.status === "failed" || node.outcome === "error") {return "error";}
-  if (node.outcome === "blocking") {return "blocking";}
-  if (node.outcome === "advisory") {return "advisory";}
-  if (node.status === "completed") {return "complete";}
+  if (!record(node)) {
+    return "pending";
+  }
+  if (node.status === "failed" || node.outcome === "error") {
+    return "error";
+  }
+  if (node.outcome === "blocking") {
+    return "blocking";
+  }
+  if (node.outcome === "advisory") {
+    return "advisory";
+  }
+  if (node.status === "completed") {
+    return "complete";
+  }
   return node.status === "running" ? "running" : "pending";
 }
 

@@ -43,7 +43,7 @@ function evaluation(id = "evaluation-1") {
   };
 }
 
-describe("EvaluationsView", () => {
+describe("Evaluations view", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -57,8 +57,8 @@ describe("EvaluationsView", () => {
     });
     let collection = [evaluation()];
     const fetch = vi.fn(async (path) => {
-      if (path === "/api/v1/repositories")
-        {return json({
+      if (path === "/api/v1/repositories") {
+        return json({
           items: [
             {
               id: "repository-1",
@@ -68,23 +68,27 @@ describe("EvaluationsView", () => {
             },
           ],
           next_cursor: null,
-        });}
-      if (path === "/api/v1/system")
-        {return json({
+        });
+      }
+      if (path === "/api/v1/system") {
+        return json({
           codex_execution: {
             concurrency: { maximum_running: 4, running_count: 1 },
             queue: { count: 2 },
           },
-        });}
-      if (String(path).startsWith("/api/v1/analytics?"))
-        {return json({
+        });
+      }
+      if (String(path).startsWith("/api/v1/analytics?")) {
+        return json({
           evaluation_overview: {
             clear_rate: { denominator: 0, numerator: 0 },
             p95_duration_ms: null,
           },
-        });}
-      if (String(path).startsWith("/api/v1/evaluations?"))
-        {return json({ items: collection, next_cursor: null });}
+        });
+      }
+      if (String(path).startsWith("/api/v1/evaluations?")) {
+        return json({ items: collection, next_cursor: null });
+      }
       throw new Error(`unexpected request ${path}`);
     });
     vi.stubGlobal("fetch", fetch);

@@ -6,6 +6,7 @@ import {
   repositoryCollection,
   responseMessage,
 } from "../browser.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
@@ -14,6 +15,7 @@ const review = ref();
 const repositories = ref([]);
 const models = ref([]);
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const status = ref("");
 const metadata = reactive({ description: "", name: "" });
 const assignment = reactive({ repositoryIds: [], scope: "installation_wide" });
@@ -162,14 +164,32 @@ async function remove() {
   else error.value = await responseMessage(response, "Review deletion failed");
 }
 onMounted(async () => {
-  const [systemResponse, repositoryItems] = await Promise.all([
-    fetch("/api/v1/system"),
-    repositoryCollection(),
-  ]);
-  if (systemResponse.ok)
-    models.value = (await systemResponse.json()).codex.catalog.models;
-  repositories.value = repositoryItems;
-  await load();
+  try {
+    const [systemResponse, repositoryItems] = await Promise.all([
+      fetch("/api/v1/system"),
+      repositoryCollection(),
+    ]);
+    if (!systemResponse.ok) {
+      throw new Error(
+        await responseMessage(
+          systemResponse,
+          "Review dependencies failed to load",
+        ),
+      );
+    }
+    const catalog = (await systemResponse.json()).codex?.catalog?.models;
+    if (!Array.isArray(catalog)) {
+      throw new Error("review_dependencies_invalid");
+    }
+    models.value = catalog;
+    repositories.value = repositoryItems;
+    await load();
+  } catch (failure) {
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Review dependencies failed to load";
+  }
 });
 </script>
 
@@ -270,5 +290,7 @@ onMounted(async () => {
       ><button type="submit">Delete permanently</button>
     </form>
   </dialog>
-  <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    {{ error }}
+  </p>
 </template>

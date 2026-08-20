@@ -80,12 +80,13 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   const unknownBrowserMethod = await request("/", { method: "POST" });
   assert.equal(unknownBrowserMethod.status, 401);
 
-  const assetQuery = await request("/assets/login.js?unexpected=true");
-  assert.equal(assetQuery.status, 400);
-  assert.equal(
-    /** @type {any} */ (await assetQuery.json()).error.code,
-    "request_malformed",
-  );
+  const browserPage = await request("/");
+  const assetPath = (await browserPage.text()).match(
+    /<script type="module"[^>]+src="([^"]+)"/,
+  )?.[1];
+  assert.ok(assetPath);
+  const assetQuery = await request(`${assetPath}?unexpected=true`);
+  assert.equal(assetQuery.status, 200);
 
   const operator = await authenticatedOperatorHeaders(request);
   const authenticatedUnknown = await request("/api/v1/does-not-exist", {

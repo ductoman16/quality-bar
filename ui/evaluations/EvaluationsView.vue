@@ -3,9 +3,11 @@ import { nextTick, ref } from "vue";
 
 import EvaluationRow from "./EvaluationRow.vue";
 import { useEvaluations } from "./useEvaluations.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const state = useEvaluations(props.csrfCookieName);
+const errorElement = useAlertFocus(state.error);
 const repositorySelect = ref();
 const toggleCreate = async () => {
   state.createOpen.value = !state.createOpen.value;
@@ -210,7 +212,7 @@ const dayHeading = (evaluation) => {
     </details>
     <p v-if="state.loading.value" aria-live="polite">Loading Evaluations</p>
     <p v-else-if="!state.evaluations.value.length">No Evaluations</p>
-    <p v-if="state.error.value" ref="error" role="alert" tabindex="-1">
+    <p v-if="state.error.value" ref="errorElement" role="alert" tabindex="-1">
       {{ state.error.value }}
     </p>
     <section class="evaluation-ledger" aria-label="Evaluation ledger">

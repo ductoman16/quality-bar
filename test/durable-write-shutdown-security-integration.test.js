@@ -40,7 +40,7 @@ test("storage_unavailable exposes no product data or write-failure secret throug
     headers,
   ] of /** @type {Array<[string, Record<string, string>]>} */ ([
     ["/", {}],
-    ["/assets/login.js", {}],
+    ["/assets/operator.js", {}],
     ["/api/v1/system", { authorization: `Bearer ${token}` }],
     [
       "/mcp/v1",

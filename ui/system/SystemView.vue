@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { csrfToken, responseMessage } from "../browser.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const system = ref();
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const configuration = reactive({
   model: "",
   reasoning_effort: "",
@@ -334,5 +336,7 @@ onMounted(load);
       </form>
     </section>
   </template>
-  <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    {{ error }}
+  </p>
 </template>

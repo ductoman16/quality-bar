@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
 import {
   csrfToken,
@@ -8,12 +8,16 @@ import {
 } from "../browser.js";
 import ProviderConnections from "./ProviderConnections.vue";
 import RepositoryActions from "./RepositoryActions.vue";
+import { consumeGitHubCallbackFailure } from "./github-callback.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repositories = ref([]);
 const expanded = reactive(new Set());
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const status = ref("");
+const statusElement = ref();
 const create = reactive({ token: "", url: "", username: "" });
 const counts = computed(() => ({
   disabled: repositories.value.filter(
@@ -79,7 +83,21 @@ const changed = async () => {
   status.value = "Repository updated.";
   await load();
 };
-onMounted(load);
+onMounted(async () => {
+  await load();
+  const failed = await consumeGitHubCallbackFailure(
+    (message) => (error.value = message),
+  );
+  if (
+    !failed &&
+    new URLSearchParams(location.search).get("github_connection") ===
+      "connected"
+  ) {
+    status.value = "GitHub Connection connected.";
+    await nextTick();
+    statusElement.value?.focus();
+  }
+});
 </script>
 
 <template>
@@ -194,6 +212,10 @@ onMounted(load);
       @error="error = $event"
     />
   </details>
-  <output aria-live="polite">{{ status }}</output>
-  <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  <output ref="statusElement" aria-live="polite" tabindex="-1">{{
+    status
+  }}</output>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    {{ error }}
+  </p>
 </template>

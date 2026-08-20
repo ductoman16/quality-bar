@@ -31,9 +31,13 @@ const signature = (evaluation) =>
     ]),
   ]);
 const localDateTime = (value) => {
-  if (!/^\d+$/.test(value ?? "")) {return "";}
+  if (!/^\d+$/.test(value ?? "")) {
+    return "";
+  }
   const date = new Date(Number(value));
-  if (Number.isNaN(date.getTime())) {return "";}
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
     .toISOString()
     .slice(0, 16);
@@ -96,7 +100,9 @@ export function useEvaluations(csrfCookieName) {
       const value = ["start", "end"].includes(name)
         ? epoch(filters[name])
         : filters[name];
-      if (value) {result.set(name, value);}
+      if (value) {
+        result.set(name, value);
+      }
     }
     return result;
   };
@@ -133,9 +139,13 @@ export function useEvaluations(csrfCookieName) {
     poll = false,
     replace = false,
   } = {}) {
-    if (!poll) {loading.value = cursor === null;}
+    if (!poll) {
+      loading.value = cursor === null;
+    }
     const search = parameters();
-    if (cursor) {search.set("cursor", cursor);}
+    if (cursor) {
+      search.set("cursor", cursor);
+    }
     let response;
     try {
       response = await fetch(`/api/v1/evaluations?${search}`);
@@ -145,8 +155,9 @@ export function useEvaluations(csrfCookieName) {
       return;
     }
     loading.value = false;
-    if (!response.ok)
-      {return showFailure(response, "Evaluations failed to load");}
+    if (!response.ok) {
+      return showFailure(response, "Evaluations failed to load");
+    }
     const collection = await response.json();
     if (!validCollection(collection)) {
       error.value = "Evaluations returned an invalid response";
@@ -161,7 +172,9 @@ export function useEvaluations(csrfCookieName) {
       collection.items.forEach((evaluation) =>
         known.set(evaluation.id, evaluation),
       );
-      if (!firstResponse && changed) {newActivity.value = true;}
+      if (!firstResponse && changed) {
+        newActivity.value = true;
+      }
       firstResponse = false;
       return;
     }
@@ -194,8 +207,9 @@ export function useEvaluations(csrfCookieName) {
         !system.value.ok ||
         analytics.status !== "fulfilled" ||
         !analytics.value.ok
-      )
-        {throw new Error();}
+      ) {
+        throw new Error();
+      }
       const [systemBody, analyticsBody] = await Promise.all([
         system.value.json(),
         analytics.value.json(),
@@ -247,8 +261,9 @@ export function useEvaluations(csrfCookieName) {
           method: "POST",
         },
       );
-      if (!response.ok)
-        {return showFailure(response, "Evaluation request failed");}
+      if (!response.ok) {
+        return showFailure(response, "Evaluation request failed");
+      }
       createStatus.value = `Evaluation ${(await response.json()).id} requested.`;
       await refresh({ replace: true });
     } catch {
@@ -263,7 +278,9 @@ export function useEvaluations(csrfCookieName) {
         evaluation.id,
         csrfToken(csrfCookieName),
       );
-      if (!response.ok) {await showFailure(response, "Evaluation action failed");}
+      if (!response.ok) {
+        await showFailure(response, "Evaluation action failed");
+      }
     } catch {
       error.value = "Evaluation action failed";
     }

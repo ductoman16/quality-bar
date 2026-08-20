@@ -174,7 +174,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
   for (const path of [
     "/",
     "/?view=system",
-    "/assets/login.js",
+    "/assets/operator.js",
     "/api/v1/system",
     "/api/v1?resource=system",
     "/mcp/v1",

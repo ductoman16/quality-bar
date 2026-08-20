@@ -1,13 +1,15 @@
 <script setup>
 import { onMounted, ref } from "vue";
 
-import { repositoryCollection } from "../browser.js";
+import { repositoryCollection, responseMessage } from "../browser.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 import RepositoryActions from "./RepositoryActions.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repository = ref();
 const guidance = ref();
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const id = new URLSearchParams(location.search).get("repository_id");
 async function load() {
   if (!id) {
@@ -25,9 +27,19 @@ async function load() {
     const response = await fetch(
       `/api/v1/repositories/${encodeURIComponent(id)}/guidance`,
     );
-    if (response.ok) guidance.value = await response.json();
-  } catch {
-    error.value = "Repository failed to load";
+    if (!response.ok) {
+      throw new Error(
+        await responseMessage(response, "Repository guidance failed to load"),
+      );
+    }
+    const body = await response.json();
+    if (!Array.isArray(body.reviews)) {
+      throw new Error("repository_guidance_invalid");
+    }
+    guidance.value = body;
+  } catch (failure) {
+    error.value =
+      failure instanceof Error ? failure.message : "Repository failed to load";
   }
 }
 async function changed(value) {
@@ -84,6 +96,8 @@ onMounted(load);
         </details>
       </section>
     </template>
-    <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+    <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+      {{ error }}
+    </p>
   </section>
 </template>

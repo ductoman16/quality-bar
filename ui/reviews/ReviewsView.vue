@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { csrfToken, responseMessage } from "../browser.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
@@ -10,6 +11,7 @@ const models = ref([]);
 const state = ref("active");
 const expanded = reactive(new Set());
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const status = ref("");
 const identity = reactive({ description: "", name: "" });
 const active = computed(() =>
@@ -95,9 +97,24 @@ async function archive(review) {
   await load();
 }
 onMounted(async () => {
-  const response = await fetch("/api/v1/system");
-  if (response.ok) models.value = (await response.json()).codex.catalog.models;
+  let modelError = "";
+  try {
+    const response = await fetch("/api/v1/system");
+    if (response.ok) {
+      const catalog = (await response.json()).codex?.catalog?.models;
+      if (Array.isArray(catalog)) models.value = catalog;
+      else modelError = "Codex model catalog is invalid";
+    } else {
+      modelError = await responseMessage(
+        response,
+        "Codex model catalog failed to load",
+      );
+    }
+  } catch {
+    modelError = "Codex model catalog failed to load";
+  }
   await load();
+  if (modelError) error.value = modelError;
 });
 </script>
 
@@ -182,5 +199,7 @@ onMounted(async () => {
     </article>
   </section>
   <output aria-live="polite">{{ status }}</output>
-  <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    {{ error }}
+  </p>
 </template>

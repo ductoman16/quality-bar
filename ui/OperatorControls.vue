@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onMounted, ref } from "vue";
+import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
 import { csrfToken, responseMessage, returnToLogin } from "./browser.js";
 
@@ -110,6 +110,10 @@ onMounted(() => {
   document.addEventListener("keydown", activity);
   document.addEventListener("pointerdown", activity);
   void loadOnboardingTokens();
+});
+onUnmounted(() => {
+  document.removeEventListener("keydown", activity);
+  document.removeEventListener("pointerdown", activity);
 });
 </script>
 

@@ -122,12 +122,6 @@ export function createApplicationServer(dependencies) {
     repositoryGuidance,
   });
   const requireMcpOrigin = createMcpOriginHook(browserOrigin);
-  server.register(fastifyStatic, {
-    decorateReply: false,
-    index: false,
-    prefix: "/assets/",
-    root: fileURLToPath(new URL("../dist/assets", import.meta.url)),
-  });
   /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */
   const standardOperationHandlers = {
     ...apiOperations,
@@ -195,6 +189,12 @@ export function createApplicationServer(dependencies) {
         runProductRequest,
       }),
     );
+    routes.register(fastifyStatic, {
+      decorateReply: false,
+      index: false,
+      prefix: "/assets/",
+      root: fileURLToPath(new URL("../dist/assets", import.meta.url)),
+    });
     routes.setNotFoundHandler((request, reply) => {
       void request;
       writeError(reply, 404, "not_found", "Resource was not found");

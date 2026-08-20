@@ -4,7 +4,9 @@ export function csrfToken(name) {
     .split(";")
     .map((cookie) => cookie.trim().split("=", 2))
     .find(([cookieName]) => cookieName === name)?.[1];
-  if (!token) {throw new Error("browser_csrf_unavailable");}
+  if (!token) {
+    throw new Error("browser_csrf_unavailable");
+  }
   return token;
 }
 
@@ -38,10 +40,11 @@ export async function repositoryCollection() {
   let path = "/api/v1/repositories";
   for (;;) {
     const response = await fetch(path);
-    if (!response.ok)
-      {throw new Error(
+    if (!response.ok) {
+      throw new Error(
         await responseMessage(response, "Repositories failed to load"),
-      );}
+      );
+    }
     const body = await response.json();
     if (
       !Array.isArray(body.items) ||
@@ -50,9 +53,12 @@ export async function repositoryCollection() {
       throw new Error("repository_collection_invalid");
     }
     items.push(...body.items);
-    if (body.next_cursor === null) {return items;}
-    if (!body.next_cursor || cursors.has(body.next_cursor))
-      {throw new Error("repository_collection_invalid");}
+    if (body.next_cursor === null) {
+      return items;
+    }
+    if (!body.next_cursor || cursors.has(body.next_cursor)) {
+      throw new Error("repository_collection_invalid");
+    }
     cursors.add(body.next_cursor);
     path =
       "/api/v1/repositories?cursor=" + encodeURIComponent(body.next_cursor);

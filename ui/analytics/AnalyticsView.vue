@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { responseMessage } from "../browser.js";
+import { useAlertFocus } from "../useAlertFocus.js";
 import MetricTable from "./MetricTable.vue";
 
 const document_ = ref();
 const error = ref("");
+const errorElement = useAlertFocus(error);
 const filters = reactive({
   repository_id: "",
   base_commit: "",
@@ -340,5 +342,7 @@ onMounted(() => {
     <h2>{{ table.title }}</h2>
     <MetricTable :headers="table.headers" :rows="table.rows" />
   </section>
-  <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+    {{ error }}
+  </p>
 </template>
