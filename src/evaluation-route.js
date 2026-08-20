@@ -8,11 +8,8 @@ function pathParameter(request, name) {
   return /** @type {Record<string, string>} */ (request.params)[name];
 }
 
-/** @param {{evaluations: any, recordAuthorityAttribution: (event: any) => void}} dependencies */
-export function createEvaluationOperations({
-  evaluations,
-  recordAuthorityAttribution,
-}) {
+/** @param {{evaluations: any}} dependencies */
+export function createEvaluationOperations({ evaluations }) {
   /** @param {import("fastify").FastifyRequest} request */
   function authority(request) {
     return /** @type {any} */ (request).authority;
@@ -191,6 +188,5 @@ export function createEvaluationOperations({
       });
     }),
   };
-  void recordAuthorityAttribution;
   return operations;
 }

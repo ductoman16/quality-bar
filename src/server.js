@@ -93,10 +93,7 @@ export function createApplicationServer(dependencies) {
     createWaiverAdjudicatorConfigurationOperations({
       waiverAdjudicatorConfiguration,
     });
-  const evaluationOperations = createEvaluationOperations({
-    evaluations,
-    recordAuthorityAttribution,
-  });
+  const evaluationOperations = createEvaluationOperations({ evaluations });
   const concurrencyOperations = createCodexExecutionConcurrencyOperations({
     codexExecutionConcurrency,
   });
