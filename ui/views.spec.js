@@ -188,10 +188,24 @@ describe("Vue operator views", () => {
       head_commit: "b".repeat(40),
       head_selector: { type: "branch", value: "topic" },
       id: "evaluation-1",
+      next_attempt_at: null,
       monitor: {
         duration_ms: 60_000,
         finding_counts: null,
-        nodes: [],
+        nodes: [
+          {
+            key: "preparing",
+            kind: "system",
+            label: "Preparing",
+            status: "completed",
+          },
+          {
+            key: "finalizing",
+            kind: "system",
+            label: "Finalizing",
+            status: "completed",
+          },
+        ],
         outcome_counts: null,
         review_counts: {
           cancelled: 0,

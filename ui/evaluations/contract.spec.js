@@ -22,6 +22,7 @@ function evaluation() {
     head_commit: "b".repeat(40),
     head_selector: { type: "branch", value: "topic" },
     id: "evaluation/1",
+    next_attempt_at: null,
     monitor: {
       duration_ms: null,
       finding_counts: null,
@@ -30,6 +31,12 @@ function evaluation() {
           key: "preparing",
           kind: "system",
           label: "Preparing",
+          status: "queued",
+        },
+        {
+          key: "finalizing",
+          kind: "system",
+          label: "Finalizing",
           status: "queued",
         },
       ],
@@ -66,6 +73,12 @@ describe("Evaluation browser contract", () => {
     expect(validEvaluation({ ...evaluation(), monitor: { nodes: [] } })).toBe(
       false,
     );
+    expect(
+      validEvaluation({
+        ...evaluation(),
+        repository: { id: "repository-1", url: "http://example.test/repo" },
+      }),
+    ).toBe(false);
     expect(nodeVisualState({ outcome: "blocking", status: "completed" })).toBe(
       "blocking",
     );
@@ -97,6 +110,7 @@ describe("Evaluation browser contract", () => {
       review_version_id: "version-1",
       status: "completed",
     });
+    completed.monitor.nodes.push(completed.monitor.nodes.splice(1, 1)[0]);
     completed.monitor.review_counts.completed = 1;
     completed.monitor.review_counts.total = 1;
     expect(validEvaluation(completed)).toBe(true);
@@ -191,6 +205,24 @@ describe("Evaluation browser contract", () => {
     ).toBe(false);
     expect(
       validEvaluationResult(
+        {
+          ...result,
+          applicability_results: [
+            {
+              assignment: { scope: "installation_wide" },
+              error: { code: "rule_failed", detail: "Rule failed" },
+              outcome: "error",
+              review_id: "review-1",
+              review_version_id: "version-1",
+              rule: null,
+            },
+          ],
+        },
+        completed.id,
+      ),
+    ).toBe(false);
+    expect(
+      validEvaluationResult(
         { ...result, file_changes: [{ id: "change-1", patch: "" }] },
         completed.id,
       ),
@@ -233,6 +265,25 @@ describe("Evaluation browser contract", () => {
           duration_ms: null,
           process: { kind: "unavailable" },
           review_run_id: "run-1",
+          token_counters: {
+            cached_input_tokens: null,
+            input_tokens: null,
+            output_tokens: null,
+          },
+          transcript_chunks: [],
+        },
+        "run-1",
+      ),
+    ).toBe(false);
+    expect(
+      validReviewRunDiagnostics(
+        {
+          codex_cli_version: null,
+          completed_at: null,
+          duration_ms: null,
+          process: { code: 0, kind: "unavailable" },
+          review_run_id: "run-1",
+          started_at: null,
           token_counters: {
             cached_input_tokens: null,
             input_tokens: null,

@@ -102,6 +102,8 @@ async function createOnboardingToken() {
     repository_url: onboardingUrl.value,
   });
   if (!response.ok) return failure(response);
+  if (response.status !== 201)
+    return showError("onboarding_token_reveal_invalid");
   const value = await response.json();
   if (!validOnboardingTokenReveal(value))
     return showError("onboarding_token_reveal_invalid");

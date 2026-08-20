@@ -26,14 +26,22 @@ beforeEach(() => {
   );
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (path, options) =>
-      path === "/api/v1/repositories" && !options
-        ? {
-            json: async () => ({ items: [], next_cursor: null }),
-            ok: true,
-          }
-        : { json: async () => ({}), ok: true, status: 204 },
-    ),
+    vi.fn(async (path, options) => {
+      if (path === "/api/v1/repositories" && !options) {
+        return {
+          json: async () => ({ items: [], next_cursor: null }),
+          ok: true,
+        };
+      }
+      if (options?.method === "PATCH") {
+        return {
+          json: async () => ({ ...repository, lifecycle: "disabled" }),
+          ok: true,
+          status: 200,
+        };
+      }
+      return { json: async () => null, ok: true, status: 200 };
+    }),
   );
   HTMLDialogElement.prototype.showModal = vi.fn();
   HTMLDialogElement.prototype.close = vi.fn();

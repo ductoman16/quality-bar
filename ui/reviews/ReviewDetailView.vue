@@ -187,19 +187,30 @@ async function remove() {
       {},
       "DELETE",
     );
-  } catch {
-    response = null;
+  } catch (failure) {
+    if (!(failure instanceof TypeError)) {
+      error.value = "Review deletion failed";
+      return;
+    }
+  }
+  if (response) {
+    if (!response.ok) {
+      error.value = await responseMessage(response);
+      return;
+    }
+    if (response.status !== 200 || (await response.json()) !== null) {
+      error.value = "Review deletion response is invalid";
+      return;
+    }
+    location.assign("/?view=reviews");
+    return;
   }
   try {
     if (!(await findReview())) {
       location.assign("/?view=reviews");
       return;
     }
-    error.value = response
-      ? response.ok
-        ? "Review deletion result is unavailable"
-        : await responseMessage(response)
-      : "Review deletion result is unavailable";
+    error.value = "Review deletion result is unavailable";
   } catch (failure) {
     error.value =
       failure instanceof Error

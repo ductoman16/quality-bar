@@ -23,7 +23,7 @@ export function csrfRequest(name, path, body, method = "POST") {
 }
 
 /** @param {Response} response */
-export async function responseMessage(response) {
+export async function responseError(response) {
   const body = await response.json();
   if (
     typeof body?.error?.code !== "string" ||
@@ -39,7 +39,12 @@ export async function responseMessage(response) {
   ) {
     returnToLogin();
   }
-  return body.error.message;
+  return body.error;
+}
+
+/** @param {Response} response */
+export async function responseMessage(response) {
+  return (await responseError(response)).message;
 }
 
 export async function repositoryCollection() {

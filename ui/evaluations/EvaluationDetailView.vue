@@ -61,7 +61,8 @@ async function loadResult() {
     }
     if (!response.ok) return showError(await responseMessage(response));
     const body = await response.json();
-    if (!validEvaluationResult(body, evaluation.value.id)) throw new Error();
+    if (!validEvaluationResult(body, evaluation.value.id))
+      throw new Error("evaluation_result_invalid");
     result.value = body;
     resultEvaluationId = evaluation.value.id;
   } catch (failure) {

@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
-import { csrfToken, responseMessage } from "../browser.js";
+import { csrfToken, responseError, responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import {
   validConfiguration,
@@ -20,6 +20,9 @@ const configuration = reactive({
   service_tier: "",
 });
 const configurationStatus = ref("Loading");
+const modelElement = ref();
+const reasoningElement = ref();
+const tierElement = ref();
 const selectedModel = computed(() =>
   system.value?.codex?.catalog?.models?.find(
     ({ id }) => id === configuration.model,
@@ -75,16 +78,12 @@ const execution = (row) =>
   `${resource(row)}. State ${row.execution_status}. Gate ${row.gate?.code}. Attempts ${row.pre_start_attempt_count} in cycle ${row.retry_cycle}. Retry ${row.retry_state}. Lease ${row.lease?.status}; worker ${row.lease?.worker_id ?? "none"}.`;
 const failure = (row) =>
   `${resource(row)}. Failed ${row.completed_at}. Failure ${row.error?.code}: ${row.error?.detail}`;
-const factEntries = (value) =>
-  Object.entries(value || {}).map(([name, item]) => [
-    humanize(name),
-    typeof item === "object" ? JSON.stringify(item) : item,
-  ]);
+const filesystem = (name) =>
+  system.value?.storage.filesystems.find((item) => item.filesystem === name);
 async function loadConfiguration() {
   const response = await fetch("/api/v1/waiver-adjudicator-configuration");
   if (!response.ok) {
-    configurationStatus.value = await responseMessage(response);
-    return;
+    throw new Error(await responseMessage(response));
   }
   const body = await response.json();
   if (!validConfiguration(body)) {
@@ -118,8 +117,14 @@ async function saveConfiguration() {
       method: "PATCH",
     });
     if (!response.ok) {
-      error.value = await responseMessage(response);
-      configurationStatus.value = "Failed";
+      const failure = await responseError(response);
+      configurationStatus.value = failure.message;
+      await nextTick();
+      ({
+        codex_model_unsupported: modelElement,
+        codex_reasoning_effort_unsupported: reasoningElement,
+        codex_service_tier_unsupported: tierElement,
+      })[failure.code]?.value?.focus();
       return;
     }
     const body = await response.json();
@@ -233,16 +238,39 @@ onMounted(load);
     <section class="qb-region">
       <h2>Storage and backup</h2>
       <dl>
-        <template
-          v-for="[name, value] in [
-            ...factEntries(system.storage),
-            ...factEntries(system.cleanup),
-            ...factEntries(system.backup),
-          ]"
-          :key="name"
-          ><dt>{{ name }}</dt>
-          <dd>{{ value }}</dd></template
-        >
+        <dt>Application version</dt>
+        <dd>{{ system.application.application_version ?? "Unavailable" }}</dd>
+        <dt>Schema version</dt>
+        <dd>{{ system.application.schema_version ?? "Unavailable" }}</dd>
+        <dt>Installation key</dt>
+        <dd>
+          {{ system.application.installation_key_identity ?? "Unavailable" }}
+        </dd>
+        <dt>Storage reserve</dt>
+        <dd>{{ system.storage.reserve_bytes }} bytes</dd>
+        <dt>State filesystem</dt>
+        <dd>
+          {{ filesystem("state").status }} · {{ filesystem("state").path }} ·
+          {{ filesystem("state").available_bytes }} bytes available
+        </dd>
+        <dt>Checkouts filesystem</dt>
+        <dd>
+          {{ filesystem("checkouts").status }} ·
+          {{ filesystem("checkouts").path }} ·
+          {{ filesystem("checkouts").available_bytes }} bytes available
+        </dd>
+        <dt>Storage cleanup</dt>
+        <dd>
+          {{ system.storage.cleanup.status }} ·
+          {{ system.storage.cleanup.last_run_at ?? "Never" }} ·
+          {{ system.storage.cleanup.artifacts_removed ?? 0 }} artifacts ·
+          {{ system.storage.cleanup.sessions_removed ?? 0 }} sessions
+        </dd>
+        <dt>Backup</dt>
+        <dd>
+          {{ system.backup.status }} ·
+          {{ system.backup.last_successful?.created_at ?? "Never" }}
+        </dd>
       </dl>
     </section>
     <SystemPollingDelivery
@@ -270,22 +298,17 @@ onMounted(load);
         <dd>{{ system.implementer_token.status }}</dd>
       </dl>
     </section>
-    <section class="qb-region">
-      <h2>Storage reserve</h2>
-      <dl>
-        <template
-          v-for="[name, value] in factEntries(system.storage_reserve)"
-          :key="name"
-          ><dt>{{ name }}</dt>
-          <dd>{{ value }}</dd></template
-        >
-      </dl>
-    </section>
     <section class="qb-region qb-deep-surface">
       <h2>Waiver Adjudicator Configuration</h2>
       <form @submit.prevent="saveConfiguration">
         <label for="waiver-model">Model</label
-        ><select id="waiver-model" v-model="configuration.model" required>
+        ><select
+          id="waiver-model"
+          ref="modelElement"
+          v-model="configuration.model"
+          aria-describedby="waiver-configuration-status"
+          required
+        >
           <option value=""></option>
           <option
             v-for="model in system.codex.catalog.models"
@@ -297,7 +320,9 @@ onMounted(load);
         ><label for="waiver-reasoning">Reasoning effort</label
         ><select
           id="waiver-reasoning"
+          ref="reasoningElement"
           v-model="configuration.reasoning_effort"
+          aria-describedby="waiver-configuration-status"
           required
         >
           <option
@@ -307,12 +332,20 @@ onMounted(load);
             {{ value }}
           </option></select
         ><label for="waiver-tier">Service tier</label
-        ><select id="waiver-tier" v-model="configuration.service_tier" required>
+        ><select
+          id="waiver-tier"
+          ref="tierElement"
+          v-model="configuration.service_tier"
+          aria-describedby="waiver-configuration-status"
+          required
+        >
           <option v-for="value in selectedModel?.service_tiers" :key="value">
             {{ value }}
           </option></select
         ><button type="submit">Save configuration</button
-        ><output aria-live="polite">{{ configurationStatus }}</output>
+        ><output id="waiver-configuration-status" aria-live="polite">{{
+          configurationStatus
+        }}</output>
       </form>
     </section>
   </template>

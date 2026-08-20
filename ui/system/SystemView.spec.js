@@ -10,13 +10,31 @@ const configuration = {
   service_tier: "standard",
 };
 const timestamp = "2026-08-20T12:00:00.000Z";
+const keyIdentity = `sha256:${"a".repeat(64)}`;
 const system = {
-  backup: { status: "current" },
+  application: {
+    application_version: "1.2.3",
+    error: null,
+    installation_key_identity: keyIdentity,
+    schema_version: 1,
+    status: "available",
+  },
+  backup: {
+    error: null,
+    last_successful: {
+      application_version: "1.2.3",
+      created_at: timestamp,
+      installation_key_identity: keyIdentity,
+      kind: "daily",
+      schema_version: 1,
+    },
+    status: "current",
+  },
   bootstrap: { status: "complete" },
-  browser_sessions: { active_count: 1 },
-  cleanup: { status: "available" },
+  browser_sessions: { active_count: 1, status: "available" },
   codex: {
     catalog: {
+      codex_cli_version: "1.2.3",
       models: [
         {
           id: "gpt-test",
@@ -25,6 +43,7 @@ const system = {
         },
       ],
     },
+    status: "available",
   },
   codex_execution: {
     concurrency: {
@@ -65,7 +84,15 @@ const system = {
       },
     ],
   },
-  durable_core: { status: "ready" },
+  durable_core: {
+    database_version: "3.50.0",
+    foreign_keys: true,
+    integrity: "ok",
+    journal_mode: "wal",
+    schema_version: 1,
+    status: "ready",
+    synchronous: "full",
+  },
   execution_providers: [{ id: "codex", name: "Codex", status: "available" }],
   implementer_token: { status: "active" },
   polling: {
@@ -106,8 +133,31 @@ const system = {
       },
     ],
   },
-  storage: { status: "available" },
-  storage_reserve: { status: "available" },
+  storage: {
+    cleanup: {
+      artifacts_removed: 0,
+      error: null,
+      last_run_at: timestamp,
+      sessions_removed: 0,
+      status: "available",
+    },
+    filesystems: [
+      {
+        available_bytes: 1_000,
+        filesystem: "state",
+        path: "/state",
+        status: "available",
+      },
+      {
+        available_bytes: 2_000,
+        filesystem: "checkouts",
+        path: "/checkouts",
+        status: "available",
+      },
+    ],
+    reserve_bytes: 100,
+    status: "available",
+  },
 };
 
 beforeEach(() => {
@@ -168,5 +218,39 @@ it("renders complete polling and delivery facts and saves configuration", async 
     },
   );
   expect(wrapper.text()).toContain("Saved");
+  wrapper.unmount();
+});
+
+it("focuses the invalid configuration field", async () => {
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/system") {
+      return { json: async () => system, ok: true };
+    }
+    if (!options) {
+      return {
+        json: async () => ({ configured: true, configuration }),
+        ok: true,
+      };
+    }
+    return {
+      json: async () => ({
+        error: {
+          code: "codex_service_tier_unsupported",
+          message: "Service tier is unsupported",
+        },
+      }),
+      ok: false,
+      status: 422,
+    };
+  });
+  const wrapper = mount(SystemView, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper.get("form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.get("output").text()).toBe("Service tier is unsupported");
+  expect(document.activeElement).toBe(wrapper.get("#waiver-tier").element);
   wrapper.unmount();
 });

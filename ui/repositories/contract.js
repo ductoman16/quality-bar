@@ -186,9 +186,3 @@ export const validManifestContinuation = (value) =>
       Array.isArray(item) ||
       record(item),
   );
-
-/** @param {string} provider @param {any} value */
-export const validProviderMutation = (provider, value) =>
-  provider === "github"
-    ? validGitHubConnection(value)
-    : validForgejoConnection(value);

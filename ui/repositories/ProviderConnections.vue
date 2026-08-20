@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted, reactive, ref } from "vue";
-
 import { csrfRequest, responseMessage } from "../browser.js";
 import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
 import GitHubManifestContinuation from "./GitHubManifestContinuation.vue";
@@ -11,7 +10,6 @@ import {
   validManifestContinuation,
 } from "./contract.js";
 import { registerGitHubSelection } from "./github-selection.js";
-
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
 const github = ref(null),
@@ -50,17 +48,18 @@ async function safe(action) {
     busy.value = false;
   }
 }
-async function load() {
-  for (const [path, target, validate] of [
-    ["/api/v1/github-connections", github, validGitHubConnection],
-    ["/api/v1/forgejo-connections", forgejo, validForgejoConnection],
-  ]) {
-    const response = await fetch(path);
-    if (!response.ok) await fail(response, "Connection loading failed");
-    const value = await response.json();
-    if (!validate(value)) throw new Error("connection_response_invalid");
-    target.value = value;
-  }
+const load = () =>
+  Promise.all([loadProvider("github"), loadProvider("forgejo")]);
+async function loadProvider(provider) {
+  const target = provider === "github" ? github : forgejo;
+  const validate =
+    provider === "github" ? validGitHubConnection : validForgejoConnection;
+  const response = await fetch(`/api/v1/${provider}-connections`);
+  if (!response.ok) await fail(response, "Connection loading failed");
+  const value = await response.json();
+  if (!validate(value)) throw new Error("connection_response_invalid");
+  target.value = value;
+  return value;
 }
 async function startGitHub() {
   const reactivating = github.value?.lifecycle === "retired";
@@ -185,9 +184,7 @@ async function reactivateForgejo() {
   forge.reactivationToken = "";
   status.value = "Forgejo Connection reactivated.";
 }
-function openLifecycle(provider, method) {
-  lifecycleDialog.value.open(provider, method);
-}
+const openLifecycle = (...args) => lifecycleDialog.value.open(...args);
 async function lifecycle({ method, provider }) {
   const lower = provider.toLowerCase();
   let response;
@@ -197,24 +194,36 @@ async function lifecycle({ method, provider }) {
       method === "PATCH" ? { lifecycle: "retired" } : {},
       method,
     );
-  } catch {}
-  await load();
-  const current = lower === "github" ? github.value : forgejo.value;
-  if (
-    !(
+  } catch (failure) {
+    if (!(failure instanceof TypeError)) throw failure;
+    const current = await loadProvider(lower);
+    if (
       (method === "DELETE" && current === null) ||
       (method === "PATCH" && current?.lifecycle === "retired")
-    )
-  ) {
-    if (response && !response.ok)
-      await fail(response, `${provider} Connection lifecycle failed`);
-    await fail(null, `${provider} Connection lifecycle result is unavailable`);
+    ) {
+      status.value = `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`;
+      return;
+    }
+    throw new Error(`${provider} Connection lifecycle result is unavailable`);
   }
+  if (!response.ok)
+    await fail(response, `${provider} Connection lifecycle failed`);
+  const current = await response.json();
+  const valid =
+    method === "DELETE"
+      ? current === null
+      : (lower === "github"
+          ? validGitHubConnection(current)
+          : validForgejoConnection(current)) &&
+        current?.lifecycle === "retired";
+  if (!valid) {
+    throw new Error(`${provider} Connection lifecycle response is invalid`);
+  }
+  (lower === "github" ? github : forgejo).value = current;
   status.value = `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`;
 }
 onMounted(() => safe(load));
 </script>
-
 <template>
   <section id="github-connection-details" class="qb-region" :inert="busy">
     <h2>GitHub Connection</h2>

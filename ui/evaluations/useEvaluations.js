@@ -156,8 +156,7 @@ export function useEvaluations(csrfCookieName) {
     try {
       const response = await fetch(`/api/v1/evaluations?${search}`);
       if (!response.ok) {
-        await showFailure(response);
-        return;
+        throw new Error(await responseMessage(response));
       }
       collection = await response.json();
       if (!validCollection(collection)) {
@@ -172,6 +171,7 @@ export function useEvaluations(csrfCookieName) {
       return;
     }
     loading.value = false;
+    listError.value = "";
     if (poll) {
       const changed = collection.items.some(
         (evaluation) =>
@@ -200,7 +200,6 @@ export function useEvaluations(csrfCookieName) {
         : items;
     nextCursor.value = collection.next_cursor;
     firstResponse = false;
-    listError.value = "";
   }
 
   async function refreshStats(hours = statsWindow.value) {

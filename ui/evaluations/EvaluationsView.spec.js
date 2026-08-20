@@ -16,6 +16,7 @@ function evaluation(id = "evaluation-1") {
     head_commit: "b".repeat(40),
     head_selector: { type: "branch", value: "topic" },
     id,
+    next_attempt_at: null,
     monitor: {
       duration_ms: null,
       finding_counts: null,
@@ -24,7 +25,12 @@ function evaluation(id = "evaluation-1") {
           key: "preparing",
           kind: "system",
           label: "Preparing",
-          duration_ms: 500,
+          status: "queued",
+        },
+        {
+          key: "finalizing",
+          kind: "system",
+          label: "Finalizing",
           status: "queued",
         },
       ],
@@ -113,7 +119,7 @@ describe("Evaluations view", () => {
     );
     await wrapper.get(".evaluation-row__toggle").trigger("click");
     expect(wrapper.find(".evaluation-expanded").exists()).toBe(true);
-    expect(wrapper.get(".evaluation-expanded").text()).toContain("500 ms");
+    expect(wrapper.get(".evaluation-expanded").text()).toContain("Finalizing");
     await wrapper.get("#evaluation-filter-status").setValue("running");
     await wrapper.get(".evaluation-filter-form").trigger("submit");
     await flushPromises();

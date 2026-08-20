@@ -9,9 +9,89 @@ import {
 
 const timestamp = (value) =>
   value === null ||
-  (nonempty(value) && new Date(value).toISOString() === value);
+  (nonempty(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value);
 const status = (value, allowed) =>
   record(value) && allowed.includes(value.status);
+const exact = (value, names) =>
+  Object.keys(value).length === names.length &&
+  names.every((name) => Object.hasOwn(value, name));
+const storageError = (value) =>
+  value === null ||
+  (record(value) &&
+    exact(value, ["code", "detail"]) &&
+    nonempty(value.code) &&
+    nonempty(value.detail));
+const application = (value) =>
+  record(value) &&
+  exact(value, [
+    "application_version",
+    "error",
+    "installation_key_identity",
+    "schema_version",
+    "status",
+  ]) &&
+  ["available", "unavailable"].includes(value.status) &&
+  (value.application_version === null || nonempty(value.application_version)) &&
+  storageError(value.error) &&
+  (value.installation_key_identity === null ||
+    /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity)) &&
+  (value.schema_version === null ||
+    (Number.isSafeInteger(value.schema_version) && value.schema_version > 0));
+const cleanup = (value) =>
+  status(value, ["available", "not_run", "running", "unavailable"]) &&
+  exact(value, [
+    "artifacts_removed",
+    "error",
+    "last_run_at",
+    "sessions_removed",
+    "status",
+  ]) &&
+  ["artifacts_removed", "sessions_removed"].every(
+    (name) => value[name] === null || count(value[name]),
+  ) &&
+  storageError(value.error) &&
+  timestamp(value.last_run_at);
+const storage = (value) =>
+  status(value, ["available", "unavailable"]) &&
+  exact(value, ["cleanup", "filesystems", "reserve_bytes", "status"]) &&
+  Number.isSafeInteger(value.reserve_bytes) &&
+  value.reserve_bytes > 0 &&
+  cleanup(value.cleanup) &&
+  Array.isArray(value.filesystems) &&
+  value.filesystems.length === 2 &&
+  new Set(value.filesystems.map(({ filesystem }) => filesystem)).size === 2 &&
+  value.filesystems.every(
+    (item) =>
+      record(item) &&
+      exact(item, ["available_bytes", "filesystem", "path", "status"]) &&
+      ["state", "checkouts"].includes(item.filesystem) &&
+      ["available", "unavailable"].includes(item.status) &&
+      nonempty(item.path) &&
+      count(item.available_bytes),
+  );
+const backupRecord = (value) =>
+  record(value) &&
+  exact(value, [
+    "application_version",
+    "created_at",
+    "installation_key_identity",
+    "kind",
+    "schema_version",
+  ]) &&
+  /^\d+\.\d+\.\d+$/.test(value.application_version) &&
+  value.created_at !== null &&
+  timestamp(value.created_at) &&
+  /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity) &&
+  value.kind === "daily" &&
+  Number.isSafeInteger(value.schema_version) &&
+  value.schema_version > 0;
+const backup = (value) =>
+  status(value, ["current", "empty", "stale", "unavailable"]) &&
+  exact(value, ["error", "last_successful", "status"]) &&
+  storageError(value.error) &&
+  (value.last_successful === null || backupRecord(value.last_successful));
 
 const execution = (value) =>
   record(value) &&
@@ -122,6 +202,7 @@ const deliverySurface = (value) =>
 
 export const validSystem = (value) =>
   record(value) &&
+  application(value.application) &&
   Array.isArray(value.execution_providers) &&
   value.execution_providers.length > 0 &&
   value.execution_providers.every(
@@ -153,16 +234,24 @@ export const validSystem = (value) =>
   Array.isArray(value.delivery?.surfaces) &&
   value.delivery.surfaces.every(deliverySurface) &&
   Array.isArray(value.codex?.catalog?.models) &&
+  ["available", "unavailable"].includes(value.codex.status) &&
+  nonempty(value.codex.catalog.codex_cli_version) &&
   value.codex.catalog.models.length > 0 &&
   value.codex.catalog.models.every(modelCapability) &&
-  count(value.browser_sessions?.active_count) &&
-  nonempty(value.implementer_token?.status) &&
-  status(value.durable_core, ["ready"]) &&
-  status(value.storage, ["available", "unavailable"]) &&
-  status(value.cleanup, ["available", "not_run", "running", "unavailable"]) &&
-  status(value.backup, ["current", "empty", "stale", "unavailable"]) &&
-  status(value.bootstrap, ["complete", "required"]) &&
-  status(value.storage_reserve, ["available", "unavailable"]);
+  value.browser_sessions?.status === "available" &&
+  count(value.browser_sessions.active_count) &&
+  ["active", "revoked"].includes(value.implementer_token?.status) &&
+  value.durable_core?.status === "ready" &&
+  nonempty(value.durable_core.database_version) &&
+  value.durable_core.foreign_keys === true &&
+  value.durable_core.integrity === "ok" &&
+  value.durable_core.journal_mode === "wal" &&
+  Number.isSafeInteger(value.durable_core.schema_version) &&
+  value.durable_core.schema_version > 0 &&
+  value.durable_core.synchronous === "full" &&
+  storage(value.storage) &&
+  backup(value.backup) &&
+  status(value.bootstrap, ["complete", "required"]);
 
 export const validConfiguration = (value) =>
   record(value) &&

@@ -6,6 +6,7 @@ import {
   repositoryCollection,
   responseMessage,
 } from "../browser.js";
+import { validRepository } from "./contract.js";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },
@@ -50,7 +51,12 @@ async function mutation(path, body, method, fallback) {
       emit("error", await responseMessage(response));
       return;
     }
-    emit("changed", response.status === 204 ? null : await response.json());
+    const value = await response.json();
+    if (response.status !== 200 || !validRepository(value)) {
+      emit("error", `${fallback} response is invalid`);
+      return;
+    }
+    emit("changed", value);
   } catch (failure) {
     if (!(failure instanceof TypeError)) {
       emit(

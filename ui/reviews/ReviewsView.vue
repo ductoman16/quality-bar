@@ -7,6 +7,7 @@ import {
   readModelCatalog,
   readReviewCollection,
   validReview,
+  validReviewChange,
 } from "./contract.js";
 import ReviewEditor from "./ReviewEditor.vue";
 
@@ -80,23 +81,23 @@ async function archive(review) {
     )
   )
     return;
-  let response;
   try {
-    response = await request(
+    const response = await request(
       `/api/v1/reviews/${encodeURIComponent(review.id)}/archival`,
       { archived },
       "PATCH",
     );
-  } catch {
-    error.value = "Review lifecycle failed";
-    return;
+    if (!response.ok) throw new Error(await responseMessage(response));
+    const value = await response.json();
+    if (!validReviewChange(value) || value.review.archived !== archived) {
+      throw new Error("Review lifecycle response is invalid");
+    }
+    await load();
+    status.value = `${review.name} ${archived ? "archived" : "restored"}.`;
+  } catch (failure) {
+    error.value =
+      failure instanceof Error ? failure.message : "Review lifecycle failed";
   }
-  if (!response.ok) {
-    error.value = await responseMessage(response);
-    return;
-  }
-  status.value = `${review.name} ${archived ? "archived" : "restored"}.`;
-  await load();
 }
 onMounted(async () => {
   let modelError = "";
