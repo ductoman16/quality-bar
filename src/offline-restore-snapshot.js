@@ -16,7 +16,7 @@ import {
 } from "./offline-restore-schema.js";
 import { installationKeyIdentity } from "./sqlite-backup.js";
 
-const MANIFEST_NAME = /^quality-bar-(daily)-(.+)\.json$/;
+const MANIFEST_NAME = /^quality-bar-(daily|pre-migration)-(.+)\.json$/;
 
 /** @param {string} path @param {string} code @param {string} message */
 function requireRegularFile(path, code, message) {
@@ -74,7 +74,6 @@ export function validateRestoreSnapshot({
   const manifest = readManifest(manifestPath);
   if (
     !nameMatch ||
-    manifest.kind !== "daily" ||
     manifest.kind !== nameMatch[1] ||
     manifest.database_file !== manifestName.replace(/\.json$/, ".sqlite3") ||
     typeof manifest.application_version !== "string" ||
