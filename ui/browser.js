@@ -48,6 +48,7 @@ export async function repositoryCollection() {
     const body = await response.json();
     if (
       !Array.isArray(body.items) ||
+      !body.items.every(validRepository) ||
       (body.next_cursor !== null && typeof body.next_cursor !== "string")
     ) {
       throw new Error("repository_collection_invalid");
@@ -70,3 +71,4 @@ export function returnToLogin() {
     "/?return_to=" + encodeURIComponent(location.pathname + location.search),
   );
 }
+import { validRepository } from "./repositories/contract.js";

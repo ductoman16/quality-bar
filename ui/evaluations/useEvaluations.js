@@ -280,9 +280,11 @@ export function useEvaluations(csrfCookieName) {
       );
       if (!response.ok) {
         await showFailure(response, "Evaluation action failed");
+        return;
       }
     } catch {
       error.value = "Evaluation action failed";
+      return;
     }
     await refresh({ replace: true });
   }

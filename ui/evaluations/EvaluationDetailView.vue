@@ -38,9 +38,6 @@ const statusLabel = (node) => {
     .replaceAll("_", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
 };
-const responseFailure = (response, fallback) =>
-  responseMessage(response, fallback);
-
 async function loadResult() {
   if (
     !evaluation.value ||
@@ -56,7 +53,7 @@ async function loadResult() {
     if (response.status === 409) return;
     if (!response.ok)
       return showError(
-        await responseFailure(response, "Result failed to load"),
+        await responseMessage(response, "Result failed to load"),
       );
     const body = await response.json();
     if (
@@ -89,7 +86,7 @@ async function refresh() {
     loading.value = false;
     if (!response.ok)
       return showError(
-        await responseFailure(response, "Evaluation failed to load"),
+        await responseMessage(response, "Evaluation failed to load"),
       );
     const body = await response.json();
     if (!validEvaluation(body) || body.id !== id)
@@ -115,7 +112,7 @@ async function mutate(action) {
     );
     if (!response.ok)
       await showError(
-        await responseFailure(response, "Evaluation action failed"),
+        await responseMessage(response, "Evaluation action failed"),
       );
     else await refresh();
   } catch {

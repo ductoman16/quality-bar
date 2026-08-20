@@ -1,0 +1,75 @@
+import { flushPromises, mount } from "@vue/test-utils";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+import RepositoryActions from "./RepositoryActions.vue";
+
+const repository = {
+  assignment_count: 0,
+  credential_type: "none",
+  deletion_eligible: true,
+  health: "healthy",
+  health_error: null,
+  id: "repository-1",
+  lifecycle: "enabled",
+  provider: null,
+  url: "https://example.test/repository.git",
+};
+
+beforeEach(() => {
+  Object.defineProperty(document, "cookie", {
+    configurable: true,
+    value: "qb_csrf=csrf-token",
+  });
+  vi.stubGlobal(
+    "confirm",
+    vi.fn(() => true),
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ json: async () => ({}), ok: true, status: 204 })),
+  );
+  HTMLDialogElement.prototype.showModal = vi.fn();
+  HTMLDialogElement.prototype.close = vi.fn();
+});
+afterEach(() => vi.unstubAllGlobals());
+
+it("confirms lifecycle changes and exact-identity deletion with CSRF", async () => {
+  const wrapper = mount(RepositoryActions, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf", repository },
+  });
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Disabled")
+    .trigger("click");
+  await flushPromises();
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/repositories/repository-1/lifecycle",
+    {
+      body: JSON.stringify({ lifecycle: "disabled" }),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": "csrf-token",
+      },
+      method: "PATCH",
+    },
+  );
+
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Delete")
+    .trigger("click");
+  await wrapper.get("input").setValue(repository.url);
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(fetch).toHaveBeenLastCalledWith("/api/v1/repositories/repository-1", {
+    body: "{}",
+    headers: {
+      "content-type": "application/json",
+      "x-quality-bar-csrf": "csrf-token",
+    },
+    method: "DELETE",
+  });
+  expect(wrapper.emitted("changed")).toHaveLength(2);
+  wrapper.unmount();
+});

@@ -61,7 +61,13 @@ describe("Evaluations view", () => {
         return json({
           items: [
             {
+              assignment_count: 0,
+              credential_type: "forge_connection",
+              deletion_eligible: true,
+              health: "healthy",
+              health_error: null,
               id: "repository-1",
+              lifecycle: "enabled",
               provider: "github",
               url: "https://example.test/repository.git",
               web_url: "https://example.test/repository",
@@ -121,6 +127,66 @@ describe("Evaluations view", () => {
     expect(wrapper.find("[data-evaluation-id='evaluation-2']").exists()).toBe(
       true,
     );
+    wrapper.unmount();
+  });
+
+  it("keeps a failed mutation visible without refreshing it away", async () => {
+    Object.defineProperty(document, "cookie", {
+      configurable: true,
+      value: "qb_csrf=csrf-token",
+    });
+    let evaluationLoads = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path) => {
+        if (path === "/api/v1/repositories") {
+          return json({ items: [], next_cursor: null });
+        }
+        if (path === "/api/v1/system") {
+          return json({
+            codex_execution: {
+              concurrency: { maximum_running: 1, running_count: 0 },
+              queue: { count: 0 },
+            },
+          });
+        }
+        if (String(path).startsWith("/api/v1/analytics?")) {
+          return json({
+            evaluation_overview: {
+              clear_rate: { denominator: 0, numerator: 0 },
+              p95_duration_ms: null,
+            },
+          });
+        }
+        if (String(path).startsWith("/api/v1/evaluations?")) {
+          evaluationLoads += 1;
+          return json({ items: [evaluation()], next_cursor: null });
+        }
+        if (path === "/api/v1/evaluations/evaluation-1/retry") {
+          return {
+            json: async () => ({ error: { message: "Retry unavailable" } }),
+            ok: false,
+            status: 409,
+          };
+        }
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    const wrapper = mount(EvaluationsView, {
+      attachTo: document.body,
+      props: { csrfCookieName: "qb_csrf" },
+    });
+    await flushPromises();
+    const loadsBeforeMutation = evaluationLoads;
+    await wrapper
+      .findAll(".evaluation-actions button")
+      .find((button) => button.text() === "Retry")
+      .trigger("click");
+    await flushPromises();
+    const alert = wrapper.get('[role="alert"]');
+    expect(alert.text()).toBe("Retry unavailable");
+    expect(document.activeElement).toBe(alert.element);
+    expect(evaluationLoads).toBe(loadsBeforeMutation);
     wrapper.unmount();
   });
 });

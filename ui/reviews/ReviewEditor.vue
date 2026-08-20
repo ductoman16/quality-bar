@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 
 const props = defineProps({
   models: { required: true, type: Array },
@@ -7,6 +7,7 @@ const props = defineProps({
   submitLabel: { default: "Save", type: String },
 });
 const emit = defineEmits(["save"]);
+const criteriaList = ref();
 const form = reactive({
   applicabilityRule: "",
   criteria: [],
@@ -48,6 +49,24 @@ function move(index, offset) {
   const [criterion] = form.criteria.splice(index, 1);
   form.criteria.splice(index + offset, 0, criterion);
 }
+async function addCriterion() {
+  form.criteria.push({ impact: "blocking", instruction: "" });
+  await nextTick();
+  criteriaList.value
+    .querySelectorAll("textarea")
+    .item(form.criteria.length - 1)
+    .focus();
+}
+async function removeCriterion(index) {
+  if (!confirm(`Retire Criterion ${index + 1} from the next Review Version?`))
+    return;
+  form.criteria.splice(index, 1);
+  await nextTick();
+  criteriaList.value
+    .querySelectorAll("textarea")
+    .item(Math.min(index, form.criteria.length - 1))
+    .focus();
+}
 function save() {
   emit("save", {
     applicability_rule: form.applicabilityRule || null,
@@ -67,7 +86,7 @@ function save() {
 
 <template>
   <form class="review-editor" @submit.prevent="save">
-    <ol class="review-criteria">
+    <ol ref="criteriaList" class="review-criteria">
       <li
         v-for="(criterion, index) in form.criteria"
         :key="criterion.id ?? index"
@@ -84,32 +103,28 @@ function save() {
         ><button
           :disabled="index === 0"
           type="button"
-          aria-label="Move Criterion up"
+          :aria-label="`Move Criterion ${index + 1} up`"
           @click="move(index, -1)"
         >
           ↑</button
         ><button
           :disabled="index === form.criteria.length - 1"
           type="button"
-          aria-label="Move Criterion down"
+          :aria-label="`Move Criterion ${index + 1} down`"
           @click="move(index, 1)"
         >
           ↓</button
         ><button
           :disabled="form.criteria.length === 1"
           type="button"
-          aria-label="Remove Criterion"
-          @click="form.criteria.splice(index, 1)"
+          :aria-label="`Retire Criterion ${index + 1}`"
+          @click="removeCriterion(index)"
         >
           −
         </button>
       </li>
     </ol>
-    <button
-      type="button"
-      aria-label="Add Criterion"
-      @click="form.criteria.push({ impact: 'blocking', instruction: '' })"
-    >
+    <button type="button" aria-label="Add Criterion" @click="addCriterion">
       + Criterion
     </button>
     <label for="review-applicability-rule">Applicability rule</label

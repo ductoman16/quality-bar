@@ -71,8 +71,7 @@ async function register() {
       );
       return;
     }
-    const repository = await response.json();
-    status.value = `${repository.url} registered as ${repository.id}.`;
+    status.value = "Repository registered.";
     create.url = "";
     await load();
   } catch {
@@ -127,6 +126,7 @@ onMounted(async () => {
     <p v-if="!repositories.length">No repositories registered yet.</p>
     <article
       v-for="repository in repositories"
+      :id="`repository-${repository.id}`"
       :key="repository.id"
       class="repo-row"
       :data-health="repository.health"

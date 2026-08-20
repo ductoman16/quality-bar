@@ -2,11 +2,17 @@
 import { nextTick, onMounted, reactive, ref } from "vue";
 
 import {
-  csrfToken,
+  csrfRequest,
   repositoryCollection,
   responseMessage,
 } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
+import {
+  readModelCatalog,
+  readReviewCollection,
+  validReview,
+  validReviewChange,
+} from "./contract.js";
 import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
@@ -22,21 +28,15 @@ const assignment = reactive({ repositoryIds: [], scope: "installation_wide" });
 const deleteDialog = ref();
 const deleteInput = ref();
 const deleteName = ref("");
+const deleteError = ref("");
 const selectedVersionId = ref("");
 const request = (path, body, method) =>
-  fetch(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(props.csrfCookieName),
-    },
-    method,
-  });
+  csrfRequest(props.csrfCookieName, path, body, method);
 async function list(path) {
   const response = await fetch(path);
-  if (!response.ok) return [];
-  const body = await response.json();
-  return Array.isArray(body.reviews) ? body.reviews : [];
+  if (!response.ok)
+    throw new Error(await responseMessage(response, "Reviews failed to load"));
+  return readReviewCollection(await response.json());
 }
 function open(value) {
   review.value = value;
@@ -59,13 +59,26 @@ async function load() {
   else open(value);
 }
 async function save(path, body, method, fallback) {
-  const response = await request(path, body, method);
+  let response;
+  try {
+    response = await request(path, body, method);
+  } catch {
+    error.value = fallback;
+    return null;
+  }
   if (!response.ok) {
     error.value = await responseMessage(response, fallback);
     return null;
   }
   error.value = "";
   return response.status === 204 ? null : response.json();
+}
+function requireReview(value, changed = false) {
+  if (!(changed ? validReviewChange(value) : validReview(value))) {
+    error.value = "Review response is invalid";
+    return null;
+  }
+  return changed ? value.review : value;
 }
 async function saveMetadata() {
   const value = await save(
@@ -75,8 +88,10 @@ async function saveMetadata() {
     "Review metadata failed to save",
   );
   if (value) {
-    open(value);
-    status.value = `${value.name} metadata saved.`;
+    const next = requireReview(value);
+    if (!next) return;
+    open(next);
+    status.value = `${next.name} metadata saved.`;
   }
 }
 async function saveVersion(snapshot) {
@@ -87,8 +102,10 @@ async function saveVersion(snapshot) {
     "Review Version failed to save",
   );
   if (value?.review) {
-    open(value.review);
-    status.value = `${value.review.name} v${value.review.active_version.number} ${value.changed ? "active" : "unchanged"}.`;
+    const next = requireReview(value, true);
+    if (!next) return;
+    open(next);
+    status.value = `${next.name} v${next.active_version.number} ${value.changed ? "active" : "unchanged"}.`;
   }
 }
 async function activateVersion() {
@@ -98,7 +115,10 @@ async function activateVersion() {
     "PATCH",
     "Review Version failed to reactivate",
   );
-  if (value?.review) open(value.review);
+  if (value?.review) {
+    const next = requireReview(value, true);
+    if (next) open(next);
+  } else if (value) requireReview(value, true);
 }
 async function saveAssignment() {
   const body =
@@ -115,7 +135,9 @@ async function saveAssignment() {
     "Review Assignment failed to save",
   );
   if (value?.review) {
-    open(value.review);
+    const next = requireReview(value, true);
+    if (!next) return;
+    open(next);
     status.value = value.changed
       ? "Assignment saved."
       : "Assignment unchanged.";
@@ -138,19 +160,22 @@ async function archive() {
     "Review lifecycle failed",
   );
   if (value?.review) {
-    open(value.review);
-    status.value = `${value.review.name} ${archived ? "archived" : "restored"}.`;
+    const next = requireReview(value, true);
+    if (!next) return;
+    open(next);
+    status.value = `${next.name} ${archived ? "archived" : "restored"}.`;
   }
 }
 async function openDelete() {
   deleteName.value = "";
+  deleteError.value = "";
   deleteDialog.value.showModal();
   await nextTick();
   deleteInput.value.focus();
 }
 async function remove() {
   if (deleteName.value !== review.value.name) {
-    error.value = "Type the Review name to confirm permanent deletion";
+    deleteError.value = "Type the Review name to confirm permanent deletion";
     deleteInput.value.focus();
     return;
   }
@@ -177,11 +202,7 @@ onMounted(async () => {
         ),
       );
     }
-    const catalog = (await systemResponse.json()).codex?.catalog?.models;
-    if (!Array.isArray(catalog)) {
-      throw new Error("review_dependencies_invalid");
-    }
-    models.value = catalog;
+    models.value = readModelCatalog(await systemResponse.json());
     repositories.value = repositoryItems;
     await load();
   } catch (failure) {
@@ -286,7 +307,9 @@ onMounted(async () => {
         ref="deleteInput"
         v-model="deleteName"
         required
-      /><button type="button" @click="deleteDialog.close()">Cancel</button
+      />
+      <p v-if="deleteError" role="alert">{{ deleteError }}</p>
+      <button type="button" @click="deleteDialog.close()">Cancel</button
       ><button type="submit">Delete permanently</button>
     </form>
   </dialog>

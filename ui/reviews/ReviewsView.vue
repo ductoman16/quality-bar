@@ -1,8 +1,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 
-import { csrfToken, responseMessage } from "../browser.js";
+import { csrfRequest, responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
+import {
+  readModelCatalog,
+  readReviewCollection,
+  validReview,
+} from "./contract.js";
 import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
@@ -20,14 +25,7 @@ const active = computed(() =>
   ),
 );
 const request = (path, body, method) =>
-  fetch(path, {
-    body: JSON.stringify(body),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(props.csrfCookieName),
-    },
-    method,
-  });
+  csrfRequest(props.csrfCookieName, path, body, method);
 async function load() {
   try {
     const response = await fetch(
@@ -37,10 +35,7 @@ async function load() {
       throw new Error(
         await responseMessage(response, "Reviews failed to load"),
       );
-    const body = await response.json();
-    if (!Array.isArray(body.reviews))
-      throw new Error("reviews_document_invalid");
-    reviews.value = body.reviews;
+    reviews.value = readReviewCollection(await response.json());
     error.value = "";
   } catch (failure) {
     error.value =
@@ -52,24 +47,34 @@ async function create(snapshot) {
     error.value = "Review name and description are required";
     return;
   }
-  const response = await request(
-    "/api/v1/reviews",
-    {
-      ...snapshot,
-      ...(snapshot.applicability_rule === null
-        ? {}
-        : { applicability_rule: snapshot.applicability_rule }),
-      assignment: { scope: "installation_wide" },
-      description: identity.description,
-      name: identity.name,
-    },
-    "POST",
-  );
+  let response;
+  try {
+    response = await request(
+      "/api/v1/reviews",
+      {
+        ...snapshot,
+        ...(snapshot.applicability_rule === null
+          ? {}
+          : { applicability_rule: snapshot.applicability_rule }),
+        assignment: { scope: "installation_wide" },
+        description: identity.description,
+        name: identity.name,
+      },
+      "POST",
+    );
+  } catch {
+    error.value = "Review creation failed";
+    return;
+  }
   if (!response.ok) {
     error.value = await responseMessage(response, "Review creation failed");
     return;
   }
   const review = await response.json();
+  if (!validReview(review)) {
+    error.value = "Review creation response is invalid";
+    return;
+  }
   status.value = `${review.name} v${review.active_version.number} created.`;
   identity.name = identity.description = "";
   await load();
@@ -84,11 +89,17 @@ async function archive(review) {
     )
   )
     return;
-  const response = await request(
-    `/api/v1/reviews/${encodeURIComponent(review.id)}/archival`,
-    { archived },
-    "PATCH",
-  );
+  let response;
+  try {
+    response = await request(
+      `/api/v1/reviews/${encodeURIComponent(review.id)}/archival`,
+      { archived },
+      "PATCH",
+    );
+  } catch {
+    error.value = "Review lifecycle failed";
+    return;
+  }
   if (!response.ok) {
     error.value = await responseMessage(response, "Review lifecycle failed");
     return;
@@ -101,9 +112,11 @@ onMounted(async () => {
   try {
     const response = await fetch("/api/v1/system");
     if (response.ok) {
-      const catalog = (await response.json()).codex?.catalog?.models;
-      if (Array.isArray(catalog)) models.value = catalog;
-      else modelError = "Codex model catalog is invalid";
+      try {
+        models.value = readModelCatalog(await response.json());
+      } catch {
+        modelError = "Codex model catalog is invalid";
+      }
     } else {
       modelError = await responseMessage(
         response,

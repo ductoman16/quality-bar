@@ -4,6 +4,7 @@ import { onMounted, ref } from "vue";
 import { repositoryCollection, responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
 import RepositoryActions from "./RepositoryActions.vue";
+import { validGuidance } from "./contract.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repository = ref();
@@ -33,7 +34,7 @@ async function load() {
       );
     }
     const body = await response.json();
-    if (!Array.isArray(body.reviews)) {
+    if (!validGuidance(body)) {
       throw new Error("repository_guidance_invalid");
     }
     guidance.value = body;

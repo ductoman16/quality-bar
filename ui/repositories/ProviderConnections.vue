@@ -1,8 +1,16 @@
 <script setup>
-import { nextTick, onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 
 import { csrfRequest, responseMessage } from "../browser.js";
+import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
 import GitHubManifestContinuation from "./GitHubManifestContinuation.vue";
+import {
+  validForgejoChoices,
+  validForgejoConnection,
+  validGitHubConnection,
+  validManifestContinuation,
+  validProviderMutation,
+} from "./contract.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
@@ -21,14 +29,7 @@ const forge = reactive({
   token: "",
 });
 const status = ref("");
-const confirmation = reactive({
-  body: {},
-  method: "PATCH",
-  provider: "",
-  text: "",
-});
-const confirmationDialog = ref(),
-  confirmationInput = ref();
+const lifecycleDialog = ref();
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function fail(response, fallback) {
@@ -36,14 +37,18 @@ async function fail(response, fallback) {
   emit("error", error.value);
 }
 async function load() {
-  for (const [path, target] of [
-    ["/api/v1/github-connections", github],
-    ["/api/v1/forgejo-connections", forgejo],
+  for (const [path, target, validate] of [
+    ["/api/v1/github-connections", github, validGitHubConnection],
+    ["/api/v1/forgejo-connections", forgejo, validForgejoConnection],
   ]) {
     try {
       const response = await fetch(path);
       if (!response.ok) await fail(response, "Connection loading failed");
-      else target.value = await response.json();
+      else {
+        const value = await response.json();
+        if (!validate(value)) throw new Error("connection_response_invalid");
+        target.value = value;
+      }
     } catch {
       await fail(null, "Connection loading failed");
     }
@@ -60,17 +65,16 @@ async function startGitHub() {
   if (!response.ok)
     return fail(response, "GitHub App Manifest flow could not start");
   if (reactivating) {
-    github.value = await response.json();
+    const value = await response.json();
+    if (!validGitHubConnection(value))
+      return fail(null, "GitHub Connection response is invalid");
+    github.value = value;
     githubPem.value = "";
     status.value = "GitHub Connection reactivated.";
     return;
   }
   const body = await response.json();
-  if (
-    body.method !== "POST" ||
-    typeof body.action !== "string" ||
-    !body.manifest
-  )
+  if (!validManifestContinuation(body))
     return fail(null, "GitHub App Manifest response is invalid");
   manifest.value = body;
 }
@@ -102,7 +106,10 @@ async function rotateGitHub() {
   );
   if (!response.ok)
     return fail(response, "GitHub App credential rotation failed");
-  github.value = await response.json();
+  const value = await response.json();
+  if (!validGitHubConnection(value))
+    return fail(null, "GitHub Connection response is invalid");
+  github.value = value;
   githubPem.value = "";
   status.value =
     "GitHub App credentials rotated. Revoke the predecessor in GitHub.";
@@ -113,7 +120,10 @@ async function discoverForgejo() {
     token: forge.token,
   });
   if (!response.ok) return fail(response, "Forgejo verification failed");
-  forge.choices = await response.json();
+  const choices = await response.json();
+  if (!validForgejoChoices(choices))
+    return fail(null, "Forgejo verification response is invalid");
+  forge.choices = choices;
   forge.selected.clear();
   status.value = "Forgejo Repositories verified.";
 }
@@ -126,7 +136,10 @@ async function connectForgejo() {
     token: forge.token,
   });
   if (!response.ok) return fail(response, "Forgejo registration failed");
-  forgejo.value = await response.json();
+  const value = await response.json();
+  if (!validForgejoConnection(value))
+    return fail(null, "Forgejo Connection response is invalid");
+  forgejo.value = value;
   forge.token = "";
   status.value = "Forgejo Connection verified.";
   emit("changed");
@@ -143,7 +156,10 @@ async function rotateForgejo() {
     { token: forge.rotationToken },
   );
   if (!response.ok) return fail(response, "Forgejo PAT rotation failed");
-  forgejo.value = await response.json();
+  const value = await response.json();
+  if (!validForgejoConnection(value))
+    return fail(null, "Forgejo Connection response is invalid");
+  forgejo.value = value;
   forge.rotationToken = "";
   status.value = "Forgejo PAT rotated. Revoke its predecessor in Forgejo.";
 }
@@ -153,52 +169,48 @@ async function reactivateForgejo() {
   });
   if (!response.ok)
     return fail(response, "Forgejo Connection reactivation failed");
-  forgejo.value = await response.json();
+  const value = await response.json();
+  if (!validForgejoConnection(value))
+    return fail(null, "Forgejo Connection response is invalid");
+  forgejo.value = value;
   forge.reactivationToken = "";
   status.value = "Forgejo Connection reactivated.";
 }
 function openLifecycle(provider, method) {
-  confirmation.provider = provider;
-  confirmation.method = method;
-  confirmation.body = method === "PATCH" ? { lifecycle: "retired" } : {};
-  confirmation.text = "";
-  confirmationDialog.value.showModal();
-  if (method === "DELETE") nextTick(() => confirmationInput.value.focus());
+  lifecycleDialog.value.open(provider, method);
 }
-async function lifecycle() {
-  if (confirmation.method === "DELETE" && confirmation.text !== "DELETE") {
-    emit(
-      "error",
-      `Type DELETE to confirm permanent ${confirmation.provider} Connection deletion`,
-    );
-    confirmationInput.value.focus();
-    return;
-  }
-  confirmationDialog.value.close();
-  const lower = confirmation.provider.toLowerCase();
+async function readProviderMutation(provider, response) {
+  const value = await response.json();
+  if (!validProviderMutation(provider, value))
+    throw new Error(`${provider}_connection_response_invalid`);
+  return value;
+}
+async function lifecycle({ method, provider }) {
+  const lower = provider.toLowerCase();
   const response = await request(
     `/api/v1/${lower}-connections/lifecycle`,
-    confirmation.body,
-    confirmation.method,
+    method === "PATCH" ? { lifecycle: "retired" } : {},
+    method,
   );
   if (!response.ok)
-    return fail(
-      response,
-      `${confirmation.provider} Connection lifecycle failed`,
-    );
+    return fail(response, `${provider} Connection lifecycle failed`);
   if (lower === "github")
     github.value =
-      confirmation.method === "DELETE" ? null : await response.json();
+      method === "DELETE"
+        ? null
+        : await readProviderMutation("github", response);
   else
     forgejo.value =
-      confirmation.method === "DELETE" ? null : await response.json();
-  status.value = `${confirmation.provider} Connection ${confirmation.method === "DELETE" ? "deleted" : "retired"}.`;
+      method === "DELETE"
+        ? null
+        : await readProviderMutation("forgejo", response);
+  status.value = `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`;
 }
 onMounted(load);
 </script>
 
 <template>
-  <section class="qb-region">
+  <section id="github-connection-details" class="qb-region">
     <h2>GitHub Connection</h2>
     <form
       v-if="!github || github.lifecycle === 'retired'"
@@ -281,7 +293,7 @@ onMounted(load);
       :manifest="manifest.manifest"
     />
   </section>
-  <section class="qb-region">
+  <section id="forgejo-connection-details" class="qb-region">
     <h2>Forgejo Connection</h2>
     <template v-if="!forgejo"
       ><form
@@ -367,33 +379,9 @@ onMounted(load);
   <p id="forgejo-connection-error" :hidden="!error" role="alert">
     {{ error }}
   </p>
-  <dialog
-    ref="confirmationDialog"
-    aria-labelledby="connection-confirmation-title"
-  >
-    <form @submit.prevent="lifecycle">
-      <h3 id="connection-confirmation-title">
-        Confirm {{ confirmation.provider }} Connection change
-      </h3>
-      <p>
-        {{
-          confirmation.method === "DELETE"
-            ? "This cannot be undone."
-            : "Its credential will be destroyed and reactivation requires verification."
-        }}
-      </p>
-      <label
-        v-if="confirmation.method === 'DELETE'"
-        for="connection-confirmation"
-        >Type DELETE to confirm permanent deletion</label
-      ><input
-        v-if="confirmation.method === 'DELETE'"
-        id="connection-confirmation"
-        ref="confirmationInput"
-        v-model="confirmation.text"
-        required
-      /><button type="button" @click="confirmationDialog.close()">Cancel</button
-      ><button type="submit">Confirm</button>
-    </form>
-  </dialog>
+  <ConnectionLifecycleDialog
+    ref="lifecycleDialog"
+    @change="lifecycle"
+    @error="emit('error', $event)"
+  />
 </template>

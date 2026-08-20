@@ -1,9 +1,11 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 
 import { responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
+import { validAnalytics } from "./contract.js";
 import MetricTable from "./MetricTable.vue";
+import { supplementalTables } from "./supplemental-tables.js";
 
 const document_ = ref();
 const error = ref("");
@@ -29,15 +31,6 @@ const percent = (value) =>
   value?.denominator
     ? `${Math.round((value.numerator / value.denominator) * 100)}%`
     : "—";
-const valid = (value) =>
-  value &&
-  Array.isArray(value.review_applicability) &&
-  Array.isArray(value.criterion_outcomes) &&
-  Array.isArray(value.daily_trend) &&
-  typeof value.population === "object" &&
-  typeof value.evaluation_outcomes === "object" &&
-  typeof value.review_run_reliability === "object" &&
-  typeof value.waiver_adjudication_reliability === "object";
 const overview = computed(() => {
   const value = document_.value;
   if (!value) return [];
@@ -221,6 +214,7 @@ const tables = computed(() => {
         ],
       ],
     },
+    ...supplementalTables(value, rate),
   ];
 });
 async function load(updateUrl = false) {
@@ -243,7 +237,7 @@ async function load(updateUrl = false) {
         await responseMessage(response, "Analytics failed to load"),
       );
     const value = await response.json();
-    if (!valid(value)) throw new Error("analytics_document_invalid");
+    if (!validAnalytics(value)) throw new Error("analytics_document_invalid");
     document_.value = value;
     error.value = "";
   } catch (failure) {
@@ -258,14 +252,16 @@ function fromLocation() {
     (name) => (filters[name] = search.get(name) ?? ""),
   );
 }
+const popstate = () => {
+  fromLocation();
+  void load();
+};
 onMounted(() => {
   fromLocation();
-  window.addEventListener("popstate", () => {
-    fromLocation();
-    void load();
-  });
+  window.addEventListener("popstate", popstate);
   void load();
 });
+onUnmounted(() => window.removeEventListener("popstate", popstate));
 </script>
 
 <template>

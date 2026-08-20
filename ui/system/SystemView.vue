@@ -3,6 +3,12 @@ import { computed, onMounted, reactive, ref } from "vue";
 
 import { csrfToken, responseMessage } from "../browser.js";
 import { useAlertFocus } from "../useAlertFocus.js";
+import {
+  validConfiguration,
+  validConfigurationChange,
+  validSystem,
+} from "./contract.js";
+import SystemPollingDelivery from "./SystemPollingDelivery.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const system = ref();
@@ -84,6 +90,9 @@ async function loadConfiguration() {
     return;
   }
   const body = await response.json();
+  if (!validConfiguration(body)) {
+    throw new Error("waiver_configuration_invalid");
+  }
   if (body.configured) Object.assign(configuration, body.configuration);
   configurationStatus.value = body.configured ? "Configured" : "Not configured";
 }
@@ -93,13 +102,7 @@ async function load() {
     if (!response.ok)
       throw new Error(await responseMessage(response, "System failed to load"));
     const value = await response.json();
-    if (
-      !value ||
-      !Array.isArray(value.execution_providers) ||
-      !value.codex_execution ||
-      !value.codex?.catalog
-    )
-      throw new Error("system_document_invalid");
+    if (!validSystem(value)) throw new Error("system_document_invalid");
     system.value = value;
     await loadConfiguration();
   } catch (failure) {
@@ -109,25 +112,35 @@ async function load() {
 }
 async function saveConfiguration() {
   configurationStatus.value = "Saving";
-  const response = await fetch("/api/v1/waiver-adjudicator-configuration", {
-    body: JSON.stringify(configuration),
-    headers: {
-      "content-type": "application/json",
-      "x-quality-bar-csrf": csrfToken(props.csrfCookieName),
-    },
-    method: "PATCH",
-  });
-  if (!response.ok) {
-    error.value = await responseMessage(
-      response,
-      "Configuration failed to save",
-    );
+  try {
+    const response = await fetch("/api/v1/waiver-adjudicator-configuration", {
+      body: JSON.stringify(configuration),
+      headers: {
+        "content-type": "application/json",
+        "x-quality-bar-csrf": csrfToken(props.csrfCookieName),
+      },
+      method: "PATCH",
+    });
+    if (!response.ok) {
+      error.value = await responseMessage(
+        response,
+        "Configuration failed to save",
+      );
+      configurationStatus.value = "Failed";
+      return;
+    }
+    const body = await response.json();
+    if (!validConfigurationChange(body))
+      throw new Error("Configuration response is invalid");
+    Object.assign(configuration, body.configuration);
+    configurationStatus.value = body.changed ? "Saved" : "Unchanged";
+  } catch (failure) {
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Configuration failed to save";
     configurationStatus.value = "Failed";
-    return;
   }
-  const body = await response.json();
-  Object.assign(configuration, body.configuration);
-  configurationStatus.value = body.changed ? "Saved" : "Unchanged";
 }
 onMounted(load);
 </script>
@@ -192,7 +205,10 @@ onMounted(load);
         <div>
           <h3>Queued</h3>
           <ol>
-            <li v-for="row in system.codex_execution.queue.rows" :key="row.id">
+            <li
+              v-for="row in system.codex_execution.queue.rows"
+              :key="resource(row)"
+            >
               {{ execution(row) }}
             </li>
           </ol>
@@ -202,7 +218,7 @@ onMounted(load);
           <ol>
             <li
               v-for="row in system.codex_execution.running.rows"
-              :key="row.id"
+              :key="resource(row)"
             >
               {{ execution(row) }}
             </li>
@@ -211,7 +227,10 @@ onMounted(load);
         <div>
           <h3>Failures</h3>
           <ol>
-            <li v-for="row in system.codex_execution.failures" :key="row.id">
+            <li
+              v-for="row in system.codex_execution.failures"
+              :key="resource(row)"
+            >
               {{ failure(row) }}
             </li>
           </ol>
@@ -233,42 +252,10 @@ onMounted(load);
         >
       </dl>
     </section>
-    <section class="qb-region">
-      <h2>Polling</h2>
-      <ol>
-        <li
-          v-for="connection in system.polling?.connections"
-          :key="connection.connection_id"
-        >
-          {{ connection.provider }} Connection {{ connection.connection_id }}.
-          Lifecycle {{ connection.lifecycle }}. Health {{ connection.health }}.
-          Next permitted attempt {{ connection.next_attempt_at ?? "now" }}.
-          Error
-          {{
-            connection.error
-              ? `${connection.error.code}: ${connection.error.detail}`
-              : "none"
-          }}.
-        </li>
-      </ol>
-    </section>
-    <section class="qb-region">
-      <h2>Delivery</h2>
-      <ol>
-        <li
-          v-for="surface in system.delivery?.surfaces"
-          :key="`${surface.surface}:${surface.evaluation_id}`"
-        >
-          <a
-            :href="`/?view=evaluation-detail&evaluation_id=${encodeURIComponent(surface.evaluation_id)}`"
-            >Evaluation {{ surface.evaluation_id }}</a
-          >. Repository {{ surface.repository_id }}. Surface
-          {{ surface.surface }}. Status {{ surface.status }}; publication
-          {{ surface.publication_status }}. Attempts
-          {{ surface.attempt_count }}.
-        </li>
-      </ol>
-    </section>
+    <SystemPollingDelivery
+      :delivery="system.delivery"
+      :polling="system.polling"
+    />
     <section class="qb-region sys-zone sys-zone--admin">
       <h2>Administration</h2>
     </section>
