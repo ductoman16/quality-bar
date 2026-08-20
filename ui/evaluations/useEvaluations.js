@@ -4,7 +4,6 @@ import {
   csrfToken,
   repositoryCollection,
   responseMessage,
-  returnToLogin,
 } from "../browser.js";
 import { mutateEvaluation, validCollection } from "./contract.js";
 
@@ -121,17 +120,8 @@ export function useEvaluations(csrfCookieName) {
     search.set("view", "evaluations");
     history.replaceState(null, "", `/?${search}`);
   };
-  const showFailure = async (response, fallback) => {
-    if (response.status === 401) {
-      const body = await response.json();
-      if (body?.error?.code === "authentication_required") {
-        returnToLogin();
-        return;
-      }
-      error.value = body?.error?.message || fallback;
-      return;
-    }
-    error.value = await responseMessage(response, fallback);
+  const showFailure = async (response) => {
+    error.value = await responseMessage(response);
   };
 
   async function refresh({
@@ -156,7 +146,7 @@ export function useEvaluations(csrfCookieName) {
     }
     loading.value = false;
     if (!response.ok) {
-      return showFailure(response, "Evaluations failed to load");
+      return showFailure(response);
     }
     const collection = await response.json();
     if (!validCollection(collection)) {
@@ -262,7 +252,7 @@ export function useEvaluations(csrfCookieName) {
         },
       );
       if (!response.ok) {
-        return showFailure(response, "Evaluation request failed");
+        return showFailure(response);
       }
       createStatus.value = `Evaluation ${(await response.json()).id} requested.`;
       await refresh({ replace: true });
@@ -279,7 +269,7 @@ export function useEvaluations(csrfCookieName) {
         csrfToken(csrfCookieName),
       );
       if (!response.ok) {
-        await showFailure(response, "Evaluation action failed");
+        await showFailure(response);
         return;
       }
     } catch {

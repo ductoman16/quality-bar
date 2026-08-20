@@ -83,10 +83,7 @@ const factEntries = (value) =>
 async function loadConfiguration() {
   const response = await fetch("/api/v1/waiver-adjudicator-configuration");
   if (!response.ok) {
-    configurationStatus.value = await responseMessage(
-      response,
-      "Configuration failed to load",
-    );
+    configurationStatus.value = await responseMessage(response);
     return;
   }
   const body = await response.json();
@@ -99,8 +96,7 @@ async function loadConfiguration() {
 async function load() {
   try {
     const response = await fetch("/api/v1/system");
-    if (!response.ok)
-      throw new Error(await responseMessage(response, "System failed to load"));
+    if (!response.ok) throw new Error(await responseMessage(response));
     const value = await response.json();
     if (!validSystem(value)) throw new Error("system_document_invalid");
     system.value = value;
@@ -122,10 +118,7 @@ async function saveConfiguration() {
       method: "PATCH",
     });
     if (!response.ok) {
-      error.value = await responseMessage(
-        response,
-        "Configuration failed to save",
-      );
+      error.value = await responseMessage(response);
       configurationStatus.value = "Failed";
       return;
     }

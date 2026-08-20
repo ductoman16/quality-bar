@@ -22,16 +22,24 @@ export function csrfRequest(name, path, body, method = "POST") {
   });
 }
 
-/** @param {Response} response @param {string} fallback */
-export async function responseMessage(response, fallback) {
-  try {
-    const body = await response.json();
-    return typeof body?.error?.message === "string"
-      ? body.error.message
-      : fallback;
-  } catch {
-    return fallback;
+/** @param {Response} response */
+export async function responseMessage(response) {
+  const body = await response.json();
+  if (
+    typeof body?.error?.code !== "string" ||
+    !body.error.code ||
+    typeof body.error.message !== "string" ||
+    !body.error.message
+  ) {
+    throw new Error("error_response_invalid");
   }
+  if (
+    response.status === 401 &&
+    body.error.code === "authentication_required"
+  ) {
+    returnToLogin();
+  }
+  return body.error.message;
 }
 
 export async function repositoryCollection() {
@@ -41,9 +49,7 @@ export async function repositoryCollection() {
   for (;;) {
     const response = await fetch(path);
     if (!response.ok) {
-      throw new Error(
-        await responseMessage(response, "Repositories failed to load"),
-      );
+      throw new Error(await responseMessage(response));
     }
     const body = await response.json();
     if (

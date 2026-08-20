@@ -8,7 +8,9 @@ import {
   mutateEvaluation,
   nodeVisualState,
   validEvaluation,
+  validEvaluationResult,
 } from "./contract.js";
+import { formatDuration } from "./duration.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const evaluation = ref(null);
@@ -18,18 +20,13 @@ const error = ref("");
 const errorElement = ref();
 const busy = ref(false);
 let refreshing = false;
+let resultEvaluationId = null;
 let timer;
 
 const showError = async (message) => {
   error.value = message;
   await nextTick();
   errorElement.value?.focus();
-};
-const milliseconds = (value) => {
-  const seconds = Math.floor(value / 1_000);
-  return seconds < 60
-    ? `${seconds}s`
-    : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 };
 const statusLabel = (node) => {
   const value =
@@ -44,28 +41,20 @@ async function loadResult() {
     !["completed", "failed"].includes(evaluation.value.execution_status)
   ) {
     result.value = null;
+    resultEvaluationId = null;
     return;
   }
+  if (result.value && resultEvaluationId === evaluation.value.id) return;
   try {
     const response = await fetch(
       `/api/v1/evaluations/${encodeURIComponent(evaluation.value.id)}/result`,
     );
     if (response.status === 409) return;
-    if (!response.ok)
-      return showError(
-        await responseMessage(response, "Result failed to load"),
-      );
+    if (!response.ok) return showError(await responseMessage(response));
     const body = await response.json();
-    if (
-      !body ||
-      !Array.isArray(body.applicability_results) ||
-      !Array.isArray(body.criterion_results) ||
-      !Array.isArray(body.file_changes) ||
-      !Array.isArray(body.findings) ||
-      !Array.isArray(body.review_runs)
-    )
-      throw new Error();
+    if (!validEvaluationResult(body, evaluation.value.id)) throw new Error();
     result.value = body;
+    resultEvaluationId = evaluation.value.id;
   } catch {
     await showError("Result failed to load");
   }
@@ -84,10 +73,7 @@ async function refresh() {
       `/api/v1/evaluations/${encodeURIComponent(id)}`,
     );
     loading.value = false;
-    if (!response.ok)
-      return showError(
-        await responseMessage(response, "Evaluation failed to load"),
-      );
+    if (!response.ok) return showError(await responseMessage(response));
     const body = await response.json();
     if (!validEvaluation(body) || body.id !== id)
       return showError("Evaluation failed to load");
@@ -110,10 +96,7 @@ async function mutate(action) {
       evaluation.value.id,
       csrfToken(props.csrfCookieName),
     );
-    if (!response.ok)
-      await showError(
-        await responseMessage(response, "Evaluation action failed"),
-      );
+    if (!response.ok) await showError(await responseMessage(response));
     else await refresh();
   } catch {
     await showError("Evaluation action failed");
@@ -194,7 +177,7 @@ onUnmounted(() => {
           ><span>{{ statusLabel(node) }}</span
           ><span>{{
             Number.isSafeInteger(node.duration_ms)
-              ? milliseconds(node.duration_ms)
+              ? formatDuration(node.duration_ms)
               : "—"
           }}</span>
         </span>

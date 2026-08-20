@@ -19,9 +19,7 @@ export async function consumeGitHubCallbackFailure(showError) {
     return true;
   }
   if (!response.ok) {
-    showError(
-      await responseMessage(response, "GitHub callback error loading failed"),
-    );
+    showError(await responseMessage(response));
     return true;
   }
   const failure = await response.json();

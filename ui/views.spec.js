@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
 import App from "./App.vue";
+import { responseMessage } from "./browser.js";
+import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import LoginView from "./LoginView.vue";
 import OperatorControls from "./OperatorControls.vue";
 import RepositoriesView from "./repositories/RepositoriesView.vue";
@@ -12,7 +14,7 @@ import SystemView from "./system/SystemView.vue";
 
 const failure = () => ({
   async json() {
-    return { error: { message: "Unavailable" } };
+    return { error: { code: "service_unavailable", message: "Unavailable" } };
   },
   ok: false,
   status: 503,
@@ -31,6 +33,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -129,5 +132,78 @@ describe("Vue operator views", () => {
     );
     expect(showError).toHaveBeenCalledWith("Manifest failed (manifest_failed)");
     expect(location.search).toBe("?view=repositories");
+  });
+
+  it("rejects malformed API errors", async () => {
+    await expect(
+      responseMessage({ json: async () => ({ error: {} }), status: 500 }),
+    ).rejects.toThrow("error_response_invalid");
+  });
+
+  it("keeps the first immutable terminal result while polling status", async () => {
+    vi.useFakeTimers();
+    const evaluation = {
+      completed_at: "2026-08-20T12:01:00.000Z",
+      created_at: "2026-08-20T12:00:00.000Z",
+      effective_outcome: "clear",
+      execution_status: "completed",
+      id: "evaluation-1",
+      monitor: {
+        duration_ms: 60_000,
+        finding_counts: null,
+        nodes: [],
+        outcome_counts: null,
+        review_counts: {
+          cancelled: 0,
+          completed: 0,
+          failed: 0,
+          queued: 0,
+          running: 0,
+          total: 0,
+        },
+      },
+      repository: {
+        id: "repository-1",
+        url: "https://example.test/repository.git",
+      },
+    };
+    const result = {
+      applicability_results: [],
+      completed_at: evaluation.completed_at,
+      criterion_results: [],
+      evaluation_id: evaluation.id,
+      file_changes: [],
+      findings: [],
+      outcome: "clear",
+      review_runs: [],
+    };
+    vi.mocked(fetch).mockImplementation(async (path) => ({
+      json: async () =>
+        String(path).endsWith("/result") ? result : evaluation,
+      ok: true,
+      status: 200,
+    }));
+    history.replaceState(
+      null,
+      "",
+      "/?view=evaluation-detail&evaluation_id=evaluation-1",
+    );
+    const wrapper = mount(EvaluationDetailView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([path]) => String(path).endsWith("/result")),
+    ).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await flushPromises();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([path]) => String(path).endsWith("/result")),
+    ).toHaveLength(1);
+    wrapper.unmount();
   });
 });

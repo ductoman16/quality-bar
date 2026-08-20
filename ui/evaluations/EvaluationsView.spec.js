@@ -164,7 +164,12 @@ describe("Evaluations view", () => {
         }
         if (path === "/api/v1/evaluations/evaluation-1/retry") {
           return {
-            json: async () => ({ error: { message: "Retry unavailable" } }),
+            json: async () => ({
+              error: {
+                code: "evaluation_retry_unavailable",
+                message: "Retry unavailable",
+              },
+            }),
             ok: false,
             status: 409,
           };

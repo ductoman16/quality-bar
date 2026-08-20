@@ -70,7 +70,7 @@ const dayHeading = (evaluation) => {
         </button>
       </div>
       <button
-        class="qb-btn qb-btn--primary"
+        :class="`qb-btn ${state.createOpen.value ? 'qb-btn--secondary' : 'qb-btn--primary'}`"
         type="button"
         :aria-expanded="state.createOpen.value"
         aria-controls="evaluation-create-form"
@@ -200,7 +200,7 @@ const dayHeading = (evaluation) => {
           v-model="state.filters.end"
           type="datetime-local"
         />
-        <button class="qb-btn qb-btn--primary" type="submit">Apply</button
+        <button class="qb-btn qb-btn--secondary" type="submit">Apply</button
         ><button
           class="qb-btn qb-btn--secondary"
           type="button"

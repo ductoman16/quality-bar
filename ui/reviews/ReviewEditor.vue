@@ -97,7 +97,10 @@ function save() {
           v-model="criterion.instruction"
           required
         ></textarea
-        ><select v-model="criterion.impact">
+        ><select
+          v-model="criterion.impact"
+          :aria-label="`Criterion ${index + 1} impact`"
+        >
           <option value="blocking">Blocking</option>
           <option value="advisory">Advisory</option></select
         ><button

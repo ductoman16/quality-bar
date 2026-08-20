@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 import { isTerminalStatus, nodeVisualState } from "./contract.js";
+import { formatDuration } from "./duration.js";
 
 const props = defineProps({
   evaluation: { required: true, type: Object },
@@ -11,23 +12,14 @@ const props = defineProps({
 defineEmits(["mutate", "toggle"]);
 
 const text = (value) => (typeof value === "string" ? value : "");
-const milliseconds = (value) => {
-  if (value < 1_000) return `${value} ms`;
-  const seconds = Math.floor(value / 1_000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  return minutes < 60
-    ? `${minutes}m ${seconds % 60}s`
-    : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-};
 const timestamp = computed(() =>
   new Date(props.evaluation.created_at).getTime(),
 );
 const duration = computed(() => {
   const value = props.evaluation.monitor?.duration_ms;
-  if (Number.isSafeInteger(value) && value >= 0) return milliseconds(value);
+  if (Number.isSafeInteger(value) && value >= 0) return formatDuration(value);
   if (!isTerminalStatus(props.evaluation.execution_status)) {
-    return milliseconds(Math.max(0, Date.now() - timestamp.value));
+    return formatDuration(Math.max(0, Date.now() - timestamp.value));
   }
   return "—";
 });

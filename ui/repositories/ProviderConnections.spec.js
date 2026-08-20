@@ -2,7 +2,12 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ProviderConnections from "./ProviderConnections.vue";
-import { validManifestContinuation } from "./contract.js";
+import {
+  reconciledGitHubSelection,
+  validGitHubSelection,
+  validManifestContinuation,
+} from "./contract.js";
+import { registerGitHubSelection } from "./github-selection.js";
 
 const connection = {
   health: "healthy",
@@ -97,4 +102,76 @@ it("accepts only the state-bound GitHub manifest action", () => {
       action: "https://attacker.example/collect",
     }),
   ).toBe(false);
+});
+
+it("accepts and reconciles complete GitHub Repository selection evidence", async () => {
+  const requestId = "00000000-0000-4000-8000-000000000001";
+  const repository = {
+    assignment_count: 0,
+    credential_type: "forge_connection",
+    deletion_eligible: true,
+    forge_repository_id: 11,
+    health: "healthy",
+    health_error: null,
+    id: "repository-1",
+    lifecycle: "enabled",
+    name: "operator/repository",
+    provider: "github",
+    url: "https://github.com/operator/repository.git",
+    verification_id: requestId,
+    web_url: "https://github.com/operator/repository",
+  };
+  const github = {
+    health: "healthy",
+    health_error: null,
+    id: "github-connection",
+    lifecycle: "enabled",
+    permissions: { contents: "read" },
+    principal: { id: 7, login: "operator" },
+    verification_history: [
+      {
+        affected_repository_ids: [11],
+        id: requestId,
+        outcome: "success",
+        repositories: [
+          { full_name: "operator/repository", id: 11, private: true },
+        ],
+        trigger: "repository_selection",
+        verified_at: 1_000,
+      },
+    ],
+  };
+  expect(validGitHubSelection([repository], [11], requestId)).toBe(true);
+  expect(reconciledGitHubSelection(github, [repository], [11], requestId)).toBe(
+    true,
+  );
+  expect(validGitHubSelection([], [11], requestId)).toBe(false);
+  expect(
+    reconciledGitHubSelection(
+      github,
+      [{ ...repository, verification_id: "old" }],
+      [11],
+      requestId,
+    ),
+  ).toBe(false);
+
+  vi.stubGlobal("crypto", { randomUUID: () => requestId });
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/github-connections/repositories" && options) {
+      throw new TypeError("ambiguous network failure");
+    }
+    if (path === "/api/v1/github-connections") {
+      return { json: async () => github, ok: true };
+    }
+    if (path === "/api/v1/repositories") {
+      return {
+        json: async () => ({ items: [repository], next_cursor: null }),
+        ok: true,
+      };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  await expect(registerGitHubSelection("qb_csrf", [11])).resolves.toEqual({
+    registered: true,
+  });
 });

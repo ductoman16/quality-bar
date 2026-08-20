@@ -27,7 +27,7 @@ async function mutation(path, body, method, fallback) {
   try {
     const response = await request(path, body, method);
     if (!response.ok) {
-      emit("error", await responseMessage(response, fallback));
+      emit("error", await responseMessage(response));
       return;
     }
     emit("changed", response.status === 204 ? null : await response.json());

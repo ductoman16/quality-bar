@@ -63,6 +63,21 @@ const validVerification = (value, choice = repositoryChoice) =>
   value.repositories.every(choice);
 
 /** @param {any} value */
+const validGitHubVerification = (value) =>
+  validVerification(value) &&
+  ["onboarding", "repository_selection", "enablement", "rotation"].includes(
+    value.trigger,
+  ) &&
+  ["success", "error"].includes(value.outcome) &&
+  Array.isArray(value.affected_repository_ids) &&
+  value.affected_repository_ids.length > 0 &&
+  new Set(value.affected_repository_ids).size ===
+    value.affected_repository_ids.length &&
+  /** @type {any[]} */ (value.affected_repository_ids).every(
+    (id) => Number.isSafeInteger(id) && id > 0,
+  );
+
+/** @param {any} value */
 export const validGitHubConnection = (value) =>
   value === null ||
   (record(value) &&
@@ -77,9 +92,50 @@ export const validGitHubConnection = (value) =>
     ) &&
     Array.isArray(value.verification_history) &&
     value.verification_history.length > 0 &&
-    /** @type {any[]} */ (value.verification_history).every((item) =>
-      validVerification(item),
+    /** @type {any[]} */ (value.verification_history).every(
+      validGitHubVerification,
     ));
+
+/** @param {any} value @param {number[]} selected @param {string} requestId */
+export const validGitHubSelection = (value, selected, requestId) =>
+  Array.isArray(value) &&
+  value.length === selected.length &&
+  value.every(
+    (repository) =>
+      validRepository(repository) &&
+      repository.provider === "github" &&
+      selected.includes(repository.forge_repository_id) &&
+      repository.verification_id === requestId,
+  ) &&
+  new Set(value.map((repository) => repository.forge_repository_id)).size ===
+    selected.length;
+
+/** @param {any} connection @param {any[]} repositories @param {number[]} selected @param {string} requestId */
+export function reconciledGitHubSelection(
+  connection,
+  repositories,
+  selected,
+  requestId,
+) {
+  const verification = /** @type {any[] | undefined} */ (
+    connection?.verification_history
+  )?.find((item) => item.id === requestId);
+  return (
+    validGitHubConnection(connection) &&
+    verification?.trigger === "repository_selection" &&
+    verification.outcome === "success" &&
+    selected.every((id) => verification.affected_repository_ids.includes(id)) &&
+    selected.every((id) =>
+      repositories.some(
+        (repository) =>
+          validRepository(repository) &&
+          repository.provider === "github" &&
+          repository.forge_repository_id === id &&
+          repository.verification_id === requestId,
+      ),
+    )
+  );
+}
 
 /** @param {any} value */
 const forgejoChoice = (value) =>

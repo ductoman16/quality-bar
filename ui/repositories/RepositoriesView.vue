@@ -65,10 +65,7 @@ async function register() {
       method: "POST",
     });
     if (!response.ok) {
-      error.value = await responseMessage(
-        response,
-        "Repository registration failed",
-      );
+      error.value = await responseMessage(response);
       return;
     }
     status.value = "Repository registered.";
@@ -136,7 +133,7 @@ onMounted(async () => {
         <button
           type="button"
           :aria-expanded="expanded.has(repository.id)"
-          aria-label="Toggle repository details"
+          :aria-label="`${expanded.has(repository.id) ? 'Collapse' : 'Expand'} repository ${displayName(repository)}`"
           @click="
             expanded.has(repository.id)
               ? expanded.delete(repository.id)

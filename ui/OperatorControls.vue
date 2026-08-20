@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
-import { csrfToken, responseMessage, returnToLogin } from "./browser.js";
+import { csrfToken, responseMessage } from "./browser.js";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },
@@ -26,17 +26,8 @@ const fields = ref({
 });
 let lastActivityAt = 0;
 
-async function failure(response, fallback) {
-  if (response.status === 401) {
-    const body = await response.json();
-    if (body?.error?.code === "authentication_required") {
-      returnToLogin();
-      return;
-    }
-    error.value = body?.error?.message || fallback;
-  } else {
-    error.value = await responseMessage(response, fallback);
-  }
+async function failure(response) {
+  error.value = await responseMessage(response);
   await nextTick();
   errorElement.value?.focus();
 }
@@ -53,12 +44,12 @@ async function passwordMutation(path, body) {
   error.value = "";
   const response = await request(path, body);
   if (response.ok) location.assign("/");
-  else await failure(response, "Operator action failed");
+  else await failure(response);
 }
 async function tokenMutation(path, password) {
   error.value = "";
   const response = await request(path, { password });
-  if (!response.ok) return failure(response, "Implementer token action failed");
+  if (!response.ok) return failure(response);
   if (response.status !== 204) {
     token.value = (await response.json()).token;
     tokenDialog.value.showModal();
@@ -67,7 +58,7 @@ async function tokenMutation(path, password) {
 async function logout() {
   const response = await request("/api/v1/session/logout", {});
   if (response.ok) location.assign("/");
-  else await failure(response, "Logout failed");
+  else await failure(response);
 }
 async function activity() {
   const now = Date.now();
@@ -77,21 +68,20 @@ async function activity() {
     headers: { "x-quality-bar-csrf": csrfToken(props.csrfCookieName) },
     method: "POST",
   });
-  if (!response.ok) await failure(response, "Session activity failed");
+  if (!response.ok) await failure(response);
 }
 async function loadOnboardingTokens() {
   if (!props.showOnboarding) return;
   const response = await fetch("/api/v1/onboarding-tokens");
   if (response.ok)
     onboardingTokens.value = (await response.json()).onboarding_tokens;
-  else await failure(response, "Onboarding tokens failed to load");
+  else await failure(response);
 }
 async function createOnboardingToken() {
   const response = await request("/api/v1/onboarding-tokens", {
     repository_url: onboardingUrl.value,
   });
-  if (!response.ok)
-    return failure(response, "Onboarding token creation failed");
+  if (!response.ok) return failure(response);
   onboardingToken.value = (await response.json()).token;
   onboardingUrl.value = "";
   onboardingDialog.value.showModal();
@@ -104,7 +94,7 @@ async function revokeOnboardingToken(id) {
     "DELETE",
   );
   if (response.ok) await loadOnboardingTokens();
-  else await failure(response, "Onboarding token revocation failed");
+  else await failure(response);
 }
 onMounted(() => {
   document.addEventListener("keydown", activity);

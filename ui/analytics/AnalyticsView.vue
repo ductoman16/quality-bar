@@ -232,10 +232,7 @@ async function load(updateUrl = false) {
     const response = await fetch(
       `/api/v1/analytics${search.size ? `?${search}` : ""}`,
     );
-    if (!response.ok)
-      throw new Error(
-        await responseMessage(response, "Analytics failed to load"),
-      );
+    if (!response.ok) throw new Error(await responseMessage(response));
     const value = await response.json();
     if (!validAnalytics(value)) throw new Error("analytics_document_invalid");
     document_.value = value;

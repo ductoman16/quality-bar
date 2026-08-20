@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
+import { responseMessage } from "./browser.js";
 import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import EvaluationsView from "./evaluations/EvaluationsView.vue";
 import LoginView from "./LoginView.vue";
@@ -11,6 +12,7 @@ import RepositoryDetailView from "./repositories/RepositoryDetailView.vue";
 import ReviewDetailView from "./reviews/ReviewDetailView.vue";
 import ReviewsView from "./reviews/ReviewsView.vue";
 import SystemView from "./system/SystemView.vue";
+import { useAlertFocus } from "./useAlertFocus.js";
 
 const props = defineProps({
   authenticated: Boolean,
@@ -19,6 +21,8 @@ const props = defineProps({
   view: { default: "evaluations", type: String },
 });
 const attention = ref(0);
+const attentionError = ref("");
+const attentionErrorElement = useAlertFocus(attentionError);
 const theme = ref("");
 const component = computed(
   () =>
@@ -56,7 +60,11 @@ onMounted(async () => {
   if (!props.authenticated) return;
   try {
     const response = await fetch("/api/v1/system");
-    if (!response.ok) return;
+    if (!response.ok) {
+      attentionError.value = await responseMessage(response);
+      attention.value = 1;
+      return;
+    }
     const system = await response.json();
     attention.value = [
       system.durable_core?.status !== "ready",
@@ -70,8 +78,10 @@ onMounted(async () => {
         )
       ),
     ].filter(Boolean).length;
-  } catch {
+  } catch (failure) {
     attention.value = 1;
+    attentionError.value =
+      failure instanceof Error ? failure.message : "system_attention_invalid";
   }
 });
 </script>
@@ -121,6 +131,14 @@ onMounted(async () => {
       >
     </header>
     <main class="qb-main">
+      <p
+        v-if="attentionError"
+        ref="attentionErrorElement"
+        role="alert"
+        tabindex="-1"
+      >
+        {{ attentionError }}
+      </p>
       <h1
         v-if="
           !['evaluation-detail', 'review-detail', 'repository-detail'].includes(

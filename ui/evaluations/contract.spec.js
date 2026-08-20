@@ -5,7 +5,9 @@ import {
   nodeVisualState,
   validCollection,
   validEvaluation,
+  validEvaluationResult,
 } from "./contract.js";
+import { formatDuration } from "./duration.js";
 
 function evaluation() {
   return {
@@ -68,5 +70,83 @@ describe("Evaluation browser contract", () => {
         method: "POST",
       }),
     );
+  });
+
+  it("validates canonical outcomes and nested terminal results", () => {
+    const completed = evaluation();
+    completed.execution_status = "completed";
+    completed.effective_outcome = "blocking";
+    completed.monitor.nodes.push({
+      kind: "review",
+      label: "Security",
+      outcome: "blocking",
+      review_id: "review-1",
+      review_version_id: "version-1",
+      status: "completed",
+    });
+    completed.monitor.review_counts.completed = 1;
+    completed.monitor.review_counts.total = 1;
+    expect(validEvaluation(completed)).toBe(true);
+
+    const result = {
+      applicability_results: [
+        {
+          assignment: { scope: "installation_wide" },
+          evidence: { kind: "unconditional" },
+          outcome: "applicable",
+          review_id: "review-1",
+          review_version_id: "version-1",
+        },
+      ],
+      completed_at: "2026-08-20T12:01:00.000Z",
+      criterion_results: [
+        {
+          criterion_id: "criterion-1",
+          outcome: "triggered",
+          review_run_id: "run-1",
+        },
+      ],
+      evaluation_id: completed.id,
+      file_changes: [{ id: "change-1", patch: "@@ -1 +1 @@" }],
+      findings: [
+        {
+          criterion_id: "criterion-1",
+          evidence: "Unsafe value",
+          id: "finding-1",
+          impact: "blocking",
+          location: {
+            file_change_id: "change-1",
+            kind: "line_range",
+            path: "src/index.js",
+            side: "head",
+            start_line: 1,
+            end_line: 1,
+          },
+          remediation: "Validate the value",
+          review_run_id: "run-1",
+        },
+      ],
+      outcome: "blocking",
+      review_runs: [
+        {
+          evaluation_id: completed.id,
+          execution_status: "completed",
+          id: "run-1",
+          review_id: "review-1",
+          review_version_id: "version-1",
+        },
+      ],
+    };
+    expect(validEvaluationResult(result, completed.id)).toBe(true);
+    expect(
+      validEvaluationResult(
+        {
+          ...result,
+          findings: [{ ...result.findings[0], location: { kind: "file" } }],
+        },
+        completed.id,
+      ),
+    ).toBe(false);
+    expect(formatDuration(3_661_000)).toBe("1h 1m");
   });
 });

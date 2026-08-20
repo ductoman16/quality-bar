@@ -29,9 +29,7 @@ async function load() {
       `/api/v1/repositories/${encodeURIComponent(id)}/guidance`,
     );
     if (!response.ok) {
-      throw new Error(
-        await responseMessage(response, "Repository guidance failed to load"),
-      );
+      throw new Error(await responseMessage(response));
     }
     const body = await response.json();
     if (!validGuidance(body)) {

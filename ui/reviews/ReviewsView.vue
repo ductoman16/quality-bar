@@ -31,10 +31,7 @@ async function load() {
     const response = await fetch(
       `/api/v1/reviews${state.value === "archived" ? "?state=archived" : ""}`,
     );
-    if (!response.ok)
-      throw new Error(
-        await responseMessage(response, "Reviews failed to load"),
-      );
+    if (!response.ok) throw new Error(await responseMessage(response));
     reviews.value = readReviewCollection(await response.json());
     error.value = "";
   } catch (failure) {
@@ -67,7 +64,7 @@ async function create(snapshot) {
     return;
   }
   if (!response.ok) {
-    error.value = await responseMessage(response, "Review creation failed");
+    error.value = await responseMessage(response);
     return;
   }
   const review = await response.json();
@@ -101,7 +98,7 @@ async function archive(review) {
     return;
   }
   if (!response.ok) {
-    error.value = await responseMessage(response, "Review lifecycle failed");
+    error.value = await responseMessage(response);
     return;
   }
   status.value = `${review.name} ${archived ? "archived" : "restored"}.`;
@@ -118,10 +115,7 @@ onMounted(async () => {
         modelError = "Codex model catalog is invalid";
       }
     } else {
-      modelError = await responseMessage(
-        response,
-        "Codex model catalog failed to load",
-      );
+      modelError = await responseMessage(response);
     }
   } catch {
     modelError = "Codex model catalog failed to load";

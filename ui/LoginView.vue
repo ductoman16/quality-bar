@@ -24,7 +24,7 @@ async function submit() {
       location.assign(props.intendedDestination);
       return;
     }
-    error.value = await responseMessage(response, "Login failed");
+    error.value = await responseMessage(response);
   } catch {
     error.value = "Login failed";
   } finally {
@@ -53,12 +53,7 @@ async function submit() {
           required
           type="password"
         />
-        <button
-          class="qb-btn qb-btn--primary"
-          :disabled="busy"
-          title="Log in"
-          type="submit"
-        >
+        <button class="qb-btn qb-btn--primary" :disabled="busy" type="submit">
           Log in
         </button>
         <p v-if="error" ref="errorElement" role="alert" tabindex="-1">

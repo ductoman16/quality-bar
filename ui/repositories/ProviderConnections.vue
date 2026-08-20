@@ -11,6 +11,7 @@ import {
   validManifestContinuation,
   validProviderMutation,
 } from "./contract.js";
+import { registerGitHubSelection } from "./github-selection.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
@@ -33,7 +34,7 @@ const lifecycleDialog = ref();
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function fail(response, fallback) {
-  error.value = response ? await responseMessage(response, fallback) : fallback;
+  error.value = response ? await responseMessage(response) : fallback;
   emit("error", error.value);
 }
 async function load() {
@@ -83,11 +84,12 @@ const githubChoices = () =>
 async function registerGitHubRepositories() {
   if (!githubSelected.size)
     return fail(null, "Select at least one GitHub Repository");
-  const response = await request("/api/v1/github-connections/repositories", {
-    repository_ids: [...githubSelected],
-    request_id: crypto.randomUUID(),
-  });
-  if (!response.ok) return fail(response, "GitHub Repository selection failed");
+  const result = await registerGitHubSelection(props.csrfCookieName, [
+    ...githubSelected,
+  ]);
+  if (result.response)
+    return fail(result.response, "GitHub Repository selection failed");
+  if (!result.registered) return fail(null, result.message);
   status.value = "GitHub Repositories registered.";
   emit("changed");
   await load();

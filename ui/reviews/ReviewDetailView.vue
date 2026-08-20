@@ -34,8 +34,7 @@ const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function list(path) {
   const response = await fetch(path);
-  if (!response.ok)
-    throw new Error(await responseMessage(response, "Reviews failed to load"));
+  if (!response.ok) throw new Error(await responseMessage(response));
   return readReviewCollection(await response.json());
 }
 function open(value) {
@@ -67,7 +66,7 @@ async function save(path, body, method, fallback) {
     return null;
   }
   if (!response.ok) {
-    error.value = await responseMessage(response, fallback);
+    error.value = await responseMessage(response);
     return null;
   }
   error.value = "";
@@ -186,7 +185,7 @@ async function remove() {
     "DELETE",
   );
   if (response.ok) location.assign("/?view=reviews");
-  else error.value = await responseMessage(response, "Review deletion failed");
+  else error.value = await responseMessage(response);
 }
 onMounted(async () => {
   try {
@@ -195,12 +194,7 @@ onMounted(async () => {
       repositoryCollection(),
     ]);
     if (!systemResponse.ok) {
-      throw new Error(
-        await responseMessage(
-          systemResponse,
-          "Review dependencies failed to load",
-        ),
-      );
+      throw new Error(await responseMessage(systemResponse));
     }
     models.value = readModelCatalog(await systemResponse.json());
     repositories.value = repositoryItems;
