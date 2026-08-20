@@ -43,7 +43,7 @@ export function canonicalSystemStorageSchemas() {
           pattern: "^sha256:[0-9a-f]{64}$",
           type: "string",
         },
-        kind: { enum: ["daily", "pre-migration"], type: "string" },
+        kind: { const: "daily", type: "string" },
         schema_version: { minimum: 1, type: "integer" },
       },
       [
@@ -66,32 +66,6 @@ export function canonicalSystemStorageSchemas() {
         },
       },
       ["error", "last_successful", "status"],
-    ),
-    SystemMigrationFact: closedObject(
-      {
-        error: nullableError,
-        from_schema_version: { minimum: 1, type: "integer" },
-        pre_migration_snapshot: {
-          oneOf: [{ $ref: "SystemBackupRecord#" }, { type: "null" }],
-        },
-        pre_migration_snapshot_status: {
-          enum: ["available", "missing", "not_applicable", "unavailable"],
-          type: "string",
-        },
-        status: {
-          enum: ["completed", "not_required", "unavailable"],
-          type: "string",
-        },
-        to_schema_version: { minimum: 1, type: "integer" },
-      },
-      [
-        "error",
-        "from_schema_version",
-        "pre_migration_snapshot",
-        "pre_migration_snapshot_status",
-        "status",
-        "to_schema_version",
-      ],
     ),
     SystemStorageCleanupFact: closedObject(
       {

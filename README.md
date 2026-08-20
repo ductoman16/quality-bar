@@ -118,23 +118,14 @@ docker compose run --rm --no-deps quality-bar node src/delete-installation.js
 
 The command fails while the service holds the installation lock. On success it clears the SQLite state and persistent Codex login, disposable checkouts, and local backup contents. Configuration, the installation master-key file, and operator-managed off-host copies are outside the deletion boundary and remain the operator's responsibility.
 
-## Versioned upgrades and rollback
+## Backup and restore
 
-Set `QUALITY_BAR_VERSION` to the explicit image version being deployed, then pull and start that image:
-
-```sh
-docker compose pull quality-bar
-docker compose up --detach --wait
-```
-
-Startup holds the installation lock, validates the owned filesystems, requires a validated prior-image backup, creates and integrity-checks a pre-migration snapshot when the schema is older, applies only the ordered forward migration, validates the resulting schema, and starts product work only after every check succeeds. There is no automatic update, downgrade migration, dual-schema compatibility, partial migration, or fallback image. A failure leaves liveness available for diagnosis, readiness unavailable with the exact owning error, and the pre-migration snapshot retained.
-
-If a schema-changing upgrade must be rolled back, stop the service, set `QUALITY_BAR_VERSION` back to the prior image, and restore the retained pre-migration manifest offline:
+Quality Bar accepts only an empty database or schema v53. Startup validates the current schema and SQLite integrity before serving work. Daily backups remain restorable offline with the same application schema:
 
 ```sh
 docker compose stop quality-bar
-docker compose run --rm --no-deps quality-bar node src/restore-backup.js /var/backups/quality-bar/quality-bar-pre-migration-<timestamp>.json
+docker compose run --rm --no-deps quality-bar node src/restore-backup.js /var/backups/quality-bar/quality-bar-daily-<timestamp>.json
 docker compose up --detach --wait
 ```
 
-The prior image, original installation key, and a newly supplied operator password are required. Offline restore validates the snapshot before publication, revokes existing browser and machine authority, and requires a fresh discovery baseline. If the schema did not change, selecting the prior explicit image is sufficient; no restore migration is performed.
+Offline restore requires the original installation key and a newly supplied operator password, validates the snapshot before publication, revokes existing browser and machine authority, and requires a fresh discovery baseline.

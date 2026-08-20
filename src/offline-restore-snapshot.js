@@ -74,7 +74,6 @@ export function validateRestoreSnapshot({
   const manifest = readManifest(manifestPath);
   if (
     !nameMatch ||
-    !["daily", "pre-migration"].includes(String(manifest.kind)) ||
     manifest.kind !== nameMatch[1] ||
     manifest.database_file !== manifestName.replace(/\.json$/, ".sqlite3") ||
     typeof manifest.application_version !== "string" ||

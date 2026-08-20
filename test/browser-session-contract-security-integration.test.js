@@ -12,7 +12,6 @@ import {
   expectedSystemApplication,
   expectedSystemBackup,
   expectedSystemDurableCore,
-  expectedSystemMigration,
 } from "./system-storage-expected.js";
 
 /**
@@ -341,7 +340,6 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     durable_core: expectedSystemDurableCore(systemFacts.durable_core),
     implementer_token: { status: "active" },
     polling: { connections: [] },
-    migration: expectedSystemMigration,
     storage: availableStorageReserve.readFacts(),
   });
 

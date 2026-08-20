@@ -12,11 +12,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
-import {
-  finalizePreMigrationBackup,
-  preparePreMigrationBackup,
-  runDailyBackupIfDue,
-} from "../src/installed-backup.js";
+import { runDailyBackupIfDue } from "../src/installed-backup.js";
 import { installationKeyIdentity } from "../src/sqlite-backup.js";
 
 /** @type {string[]} */
@@ -32,13 +28,13 @@ function fixture() {
   const database = new DatabaseSync(databasePath);
   database.exec(`
     PRAGMA journal_mode = WAL;
-    PRAGMA user_version = 19;
+    PRAGMA user_version = 53;
     CREATE TABLE quality_bar_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     ) STRICT;
     INSERT INTO quality_bar_metadata (key, value)
-    VALUES ('schema_version', '19');
+    VALUES ('schema_version', '53');
   `);
   database.close();
   return { backupsPath, databasePath };
@@ -50,184 +46,6 @@ afterEach(() => {
   }
 });
 
-test("creates one validated snapshot before an existing schema is migrated", async () => {
-  const { backupsPath, databasePath } = fixture();
-  const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
-
-  await runDailyBackupIfDue({
-    applicationVersion: "1.1.0",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-27T01:02:03Z"),
-    schemaVersion: 19,
-  });
-
-  const result = await preparePreMigrationBackup({
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-28T01:02:03Z"),
-    targetSchemaVersion: 20,
-  });
-
-  assert.equal(result?.kind, "pre-migration");
-  assert.equal(result?.schemaVersion, 19);
-  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
-  assert.equal(
-    unchanged.prepare("PRAGMA user_version").get()?.user_version,
-    19,
-  );
-  unchanged.close();
-  assert.deepEqual(
-    readdirSync(backupsPath)
-      .filter((file) => file.includes("pre-migration"))
-      .sort(),
-    [
-      "quality-bar-pre-migration-2026-07-28T01-02-03-000Z.json",
-      "quality-bar-pre-migration-2026-07-28T01-02-03-000Z.sqlite3",
-    ],
-  );
-});
-
-test("refuses migration without a validated prior-image backup", async () => {
-  const { backupsPath, databasePath } = fixture();
-
-  await assert.rejects(
-    preparePreMigrationBackup({
-      backupsPath,
-      databasePath,
-      keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
-      targetSchemaVersion: 20,
-    }),
-    (error) => {
-      assert.ok(error instanceof Error && "code" in error);
-      assert.equal(error.code, "prior_image_backup_unavailable");
-      assert.equal(
-        error.message,
-        "A validated prior-image backup is required before migration",
-      );
-      return true;
-    },
-  );
-});
-
-test("pre-migration rollback metadata names the last running image", async () => {
-  const { backupsPath, databasePath } = fixture();
-  const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
-
-  await runDailyBackupIfDue({
-    applicationVersion: "1.1.0",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-27T01:02:03Z"),
-    schemaVersion: 19,
-  });
-  const result = await preparePreMigrationBackup({
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-28T01:02:03Z"),
-    targetSchemaVersion: 20,
-  });
-
-  assert.equal(result?.applicationVersion, "1.1.0");
-  assert.equal(
-    JSON.parse(readFileSync(result?.manifestPath ?? "", "utf8"))
-      .application_version,
-    "1.1.0",
-  );
-});
-
-test("refuses a validated backup from a different source schema", async () => {
-  const { backupsPath, databasePath } = fixture();
-  const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
-
-  await runDailyBackupIfDue({
-    applicationVersion: "1.1.0",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-27T01:02:03Z"),
-    schemaVersion: 19,
-  });
-  const database = new DatabaseSync(databasePath);
-  database.exec(`
-    UPDATE quality_bar_metadata SET value = '18' WHERE key = 'schema_version';
-    PRAGMA user_version = 18;
-  `);
-  database.close();
-
-  await assert.rejects(
-    preparePreMigrationBackup({
-      backupsPath,
-      databasePath,
-      keyIdentity,
-      targetSchemaVersion: 20,
-    }),
-    (error) => {
-      assert.ok(error instanceof Error && "code" in error);
-      assert.equal(error.code, "prior_image_backup_unavailable");
-      return true;
-    },
-  );
-});
-
-test("same-day daily backup follows a source schema change", async () => {
-  const { backupsPath, databasePath } = fixture();
-  const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
-  const timestamp = Date.parse("2026-07-28T01:02:03Z");
-
-  await runDailyBackupIfDue({
-    applicationVersion: "1.1.0",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => timestamp,
-    schemaVersion: 19,
-  });
-  const database = new DatabaseSync(databasePath);
-  database.exec(`
-    UPDATE quality_bar_metadata SET value = '18' WHERE key = 'schema_version';
-    PRAGMA user_version = 18;
-  `);
-  database.close();
-
-  const result = await runDailyBackupIfDue({
-    applicationVersion: "1.0.9",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => timestamp + 1_000,
-    schemaVersion: 18,
-  });
-
-  assert.equal(result.status, "created");
-  assert.equal(
-    readdirSync(backupsPath).filter((file) => file.endsWith(".json")).length,
-    2,
-  );
-});
-
-test("pre-migration surfaces an exact source status failure", async () => {
-  const { backupsPath, databasePath } = fixture();
-
-  await assert.rejects(
-    preparePreMigrationBackup({
-      backupsPath,
-      databasePath: join(databasePath, "child"),
-      keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
-      targetSchemaVersion: 20,
-    }),
-    (error) => {
-      assert.ok(error instanceof Error && "code" in error);
-      assert.equal(error.code, "ENOTDIR");
-      return true;
-    },
-  );
-});
-
 test("creates at most one successful daily backup for a UTC day", async () => {
   const { backupsPath, databasePath } = fixture();
   const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
@@ -237,7 +55,7 @@ test("creates at most one successful daily backup for a UTC day", async () => {
     databasePath,
     keyIdentity,
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 19,
+    schemaVersion: 53,
   };
 
   const created = await runDailyBackupIfDue(input);
@@ -269,7 +87,7 @@ test("a manifest cannot substitute a file outside the backup directory", async (
       database_file: "../quality-bar.sqlite3",
       installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
       kind: "daily",
-      schema_version: 19,
+      schema_version: 53,
     })}\n`,
   );
   const originalDatabase = readFileSync(databasePath);
@@ -280,7 +98,7 @@ test("a manifest cannot substitute a file outside the backup directory", async (
     databasePath,
     keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 19,
+    schemaVersion: 53,
   });
 
   assert.equal(result.status, "created");
@@ -310,7 +128,7 @@ test("startup discards malformed, orphaned, and interrupted backup output", asyn
       database_file: "quality-bar-daily-corrupt.sqlite3",
       installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
       kind: "daily",
-      schema_version: 19,
+      schema_version: 53,
     })}\n`,
   );
   writeFileSync(
@@ -332,7 +150,7 @@ test("startup discards malformed, orphaned, and interrupted backup output", asyn
     databasePath,
     keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 19,
+    schemaVersion: 53,
   });
 
   assert.equal(result.status, "created");
@@ -358,7 +176,7 @@ test("startup surfaces an exact operational backup-read failure", async () => {
       databasePath,
       keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
       now: () => Date.parse("2026-07-28T01:02:03Z"),
-      schemaVersion: 19,
+      schemaVersion: 53,
     }),
     (error) => {
       assert.ok(error instanceof Error && "code" in error);
@@ -367,41 +185,4 @@ test("startup surfaces an exact operational backup-read failure", async () => {
     },
   );
   assert.equal(readFileSync(backupsPath, "utf8"), "not-a-directory");
-});
-
-test("pre-migration retention advances only after migration validation", async () => {
-  const { backupsPath, databasePath } = fixture();
-  const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
-  const input = {
-    applicationVersion: "1.2.3",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    targetSchemaVersion: 20,
-  };
-  await runDailyBackupIfDue({
-    applicationVersion: "1.1.0",
-    backupsPath,
-    databasePath,
-    keyIdentity,
-    now: () => Date.parse("2026-07-26T01:02:03Z"),
-    schemaVersion: 19,
-  });
-  await preparePreMigrationBackup({
-    ...input,
-    now: () => Date.parse("2026-07-27T01:02:03Z"),
-  });
-  await preparePreMigrationBackup({
-    ...input,
-    now: () => Date.parse("2026-07-28T01:02:03Z"),
-  });
-
-  assert.equal(readdirSync(backupsPath).length, 6);
-  finalizePreMigrationBackup(backupsPath);
-  assert.deepEqual(readdirSync(backupsPath).sort(), [
-    "quality-bar-daily-2026-07-26T01-02-03-000Z.json",
-    "quality-bar-daily-2026-07-26T01-02-03-000Z.sqlite3",
-    "quality-bar-pre-migration-2026-07-28T01-02-03-000Z.json",
-    "quality-bar-pre-migration-2026-07-28T01-02-03-000Z.sqlite3",
-  ]);
 });

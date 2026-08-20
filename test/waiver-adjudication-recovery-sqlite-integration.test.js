@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import { openDurableCore } from "../src/durable-core.js";
@@ -321,100 +320,4 @@ test("same-identity recovery preserves accepted work after Repository disablemen
   });
   assert.equal(recovered.resource.adjudication.id, "adjudication-1");
   assert.equal(recovered.status, 200);
-});
-
-test("canonical schema v43 migrates queued Adjudications to validated recovery state", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-v43-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const current = openDurableCore(databasePath);
-  seedCompletedEvaluation(current);
-  createWaiverBatchService(current, {
-    createAdjudicationId: () => "adjudication-v43",
-    createRequestId: () => "request-v43",
-    now: () => 10,
-    readCodexCapabilityFailure: () => null,
-    storageReserve: { assertWorkAdmissionAvailable() {} },
-  }).submit({
-    channel: "browser_session",
-    evaluationId: "evaluation-1",
-    idempotencyKey: "waiver-v43",
-    request: {
-      requests: [
-        {
-          finding_id: "finding-1",
-          rationale: "Preserve this accepted queued work.",
-        },
-      ],
-    },
-  });
-  current.close();
-
-  const deployed = new DatabaseSync(databasePath);
-  deployed.exec(`
-    PRAGMA foreign_keys = OFF;
-    BEGIN IMMEDIATE;
-    DROP TABLE waiver_recovery_idempotency;
-    DROP TABLE waiver_adjudication_pre_start_attempts;
-    DROP TRIGGER waiver_adjudication_retry_transition;
-    DROP TRIGGER waiver_adjudication_retry_cycle_summary_reset;
-    DROP TRIGGER waiver_adjudication_exhausted_start;
-    ALTER TABLE waiver_adjudications DROP COLUMN retry_cycle;
-    UPDATE quality_bar_metadata
-    SET value = '43' WHERE key = 'schema_version';
-    PRAGMA user_version = 43;
-    COMMIT;
-  `);
-  deployed.close();
-
-  const migrated = openDurableCore(databasePath);
-  context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.deepEqual(
-    migrated.get(
-      `SELECT waiver_adjudications.execution_status,
-              codex_execution_queue.retry_state,
-              waiver_adjudications.retry_cycle
-       FROM waiver_adjudications
-       JOIN codex_execution_queue
-         ON codex_execution_queue.work_id = waiver_adjudications.id
-       WHERE waiver_adjudications.id = 'adjudication-v43'`,
-    ),
-    {
-      execution_status: "queued",
-      retry_cycle: 1,
-      retry_state: "ready",
-    },
-  );
-  assert.ok(
-    migrated.get(
-      `SELECT 1 AS present FROM sqlite_schema
-       WHERE type = 'table'
-         AND name = 'waiver_adjudication_pre_start_attempts'`,
-    ),
-  );
-});
-
-test("partial recovery schema fails before promotion", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-partial-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite");
-  const current = openDurableCore(databasePath);
-  current.close();
-  const partial = new DatabaseSync(databasePath);
-  partial.exec(`
-    DROP TABLE waiver_recovery_idempotency;
-    CREATE TABLE waiver_recovery_idempotency (route TEXT) STRICT;
-    UPDATE quality_bar_metadata
-    SET value = '42' WHERE key = 'schema_version';
-    PRAGMA user_version = 42;
-  `);
-  partial.close();
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "schema_invalid",
-  );
 });

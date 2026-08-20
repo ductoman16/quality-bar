@@ -1,4 +1,4 @@
-import * as legacy from "./forgejo-delivery-migration-classification.js";
+import * as classification from "./forgejo-delivery-classification.js";
 
 export const FORGEJO_DELIVERY_SCHEMA = `
   CREATE TABLE IF NOT EXISTS forgejo_delivery_attempts (
@@ -252,15 +252,15 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          CASE WHEN publication_status = 'waiting'
                     OR (publication_status = 'unavailable'
                AND NOT (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                ))
               THEN 1 ELSE 0 END,
          external_id, error_code, error_detail,
          CASE WHEN publication_status = 'unavailable'
                AND (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                )
               THEN 1 ELSE 0 END
   FROM forgejo_commit_statuses
@@ -291,8 +291,8 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          CASE WHEN publication_status = 'waiting'
                     OR (publication_status = 'unavailable'
                AND NOT (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                ))
               THEN 1 ELSE 0 END,
          forgejo_feedback_bundles.external_id,
@@ -300,8 +300,8 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          forgejo_feedback_bundles.error_detail,
          CASE WHEN publication_status = 'unavailable'
                AND (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                )
               THEN 1 ELSE 0 END
   FROM forgejo_feedback_bundles
@@ -340,8 +340,8 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          CASE WHEN publication_status = 'waiting'
                     OR (publication_status = 'unavailable'
                AND NOT (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                ))
               THEN 1 ELSE 0 END,
          forgejo_finding_feedback.external_id,
@@ -349,8 +349,8 @@ export const FORGEJO_DELIVERY_SCHEMA = `
          forgejo_finding_feedback.error_detail,
          CASE WHEN publication_status = 'unavailable'
                AND (
-                 error_code IN (${legacy.DEFINITIVE_FAILURE_CODES})
-                 OR ${legacy.DEFINITIVE_REQUEST}
+                 error_code IN (${classification.DEFINITIVE_FAILURE_CODES})
+                 OR ${classification.DEFINITIVE_REQUEST}
                )
               THEN 1 ELSE 0 END
   FROM forgejo_finding_feedback

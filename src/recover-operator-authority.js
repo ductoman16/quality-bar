@@ -3,7 +3,6 @@ import { recoverOperatorAuthorityFromHost } from "./operator-authority-recovery.
 let authorityRecovered = false;
 try {
   await recoverOperatorAuthorityFromHost({
-    applicationVersion: process.env.QUALITY_BAR_VERSION,
     onAuthorityRecovered() {
       authorityRecovered = true;
     },

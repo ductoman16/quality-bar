@@ -1,9 +1,3 @@
-export const REVIEW_DELETION_COLUMN_MIGRATION = `
-  ALTER TABLE reviews
-    ADD COLUMN hard_delete_pending INTEGER NOT NULL DEFAULT 0
-    CHECK (hard_delete_pending IN (0, 1));
-`;
-
 export const REVIEW_DELETION_IMMUTABILITY = `
   DROP TRIGGER IF EXISTS review_hard_delete_marker_insert;
   CREATE TRIGGER review_hard_delete_marker_insert

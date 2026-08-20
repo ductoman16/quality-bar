@@ -14,7 +14,6 @@ import {
   expectedSystemApplication,
   expectedSystemBackup,
   expectedSystemDurableCore,
-  expectedSystemMigration,
 } from "./system-storage-expected.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
@@ -370,7 +369,6 @@ test("unavailable Codex authentication leaves the durable System surface ready",
       status: "revoked",
     },
     polling: { connections: [] },
-    migration: expectedSystemMigration,
     storage: availableStorageReserve().readFacts(),
   });
 });

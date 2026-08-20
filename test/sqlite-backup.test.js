@@ -38,7 +38,7 @@ test("creates an integrity-checked backup with schema, application, and key iden
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(databasePath);
   database.exec(`
-    PRAGMA user_version = 20;
+    PRAGMA user_version = 53;
     CREATE TABLE facts (value TEXT PRIMARY KEY) STRICT;
     INSERT INTO facts (value) VALUES ('retained');
   `);
@@ -67,7 +67,7 @@ test("creates an integrity-checked backup with schema, application, and key iden
       backupsPath,
       "quality-bar-daily-2026-07-28T12-34-56-789Z.json",
     ),
-    schemaVersion: 20,
+    schemaVersion: 53,
   });
   assert.deepEqual(readdirSync(backupsPath).sort(), [
     "quality-bar-daily-2026-07-28T12-34-56-789Z.json",
@@ -79,7 +79,7 @@ test("creates an integrity-checked backup with schema, application, and key iden
     database_file: "quality-bar-daily-2026-07-28T12-34-56-789Z.sqlite3",
     installation_key_identity: keyIdentity,
     kind: "daily",
-    schema_version: 20,
+    schema_version: 53,
   });
   const backup = new DatabaseSync(result.databasePath, { readOnly: true });
   assert.equal(
@@ -98,7 +98,7 @@ test("discards incomplete output and preserves the exact online backup failure",
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 20");
+  database.exec("PRAGMA user_version = 53");
   const onlineBackupFailure = Object.assign(
     new Error("destination write failed"),
     { code: "SQLITE_IOERR_WRITE" },
@@ -141,7 +141,7 @@ test("hard shutdown aborts an online backup and discards its incomplete output",
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 20");
+  database.exec("PRAGMA user_version = 53");
   const workers = new AbortController();
   const failure = Object.assign(new Error("SQLite durable write failed"), {
     code: "storage_unavailable",
@@ -175,7 +175,7 @@ test("hard shutdown surfaces failed cancellation cleanup distinctly", async () =
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 20");
+  database.exec("PRAGMA user_version = 53");
   const workers = new AbortController();
   const cancellation = Object.assign(new Error("SQLite durable write failed"), {
     code: "storage_unavailable",
@@ -231,7 +231,7 @@ test("retains only the seven latest successful daily backups", async () => {
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 20");
+  database.exec("PRAGMA user_version = 53");
   const keyIdentity = installationKeyIdentity(Buffer.alloc(32, 7));
 
   for (let day = 1; day <= 8; day += 1) {
@@ -261,7 +261,7 @@ test("a timestamp collision preserves the existing successful backup", async () 
   const directory = temporaryDirectory();
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 20");
+  database.exec("PRAGMA user_version = 53");
   const input = {
     applicationVersion: "1.2.3",
     backupsPath,

@@ -31,7 +31,6 @@ const HEALTH_SECTION =
   healthTile("durable", "Durable core") +
   healthTile("storage", "Storage") +
   healthTile("backups", "Backups") +
-  healthTile("migration", "Migration") +
   healthTile("bootstrap", "Bootstrap") +
   "</div></section>";
 
@@ -50,7 +49,7 @@ const STORAGE_RESERVE_SECTION =
   '<section class="qb-region sys-admin" aria-labelledby="storage-reserve-title"><h2 id="storage-reserve-title">Storage reserve</h2><dl id="storage-reserve-facts"></dl></section>';
 
 const STORAGE_SECTION =
-  '<section class="qb-region" aria-labelledby="system-storage-title"><h2 id="system-storage-title">Storage, backup, and migration</h2><dl id="system-storage-facts"></dl></section>';
+  '<section class="qb-region" aria-labelledby="system-storage-title"><h2 id="system-storage-title">Storage and backup</h2><dl id="system-storage-facts"></dl></section>';
 
 const POLLING_SECTION =
   '<section class="qb-region" aria-labelledby="system-polling-title"><h2 id="system-polling-title">Polling</h2><ol class="sys-log" data-empty="No polling connections." id="system-polling-connections"></ol></section>';

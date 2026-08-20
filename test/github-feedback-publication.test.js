@@ -287,44 +287,6 @@ test("cancelled automatic Evaluations admit no GitHub feedback", (context) => {
   );
 });
 
-test("schema 38 adds GitHub feedback without losing the canonical waiver schema", (context) => {
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-feedback-"));
-  context.after(() => rmSync(directory, { force: true, recursive: true }));
-  const databasePath = join(directory, "quality-bar.sqlite3");
-  const prior = openDurableCore(databasePath);
-  prior.transaction((transaction) => {
-    for (const trigger of [
-      "github_feedback_bundle_admit",
-      "github_feedback_bundle_identity_update",
-      "github_feedback_bundle_delete",
-      "github_finding_feedback_identity_update",
-      "github_finding_feedback_delete",
-    ]) {
-      transaction.run(`DROP TRIGGER ${trigger}`);
-    }
-    transaction.run("DROP TABLE github_finding_feedback");
-    transaction.run("DROP TABLE github_feedback_bundles");
-    transaction.run(
-      "UPDATE quality_bar_metadata SET value = '38' WHERE key = 'schema_version'",
-    );
-    transaction.run("PRAGMA user_version = 38");
-  });
-  prior.close();
-
-  const migrated = openDurableCore(databasePath);
-  context.after(() => migrated.close());
-  assert.equal(migrated.facts.schemaVersion, 53);
-  assert.deepEqual(
-    migrated.all(
-      `SELECT name FROM sqlite_schema
-       WHERE type = 'table'
-         AND name IN ('waiver_adjudications', 'github_feedback_bundles')
-       ORDER BY name`,
-    ),
-    [{ name: "github_feedback_bundles" }, { name: "waiver_adjudications" }],
-  );
-});
-
 test("retired publication materializes every Finding with exact per-surface state", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-feedback-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
