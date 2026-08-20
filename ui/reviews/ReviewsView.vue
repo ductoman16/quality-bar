@@ -27,13 +27,16 @@ const active = computed(() =>
 );
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
+async function list(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(await responseMessage(response));
+  return readReviewCollection(await response.json());
+}
 async function load() {
   try {
-    const response = await fetch(
+    reviews.value = await list(
       `/api/v1/reviews${state.value === "archived" ? "?state=archived" : ""}`,
     );
-    if (!response.ok) throw new Error(await responseMessage(response));
-    reviews.value = readReviewCollection(await response.json());
     error.value = "";
   } catch (failure) {
     error.value =
@@ -91,6 +94,16 @@ async function archive(review) {
     const value = await response.json();
     if (!validReviewChange(value) || value.review.archived !== archived) {
       throw new Error("Review lifecycle response is invalid");
+    }
+    const authoritative = await list(
+      `/api/v1/reviews${archived ? "?state=archived" : ""}`,
+    );
+    if (
+      !authoritative.some(
+        (item) => item.id === review.id && item.archived === archived,
+      )
+    ) {
+      throw new Error("Review lifecycle result is unavailable");
     }
     await load();
     status.value = `${review.name} ${archived ? "archived" : "restored"}.`;
