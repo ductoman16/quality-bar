@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -232,4 +232,39 @@ test("restores a pre-bootstrap snapshot with the newly supplied password", async
   const restored = openDurableCore(databasePath);
   verifyOperatorPassword(restored, restoredPassword);
   restored.close();
+});
+
+test("a v53 pre-migration manifest uses the normal restore validation path", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-restore-legacy-"));
+  temporaryDirectories.push(directory);
+  const stem = "quality-bar-pre-migration-fixture";
+  const snapshotPath = join(directory, `${stem}.sqlite3`);
+  const manifestPath = join(directory, `${stem}.json`);
+  const masterKey = Buffer.alloc(32, 7);
+  const snapshot = openDurableCore(snapshotPath);
+  verifyInstallationKey(snapshot, masterKey);
+  bootstrapOperatorPassword(snapshot, "the snapshot operator password");
+  snapshot.close();
+  writeFileSync(
+    manifestPath,
+    `${JSON.stringify({
+      application_version: "0.1.0",
+      created_at: new Date(0).toISOString(),
+      database_file: `${stem}.sqlite3`,
+      installation_key_identity: installationKeyIdentity(masterKey),
+      kind: "pre-migration",
+      schema_version: 53,
+    })}\n`,
+  );
+
+  assert.deepEqual(
+    await restoreOfflineBackup({
+      applicationVersion: "0.1.0",
+      databasePath: join(directory, "restored.sqlite3"),
+      manifestPath,
+      masterKey,
+      operatorPassword: "the restored operator password",
+    }),
+    { applicationVersion: "0.1.0", schemaVersion: 53, status: "restored" },
+  );
 });
