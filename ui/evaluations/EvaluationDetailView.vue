@@ -4,7 +4,6 @@ import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import { csrfToken, responseMessage } from "../browser.js";
 import EvaluationResult from "./EvaluationResult.vue";
 import {
-  isTerminalStatus,
   mutateEvaluation,
   nodeVisualState,
   validEvaluation,
@@ -50,14 +49,25 @@ async function loadResult() {
     const response = await fetch(
       `/api/v1/evaluations/${encodeURIComponent(evaluation.value.id)}/result`,
     );
-    if (response.status === 409) return;
+    if (response.status === 409) {
+      const body = await response.json();
+      if (
+        body?.error?.code === "evaluation_result_not_ready" &&
+        typeof body.error.message === "string" &&
+        body.error.message
+      )
+        return;
+      throw new Error("evaluation_result_error_invalid");
+    }
     if (!response.ok) return showError(await responseMessage(response));
     const body = await response.json();
     if (!validEvaluationResult(body, evaluation.value.id)) throw new Error();
     result.value = body;
     resultEvaluationId = evaluation.value.id;
-  } catch {
-    await showError("Result failed to load");
+  } catch (failure) {
+    await showError(
+      failure instanceof Error ? failure.message : "Result failed to load",
+    );
   }
 }
 async function refresh() {
@@ -202,8 +212,5 @@ onUnmounted(() => {
       :result="result"
       @error="showError"
     />
-    <p v-else-if="evaluation && isTerminalStatus(evaluation.execution_status)">
-      Result unavailable
-    </p>
   </section>
 </template>

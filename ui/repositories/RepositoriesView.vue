@@ -80,6 +80,11 @@ const changed = async () => {
   status.value = "Repository updated.";
   await load();
 };
+async function showError(message) {
+  error.value = "";
+  await nextTick();
+  error.value = message;
+}
 onMounted(async () => {
   await load();
   const failed = await consumeGitHubCallbackFailure(
@@ -207,7 +212,7 @@ onMounted(async () => {
     <ProviderConnections
       :csrf-cookie-name="csrfCookieName"
       @changed="load"
-      @error="error = $event"
+      @error="showError"
     />
   </details>
   <output ref="statusElement" aria-live="polite" tabindex="-1">{{

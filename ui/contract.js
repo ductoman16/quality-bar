@@ -1,4 +1,4 @@
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is Record<string, any>} */
 export const record = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -25,8 +25,10 @@ export const modelCapability = (value) =>
   record(value) &&
   nonempty(value.id) &&
   Array.isArray(value.reasoning_efforts) &&
+  value.reasoning_efforts.length > 0 &&
   value.reasoning_efforts.every(nonempty) &&
   Array.isArray(value.service_tiers) &&
+  value.service_tiers.length > 0 &&
   value.service_tiers.every(nonempty);
 
 /** @param {any} value */

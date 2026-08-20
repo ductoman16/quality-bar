@@ -282,14 +282,15 @@ onUnmounted(() => window.removeEventListener("popstate", popstate));
       }}
       Evaluations · {{ document_.population.matching_waiver_requests }} Waiver
       Requests · {{ document_.population.matching_waiver_decisions }} Waiver
-      Decisions
+      Decisions · {{ document_.population.matching_waiver_adjudications }}
+      Waiver Adjudications
     </p>
     <div class="an-trend" aria-label="Daily Evaluation trend">
       <div
         v-for="bucket in document_.daily_trend"
         :key="bucket.date"
         class="an-trend__col"
-        :title="`${bucket.date}: ${bucket.evaluations} evaluations`"
+        :title="`${bucket.date}: ${bucket.evaluations} evaluations · ${bucket.advisory + bucket.blocking + bucket.error} advisory/blocking/error`"
       >
         <span
           class="an-trend__seg an-trend__seg--clear"

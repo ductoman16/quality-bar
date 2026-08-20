@@ -1,3 +1,5 @@
+import { count, nonempty, record } from "../contract.js";
+
 const EXECUTION_STATUSES = new Set([
   "cancelled",
   "completed",
@@ -7,14 +9,17 @@ const EXECUTION_STATUSES = new Set([
 ]);
 const TERMINAL_STATUSES = new Set(["cancelled", "completed", "failed"]);
 
-/** @param {unknown} value @returns {value is Record<string, any>} */
-const record = (value) =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-/** @param {unknown} value */
-const nonempty = (value) => typeof value === "string" && value.length > 0;
 /** @param {any} value */
 const validError = (value) =>
   record(value) && nonempty(value.code) && nonempty(value.detail);
+/** @param {any} value */
+const commit = (value) => /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(value);
+/** @param {any} value */
+const validSelector = (value) =>
+  record(value) &&
+  ["branch", "commit"].includes(value.type) &&
+  nonempty(value.value) &&
+  (value.type !== "commit" || commit(value.value));
 
 /** @param {unknown} value @param {string[]} names */
 function validCounts(value, names) {
@@ -83,6 +88,15 @@ export function validEvaluation(value) {
     typeof value.repository.id === "string" &&
     value.repository.id.length > 0 &&
     typeof value.repository.url === "string" &&
+    ["automatic", "explicit"].includes(value.provenance) &&
+    validSelector(value.base_selector) &&
+    validSelector(value.head_selector) &&
+    commit(value.base_commit) &&
+    commit(value.head_commit) &&
+    ["ready", "exhausted"].includes(value.retry_state) &&
+    (value.retry_error === null || validError(value.retry_error)) &&
+    count(value.pre_start_attempt_count) &&
+    (value.exhausted_at === null || nonempty(value.exhausted_at)) &&
     EXECUTION_STATUSES.has(value.execution_status) &&
     ["pending", "clear", "advisory", "blocking", "error"].includes(
       value.effective_outcome,
@@ -104,59 +118,84 @@ export function validCollection(value) {
 }
 
 /** @param {any} value */
-function validApplicability(value) {
-  if (
-    !record(value) ||
-    !nonempty(value.review_id) ||
-    !nonempty(value.review_version_id) ||
-    !record(value.assignment) ||
-    !["installation_wide", "repository_specific"].includes(
-      value.assignment.scope,
-    ) ||
-    !["applicable", "not_applicable", "error"].includes(value.outcome)
-  ) {
+const validRule = (value) =>
+  value === null ||
+  (record(value) &&
+    value.profile === "quality-bar-restricted-cel-v1" &&
+    nonempty(value.source));
+/** @param {any} value */
+const stringList = (value) => Array.isArray(value) && value.every(nonempty);
+/** @param {any} value */
+function validApplicabilityEvidence(value) {
+  if (!record(value)) {
     return false;
   }
-  if (value.outcome === "error") {
-    return validError(value.error);
+  if (value.kind === "unconditional") {
+    return true;
   }
-  if (!record(value.evidence) || !nonempty(value.evidence.kind)) {
-    return false;
-  }
-  return (
-    value.evidence.kind !== "matched" ||
-    (Array.isArray(value.evidence.matches) &&
-      value.evidence.matches.every(
+  if (value.kind === "matched") {
+    return (
+      Array.isArray(value.matches) &&
+      value.matches.length > 0 &&
+      value.matches.every(
         (match) =>
           record(match) &&
+          nonempty(match.file_change_id) &&
+          stringList(match.branch_ids) &&
+          match.branch_ids.length > 0 &&
+          stringList(match.predicate_ids) &&
+          match.predicate_ids.length > 0 &&
           Array.isArray(match.sides) &&
+          match.sides.length > 0 &&
           match.sides.every((side) =>
             ["change", "before", "after"].includes(side),
           ) &&
           (match.before_path === null || nonempty(match.before_path)) &&
           (match.after_path === null || nonempty(match.after_path)),
-      ))
+      )
+    );
+  }
+  return (
+    ["satisfied_branches", "failed_branches"].includes(value.kind) &&
+    stringList(value.branch_ids) &&
+    stringList(value.predicate_ids) &&
+    (value.kind !== "satisfied_branches" || value.predicate_ids.length > 0)
+  );
+}
+/** @param {any} value */
+function validApplicability(value) {
+  const common =
+    record(value) &&
+    nonempty(value.review_id) &&
+    nonempty(value.review_version_id) &&
+    record(value.assignment) &&
+    ["installation_wide", "repository_specific"].includes(
+      value.assignment.scope,
+    ) &&
+    validRule(value.rule);
+  if (!common) {
+    return false;
+  }
+  if (value.outcome === "error") {
+    return validError(value.error);
+  }
+  return (
+    ["applicable", "not_applicable"].includes(value.outcome) &&
+    validApplicabilityEvidence(value.evidence) &&
+    (value.rule === null) === (value.evidence.kind === "unconditional")
   );
 }
 
-/** @param {any} value @param {string} evaluationId */
-const validReviewRun = (value, evaluationId) =>
-  record(value) &&
-  nonempty(value.id) &&
-  value.evaluation_id === evaluationId &&
-  nonempty(value.review_id) &&
-  nonempty(value.review_version_id) &&
-  (value.started_at === null || nonempty(value.started_at)) &&
-  ["completed", "failed", "cancelled"].includes(value.execution_status) &&
-  (value.execution_status === "completed" || validError(value.error));
-
 /** @param {any} value */
-const validCriterionResult = (value) =>
-  record(value) &&
-  nonempty(value.review_run_id) &&
-  nonempty(value.criterion_id) &&
-  ["clear", "triggered", "not_applicable", "error"].includes(value.outcome) &&
-  (value.outcome !== "error" || validError(value.error));
+function validCriterionResult(value) {
+  return (
+    record(value) &&
+    nonempty(value.review_run_id) &&
+    nonempty(value.criterion_id) &&
+    ["clear", "triggered", "not_applicable", "error"].includes(value.outcome) &&
+    (value.outcome !== "error" || validError(value.error))
+  );
+}
 
 /** @param {any} value */
 function validLocation(value) {
@@ -182,19 +221,71 @@ function validLocation(value) {
 }
 
 /** @param {any} value */
-const validFinding = (value) =>
+function validFinding(value) {
+  return (
+    record(value) &&
+    nonempty(value.id) &&
+    nonempty(value.review_run_id) &&
+    nonempty(value.criterion_id) &&
+    ["advisory", "blocking"].includes(value.impact) &&
+    nonempty(value.evidence) &&
+    nonempty(value.remediation) &&
+    validLocation(value.location)
+  );
+}
+
+/** @param {any} value */
+const validProcess = (value) =>
   record(value) &&
-  nonempty(value.id) &&
-  nonempty(value.review_run_id) &&
-  nonempty(value.criterion_id) &&
-  ["advisory", "blocking"].includes(value.impact) &&
-  nonempty(value.evidence) &&
-  nonempty(value.remediation) &&
-  validLocation(value.location);
+  ((value.kind === "exit" && count(value.code)) ||
+    (value.kind === "signal" && nonempty(value.signal)) ||
+    value.kind === "unavailable");
+
+/** @param {any} value */
+const validMeasurements = (value) =>
+  record(value) &&
+  (value.codex_cli_version === null || nonempty(value.codex_cli_version)) &&
+  (value.duration_ms === null || count(value.duration_ms)) &&
+  validProcess(value.process) &&
+  record(value.token_counters) &&
+  ["input_tokens", "cached_input_tokens", "output_tokens"].every(
+    (name) =>
+      value.token_counters[name] === null || count(value.token_counters[name]),
+  );
+
+/** @param {any} value @param {string} evaluationId */
+function validReviewRun(value, evaluationId) {
+  return (
+    record(value) &&
+    nonempty(value.id) &&
+    value.evaluation_id === evaluationId &&
+    nonempty(value.review_id) &&
+    nonempty(value.review_version_id) &&
+    nonempty(value.created_at) &&
+    (value.started_at === null || nonempty(value.started_at)) &&
+    nonempty(value.completed_at) &&
+    ["completed", "failed", "cancelled"].includes(value.execution_status) &&
+    (value.execution_status === "cancelled" || nonempty(value.started_at)) &&
+    (value.execution_status === "completed" || validError(value.error)) &&
+    validMeasurements(value.measurements) &&
+    Array.isArray(value.criterion_results) &&
+    value.criterion_results.every(validCriterionResult) &&
+    Array.isArray(value.findings) &&
+    value.findings.every(validFinding)
+  );
+}
 
 /** @param {any} value */
 const validFileChange = (value) =>
-  record(value) && nonempty(value.id) && typeof value.patch === "string";
+  record(value) &&
+  nonempty(value.id) &&
+  ["added", "deleted", "modified", "renamed"].every(
+    (name) => typeof value[name] === "boolean",
+  ) &&
+  ["before_path", "after_path"].every(
+    (name) => value[name] === null || nonempty(value[name]),
+  ) &&
+  typeof value.patch === "string";
 
 /** @param {unknown} value @param {string} evaluationId */
 export function validEvaluationResult(value, evaluationId) {
@@ -242,18 +333,14 @@ export function validReviewRunDiagnostics(value, reviewRunId) {
   /** @param {any} item */
   const counter = (item) =>
     item === null || (Number.isSafeInteger(item) && item >= 0);
-  const process = value?.process;
   return (
     record(value) &&
     value.review_run_id === reviewRunId &&
+    (value.started_at === null || nonempty(value.started_at)) &&
+    (value.completed_at === null || nonempty(value.completed_at)) &&
     (value.codex_cli_version === null || nonempty(value.codex_cli_version)) &&
     counter(value.duration_ms) &&
-    record(process) &&
-    ((process.kind === "exit" &&
-      Number.isSafeInteger(process.code) &&
-      process.code >= 0) ||
-      (process.kind === "signal" && nonempty(process.signal)) ||
-      process.kind === "unavailable") &&
+    validProcess(value.process) &&
     record(value.token_counters) &&
     ["input_tokens", "cached_input_tokens", "output_tokens"].every((name) =>
       counter(value.token_counters[name]),

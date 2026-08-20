@@ -12,10 +12,15 @@ import { formatDuration } from "./duration.js";
 
 function evaluation() {
   return {
+    base_commit: "a".repeat(40),
+    base_selector: { type: "branch", value: "main" },
     completed_at: null,
     created_at: "2026-08-20T12:00:00.000Z",
     effective_outcome: "pending",
+    exhausted_at: null,
     execution_status: "queued",
+    head_commit: "b".repeat(40),
+    head_selector: { type: "branch", value: "topic" },
     id: "evaluation/1",
     monitor: {
       duration_ms: null,
@@ -38,16 +43,23 @@ function evaluation() {
         total: 0,
       },
     },
+    pre_start_attempt_count: 0,
+    provenance: "explicit",
     repository: {
       id: "repository-1",
       url: "https://example.test/repository.git",
     },
+    retry_error: null,
+    retry_state: "ready",
   };
 }
 
 describe("Evaluation browser contract", () => {
   it("validates collections and sends scoped mutations", async () => {
     expect(validEvaluation(evaluation())).toBe(true);
+    expect(validEvaluation({ ...evaluation(), provenance: undefined })).toBe(
+      false,
+    );
     expect(validCollection({ items: [evaluation()], next_cursor: null })).toBe(
       true,
     );
@@ -97,6 +109,7 @@ describe("Evaluation browser contract", () => {
           outcome: "applicable",
           review_id: "review-1",
           review_version_id: "version-1",
+          rule: null,
         },
       ],
       completed_at: "2026-08-20T12:01:00.000Z",
@@ -108,7 +121,18 @@ describe("Evaluation browser contract", () => {
         },
       ],
       evaluation_id: completed.id,
-      file_changes: [{ id: "change-1", patch: "@@ -1 +1 @@" }],
+      file_changes: [
+        {
+          added: false,
+          after_path: "src/index.js",
+          before_path: "src/index.js",
+          deleted: false,
+          id: "change-1",
+          modified: true,
+          patch: "@@ -1 +1 @@",
+          renamed: false,
+        },
+      ],
       findings: [
         {
           criterion_id: "criterion-1",
@@ -130,16 +154,47 @@ describe("Evaluation browser contract", () => {
       outcome: "blocking",
       review_runs: [
         {
+          completed_at: "2026-08-20T12:01:00.000Z",
+          created_at: "2026-08-20T12:00:00.000Z",
+          criterion_results: [],
           evaluation_id: completed.id,
           execution_status: "completed",
+          findings: [],
           id: "run-1",
+          measurements: {
+            codex_cli_version: "1.2.3",
+            duration_ms: 60_000,
+            process: { code: 0, kind: "exit" },
+            token_counters: {
+              cached_input_tokens: 2,
+              input_tokens: 3,
+              output_tokens: 4,
+            },
+          },
           review_id: "review-1",
           review_version_id: "version-1",
           started_at: "2026-08-20T12:00:00.000Z",
         },
       ],
     };
+    result.review_runs[0].criterion_results = result.criterion_results;
+    result.review_runs[0].findings = result.findings;
     expect(validEvaluationResult(result, completed.id)).toBe(true);
+    expect(
+      validEvaluationResult(
+        {
+          ...result,
+          review_runs: [{ ...result.review_runs[0], measurements: undefined }],
+        },
+        completed.id,
+      ),
+    ).toBe(false);
+    expect(
+      validEvaluationResult(
+        { ...result, file_changes: [{ id: "change-1", patch: "" }] },
+        completed.id,
+      ),
+    ).toBe(false);
     expect(
       validEvaluationResult(
         {
@@ -154,9 +209,11 @@ describe("Evaluation browser contract", () => {
       validReviewRunDiagnostics(
         {
           codex_cli_version: "1.2.3",
+          completed_at: "2026-08-20T12:01:00.000Z",
           duration_ms: 1_000,
           process: { code: 0, kind: "exit" },
           review_run_id: "run-1",
+          started_at: "2026-08-20T12:00:00.000Z",
           token_counters: {
             cached_input_tokens: 2,
             input_tokens: 3,
@@ -169,5 +226,22 @@ describe("Evaluation browser contract", () => {
         "run-1",
       ),
     ).toBe(true);
+    expect(
+      validReviewRunDiagnostics(
+        {
+          codex_cli_version: "1.2.3",
+          duration_ms: null,
+          process: { kind: "unavailable" },
+          review_run_id: "run-1",
+          token_counters: {
+            cached_input_tokens: null,
+            input_tokens: null,
+            output_tokens: null,
+          },
+          transcript_chunks: [],
+        },
+        "run-1",
+      ),
+    ).toBe(false);
   });
 });

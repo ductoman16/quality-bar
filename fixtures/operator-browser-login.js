@@ -19,7 +19,8 @@ window.addEventListener("DOMContentLoaded", () => {
       !(form instanceof HTMLFormElement) ||
       !(baseUrl instanceof HTMLInputElement) ||
       !(token instanceof HTMLInputElement) ||
-      !(error instanceof HTMLParagraphElement)
+      !(error instanceof HTMLParagraphElement) ||
+      form.closest("[inert]")
     ) {
       setTimeout(submitForgejo, 10);
       return;

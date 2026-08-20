@@ -83,7 +83,7 @@ const document_ = {
   },
   population: {
     matching_evaluations: 1,
-    matching_waiver_adjudications: 0,
+    matching_waiver_adjudications: 2,
     matching_waiver_decisions: 0,
     matching_waiver_requests: 0,
     pending_adjudications: 0,
@@ -164,6 +164,10 @@ it("renders every Analytics section and restores URL filters on navigation", asy
       .findAll(".an-trend__seg--clear")
       .map((item) => item.attributes("style")),
   ).toEqual(["height: 25%;", "height: 100%;"]);
+  expect(wrapper.text()).toContain("2 Waiver Adjudications");
+  expect(wrapper.get(".an-trend__col").attributes("title")).toContain(
+    "0 advisory/blocking/error",
+  );
 
   await wrapper.get("#analytics-model").setValue("gpt-test");
   await wrapper.get("form").trigger("submit");

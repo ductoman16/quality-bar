@@ -65,7 +65,9 @@ export function useEvaluations(csrfCookieName) {
   const repositories = ref([]);
   const expanded = reactive(new Set());
   const loading = ref(true);
-  const error = ref("");
+  const listError = ref("");
+  const statsError = ref("");
+  const error = computed(() => listError.value || statsError.value);
   const nextCursor = ref(null);
   const newActivity = ref(false);
   const createOpen = ref(false);
@@ -135,7 +137,7 @@ export function useEvaluations(csrfCookieName) {
     history.replaceState(null, "", `/?${search}`);
   };
   const showFailure = async (response) => {
-    error.value = await responseMessage(response);
+    listError.value = await responseMessage(response);
   };
 
   async function refresh({
@@ -150,23 +152,26 @@ export function useEvaluations(csrfCookieName) {
     if (cursor) {
       search.set("cursor", cursor);
     }
-    let response;
+    let collection;
     try {
-      response = await fetch(`/api/v1/evaluations?${search}`);
-    } catch {
+      const response = await fetch(`/api/v1/evaluations?${search}`);
+      if (!response.ok) {
+        await showFailure(response);
+        return;
+      }
+      collection = await response.json();
+      if (!validCollection(collection)) {
+        throw new Error("Evaluations returned an invalid response");
+      }
+    } catch (failure) {
       loading.value = false;
-      error.value = "Evaluations failed to load";
+      listError.value =
+        failure instanceof Error
+          ? failure.message
+          : "Evaluations failed to load";
       return;
     }
     loading.value = false;
-    if (!response.ok) {
-      return showFailure(response);
-    }
-    const collection = await response.json();
-    if (!validCollection(collection)) {
-      error.value = "Evaluations returned an invalid response";
-      return;
-    }
     if (poll) {
       const changed = collection.items.some(
         (evaluation) =>
@@ -195,7 +200,7 @@ export function useEvaluations(csrfCookieName) {
         : items;
     nextCursor.value = collection.next_cursor;
     firstResponse = false;
-    error.value = "";
+    listError.value = "";
   }
 
   async function refreshStats(hours = statsWindow.value) {
@@ -234,8 +239,9 @@ export function useEvaluations(csrfCookieName) {
         ? `${overview.p95_duration_ms} ms`
         : "No data";
       stats.updated = "Just now";
+      statsError.value = "";
     } catch (failure) {
-      error.value =
+      statsError.value =
         failure instanceof Error
           ? failure.message
           : "Evaluation statistics failed to load";
@@ -282,7 +288,7 @@ export function useEvaluations(csrfCookieName) {
       createStatus.value = `Evaluation ${created.id} requested.`;
       await refresh({ replace: true });
     } catch (failure) {
-      createStatus.value = error.value =
+      createStatus.value = listError.value =
         failure instanceof Error
           ? failure.message
           : "Evaluation request failed";
@@ -301,7 +307,7 @@ export function useEvaluations(csrfCookieName) {
         return;
       }
     } catch {
-      error.value = "Evaluation action failed";
+      listError.value = "Evaluation action failed";
       return;
     }
     await refresh({ replace: true });
@@ -341,7 +347,7 @@ export function useEvaluations(csrfCookieName) {
       repositories.value = await repositoryCollection();
       create.repositoryId = repositories.value[0]?.id ?? "";
     } catch (failure) {
-      error.value =
+      listError.value =
         failure instanceof Error
           ? failure.message
           : "Repositories failed to load";

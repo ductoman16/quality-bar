@@ -7,11 +7,14 @@ const json = (body) => ({ ok: true, status: 200, json: async () => body });
 function evaluation(id = "evaluation-1") {
   return {
     base_commit: "a".repeat(40),
+    base_selector: { type: "branch", value: "main" },
     completed_at: null,
     created_at: "2026-08-20T12:00:00.000Z",
     effective_outcome: "pending",
+    exhausted_at: "2026-08-20T12:00:00.000Z",
     execution_status: "queued",
     head_commit: "b".repeat(40),
+    head_selector: { type: "branch", value: "topic" },
     id,
     monitor: {
       duration_ms: null,
@@ -36,10 +39,12 @@ function evaluation(id = "evaluation-1") {
       },
     },
     provenance: "explicit",
+    pre_start_attempt_count: 3,
     repository: {
       id: "repository-1",
       url: "https://example.test/repository.git",
     },
+    retry_error: { code: "checkout_failed", detail: "Checkout failed" },
     retry_state: "exhausted",
   };
 }

@@ -10,6 +10,7 @@ const props = defineProps({
 });
 const emit = defineEmits(["error"]);
 const diagnostics = reactive({});
+const diagnosticFailures = reactive({});
 const loadingDiagnostics = new Set();
 
 const runFor = (criterion) =>
@@ -83,6 +84,7 @@ async function loadDiagnostics(event, run) {
     return;
   }
   loadingDiagnostics.add(run.id);
+  delete diagnosticFailures[run.id];
   try {
     const response = await fetch(
       `/api/v1/evaluations/${encodeURIComponent(props.evaluation.id)}/review-runs/${encodeURIComponent(run.id)}/diagnostics`,
@@ -93,12 +95,12 @@ async function loadDiagnostics(event, run) {
       throw new Error("review_run_diagnostics_invalid");
     diagnostics[run.id] = value;
   } catch (failure) {
-    emit(
-      "error",
+    const message =
       failure instanceof Error
         ? failure.message
-        : "review_run_diagnostics_invalid",
-    );
+        : "review_run_diagnostics_invalid";
+    diagnosticFailures[run.id] = message;
+    emit("error", message);
   } finally {
     loadingDiagnostics.delete(run.id);
   }
@@ -211,6 +213,9 @@ async function loadDiagnostics(event, run) {
           <pre>{{ transcript(diagnostics[run.id], stream) }}</pre>
         </details>
       </template>
+      <p v-else-if="diagnosticFailures[run.id]">
+        {{ diagnosticFailures[run.id] }}
+      </p>
       <p v-else>Loading diagnostics</p>
     </details>
   </section>

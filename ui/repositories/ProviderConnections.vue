@@ -9,7 +9,6 @@ import {
   validForgejoConnection,
   validGitHubConnection,
   validManifestContinuation,
-  validProviderMutation,
 } from "./contract.js";
 import { registerGitHubSelection } from "./github-selection.js";
 
@@ -30,12 +29,16 @@ const forge = reactive({
 });
 const status = ref("");
 const lifecycleDialog = ref();
+const busy = ref(false);
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function fail(response, fallback) {
-  emit("error", response ? await responseMessage(response) : fallback);
+  throw new Error(response ? await responseMessage(response) : fallback);
 }
 async function safe(action) {
+  if (busy.value) return;
+  busy.value = true;
+  emit("error", "");
   try {
     await action();
   } catch (failure) {
@@ -43,6 +46,8 @@ async function safe(action) {
       "error",
       failure instanceof Error ? failure.message : "connection_request_failed",
     );
+  } finally {
+    busy.value = false;
   }
 }
 async function load() {
@@ -50,17 +55,11 @@ async function load() {
     ["/api/v1/github-connections", github, validGitHubConnection],
     ["/api/v1/forgejo-connections", forgejo, validForgejoConnection],
   ]) {
-    try {
-      const response = await fetch(path);
-      if (!response.ok) await fail(response, "Connection loading failed");
-      else {
-        const value = await response.json();
-        if (!validate(value)) throw new Error("connection_response_invalid");
-        target.value = value;
-      }
-    } catch {
-      await fail(null, "Connection loading failed");
-    }
+    const response = await fetch(path);
+    if (!response.ok) await fail(response, "Connection loading failed");
+    const value = await response.json();
+    if (!validate(value)) throw new Error("connection_response_invalid");
+    target.value = value;
   }
 }
 async function startGitHub() {
@@ -75,7 +74,7 @@ async function startGitHub() {
     return fail(response, "GitHub App Manifest flow could not start");
   if (reactivating) {
     const value = await response.json();
-    if (!validGitHubConnection(value))
+    if (value === null || !validGitHubConnection(value))
       return fail(null, "GitHub Connection response is invalid");
     github.value = value;
     githubPem.value = "";
@@ -117,7 +116,7 @@ async function rotateGitHub() {
   if (!response.ok)
     return fail(response, "GitHub App credential rotation failed");
   const value = await response.json();
-  if (!validGitHubConnection(value))
+  if (value === null || !validGitHubConnection(value))
     return fail(null, "GitHub Connection response is invalid");
   github.value = value;
   githubPem.value = "";
@@ -147,7 +146,7 @@ async function connectForgejo() {
   });
   if (!response.ok) return fail(response, "Forgejo registration failed");
   const value = await response.json();
-  if (!validForgejoConnection(value))
+  if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
   forgejo.value = value;
   forge.token = "";
@@ -167,7 +166,7 @@ async function rotateForgejo() {
   );
   if (!response.ok) return fail(response, "Forgejo PAT rotation failed");
   const value = await response.json();
-  if (!validForgejoConnection(value))
+  if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
   forgejo.value = value;
   forge.rotationToken = "";
@@ -180,7 +179,7 @@ async function reactivateForgejo() {
   if (!response.ok)
     return fail(response, "Forgejo Connection reactivation failed");
   const value = await response.json();
-  if (!validForgejoConnection(value))
+  if (value === null || !validForgejoConnection(value))
     return fail(null, "Forgejo Connection response is invalid");
   forgejo.value = value;
   forge.reactivationToken = "";
@@ -189,38 +188,35 @@ async function reactivateForgejo() {
 function openLifecycle(provider, method) {
   lifecycleDialog.value.open(provider, method);
 }
-async function readProviderMutation(provider, response) {
-  const value = await response.json();
-  if (!validProviderMutation(provider, value))
-    throw new Error(`${provider}_connection_response_invalid`);
-  return value;
-}
 async function lifecycle({ method, provider }) {
   const lower = provider.toLowerCase();
-  const response = await request(
-    `/api/v1/${lower}-connections/lifecycle`,
-    method === "PATCH" ? { lifecycle: "retired" } : {},
-    method,
-  );
-  if (!response.ok)
-    return fail(response, `${provider} Connection lifecycle failed`);
-  if (lower === "github")
-    github.value =
-      method === "DELETE"
-        ? null
-        : await readProviderMutation("github", response);
-  else
-    forgejo.value =
-      method === "DELETE"
-        ? null
-        : await readProviderMutation("forgejo", response);
+  let response;
+  try {
+    response = await request(
+      `/api/v1/${lower}-connections/lifecycle`,
+      method === "PATCH" ? { lifecycle: "retired" } : {},
+      method,
+    );
+  } catch {}
+  await load();
+  const current = lower === "github" ? github.value : forgejo.value;
+  if (
+    !(
+      (method === "DELETE" && current === null) ||
+      (method === "PATCH" && current?.lifecycle === "retired")
+    )
+  ) {
+    if (response && !response.ok)
+      await fail(response, `${provider} Connection lifecycle failed`);
+    await fail(null, `${provider} Connection lifecycle result is unavailable`);
+  }
   status.value = `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`;
 }
-onMounted(load);
+onMounted(() => safe(load));
 </script>
 
 <template>
-  <section id="github-connection-details" class="qb-region">
+  <section id="github-connection-details" class="qb-region" :inert="busy">
     <h2>GitHub Connection</h2>
     <form
       v-if="!github || github.lifecycle === 'retired'"
@@ -303,7 +299,7 @@ onMounted(load);
       :manifest="manifest.manifest"
     />
   </section>
-  <section id="forgejo-connection-details" class="qb-region">
+  <section id="forgejo-connection-details" class="qb-region" :inert="busy">
     <h2>Forgejo Connection</h2>
     <template v-if="!forgejo"
       ><form

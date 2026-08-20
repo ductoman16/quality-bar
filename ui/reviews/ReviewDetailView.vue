@@ -188,23 +188,24 @@ async function remove() {
       "DELETE",
     );
   } catch {
-    try {
-      if (!(await findReview())) {
-        location.assign("/?view=reviews");
-        return;
-      }
-    } catch (failure) {
-      error.value =
-        failure instanceof Error
-          ? failure.message
-          : "Review deletion reconciliation failed";
+    response = null;
+  }
+  try {
+    if (!(await findReview())) {
+      location.assign("/?view=reviews");
       return;
     }
-    error.value = "Review deletion result is unavailable";
-    return;
+    error.value = response
+      ? response.ok
+        ? "Review deletion result is unavailable"
+        : await responseMessage(response)
+      : "Review deletion result is unavailable";
+  } catch (failure) {
+    error.value =
+      failure instanceof Error
+        ? failure.message
+        : "Review deletion reconciliation failed";
   }
-  if (response.ok) location.assign("/?view=reviews");
-  else error.value = await responseMessage(response);
 }
 onMounted(async () => {
   try {

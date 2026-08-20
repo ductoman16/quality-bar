@@ -2,6 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import SystemView from "./SystemView.vue";
+import { validSystem } from "./contract.js";
 
 const configuration = {
   model: "gpt-test",
@@ -139,6 +140,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 it("renders complete polling and delivery facts and saves configuration", async () => {
+  expect(validSystem(system)).toBe(true);
+  expect(
+    validSystem({ ...system, durable_core: { status: "probably-ready" } }),
+  ).toBe(false);
   const wrapper = mount(SystemView, {
     props: { csrfCookieName: "qb_csrf" },
   });

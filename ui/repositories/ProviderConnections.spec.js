@@ -207,3 +207,44 @@ it("emits malformed successful provider responses as errors", async () => {
   expect(wrapper.emitted("error").at(-1)).toEqual(["invalid JSON"]);
   wrapper.unmount();
 });
+
+it("rejects a null successful Forgejo registration", async () => {
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (
+      path === "/api/v1/github-connections" ||
+      (path === "/api/v1/forgejo-connections" && !options)
+    ) {
+      return { json: async () => null, ok: true };
+    }
+    if (path === "/api/v1/forgejo-connections/discover") {
+      return {
+        json: async () => [{ full_name: "operator/repository", id: 11 }],
+        ok: true,
+      };
+    }
+    if (path === "/api/v1/forgejo-connections") {
+      return { json: async () => null, ok: true };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .get("#forgejo-connection-base-url")
+    .setValue("https://forgejo.example");
+  await wrapper.get("#forgejo-connection-token").setValue("token");
+  await wrapper.get("#forgejo-connection-form").trigger("submit");
+  await flushPromises();
+  await wrapper.get('input[type="checkbox"]').setValue(true);
+  await wrapper
+    .findAll("form")
+    .find((form) => form.text().includes("Register selected Forgejo"))
+    .trigger("submit");
+  await flushPromises();
+  expect(wrapper.emitted("error").at(-1)).toEqual([
+    "Forgejo Connection response is invalid",
+  ]);
+  wrapper.unmount();
+});

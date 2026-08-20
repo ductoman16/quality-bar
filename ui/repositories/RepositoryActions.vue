@@ -30,12 +30,35 @@ async function mutation(path, body, method, fallback) {
   busy.value = true;
   try {
     const response = await request(path, body, method);
+    if (method === "DELETE") {
+      const current = (await repositoryCollection()).find(
+        (repository) => repository.id === props.repository.id,
+      );
+      if (!current) {
+        emit("changed", null);
+        return;
+      }
+      emit(
+        "error",
+        response.ok
+          ? `${fallback} result is unavailable`
+          : await responseMessage(response),
+      );
+      return;
+    }
     if (!response.ok) {
       emit("error", await responseMessage(response));
       return;
     }
     emit("changed", response.status === 204 ? null : await response.json());
-  } catch {
+  } catch (failure) {
+    if (!(failure instanceof TypeError)) {
+      emit(
+        "error",
+        failure instanceof Error ? failure.message : `${fallback} failed`,
+      );
+      return;
+    }
     try {
       const current = (await repositoryCollection()).find(
         (repository) => repository.id === props.repository.id,

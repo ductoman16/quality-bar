@@ -44,9 +44,8 @@ async function create(snapshot) {
     error.value = "Review name and description are required";
     return;
   }
-  let response;
   try {
-    response = await request(
+    const response = await request(
       "/api/v1/reviews",
       {
         ...snapshot,
@@ -59,22 +58,17 @@ async function create(snapshot) {
       },
       "POST",
     );
-  } catch {
-    error.value = "Review creation failed";
-    return;
+    if (!response.ok) throw new Error(await responseMessage(response));
+    const review = await response.json();
+    if (!validReview(review))
+      throw new Error("Review creation response is invalid");
+    status.value = `${review.name} v${review.active_version.number} created.`;
+    identity.name = identity.description = "";
+    await load();
+  } catch (failure) {
+    error.value =
+      failure instanceof Error ? failure.message : "Review creation failed";
   }
-  if (!response.ok) {
-    error.value = await responseMessage(response);
-    return;
-  }
-  const review = await response.json();
-  if (!validReview(review)) {
-    error.value = "Review creation response is invalid";
-    return;
-  }
-  status.value = `${review.name} v${review.active_version.number} created.`;
-  identity.name = identity.description = "";
-  await load();
 }
 async function archive(review) {
   const archived = !review.archived;

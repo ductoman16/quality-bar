@@ -36,6 +36,15 @@ async function showError(message) {
   await nextTick();
   errorElement.value?.focus();
 }
+async function safe(action) {
+  try {
+    await action();
+  } catch (failure) {
+    await showError(
+      failure instanceof Error ? failure.message : "operator_request_failed",
+    );
+  }
+}
 const failure = async (response) => showError(await responseMessage(response));
 const request = (path, body, method = "POST") =>
   fetch(path, {
@@ -56,12 +65,12 @@ async function tokenMutation(path, password) {
   error.value = "";
   const response = await request(path, { password });
   if (!response.ok) return failure(response);
-  if (response.status !== 204) {
-    const value = await response.json();
-    if (!validTokenReveal(value)) return showError("token_reveal_invalid");
-    token.value = value.token;
-    tokenDialog.value.showModal();
-  }
+  if (response.status !== (path.endsWith("/rotate") ? 200 : 201))
+    return showError("token_reveal_invalid");
+  const value = await response.json();
+  if (!validTokenReveal(value)) return showError("token_reveal_invalid");
+  token.value = value.token;
+  tokenDialog.value.showModal();
 }
 async function logout() {
   const response = await request("/api/v1/session/logout", {});
@@ -110,14 +119,15 @@ async function revokeOnboardingToken(id) {
   if (response.ok) await loadOnboardingTokens();
   else await failure(response);
 }
+const recordActivity = () => void safe(activity);
 onMounted(() => {
-  document.addEventListener("keydown", activity);
-  document.addEventListener("pointerdown", activity);
-  void loadOnboardingTokens();
+  document.addEventListener("keydown", recordActivity);
+  document.addEventListener("pointerdown", recordActivity);
+  void safe(loadOnboardingTokens);
 });
 onUnmounted(() => {
-  document.removeEventListener("keydown", activity);
-  document.removeEventListener("pointerdown", activity);
+  document.removeEventListener("keydown", recordActivity);
+  document.removeEventListener("pointerdown", recordActivity);
 });
 </script>
 
@@ -126,10 +136,12 @@ onUnmounted(() => {
     <summary>Operator</summary>
     <form
       @submit.prevent="
-        passwordMutation('/api/v1/session/password', {
-          current_password: fields.changeCurrent,
-          new_password: fields.changeNew,
-        })
+        safe(() =>
+          passwordMutation('/api/v1/session/password', {
+            current_password: fields.changeCurrent,
+            new_password: fields.changeNew,
+          }),
+        )
       "
     >
       <label for="password-change-current-password"
@@ -153,10 +165,12 @@ onUnmounted(() => {
     </form>
     <form
       @submit.prevent="
-        passwordMutation('/api/v1/sessions/revoke', {
-          confirmation: fields.revokeConfirmation,
-          password: fields.revokePassword,
-        })
+        safe(() =>
+          passwordMutation('/api/v1/sessions/revoke', {
+            confirmation: fields.revokeConfirmation,
+            password: fields.revokePassword,
+          }),
+        )
       "
     >
       <label for="session-revocation-password"
@@ -179,7 +193,9 @@ onUnmounted(() => {
     </form>
     <form
       @submit.prevent="
-        tokenMutation('/api/v1/implementer-token', fields.createPassword)
+        safe(() =>
+          tokenMutation('/api/v1/implementer-token', fields.createPassword),
+        )
       "
     >
       <label for="implementer-token-create-password"
@@ -194,9 +210,11 @@ onUnmounted(() => {
     </form>
     <form
       @submit.prevent="
-        tokenMutation(
-          '/api/v1/implementer-token/rotate',
-          fields.tokenRotatePassword,
+        safe(() =>
+          tokenMutation(
+            '/api/v1/implementer-token/rotate',
+            fields.tokenRotatePassword,
+          ),
         )
       "
     >
@@ -215,9 +233,11 @@ onUnmounted(() => {
         confirm(
           'Revoke implementer token? Machine access will remain disabled until a new token is created.',
         ) &&
-        passwordMutation('/api/v1/implementer-token/revoke', {
-          password: fields.tokenRevokePassword,
-        })
+        safe(() =>
+          passwordMutation('/api/v1/implementer-token/revoke', {
+            password: fields.tokenRevokePassword,
+          }),
+        )
       "
     >
       <label for="implementer-token-revoke-password"
@@ -232,7 +252,7 @@ onUnmounted(() => {
     </form>
     <section v-if="showOnboarding" aria-labelledby="onboarding-tokens-title">
       <h2 id="onboarding-tokens-title">Onboarding tokens</h2>
-      <form @submit.prevent="createOnboardingToken">
+      <form @submit.prevent="safe(createOnboardingToken)">
         <label for="onboarding-token-repository-url">Repository URL</label
         ><input
           id="onboarding-token-repository-url"
@@ -254,7 +274,10 @@ onUnmounted(() => {
             <td>{{ item.repository_url }}</td>
             <td>{{ new Date(item.expires_at).toLocaleString() }}</td>
             <td>
-              <button type="button" @click="revokeOnboardingToken(item.id)">
+              <button
+                type="button"
+                @click="safe(() => revokeOnboardingToken(item.id))"
+              >
                 Revoke
               </button>
             </td>
@@ -262,7 +285,7 @@ onUnmounted(() => {
         </tbody>
       </table>
     </section>
-    <button type="button" @click="logout">Log out</button>
+    <button type="button" @click="safe(logout)">Log out</button>
   </details>
   <dialog
     ref="tokenDialog"

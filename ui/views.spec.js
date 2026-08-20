@@ -131,7 +131,7 @@ describe("Vue operator views", () => {
     vi.mocked(fetch).mockResolvedValue({
       json: async () => ({}),
       ok: true,
-      status: 201,
+      status: 204,
     });
     const wrapper = mount(OperatorControls, {
       attachTo: document.body,
@@ -178,10 +178,15 @@ describe("Vue operator views", () => {
   it("keeps the first immutable terminal result while polling status", async () => {
     vi.useFakeTimers();
     const evaluation = {
+      base_commit: "a".repeat(40),
+      base_selector: { type: "branch", value: "main" },
       completed_at: "2026-08-20T12:01:00.000Z",
       created_at: "2026-08-20T12:00:00.000Z",
       effective_outcome: "clear",
+      exhausted_at: null,
       execution_status: "completed",
+      head_commit: "b".repeat(40),
+      head_selector: { type: "branch", value: "topic" },
       id: "evaluation-1",
       monitor: {
         duration_ms: 60_000,
@@ -197,10 +202,14 @@ describe("Vue operator views", () => {
           total: 0,
         },
       },
+      pre_start_attempt_count: 0,
+      provenance: "explicit",
       repository: {
         id: "repository-1",
         url: "https://example.test/repository.git",
       },
+      retry_error: null,
+      retry_state: "ready",
     };
     const result = {
       applicability_results: [],
@@ -246,9 +255,11 @@ describe("Vue operator views", () => {
     vi.mocked(fetch).mockResolvedValue({
       json: async () => ({
         codex_cli_version: "1.2.3",
+        completed_at: "2026-08-20T12:01:00.000Z",
         duration_ms: 900,
         process: { code: 0, kind: "exit" },
         review_run_id: "run-1",
+        started_at: "2026-08-20T12:00:00.000Z",
         token_counters: {
           cached_input_tokens: 2,
           input_tokens: 3,

@@ -26,7 +26,14 @@ beforeEach(() => {
   );
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({ json: async () => ({}), ok: true, status: 204 })),
+    vi.fn(async (path, options) =>
+      path === "/api/v1/repositories" && !options
+        ? {
+            json: async () => ({ items: [], next_cursor: null }),
+            ok: true,
+          }
+        : { json: async () => ({}), ok: true, status: 204 },
+    ),
   );
   HTMLDialogElement.prototype.showModal = vi.fn();
   HTMLDialogElement.prototype.close = vi.fn();
@@ -62,7 +69,7 @@ it("confirms lifecycle changes and exact-identity deletion with CSRF", async () 
   await wrapper.get("input").setValue(repository.url);
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
-  expect(fetch).toHaveBeenLastCalledWith("/api/v1/repositories/repository-1", {
+  expect(fetch).toHaveBeenCalledWith("/api/v1/repositories/repository-1", {
     body: "{}",
     headers: {
       "content-type": "application/json",

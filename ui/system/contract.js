@@ -10,6 +10,8 @@ import {
 const timestamp = (value) =>
   value === null ||
   (nonempty(value) && new Date(value).toISOString() === value);
+const status = (value, allowed) =>
+  record(value) && allowed.includes(value.status);
 
 const execution = (value) =>
   record(value) &&
@@ -127,7 +129,7 @@ export const validSystem = (value) =>
       record(provider) &&
       nonempty(provider.id) &&
       nonempty(provider.name) &&
-      nonempty(provider.status) &&
+      ["available", "unavailable"].includes(provider.status) &&
       (provider.error === null ||
         provider.error === undefined ||
         (record(provider.error) &&
@@ -155,14 +157,12 @@ export const validSystem = (value) =>
   value.codex.catalog.models.every(modelCapability) &&
   count(value.browser_sessions?.active_count) &&
   nonempty(value.implementer_token?.status) &&
-  [
-    "durable_core",
-    "storage",
-    "cleanup",
-    "backup",
-    "bootstrap",
-    "storage_reserve",
-  ].every((name) => record(value[name]));
+  status(value.durable_core, ["ready"]) &&
+  status(value.storage, ["available", "unavailable"]) &&
+  status(value.cleanup, ["available", "not_run", "running", "unavailable"]) &&
+  status(value.backup, ["current", "empty", "stale", "unavailable"]) &&
+  status(value.bootstrap, ["complete", "required"]) &&
+  status(value.storage_reserve, ["available", "unavailable"]);
 
 export const validConfiguration = (value) =>
   record(value) &&
