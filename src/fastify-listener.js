@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import AjvCompiler from "@fastify/ajv-compiler";
+import cookie from "@fastify/cookie";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
 
@@ -99,6 +100,7 @@ export function createFastify(components) {
     },
   });
   server.setValidatorCompiler(validator);
+  server.register(cookie);
   server.register(swagger, {
     convertConstToEnum: false,
     openapi: {
@@ -116,9 +118,31 @@ export function createFastify(components) {
   for (const schema of Object.values(registeredSchemas)) {
     server.addSchema(schema);
   }
-  server.setSerializerCompiler(() => JSON.stringify);
   server.decorateRequest("authority", null);
   server.decorateRequest("onboardingGrant", null);
+  server.addHook("preValidation", (request, reply, done) => {
+    void reply;
+    const query = /** @type {Record<string, unknown>} */ (request.query);
+    const querySchema =
+      /** @type {{properties?: Record<string, {type?: string}>}} */ (
+        request.routeOptions.schema?.querystring
+      );
+    const properties = querySchema?.properties ?? {};
+    for (const [name, schema] of Object.entries(properties)) {
+      const value = query?.[name];
+      if (
+        schema.type === "integer" &&
+        typeof value === "string" &&
+        /^-?(0|[1-9]\d*)$/.test(value)
+      ) {
+        const integer = Number(value);
+        if (Number.isSafeInteger(integer)) {
+          query[name] = integer;
+        }
+      }
+    }
+    done();
+  });
   server.addHook("onSend", (request, reply, payload, done) => {
     void request;
     if (reply.getHeader("content-type")?.toString().startsWith(JSON_TYPE)) {

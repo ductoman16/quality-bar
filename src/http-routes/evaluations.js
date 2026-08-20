@@ -41,8 +41,9 @@ export const evaluationsRoutes = [
             type: "string",
           },
           limit: {
-            pattern: "^[1-9]\\d{0,2}$",
-            type: "string",
+            maximum: 100,
+            minimum: 1,
+            type: "integer",
           },
           repository_id: {
             minLength: 1,
@@ -57,12 +58,12 @@ export const evaluationsRoutes = [
             type: "string",
           },
           start: {
-            pattern: "^(0|[1-9]\\d*)$",
-            type: "string",
+            minimum: 0,
+            type: "integer",
           },
           end: {
-            pattern: "^(0|[1-9]\\d*)$",
-            type: "string",
+            minimum: 0,
+            type: "integer",
           },
           query: {
             maxLength: 200,

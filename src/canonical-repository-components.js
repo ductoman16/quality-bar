@@ -32,24 +32,23 @@ export function canonicalRepositorySchemas() {
   ];
   /** @param {Record<string, unknown>} properties @param {string[]} required */
   const repositoryObject = (properties, required) => ({
-    ...closedObject(properties, required),
     oneOf: [
-      {
-        properties: {
-          health: { const: "healthy" },
+      closedObject(
+        {
+          ...properties,
+          health: { const: "healthy", type: "string" },
           health_error: { type: "null" },
         },
-        required: ["health", "health_error"],
-      },
-      {
-        properties: {
-          health: { const: "error" },
-          health_error: {
-            $ref: "RepositoryHealthError#",
-          },
+        required,
+      ),
+      closedObject(
+        {
+          ...properties,
+          health: { const: "error", type: "string" },
+          health_error: { $ref: "RepositoryHealthError#" },
         },
-        required: ["health", "health_error"],
-      },
+        required,
+      ),
     ],
   });
   return {

@@ -49,6 +49,7 @@ export const systemRoutes = [
       ],
       response: {
         200: {
+          additionalProperties: true,
           type: "object",
           description: "OpenAPI document",
         },
@@ -87,9 +88,10 @@ export const systemRoutes = [
             type: "string",
           },
           limit: {
-            default: "50",
-            pattern: "^[1-9]\\d{0,2}$",
-            type: "string",
+            default: 50,
+            maximum: 100,
+            minimum: 1,
+            type: "integer",
           },
         },
         required: [],
@@ -186,8 +188,9 @@ export const systemRoutes = [
             type: "string",
           },
           limit: {
-            pattern: "^[1-9]\\d{0,2}$",
-            type: "string",
+            maximum: 100,
+            minimum: 1,
+            type: "integer",
           },
         },
         required: [],

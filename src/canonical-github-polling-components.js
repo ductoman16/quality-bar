@@ -7,6 +7,39 @@ const closedObject = (properties, required) => ({
 });
 
 export function canonicalGitHubPollingSchemas() {
+  const pollingStateProperties = {
+    error: {
+      oneOf: [{ $ref: "GitHubPollingError#" }, { type: "null" }],
+    },
+    forge_repository_id: { minimum: 1, type: "integer" },
+    last_success_at: {
+      oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+    },
+    next_attempt_at: {
+      oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+    },
+    rate_gate_until: {
+      oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+    },
+  };
+  const pollingStateRequired = [
+    "baseline_status",
+    "error",
+    "forge_repository_id",
+    "last_success_at",
+    "next_attempt_at",
+    "rate_gate_until",
+  ];
+  /** @param {"pending" | "complete" | "error"} status @param {Record<string, unknown>} properties */
+  const pollingState = (status, properties) =>
+    closedObject(
+      {
+        ...pollingStateProperties,
+        ...properties,
+        baseline_status: { const: status, type: "string" },
+      },
+      pollingStateRequired,
+    );
   return {
     GitHubPollingError: closedObject(
       {
@@ -31,64 +64,16 @@ export function canonicalGitHubPollingSchemas() {
       ["error", "forge_repository_id", "next_attempt_at", "rate_gate_until"],
     ),
     GitHubPollingState: {
-      ...closedObject(
-        {
-          baseline_status: {
-            enum: ["complete", "error", "pending"],
-            type: "string",
-          },
-          error: {
-            oneOf: [{ $ref: "GitHubPollingError#" }, { type: "null" }],
-          },
-          forge_repository_id: { minimum: 1, type: "integer" },
-          last_success_at: {
-            oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
-          },
-          next_attempt_at: {
-            oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
-          },
-          rate_gate_until: {
-            oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
-          },
-        },
-        [
-          "baseline_status",
-          "error",
-          "forge_repository_id",
-          "last_success_at",
-          "next_attempt_at",
-          "rate_gate_until",
-        ],
-      ),
       oneOf: [
-        {
-          properties: {
-            baseline_status: { const: "pending" },
-            error: { type: "null" },
-            last_success_at: { type: "null" },
-            next_attempt_at: { minimum: 0, type: "integer" },
-          },
-          required: [
-            "baseline_status",
-            "error",
-            "last_success_at",
-            "next_attempt_at",
-          ],
-        },
-        {
-          properties: {
-            baseline_status: { const: "complete" },
-            last_success_at: { minimum: 0, type: "integer" },
-          },
-          required: ["baseline_status", "last_success_at"],
-        },
-        {
-          properties: {
-            baseline_status: { const: "error" },
-            error: { $ref: "GitHubPollingError#" },
-          },
-          required: ["baseline_status", "error"],
-        },
+        pollingState("pending", {
+          error: { type: "null" },
+          last_success_at: { type: "null" },
+          next_attempt_at: { minimum: 0, type: "integer" },
+        }),
+        pollingState("complete", {
+          last_success_at: { minimum: 0, type: "integer" },
+        }),
+        pollingState("error", { error: { $ref: "GitHubPollingError#" } }),
       ],
     },
   };

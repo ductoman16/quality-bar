@@ -100,7 +100,8 @@ test("idle and absolute expiry remain enforced after a service restart", async (
 
 test("a failed-login delay survives a service restart and blocks a correct password before verification", async () => {
   const databasePath = temporaryDatabasePath();
-  const first = await startApplication(databasePath);
+  const now = () => 1_000;
+  const first = await startApplication(databasePath, { now });
   bootstrapOperatorPassword(
     first.application.durableCore,
     "a correct operator password",
@@ -114,7 +115,7 @@ test("a failed-login delay survives a service restart and blocks a correct passw
   assert.equal(failedLogin.status, 401);
   await closeApplication(first.application);
 
-  const second = await startApplication(databasePath);
+  const second = await startApplication(databasePath, { now });
   const throttledLogin = await fetch(`${second.origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
     headers: { "content-type": "application/json" },

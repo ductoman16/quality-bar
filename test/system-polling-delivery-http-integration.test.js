@@ -11,12 +11,12 @@ import { addWaiverFollowupFacts } from "./system-polling-delivery-support.js";
 
 test("the authenticated System API exposes polling and delivery facts from SQLite", async () => {
   const { application, request } = await startApplication();
+  const headers = await authenticatedOperatorHeaders(request);
   arrangeGitHubFeedback(application.durableCore);
   application.durableCore.run(
     "INSERT INTO github_repository_polls (connection_id, forge_repository_id, baseline_status, next_attempt_at) VALUES ('connection-1', 101, 'pending', 0)",
   );
 
-  const headers = await authenticatedOperatorHeaders(request);
   const response = await request("/api/v1/system", { headers });
   assert.equal(response.status, 200);
   const system = /** @type {any} */ (await response.json());

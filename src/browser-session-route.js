@@ -2,13 +2,14 @@ import {
   assertNoMixedCredentials,
   authenticationFailureStatus,
   browserMutationFailureStatus,
-  clearedSessionCookies,
-  csrfCookie,
   implementerTokenFailureStatus,
   passwordMutationFailureStatus,
-  sessionCookie,
 } from "./http-request.js";
 import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
+import {
+  BROWSER_CSRF_COOKIE_NAME,
+  BROWSER_SESSION_COOKIE_NAME,
+} from "./browser-session.js";
 import { requireCodedError } from "./coded-error.js";
 import { writeEmpty, writeError, writeJson } from "./http-response.js";
 
@@ -24,6 +25,38 @@ const SESSION_MUTATION_ACTIONS = {
   revokeImplementerToken: "implementer_token_revoke",
   rotateImplementerToken: "implementer_token_rotate",
 };
+
+/** @param {import("fastify").FastifyReply} response @param {string} secret @param {string} csrfToken @param {boolean} secure */
+function setSessionCookies(response, secret, csrfToken, secure) {
+  response
+    .setCookie(BROWSER_SESSION_COOKIE_NAME, secret, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure,
+    })
+    .setCookie(BROWSER_CSRF_COOKIE_NAME, csrfToken, {
+      path: "/",
+      sameSite: "strict",
+      secure,
+    });
+}
+
+/** @param {import("fastify").FastifyReply} response @param {boolean} secure */
+function clearSessionCookies(response, secure) {
+  response
+    .clearCookie(BROWSER_SESSION_COOKIE_NAME, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure,
+    })
+    .clearCookie(BROWSER_CSRF_COOKIE_NAME, {
+      path: "/",
+      sameSite: "strict",
+      secure,
+    });
+}
 
 /** @param {import("fastify").FastifyRequest} request @param {{code: string}} failure @param {(event: AttributionEvent) => void} recordAuthorityAttribution */
 export function recordBrowserSessionBoundaryFailure(
@@ -178,12 +211,8 @@ export function createBrowserSessionOperations({
       try {
         const { password } = /** @type {{password: string}} */ (request.body);
         const { csrfToken, secret } = browserSessions.login(password);
-        writeEmpty(response, {
-          "set-cookie": [
-            sessionCookie(secret, secureBrowserCookie),
-            csrfCookie(csrfToken, secureBrowserCookie),
-          ],
-        });
+        setSessionCookies(response, secret, csrfToken, secureBrowserCookie);
+        writeEmpty(response);
       } catch (error) {
         const failure = requireCodedError(error);
         writeError(
@@ -201,9 +230,8 @@ export function createBrowserSessionOperations({
     logoutOperator(request, response) {
       try {
         browserSessions.logout(verifiedSessionSecret(request));
-        writeEmpty(response, {
-          "set-cookie": clearedSessionCookies(secureBrowserCookie),
-        });
+        clearSessionCookies(response, secureBrowserCookie);
+        writeEmpty(response);
       } catch (error) {
         const failure = requireCodedError(error);
         recordAuthorityAttribution({
@@ -259,9 +287,8 @@ export function createBrowserSessionOperations({
             request.body
           );
         browserSessions.changePassword(current_password, new_password);
-        writeEmpty(response, {
-          "set-cookie": clearedSessionCookies(secureBrowserCookie),
-        });
+        clearSessionCookies(response, secureBrowserCookie);
+        writeEmpty(response);
       });
     },
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
@@ -269,9 +296,8 @@ export function createBrowserSessionOperations({
       passwordMutation("session_revoke_all", response, () => {
         const { password } = /** @type {{password: string}} */ (request.body);
         browserSessions.revokeAll(password);
-        writeEmpty(response, {
-          "set-cookie": clearedSessionCookies(secureBrowserCookie),
-        });
+        clearSessionCookies(response, secureBrowserCookie);
+        writeEmpty(response);
       });
     },
     createImplementerToken: (request, response) =>

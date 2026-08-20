@@ -1,11 +1,4 @@
-import {
-  BROWSER_CSRF_COOKIE_NAME,
-  BROWSER_SESSION_COOKIE_NAME,
-} from "./browser-session.js";
-
-// GitHub's manifest and installation callbacks return through a top-level cross-site GET.
-const BROWSER_SESSION_COOKIE_SAME_SITE = "Lax";
-const BROWSER_CSRF_COOKIE_SAME_SITE = "Strict";
+import { BROWSER_SESSION_COOKIE_NAME } from "./browser-session.js";
 
 /**
  * @typedef {{
@@ -22,12 +15,10 @@ const BROWSER_CSRF_COOKIE_SAME_SITE = "Strict";
  * @param {string} name
  */
 function cookieValue(request, name) {
-  const cookies = request.headers.cookie?.split(";") ?? [];
-  const values = cookies
-    .map((cookie) => cookie.trim().split("=", 2))
-    .filter(([cookieName]) => cookieName === name)
-    .map(([, value]) => value);
-  return values.length === 1 ? values[0] : undefined;
+  const occurrences = (request.headers.cookie ?? "")
+    .split(";")
+    .filter((cookie) => cookie.trimStart().startsWith(`${name}=`)).length;
+  return occurrences === 1 ? request.cookies[name] : undefined;
 }
 
 /** @param {string} path */
@@ -40,54 +31,6 @@ export function isProductSurface(path) {
     path === "/mcp/v1" ||
     path.startsWith("/mcp/v1/")
   );
-}
-
-/**
- * @param {string} secret
- * @param {boolean} secure
- */
-export function sessionCookie(secret, secure) {
-  return [
-    `${BROWSER_SESSION_COOKIE_NAME}=${secret}`,
-    "Path=/",
-    "HttpOnly",
-    `SameSite=${BROWSER_SESSION_COOKIE_SAME_SITE}`,
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
-}
-
-/**
- * @param {string} token
- * @param {boolean} secure
- */
-export function csrfCookie(token, secure) {
-  return [
-    `${BROWSER_CSRF_COOKIE_NAME}=${token}`,
-    "Path=/",
-    `SameSite=${BROWSER_CSRF_COOKIE_SAME_SITE}`,
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
-}
-
-/** @param {boolean} secure */
-export function clearedSessionCookies(secure) {
-  return [
-    [
-      `${BROWSER_SESSION_COOKIE_NAME}=`,
-      "Path=/",
-      "HttpOnly",
-      `SameSite=${BROWSER_SESSION_COOKIE_SAME_SITE}`,
-      "Max-Age=0",
-      ...(secure ? ["Secure"] : []),
-    ].join("; "),
-    [
-      `${BROWSER_CSRF_COOKIE_NAME}=`,
-      "Path=/",
-      `SameSite=${BROWSER_CSRF_COOKIE_SAME_SITE}`,
-      "Max-Age=0",
-      ...(secure ? ["Secure"] : []),
-    ].join("; "),
-  ];
 }
 
 /** @param {string} code */

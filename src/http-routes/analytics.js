@@ -62,20 +62,20 @@ export const analyticsRoutes = [
             type: "string",
           },
           pull_request_number: {
-            pattern: "^[1-9]\\d*$",
-            type: "string",
+            minimum: 1,
+            type: "integer",
           },
           terminal_outcome: {
             enum: ["clear", "advisory", "blocking", "error"],
             type: "string",
           },
           start: {
-            pattern: "^(0|[1-9]\\d*)$",
-            type: "string",
+            minimum: 0,
+            type: "integer",
           },
           end: {
-            pattern: "^(0|[1-9]\\d*)$",
-            type: "string",
+            minimum: 0,
+            type: "integer",
           },
         },
         required: [],

@@ -28,7 +28,7 @@ export const forgejoSchemas = {
     type: "object",
   },
   DiscoverForgejoV16Repositories200Response: {
-    items: { type: "object" },
+    items: { additionalProperties: true, type: "object" },
     minItems: 1,
     type: "array",
   },

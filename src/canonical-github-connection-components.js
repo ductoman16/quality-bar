@@ -9,6 +9,116 @@ const closedObject = (properties, required) => ({
 });
 
 export function canonicalGitHubConnectionSchemas() {
+  const verificationProperties = {
+    affected_repository_ids: {
+      items: { minimum: 1, type: "integer" },
+      minItems: 1,
+      type: "array",
+      uniqueItems: true,
+    },
+    api_profile: {
+      oneOf: [
+        { const: "github-rest:2026-03-10", type: "string" },
+        { type: "null" },
+      ],
+    },
+    capabilities: {
+      oneOf: [{ $ref: "GitHubCapabilityEvidence#" }, { type: "null" }],
+    },
+    error: {
+      oneOf: [{ $ref: "GitHubVerificationError#" }, { type: "null" }],
+    },
+    id: { minLength: 1, type: "string" },
+    outcome: { enum: ["success", "error"], type: "string" },
+    permissions: {
+      oneOf: [{ $ref: "GitHubPermissions#" }, { type: "null" }],
+    },
+    principal: {
+      oneOf: [{ $ref: "GitHubPrincipal#" }, { type: "null" }],
+    },
+    repositories: {
+      items: { $ref: "GitHubRepositoryEvidence#" },
+      type: "array",
+    },
+    repository_checks: {
+      items: { $ref: "GitHubRepositoryVerificationCheck#" },
+      minItems: 1,
+      type: "array",
+    },
+    trigger: {
+      enum: ["onboarding", "repository_selection", "enablement", "rotation"],
+      type: "string",
+    },
+    verified_at: { minimum: 0, type: "integer" },
+  };
+  const verificationRequired = [
+    "affected_repository_ids",
+    "api_profile",
+    "capabilities",
+    "error",
+    "id",
+    "outcome",
+    "permissions",
+    "principal",
+    "repositories",
+    "repository_checks",
+    "trigger",
+    "verified_at",
+  ];
+  /** @param {Record<string, unknown>} properties */
+  const verification = (properties) =>
+    closedObject(
+      { ...verificationProperties, ...properties },
+      verificationRequired,
+    );
+  const connectionProperties = {
+    api_profile: { const: "github-rest:2026-03-10", type: "string" },
+    app_id: { minimum: 1, type: "integer" },
+    app_slug: { minLength: 1, type: "string" },
+    capabilities: { $ref: "GitHubCapabilityEvidence#" },
+    id: { minLength: 1, type: "string" },
+    lifecycle: { enum: ["enabled", "retired"], type: "string" },
+    permissions: { $ref: "GitHubPermissions#" },
+    polling: { items: { $ref: "GitHubPollingState#" }, type: "array" },
+    polling_failure: {
+      oneOf: [{ $ref: "GitHubPollingFailure#" }, { type: "null" }],
+    },
+    principal: { $ref: "GitHubPrincipal#" },
+    repository_count: { minimum: 1, type: "integer" },
+    verification_history: {
+      items: { $ref: "GitHubConnectionVerification#" },
+      minItems: 1,
+      type: "array",
+    },
+    verified_at: { minimum: 0, type: "integer" },
+  };
+  const connectionRequired = [
+    "api_profile",
+    "app_id",
+    "app_slug",
+    "capabilities",
+    "health",
+    "health_error",
+    "id",
+    "lifecycle",
+    "permissions",
+    "polling",
+    "polling_failure",
+    "principal",
+    "repository_count",
+    "verification_history",
+    "verified_at",
+  ];
+  /** @param {"healthy" | "error"} health @param {Record<string, unknown>} healthError */
+  const connection = (health, healthError) =>
+    closedObject(
+      {
+        ...connectionProperties,
+        health: { const: health, type: "string" },
+        health_error: healthError,
+      },
+      connectionRequired,
+    );
   return {
     ...canonicalGitHubPollingSchemas(),
     GitHubCallbackFailure: closedObject(
@@ -126,189 +236,41 @@ export function canonicalGitHubConnectionSchemas() {
       ["pem"],
     ),
     GitHubConnectionVerification: {
-      ...closedObject(
-        {
-          affected_repository_ids: {
-            items: { minimum: 1, type: "integer" },
-            minItems: 1,
-            type: "array",
-            uniqueItems: true,
-          },
-          api_profile: {
-            oneOf: [
-              { const: "github-rest:2026-03-10", type: "string" },
-              { type: "null" },
-            ],
-          },
-          capabilities: {
-            oneOf: [{ $ref: "GitHubCapabilityEvidence#" }, { type: "null" }],
-          },
-          error: {
-            oneOf: [{ $ref: "GitHubVerificationError#" }, { type: "null" }],
-          },
-          id: { minLength: 1, type: "string" },
-          outcome: { enum: ["success", "error"], type: "string" },
-          permissions: {
-            oneOf: [{ $ref: "GitHubPermissions#" }, { type: "null" }],
-          },
-          principal: {
-            oneOf: [{ $ref: "GitHubPrincipal#" }, { type: "null" }],
-          },
+      oneOf: [
+        verification({
+          api_profile: { const: "github-rest:2026-03-10", type: "string" },
+          capabilities: { $ref: "GitHubCapabilityEvidence#" },
+          error: { type: "null" },
+          outcome: { const: "success", type: "string" },
+          permissions: { $ref: "GitHubPermissions#" },
+          principal: { $ref: "GitHubPrincipal#" },
           repositories: {
             items: { $ref: "GitHubRepositoryEvidence#" },
+            minItems: 1,
             type: "array",
           },
           repository_checks: {
-            items: {
-              $ref: "GitHubRepositoryVerificationCheck#",
-            },
+            items: closedObject(
+              {
+                outcome: { const: "success", type: "string" },
+                repository_id: { minimum: 1, type: "integer" },
+              },
+              ["repository_id", "outcome"],
+            ),
             minItems: 1,
             type: "array",
           },
-          trigger: {
-            enum: [
-              "onboarding",
-              "repository_selection",
-              "enablement",
-              "rotation",
-            ],
-            type: "string",
-          },
-          verified_at: { minimum: 0, type: "integer" },
-        },
-        [
-          "affected_repository_ids",
-          "api_profile",
-          "capabilities",
-          "error",
-          "id",
-          "outcome",
-          "permissions",
-          "principal",
-          "repositories",
-          "repository_checks",
-          "trigger",
-          "verified_at",
-        ],
-      ),
-      oneOf: [
-        {
-          properties: {
-            api_profile: {
-              const: "github-rest:2026-03-10",
-              type: "string",
-            },
-            capabilities: {
-              $ref: "GitHubCapabilityEvidence#",
-            },
-            error: { type: "null" },
-            outcome: { const: "success" },
-            permissions: { $ref: "GitHubPermissions#" },
-            principal: { $ref: "GitHubPrincipal#" },
-            repositories: { minItems: 1 },
-            repository_checks: {
-              items: closedObject(
-                {
-                  outcome: { const: "success", type: "string" },
-                  repository_id: { minimum: 1, type: "integer" },
-                },
-                ["repository_id", "outcome"],
-              ),
-              minItems: 1,
-              type: "array",
-            },
-          },
-          required: [
-            "api_profile",
-            "capabilities",
-            "error",
-            "outcome",
-            "permissions",
-            "principal",
-            "repositories",
-            "repository_checks",
-          ],
-        },
-        {
-          properties: {
-            error: {
-              $ref: "GitHubVerificationError#",
-            },
-            outcome: { const: "error" },
-          },
-          required: ["error", "outcome"],
-        },
+        }),
+        verification({
+          error: { $ref: "GitHubVerificationError#" },
+          outcome: { const: "error", type: "string" },
+        }),
       ],
     },
     GitHubConnection: {
-      ...closedObject(
-        {
-          api_profile: { const: "github-rest:2026-03-10", type: "string" },
-          app_id: { minimum: 1, type: "integer" },
-          app_slug: { minLength: 1, type: "string" },
-          capabilities: {
-            $ref: "GitHubCapabilityEvidence#",
-          },
-          health: { enum: ["healthy", "error"], type: "string" },
-          health_error: {
-            oneOf: [{ $ref: "GitHubConnectionHealthError#" }, { type: "null" }],
-          },
-          id: { minLength: 1, type: "string" },
-          lifecycle: { enum: ["enabled", "retired"], type: "string" },
-          permissions: { $ref: "GitHubPermissions#" },
-          polling: {
-            items: { $ref: "GitHubPollingState#" },
-            type: "array",
-          },
-          polling_failure: {
-            oneOf: [{ $ref: "GitHubPollingFailure#" }, { type: "null" }],
-          },
-          principal: { $ref: "GitHubPrincipal#" },
-          repository_count: { minimum: 1, type: "integer" },
-          verification_history: {
-            items: {
-              $ref: "GitHubConnectionVerification#",
-            },
-            minItems: 1,
-            type: "array",
-          },
-          verified_at: { minimum: 0, type: "integer" },
-        },
-        [
-          "api_profile",
-          "app_id",
-          "app_slug",
-          "capabilities",
-          "health",
-          "health_error",
-          "id",
-          "lifecycle",
-          "permissions",
-          "polling",
-          "polling_failure",
-          "principal",
-          "repository_count",
-          "verification_history",
-          "verified_at",
-        ],
-      ),
       oneOf: [
-        {
-          properties: {
-            health: { const: "healthy" },
-            health_error: { type: "null" },
-          },
-          required: ["health", "health_error"],
-        },
-        {
-          properties: {
-            health: { const: "error" },
-            health_error: {
-              $ref: "GitHubConnectionHealthError#",
-            },
-          },
-          required: ["health", "health_error"],
-        },
+        connection("healthy", { type: "null" }),
+        connection("error", { $ref: "GitHubConnectionHealthError#" }),
       ],
     },
     GitHubManifestStart: closedObject(
@@ -318,7 +280,7 @@ export function canonicalGitHubConnectionSchemas() {
             "^https://github\\.com/settings/apps/new\\?state=[A-Za-z0-9_-]{8,256}$",
           type: "string",
         },
-        manifest: { type: "object" },
+        manifest: { additionalProperties: true, type: "object" },
         method: { const: "POST", type: "string" },
         state: { minLength: 8, type: "string" },
       },
