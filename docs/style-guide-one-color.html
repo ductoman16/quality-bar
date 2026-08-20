@@ -1,0 +1,474 @@
+<!doctype html><html lang="en" data-theme="dark" data-accent="amber"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One Color · Dark &amp; Light</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box}
+
+/* ============================================================= *
+ *  ACCENT PALETTE — the one color. Each name maps to one hue.   *
+ *  The neutral base retones toward it (7–18% mix, see below).   *
+ * ============================================================= */
+:root{
+  /* One perceptual lightness for all six; hue is the only real         *
+   * variable, chroma floats to each hue's sRGB gamut edge. Switching    *
+   * accent changes the color, never the UI's "loudness." Tune --acc-l.  */
+  --acc-l:0.75;
+  /* Each accent's hue is named once and reused for the neutral tint. */
+  --h-amber:95; --h-ember:52; --h-phosphor:150;
+  --h-cyan:205; --h-signal:258; --h-iris:293;
+  /* Amber rides higher: yellow's gamut peaks bright, so the shared L
+     reads as bronze. Its own lightness keeps it gold, not muddy. */
+  --amber:   oklch(0.84       0.17 var(--h-amber));
+  --ember:   oklch(var(--acc-l) 0.18 var(--h-ember));
+  --phosphor:oklch(var(--acc-l) 0.17 var(--h-phosphor));
+  --cyan:    oklch(var(--acc-l) 0.14 var(--h-cyan));
+  --signal:  oklch(var(--acc-l) 0.15 var(--h-signal));
+  --iris:    oklch(var(--acc-l) 0.18 var(--h-iris));
+  --ars-accent:var(--amber);           /* swapped by the picker  */
+  --ars-h:var(--h-amber);              /* the live accent's hue    */
+
+  --font-mono:'Spline Sans Mono','JetBrains Mono',ui-monospace,monospace;
+  --font-sans:'Inter','Helvetica Neue',system-ui,sans-serif;
+
+  --radius:8px; --radius-card:16px; --radius-pill:999px;
+  --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --sp5:22px; --sp6:30px;
+
+  color-scheme:dark;
+}
+
+/* --- Base neutrals per mode (before the accent whisper) ------- */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --base-canvas:#161719; --base-surface:#212327; --base-ink:#ececed;
+  --base-muted:#8b8d92;  --base-line:#3a3c41;
+  --accent-ink:#141310;  /* text sitting on an accent fill */
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --base-canvas:#e9eae1; --base-surface:#f3f4ec; --base-ink:#17170f;
+  --base-muted:#585d50;  --base-line:#b3b4a9;
+  --accent-ink:#17170f;
+}
+
+/* --- Derived tokens: base grey + a whisper of the accent hue -- *
+ *  The single formula that makes the whole UI retone with the    *
+ *  one color. Swap --ars-accent and canvas/ink/line all shift.   */
+:root{
+  /* Hue-only tint: each neutral keeps its base LIGHTNESS exactly and    *
+   * borrows just the accent's hue at a small fixed chroma. Because L     *
+   * never moves, the grey ramp's contrast is identical for every accent *
+   * — only the temperature whispers.                                    */
+  --qb-canvas:   oklch(from var(--base-canvas)  l 0.004 var(--ars-h));
+  --qb-surface:  oklch(from var(--base-surface) l 0.005 var(--ars-h));
+  --qb-ink:      oklch(from var(--base-ink)     l 0.004 var(--ars-h));
+  --qb-muted-ink:oklch(from var(--base-muted)   l 0.012 var(--ars-h));
+  --qb-line:     oklch(from var(--base-line)    l 0.008 var(--ars-h));
+}
+
+html{background:var(--qb-canvas);scroll-behavior:smooth;overflow-wrap:anywhere}
+body{margin:0;min-height:100vh;background:var(--qb-canvas);color:var(--qb-ink);
+  font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+::selection{background:var(--ars-accent);color:var(--accent-ink)}
+code{font-family:var(--font-mono)}
+
+/* ============================== HEADER ======================== */
+.hdr{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:9px 22px;background:var(--qb-canvas);border-bottom:1px solid var(--qb-line)}
+.brand{width:26px;height:26px;flex-shrink:0;display:grid;place-items:center;
+  background:var(--qb-ink);color:var(--qb-canvas);border-radius:6px;
+  font-family:var(--font-mono);font-size:14px;font-weight:700}
+.brand-title{font-family:var(--font-mono);font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.nav{display:flex;align-items:center;gap:22px;margin-left:16px}
+.nav a{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;text-decoration:none;color:var(--qb-muted-ink);
+  padding-bottom:2px;border-bottom:1.5px solid transparent}
+.nav a:hover{color:var(--qb-ink)}
+.nav a[aria-current="page"]{color:var(--ars-accent);border-bottom-color:var(--ars-accent)}
+.hdr-status{margin-left:auto;display:flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;color:var(--qb-muted-ink)}
+.hdr-status .dot{width:7px;height:7px;border-radius:50%;background:var(--ars-accent)}
+
+/* ============================ ACCENT BAR ====================== */
+.accentbar{position:sticky;top:45px;z-index:39;display:flex;align-items:center;gap:14px;
+  padding:8px 22px;background:var(--qb-canvas);border-bottom:1px solid var(--qb-line)}
+.accentbar > .lbl{font-family:var(--font-mono);font-size:10px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--qb-muted-ink)}
+.swatch-picker{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:7px;min-height:26px;padding:3px 12px 3px 9px;
+  border:1px solid var(--qb-line);border-radius:var(--radius-pill);background:transparent;
+  color:var(--qb-muted-ink);font-family:var(--font-mono);font-size:11px;font-weight:600;
+  letter-spacing:.02em;cursor:pointer;transition:none}
+.pill .swatch-dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex-shrink:0}
+.pill:hover{color:var(--qb-ink);border-color:var(--qb-ink)}
+.pill.is-selected{border-color:var(--c);color:var(--qb-ink);
+  background:color-mix(in oklab, var(--c) 16%, transparent)}
+.mode-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:7px;min-height:26px;
+  padding:3px 13px;border:1px solid var(--qb-line);border-radius:var(--radius-pill);
+  background:transparent;color:var(--qb-ink);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;letter-spacing:.04em;cursor:pointer}
+.mode-toggle:hover{border-color:var(--qb-ink)}
+
+/* ============================== SHELL ========================= */
+.sg{max-width:1180px;margin:0 auto;padding:34px 26px 90px}
+.eyebrow{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--qb-muted-ink);margin:0 0 12px}
+.title{font-family:var(--font-mono);font-size:clamp(2rem,4vw,2.8rem);font-weight:600;
+  letter-spacing:-.01em;margin:0 0 14px}
+.lede{max-width:70ch;color:var(--qb-ink);font-size:14px;margin:0 0 4px}
+.principles{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:9px;max-width:82ch}
+.principles li{padding-left:20px;position:relative;font-size:13px;color:var(--qb-ink)}
+.principles li::before{content:"—";position:absolute;left:0;color:var(--qb-muted-ink)}
+.principles strong{font-weight:600}
+
+.section{padding-top:30px}
+.sh{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--qb-muted-ink);margin:0 0 2px;
+  padding-top:22px;border-top:1px solid var(--qb-line)}
+.note{font-size:12.5px;color:var(--qb-muted-ink);margin:14px 0 0;max-width:88ch;line-height:1.55}
+.note strong{color:var(--qb-ink);font-weight:600}
+.subh{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--qb-muted-ink);margin:0 0 14px}
+
+/* --------------------------- swatches ------------------------ */
+.swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:20px}
+@media(max-width:860px){.swatches{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.swatches{grid-template-columns:repeat(2,1fr)}}
+.sw{border:1px solid var(--qb-line);border-radius:12px;overflow:hidden;background:var(--qb-surface)}
+.sw__chip{height:74px}
+.sw__meta{padding:10px 12px 12px}
+.sw__name{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--qb-ink)}
+.sw__val{display:block;font-family:var(--font-mono);font-size:10.5px;color:var(--qb-muted-ink);margin-top:3px}
+.sw--accent{border-color:var(--ars-accent)}
+.sw--accent .sw__chip{background:var(--ars-accent)}
+.sw--accent .sw__name{color:var(--ars-accent)}
+
+/* --------------------------- rule cards ---------------------- */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+@media(max-width:720px){.two{grid-template-columns:1fr}}
+.card{border:1px solid var(--qb-line);border-radius:var(--radius-card);padding:20px 22px;background:transparent}
+.card__hd{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--qb-muted-ink);margin:0 0 14px}
+.card--may .card__hd{color:var(--ars-accent)}
+.rulelist{margin:0;padding:0;list-style:none;display:grid;gap:11px}
+.rulelist li{position:relative;padding-left:22px;font-size:13px;color:var(--qb-ink)}
+.rulelist li::before{content:"";position:absolute;left:0;top:.35em;width:9px;height:9px;border-radius:50%}
+.card--may .rulelist li::before{background:var(--ars-accent)}
+.card--not .rulelist li::before{border:1px solid var(--qb-muted-ink)}
+
+/* --------------------------- type scale ---------------------- */
+.scale{display:grid;gap:12px;margin-top:20px}
+.scale__row{display:grid;grid-template-columns:120px 1fr;align-items:baseline;gap:18px}
+.scale__k{font-family:var(--font-mono);font-size:11px;color:var(--qb-muted-ink)}
+.t-value{font-family:var(--font-mono);font-size:26px;font-weight:500;letter-spacing:-.01em}
+.t-heading{font-family:var(--font-mono);font-size:15px;font-weight:600}
+.t-label{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--qb-muted-ink)}
+.t-body{font-size:13px}
+
+/* --------------------------- buttons ------------------------- */
+.demo{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.demo-block{display:grid;gap:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;
+  padding:6px 16px;border:1px solid transparent;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:13px;font-weight:600;letter-spacing:.01em;
+  line-height:1;white-space:nowrap;cursor:pointer;background:transparent;color:var(--qb-ink)}
+.btn--primary{background:var(--ars-accent);color:var(--accent-ink);border-color:var(--ars-accent)}
+.btn--primary:hover{filter:brightness(1.06)}
+.btn--secondary{border-color:var(--qb-line);color:var(--qb-ink)}
+.btn--secondary:hover{border-color:var(--qb-ink)}
+
+/* --------------------------- round controls ------------------ */
+.toggle{position:relative;display:inline-flex;align-items:center;width:58px;height:30px;
+  border:1px solid transparent;border-radius:999px;font-family:var(--font-mono);font-size:10px;
+  font-weight:700;letter-spacing:.04em;cursor:default}
+.toggle__knob{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%}
+.toggle--on{justify-content:flex-start;padding-left:11px;background:var(--ars-accent);
+  color:var(--accent-ink)}
+.toggle--on .toggle__knob{right:3px;background:var(--accent-ink)}
+.toggle--off{justify-content:flex-end;padding-right:9px;background:transparent;
+  border-color:var(--qb-line);color:var(--qb-muted-ink)}
+.toggle--off .toggle__knob{left:3px;background:var(--qb-muted-ink)}
+.iconbtn{width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid var(--qb-line);
+  border-radius:50%;background:transparent;color:var(--qb-ink);cursor:pointer}
+.iconbtn:hover{border-color:var(--qb-ink)}
+.gauge{position:relative;display:inline-grid;place-items:center;width:76px;height:76px}
+.gauge svg{position:absolute;inset:0;width:100%;height:100%}
+.gauge__v{position:relative;font-family:var(--font-mono);font-size:15px;font-weight:600}
+
+/* --------------------------- outcome glyphs ------------------ */
+.glyphs{display:flex;flex-wrap:wrap;gap:24px;margin-top:6px}
+.glyph{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600}
+.oc{display:inline-grid;place-items:center;width:16px;height:16px;flex-shrink:0;
+  border:1px solid var(--qb-ink);border-radius:50%;font-size:10px;line-height:1;color:var(--qb-ink)}
+.oc--clear{background:var(--qb-ink);color:var(--qb-canvas)}
+.oc--clear::before{content:"✓"}
+.oc--advisory{border:0;border-radius:0;background:transparent;font-size:17px}
+.oc--advisory::before{content:"△"}
+.oc--blocking{border:1px solid var(--qb-ink);border-radius:0;
+  background:linear-gradient(45deg,transparent 43%,var(--qb-ink) 43% 57%,transparent 57%) center/9px 9px no-repeat,
+             linear-gradient(-45deg,transparent 43%,var(--qb-ink) 43% 57%,transparent 57%) center/9px 9px no-repeat}
+.oc--error{border:0;border-radius:0;background:transparent;font-size:16px;font-weight:700}
+.oc--error::before{content:"!"}
+.oc--skipped::before{content:"−"}
+.oc--running{border-style:dashed;border-color:var(--ars-accent);color:var(--ars-accent)}
+.oc--running::before{content:"◴"}
+.glyph--running{color:var(--ars-accent)}
+
+/* --------------------------- monitor ------------------------- */
+.statstrip{display:flex;flex-wrap:wrap;gap:0;margin-top:20px;
+  border-top:1px solid var(--qb-line);border-bottom:1px solid var(--qb-line)}
+.stat{flex:1 1 160px;min-width:150px;padding:14px 0}
+.stat__k{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--qb-muted-ink);display:block;margin-bottom:6px}
+.stat__v{font-family:var(--font-mono);font-size:26px;font-weight:600;letter-spacing:-.01em}
+.stat__v .u{font-size:14px;font-weight:500;color:var(--qb-muted-ink)}
+
+.daygroup{margin-top:8px}
+.dayhd{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--qb-muted-ink);padding:14px 0 4px}
+.ledger{display:grid}
+.lrow{display:grid;grid-template-columns:150px 1fr auto auto;align-items:center;gap:20px;
+  padding:13px 0;border-top:1px solid var(--qb-line)}
+.lrow__repo{display:grid;gap:2px}
+.lrow__repo b{font-family:var(--font-mono);font-size:13px;font-weight:600}
+.lrow__repo span{font-family:var(--font-mono);font-size:11px;color:var(--qb-muted-ink)}
+.lrow__mid{font-family:var(--font-mono);font-size:12.5px;color:var(--qb-ink)}
+.lrow__mid .k{font-weight:600}
+.lrow__time{font-family:var(--font-mono);font-size:12px;color:var(--qb-muted-ink);text-align:right}
+.lrow__out{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-mono);
+  font-size:12px;font-weight:600;justify-self:end;min-width:96px}
+@media(max-width:640px){
+  .lrow{grid-template-columns:1fr auto;gap:6px 14px}
+  .lrow__mid{grid-column:1/-1;order:3}
+  .lrow__time{order:2}
+}
+
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+</head><body>
+
+<header class="hdr">
+  <div class="brand">A</div>
+  <div class="brand-title">Agent Review</div>
+  <nav class="nav">
+    <a href="#" aria-current="page">Evaluations</a>
+    <a href="#">Reviews</a>
+    <a href="#">Repositories</a>
+    <a href="#">Analytics</a>
+    <a href="#">System</a>
+  </nav>
+  <div class="hdr-status"><span class="dot"></span>workers 3/4 · queue 0 · 12:41</div>
+</header>
+
+<div class="accentbar">
+  <span class="lbl">Accent</span>
+  <div class="swatch-picker" id="picker">
+    <button class="pill is-selected" data-accent="amber"    style="--c:var(--amber)"><span class="swatch-dot"></span>Amber</button>
+    <button class="pill"            data-accent="phosphor" style="--c:var(--phosphor)"><span class="swatch-dot"></span>Phosphor</button>
+    <button class="pill"            data-accent="signal"   style="--c:var(--signal)"><span class="swatch-dot"></span>Signal</button>
+    <button class="pill"            data-accent="cyan"     style="--c:var(--cyan)"><span class="swatch-dot"></span>Cyan</button>
+    <button class="pill"            data-accent="ember"    style="--c:var(--ember)"><span class="swatch-dot"></span>Ember</button>
+    <button class="pill"            data-accent="iris"     style="--c:var(--iris)"><span class="swatch-dot"></span>Iris</button>
+  </div>
+  <button class="mode-toggle" id="mode"><span id="mode-glyph">☾</span> <span id="mode-label">Dark</span></button>
+</div>
+
+<div class="sg">
+  <p class="eyebrow">Agent Review System · Design System</p>
+  <h1 class="title">One Color · Dark &amp; Light</h1>
+  <p class="lede">The Fono language, unchanged in structure — one geometric-mono voice, shapes
+    that carry meaning, a strict monochrome base — in a warm-dark or light canvas,
+    each granted exactly one accent color. Pick the accent and flip the mode above.</p>
+  <ul class="principles">
+    <li><strong>Same bones.</strong> One mono voice; big confident values; soft outlined cards group, hairline rows list; round where you act.</li>
+    <li><strong>Shape still carries outcome.</strong> Square system phase, circular Review node, cross-hatch blocking, triangle advisory — geometry means what it always did.</li>
+    <li><strong>One color = "live &amp; actionable now."</strong> The accent appears only on the single primary action, the active nav item, the ON toggle, the gauge arc, the running node, and the focus ring.</li>
+    <li><strong>So color and shape never compete.</strong> Danger stays monochrome and shape-driven; the accent is rare, so wherever it glows it means something.</li>
+  </ul>
+
+  <section class="section">
+    <p class="sh">Foundations · Color — monochrome base + one accent</p>
+    <div class="swatches">
+      <div class="sw"><div class="sw__chip" style="background:var(--qb-canvas)"></div><div class="sw__meta"><span class="sw__name">Canvas</span><code class="sw__val">accent 3% + grey</code></div></div>
+      <div class="sw"><div class="sw__chip" style="background:var(--qb-surface)"></div><div class="sw__meta"><span class="sw__name">Surface</span><code class="sw__val">accent 4% + grey</code></div></div>
+      <div class="sw"><div class="sw__chip" style="background:var(--qb-ink)"></div><div class="sw__meta"><span class="sw__name">Ink</span><code class="sw__val">accent 3% + grey</code></div></div>
+      <div class="sw"><div class="sw__chip" style="background:var(--qb-muted-ink)"></div><div class="sw__meta"><span class="sw__name">Muted ink</span><code class="sw__val">accent 8% + grey</code></div></div>
+      <div class="sw"><div class="sw__chip" style="background:var(--qb-line)"></div><div class="sw__meta"><span class="sw__name">Line</span><code class="sw__val">accent 6% + grey</code></div></div>
+      <div class="sw sw--accent"><div class="sw__chip"></div><div class="sw__meta"><span class="sw__name">Accent — the one color</span><code class="sw__val">--ars-accent</code></div></div>
+    </div>
+    <p class="note">The neutrals aren't fixed — each holds its own lightness exactly and borrows only the accent's
+      hue, a near-grey tinted but never lightened or darkened, so the base retones with the one color
+      while contrast stays identical for every accent. Pick Amber and the charcoal warms to
+      olive; pick Cyan and it cools to slate. Everything follows from a single hue — swap the accent
+      in the picker above and watch the canvas, ink, and rules shift with it.</p>
+  </section>
+
+  <section class="section">
+    <p class="sh">The rule · where the one color may live</p>
+    <div class="two">
+      <div class="card card--may">
+        <p class="card__hd">Accent may touch</p>
+        <ul class="rulelist">
+          <li>The one primary action per view</li>
+          <li>Active nav item &amp; focus ring</li>
+          <li>ON toggle &amp; the gauge progress arc</li>
+          <li>The currently-running node / live pulse</li>
+        </ul>
+      </div>
+      <div class="card card--not">
+        <p class="card__hd">Accent must not touch</p>
+        <ul class="rulelist">
+          <li>Outcome glyphs — Clear, Advisory, Blocking, Error (shape carries these)</li>
+          <li>Body text, labels, values, or table data</li>
+          <li>Card fills, borders, or hairline rules</li>
+          <li>More than one primary action on a screen</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">The fork: this doctrine makes the accent mean <em>go / live / act</em>. If you'd rather it mean <em>needs you</em>,
+      move it onto Blocking &amp; Error only and keep primary actions monochrome — quieter overall, but
+      the toggle, gauge, and running pulse lose their glow. You can't have both without the color losing
+      its meaning.</p>
+  </section>
+
+  <section class="section">
+    <p class="sh">Foundations · Type — one voice, unchanged</p>
+    <div class="scale">
+      <div class="scale__row"><span class="scale__k">value / 26</span><span class="t-value">1,284 evals · 71% clear</span></div>
+      <div class="scale__row"><span class="scale__k">heading / 15</span><span class="t-heading">Active version</span></div>
+      <div class="scale__row"><span class="scale__k">label / 11</span><span class="t-label">Blocking rate</span></div>
+      <div class="scale__row"><span class="scale__k">body / 13</span><span class="t-body">Operators read this to decide what to do next.</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="sh">Components · Where the accent shows up</p>
+    <div class="two">
+      <div>
+        <p class="subh">Buttons — primary carries the color</p>
+        <div class="demo">
+          <button class="btn btn--primary">+ New evaluation</button>
+          <button class="btn btn--secondary">Cancel</button>
+          <button class="btn btn--secondary">Retry</button>
+        </div>
+        <p class="note">One primary per view. Secondary stays outlined monochrome.</p>
+      </div>
+      <div>
+        <p class="subh">Round controls — ON &amp; live take the color</p>
+        <div class="demo" style="gap:22px">
+          <span class="toggle toggle--on">ON<span class="toggle__knob"></span></span>
+          <span class="toggle toggle--off">OFF<span class="toggle__knob"></span></span>
+          <span class="gauge"><svg viewBox="0 0 100 100" fill="none">
+            <circle cx="50" cy="50" r="42" stroke="var(--qb-line)" stroke-width="8"/>
+            <circle cx="50" cy="50" r="42" stroke="var(--ars-accent)" stroke-width="8" stroke-linecap="round"
+              stroke-dasharray="263.9" stroke-dashoffset="76.5" transform="rotate(-90 50 50)"/>
+          </svg><span class="gauge__v">71%</span></span>
+          <button class="iconbtn" title="Add"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+        <p class="note">Toggle ON, gauge arc, and the live pulse glow; OFF and the icon button stay quiet.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="sh">Outcome glyphs — shape-carried; settled outcomes stay monochrome, only the live running state takes the accent</p>
+    <div class="glyphs">
+      <span class="glyph"><span class="oc oc--clear"></span>Clear</span>
+      <span class="glyph"><span class="oc oc--advisory"></span>Advisory</span>
+      <span class="glyph"><span class="oc oc--blocking"></span>Blocking</span>
+      <span class="glyph"><span class="oc oc--error"></span>Error</span>
+      <span class="glyph"><span class="oc oc--skipped"></span>Skipped</span>
+      <span class="glyph glyph--running"><span class="oc oc--running"></span>Running</span>
+    </div>
+    <p class="note">Only Running borrows the accent — because it's the one live, in-progress state. Every settled
+      outcome is read by its shape.</p>
+  </section>
+
+  <section class="section">
+    <p class="sh">In context · the evaluations monitor</p>
+    <div class="statstrip">
+      <div class="stat"><span class="stat__k">Pass rate · 24h</span><span class="stat__v">71<span class="u">%</span></span></div>
+      <div class="stat"><span class="stat__k">P95 duration</span><span class="stat__v">5m41s</span></div>
+      <div class="stat"><span class="stat__k">Blocking · open</span><span class="stat__v">2</span></div>
+      <div class="stat"><span class="stat__k">Advisory · 24h</span><span class="stat__v">—</span></div>
+    </div>
+
+    <div class="daygroup">
+      <p class="dayhd">Today · Aug 18</p>
+      <div class="ledger">
+        <div class="lrow">
+          <div class="lrow__repo"><b>payments-api</b><span>github</span></div>
+          <div class="lrow__mid"><span class="k">secret-scan</span> · 6 criteria · no findings</div>
+          <div class="lrow__time">12:38</div>
+          <div class="lrow__out"><span class="oc oc--clear"></span>Clear</div>
+        </div>
+        <div class="lrow">
+          <div class="lrow__repo"><b>auth-gateway</b><span>github</span></div>
+          <div class="lrow__mid"><span class="k">dependency-review</span> · 1 blocking finding</div>
+          <div class="lrow__time">12:31</div>
+          <div class="lrow__out"><span class="oc oc--blocking"></span>Blocking</div>
+        </div>
+        <div class="lrow">
+          <div class="lrow__repo"><b>data-pipeline</b><span>forgejo</span></div>
+          <div class="lrow__mid"><span class="k">preparing</span> · applicability sealed</div>
+          <div class="lrow__time">12:29</div>
+          <div class="lrow__out glyph--running"><span class="oc oc--running"></span>Running</div>
+        </div>
+        <div class="lrow">
+          <div class="lrow__repo"><b>worker-service</b><span>github</span></div>
+          <div class="lrow__mid"><span class="k">style-review</span> · 3 advisory notes</div>
+          <div class="lrow__time">12:20</div>
+          <div class="lrow__out"><span class="oc oc--advisory"></span>Advisory</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="daygroup">
+      <p class="dayhd">Yesterday · Aug 17</p>
+      <div class="ledger">
+        <div class="lrow">
+          <div class="lrow__repo"><b>payments-api</b><span>github</span></div>
+          <div class="lrow__mid"><span class="k">license-check</span> · adapter error, retried</div>
+          <div class="lrow__time">18:02</div>
+          <div class="lrow__out"><span class="oc oc--error"></span>Error</div>
+        </div>
+        <div class="lrow">
+          <div class="lrow__repo"><b>data-pipeline</b><span>forgejo</span></div>
+          <div class="lrow__mid"><span class="k">secret-scan</span> · 6 criteria · no findings</div>
+          <div class="lrow__time">17:44</div>
+          <div class="lrow__out"><span class="oc oc--clear"></span>Clear</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var picker = document.getElementById('picker');
+  picker.addEventListener('click', function(e){
+    var btn = e.target.closest('.pill'); if(!btn) return;
+    var name = btn.dataset.accent;
+    root.style.setProperty('--ars-accent', 'var(--' + name + ')');
+    root.style.setProperty('--ars-h', 'var(--h-' + name + ')');
+    root.setAttribute('data-accent', name);
+    picker.querySelectorAll('.pill').forEach(function(p){ p.classList.toggle('is-selected', p===btn); });
+  });
+
+  var mode = document.getElementById('mode');
+  var glyph = document.getElementById('mode-glyph');
+  var label = document.getElementById('mode-label');
+  mode.addEventListener('click', function(){
+    var dark = root.getAttribute('data-theme') !== 'light';
+    var next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    glyph.textContent = next === 'dark' ? '☾' : '☀';
+    label.textContent = next === 'dark' ? 'Dark' : 'Light';
+  });
+})();
+</script>
+</body></html>
