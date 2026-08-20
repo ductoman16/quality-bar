@@ -319,6 +319,24 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
       destroy() {},
     }),
   });
+  const invalid = await request(
+    "/api/v1/github-connections/setup?installation_id=73&setup_action=wrong",
+    { redirect: "manual" },
+  );
+  assert.equal(invalid.status, 303);
+  assert.equal(
+    invalid.headers.get("location"),
+    "/?view=repositories&github_connection_error=error-receipt",
+  );
+  const headers = await authenticatedOperatorHeaders(request);
+  const invalidFailure = await request(
+    "/api/v1/github-connections/callback-error?receipt=error-receipt",
+    { headers },
+  );
+  assert.deepEqual(await invalidFailure.json(), {
+    code: "github_installation_callback_invalid",
+    message: "GitHub App installation callback is invalid",
+  });
   const response = await request(
     "/api/v1/github-connections/setup?installation_id=73&setup_action=install&state=manifest-state",
     { redirect: "manual" },
@@ -328,7 +346,6 @@ test("GitHub callbacks return the exact owning error to the operator surface wit
     response.headers.get("location"),
     "/?view=repositories&github_connection_error=error-receipt",
   );
-  const headers = await authenticatedOperatorHeaders(request);
   const failure = await request(
     "/api/v1/github-connections/callback-error?receipt=error-receipt",
     { headers },

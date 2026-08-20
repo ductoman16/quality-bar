@@ -98,8 +98,10 @@ export function createFastify(components) {
   );
   const server = Fastify({
     bodyLimit: 8 * 1024,
+    exposeHeadRoutes: false,
     genReqId: () => randomUUID(),
     routerOptions: {
+      maxParamLength: Number.MAX_SAFE_INTEGER,
       onBadUrl(path, request, response) {
         void path;
         void request;
@@ -184,10 +186,6 @@ export function createFastify(components) {
     }
     done(null, payload);
   });
-  server.setNotFoundHandler((request, reply) => {
-    void request;
-    writeError(reply, 404, "not_found", "Resource was not found");
-  });
   server.setErrorHandler((error, request, reply) => {
     void request;
     writeUnhandledError(reply, error);
@@ -202,9 +200,14 @@ export function requestUrl(request) {
 
 /** @param {any} request */
 export function allowedSecuritySchemes(request) {
-  return new Set(
+  const declared = new Set(
     (request.routeOptions.schema?.security ?? []).flatMap(Object.keys),
   );
+  return declared.size > 0 ||
+    request.routeOptions.schema?.security !== undefined ||
+    !/^\/(?:api|mcp)\/v1(?:\/|$)/.test(requestUrl(request).pathname)
+    ? declared
+    : new Set(["browser_session", "implementer_token", "onboarding_token"]);
 }
 
 /** @param {string} code */
@@ -277,8 +280,9 @@ function registeredSchema(route) {
 /**
  * @param {import("fastify").FastifyInstance} server
  * @param {Record<string, (request: any, reply: any) => unknown>} handlers
+ * @param {Record<string, (error: any, request: any, reply: any) => unknown>} [errorHandlers]
  */
-export function registerApiRoutes(server, handlers) {
+export function registerApiRoutes(server, handlers, errorHandlers = {}) {
   for (const route of apiRoutes) {
     const operationId = route.schema.operationId;
     const handler =
@@ -305,6 +309,9 @@ export function registerApiRoutes(server, handlers) {
     server.route(
       /** @type {any} */ ({
         ...route,
+        ...(operationId && errorHandlers[operationId]
+          ? { errorHandler: errorHandlers[operationId] }
+          : {}),
         handler,
         schema: registeredSchema(route),
       }),

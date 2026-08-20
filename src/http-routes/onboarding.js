@@ -1,4 +1,7 @@
-import { errorResponses } from "../http-route-schema.js";
+import {
+  canonicalValidationError,
+  errorResponses,
+} from "../http-route-schema.js";
 
 export const onboardingSchemas = {};
 
@@ -23,6 +26,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens",
   },
   {
+    ...canonicalValidationError(
+      "onboarding_token_request_malformed",
+      "Onboarding token request must contain one Repository URL",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "createOnboardingToken",
@@ -45,6 +53,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens",
   },
   {
+    ...canonicalValidationError(
+      "request_malformed",
+      "Request is malformed",
+      400,
+    ),
     method: "DELETE",
     schema: {
       operationId: "revokeOnboardingToken",
@@ -67,6 +80,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-tokens/:onboarding_token_id",
   },
   {
+    ...canonicalValidationError(
+      "request_malformed",
+      "Request is malformed",
+      400,
+    ),
     method: "POST",
     schema: {
       operationId: "revokeCurrentOnboardingToken",
@@ -89,6 +107,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding-token/revoke",
   },
   {
+    ...canonicalValidationError(
+      "repository_request_invalid",
+      "Repository registration request is invalid",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "registerOnboardingRepository",
@@ -111,6 +134,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding/repository",
   },
   {
+    ...canonicalValidationError(
+      "review_selection_request_malformed",
+      "Review selection must contain unique Review identities",
+      422,
+    ),
     method: "PUT",
     schema: {
       operationId: "setOnboardingRepositoryReviews",
@@ -133,6 +161,11 @@ export const onboardingRoutes = [
     url: "/api/v1/repositories/:repository_id/review-selection",
   },
   {
+    ...canonicalValidationError(
+      "review_request_malformed",
+      "Review request contains unsupported or missing fields",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "createOnboardingRepositoryReview",
@@ -155,6 +188,11 @@ export const onboardingRoutes = [
     url: "/api/v1/repositories/:repository_id/reviews",
   },
   {
+    ...canonicalValidationError(
+      "review_metadata_request_malformed",
+      "Review metadata request contains unsupported or missing fields",
+      422,
+    ),
     method: "PATCH",
     schema: {
       operationId: "updateOnboardingReviewMetadata",
@@ -177,6 +215,11 @@ export const onboardingRoutes = [
     url: "/api/v1/onboarding/reviews/:review_id/metadata",
   },
   {
+    ...canonicalValidationError(
+      "review_version_request_malformed",
+      "Review Version request contains unsupported or missing fields",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "saveOnboardingReviewVersion",

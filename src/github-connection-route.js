@@ -16,6 +16,38 @@ function redirectCallbackFailure(response, error, githubConnections) {
   });
 }
 
+/** @param {ReturnType<typeof import("./github-connection.js").createGitHubConnectionService>} githubConnections */
+export function createGitHubCallbackValidationErrorHandler(githubConnections) {
+  return function handleGitHubCallbackValidationError(
+    /** @type {any} */ error,
+    /** @type {import("fastify").FastifyRequest} */ request,
+    /** @type {import("fastify").FastifyReply} */ response,
+  ) {
+    if (!error.validation) {
+      throw error;
+    }
+    const installation =
+      request.routeOptions.schema?.operationId ===
+      "completeGitHubAppInstallation";
+    redirectCallbackFailure(
+      response,
+      Object.assign(
+        new Error(
+          installation
+            ? "GitHub App installation callback is invalid"
+            : "GitHub App Manifest callback is invalid",
+        ),
+        {
+          code: installation
+            ? "github_installation_callback_invalid"
+            : "github_manifest_callback_invalid",
+        },
+      ),
+      githubConnections,
+    );
+  };
+}
+
 /**
  * @param {import("fastify").FastifyRequest} request
  * @param {import("fastify").FastifyReply} response

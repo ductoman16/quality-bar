@@ -87,7 +87,7 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     MCP_PROTOCOL_VERSION,
   );
 
-  for (const method of ["GET", "DELETE"]) {
+  for (const method of ["GET", "HEAD", "OPTIONS", "DELETE"]) {
     const unsupported = await fetch(`${origin}/mcp/v1`, {
       headers: mcpHeaders(token, {
         "mcp-protocol-version": MCP_PROTOCOL_VERSION,
@@ -97,6 +97,14 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     assert.equal(unsupported.status, 405, method);
     assert.equal(unsupported.headers.get("allow"), "POST");
   }
+  const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
+    headers: mcpHeaders(token, { origin: "https://attacker.example" }),
+  });
+  assert.equal(invalidOrigin.status, 403);
+  assert.equal(
+    /** @type {any} */ (await invalidOrigin.json()).error.code,
+    "origin_invalid",
+  );
 });
 
 test("MCP exposes only the fixed Repository, Evaluation, and waiver tools and resource templates", async () => {

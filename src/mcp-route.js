@@ -28,6 +28,29 @@ import {
   writeProtocolVersionError,
   writeResult,
 } from "./mcp-http-response.js";
+
+/** @param {string} browserOrigin */
+export function createMcpOriginHook(browserOrigin) {
+  return function requireMcpOrigin(
+    /** @type {import("fastify").FastifyRequest} */ request,
+    /** @type {import("fastify").FastifyReply} */ response,
+    /** @type {() => void} */ done,
+  ) {
+    if (request.headers.origin && request.headers.origin !== browserOrigin) {
+      writeError(response, 403, "origin_invalid", "Origin is invalid");
+      return;
+    }
+    done();
+  };
+}
+
+/** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
+export function rejectMcpMethod(request, response) {
+  void request;
+  writeError(response, 405, "method_not_allowed", "Method is not allowed", {
+    allow: "POST",
+  });
+}
 import {
   executeEvaluationTool,
   matchWorkflowResource,
@@ -47,7 +70,6 @@ import { executeOnboardingTool } from "./mcp-onboarding.js";
 
 /**
  * @param {{
- *   browserOrigin: string,
  *   recordMcpOperation: (event: {
  *     durationMs: number,
  *     errorCode?: string,
@@ -63,7 +85,6 @@ import { executeOnboardingTool } from "./mcp-onboarding.js";
  * }} dependencies
  */
 export function createMcpRoute({
-  browserOrigin,
   evaluations,
   recordMcpOperation,
   repositories,
@@ -81,10 +102,6 @@ export function createMcpRoute({
     /** @type {unknown} */ onboardingGrant,
     /** @type {unknown} */ token,
   ) {
-    if (request.headers.origin && request.headers.origin !== browserOrigin) {
-      writeError(response, 403, "origin_invalid", "Origin is invalid");
-      return;
-    }
     const accept = request.headers.accept;
     const mediaTypes =
       typeof accept === "string" ? acceptedMcpMediaTypes(accept) : new Set();

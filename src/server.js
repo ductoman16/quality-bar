@@ -19,20 +19,28 @@ import {
 import {
   authenticationFailureStatus,
   bearerToken,
+  browserMutationFailureStatus,
   hasUrlToken,
   isProductSurface,
+  requireBrowserMutation,
   requireProductAuthority,
 } from "./http-request.js";
 import { writeError } from "./http-response.js";
-import { createGitHubConnectionRoute } from "./github-connection-route.js";
-import { createMcpRoute } from "./mcp-route.js";
+import {
+  createGitHubCallbackValidationErrorHandler,
+  createGitHubConnectionRoute,
+} from "./github-connection-route.js";
+import {
+  createMcpOriginHook,
+  createMcpRoute,
+  rejectMcpMethod,
+} from "./mcp-route.js";
 import { createOnboardingApiOperations } from "./onboarding-api-route.js";
 import { createOnboardingOperations } from "./onboarding-operations.js";
 import { createProductRequestRunner } from "./product-request-runtime.js";
 import { createWaiverAdjudicatorConfigurationOperations } from "./waiver-adjudicator-configuration-route.js";
 
 const JSON_TYPE = "application/json";
-
 /**
  * @param {any} dependencies
  * @returns {import("fastify").FastifyInstance}
@@ -125,13 +133,13 @@ export function createApplicationServer(dependencies) {
       })
     );
   const handleMcp = createMcpRoute({
-    browserOrigin,
     evaluations,
     onboardingOperations,
     recordMcpOperation,
     repositories,
     repositoryGuidance,
   });
+  const requireMcpOrigin = createMcpOriginHook(browserOrigin);
   /** @type {Record<string, (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => unknown>} */
   const standardOperationHandlers = {
     ...apiOperations,
@@ -203,6 +211,7 @@ export function createApplicationServer(dependencies) {
           );
           return;
         }
+        const schemes = allowedSecuritySchemes(request);
         try {
           if (hasUrlToken(url)) {
             throw Object.assign(
@@ -210,7 +219,6 @@ export function createApplicationServer(dependencies) {
               { code: "authentication_invalid" },
             );
           }
-          const schemes = allowedSecuritySchemes(request);
           if (schemes.size > 0) {
             if (
               path === "/mcp/v1" &&
@@ -285,6 +293,24 @@ export function createApplicationServer(dependencies) {
           return;
         }
         if (
+          productRequest.authority === "operator" &&
+          schemes.has("browser_session") &&
+          ["DELETE", "PATCH", "POST", "PUT"].includes(request.method)
+        ) {
+          try {
+            requireBrowserMutation(browserSessions, request, browserOrigin);
+          } catch (error) {
+            const failure = requireCodedError(error);
+            writeError(
+              reply,
+              browserMutationFailureStatus(failure.code),
+              failure.code,
+              failure.message,
+            );
+            return;
+          }
+        }
+        if (
           path !== "/mcp/v1" &&
           request.routeOptions.schema?.body !== undefined &&
           request.headers["content-type"] !== JSON_TYPE
@@ -297,6 +323,10 @@ export function createApplicationServer(dependencies) {
         }
         done();
       });
+    });
+    routes.setNotFoundHandler((request, reply) => {
+      void request;
+      writeError(reply, 404, "not_found", "Resource was not found");
     });
     routes.get("/health/live", () => ({ status: "live" }));
     routes.get("/health/ready", (request, reply) => {
@@ -326,6 +356,7 @@ export function createApplicationServer(dependencies) {
     routes.post(
       "/mcp/v1",
       {
+        onRequest: requireMcpOrigin,
         schema: {
           body: {},
           hide: true,
@@ -350,20 +381,20 @@ export function createApplicationServer(dependencies) {
     );
     routes.route({
       handler() {},
-      method: ["DELETE", "GET", "PATCH", "PUT"],
-      onRequest(request, reply) {
-        void request;
-        writeError(reply, 405, "method_not_allowed", "Method is not allowed", {
-          allow: "POST",
-        });
-      },
+      method: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "PUT"],
+      onRequest: [requireMcpOrigin, rejectMcpMethod],
       schema: {
         hide: true,
         security: [{ implementer_token: [] }, { onboarding_token: [] }],
       },
       url: "/mcp/v1",
     });
-    registerApiRoutes(routes, operationHandlers);
+    const githubCallbackValidationError =
+      createGitHubCallbackValidationErrorHandler(githubConnections);
+    registerApiRoutes(routes, operationHandlers, {
+      completeGitHubAppInstallation: githubCallbackValidationError,
+      completeGitHubAppManifest: githubCallbackValidationError,
+    });
   });
   return server;
 }

@@ -49,7 +49,10 @@ export const forgejoSchemas = {
   },
 };
 
-import { errorResponses } from "../http-route-schema.js";
+import {
+  canonicalValidationError,
+  errorResponses,
+} from "../http-route-schema.js";
 
 export const forgejoRoutes = [
   {
@@ -72,6 +75,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections",
   },
   {
+    ...canonicalValidationError(
+      "forgejo_connection_request_invalid",
+      "Forgejo Connection request is invalid",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "verifyForgejoV16Connection",
@@ -95,6 +103,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections",
   },
   {
+    ...canonicalValidationError(
+      "forgejo_connection_request_invalid",
+      "Forgejo Connection request is invalid",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "discoverForgejoV16Repositories",
@@ -118,6 +131,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/discover",
   },
   {
+    ...canonicalValidationError(
+      "forgejo_connection_rotation_request_invalid",
+      "Forgejo PAT rotation request is invalid",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "rotateForgejoConnectionPat",
@@ -141,6 +159,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/credential/rotate",
   },
   {
+    ...canonicalValidationError(
+      "request_malformed",
+      "Request is malformed",
+      400,
+    ),
     method: "DELETE",
     schema: {
       operationId: "deleteNeverUsedForgejoConnection",
@@ -163,6 +186,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/lifecycle",
   },
   {
+    ...canonicalValidationError(
+      "forgejo_connection_lifecycle_request_invalid",
+      "Forgejo Connection lifecycle request must retire the Connection",
+      422,
+    ),
     method: "PATCH",
     schema: {
       operationId: "retireForgejoConnection",
@@ -186,6 +214,11 @@ export const forgejoRoutes = [
     url: "/api/v1/forgejo-connections/lifecycle",
   },
   {
+    ...canonicalValidationError(
+      "forgejo_connection_reactivation_request_invalid",
+      "Forgejo Connection reactivation requires one replacement PAT",
+      422,
+    ),
     method: "POST",
     schema: {
       operationId: "reactivateForgejoConnection",

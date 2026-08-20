@@ -59,6 +59,9 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   });
   assert.equal(unauthenticated.status, 401);
 
+  const unknown = await request("/api/v1/does-not-exist");
+  assert.equal(unknown.status, 401);
+
   const assetQuery = await request("/assets/login.js?unexpected=true");
   assert.equal(assetQuery.status, 400);
   assert.equal(
@@ -67,6 +70,35 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   );
 
   const operator = await authenticatedOperatorHeaders(request);
+  const authenticatedUnknown = await request("/api/v1/does-not-exist", {
+    headers: { cookie: operator.cookie },
+  });
+  assert.equal(authenticatedUnknown.status, 404);
+  assert.equal(
+    /** @type {any} */ (await authenticatedUnknown.json()).error.code,
+    "not_found",
+  );
+  const implicitHead = await request("/api/v1/repositories", {
+    headers: { cookie: operator.cookie },
+    method: "HEAD",
+  });
+  assert.equal(implicitHead.status, 404);
+  const longParameter = await request(
+    `/api/v1/repositories/${"x".repeat(101)}/guidance`,
+    { headers: { cookie: operator.cookie } },
+  );
+  assert.equal(longParameter.status, 404);
+
+  const badOrigin = await request("/api/v1/repositories", {
+    body: "{}",
+    headers: { ...operator, origin: "https://attacker.example" },
+    method: "POST",
+  });
+  assert.equal(badOrigin.status, 403);
+  assert.equal(
+    /** @type {any} */ (await badOrigin.json()).error.code,
+    "origin_invalid",
+  );
   const wrongContentType = await request("/api/v1/repositories", {
     body: "{}",
     headers: {

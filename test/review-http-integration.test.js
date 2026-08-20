@@ -51,6 +51,24 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
   });
   assert.equal(rejected.status, 422);
   assert.equal(await responseErrorCode(rejected), "review_request_malformed");
+  const unsupportedReasoning = await request.invalidRequest("/api/v1/reviews", {
+    body: JSON.stringify(
+      reviewRequest({
+        codex_configuration: {
+          model: "gpt-5.6-terra",
+          reasoning_effort: "ultra",
+          service_tier: "standard",
+        },
+      }),
+    ),
+    headers,
+    method: "POST",
+  });
+  assert.equal(unsupportedReasoning.status, 422);
+  assert.equal(
+    await responseErrorCode(unsupportedReasoning),
+    "codex_reasoning_effort_unsupported",
+  );
   const reviewCount = application.durableCore.get(
     "SELECT count(*) AS count FROM reviews",
   );

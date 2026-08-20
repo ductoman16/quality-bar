@@ -15,6 +15,15 @@ export const systemRoutes = [
     url: "/api/v1",
   },
   {
+    method: "POST",
+    schema: {
+      body: {},
+      hide: true,
+      security: [],
+    },
+    url: "/api/v1/operator-password/bootstrap",
+  },
+  {
     method: "GET",
     schema: {
       operationId: "getOpenApiDocument",
