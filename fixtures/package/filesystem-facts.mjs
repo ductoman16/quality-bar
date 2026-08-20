@@ -21,7 +21,12 @@ const pathFacts = Object.fromEntries(
     const status = lstatSync(path);
     return [
       path,
-      { gid: status.gid, mode: status.mode & 0o777, uid: status.uid },
+      {
+        filesystemType: statfsSync(path).type,
+        gid: status.gid,
+        mode: status.mode & 0o777,
+        uid: status.uid,
+      },
     ];
   }),
 );

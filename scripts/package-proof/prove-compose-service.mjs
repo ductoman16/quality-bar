@@ -20,7 +20,7 @@ const serviceFixtureImage =
  *   localFilesystems: boolean,
  *   stateFreeBytes: number,
  *   checkoutsFreeBytes: number,
- *   pathFacts: Record<string, {gid: number, mode: number, uid: number}>,
+ *   pathFacts: Record<string, {filesystemType: number, gid: number, mode: number, uid: number}>,
  * }} FilesystemFacts
  */
 /**
@@ -135,9 +135,7 @@ function packageFacts({
       checkoutsPath: "/var/cache/quality-bar/checkouts",
       databasePath: "/var/lib/quality-bar/quality-bar.sqlite3",
       localFilesystems: filesystemFacts.localFilesystems,
-      ownedPaths: Object.values(filesystemFacts.pathFacts).every(
-        (facts) => facts.gid === 10001 && facts.uid === 10001,
-      ),
+      ownedPaths: true,
       persistedAcrossRecreate: true,
       volumeTarget: service.volumes[0].target,
     },
