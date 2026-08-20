@@ -42,7 +42,6 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
   }
 
   try {
-    configureDatabase(database);
     database.function("quality_bar_retention_cleanup", () =>
       retentionCleanupState.active ? 1 : 0,
     );
@@ -55,6 +54,7 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
     }
     initializeOrValidateSchema(database);
     validateResultingSchema(database, SCHEMA_VERSION);
+    configureDatabase(database);
   } catch (error) {
     database.close();
     if (error instanceof DurableCoreError) {

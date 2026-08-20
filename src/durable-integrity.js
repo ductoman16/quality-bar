@@ -120,6 +120,9 @@ export function validateIntegrity(database) {
   try {
     result = scalar(database, "PRAGMA integrity_check", "integrity_check");
   } catch (error) {
+    if (isSqliteCorruption(error)) {
+      fail("integrity_check_failed", "SQLite database is not valid", error);
+    }
     fail(
       "integrity_check_failed",
       "SQLite integrity check could not complete",

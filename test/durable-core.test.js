@@ -47,23 +47,16 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
 test("a durable fact is invisible to another connection until its transaction commits", () => {
   const databasePath = temporaryDatabasePath();
   const writer = openDurableCore(databasePath);
-
-  writer.transaction((transaction) => {
-    transaction.run(
-      "CREATE TABLE transaction_visibility (fact TEXT PRIMARY KEY) STRICT",
-    );
-  });
   const reader = openDurableCore(databasePath);
 
   writer.transaction((transaction) => {
     transaction.run(
-      "INSERT INTO transaction_visibility (fact) VALUES (?)",
+      "INSERT INTO quality_bar_metadata (key, value) VALUES ('transaction_visibility', ?)",
       "committed-fact",
     );
     assert.equal(
       reader.get(
-        "SELECT fact FROM transaction_visibility WHERE fact = ?",
-        "committed-fact",
+        "SELECT value FROM quality_bar_metadata WHERE key = 'transaction_visibility'",
       ),
       undefined,
     );
@@ -71,10 +64,9 @@ test("a durable fact is invisible to another connection until its transaction co
 
   assert.deepEqual(
     reader.get(
-      "SELECT fact FROM transaction_visibility WHERE fact = ?",
-      "committed-fact",
+      "SELECT value FROM quality_bar_metadata WHERE key = 'transaction_visibility'",
     ),
-    { fact: "committed-fact" },
+    { value: "committed-fact" },
   );
 
   reader.close();
@@ -181,14 +173,13 @@ test("rejects nonempty version 0 before changing its objects", () => {
 
 test("rejects a schema below v53 before changing its data", () => {
   const databasePath = temporaryDatabasePath();
-  const created = openDurableCore(databasePath);
-  created.run(
-    "INSERT INTO quality_bar_metadata (key, value) VALUES (?, ?)",
-    "preserved",
-    "yes",
-  );
-  created.run("PRAGMA user_version = 52");
-  created.close();
+  const unsupported = new DatabaseSync(databasePath);
+  unsupported.exec(`
+    CREATE TABLE preserved (value TEXT) STRICT;
+    INSERT INTO preserved (value) VALUES ('yes');
+    PRAGMA user_version = 52;
+  `);
+  unsupported.close();
 
   assert.throws(
     () => openDurableCore(databasePath),
@@ -202,14 +193,16 @@ test("rejects a schema below v53 before changing its data", () => {
   );
   const unchanged = new DatabaseSync(databasePath, { readOnly: true });
   assert.equal(
-    unchanged
-      .prepare("SELECT value FROM quality_bar_metadata WHERE key = 'preserved'")
-      .get()?.value,
+    unchanged.prepare("SELECT value FROM preserved").get()?.value,
     "yes",
   );
   assert.equal(
     unchanged.prepare("PRAGMA user_version").get()?.user_version,
     52,
+  );
+  assert.equal(
+    unchanged.prepare("PRAGMA journal_mode").get()?.journal_mode,
+    "delete",
   );
   unchanged.close();
 });
@@ -235,6 +228,34 @@ test("rejects malformed v53 before repairing it", () => {
     unchanged
       .prepare(
         "SELECT name FROM sqlite_schema WHERE name = 'onboarding_tokens'",
+      )
+      .get(),
+    undefined,
+  );
+  unchanged.close();
+});
+
+test("rejects a v53 database missing a current index", () => {
+  const databasePath = temporaryDatabasePath();
+  const created = openDurableCore(databasePath);
+  created.run("DROP INDEX onboarding_tokens_expiry");
+  created.close();
+
+  assert.throws(
+    () => openDurableCore(databasePath),
+    (error) => {
+      assert.equal(
+        codedError(error).message,
+        "SQLite schema does not match version 53",
+      );
+      return true;
+    },
+  );
+  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(
+    unchanged
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE name = 'onboarding_tokens_expiry'",
       )
       .get(),
     undefined,
