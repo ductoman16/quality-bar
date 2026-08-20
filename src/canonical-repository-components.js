@@ -12,10 +12,7 @@ export function canonicalRepositorySchemas() {
     deletion_eligible: { type: "boolean" },
     health: { enum: ["healthy", "error"], type: "string" },
     health_error: {
-      oneOf: [
-        { $ref: "#/components/schemas/RepositoryHealthError" },
-        { type: "null" },
-      ],
+      oneOf: [{ $ref: "RepositoryHealthError#" }, { type: "null" }],
     },
     id: { minLength: 1, type: "string" },
     lifecycle: {
@@ -35,24 +32,23 @@ export function canonicalRepositorySchemas() {
   ];
   /** @param {Record<string, unknown>} properties @param {string[]} required */
   const repositoryObject = (properties, required) => ({
-    ...closedObject(properties, required),
     oneOf: [
-      {
-        properties: {
-          health: { const: "healthy" },
+      closedObject(
+        {
+          ...properties,
+          health: { const: "healthy", type: "string" },
           health_error: { type: "null" },
         },
-        required: ["health", "health_error"],
-      },
-      {
-        properties: {
-          health: { const: "error" },
-          health_error: {
-            $ref: "#/components/schemas/RepositoryHealthError",
-          },
+        required,
+      ),
+      closedObject(
+        {
+          ...properties,
+          health: { const: "error", type: "string" },
+          health_error: { $ref: "RepositoryHealthError#" },
         },
-        required: ["health", "health_error"],
-      },
+        required,
+      ),
     ],
   });
   return {
@@ -101,14 +97,14 @@ export function canonicalRepositorySchemas() {
           ["id", "number"],
         ),
         applicability: {
-          $ref: "#/components/schemas/RepositoryGuidanceApplicability",
+          $ref: "RepositoryGuidanceApplicability#",
         },
         assignment: {
-          $ref: "#/components/schemas/RepositoryGuidanceAssignment",
+          $ref: "RepositoryGuidanceAssignment#",
         },
         criteria: {
           items: {
-            $ref: "#/components/schemas/RepositoryGuidanceCriterion",
+            $ref: "RepositoryGuidanceCriterion#",
           },
           minItems: 1,
           type: "array",
@@ -141,7 +137,7 @@ export function canonicalRepositorySchemas() {
           ["id", "url"],
         ),
         reviews: {
-          items: { $ref: "#/components/schemas/RepositoryGuidanceReview" },
+          items: { $ref: "RepositoryGuidanceReview#" },
           type: "array",
         },
         schema_version: { const: 1, type: "integer" },
@@ -241,7 +237,7 @@ export function canonicalRepositorySchemas() {
     RepositoryCollection: closedObject(
       {
         items: {
-          items: { $ref: "#/components/schemas/Repository" },
+          items: { $ref: "Repository#" },
           type: "array",
         },
         next_cursor: { type: ["string", "null"] },

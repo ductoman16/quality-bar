@@ -1,5 +1,4 @@
 import {
-  assertAllowedQueryParameters,
   authenticationFailureStatus,
   requireBrowserSession,
 } from "./http-request.js";
@@ -17,22 +16,12 @@ export function createBrowserAssetRoute({
   browserSessions,
 }) {
   /**
-   * @param {import("node:http").IncomingMessage} request
-   * @param {import("node:http").ServerResponse} response
+   * @param {import("fastify").FastifyRequest} request
+   * @param {import("fastify").FastifyReply} response
    * @param {URL} requestUrl
    */
   return function handleBrowserAsset(request, response, requestUrl) {
     const path = requestUrl.pathname;
-    if (request.method !== "GET" || !path.startsWith("/assets/")) {
-      return false;
-    }
-    try {
-      assertAllowedQueryParameters(requestUrl, new Set());
-    } catch (error) {
-      const failure = requireCodedError(error);
-      writeError(response, 400, failure.code, failure.message);
-      return true;
-    }
     if (path === "/assets/operator.js") {
       try {
         requireBrowserSession(browserSessions, request);
@@ -44,7 +33,7 @@ export function createBrowserAssetRoute({
           failure.code,
           failure.message,
         );
-        return true;
+        return;
       }
     }
     try {
@@ -59,6 +48,5 @@ export function createBrowserAssetRoute({
             : 500;
       writeError(response, status, failure.code, failure.message);
     }
-    return true;
   };
 }

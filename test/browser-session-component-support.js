@@ -64,11 +64,8 @@ export async function startApplication(options = {}) {
       "a correct operator password",
     );
   }
-  await new Promise((resolve, reject) => {
-    readyApplication.server.once("error", reject);
-    readyApplication.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = readyApplication.server.address();
+  await readyApplication.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = readyApplication.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("browser_component_server_address_unavailable");
   }

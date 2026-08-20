@@ -1,15 +1,20 @@
 import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
 import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
-import { closedObject, openObject } from "./canonical-schema.js";
-import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-api.js";
+import {
+  closedObject,
+  openObject,
+  withValidationError,
+} from "./canonical-schema.js";
+import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-components.js";
 import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
 import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
-import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-api.js";
+import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-components.js";
 import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
 import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
 import { canonicalSystemPollingDeliverySchemas } from "./canonical-system-polling-delivery-components.js";
 import { canonicalSystemStorageSchemas } from "./canonical-system-storage-components.js";
 import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
+import { canonicalReviewSchemas } from "./canonical-review-components.js";
 
 /**
  * @typedef {{
@@ -24,6 +29,10 @@ import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
 
 /** @param {CodexCapabilityCatalog} codexCapabilityCatalog */
 export function createCanonicalComponents(codexCapabilityCatalog) {
+  /** @param {"reasoning_efforts" | "service_tiers"} name */
+  const capabilityValues = (name) => [
+    ...new Set(codexCapabilityCatalog.models.flatMap((model) => model[name])),
+  ];
   return {
     schemas: {
       AuthorityAttribution: openObject(
@@ -51,7 +60,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       AuthorityAttributionCollection: openObject(
         {
           items: {
-            items: { $ref: "#/components/schemas/AuthorityAttribution" },
+            items: { $ref: "AuthorityAttribution#" },
             type: "array",
           },
           next_cursor: { type: ["string", "null"] },
@@ -62,7 +71,7 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         {
           code: { type: "string" },
           fields: {
-            items: { $ref: "#/components/schemas/FieldError" },
+            items: { $ref: "FieldError#" },
             type: "array",
           },
           message: { type: "string" },
@@ -78,10 +87,10 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         },
         ["path", "code", "message"],
       ),
-      ErrorResponse: openObject(
-        { error: { $ref: "#/components/schemas/Error" } },
-        ["error"],
-      ),
+      ErrorResponse: {
+        ...openObject({ error: { $ref: "Error#" } }, ["error"]),
+        description: "A secret-safe canonical error",
+      },
       ...canonicalGitHubConnectionSchemas(),
       ...canonicalCodexExecutionConcurrencySchemas(),
       ...canonicalSystemExecutionSchemas(),
@@ -109,96 +118,41 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
         ["confirmation", "password"],
       ),
       ...canonicalRepositorySchemas(),
-      CodexConfiguration: {
-        oneOf: codexCapabilityCatalog.models.map((model) =>
-          closedObject(
-            {
-              model: { const: model.id, type: "string" },
-              reasoning_effort: {
-                enum: model.reasoning_efforts,
+      CodexConfiguration: withValidationError(
+        closedObject(
+          {
+            model: withValidationError(
+              {
+                enum: codexCapabilityCatalog.models.map((model) => model.id),
                 type: "string",
               },
-              service_tier: { enum: model.service_tiers, type: "string" },
-            },
-            ["model", "reasoning_effort", "service_tier"],
-          ),
-        ),
-      },
-      ...canonicalWaiverAdjudicatorConfigurationSchemas(),
-      CriterionCreateRequest: closedObject(
-        {
-          impact: { enum: ["advisory", "blocking"], type: "string" },
-          instruction: { minLength: 1, pattern: "\\S", type: "string" },
-        },
-        ["impact", "instruction"],
-      ),
-      CriterionVersionRequest: {
-        oneOf: [
-          closedObject(
-            {
-              id: { minLength: 1, pattern: "\\S", type: "string" },
-              impact: { enum: ["advisory", "blocking"], type: "string" },
-              instruction: { minLength: 1, pattern: "\\S", type: "string" },
-            },
-            ["id", "impact", "instruction"],
-          ),
-          { $ref: "#/components/schemas/CriterionCreateRequest" },
-        ],
-      },
-      ReviewAssignment: {
-        oneOf: [
-          closedObject(
-            { scope: { const: "installation_wide", type: "string" } },
-            ["scope"],
-          ),
-          closedObject(
-            {
-              repository_ids: {
-                items: { minLength: 1, pattern: "\\S", type: "string" },
-                type: "array",
-                uniqueItems: true,
+              "codex_model_unsupported",
+              "Codex model is not supported by the pinned catalog",
+            ),
+            reasoning_effort: withValidationError(
+              {
+                enum: capabilityValues("reasoning_efforts"),
+                type: "string",
               },
-              scope: { const: "repository_set", type: "string" },
-            },
-            ["scope", "repository_ids"],
-          ),
-        ],
-      },
-      ReviewCreationAssignment: {
-        $ref: "#/components/schemas/ReviewAssignment",
-      },
-      ReviewCreateRequest: closedObject(
-        {
-          assignment: {
-            $ref: "#/components/schemas/ReviewCreationAssignment",
+              "codex_reasoning_effort_unsupported",
+              "Codex reasoning effort is not supported by the selected model",
+            ),
+            service_tier: withValidationError(
+              {
+                enum: capabilityValues("service_tiers"),
+                type: "string",
+              },
+              "codex_service_tier_unsupported",
+              "Codex service tier is not supported by the selected model",
+            ),
           },
-          applicability_rule: { type: ["string", "null"] },
-          codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
-          },
-          criteria: {
-            items: { $ref: "#/components/schemas/CriterionCreateRequest" },
-            minItems: 1,
-            type: "array",
-          },
-          description: { minLength: 1, pattern: "\\S", type: "string" },
-          name: { minLength: 1, pattern: "\\S", type: "string" },
-        },
-        [
-          "assignment",
-          "codex_configuration",
-          "criteria",
-          "description",
-          "name",
-        ],
+          ["model", "reasoning_effort", "service_tier"],
+        ),
+        "codex_configuration_malformed",
+        "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
       ),
-      ReviewMetadataUpdateRequest: closedObject(
-        {
-          description: { minLength: 1, pattern: "\\S", type: "string" },
-          name: { minLength: 1, pattern: "\\S", type: "string" },
-        },
-        ["name", "description"],
-      ),
+      ...canonicalWaiverAdjudicatorConfigurationSchemas(),
+      ...canonicalReviewSchemas(),
       EmptyRequest: closedObject({}, []),
       OnboardingTokenCreateRequest: closedObject(
         {
@@ -242,196 +196,36 @@ export function createCanonicalComponents(codexCapabilityCatalog) {
       OnboardingTokenCollection: closedObject(
         {
           onboarding_tokens: {
-            items: { $ref: "#/components/schemas/OnboardingToken" },
+            items: { $ref: "OnboardingToken#" },
             type: "array",
           },
         },
         ["onboarding_tokens"],
       ),
-      OnboardingReviewSelectionRequest: closedObject(
-        {
-          review_ids: {
-            items: { minLength: 1, type: "string" },
-            type: "array",
-            uniqueItems: true,
-          },
-        },
-        ["review_ids"],
-      ),
-      OnboardingReviewSelectionResult: closedObject(
-        {
-          added_review_ids: { items: { type: "string" }, type: "array" },
-          removed_review_ids: { items: { type: "string" }, type: "array" },
-        },
-        ["added_review_ids", "removed_review_ids"],
-      ),
-      OnboardingReviewCreateRequest: closedObject(
-        {
-          applicability_rule: { type: ["string", "null"] },
-          codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
-          },
-          criteria: {
-            items: { $ref: "#/components/schemas/CriterionCreateRequest" },
-            minItems: 1,
-            type: "array",
-          },
-          description: { minLength: 1, pattern: "\\S", type: "string" },
-          name: { minLength: 1, pattern: "\\S", type: "string" },
-        },
-        [
-          "name",
-          "description",
-          "codex_configuration",
-          "criteria",
-          "applicability_rule",
-        ],
-      ),
-      ReviewArchivalRequest: closedObject({ archived: { type: "boolean" } }, [
-        "archived",
-      ]),
-      ReviewVersionSaveRequest: closedObject(
-        {
-          applicability_rule: { type: ["string", "null"] },
-          codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
-          },
-          criteria: {
-            items: { $ref: "#/components/schemas/CriterionVersionRequest" },
-            minItems: 1,
-            type: "array",
-          },
-        },
-        ["applicability_rule", "codex_configuration", "criteria"],
-      ),
-      ReviewVersionReactivationRequest: closedObject(
-        {
-          review_version_id: {
-            minLength: 1,
-            pattern: "\\S",
-            type: "string",
-          },
-        },
-        ["review_version_id"],
-      ),
-      Criterion: closedObject(
-        {
-          id: { type: "string" },
-          impact: { enum: ["advisory", "blocking"], type: "string" },
-          instruction: { type: "string" },
-          position: { minimum: 1, type: "integer" },
-        },
-        ["id", "impact", "instruction", "position"],
-      ),
-      ReviewVersion: closedObject(
-        {
-          applicability_rule: { type: ["string", "null"] },
-          codex_configuration: {
-            $ref: "#/components/schemas/CodexConfiguration",
-          },
-          criteria: {
-            items: { $ref: "#/components/schemas/Criterion" },
-            minItems: 1,
-            type: "array",
-          },
-          id: { type: "string" },
-          number: { minimum: 1, type: "integer" },
-        },
-        [
-          "id",
-          "number",
-          "applicability_rule",
-          "codex_configuration",
-          "criteria",
-        ],
-      ),
-      Review: closedObject(
-        {
-          active_version: { $ref: "#/components/schemas/ReviewVersion" },
-          archived: { type: "boolean" },
-          assignment: { $ref: "#/components/schemas/ReviewAssignment" },
-          deletion_eligible: { type: "boolean" },
-          description: { type: "string" },
-          id: { type: "string" },
-          name: { type: "string" },
-          versions: {
-            items: { $ref: "#/components/schemas/ReviewVersion" },
-            minItems: 1,
-            type: "array",
-          },
-        },
-        [
-          "id",
-          "name",
-          "description",
-          "archived",
-          "assignment",
-          "deletion_eligible",
-          "active_version",
-          "versions",
-        ],
-      ),
-      ReviewVersionSaveResult: closedObject(
-        {
-          changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
-        },
-        ["changed", "review"],
-      ),
-      ReviewVersionReactivationResult: closedObject(
-        {
-          changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
-        },
-        ["changed", "review"],
-      ),
-      ReviewArchivalResult: closedObject(
-        {
-          changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
-        },
-        ["changed", "review"],
-      ),
-      ReviewAssignmentChangeResult: closedObject(
-        {
-          changed: { type: "boolean" },
-          review: { $ref: "#/components/schemas/Review" },
-        },
-        ["changed", "review"],
-      ),
-      ReviewCollection: closedObject(
-        {
-          reviews: {
-            items: { $ref: "#/components/schemas/Review" },
-            type: "array",
-          },
-        },
-        ["reviews"],
-      ),
       System: openObject(
         {
-          application: { $ref: "#/components/schemas/SystemApplicationFact" },
-          backup: { $ref: "#/components/schemas/SystemBackupFact" },
-          bootstrap: { $ref: "#/components/schemas/BootstrapFact" },
+          application: { $ref: "SystemApplicationFact#" },
+          backup: { $ref: "SystemBackupFact#" },
+          bootstrap: { $ref: "BootstrapFact#" },
           browser_sessions: {
-            $ref: "#/components/schemas/BrowserSessionsFact",
+            $ref: "BrowserSessionsFact#",
           },
-          codex: { $ref: "#/components/schemas/CodexFact" },
+          codex: { $ref: "CodexFact#" },
           codex_execution: {
-            $ref: "#/components/schemas/CodexExecutionSystemFact",
+            $ref: "CodexExecutionSystemFact#",
           },
-          delivery: { $ref: "#/components/schemas/SystemDeliveryFact" },
-          durable_core: { $ref: "#/components/schemas/DurableCoreFact" },
+          delivery: { $ref: "SystemDeliveryFact#" },
+          durable_core: { $ref: "DurableCoreFact#" },
           execution_providers: {
-            items: { $ref: "#/components/schemas/ExecutionProviderFact" },
+            items: { $ref: "ExecutionProviderFact#" },
             minItems: 1,
             type: "array",
           },
           implementer_token: {
-            $ref: "#/components/schemas/ImplementerTokenFact",
+            $ref: "ImplementerTokenFact#",
           },
-          polling: { $ref: "#/components/schemas/SystemPollingFact" },
-          storage: { $ref: "#/components/schemas/StorageReserveFact" },
+          polling: { $ref: "SystemPollingFact#" },
+          storage: { $ref: "StorageReserveFact#" },
         },
         [
           "application",

@@ -15,11 +15,11 @@ export function canonicalAnalyticsMatchingSchemas() {
     AnalyticsMatchingFacts: closedObject(
       {
         evaluations: {
-          items: { $ref: "#/components/schemas/AnalyticsEvaluationFact" },
+          items: { $ref: "AnalyticsEvaluationFact#" },
           type: "array",
         },
         review_runs: {
-          items: { $ref: "#/components/schemas/AnalyticsReviewRunFact" },
+          items: { $ref: "AnalyticsReviewRunFact#" },
           type: "array",
         },
       },
@@ -66,7 +66,7 @@ export function canonicalAnalyticsMatchingSchemas() {
         completed_at: nullableCount,
         created_at: count,
         criterion_results: {
-          items: { $ref: "#/components/schemas/AnalyticsCriterionFact" },
+          items: { $ref: "AnalyticsCriterionFact#" },
           type: "array",
         },
         error_code: {
@@ -78,7 +78,7 @@ export function canonicalAnalyticsMatchingSchemas() {
           type: "string",
         },
         findings: {
-          items: { $ref: "#/components/schemas/AnalyticsFindingFact" },
+          items: { $ref: "AnalyticsFindingFact#" },
           type: "array",
         },
         head_commit: commit,
@@ -96,11 +96,11 @@ export function canonicalAnalyticsMatchingSchemas() {
         service_tier: { minLength: 1, type: "string" },
         started_at: nullableCount,
         waiver_decisions: {
-          items: { $ref: "#/components/schemas/AnalyticsWaiverDecisionFact" },
+          items: { $ref: "AnalyticsWaiverDecisionFact#" },
           type: "array",
         },
         waiver_requests: {
-          items: { $ref: "#/components/schemas/AnalyticsWaiverRequestFact" },
+          items: { $ref: "AnalyticsWaiverRequestFact#" },
           type: "array",
         },
       },

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import { test } from "node:test";
 
 import { createReviewService } from "../src/review.js";
@@ -35,6 +36,22 @@ async function callMcp(origin, headers, message) {
   });
   assert.equal(response.status, 200);
   return /** @type {any} */ (await response.json());
+}
+
+/** @param {string} origin @param {Record<string, string>} headers @param {string} method */
+function requestMcpMethod(origin, headers, method) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      new URL("/mcp/v1", origin),
+      { headers, method },
+      (response) => {
+        response.resume();
+        response.once("end", () => resolve(response));
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
 }
 
 test("authenticated Streamable HTTP MCP initializes without a server session or excluded capabilities", async () => {
@@ -87,7 +104,7 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     MCP_PROTOCOL_VERSION,
   );
 
-  for (const method of ["GET", "DELETE"]) {
+  for (const method of ["GET", "HEAD", "OPTIONS", "DELETE"]) {
     const unsupported = await fetch(`${origin}/mcp/v1`, {
       headers: mcpHeaders(token, {
         "mcp-protocol-version": MCP_PROTOCOL_VERSION,
@@ -97,6 +114,38 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     assert.equal(unsupported.status, 405, method);
     assert.equal(unsupported.headers.get("allow"), "POST");
   }
+  for (const method of ["TRACE", "PROPFIND"]) {
+    const unsupported = /** @type {import("node:http").IncomingMessage} */ (
+      await requestMcpMethod(
+        origin,
+        mcpHeaders(token, {
+          "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+        }),
+        method,
+      )
+    );
+    assert.equal(unsupported.statusCode, 405, method);
+    assert.equal(unsupported.headers.allow, "POST", method);
+  }
+  const invalidQuery = await fetch(`${origin}/mcp/v1?unexpected=true`, {
+    body: JSON.stringify(requestMessage("ping", {})),
+    headers: mcpHeaders(token),
+    method: "POST",
+  });
+  assert.equal(invalidQuery.status, 200);
+  assert.deepEqual(await invalidQuery.json(), {
+    error: { code: -32600, message: "Invalid Request" },
+    id: null,
+    jsonrpc: "2.0",
+  });
+  const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
+    headers: mcpHeaders(token, { origin: "https://attacker.example" }),
+  });
+  assert.equal(invalidOrigin.status, 403);
+  assert.equal(
+    /** @type {any} */ (await invalidOrigin.json()).error.code,
+    "origin_invalid",
+  );
 });
 
 test("MCP exposes only the fixed Repository, Evaluation, and waiver tools and resource templates", async () => {

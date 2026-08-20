@@ -13,13 +13,20 @@ test("hard shutdown rejects a late product result but permits its exact error", 
   /** @type {any[]} */
   const responses = [];
   const response = /** @type {any} */ ({
-    /** @param {string} body */
-    end(body) {
-      responses.push({ body });
+    code(/** @type {number} */ status) {
+      responses.push({ status });
+      return this;
     },
-    /** @param {number} status @param {Record<string, string>} headers */
-    writeHead(status, headers) {
-      responses.push({ headers, status });
+    headers(/** @type {Record<string, string>} */ headers) {
+      responses.at(-1).headers = headers;
+      return this;
+    },
+    type(/** @type {string} */ type) {
+      responses.at(-1).type = type;
+      return this;
+    },
+    send(/** @type {unknown} */ body) {
+      responses.at(-1).body = body;
     },
   });
 
@@ -45,9 +52,8 @@ test("hard shutdown rejects a late product result but permits its exact error", 
   });
 
   assert.equal(responses[0].status, 503);
-  assert.deepEqual(responses[0].headers, {
-    "content-type": "application/json",
-  });
-  assert.match(responses[1].body, /"code":"storage_unavailable"/);
-  assert.doesNotMatch(responses[1].body, /"stale"/);
+  assert.deepEqual(responses[0].headers, {});
+  assert.equal(responses[0].type, "application/json");
+  assert.equal(responses[0].body.error.code, "storage_unavailable");
+  assert.equal("stale" in responses[0].body, false);
 });

@@ -197,6 +197,23 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   const headers = await authenticatedOperatorHeaders(request);
   const anonymous = await request("/api/v1/forgejo-connections");
   assert.equal(anonymous.status, 401);
+  const malformed = await request("/api/v1/forgejo-connections", {
+    body: "{}",
+    headers,
+    method: "POST",
+  });
+  assert.equal(malformed.status, 422);
+  assert.equal(
+    await responseErrorCode(malformed),
+    "forgejo_connection_request_invalid",
+  );
+  const invalidUrl = await request("/api/v1/forgejo-connections/discover", {
+    body: JSON.stringify({ base_url: "not a URL", token: "secret" }),
+    headers,
+    method: "POST",
+  });
+  assert.equal(invalidUrl.status, 422);
+  assert.equal(await responseErrorCode(invalidUrl), "forgejo_url_invalid");
   const response = await request("/api/v1/forgejo-connections", {
     body: JSON.stringify({
       base_url: "https://forgejo.example",

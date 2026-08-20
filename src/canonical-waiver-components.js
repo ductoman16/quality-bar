@@ -7,7 +7,7 @@ const adjudicationProperties = {
     type: "string",
   },
   completed_at: { format: "date-time", type: ["string", "null"] },
-  configuration: { $ref: "#/components/schemas/CodexConfiguration" },
+  configuration: { $ref: "CodexConfiguration#" },
   created_at: { format: "date-time", type: "string" },
   evaluation_id: { minLength: 1, type: "string" },
   head_commit: {
@@ -36,7 +36,7 @@ const adjudicationRequired = [
 export function canonicalWaiverSchemas() {
   const emptyDecisions = { maxItems: 0, type: "array" };
   const decisions = {
-    items: { $ref: "#/components/schemas/WaiverOperationalDecision" },
+    items: { $ref: "WaiverOperationalDecision#" },
     type: "array",
   };
   const identifier = { minLength: 1, type: "string" };
@@ -45,10 +45,7 @@ export function canonicalWaiverSchemas() {
     oneOf: [{ format: "date-time", type: "string" }, nullValue],
   };
   const nullableError = {
-    oneOf: [
-      { $ref: "#/components/schemas/WaiverOperationalError" },
-      { type: "null" },
-    ],
+    oneOf: [{ $ref: "WaiverOperationalError#" }, { type: "null" }],
   };
   const operationalProperties = {
     completed_at: nullableTimestamp,
@@ -56,10 +53,7 @@ export function canonicalWaiverSchemas() {
     exhausted_at: nullableTimestamp,
     execution_status: { type: "string" },
     followup: {
-      oneOf: [
-        { $ref: "#/components/schemas/WaiverFollowupPublication" },
-        nullValue,
-      ],
+      oneOf: [{ $ref: "WaiverFollowupPublication#" }, nullValue],
     },
     id: identifier,
     next_attempt_at: nullableTimestamp,
@@ -106,7 +100,7 @@ export function canonicalWaiverSchemas() {
     ),
     WaiverErrorDecision: closedObject(
       {
-        error: { $ref: "#/components/schemas/WaiverOperationalError" },
+        error: { $ref: "WaiverOperationalError#" },
         id: identifier,
         outcome: { const: "error", type: "string" },
         request_id: identifier,
@@ -115,8 +109,8 @@ export function canonicalWaiverSchemas() {
     ),
     WaiverOperationalDecision: {
       oneOf: [
-        { $ref: "#/components/schemas/WaiverAcceptedOrDeniedDecision" },
-        { $ref: "#/components/schemas/WaiverErrorDecision" },
+        { $ref: "WaiverAcceptedOrDeniedDecision#" },
+        { $ref: "WaiverErrorDecision#" },
       ],
     },
     WaiverQueuedReadyAdjudication: operational({
@@ -135,7 +129,7 @@ export function canonicalWaiverSchemas() {
       execution_status: { const: "queued", type: "string" },
       next_attempt_at: nullValue,
       pre_start_attempt_count: { minimum: 1, type: "integer" },
-      retry_error: { $ref: "#/components/schemas/WaiverOperationalError" },
+      retry_error: { $ref: "WaiverOperationalError#" },
       retry_state: { const: "exhausted", type: "string" },
       started_at: nullValue,
     }),
@@ -162,7 +156,7 @@ export function canonicalWaiverSchemas() {
         ...operationalProperties,
         completed_at: { format: "date-time", type: "string" },
         decisions: emptyDecisions,
-        error: { $ref: "#/components/schemas/WaiverOperationalError" },
+        error: { $ref: "WaiverOperationalError#" },
         exhausted_at: nullValue,
         execution_status: { const: "failed", type: "string" },
         next_attempt_at: nullValue,
@@ -190,7 +184,7 @@ export function canonicalWaiverSchemas() {
     WaiverBatchRequest: closedObject(
       {
         requests: {
-          items: { $ref: "#/components/schemas/WaiverBatchRequestItem" },
+          items: { $ref: "WaiverBatchRequestItem#" },
           minItems: 1,
           type: "array",
         },
@@ -254,7 +248,7 @@ export function canonicalWaiverSchemas() {
           {
             ...adjudicationProperties,
             decisions: {
-              items: { $ref: "#/components/schemas/WaiverDecision" },
+              items: { $ref: "WaiverDecision#" },
               minItems: 1,
               type: "array",
             },
@@ -329,9 +323,9 @@ export function canonicalWaiverSchemas() {
     },
     WaiverBatch: closedObject(
       {
-        adjudication: { $ref: "#/components/schemas/WaiverAdjudication" },
+        adjudication: { $ref: "WaiverAdjudication#" },
         requests: {
-          items: { $ref: "#/components/schemas/WaiverRequest" },
+          items: { $ref: "WaiverRequest#" },
           minItems: 1,
           type: "array",
         },
@@ -340,19 +334,19 @@ export function canonicalWaiverSchemas() {
     ),
     WaiverAdjudicationOperational: {
       oneOf: [
-        { $ref: "#/components/schemas/WaiverQueuedReadyAdjudication" },
-        { $ref: "#/components/schemas/WaiverQueuedExhaustedAdjudication" },
-        { $ref: "#/components/schemas/WaiverRunningAdjudication" },
-        { $ref: "#/components/schemas/WaiverCompletedAdjudication" },
-        { $ref: "#/components/schemas/WaiverFailedAdjudication" },
-        { $ref: "#/components/schemas/WaiverCancelledAdjudication" },
+        { $ref: "WaiverQueuedReadyAdjudication#" },
+        { $ref: "WaiverQueuedExhaustedAdjudication#" },
+        { $ref: "WaiverRunningAdjudication#" },
+        { $ref: "WaiverCompletedAdjudication#" },
+        { $ref: "WaiverFailedAdjudication#" },
+        { $ref: "WaiverCancelledAdjudication#" },
       ],
     },
     WaiverAdjudicationOperationalCollection: closedObject(
       {
         items: {
           items: {
-            $ref: "#/components/schemas/WaiverAdjudicationOperational",
+            $ref: "WaiverAdjudicationOperational#",
           },
           type: "array",
         },

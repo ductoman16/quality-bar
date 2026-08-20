@@ -3,7 +3,7 @@ import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {ReturnType<typeof import("./review.js").createReviewService>} reviews
  * @param {string | undefined} state
  */

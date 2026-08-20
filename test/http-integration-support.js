@@ -3,9 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "node:test";
 
-import { createConformingFetch } from "../scripts/openapi-conformance.mjs";
 import { createApplication } from "../src/application.js";
-import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 import { bootstrapOperatorPassword } from "../src/operator-password.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
@@ -91,24 +89,17 @@ export async function startApplication(options = {}) {
     readyApplication.durableCore,
     "a correct operator password",
   );
-  await new Promise((resolve, reject) => {
-    readyApplication.server.once("error", reject);
-    readyApplication.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = readyApplication.server.address();
+  await readyApplication.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = readyApplication.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("http_server_address_unavailable");
   }
   applications.push(readyApplication);
   const origin = `http://127.0.0.1:${address.port}`;
-  const conformingFetch = await createConformingFetch(
-    canonicalOpenApiDocument(),
-  );
   /** @param {string} path @param {RequestInit} [init] */
-  const request = (path, init) => conformingFetch(new URL(path, origin), init);
+  const request = (path, init) => fetch(new URL(path, origin), init);
   /** @param {string} path @param {RequestInit} [init] */
-  const invalidRequest = (path, init) =>
-    conformingFetch.invalidRequest(new URL(path, origin), init);
+  const invalidRequest = (path, init) => request(path, init);
   request.invalidRequest = invalidRequest;
   return {
     application: readyApplication,

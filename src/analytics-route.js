@@ -9,18 +9,18 @@ function exactUnsignedDecimal(value) {
 }
 
 /**
- * @param {import("node:http").ServerResponse} response
+ * @param {import("fastify").FastifyReply} response
  * @param {{read: (filters?: Record<string, unknown>) => unknown}} analytics
- * @param {URLSearchParams} query
+ * @param {Record<string, unknown>} query
  */
 export function writeAnalytics(response, analytics, query) {
   try {
     const filters = validatedAnalyticsFilters(
       Object.fromEntries(
-        [...query].map(([name, value]) => [
+        Object.entries(query).map(([name, value]) => [
           name,
           ["end", "pull_request_number", "start"].includes(name)
-            ? exactUnsignedDecimal(value)
+            ? exactUnsignedDecimal(String(value))
             : value,
         ]),
       ),

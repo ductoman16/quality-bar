@@ -337,11 +337,8 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       },
     },
   });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = server.address();
+  await server.listen({ host: "127.0.0.1", port: 0 });
+  const address = server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("browser_protection_server_address_unavailable");
   }
@@ -362,8 +359,6 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       "request_id",
     ]);
   } finally {
-    await new Promise((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve(undefined)));
-    });
+    await server.close();
   }
 });

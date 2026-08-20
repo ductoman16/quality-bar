@@ -75,12 +75,16 @@ export function createApplicationRuntimeServer(options) {
         storage: { ...storage, cleanup },
       });
     },
+    /** @param {{cursor?: string, limit?: string}} query */
     listAuthorityAttributions(query) {
       if (!systemResource) {
         throwStartupFailure(startupFailure);
       }
       return systemResource.listAuthorityAttributions(query);
     },
+    /**
+     * @param {{action: string, channel: string, errorCode?: string, outcome: string}} event
+     */
     recordAuthorityAttribution(event) {
       if (!systemResource) {
         throwStartupFailure(startupFailure);

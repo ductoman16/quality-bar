@@ -14,15 +14,14 @@ const application = await createInstalledApplication({
 const { server } = application;
 installApplicationSignalHandlers(application);
 
-server.listen(port, "127.0.0.1", () => {
-  process.stdout.write(
-    `${JSON.stringify({
-      timestamp: new Date().toISOString(),
-      severity: "info",
-      event: "application_started",
-      component: "http",
-      outcome: "success",
-      port,
-    })}\n`,
-  );
-});
+await server.listen({ host: "127.0.0.1", port });
+process.stdout.write(
+  `${JSON.stringify({
+    timestamp: new Date().toISOString(),
+    severity: "info",
+    event: "application_started",
+    component: "http",
+    outcome: "success",
+    port,
+  })}\n`,
+);

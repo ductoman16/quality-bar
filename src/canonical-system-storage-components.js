@@ -1,6 +1,6 @@
 import { closedObject } from "./canonical-schema.js";
 
-const error = { $ref: "#/components/schemas/SystemStorageError" };
+const error = { $ref: "SystemStorageError#" };
 const nullableError = { oneOf: [error, { type: "null" }] };
 const nullableTimestamp = { format: "date-time", type: ["string", "null"] };
 
@@ -58,10 +58,7 @@ export function canonicalSystemStorageSchemas() {
       {
         error: nullableError,
         last_successful: {
-          oneOf: [
-            { $ref: "#/components/schemas/SystemBackupRecord" },
-            { type: "null" },
-          ],
+          oneOf: [{ $ref: "SystemBackupRecord#" }, { type: "null" }],
         },
         status: {
           enum: ["current", "empty", "stale", "unavailable"],

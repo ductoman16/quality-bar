@@ -24,8 +24,8 @@ export function canonicalEvaluationSchemas() {
     ...canonicalEvaluationSelectorSchemas(),
     ExplicitEvaluationRequest: closedObject(
       {
-        base: { $ref: "#/components/schemas/EvaluationSelector" },
-        head: { $ref: "#/components/schemas/EvaluationSelector" },
+        base: { $ref: "EvaluationSelector#" },
+        head: { $ref: "EvaluationSelector#" },
       },
       ["base", "head"],
     ),
@@ -35,7 +35,7 @@ export function canonicalEvaluationSchemas() {
           pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
           type: "string",
         },
-        base_selector: { $ref: "#/components/schemas/EvaluationSelector" },
+        base_selector: { $ref: "EvaluationSelector#" },
         completed_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
         },
@@ -102,14 +102,14 @@ export function canonicalEvaluationSchemas() {
           type: "string",
         },
         feedback: {
-          $ref: "#/components/schemas/GitHubEvaluationFeedback",
+          $ref: "GitHubEvaluationFeedback#",
         },
         head_commit: {
           pattern: "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
           type: "string",
         },
-        head_selector: { $ref: "#/components/schemas/EvaluationSelector" },
-        monitor: { $ref: "#/components/schemas/EvaluationMonitor" },
+        head_selector: { $ref: "EvaluationSelector#" },
+        monitor: { $ref: "EvaluationMonitor#" },
         id: { minLength: 1, type: "string" },
         next_attempt_at: {
           oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
@@ -152,7 +152,7 @@ export function canonicalEvaluationSchemas() {
     EvaluationCollection: closedObject(
       {
         items: {
-          items: { $ref: "#/components/schemas/Evaluation" },
+          items: { $ref: "Evaluation#" },
           type: "array",
         },
         next_cursor: { type: ["string", "null"] },
@@ -224,7 +224,7 @@ export function canonicalEvaluationSchemas() {
         evidence: { minLength: 1, type: "string" },
         id: { minLength: 1, type: "string" },
         impact: { enum: ["advisory", "blocking"], type: "string" },
-        location: { $ref: "#/components/schemas/FindingLocation" },
+        location: { $ref: "FindingLocation#" },
         remediation: { minLength: 1, type: "string" },
         review_run_id: { minLength: 1, type: "string" },
       },
@@ -319,7 +319,7 @@ export function canonicalEvaluationSchemas() {
           ["input_tokens", "cached_input_tokens", "output_tokens"],
         ),
         transcript_chunks: {
-          items: { $ref: "#/components/schemas/ReviewRunTranscriptChunk" },
+          items: { $ref: "ReviewRunTranscriptChunk#" },
           type: "array",
         },
       },
@@ -337,21 +337,21 @@ export function canonicalEvaluationSchemas() {
     EvaluationResult: closedObject(
       {
         applicability_results: {
-          items: { $ref: "#/components/schemas/ApplicabilityResult" },
+          items: { $ref: "ApplicabilityResult#" },
           type: "array",
         },
         completed_at: { format: "date-time", type: "string" },
         criterion_results: {
-          items: { $ref: "#/components/schemas/CriterionResult" },
+          items: { $ref: "CriterionResult#" },
           type: "array",
         },
         evaluation_id: { minLength: 1, type: "string" },
         file_changes: {
-          items: { $ref: "#/components/schemas/EvaluationFileChange" },
+          items: { $ref: "EvaluationFileChange#" },
           type: "array",
         },
         findings: {
-          items: { $ref: "#/components/schemas/Finding" },
+          items: { $ref: "Finding#" },
           type: "array",
         },
         outcome: {
@@ -359,7 +359,7 @@ export function canonicalEvaluationSchemas() {
           type: "string",
         },
         review_runs: {
-          items: { $ref: "#/components/schemas/TerminalReviewRun" },
+          items: { $ref: "TerminalReviewRun#" },
           type: "array",
         },
       },

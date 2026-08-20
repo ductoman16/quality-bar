@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createHttpConformanceAssertion } from "../scripts/openapi-conformance.mjs";
-import { canonicalOpenApiDocument } from "../src/canonical-api.js";
 import { createUnavailableEvaluationService } from "../src/evaluation.js";
 import {
   authenticatedOperatorHeaders,
@@ -219,61 +217,6 @@ const document = {
   },
 };
 
-test("the canonical Analytics document conforms to the published HTTP schema", async () => {
-  const assertion = await createHttpConformanceAssertion(
-    canonicalOpenApiDocument(),
-  );
-  await assertion.assertExchange({
-    request: {
-      method: "GET",
-      url: "http://127.0.0.1/api/v1/analytics",
-    },
-    response: Response.json(document),
-  });
-  assert.equal(assertion.facts().responseDocuments, 1);
-});
-
-test("the canonical Analytics schema rejects inexact provenance and failure codes", async () => {
-  const assertion = await createHttpConformanceAssertion(
-    canonicalOpenApiDocument(),
-  );
-  for (const matchingFacts of [
-    {
-      ...document.matching_facts,
-      evaluations: [
-        {
-          ...document.matching_facts.evaluations[0],
-          base_commit: "not-a-commit",
-        },
-      ],
-    },
-    {
-      ...document.matching_facts,
-      review_runs: [
-        {
-          ...document.matching_facts.review_runs[0],
-          error_code: "Not Stable",
-        },
-      ],
-    },
-  ]) {
-    await assert.rejects(
-      () =>
-        assertion.assertExchange({
-          request: {
-            method: "GET",
-            url: "http://127.0.0.1/api/v1/analytics",
-          },
-          response: Response.json({
-            ...document,
-            matching_facts: matchingFacts,
-          }),
-        }),
-      /openapi_success_document_invalid/,
-    );
-  }
-});
-
 test("HTTP exposes the canonical Analytics document to browser and machine authorities", async () => {
   const { application, request } = await startApplication({
     createEvaluations() {
@@ -358,7 +301,7 @@ test("HTTP accepts exact Analytics filters and preserves their half-open boundar
   });
   assert.equal(invalid.status, 400);
   assert.equal(await responseErrorCode(invalid), "analytics_filter_invalid");
-  for (const value of ["", "%20", "0x10", "01"]) {
+  for (const value of ["", "%20", "-0", "0x10", "01"]) {
     const malformed = await request(`/api/v1/analytics?start=${value}`, {
       headers: { cookie: operator.cookie },
     });

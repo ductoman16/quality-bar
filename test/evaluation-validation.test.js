@@ -11,7 +11,9 @@ import {
   createUnavailableEvaluationService,
 } from "../src/evaluation.js";
 import { readIdempotentReplay } from "../src/evaluation-idempotency.js";
-import { canonicalOpenApiDocument } from "../src/canonical-api.js";
+import { createCanonicalComponents } from "../src/canonical-api-components.js";
+import { readCodexCapabilityCatalog } from "../src/codex-capabilities.js";
+import { apiRoutes } from "../src/http-routes/index.js";
 
 test("explicit Evaluation accepts exactly typed pushed branch and commit selectors", () => {
   assert.deepEqual(
@@ -47,25 +49,25 @@ test("explicit Evaluation accepts exactly typed pushed branch and commit selecto
 });
 
 test("Evaluation HTTP operations advertise their exact authorities", () => {
-  const paths = canonicalOpenApiDocument().paths;
-  assert.deepEqual(paths["/api/v1/evaluations"].get.security, [
+  const operation = (/** @type {string} */ operationId) =>
+    apiRoutes.find((route) => route.schema.operationId === operationId)?.schema;
+  assert.deepEqual(operation("listEvaluations")?.security, [
     { browser_session: [] },
     { implementer_token: [] },
   ]);
-  for (const operation of [
-    paths["/api/v1/evaluations/{evaluation_id}"].get,
-    paths["/api/v1/evaluations/{evaluation_id}/result"].get,
-    paths["/api/v1/repositories/{repository_id}/evaluations"].post,
+  for (const schema of [
+    operation("getEvaluation"),
+    operation("getEvaluationResult"),
+    operation("createExplicitEvaluation"),
   ]) {
-    assert.deepEqual(operation.security, [
+    assert.deepEqual(schema?.security, [
       { browser_session: [] },
       { implementer_token: [] },
       { onboarding_token: [] },
     ]);
   }
-  const branchPattern =
-    canonicalOpenApiDocument().components.schemas.EvaluationSelector.oneOf[0]
-      .properties.value.pattern;
+  const branchPattern = createCanonicalComponents(readCodexCapabilityCatalog())
+    .schemas.EvaluationSelector.oneOf[0].properties.value.pattern;
   assert.equal(new RegExp(branchPattern).test("@/topic"), true);
   assert.equal(new RegExp(branchPattern).test("@"), false);
 });

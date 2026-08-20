@@ -10,10 +10,13 @@ const addFormats = addFormatsModule.default;
 const schemas = canonicalEvaluationSchemas();
 const ajv = new Ajv({ allowUnionTypes: true, strict: false });
 addFormats(ajv);
-const validate = ajv.compile({
-  $ref: "#/components/schemas/WaiverAdjudicationOperational",
-  components: { schemas },
-});
+for (const [id, schema] of Object.entries(schemas)) {
+  ajv.addSchema({ $id: id, ...schema });
+}
+const validate = ajv.getSchema("WaiverAdjudicationOperational");
+if (!validate) {
+  throw new Error("waiver_operational_schema_missing");
+}
 
 const queued = {
   completed_at: null,

@@ -26,3 +26,11 @@ export function openObject(properties, required) {
 export function closedObject(properties, required) {
   return objectSchema(properties, required, false);
 }
+
+/** @param {Record<string, unknown>} schema @param {string} code @param {string} message @param {number} [status] */
+export function withValidationError(schema, code, message, status = 422) {
+  return {
+    ...schema,
+    "x-quality-bar-error": { code, message, status },
+  };
+}

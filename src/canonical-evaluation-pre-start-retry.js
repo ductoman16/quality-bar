@@ -4,10 +4,7 @@ export const evaluationPreStartRetryProperties = {
   },
   pre_start_attempt_count: { minimum: 0, type: "integer" },
   retry_error: {
-    oneOf: [
-      { $ref: "#/components/schemas/WaiverOperationalError" },
-      { type: "null" },
-    ],
+    oneOf: [{ $ref: "WaiverOperationalError#" }, { type: "null" }],
   },
   retry_state: {
     enum: ["ready", "exhausted"],

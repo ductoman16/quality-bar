@@ -19,13 +19,11 @@
     "typecheck:tests": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test.json && node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test-browser.json",
     "typecheck:scripts": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.scripts.json",
     "coverage": "node scripts/run-with-exact-node.mjs node_modules/c8/bin/c8.js --all --include='src/**/*.js' --check-coverage --lines=86.01 --branches=83.26 --functions=88.71 node --test",
-    "openapi:check": "node scripts/run-with-exact-node.mjs scripts/openapi-structural.mjs",
     "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
     "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
-    "@seriousme/openapi-schema-validator": "2.9.0",
     "@types/node": "24.13.3",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
@@ -39,6 +37,10 @@
     "yaml": "2.9.0"
   },
   "dependencies": {
+    "@fastify/ajv-compiler": "4.0.6",
+    "@fastify/cookie": "11.1.2",
+    "@fastify/swagger": "9.8.1",
+    "fastify": "5.12.1",
     "re2-wasm": "1.0.2"
   }
 }

@@ -91,11 +91,8 @@ async function startApplication(databasePath, options = {}) {
     createCodexRuntime: options.createCodexRuntime,
     writeLog: options.writeLog ?? (() => {}),
   });
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", () => resolve(undefined));
-  });
-  const address = application.server.address();
+  await application.server.listen({ host: "127.0.0.1", port: 0 });
+  const address = application.server.server.address();
   if (!address || typeof address === "string") {
     throw new Error("application_readiness_address_unavailable");
   }
@@ -413,6 +410,14 @@ test("a malformed external master key never appears in responses or logs", async
     error: "master_key_malformed",
     status: "not_ready",
   });
+  const unsupportedHealthMethod = await fetch(`${origin}/health/live`, {
+    method: "POST",
+  });
+  assert.equal(unsupportedHealthMethod.status, 400);
+  assert.equal(
+    await responseErrorCode(unsupportedHealthMethod),
+    "master_key_malformed",
+  );
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);

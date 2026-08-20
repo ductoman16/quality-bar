@@ -23,11 +23,11 @@ import {
  *   format?: string,
  *   items?: OpenApiSchema,
  *   minItems?: number,
- *   oneOf: OpenApiSchema[],
+ *   oneOf?: OpenApiSchema[],
  *   pattern?: string,
  *   properties: Record<string, OpenApiSchema>,
  *   required?: string[],
- *   type?: string,
+ *   type?: string | string[],
  * }} OpenApiSchema
  */
 /**
@@ -59,6 +59,13 @@ function responseCookie(response) {
     throw new Error("security_integration_cookie_missing");
   }
   return cookie;
+}
+
+/** @param {OpenApiOperation} operation */
+function parameterFacts(operation) {
+  return operation.parameters
+    .map(({ name, required }) => ({ name: name.toLowerCase(), required }))
+    .toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
 test("the authenticated canonical contract is OpenAPI 3.1 with strict System attribution pagination", async () => {
@@ -167,15 +174,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     contract.paths["/api/v1/reviews"].post.operationId,
     "createReview",
   );
-  assert.deepEqual(
-    contract.paths["/api/v1/reviews"].post.parameters.map(
-      ({ name, required }) => ({ name, required }),
-    ),
-    [
-      { name: "Origin", required: true },
-      { name: "x-quality-bar-csrf", required: true },
-    ],
-  );
+  assert.deepEqual(parameterFacts(contract.paths["/api/v1/reviews"].post), [
+    { name: "origin", required: true },
+    { name: "x-quality-bar-csrf", required: true },
+  ]);
   assert.deepEqual(contract.paths["/api/v1/reviews"].post.security, [
     { browser_session: [] },
   ]);
@@ -236,12 +238,12 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     [{ browser_session: [] }],
   );
   assert.deepEqual(
-    contract.paths["/api/v1/reviews/{review_id}/metadata"].patch.parameters.map(
-      ({ name, required }) => ({ name, required }),
+    parameterFacts(
+      contract.paths["/api/v1/reviews/{review_id}/metadata"].patch,
     ),
     [
+      { name: "origin", required: true },
       { name: "review_id", required: true },
-      { name: "Origin", required: true },
       { name: "x-quality-bar-csrf", required: true },
     ],
   );
@@ -280,13 +282,15 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       false,
     );
   }
-  for (const assignment of contract.components.schemas.ReviewAssignment.oneOf) {
+  const assignmentSchemas = contract.components.schemas.ReviewAssignment.oneOf;
+  assert.ok(assignmentSchemas);
+  for (const assignment of assignmentSchemas) {
     assert.equal(assignment.additionalProperties, false);
   }
-  for (const configuration of contract.components.schemas.CodexConfiguration
-    .oneOf) {
-    assert.equal(configuration.additionalProperties, false);
-  }
+  assert.equal(
+    contract.components.schemas.CodexConfiguration.additionalProperties,
+    false,
+  );
   for (const path of [
     "/api/v1/session/logout",
     "/api/v1/session/activity",
@@ -296,16 +300,10 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     "/api/v1/implementer-token/rotate",
     "/api/v1/implementer-token/revoke",
   ]) {
-    assert.deepEqual(
-      contract.paths[path].post.parameters.map(({ name, required }) => ({
-        name,
-        required,
-      })),
-      [
-        { name: "Origin", required: true },
-        { name: "x-quality-bar-csrf", required: true },
-      ],
-    );
+    assert.deepEqual(parameterFacts(contract.paths[path].post), [
+      { name: "origin", required: true },
+      { name: "x-quality-bar-csrf", required: true },
+    ]);
   }
   assert.ok(contract.paths["/api/v1/session/logout"].post.responses[503]);
   assert.ok(contract.paths["/api/v1/session/logout"].post.responses[400]);

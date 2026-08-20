@@ -110,21 +110,10 @@ export function acceptedMcpMediaTypes(accept) {
   );
 }
 
-/** @param {import("node:http").IncomingMessage} request */
+/** @param {import("fastify").FastifyRequest} request */
 export async function readMcpMessage(request) {
   if (request.headers["content-type"] !== "application/json") {
     throw new McpMessageError(-32600, "Invalid Request");
   }
-  let body = "";
-  for await (const chunk of request) {
-    body += chunk;
-    if (Buffer.byteLength(body) > 8 * 1024) {
-      throw new McpMessageError(-32600, "Invalid Request");
-    }
-  }
-  try {
-    return /** @type {unknown} */ (JSON.parse(body));
-  } catch {
-    throw new McpMessageError(-32700, "Parse error");
-  }
+  return request.body;
 }

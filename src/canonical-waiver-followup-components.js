@@ -7,7 +7,7 @@ export function canonicalWaiverFollowupSchemas() {
     oneOf: [{ format: "date-time", type: "string" }, nullValue],
   };
   const nullableError = {
-    oneOf: [{ $ref: "#/components/schemas/WaiverOperationalError" }, nullValue],
+    oneOf: [{ $ref: "WaiverOperationalError#" }, nullValue],
   };
   return {
     WaiverFollowupAttempt: closedObject(
@@ -30,10 +30,7 @@ export function canonicalWaiverFollowupSchemas() {
       {
         error: nullableError,
         latest_attempt: {
-          oneOf: [
-            { $ref: "#/components/schemas/WaiverFollowupAttempt" },
-            nullValue,
-          ],
+          oneOf: [{ $ref: "WaiverFollowupAttempt#" }, nullValue],
         },
         publication_status: {
           enum: ["waiting", "succeeded", "unavailable"],
@@ -47,10 +44,7 @@ export function canonicalWaiverFollowupSchemas() {
         decision_id: identifier,
         error: nullableError,
         latest_attempt: {
-          oneOf: [
-            { $ref: "#/components/schemas/WaiverFollowupAttempt" },
-            nullValue,
-          ],
+          oneOf: [{ $ref: "WaiverFollowupAttempt#" }, nullValue],
         },
         publication_status: {
           enum: ["waiting", "succeeded", "unavailable"],
@@ -61,9 +55,9 @@ export function canonicalWaiverFollowupSchemas() {
     ),
     WaiverFollowupPublication: closedObject(
       {
-        aggregate: { $ref: "#/components/schemas/WaiverFollowupSurface" },
+        aggregate: { $ref: "WaiverFollowupSurface#" },
         local: {
-          items: { $ref: "#/components/schemas/WaiverLocalFollowupSurface" },
+          items: { $ref: "WaiverLocalFollowupSurface#" },
           type: "array",
         },
       },
