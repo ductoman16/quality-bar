@@ -2,6 +2,11 @@
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
 import { csrfToken, responseMessage } from "./browser.js";
+import {
+  readOnboardingTokens,
+  validOnboardingTokenReveal,
+  validTokenReveal,
+} from "./contract.js";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },
@@ -26,11 +31,12 @@ const fields = ref({
 });
 let lastActivityAt = 0;
 
-async function failure(response) {
-  error.value = await responseMessage(response);
+async function showError(message) {
+  error.value = message;
   await nextTick();
   errorElement.value?.focus();
 }
+const failure = async (response) => showError(await responseMessage(response));
 const request = (path, body, method = "POST") =>
   fetch(path, {
     body: JSON.stringify(body),
@@ -51,7 +57,9 @@ async function tokenMutation(path, password) {
   const response = await request(path, { password });
   if (!response.ok) return failure(response);
   if (response.status !== 204) {
-    token.value = (await response.json()).token;
+    const value = await response.json();
+    if (!validTokenReveal(value)) return showError("token_reveal_invalid");
+    token.value = value.token;
     tokenDialog.value.showModal();
   }
 }
@@ -73,16 +81,22 @@ async function activity() {
 async function loadOnboardingTokens() {
   if (!props.showOnboarding) return;
   const response = await fetch("/api/v1/onboarding-tokens");
-  if (response.ok)
-    onboardingTokens.value = (await response.json()).onboarding_tokens;
-  else await failure(response);
+  if (!response.ok) return failure(response);
+  try {
+    onboardingTokens.value = readOnboardingTokens(await response.json());
+  } catch {
+    await showError("onboarding_token_collection_invalid");
+  }
 }
 async function createOnboardingToken() {
   const response = await request("/api/v1/onboarding-tokens", {
     repository_url: onboardingUrl.value,
   });
   if (!response.ok) return failure(response);
-  onboardingToken.value = (await response.json()).token;
+  const value = await response.json();
+  if (!validOnboardingTokenReveal(value))
+    return showError("onboarding_token_reveal_invalid");
+  onboardingToken.value = value.token;
   onboardingUrl.value = "";
   onboardingDialog.value.showModal();
   await loadOnboardingTokens();

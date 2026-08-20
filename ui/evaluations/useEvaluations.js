@@ -5,7 +5,11 @@ import {
   repositoryCollection,
   responseMessage,
 } from "../browser.js";
-import { mutateEvaluation, validCollection } from "./contract.js";
+import {
+  mutateEvaluation,
+  validCollection,
+  validEvaluation,
+} from "./contract.js";
 
 const FILTER_NAMES = [
   "repository_id",
@@ -45,6 +49,16 @@ const epoch = (value) => {
   const parsed = value ? new Date(value).getTime() : NaN;
   return Number.isSafeInteger(parsed) && parsed >= 0 ? String(parsed) : "";
 };
+const count = (value) => Number.isSafeInteger(value) && value >= 0;
+const validStatsSystem = (value) =>
+  count(value?.codex_execution?.concurrency?.maximum_running) &&
+  count(value.codex_execution.concurrency.running_count) &&
+  count(value.codex_execution.queue?.count);
+const validStatsAnalytics = (value) =>
+  count(value?.evaluation_overview?.clear_rate?.numerator) &&
+  count(value.evaluation_overview.clear_rate.denominator) &&
+  (value.evaluation_overview.p95_duration_ms === null ||
+    count(value.evaluation_overview.p95_duration_ms));
 
 export function useEvaluations(csrfCookieName) {
   const evaluations = ref([]);
@@ -187,23 +201,27 @@ export function useEvaluations(csrfCookieName) {
   async function refreshStats(hours = statsWindow.value) {
     statsWindow.value = hours;
     const now = Date.now();
-    const [system, analytics] = await Promise.allSettled([
-      fetch("/api/v1/system"),
-      fetch(`/api/v1/analytics?start=${now - hours * 3_600_000}&end=${now}`),
-    ]);
     try {
-      if (
-        system.status !== "fulfilled" ||
-        !system.value.ok ||
-        analytics.status !== "fulfilled" ||
-        !analytics.value.ok
-      ) {
-        throw new Error();
+      const [system, analytics] = await Promise.all([
+        fetch("/api/v1/system"),
+        fetch(`/api/v1/analytics?start=${now - hours * 3_600_000}&end=${now}`),
+      ]);
+      if (!system.ok) {
+        throw new Error(await responseMessage(system));
+      }
+      if (!analytics.ok) {
+        throw new Error(await responseMessage(analytics));
       }
       const [systemBody, analyticsBody] = await Promise.all([
-        system.value.json(),
-        analytics.value.json(),
+        system.json(),
+        analytics.json(),
       ]);
+      if (
+        !validStatsSystem(systemBody) ||
+        !validStatsAnalytics(analyticsBody)
+      ) {
+        throw new Error("evaluation_statistics_invalid");
+      }
       const concurrency = systemBody.codex_execution.concurrency;
       stats.workers = `${concurrency.running_count} / ${concurrency.maximum_running}`;
       stats.queue = String(systemBody.codex_execution.queue.count);
@@ -216,8 +234,11 @@ export function useEvaluations(csrfCookieName) {
         ? `${overview.p95_duration_ms} ms`
         : "No data";
       stats.updated = "Just now";
-    } catch {
-      error.value = "Evaluation statistics failed to load";
+    } catch (failure) {
+      error.value =
+        failure instanceof Error
+          ? failure.message
+          : "Evaluation statistics failed to load";
     }
   }
 
@@ -254,10 +275,17 @@ export function useEvaluations(csrfCookieName) {
       if (!response.ok) {
         return showFailure(response);
       }
-      createStatus.value = `Evaluation ${(await response.json()).id} requested.`;
+      const created = await response.json();
+      if (!validEvaluation(created)) {
+        throw new Error("evaluation_response_invalid");
+      }
+      createStatus.value = `Evaluation ${created.id} requested.`;
       await refresh({ replace: true });
-    } catch {
-      createStatus.value = error.value = "Evaluation request failed";
+    } catch (failure) {
+      createStatus.value = error.value =
+        failure instanceof Error
+          ? failure.message
+          : "Evaluation request failed";
     }
   }
 
@@ -296,7 +324,11 @@ export function useEvaluations(csrfCookieName) {
     timer = null;
     if (!document.hidden) {
       void refresh({ poll: true });
-      timer = setInterval(() => refresh({ poll: true }), 5_000);
+      void refreshStats();
+      timer = setInterval(() => {
+        void refresh({ poll: true });
+        void refreshStats();
+      }, 5_000);
     }
   };
   const popstate = () => {

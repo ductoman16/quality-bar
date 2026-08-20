@@ -73,3 +73,31 @@ it("confirms lifecycle changes and exact-identity deletion with CSRF", async () 
   expect(wrapper.emitted("changed")).toHaveLength(2);
   wrapper.unmount();
 });
+
+it("reconciles an ambiguous Repository deletion", async () => {
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (options?.method === "DELETE") {
+      throw new TypeError("network lost");
+    }
+    if (path === "/api/v1/repositories") {
+      return {
+        json: async () => ({ items: [], next_cursor: null }),
+        ok: true,
+      };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(RepositoryActions, {
+    props: { csrfCookieName: "qb_csrf", repository },
+  });
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Delete")
+    .trigger("click");
+  await wrapper.get("input").setValue(repository.url);
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.emitted("changed")).toEqual([[null]]);
+  expect(wrapper.emitted("error")).toBeUndefined();
+  wrapper.unmount();
+});

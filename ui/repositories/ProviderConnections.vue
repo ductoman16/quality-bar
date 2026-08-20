@@ -19,8 +19,7 @@ const github = ref(null),
   forgejo = ref(null),
   githubPem = ref(""),
   githubSelected = reactive(new Set()),
-  manifest = ref(),
-  error = ref("");
+  manifest = ref();
 const forge = reactive({
   baseUrl: "",
   choices: [],
@@ -34,8 +33,17 @@ const lifecycleDialog = ref();
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 async function fail(response, fallback) {
-  error.value = response ? await responseMessage(response) : fallback;
-  emit("error", error.value);
+  emit("error", response ? await responseMessage(response) : fallback);
+}
+async function safe(action) {
+  try {
+    await action();
+  } catch (failure) {
+    emit(
+      "error",
+      failure instanceof Error ? failure.message : "connection_request_failed",
+    );
+  }
 }
 async function load() {
   for (const [path, target, validate] of [
@@ -216,7 +224,7 @@ onMounted(load);
     <h2>GitHub Connection</h2>
     <form
       v-if="!github || github.lifecycle === 'retired'"
-      @submit.prevent="startGitHub"
+      @submit.prevent="safe(startGitHub)"
     >
       <label v-if="github" for="github-pem">Replacement private key</label
       ><textarea
@@ -225,7 +233,7 @@ onMounted(load);
         v-model="githubPem"
         required
       ></textarea
-      ><button class="qb-btn qb-btn--primary" type="submit">
+      ><button class="qb-btn qb-btn--secondary" type="submit">
         {{ github ? "Reactivate GitHub App" : "Connect GitHub App" }}
       </button>
     </form>
@@ -248,7 +256,7 @@ onMounted(load);
       </dl>
       <form
         v-if="github.lifecycle !== 'retired'"
-        @submit.prevent="rotateGitHub"
+        @submit.prevent="safe(rotateGitHub)"
       >
         <label for="github-rotation-pem">Replacement private key</label
         ><textarea
@@ -260,7 +268,7 @@ onMounted(load);
       </form>
       <form
         v-if="githubChoices().length && github.lifecycle !== 'retired'"
-        @submit.prevent="registerGitHubRepositories"
+        @submit.prevent="safe(registerGitHubRepositories)"
       >
         <fieldset>
           <legend>GitHub Repositories</legend>
@@ -301,7 +309,7 @@ onMounted(load);
       ><form
         v-if="!forge.choices.length"
         id="forgejo-connection-form"
-        @submit.prevent="discoverForgejo"
+        @submit.prevent="safe(discoverForgejo)"
       >
         <label for="forgejo-connection-base-url">Forgejo URL</label
         ><input
@@ -317,7 +325,7 @@ onMounted(load);
           type="password"
         /><button type="submit">Verify Forgejo Connection</button>
       </form>
-      <form v-else @submit.prevent="connectForgejo">
+      <form v-else @submit.prevent="safe(connectForgejo)">
         <fieldset>
           <legend>Forgejo Repositories</legend>
           <label v-for="item in forge.choices" :key="item.id"
@@ -346,7 +354,7 @@ onMounted(load);
       </dl>
       <form
         v-if="forgejo.lifecycle !== 'retired'"
-        @submit.prevent="rotateForgejo"
+        @submit.prevent="safe(rotateForgejo)"
       >
         <label for="forgejo-rotation-token"
           >Replacement Repository-scoped PAT</label
@@ -357,7 +365,7 @@ onMounted(load);
           type="password"
         /><button type="submit">Rotate Forgejo PAT</button>
       </form>
-      <form v-else @submit.prevent="reactivateForgejo">
+      <form v-else @submit.prevent="safe(reactivateForgejo)">
         <label for="forgejo-reactivation-token">Reactivation PAT</label
         ><input
           id="forgejo-reactivation-token"
@@ -378,12 +386,9 @@ onMounted(load);
     </template>
   </section>
   <output aria-live="polite">{{ status }}</output>
-  <p id="forgejo-connection-error" :hidden="!error" role="alert">
-    {{ error }}
-  </p>
   <ConnectionLifecycleDialog
     ref="lifecycleDialog"
-    @change="lifecycle"
+    @change="safe(() => lifecycle($event))"
     @error="emit('error', $event)"
   />
 </template>

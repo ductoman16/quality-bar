@@ -12,6 +12,7 @@ import RepositoryDetailView from "./repositories/RepositoryDetailView.vue";
 import ReviewDetailView from "./reviews/ReviewDetailView.vue";
 import ReviewsView from "./reviews/ReviewsView.vue";
 import SystemView from "./system/SystemView.vue";
+import { validSystem } from "./system/contract.js";
 import { useAlertFocus } from "./useAlertFocus.js";
 
 const props = defineProps({
@@ -66,6 +67,7 @@ onMounted(async () => {
       return;
     }
     const system = await response.json();
+    if (!validSystem(system)) throw new Error("system_document_invalid");
     attention.value = [
       system.durable_core?.status !== "ready",
       system.storage?.status !== "available",

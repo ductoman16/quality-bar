@@ -285,11 +285,27 @@
   height: auto;
   flex: 0 1 auto;
   display: grid;
+  grid-template-columns: 12px auto;
   gap: 4px;
   padding: 12px;
 }
+.evaluation-detail-timeline .qb-timeline-node > span:not(:first-child) {
+  grid-column: 2;
+}
 .evaluation-detail-timeline .qb-timeline-node::before {
   content: none;
+}
+.evaluation-detail-timeline .qb-timeline-node__marker {
+  background: var(--qb-system-marker);
+  grid-row: 1 / -1;
+  height: 10px;
+  width: 10px;
+}
+.evaluation-detail-timeline
+  .qb-timeline-node--review
+  .qb-timeline-node__marker {
+  background: var(--qb-review-marker);
+  border-radius: 50%;
 }
 .evaluation-result details {
   margin-block: 10px;

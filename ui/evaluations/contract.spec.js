@@ -6,6 +6,7 @@ import {
   validCollection,
   validEvaluation,
   validEvaluationResult,
+  validReviewRunDiagnostics,
 } from "./contract.js";
 import { formatDuration } from "./duration.js";
 
@@ -134,6 +135,7 @@ describe("Evaluation browser contract", () => {
           id: "run-1",
           review_id: "review-1",
           review_version_id: "version-1",
+          started_at: "2026-08-20T12:00:00.000Z",
         },
       ],
     };
@@ -148,5 +150,24 @@ describe("Evaluation browser contract", () => {
       ),
     ).toBe(false);
     expect(formatDuration(3_661_000)).toBe("1h 1m");
+    expect(
+      validReviewRunDiagnostics(
+        {
+          codex_cli_version: "1.2.3",
+          duration_ms: 1_000,
+          process: { code: 0, kind: "exit" },
+          review_run_id: "run-1",
+          token_counters: {
+            cached_input_tokens: 2,
+            input_tokens: 3,
+            output_tokens: 4,
+          },
+          transcript_chunks: [
+            { content: "complete\n", sequence: 1, stream: "stdout" },
+          ],
+        },
+        "run-1",
+      ),
+    ).toBe(true);
   });
 });

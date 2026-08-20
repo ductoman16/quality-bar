@@ -19,6 +19,7 @@ const loading = ref(true);
 const error = ref("");
 const errorElement = ref();
 const busy = ref(false);
+const lastRefreshed = ref("");
 let refreshing = false;
 let resultEvaluationId = null;
 let timer;
@@ -78,6 +79,7 @@ async function refresh() {
     if (!validEvaluation(body) || body.id !== id)
       return showError("Evaluation failed to load");
     evaluation.value = body;
+    lastRefreshed.value = new Date().toLocaleTimeString();
     error.value = "";
     await loadResult();
   } catch {
@@ -130,12 +132,22 @@ onUnmounted(() => {
       <dl>
         <dt>Repository</dt>
         <dd>{{ evaluation.repository.url }}</dd>
+        <dt>Source</dt>
+        <dd>{{ evaluation.provenance ?? "Unknown" }}</dd>
         <dt>Status</dt>
         <dd>{{ evaluation.execution_status }}</dd>
         <dt>Outcome</dt>
         <dd>{{ evaluation.effective_outcome }}</dd>
-        <dt>Created</dt>
-        <dd>{{ new Date(evaluation.created_at).toLocaleString() }}</dd>
+        <dt>Duration</dt>
+        <dd>
+          {{
+            evaluation.monitor.duration_ms === null
+              ? "In progress"
+              : formatDuration(evaluation.monitor.duration_ms)
+          }}
+        </dd>
+        <dt>Last refreshed</dt>
+        <dd>{{ lastRefreshed }}</dd>
       </dl>
       <button
         v-if="['queued', 'running'].includes(evaluation.execution_status)"
@@ -172,6 +184,7 @@ onUnmounted(() => {
           :class="`qb-timeline-node qb-timeline-node--${node.kind} qb-timeline-node--${nodeVisualState(node)}`"
           :aria-label="`${node.label}: ${statusLabel(node)}`"
         >
+          <span aria-hidden="true" class="qb-timeline-node__marker"></span>
           <span
             >{{ node.kind === "review" ? "Review " : "" }}{{ node.label }}</span
           ><span>{{ statusLabel(node) }}</span
@@ -187,6 +200,7 @@ onUnmounted(() => {
       v-if="evaluation && result"
       :evaluation="evaluation"
       :result="result"
+      @error="showError"
     />
     <p v-else-if="evaluation && isTerminalStatus(evaluation.execution_status)">
       Result unavailable

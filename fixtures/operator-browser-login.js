@@ -10,37 +10,39 @@ window.addEventListener("DOMContentLoaded", () => {
     loginForm.requestSubmit();
     return;
   }
-  const forgejoForm = document.getElementById("forgejo-connection-form");
-  const forgejoBaseUrl = document.getElementById("forgejo-connection-base-url");
-  const forgejoToken = document.getElementById("forgejo-connection-token");
-  const forgejoError = document.getElementById("forgejo-connection-error");
-
-  if (
-    !(forgejoForm instanceof HTMLFormElement) ||
-    !(forgejoBaseUrl instanceof HTMLInputElement) ||
-    !(forgejoToken instanceof HTMLInputElement) ||
-    !(forgejoError instanceof HTMLParagraphElement)
-  ) {
-    throw new Error("operator_browser_forgejo_controls_missing");
-  }
-
-  forgejoBaseUrl.value = "https://forgejo.invalid";
-  forgejoBaseUrl.dispatchEvent(new Event("input", { bubbles: true }));
-  forgejoToken.value = "controlled-invalid-token";
-  forgejoToken.dispatchEvent(new Event("input", { bubbles: true }));
-  forgejoForm.requestSubmit();
-
-  const reportError = () => {
-    if (!forgejoError.hidden) {
-      void fetch(
-        `/operator-browser-complete?${new URLSearchParams({
-          error: forgejoError.textContent?.trim() ?? "",
-          path: `${location.pathname}${location.search}`,
-        })}`,
-      );
+  const submitForgejo = () => {
+    const form = document.getElementById("forgejo-connection-form");
+    const baseUrl = document.getElementById("forgejo-connection-base-url");
+    const token = document.getElementById("forgejo-connection-token");
+    const error = document.getElementById("repository-error");
+    if (
+      !(form instanceof HTMLFormElement) ||
+      !(baseUrl instanceof HTMLInputElement) ||
+      !(token instanceof HTMLInputElement) ||
+      !(error instanceof HTMLParagraphElement)
+    ) {
+      setTimeout(submitForgejo, 10);
       return;
     }
-    setTimeout(reportError, 10);
+    baseUrl.value = "https://forgejo.invalid";
+    baseUrl.dispatchEvent(new Event("input", { bubbles: true }));
+    token.value = "controlled-invalid-token";
+    token.dispatchEvent(new Event("input", { bubbles: true }));
+    form.requestSubmit();
+
+    const reportError = () => {
+      if (!error.hidden) {
+        void fetch(
+          `/operator-browser-complete?${new URLSearchParams({
+            error: error.textContent?.trim() ?? "",
+            path: `${location.pathname}${location.search}`,
+          })}`,
+        );
+        return;
+      }
+      setTimeout(reportError, 10);
+    };
+    reportError();
   };
-  reportError();
+  submitForgejo();
 });

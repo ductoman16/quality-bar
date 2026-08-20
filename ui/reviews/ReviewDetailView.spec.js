@@ -156,3 +156,60 @@ it("covers version, assignment, archival, and deletion controls", async () => {
   );
   wrapper.unmount();
 });
+
+it("surfaces malformed mutation success and reconciles ambiguous deletion", async () => {
+  let deleted = false;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/system") {
+      return {
+        json: async () => ({ codex: { catalog: { models: [model] } } }),
+        ok: true,
+      };
+    }
+    if (path === "/api/v1/repositories") {
+      return {
+        json: async () => ({ items: [repository], next_cursor: null }),
+        ok: true,
+      };
+    }
+    if (path === "/api/v1/reviews") {
+      return {
+        json: async () => ({ reviews: deleted ? [] : [review] }),
+        ok: true,
+      };
+    }
+    if (path === "/api/v1/reviews?state=archived") {
+      return { json: async () => ({ reviews: [] }), ok: true };
+    }
+    if (String(path).endsWith("/metadata")) {
+      return { json: async () => ({}), ok: true, status: 200 };
+    }
+    if (options?.method === "DELETE") {
+      deleted = true;
+      throw new TypeError("network lost");
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ReviewDetailView, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await formWith(wrapper, "Save metadata").trigger("submit");
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toBe(
+    "Review response is invalid",
+  );
+
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Delete Review")
+    .trigger("click");
+  await wrapper.get("#review-delete-name").setValue(review.name);
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(
+    vi.mocked(fetch).mock.calls.filter(([path]) => path === "/api/v1/reviews"),
+  ).toHaveLength(2);
+  wrapper.unmount();
+});

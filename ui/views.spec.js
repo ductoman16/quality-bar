@@ -5,6 +5,7 @@ import AnalyticsView from "./analytics/AnalyticsView.vue";
 import App from "./App.vue";
 import { responseMessage } from "./browser.js";
 import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
+import EvaluationResult from "./evaluations/EvaluationResult.vue";
 import LoginView from "./LoginView.vue";
 import OperatorControls from "./OperatorControls.vue";
 import RepositoriesView from "./repositories/RepositoriesView.vue";
@@ -59,6 +60,18 @@ describe("Vue operator views", () => {
     wrapper.unmount();
   });
 
+  it("surfaces an invalid System attention document", async () => {
+    vi.mocked(fetch).mockResolvedValue({ json: async () => ({}), ok: true });
+    const wrapper = shallowMount(App, {
+      props: { authenticated: true, view: "evaluations" },
+    });
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      "system_document_invalid",
+    );
+    wrapper.unmount();
+  });
+
   it("focuses the login error returned by the API", async () => {
     const wrapper = mount(LoginView, { attachTo: document.body });
     await wrapper.get("input").setValue("an incorrect operator password");
@@ -109,6 +122,28 @@ describe("Vue operator views", () => {
       },
       method: "POST",
     });
+    expect(document.activeElement).toBe(wrapper.get('[role="alert"]').element);
+    wrapper.unmount();
+  });
+
+  it("surfaces a malformed successful token reveal", async () => {
+    document.cookie = "quality_bar_csrf=csrf-token";
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({}),
+      ok: true,
+      status: 201,
+    });
+    const wrapper = mount(OperatorControls, {
+      attachTo: document.body,
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await wrapper.get("#implementer-token-create-password").setValue("current");
+    await wrapper
+      .findAll("form")
+      .find((form) => form.text().includes("Create implementer token"))
+      .trigger("submit");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("token_reveal_invalid");
     expect(document.activeElement).toBe(wrapper.get('[role="alert"]').element);
     wrapper.unmount();
   });
@@ -204,6 +239,60 @@ describe("Vue operator views", () => {
         .mocked(fetch)
         .mock.calls.filter(([path]) => String(path).endsWith("/result")),
     ).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it("loads Review Run diagnostics when their disclosure opens", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({
+        codex_cli_version: "1.2.3",
+        duration_ms: 900,
+        process: { code: 0, kind: "exit" },
+        review_run_id: "run-1",
+        token_counters: {
+          cached_input_tokens: 2,
+          input_tokens: 3,
+          output_tokens: 4,
+        },
+        transcript_chunks: [
+          { content: "Review complete\n", sequence: 1, stream: "stdout" },
+        ],
+      }),
+      ok: true,
+      status: 200,
+    });
+    const wrapper = mount(EvaluationResult, {
+      props: {
+        evaluation: { id: "evaluation-1" },
+        result: {
+          applicability_results: [],
+          criterion_results: [],
+          file_changes: [],
+          findings: [],
+          outcome: "clear",
+          review_runs: [
+            {
+              execution_status: "completed",
+              id: "run-1",
+              review_id: "review-1",
+              review_version_id: "version-1",
+              started_at: "2026-08-20T12:00:00.000Z",
+            },
+          ],
+        },
+      },
+    });
+    const disclosure = wrapper
+      .findAll("details")
+      .find((item) => item.text().includes("diagnostics"));
+    disclosure.element.open = true;
+    await disclosure.trigger("toggle");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Codex CLI 1.2.3");
+    expect(wrapper.get("pre").text()).toBe("Review complete");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/evaluations/evaluation-1/review-runs/run-1/diagnostics",
+    );
     wrapper.unmount();
   });
 });

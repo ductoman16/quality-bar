@@ -51,6 +51,12 @@ const overview = computed(() => {
     ["Tokens / Blocking Finding", per(value.finding_impact.blocking)],
   ];
 });
+const trendMaximum = computed(() =>
+  Math.max(
+    1,
+    ...(document_.value?.daily_trend ?? []).map((item) => item.evaluations),
+  ),
+);
 const tables = computed(() => {
   const value = document_.value;
   if (!value) return [];
@@ -288,13 +294,13 @@ onUnmounted(() => window.removeEventListener("popstate", popstate));
         <span
           class="an-trend__seg an-trend__seg--clear"
           :style="{
-            height: `${bucket.evaluations ? (bucket.clear / bucket.evaluations) * 100 : 0}%`,
+            height: `${(bucket.clear / trendMaximum) * 100}%`,
           }"
         ></span
         ><span
           class="an-trend__seg an-trend__seg--problem"
           :style="{
-            height: `${bucket.evaluations ? ((bucket.advisory + bucket.blocking + bucket.error) / bucket.evaluations) * 100 : 0}%`,
+            height: `${((bucket.advisory + bucket.blocking + bucket.error) / trendMaximum) * 100}%`,
           }"
         ></span>
       </div>

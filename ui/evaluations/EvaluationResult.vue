@@ -1,10 +1,16 @@
 <script setup>
-import { computed } from "vue";
+import { computed, reactive } from "vue";
+
+import { responseMessage } from "../browser.js";
+import { validReviewRunDiagnostics } from "./contract.js";
 
 const props = defineProps({
   evaluation: { required: true, type: Object },
   result: { required: true, type: Object },
 });
+const emit = defineEmits(["error"]);
+const diagnostics = reactive({});
+const loadingDiagnostics = new Set();
 
 const runFor = (criterion) =>
   props.result.review_runs.find((run) => run.id === criterion.review_run_id);
@@ -55,6 +61,48 @@ const fileChange = (finding) =>
   props.result.file_changes.find(
     (change) => change.id === finding.location.file_change_id,
   );
+const counter = (value) =>
+  Number.isSafeInteger(value) ? String(value) : "unavailable";
+const processText = (process) =>
+  process.kind === "exit"
+    ? `exit ${process.code}`
+    : process.kind === "signal"
+      ? `signal ${process.signal}`
+      : "process unavailable";
+const transcript = (value, stream) =>
+  value.transcript_chunks
+    .filter((chunk) => chunk.stream === stream)
+    .map((chunk) => chunk.content)
+    .join("");
+async function loadDiagnostics(event, run) {
+  if (
+    !event.currentTarget.open ||
+    diagnostics[run.id] ||
+    loadingDiagnostics.has(run.id)
+  ) {
+    return;
+  }
+  loadingDiagnostics.add(run.id);
+  try {
+    const response = await fetch(
+      `/api/v1/evaluations/${encodeURIComponent(props.evaluation.id)}/review-runs/${encodeURIComponent(run.id)}/diagnostics`,
+    );
+    if (!response.ok) throw new Error(await responseMessage(response));
+    const value = await response.json();
+    if (!validReviewRunDiagnostics(value, run.id))
+      throw new Error("review_run_diagnostics_invalid");
+    diagnostics[run.id] = value;
+  } catch (failure) {
+    emit(
+      "error",
+      failure instanceof Error
+        ? failure.message
+        : "review_run_diagnostics_invalid",
+    );
+  } finally {
+    loadingDiagnostics.delete(run.id);
+  }
+}
 </script>
 
 <template>
@@ -130,6 +178,40 @@ const fileChange = (finding) =>
           <pre>{{ fileChange(finding).patch }}</pre>
         </details>
       </details>
+    </details>
+    <details
+      v-for="run in result.review_runs.filter(
+        (item) => item.started_at !== null,
+      )"
+      :key="`diagnostics:${run.id}`"
+      @toggle="loadDiagnostics($event, run)"
+    >
+      <summary>
+        Review {{ run.review_id }} {{ run.review_version_id }} — diagnostics
+      </summary>
+      <template v-if="diagnostics[run.id]">
+        <p>
+          Codex CLI
+          {{ diagnostics[run.id].codex_cli_version ?? "unavailable" }} —
+          {{ counter(diagnostics[run.id].duration_ms) }} ms — input
+          {{ counter(diagnostics[run.id].token_counters.input_tokens) }}, cached
+          input
+          {{ counter(diagnostics[run.id].token_counters.cached_input_tokens) }},
+          output
+          {{ counter(diagnostics[run.id].token_counters.output_tokens) }} —
+          {{ processText(diagnostics[run.id].process) }}
+        </p>
+        <details
+          v-for="stream in ['stdout', 'stderr'].filter((name) =>
+            transcript(diagnostics[run.id], name),
+          )"
+          :key="stream"
+        >
+          <summary>{{ stream === "stdout" ? "Stdout" : "Stderr" }}</summary>
+          <pre>{{ transcript(diagnostics[run.id], stream) }}</pre>
+        </details>
+      </template>
+      <p v-else>Loading diagnostics</p>
     </details>
   </section>
 </template>

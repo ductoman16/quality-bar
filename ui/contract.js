@@ -28,3 +28,33 @@ export const modelCapability = (value) =>
   value.reasoning_efforts.every(nonempty) &&
   Array.isArray(value.service_tiers) &&
   value.service_tiers.every(nonempty);
+
+/** @param {any} value */
+export const validTokenReveal = (value) =>
+  record(value) && nonempty(value.token);
+
+/** @param {any} value */
+export const validOnboardingToken = (value) =>
+  record(value) &&
+  nonempty(value.id) &&
+  nonempty(value.repository_url) &&
+  count(value.created_at) &&
+  count(value.expires_at);
+
+/** @param {any} value */
+export const validOnboardingTokenReveal = (value) =>
+  validOnboardingToken(value) &&
+  typeof value.token === "string" &&
+  value.token.length === 43;
+
+/** @param {any} value */
+export function readOnboardingTokens(value) {
+  if (
+    !record(value) ||
+    !Array.isArray(value.onboarding_tokens) ||
+    !value.onboarding_tokens.every(validOnboardingToken)
+  ) {
+    throw new Error("onboarding_token_collection_invalid");
+  }
+  return value.onboarding_tokens;
+}

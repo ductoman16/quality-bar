@@ -21,6 +21,7 @@ function evaluation(id = "evaluation-1") {
           key: "preparing",
           kind: "system",
           label: "Preparing",
+          duration_ms: 500,
           status: "queued",
         },
       ],
@@ -107,6 +108,7 @@ describe("Evaluations view", () => {
     );
     await wrapper.get(".evaluation-row__toggle").trigger("click");
     expect(wrapper.find(".evaluation-expanded").exists()).toBe(true);
+    expect(wrapper.get(".evaluation-expanded").text()).toContain("500 ms");
     await wrapper.get("#evaluation-filter-status").setValue("running");
     await wrapper.get(".evaluation-filter-form").trigger("submit");
     await flushPromises();
@@ -116,9 +118,15 @@ describe("Evaluations view", () => {
       ),
     ).toBe(true);
     collection = [evaluation("evaluation-2"), evaluation()];
+    const systemLoads = fetch.mock.calls.filter(
+      ([path]) => path === "/api/v1/system",
+    ).length;
     await vi.advanceTimersByTimeAsync(5_000);
     await flushPromises();
     expect(wrapper.text()).toContain("New activity available");
+    expect(
+      fetch.mock.calls.filter(([path]) => path === "/api/v1/system").length,
+    ).toBeGreaterThan(systemLoads);
     expect(wrapper.find("[data-evaluation-id='evaluation-2']").exists()).toBe(
       false,
     );

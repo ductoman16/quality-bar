@@ -50,12 +50,15 @@ async function load() {
     error.value = "Review was not specified";
     return;
   }
-  const value = [
+  const value = await findReview();
+  if (!value) error.value = "Review was not found";
+  else open(value);
+}
+async function findReview() {
+  return [
     ...(await list("/api/v1/reviews")),
     ...(await list("/api/v1/reviews?state=archived")),
   ].find((item) => item.id === id);
-  if (!value) error.value = "Review was not found";
-  else open(value);
 }
 async function save(path, body, method, fallback) {
   let response;
@@ -70,7 +73,12 @@ async function save(path, body, method, fallback) {
     return null;
   }
   error.value = "";
-  return response.status === 204 ? null : response.json();
+  try {
+    return await response.json();
+  } catch {
+    error.value = "Review response is invalid";
+    return null;
+  }
 }
 function requireReview(value, changed = false) {
   if (!(changed ? validReviewChange(value) : validReview(value))) {
@@ -86,12 +94,11 @@ async function saveMetadata() {
     "PATCH",
     "Review metadata failed to save",
   );
-  if (value) {
-    const next = requireReview(value);
-    if (!next) return;
-    open(next);
-    status.value = `${next.name} metadata saved.`;
-  }
+  if (!value) return;
+  const next = requireReview(value);
+  if (!next) return;
+  open(next);
+  status.value = `${next.name} metadata saved.`;
 }
 async function saveVersion(snapshot) {
   const value = await save(
@@ -100,12 +107,11 @@ async function saveVersion(snapshot) {
     "POST",
     "Review Version failed to save",
   );
-  if (value?.review) {
-    const next = requireReview(value, true);
-    if (!next) return;
-    open(next);
-    status.value = `${next.name} v${next.active_version.number} ${value.changed ? "active" : "unchanged"}.`;
-  }
+  if (!value) return;
+  const next = requireReview(value, true);
+  if (!next) return;
+  open(next);
+  status.value = `${next.name} v${next.active_version.number} ${value.changed ? "active" : "unchanged"}.`;
 }
 async function activateVersion() {
   const value = await save(
@@ -114,10 +120,9 @@ async function activateVersion() {
     "PATCH",
     "Review Version failed to reactivate",
   );
-  if (value?.review) {
-    const next = requireReview(value, true);
-    if (next) open(next);
-  } else if (value) requireReview(value, true);
+  if (!value) return;
+  const next = requireReview(value, true);
+  if (next) open(next);
 }
 async function saveAssignment() {
   const body =
@@ -133,14 +138,11 @@ async function saveAssignment() {
     "PATCH",
     "Review Assignment failed to save",
   );
-  if (value?.review) {
-    const next = requireReview(value, true);
-    if (!next) return;
-    open(next);
-    status.value = value.changed
-      ? "Assignment saved."
-      : "Assignment unchanged.";
-  }
+  if (!value) return;
+  const next = requireReview(value, true);
+  if (!next) return;
+  open(next);
+  status.value = value.changed ? "Assignment saved." : "Assignment unchanged.";
 }
 async function archive() {
   const archived = !review.value.archived;
@@ -158,12 +160,11 @@ async function archive() {
     "PATCH",
     "Review lifecycle failed",
   );
-  if (value?.review) {
-    const next = requireReview(value, true);
-    if (!next) return;
-    open(next);
-    status.value = `${next.name} ${archived ? "archived" : "restored"}.`;
-  }
+  if (!value) return;
+  const next = requireReview(value, true);
+  if (!next) return;
+  open(next);
+  status.value = `${next.name} ${archived ? "archived" : "restored"}.`;
 }
 async function openDelete() {
   deleteName.value = "";
@@ -179,11 +180,29 @@ async function remove() {
     return;
   }
   deleteDialog.value.close();
-  const response = await request(
-    `/api/v1/reviews/${encodeURIComponent(id)}`,
-    {},
-    "DELETE",
-  );
+  let response;
+  try {
+    response = await request(
+      `/api/v1/reviews/${encodeURIComponent(id)}`,
+      {},
+      "DELETE",
+    );
+  } catch {
+    try {
+      if (!(await findReview())) {
+        location.assign("/?view=reviews");
+        return;
+      }
+    } catch (failure) {
+      error.value =
+        failure instanceof Error
+          ? failure.message
+          : "Review deletion reconciliation failed";
+      return;
+    }
+    error.value = "Review deletion result is unavailable";
+    return;
+  }
   if (response.ok) location.assign("/?view=reviews");
   else error.value = await responseMessage(response);
 }

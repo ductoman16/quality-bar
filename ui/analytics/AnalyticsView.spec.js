@@ -55,6 +55,15 @@ const document_ = {
       evaluations: 1,
       pending: 0,
     },
+    {
+      advisory: 0,
+      blocking: 0,
+      clear: 4,
+      date: "2026-08-21",
+      error: 0,
+      evaluations: 4,
+      pending: 0,
+    },
   ],
   evaluation_outcomes: {
     advisory: 0,
@@ -150,6 +159,11 @@ it("renders every Analytics section and restores URL filters on navigation", asy
   expect(fetch).toHaveBeenCalledWith(
     "/api/v1/analytics?repository_id=repository-1",
   );
+  expect(
+    wrapper
+      .findAll(".an-trend__seg--clear")
+      .map((item) => item.attributes("style")),
+  ).toEqual(["height: 25%;", "height: 100%;"]);
 
   await wrapper.get("#analytics-model").setValue("gpt-test");
   await wrapper.get("form").trigger("submit");

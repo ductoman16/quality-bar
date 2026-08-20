@@ -38,9 +38,10 @@ const displayName = (repository) =>
     .slice(-2)
     .join("/");
 async function load() {
+  const previousError = error.value;
   try {
     repositories.value = await repositoryCollection();
-    error.value = "";
+    if (error.value === previousError) error.value = "";
   } catch (failure) {
     error.value =
       failure instanceof Error ? failure.message : "Repository listing failed";
@@ -212,7 +213,13 @@ onMounted(async () => {
   <output ref="statusElement" aria-live="polite" tabindex="-1">{{
     status
   }}</output>
-  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
+  <p
+    id="repository-error"
+    ref="errorElement"
+    :hidden="!error"
+    role="alert"
+    tabindex="-1"
+  >
     {{ error }}
   </p>
 </template>

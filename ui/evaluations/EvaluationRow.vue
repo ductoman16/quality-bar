@@ -218,7 +218,7 @@ const localTime = (value) =>
           >
           <span>{{
             Number.isSafeInteger(node.duration_ms)
-              ? milliseconds(node.duration_ms)
+              ? formatDuration(node.duration_ms)
               : "—"
           }}</span>
           <time>{{

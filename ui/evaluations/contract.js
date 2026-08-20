@@ -146,6 +146,7 @@ const validReviewRun = (value, evaluationId) =>
   value.evaluation_id === evaluationId &&
   nonempty(value.review_id) &&
   nonempty(value.review_version_id) &&
+  (value.started_at === null || nonempty(value.started_at)) &&
   ["completed", "failed", "cancelled"].includes(value.execution_status) &&
   (value.execution_status === "completed" || validError(value.error));
 
@@ -216,6 +217,11 @@ export function validEvaluationResult(value, evaluationId) {
     return false;
   }
   const runs = new Set(value.review_runs.map((run) => run.id));
+  const criteria = new Set(
+    value.criterion_results.map(
+      (criterion) => `${criterion.review_run_id}:${criterion.criterion_id}`,
+    ),
+  );
   const changes = new Set(value.file_changes.map((change) => change.id));
   return (
     value.criterion_results.every((criterion) =>
@@ -224,8 +230,42 @@ export function validEvaluationResult(value, evaluationId) {
     value.findings.every(
       (finding) =>
         runs.has(finding.review_run_id) &&
+        criteria.has(`${finding.review_run_id}:${finding.criterion_id}`) &&
         (finding.location.kind === "changeset" ||
           changes.has(finding.location.file_change_id)),
+    )
+  );
+}
+
+/** @param {any} value @param {string} reviewRunId */
+export function validReviewRunDiagnostics(value, reviewRunId) {
+  /** @param {any} item */
+  const counter = (item) =>
+    item === null || (Number.isSafeInteger(item) && item >= 0);
+  const process = value?.process;
+  return (
+    record(value) &&
+    value.review_run_id === reviewRunId &&
+    (value.codex_cli_version === null || nonempty(value.codex_cli_version)) &&
+    counter(value.duration_ms) &&
+    record(process) &&
+    ((process.kind === "exit" &&
+      Number.isSafeInteger(process.code) &&
+      process.code >= 0) ||
+      (process.kind === "signal" && nonempty(process.signal)) ||
+      process.kind === "unavailable") &&
+    record(value.token_counters) &&
+    ["input_tokens", "cached_input_tokens", "output_tokens"].every((name) =>
+      counter(value.token_counters[name]),
+    ) &&
+    Array.isArray(value.transcript_chunks) &&
+    value.transcript_chunks.every(
+      (chunk) =>
+        record(chunk) &&
+        Number.isSafeInteger(chunk.sequence) &&
+        chunk.sequence > 0 &&
+        ["stdout", "stderr"].includes(chunk.stream) &&
+        nonempty(chunk.content),
     )
   );
 }

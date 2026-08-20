@@ -1,7 +1,11 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import { csrfRequest, responseMessage } from "../browser.js";
+import {
+  csrfRequest,
+  repositoryCollection,
+  responseMessage,
+} from "../browser.js";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },
@@ -32,7 +36,22 @@ async function mutation(path, body, method, fallback) {
     }
     emit("changed", response.status === 204 ? null : await response.json());
   } catch {
-    emit("error", fallback);
+    try {
+      const current = (await repositoryCollection()).find(
+        (repository) => repository.id === props.repository.id,
+      );
+      if (
+        (method === "DELETE" && !current) ||
+        (method === "PATCH" && current?.lifecycle === body.lifecycle)
+      ) {
+        emit("changed", current ?? null);
+        return;
+      }
+    } catch {
+      emit("error", `${fallback} reconciliation failed`);
+      return;
+    }
+    emit("error", `${fallback} result is unavailable`);
   } finally {
     busy.value = false;
   }
