@@ -12,7 +12,6 @@ const { parse } = /** @type {{
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const repositoryConstructors = new Map(
   Object.entries({
-    "src/browser-assets.js": ["BrowserAssetError"],
     "src/browser-session.js": ["BrowserSessionError"],
     "src/codex-capabilities.js": ["CodexConfigurationError"],
     "src/durable-error.js": ["DurableCoreError"],

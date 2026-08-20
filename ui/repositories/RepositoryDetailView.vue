@@ -1,0 +1,89 @@
+<script setup>
+import { onMounted, ref } from "vue";
+
+import { repositoryCollection } from "../browser.js";
+import RepositoryActions from "./RepositoryActions.vue";
+
+const props = defineProps({ csrfCookieName: { required: true, type: String } });
+const repository = ref();
+const guidance = ref();
+const error = ref("");
+const id = new URLSearchParams(location.search).get("repository_id");
+async function load() {
+  if (!id) {
+    error.value = "Repository was not specified";
+    return;
+  }
+  try {
+    repository.value = (await repositoryCollection()).find(
+      (item) => item.id === id,
+    );
+    if (!repository.value) {
+      error.value = "Repository was not found";
+      return;
+    }
+    const response = await fetch(
+      `/api/v1/repositories/${encodeURIComponent(id)}/guidance`,
+    );
+    if (response.ok) guidance.value = await response.json();
+  } catch {
+    error.value = "Repository failed to load";
+  }
+}
+async function changed(value) {
+  if (value === null) location.assign("/?view=repositories");
+  else await load();
+}
+onMounted(load);
+</script>
+
+<template>
+  <section class="qb-region repo-detail">
+    <a class="qb-back" href="/?view=repositories">Repositories</a>
+    <template v-if="repository"
+      ><div class="repo-detail__head">
+        <h1>{{ repository.name || repository.url }}</h1>
+        <span>{{ repository.lifecycle }} · {{ repository.health }}</span>
+      </div>
+      <dl class="repo-detail__meta">
+        <dt>Provider</dt>
+        <dd>{{ repository.provider || "Generic HTTPS Git" }}</dd>
+        <dt>Clone URL</dt>
+        <dd>{{ repository.url }}</dd>
+        <dt>Credential</dt>
+        <dd>{{ repository.credential_type }}</dd>
+        <dt>Assignments</dt>
+        <dd>{{ repository.assignment_count ?? "—" }}</dd>
+        <dt>Health</dt>
+        <dd>{{ repository.health_error?.message || repository.health }}</dd>
+      </dl>
+      <RepositoryActions
+        :csrf-cookie-name="csrfCookieName"
+        :repository="repository"
+        @changed="changed"
+        @error="error = $event"
+      />
+      <section class="qb-region qb-deep-surface">
+        <h2>Applicable reviews</h2>
+        <p v-if="!guidance?.reviews?.length">
+          No reviews apply to this repository.
+        </p>
+        <ol class="repo-guidance">
+          <li v-for="review in guidance?.reviews" :key="review.id">
+            <strong>{{ review.name }}</strong>
+            <ol>
+              <li v-for="criterion in review.criteria" :key="criterion.id">
+                {{ criterion.impact }} · {{ criterion.instruction }}
+              </li>
+            </ol>
+          </li>
+        </ol>
+        <details>
+          <summary>Raw guidance document</summary>
+          <pre>{{ JSON.stringify(guidance, null, 2) }}</pre>
+        </details>
+      </section>
+    </template>
+    <p v-if="error" role="alert" tabindex="-1">{{ error }}</p>
+  </section>
+</template>

@@ -1,0 +1,279 @@
+<script setup>
+import { nextTick, onMounted, ref } from "vue";
+
+import { csrfToken, responseMessage, returnToLogin } from "./browser.js";
+
+const props = defineProps({
+  csrfCookieName: { required: true, type: String },
+  showOnboarding: Boolean,
+});
+const error = ref("");
+const errorElement = ref();
+const token = ref("");
+const tokenDialog = ref();
+const onboardingToken = ref("");
+const onboardingDialog = ref();
+const onboardingTokens = ref([]);
+const onboardingUrl = ref("");
+const fields = ref({
+  changeCurrent: "",
+  changeNew: "",
+  createPassword: "",
+  revokeConfirmation: "",
+  revokePassword: "",
+  tokenRevokePassword: "",
+  tokenRotatePassword: "",
+});
+let lastActivityAt = 0;
+
+async function failure(response, fallback) {
+  if (response.status === 401) {
+    const body = await response.json();
+    if (body?.error?.code === "authentication_required") {
+      returnToLogin();
+      return;
+    }
+    error.value = body?.error?.message || fallback;
+  } else {
+    error.value = await responseMessage(response, fallback);
+  }
+  await nextTick();
+  errorElement.value?.focus();
+}
+const request = (path, body, method = "POST") =>
+  fetch(path, {
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+      "x-quality-bar-csrf": csrfToken(props.csrfCookieName),
+    },
+    method,
+  });
+async function passwordMutation(path, body) {
+  error.value = "";
+  const response = await request(path, body);
+  if (response.ok) location.assign("/");
+  else await failure(response, "Operator action failed");
+}
+async function tokenMutation(path, password) {
+  error.value = "";
+  const response = await request(path, { password });
+  if (!response.ok) return failure(response, "Implementer token action failed");
+  if (response.status !== 204) {
+    token.value = (await response.json()).token;
+    tokenDialog.value.showModal();
+  }
+}
+async function logout() {
+  const response = await request("/api/v1/session/logout", {});
+  if (response.ok) location.assign("/");
+  else await failure(response, "Logout failed");
+}
+async function activity() {
+  const now = Date.now();
+  if (now - lastActivityAt < 60_000) return;
+  lastActivityAt = now;
+  const response = await fetch("/api/v1/session/activity", {
+    headers: { "x-quality-bar-csrf": csrfToken(props.csrfCookieName) },
+    method: "POST",
+  });
+  if (!response.ok) await failure(response, "Session activity failed");
+}
+async function loadOnboardingTokens() {
+  if (!props.showOnboarding) return;
+  const response = await fetch("/api/v1/onboarding-tokens");
+  if (response.ok)
+    onboardingTokens.value = (await response.json()).onboarding_tokens;
+  else await failure(response, "Onboarding tokens failed to load");
+}
+async function createOnboardingToken() {
+  const response = await request("/api/v1/onboarding-tokens", {
+    repository_url: onboardingUrl.value,
+  });
+  if (!response.ok)
+    return failure(response, "Onboarding token creation failed");
+  onboardingToken.value = (await response.json()).token;
+  onboardingUrl.value = "";
+  onboardingDialog.value.showModal();
+  await loadOnboardingTokens();
+}
+async function revokeOnboardingToken(id) {
+  const response = await request(
+    `/api/v1/onboarding-tokens/${encodeURIComponent(id)}`,
+    {},
+    "DELETE",
+  );
+  if (response.ok) await loadOnboardingTokens();
+  else await failure(response, "Onboarding token revocation failed");
+}
+onMounted(() => {
+  document.addEventListener("keydown", activity);
+  document.addEventListener("pointerdown", activity);
+  void loadOnboardingTokens();
+});
+</script>
+
+<template>
+  <details>
+    <summary>Operator</summary>
+    <form
+      @submit.prevent="
+        passwordMutation('/api/v1/session/password', {
+          current_password: fields.changeCurrent,
+          new_password: fields.changeNew,
+        })
+      "
+    >
+      <label for="password-change-current-password"
+        >Current password for password change</label
+      ><input
+        id="password-change-current-password"
+        v-model="fields.changeCurrent"
+        autocomplete="current-password"
+        required
+        type="password"
+      />
+      <label for="password-change-new-password">New password</label
+      ><input
+        id="password-change-new-password"
+        v-model="fields.changeNew"
+        autocomplete="new-password"
+        required
+        type="password"
+      />
+      <button type="submit">Change password</button>
+    </form>
+    <form
+      @submit.prevent="
+        passwordMutation('/api/v1/sessions/revoke', {
+          confirmation: fields.revokeConfirmation,
+          password: fields.revokePassword,
+        })
+      "
+    >
+      <label for="session-revocation-password"
+        >Current password for session revocation</label
+      ><input
+        id="session-revocation-password"
+        v-model="fields.revokePassword"
+        autocomplete="current-password"
+        required
+        type="password"
+      />
+      <label for="session-revocation-confirmation"
+        >Confirmation: REVOKE ALL SESSIONS</label
+      ><input
+        id="session-revocation-confirmation"
+        v-model="fields.revokeConfirmation"
+        required
+      />
+      <button type="submit">Revoke all sessions</button>
+    </form>
+    <form
+      @submit.prevent="
+        tokenMutation('/api/v1/implementer-token', fields.createPassword)
+      "
+    >
+      <label for="implementer-token-create-password"
+        >Current password for implementer token creation</label
+      ><input
+        id="implementer-token-create-password"
+        v-model="fields.createPassword"
+        autocomplete="current-password"
+        required
+        type="password"
+      /><button type="submit">Create implementer token</button>
+    </form>
+    <form
+      @submit.prevent="
+        tokenMutation(
+          '/api/v1/implementer-token/rotate',
+          fields.tokenRotatePassword,
+        )
+      "
+    >
+      <label for="implementer-token-rotate-password"
+        >Current password for implementer token rotation</label
+      ><input
+        id="implementer-token-rotate-password"
+        v-model="fields.tokenRotatePassword"
+        autocomplete="current-password"
+        required
+        type="password"
+      /><button type="submit">Rotate implementer token</button>
+    </form>
+    <form
+      @submit.prevent="
+        confirm(
+          'Revoke implementer token? Machine access will remain disabled until a new token is created.',
+        ) &&
+        passwordMutation('/api/v1/implementer-token/revoke', {
+          password: fields.tokenRevokePassword,
+        })
+      "
+    >
+      <label for="implementer-token-revoke-password"
+        >Current password for implementer token revocation</label
+      ><input
+        id="implementer-token-revoke-password"
+        v-model="fields.tokenRevokePassword"
+        autocomplete="current-password"
+        required
+        type="password"
+      /><button type="submit">Revoke implementer token</button>
+    </form>
+    <section v-if="showOnboarding" aria-labelledby="onboarding-tokens-title">
+      <h2 id="onboarding-tokens-title">Onboarding tokens</h2>
+      <form @submit.prevent="createOnboardingToken">
+        <label for="onboarding-token-repository-url">Repository URL</label
+        ><input
+          id="onboarding-token-repository-url"
+          v-model="onboardingUrl"
+          required
+          type="url"
+        /><button type="submit">Create onboarding token</button>
+      </form>
+      <table>
+        <thead>
+          <tr>
+            <th>Repository</th>
+            <th>Expires</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in onboardingTokens" :key="item.id">
+            <td>{{ item.repository_url }}</td>
+            <td>{{ new Date(item.expires_at).toLocaleString() }}</td>
+            <td>
+              <button type="button" @click="revokeOnboardingToken(item.id)">
+                Revoke
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <button type="button" @click="logout">Log out</button>
+  </details>
+  <dialog
+    ref="tokenDialog"
+    aria-labelledby="implementer-token-reveal-title"
+    @close="token = ''"
+  >
+    <h2 id="implementer-token-reveal-title">Implementer token</h2>
+    <output>{{ token }}</output
+    ><button type="button" @click="tokenDialog.close()">Done</button>
+  </dialog>
+  <dialog
+    ref="onboardingDialog"
+    aria-labelledby="onboarding-token-reveal-title"
+    @close="onboardingToken = ''"
+  >
+    <h2 id="onboarding-token-reveal-title">Onboarding token</h2>
+    <output>{{ onboardingToken }}</output>
+    <p role="status">Shown once.</p>
+    <button type="button" @click="onboardingDialog.close()">Done</button>
+  </dialog>
+  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">{{ error }}</p>
+</template>

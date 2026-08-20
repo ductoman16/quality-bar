@@ -1,0 +1,155 @@
+.repo-stat-strip,
+.an-stat-strip,
+.sys-health {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid var(--qb-line);
+}
+.repo-stat,
+.an-stat,
+.sys-health__tile {
+  display: grid;
+  gap: 9px;
+  padding: 18px 16px 18px 0;
+}
+.repo-stat span,
+.an-stat span,
+.sys-health__tile > span {
+  color: var(--qb-muted-ink);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.repo-stat output,
+.an-stat output {
+  font-family: var(--font-mono);
+  font-size: 24px;
+}
+.repo-row,
+.review-row {
+  border-bottom: 1px solid var(--qb-line);
+}
+.repo-row__summary,
+.review-row__summary {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1.5fr) repeat(4, minmax(90px, 0.7fr));
+  align-items: center;
+  gap: 16px;
+  padding: 13px 0;
+}
+.repo-row__detail,
+.review-expanded {
+  display: grid;
+  gap: 14px;
+  padding: 2px 0 20px 38px;
+}
+.repo-actions,
+.repo-credential,
+.repo-detail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.repo-danger {
+  margin-left: auto;
+}
+.repo-detail__meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 18px;
+  margin-block: 20px;
+}
+.repo-add > summary,
+.reviews-authoring > summary {
+  display: inline-flex;
+  margin-block: 14px;
+  padding: 4px 12px;
+  border-radius: var(--qb-radius);
+  background: var(--qb-ink);
+  color: var(--qb-canvas);
+  cursor: pointer;
+}
+.review-criteria {
+  list-style: none;
+  padding: 0;
+}
+.review-criteria li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--qb-line);
+}
+.review-criteria textarea {
+  flex: 1 1 100%;
+}
+.reviews-catalog__filter {
+  display: flex;
+  gap: 16px;
+  margin-block: 10px;
+}
+.reviews-catalog__filter button[aria-pressed="true"] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.review-group {
+  margin-top: 30px;
+}
+.review-detail__head {
+  align-items: baseline;
+}
+.an-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+}
+.an-trend__col {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 10px;
+  height: 100%;
+}
+.an-trend__seg--clear {
+  background: var(--qb-line);
+}
+.an-trend__seg--problem {
+  background: var(--qb-ink);
+}
+.analytics-filters {
+  display: grid;
+  grid-template-columns: repeat(4, max-content minmax(6rem, 1fr));
+  gap: 12px 18px;
+}
+.an-scroll {
+  overflow-x: auto;
+}
+.sys-summary[data-state="warn"] {
+  font-weight: 800;
+}
+.sys-lists {
+  display: grid;
+  gap: 18px;
+}
+.sys-zone--admin {
+  margin-top: 16px;
+  border-top: 2px solid var(--qb-ink);
+}
+
+@media (max-width: 900px) {
+  .repo-stat-strip,
+  .an-stat-strip,
+  .sys-health {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .repo-row__summary,
+  .review-row__summary {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .analytics-filters {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+}

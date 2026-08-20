@@ -48,6 +48,9 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: Build operator UI
+        run: npm run build
+
       - name: Check source structure
         run: npm run lint:structure
 

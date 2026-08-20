@@ -1,4 +1,14 @@
 ARG BUNDLED_NODE_IMAGE=node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd
+FROM ${BUNDLED_NODE_IMAGE} AS build
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY ui ./ui
+COPY src/browser/display-font.js src/browser/style-tokens.js ./src/browser/
+COPY vite.config.js ./
+RUN npm run build
+
 FROM ${BUNDLED_NODE_IMAGE}
 
 ARG QUALITY_BAR_VERSION
@@ -25,6 +35,7 @@ COPY --chown=10001:10001 package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 COPY --chown=10001:10001 src ./src
+COPY --from=build --chown=10001:10001 /app/dist ./dist
 
 ENV NODE_ENV=production
 ENV CODEX_HOME=/var/lib/quality-bar/codex-home

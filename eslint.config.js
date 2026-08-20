@@ -158,7 +158,11 @@ export default [
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["src/browser/**/*.js", "fixtures/operator-browser-login.js"],
+    files: [
+      "src/browser/**/*.js",
+      "ui/**/*.js",
+      "fixtures/operator-browser-login.js",
+    ],
     languageOptions: { globals: globals.browser },
   },
   {
