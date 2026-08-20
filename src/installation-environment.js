@@ -41,6 +41,7 @@ const LOCAL_FILESYSTEM_TYPES = new Set([
   0x9123683e, // Btrfs
   0x2fc12fc1, // ZFS
 ]);
+const FUSE_SUPER_MAGIC = 0x65735546;
 
 /**
  * @typedef {{
@@ -138,11 +139,15 @@ function validateOwnedReadOnlyFile(filesystem, path) {
   if (!status.isFile() || status.isSymbolicLink()) {
     fail("owned_path_unsafe", "A required owned path is unsafe");
   }
-  if (
-    status.uid !== SERVICE_UID ||
-    status.gid !== SERVICE_GID ||
-    (status.mode & 0o777) !== 0o400
-  ) {
+  let safeOwner = status.uid === SERVICE_UID && status.gid === SERVICE_GID;
+  if (!safeOwner && status.uid === 0 && status.gid === 0) {
+    try {
+      safeOwner = filesystem.statfs(path).type === FUSE_SUPER_MAGIC;
+    } catch {
+      // Fail closed below.
+    }
+  }
+  if (!safeOwner || (status.mode & 0o777) !== 0o400) {
     fail(
       "owned_path_unsafe",
       "A required owned path has unsafe ownership or permissions",

@@ -18,6 +18,7 @@ import {
   STATE_PATH,
   validateInstallationEnvironment,
   validateInstallationFilesystem,
+  validateInstallationSources,
 } from "../src/installation-environment.js";
 
 const ownedPaths = [STATE_PATH, CODEX_HOME_PATH, CHECKOUTS_PATH, BACKUPS_PATH];
@@ -92,7 +93,11 @@ function createFilesystem(input = {}) {
     rename() {},
     /** @param {string} path */
     statfs(path) {
-      assert.ok(ownedPaths.includes(path));
+      assert.ok(
+        ownedPaths.includes(path) ||
+          path === "/etc/quality-bar/config.env" ||
+          path === "/run/secrets/quality-bar-master-key",
+      );
       return {
         bavail: input.bavail ?? Math.ceil(REQUIRED_FREE_SPACE_BYTES / 1024),
         bsize: 1024,
@@ -103,6 +108,27 @@ function createFilesystem(input = {}) {
     syncedDescriptors,
   };
 }
+
+test("accepts Docker Desktop FUSE ownership without weakening native ownership", () => {
+  assert.doesNotThrow(() =>
+    validateInstallationSources({
+      filesystem: createFilesystem({
+        filesystemType: 0x65735546,
+        gid: 0,
+        uid: 0,
+      }),
+    }),
+  );
+  assert.throws(
+    () =>
+      validateInstallationSources({
+        filesystem: createFilesystem({ gid: 0, uid: 0 }),
+      }),
+    (error) =>
+      error instanceof InstallationEnvironmentError &&
+      error.code === "owned_path_unsafe",
+  );
+});
 
 /** @param {ToolInput} [input] */
 function runTool(input = {}) {
