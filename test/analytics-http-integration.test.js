@@ -301,7 +301,7 @@ test("HTTP accepts exact Analytics filters and preserves their half-open boundar
   });
   assert.equal(invalid.status, 400);
   assert.equal(await responseErrorCode(invalid), "analytics_filter_invalid");
-  for (const value of ["", "%20", "0x10", "01"]) {
+  for (const value of ["", "%20", "-0", "0x10", "01"]) {
     const malformed = await request(`/api/v1/analytics?start=${value}`, {
       headers: { cookie: operator.cookie },
     });

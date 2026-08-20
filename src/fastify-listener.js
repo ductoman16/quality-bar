@@ -133,7 +133,7 @@ export function createFastify(components) {
       if (
         schema.type === "integer" &&
         typeof value === "string" &&
-        /^-?(0|[1-9]\d*)$/.test(value)
+        /^(0|[1-9]\d*)$/.test(value)
       ) {
         const integer = Number(value);
         if (Number.isSafeInteger(integer)) {
