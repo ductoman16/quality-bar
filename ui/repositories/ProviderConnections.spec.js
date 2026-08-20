@@ -2,6 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ProviderConnections from "./ProviderConnections.vue";
+import ProviderConnectionFacts from "./ProviderConnectionFacts.vue";
 import {
   validForgejoChoices,
   validForgejoConnection,
@@ -94,6 +95,81 @@ beforeEach(() => {
   );
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("renders provider error evidence", () => {
+  const shared = {
+    api_profile: "profile",
+    capabilities: {},
+    lifecycle: "enabled",
+    polling: [],
+    polling_failure: null,
+    principal: { id: 7, login: "operator" },
+  };
+  const forgejo = mount(ProviderConnectionFacts, {
+    props: {
+      connection: {
+        ...shared,
+        health: "error",
+        health_error: { code: "connection_failed", message: "Unavailable" },
+        reported_version: "16.0.4",
+        scopes: [],
+        verification_history: [
+          {
+            capabilities: null,
+            error: { code: "verification_failed", message: "Rejected" },
+            id: "verification-1",
+            outcome: "error",
+            principal: null,
+            repositories: [
+              {
+                error: { code: "repository_failed", message: "Denied" },
+                forge_repository_id: 11,
+                outcome: "error",
+              },
+            ],
+            scopes: null,
+            trigger: "rotation",
+            verified_at: 1_000,
+          },
+        ],
+      },
+      provider: "Forgejo",
+    },
+  });
+  expect(forgejo.text()).toContain("Unavailable (connection_failed)");
+  expect(forgejo.text()).toContain("Denied (repository_failed)");
+  forgejo.unmount();
+  const github = mount(ProviderConnectionFacts, {
+    props: {
+      connection: {
+        ...shared,
+        health: "healthy",
+        health_error: null,
+        permissions: {},
+        verification_history: [
+          {
+            capabilities: null,
+            error: {
+              code: "repository_failed",
+              message: "Rejected",
+              repository_id: 12,
+            },
+            id: "verification-1",
+            outcome: "error",
+            permissions: null,
+            principal: null,
+            repository_checks: [],
+            trigger: "rotation",
+            verified_at: 1_000,
+          },
+        ],
+      },
+      provider: "GitHub",
+    },
+  });
+  expect(github.text()).toContain("Repository 12");
+  github.unmount();
+});
 
 it("validates discovery and submits a Forgejo Connection mutation", async () => {
   expect(

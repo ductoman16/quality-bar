@@ -11,11 +11,13 @@ const facts = (value) =>
     .map(([name, state]) => `${name}: ${state}`)
     .join("; ");
 const error = (value) =>
-  value ? `${value.message} (${value.code})` : "No error";
+  value
+    ? `${value.message} (${value.code})${value.repository_id ? `; Repository ${value.repository_id}` : ""}`
+    : "No error";
 const verification = (value) => {
   const checks = (value.repository_checks ?? value.repositories).map(
     (item) =>
-      `${item.full_name ?? item.repository_id ?? item.forge_repository_id ?? item.id}: ${item.outcome ?? "enumerated"}`,
+      `${item.full_name ?? item.repository_id ?? item.forge_repository_id ?? item.id}: ${item.outcome ?? "enumerated"}${item.error ? `; ${error(item.error)}` : ""}`,
   );
   return `${value.trigger}; ${value.outcome}; ${new Date(value.verified_at).toLocaleString()}; Principal ${value.principal ? `${value.principal.login} (${value.principal.id})` : "not completed"}; Authorities ${facts(value.permissions) || value.scopes?.join(", ") || "not completed"}; Capabilities ${facts(value.capabilities) || "not completed"}; Repository checks ${checks.join(", ") || "none"}; ${error(value.error)}`;
 };
@@ -32,7 +34,13 @@ const pollingFailure = (value) =>
     <dt>Lifecycle</dt>
     <dd>{{ connection.lifecycle }}</dd>
     <dt>Health</dt>
-    <dd>{{ connection.health_error?.message || connection.health }}</dd>
+    <dd>
+      {{
+        connection.health_error
+          ? error(connection.health_error)
+          : connection.health
+      }}
+    </dd>
     <dt>API profile</dt>
     <dd>{{ connection.api_profile }}</dd>
     <template v-if="provider === 'Forgejo'">

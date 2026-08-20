@@ -289,6 +289,12 @@ export const validConfiguration = (value, models) =>
       )
     : exact(value, ["configured"]));
 
+export const validCodexConfiguration = (value) =>
+  validConfiguration(
+    { configuration: value, configured: true },
+    CATALOG.models,
+  );
+
 /** @param {any} value */
 export const validConfigurationChange = (value, models) =>
   record(value) &&

@@ -2,6 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ReviewDetailView from "./ReviewDetailView.vue";
+import { validReview } from "./contract.js";
 
 const model = {
   id: "gpt-5.6-sol",
@@ -136,6 +137,10 @@ const formWith = (wrapper, text) => {
 };
 
 it("covers version, assignment, archival, and deletion controls", async () => {
+  const invalid = structuredClone(review);
+  invalid.active_version.codex_configuration.model = "attacker-model";
+  invalid.versions[0].codex_configuration.model = "attacker-model";
+  expect(validReview(invalid)).toBe(false);
   const wrapper = mount(ReviewDetailView, {
     attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },

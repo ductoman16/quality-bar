@@ -1,5 +1,8 @@
 import { exact, nonempty, record } from "../contract.js";
-import { validModelCatalog } from "../system/contract.js";
+import {
+  validCodexConfiguration,
+  validModelCatalog,
+} from "../system/contract.js";
 
 const criterion = (value) =>
   record(value) &&
@@ -26,15 +29,7 @@ const version = (value) =>
   Array.isArray(value.criteria) &&
   value.criteria.length > 0 &&
   value.criteria.every(criterion) &&
-  record(value.codex_configuration) &&
-  exact(value.codex_configuration, [
-    "model",
-    "reasoning_effort",
-    "service_tier",
-  ]) &&
-  ["model", "reasoning_effort", "service_tier"].every((name) =>
-    nonempty(value.codex_configuration[name]),
-  );
+  validCodexConfiguration(value.codex_configuration);
 
 export const matchesReviewVersion = (version, snapshot) =>
   version.applicability_rule === snapshot.applicability_rule &&

@@ -1,4 +1,4 @@
-import { count, exact, httpsUrl, nonempty, record } from "../contract.js";
+import { count, exact, httpsUrl, nonempty, record, uri } from "../contract.js";
 
 /** @param {any} value */
 export const validRepository = (value) =>
@@ -41,7 +41,7 @@ export const validRepository = (value) =>
   typeof value.deletion_eligible === "boolean" &&
   (value.credential_type !== "forge_connection" ||
     (count(value.assignment_count) &&
-      nonempty(value.api_url) &&
+      uri(value.api_url) &&
       nonempty(value.forge_connection_id) &&
       Number.isSafeInteger(value.forge_repository_id) &&
       value.forge_repository_id > 0 &&
@@ -49,7 +49,7 @@ export const validRepository = (value) =>
       ["github", "forgejo"].includes(value.provider) &&
       nonempty(value.verification_id) &&
       count(value.verified_at) &&
-      nonempty(value.web_url)));
+      uri(value.web_url)));
 
 /** @param {any} value */
 export const validGuidance = (value) => {

@@ -373,7 +373,7 @@ it("renders storage failures and queued execution diagnostics", async () => {
 });
 
 it("focuses the invalid configuration field", async () => {
-  let mapped = true;
+  let responseMode = "mapped";
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/system") {
       return { json: async () => system, ok: true, status: 200 };
@@ -385,15 +385,24 @@ it("focuses the invalid configuration field", async () => {
         status: 200,
       };
     }
+    if (responseMode === "success") {
+      return {
+        json: async () => ({ changed: true, configuration }),
+        ok: true,
+        status: 200,
+      };
+    }
     return {
       json: async () => ({
         error: {
-          code: mapped
-            ? "codex_service_tier_unsupported"
-            : "configuration_failed",
-          message: mapped
-            ? "Service tier is unsupported"
-            : "Configuration unavailable",
+          code:
+            responseMode === "mapped"
+              ? "codex_service_tier_unsupported"
+              : "configuration_failed",
+          message:
+            responseMode === "mapped"
+              ? "Service tier is unsupported"
+              : "Configuration unavailable",
           request_id: "request-1",
         },
       }),
@@ -410,12 +419,17 @@ it("focuses the invalid configuration field", async () => {
   await flushPromises();
   expect(wrapper.get("output").text()).toBe("Service tier is unsupported");
   expect(document.activeElement).toBe(wrapper.get("#waiver-tier").element);
-  mapped = false;
+  responseMode = "generic";
   await wrapper.get("form").trigger("submit");
   await flushPromises();
   expect(wrapper.get('[role="alert"]').text()).toBe(
     "Configuration unavailable",
   );
   expect(document.activeElement).toBe(wrapper.get('[role="alert"]').element);
+  responseMode = "success";
+  await wrapper.get("form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  expect(wrapper.get("output").text()).toBe("Saved");
   wrapper.unmount();
 });

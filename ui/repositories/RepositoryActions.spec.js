@@ -50,6 +50,22 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("accepts the canonical Generic Repository body", () => {
   expect(validRepository(repository)).toBe(true);
+  const forge = {
+    ...repository,
+    api_url: "https://api.example.test/repositories/1",
+    assignment_count: 0,
+    credential_type: "forge_connection",
+    forge_connection_id: "connection-1",
+    forge_repository_id: 1,
+    name: "owner/repository",
+    provider: "forgejo",
+    verification_id: "verification-1",
+    verified_at: 1,
+    web_url: "https://example.test/owner/repository",
+  };
+  expect(validRepository(forge)).toBe(true);
+  expect(validRepository({ ...forge, api_url: "not a URI" })).toBe(false);
+  expect(validRepository({ ...forge, web_url: "not a URI" })).toBe(false);
 });
 
 it("confirms lifecycle changes and exact-identity deletion with CSRF", async () => {

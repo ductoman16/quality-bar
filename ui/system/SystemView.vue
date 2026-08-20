@@ -110,6 +110,7 @@ async function load() {
   }
 }
 async function saveConfiguration() {
+  error.value = "";
   configurationStatus.value = "Saving";
   try {
     const response = await fetch("/api/v1/waiver-adjudicator-configuration", {

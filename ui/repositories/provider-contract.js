@@ -119,6 +119,7 @@ const githubRepository = (value) =>
   ]) &&
   positive(value.id) &&
   nonempty(value.full_name) &&
+  value.full_name.length >= 3 &&
   httpsUrl(value.api_url) &&
   httpsUrl(value.clone_url) &&
   httpsUrl(value.html_url) &&
