@@ -290,6 +290,9 @@ onUnmounted(() => window.removeEventListener("popstate", popstate));
         v-for="bucket in document_.daily_trend"
         :key="bucket.date"
         class="an-trend__col"
+        role="img"
+        tabindex="0"
+        :aria-label="`${bucket.date}: ${bucket.evaluations} evaluations; ${bucket.clear} clear; ${bucket.advisory + bucket.blocking + bucket.error} advisory, blocking, or error`"
         :title="`${bucket.date}: ${bucket.evaluations} evaluations · ${bucket.advisory + bucket.blocking + bucket.error} advisory/blocking/error`"
       >
         <span

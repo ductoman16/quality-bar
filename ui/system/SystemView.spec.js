@@ -286,6 +286,7 @@ it("focuses the invalid configuration field", async () => {
         error: {
           code: "codex_service_tier_unsupported",
           message: "Service tier is unsupported",
+          request_id: "request-1",
         },
       }),
       ok: false,

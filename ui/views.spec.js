@@ -15,7 +15,13 @@ import SystemView from "./system/SystemView.vue";
 
 const failure = () => ({
   async json() {
-    return { error: { code: "service_unavailable", message: "Unavailable" } };
+    return {
+      error: {
+        code: "service_unavailable",
+        message: "Unavailable",
+        request_id: "request-1",
+      },
+    };
   },
   ok: false,
   status: 503,

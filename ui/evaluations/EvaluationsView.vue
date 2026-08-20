@@ -42,7 +42,7 @@ const dayHeading = (evaluation) => {
           ['Workers', state.stats.workers],
           ['Queue', state.stats.queue],
           ['P95 Duration', state.stats.p95],
-          ['Clear Rate', state.stats.clearRate],
+          ['Pass Rate', state.stats.clearRate],
           ['Updated', state.stats.updated],
         ]"
         :key="label"

@@ -1,4 +1,5 @@
-import { exact, modelCapability, nonempty, record } from "../contract.js";
+import { exact, nonempty, record } from "../contract.js";
+import { validModelCatalog } from "../system/contract.js";
 
 const criterion = (value) =>
   record(value) &&
@@ -100,13 +101,9 @@ export const readReviewCollection = (value) => {
 };
 
 export const readModelCatalog = (value) => {
-  const models = value?.codex?.catalog?.models;
-  if (
-    !Array.isArray(models) ||
-    !models.length ||
-    !models.every(modelCapability)
-  ) {
+  const catalog = value?.codex?.catalog;
+  if (!validModelCatalog(catalog)) {
     throw new Error("review_dependencies_invalid");
   }
-  return models;
+  return catalog.models;
 };

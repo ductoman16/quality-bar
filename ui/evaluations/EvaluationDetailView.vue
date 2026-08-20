@@ -1,7 +1,12 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
-import { csrfToken, requireStatus, responseMessage } from "../browser.js";
+import {
+  csrfToken,
+  requireStatus,
+  responseError,
+  responseMessage,
+} from "../browser.js";
 import EvaluationResult from "./EvaluationResult.vue";
 import {
   mutateEvaluation,
@@ -64,22 +69,9 @@ async function loadResult() {
       `/api/v1/evaluations/${encodeURIComponent(evaluation.value.id)}/result`,
     );
     if (response.status === 409) {
-      const body = await response.json();
-      if (
-        body?.error?.code === "evaluation_result_not_ready" &&
-        typeof body.error.message === "string" &&
-        body.error.message
-      )
-        return;
-      if (
-        typeof body?.error?.code === "string" &&
-        body.error.code &&
-        typeof body.error.message === "string" &&
-        body.error.message
-      ) {
-        throw new Error(body.error.message);
-      }
-      throw new Error("evaluation_result_error_invalid");
+      const failure = await responseError(response);
+      if (failure.code === "evaluation_result_not_ready") return;
+      throw new Error(failure.message);
     }
     await requireStatus(response, 200, "evaluation_result_response_invalid");
     const body = await response.json();

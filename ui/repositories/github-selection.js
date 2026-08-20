@@ -1,6 +1,17 @@
 import { csrfRequest } from "../browser.js";
 import { validGitHubSelection } from "./contract.js";
 
+export function githubRepositoryChoices(connection) {
+  const latest = connection?.verification_history?.at(-1);
+  return latest?.repositories.length
+    ? latest.repositories
+    : (latest?.affected_repository_ids ?? []).map((id) => ({
+        full_name: `Forge Repository ${id}`,
+        id,
+        verification_required: true,
+      }));
+}
+
 /** @param {string} csrfCookieName @param {number[]} selected */
 export async function registerGitHubSelection(csrfCookieName, selected) {
   const requestId = crypto.randomUUID();

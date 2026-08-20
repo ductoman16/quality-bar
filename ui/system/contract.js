@@ -8,6 +8,16 @@ import {
   timestamp,
 } from "../contract.js";
 import { validPollingDelivery } from "./polling-contract.js";
+const CATALOG = {
+  codex_cli_version: "0.145.0",
+  models: ["sol", "terra", "luna"].map((name) => ({
+    id: `gpt-5.6-${name}`,
+    reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+    service_tiers: ["standard", "fast"],
+  })),
+};
+export const validModelCatalog = (value) =>
+  JSON.stringify(value) === JSON.stringify(CATALOG);
 const status = (value, allowed) =>
   record(value) && allowed.includes(value.status);
 const storageError = (value) =>
@@ -219,15 +229,7 @@ export const validSystem = (value) =>
   nonempty(value.codex.catalog.codex_cli_version) &&
   value.codex.catalog.models.length > 0 &&
   value.codex.catalog.models.every(modelCapability) &&
-  JSON.stringify(value.codex.catalog) ===
-    JSON.stringify({
-      codex_cli_version: "0.145.0",
-      models: ["sol", "terra", "luna"].map((name) => ({
-        id: `gpt-5.6-${name}`,
-        reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
-        service_tiers: ["standard", "fast"],
-      })),
-    }) &&
+  validModelCatalog(value.codex.catalog) &&
   value.browser_sessions?.status === "available" &&
   count(value.browser_sessions.active_count) &&
   ["active", "revoked"].includes(value.implementer_token?.status) &&

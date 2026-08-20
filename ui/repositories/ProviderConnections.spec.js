@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import ProviderConnections from "./ProviderConnections.vue";
 import {
+  validForgejoChoices,
   validForgejoConnection,
   validGitHubSelection,
   validManifestContinuation,
@@ -95,6 +96,17 @@ it("validates discovery and submits a Forgejo Connection mutation", async () => 
   const failed = structuredClone(connection);
   failed.verification_history[0].repositories[0].outcome = "error";
   expect(validForgejoConnection(failed)).toBe(false);
+  const openPrincipal = structuredClone(connection);
+  openPrincipal.principal.display_name = "Operator";
+  expect(validForgejoConnection(openPrincipal)).toBe(true);
+  expect(
+    validForgejoConnection({ ...connection, reported_version: 16.04 }),
+  ).toBe(false);
+  expect(
+    validForgejoChoices([
+      { full_name: "operator/repository", id: 11, private: true },
+    ]),
+  ).toBe(true);
   const wrapper = mount(ProviderConnections, {
     attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },
@@ -317,5 +329,47 @@ it("rejects a null successful Forgejo registration", async () => {
   expect(wrapper.emitted("error").at(-1)).toEqual([
     "Forgejo Connection response is invalid",
   ]);
+  wrapper.unmount();
+});
+
+it("reconciles a committed Forgejo retirement after a lost response", async () => {
+  HTMLDialogElement.prototype.showModal = vi.fn();
+  HTMLDialogElement.prototype.close = vi.fn();
+  let forgejoLoads = 0;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/github-connections") {
+      return { json: async () => null, ok: true, status: 200 };
+    }
+    if (path === "/api/v1/forgejo-connections" && !options) {
+      forgejoLoads += 1;
+      return {
+        json: async () => ({
+          ...connection,
+          lifecycle: forgejoLoads === 1 ? "enabled" : "retired",
+        }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/forgejo-connections/lifecycle") {
+      throw new TypeError("response lost");
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    attachTo: document.body,
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  expect(wrapper.text()).toContain("Retire Forgejo Connection");
+  expect(wrapper.text()).not.toContain("Delete Forgejo Connection");
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Retire Forgejo Connection")
+    .trigger("click");
+  await wrapper.get("dialog form").trigger("submit");
+  await flushPromises();
+  expect(wrapper.text()).toContain("Forgejo Connection retired");
+  expect(wrapper.emitted("error").at(-1)).toEqual([""]);
   wrapper.unmount();
 });

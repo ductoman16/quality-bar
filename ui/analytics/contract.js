@@ -1,10 +1,15 @@
 import { count, exact, nonempty, record } from "../contract.js";
+import { validMatchingFacts } from "./matching-contract.js";
 
 const rate = (value) =>
-  record(value) && count(value.numerator) && count(value.denominator);
+  record(value) &&
+  exact(value, ["denominator", "numerator"]) &&
+  count(value.numerator) &&
+  count(value.denominator);
 
 const duration = (value) =>
   record(value) &&
+  exact(value, ["execution_count", "median_ms", "total_ms"]) &&
   count(value.execution_count) &&
   (value.total_ms === null || count(value.total_ms)) &&
   (value.median_ms === null ||
@@ -12,6 +17,7 @@ const duration = (value) =>
 
 const counter = (value) =>
   record(value) &&
+  exact(value, ["coverage", "median", "sum"]) &&
   rate(value.coverage) &&
   (value.sum === null || count(value.sum)) &&
   (value.median === null ||
@@ -45,136 +51,16 @@ const filters = (value) =>
       ].includes(name) && nonempty(item)
     );
   });
-const evaluationFact = (value) =>
-  record(value) &&
-  exact(value, [
-    "base_commit",
-    "created_at",
-    "evaluation_id",
-    "head_commit",
-    "pull_request_number",
-    "repository_id",
-    "terminal_outcome",
-  ]) &&
-  nonempty(value.evaluation_id) &&
-  nonempty(value.repository_id) &&
-  commit(value.base_commit) &&
-  commit(value.head_commit) &&
-  (value.pull_request_number === null ||
-    (Number.isSafeInteger(value.pull_request_number) &&
-      value.pull_request_number > 0)) &&
-  count(value.created_at) &&
-  ["clear", "advisory", "blocking", "error", "pending"].includes(
-    value.terminal_outcome,
-  );
-const matchingFacts = (value) =>
-  record(value) &&
-  exact(value, ["evaluations", "review_runs"]) &&
-  Array.isArray(value.evaluations) &&
-  value.evaluations.every(evaluationFact) &&
-  Array.isArray(value.review_runs) &&
-  value.review_runs.every(
-    (run) =>
-      record(run) &&
-      exact(run, [
-        "base_commit",
-        "cached_input_tokens",
-        "cancellation_code",
-        "completed_at",
-        "created_at",
-        "criterion_results",
-        "error_code",
-        "evaluation_id",
-        "execution_status",
-        "findings",
-        "head_commit",
-        "input_tokens",
-        "model",
-        "output_tokens",
-        "pull_request_number",
-        "reasoning_effort",
-        "repository_id",
-        "review_id",
-        "review_run_id",
-        "review_version_id",
-        "service_tier",
-        "started_at",
-        "waiver_decisions",
-        "waiver_requests",
-      ]) &&
-      [
-        "review_run_id",
-        "evaluation_id",
-        "repository_id",
-        "review_id",
-        "review_version_id",
-        "model",
-        "reasoning_effort",
-        "service_tier",
-      ].every((name) => nonempty(run[name])) &&
-      commit(run.base_commit) &&
-      commit(run.head_commit) &&
-      (run.pull_request_number === null ||
-        (Number.isSafeInteger(run.pull_request_number) &&
-          run.pull_request_number > 0)) &&
-      ["queued", "running", "completed", "failed", "cancelled"].includes(
-        run.execution_status,
-      ) &&
-      (run.cancellation_code === null ||
-        ["cancelled_by_operator", "cancelled_by_supersession"].includes(
-          run.cancellation_code,
-        )) &&
-      (run.error_code === null || /^[a-z][a-z0-9_]*$/.test(run.error_code)) &&
-      ["created_at"].every((name) => count(run[name])) &&
-      ["started_at", "completed_at"].every((name) =>
-        nullableCount(run[name]),
-      ) &&
-      ["input_tokens", "cached_input_tokens", "output_tokens"].every((name) =>
-        nullableCount(run[name]),
-      ) &&
-      Array.isArray(run.criterion_results) &&
-      run.criterion_results.every(
-        (item) =>
-          exact(item, ["criterion_id", "outcome"]) &&
-          nonempty(item.criterion_id) &&
-          ["clear", "triggered", "not_applicable", "error"].includes(
-            item.outcome,
-          ),
-      ) &&
-      Array.isArray(run.findings) &&
-      run.findings.every(
-        (item) =>
-          exact(item, ["criterion_id", "finding_id", "impact"]) &&
-          nonempty(item.criterion_id) &&
-          nonempty(item.finding_id) &&
-          ["advisory", "blocking"].includes(item.impact),
-      ) &&
-      Array.isArray(run.waiver_requests) &&
-      run.waiver_requests.every(
-        (item) =>
-          exact(item, ["created_at", "finding_id", "waiver_request_id"]) &&
-          count(item.created_at) &&
-          nonempty(item.finding_id) &&
-          nonempty(item.waiver_request_id),
-      ) &&
-      Array.isArray(run.waiver_decisions) &&
-      run.waiver_decisions.every(
-        (item) =>
-          exact(item, [
-            "created_at",
-            "outcome",
-            "waiver_decision_id",
-            "waiver_request_id",
-          ]) &&
-          count(item.created_at) &&
-          ["accepted", "denied", "error"].includes(item.outcome) &&
-          nonempty(item.waiver_decision_id) &&
-          nonempty(item.waiver_request_id),
-      ),
-  );
-
 const reliability = (value, outcomes) =>
   record(value) &&
+  exact(value, [
+    "active",
+    "duration",
+    "failure_codes",
+    "token_counters",
+    ...outcomes,
+    ...outcomes.map((outcome) => `${outcome}_rate`),
+  ]) &&
   count(value.active) &&
   outcomes.every(
     (outcome) =>
@@ -183,11 +69,20 @@ const reliability = (value, outcomes) =>
       duration(value.duration?.[outcome]),
   ) &&
   duration(value.duration?.terminal) &&
+  exact(value.duration, ["terminal", ...outcomes]) &&
   Array.isArray(value.failure_codes) &&
   value.failure_codes.every(
     (failure) =>
-      record(failure) && nonempty(failure.code) && count(failure.count),
+      record(failure) &&
+      exact(failure, ["code", "count"]) &&
+      /^[a-z][a-z0-9_]*$/.test(failure.code) &&
+      count(failure.count),
   ) &&
+  exact(value.token_counters, [
+    "cached_input_tokens",
+    "input_tokens",
+    "output_tokens",
+  ]) &&
   ["input_tokens", "cached_input_tokens", "output_tokens"].every((name) =>
     counter(value.token_counters?.[name]),
   );
@@ -201,14 +96,36 @@ const analyticsRows = (value) =>
   value.review_applicability.every(
     (item) =>
       record(item) &&
+      exact(item, [
+        "applicability_rate",
+        "applicable",
+        "error",
+        "error_rate",
+        "not_applicable",
+        "review_id",
+      ]) &&
       nonempty(item.review_id) &&
-      outcomeRates(item, ["applicable", "error"]) &&
-      count(item.not_applicable),
+      ["applicable", "error", "not_applicable"].every((name) =>
+        count(item[name]),
+      ) &&
+      rate(item.applicability_rate) &&
+      rate(item.error_rate),
   ) &&
   Array.isArray(value.criterion_outcomes) &&
   value.criterion_outcomes.every(
     (item) =>
       record(item) &&
+      exact(item, [
+        "clear",
+        "clear_rate",
+        "criterion_id",
+        "error",
+        "error_rate",
+        "not_applicable",
+        "not_applicable_rate",
+        "trigger_rate",
+        "triggered",
+      ]) &&
       nonempty(item.criterion_id) &&
       ["triggered", "clear", "not_applicable", "error"].every((name) =>
         count(item[name]),
@@ -252,12 +169,21 @@ export const validAnalytics = (value) =>
   exact(value.evaluation_overview.window, ["end", "start"]) &&
   count(value.evaluation_overview.window.start) &&
   count(value.evaluation_overview.window.end) &&
-  matchingFacts(value.matching_facts) &&
+  validMatchingFacts(value.matching_facts) &&
   analyticsRows(value) &&
   Array.isArray(value.daily_trend) &&
   value.daily_trend.every(
     (bucket) =>
       record(bucket) &&
+      exact(bucket, [
+        "advisory",
+        "blocking",
+        "clear",
+        "date",
+        "error",
+        "evaluations",
+        "pending",
+      ]) &&
       nonempty(bucket.date) &&
       [
         "advisory",
@@ -299,12 +225,36 @@ export const validAnalytics = (value) =>
     "blocking",
     "error",
   ]) &&
+  exact(value.evaluation_outcomes, [
+    "advisory",
+    "advisory_rate",
+    "blocking",
+    "blocking_rate",
+    "clear",
+    "clear_rate",
+    "error",
+    "error_rate",
+    "pending",
+  ]) &&
   count(value.evaluation_outcomes.pending) &&
   record(value.finding_impact) &&
+  exact(value.finding_impact, [
+    "advisory",
+    "blocking",
+    "findings_per_triggered_criterion_result",
+  ]) &&
   count(value.finding_impact.advisory) &&
   count(value.finding_impact.blocking) &&
   rate(value.finding_impact.findings_per_triggered_criterion_result) &&
   record(value.waiver_analytics) &&
+  exact(value.waiver_analytics, [
+    "advisory_findings",
+    "decision_history",
+    "requested_findings",
+    "waived_finding_rate",
+    "waived_findings",
+    "waiver_request_rate",
+  ]) &&
   count(value.waiver_analytics.advisory_findings) &&
   count(value.waiver_analytics.requested_findings) &&
   count(value.waiver_analytics.waived_findings) &&
@@ -315,7 +265,21 @@ export const validAnalytics = (value) =>
     "denied",
     "error",
   ]) &&
+  exact(value.waiver_analytics.decision_history, [
+    "accepted",
+    "accepted_rate",
+    "denied",
+    "denied_rate",
+    "error",
+    "error_rate",
+  ]) &&
   record(value.pull_request_criterion_transitions) &&
+  exact(value.pull_request_criterion_transitions, [
+    "no_longer_applicable",
+    "sample_size",
+    "triggered_to_clear",
+    "triggered_to_error",
+  ]) &&
   [
     "triggered_to_clear",
     "no_longer_applicable",

@@ -7,9 +7,11 @@ import {
   responseMessage,
 } from "../browser.js";
 import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
+import ConnectionLifecycleActions from "./ConnectionLifecycleActions.vue";
 import GitHubManifestContinuation from "./GitHubManifestContinuation.vue";
 import ProviderConnectionFacts from "./ProviderConnectionFacts.vue";
 import {
+  forgejoConnectionUsed,
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,
@@ -17,9 +19,11 @@ import {
   validManifestContinuation,
 } from "./contract.js";
 import {
+  githubRepositoryChoices,
   reconciledGitHubSelection,
   registerGitHubSelection,
 } from "./github-selection.js";
+import { requestConnectionLifecycle } from "./provider-lifecycle.js";
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
 const github = ref(null),
@@ -97,8 +101,7 @@ async function startGitHub() {
     throw new Error("GitHub App Manifest response is invalid");
   manifest.value = body;
 }
-const githubChoices = () =>
-  github.value?.verification_history?.at(-1)?.repositories ?? [];
+const githubChoices = () => githubRepositoryChoices(github.value);
 async function registerGitHubRepositories() {
   if (!githubSelected.size)
     throw new Error("Select at least one GitHub Repository");
@@ -216,24 +219,27 @@ async function reactivateForgejo() {
 }
 const openLifecycle = (provider, method, identity) =>
   lifecycleDialog.value.open(provider, method, identity);
+async function finishLifecycle(provider, method, current) {
+  (provider === "github" ? github : forgejo).value = current;
+  await announce(
+    `${provider === "github" ? "GitHub" : "Forgejo"} Connection ${method === "DELETE" ? "deleted" : "retired"}.`,
+  );
+  emit("changed");
+}
 async function lifecycle({ method, provider }) {
   const lower = provider.toLowerCase();
   try {
-    const response = await request(
-      `/api/v1/${lower}-connections/lifecycle`,
-      method === "PATCH" ? { lifecycle: "retired" } : {},
+    const current = await requestConnectionLifecycle(
+      props.csrfCookieName,
+      lower,
       method,
     );
-    await requireStatus(response, 200, "connection_lifecycle_response_invalid");
-    const current = await response.json();
-    if (!validLifecycleChange(lower, method, current))
-      throw new Error(`${provider} Connection lifecycle response is invalid`);
-    (lower === "github" ? github : forgejo).value = current;
-    await announce(
-      `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`,
-    );
+    await finishLifecycle(lower, method, current);
   } catch (failure) {
     await loadProvider(lower);
+    const current = (lower === "github" ? github : forgejo).value;
+    if (validLifecycleChange(lower, method, current))
+      return finishLifecycle(lower, method, current);
     throw failure;
   }
 }
@@ -287,23 +293,22 @@ onMounted(() => safe(load));
                   : githubSelected.delete(item.id)
               "
             />{{ item.full_name }};
-            {{ item.private ? "private" : "public" }}</label
+            {{
+              item.verification_required
+                ? "verification required"
+                : item.private
+                  ? "private"
+                  : "public"
+            }}</label
           >
         </fieldset>
         <button type="submit">Register selected Repositories</button>
       </form>
-      <button
-        v-if="github.lifecycle !== 'retired'"
-        type="button"
-        @click="openLifecycle('GitHub', 'PATCH', github.principal.login)"
-      >
-        Retire GitHub Connection</button
-      ><button
-        type="button"
-        @click="openLifecycle('GitHub', 'DELETE', github.principal.login)"
-      >
-        Delete GitHub Connection
-      </button>
+      <ConnectionLifecycleActions
+        :connection="github"
+        provider="GitHub"
+        @open="openLifecycle"
+      />
     </template>
     <GitHubManifestContinuation
       v-if="manifest"
@@ -375,18 +380,12 @@ onMounted(() => safe(load));
           type="password"
         /><button type="submit">Reactivate Forgejo Connection</button>
       </form>
-      <button
-        v-if="forgejo.lifecycle !== 'retired'"
-        type="button"
-        @click="openLifecycle('Forgejo', 'PATCH', forgejo.principal.login)"
-      >
-        Retire Forgejo Connection</button
-      ><button
-        type="button"
-        @click="openLifecycle('Forgejo', 'DELETE', forgejo.principal.login)"
-      >
-        Delete Forgejo Connection
-      </button>
+      <ConnectionLifecycleActions
+        :connection="forgejo"
+        provider="Forgejo"
+        :used="forgejoConnectionUsed(forgejo)"
+        @open="openLifecycle"
+      />
     </template>
   </section>
   <output ref="statusElement" aria-live="polite" tabindex="-1">{{

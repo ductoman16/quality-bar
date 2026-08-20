@@ -128,6 +128,7 @@ export const validGitHubSelection = (value, selected, requestId) =>
     selected.length;
 
 export {
+  forgejoConnectionUsed,
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,

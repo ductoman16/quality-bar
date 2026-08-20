@@ -10,6 +10,20 @@ const facts = (value) =>
   Object.entries(value)
     .map(([name, state]) => `${name}: ${state}`)
     .join("; ");
+const error = (value) =>
+  value ? `${value.message} (${value.code})` : "No error";
+const verification = (value) =>
+  `${value.trigger}; ${value.outcome}; ${new Date(value.verified_at).toLocaleString()}; Repositories ${
+    value.repositories
+      .map((item) => item.full_name ?? item.forge_repository_id ?? item.id)
+      .join(", ") ||
+    value.affected_repository_ids?.join(", ") ||
+    "none"
+  }; ${error(value.error)}`;
+const polling = (value) =>
+  `Repository ${value.forge_repository_id}; ${value.baseline_status}; last success ${value.last_success_at ? new Date(value.last_success_at).toLocaleString() : "none"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "none"}; ${error(value.error)}`;
+const pollingFailure = (value) =>
+  `Repository ${value.forge_repository_id ?? "connection"}; next attempt ${value.next_attempt_at ? new Date(value.next_attempt_at).toLocaleString() : "none"}; ${error(value.error)}`;
 </script>
 
 <template>
@@ -46,16 +60,21 @@ const facts = (value) =>
   </dl>
   <details>
     <summary>Verification history</summary>
-    <pre>{{ JSON.stringify(connection.verification_history, null, 2) }}</pre>
+    <ol>
+      <li v-for="item in connection.verification_history" :key="item.id">
+        {{ verification(item) }}
+      </li>
+    </ol>
   </details>
   <details>
     <summary>Polling</summary>
-    <pre>{{
-      JSON.stringify(
-        { failure: connection.polling_failure, states: connection.polling },
-        null,
-        2,
-      )
-    }}</pre>
+    <ol>
+      <li v-if="connection.polling_failure">
+        {{ pollingFailure(connection.polling_failure) }}
+      </li>
+      <li v-for="item in connection.polling" :key="item.forge_repository_id">
+        {{ polling(item) }}
+      </li>
+    </ol>
   </details>
 </template>

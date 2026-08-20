@@ -29,7 +29,9 @@ export async function responseError(response) {
     typeof body?.error?.code !== "string" ||
     !body.error.code ||
     typeof body.error.message !== "string" ||
-    !body.error.message
+    !body.error.message ||
+    typeof body.error.request_id !== "string" ||
+    !body.error.request_id
   ) {
     throw new Error("error_response_invalid");
   }
@@ -66,6 +68,9 @@ export async function repositoryCollection() {
     await requireStatus(response, 200, "repository_collection_invalid");
     const body = await response.json();
     if (
+      Object.keys(body).length !== 2 ||
+      !Object.hasOwn(body, "items") ||
+      !Object.hasOwn(body, "next_cursor") ||
       !Array.isArray(body.items) ||
       !body.items.every(validRepository) ||
       (body.next_cursor !== null && typeof body.next_cursor !== "string")

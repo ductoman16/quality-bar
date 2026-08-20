@@ -57,7 +57,7 @@ defineExpose({ open });
         {{
           value.method === "DELETE"
             ? `Delete ${value.provider} Connection for ${value.identity} permanently. This cannot be undone.`
-            : `Retire ${value.provider} Connection for ${value.identity}. Its credential will be destroyed and reactivation requires verification.`
+            : `Retire ${value.provider} Connection for ${value.identity}. Its ${value.provider === "Forgejo" ? "PAT" : "credential"} will be destroyed and reactivation requires verification.`
         }}
       </p>
       <label v-if="value.method === 'DELETE'" for="connection-confirmation"

@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import EvaluationsView from "./EvaluationsView.vue";
 
+vi.mock("../analytics/contract.js", () => ({ validAnalytics: () => true }));
+vi.mock("../system/contract.js", () => ({ validSystem: () => true }));
+
 const json = (body) => ({ ok: true, status: 200, json: async () => body });
 function evaluation(id = "evaluation-1") {
   return {
@@ -205,6 +208,7 @@ describe("Evaluations view", () => {
               error: {
                 code: "evaluation_retry_unavailable",
                 message: "Retry unavailable",
+                request_id: "request-1",
               },
             }),
             ok: false,

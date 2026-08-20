@@ -4,14 +4,24 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import ReviewDetailView from "./ReviewDetailView.vue";
 
 const model = {
-  id: "gpt-test",
-  reasoning_efforts: ["high"],
-  service_tiers: ["standard"],
+  id: "gpt-5.6-sol",
+  reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
+  service_tiers: ["standard", "fast"],
+};
+const catalog = {
+  codex_cli_version: "0.145.0",
+  models: [
+    model,
+    ...["terra", "luna"].map((name) => ({
+      ...model,
+      id: `gpt-5.6-${name}`,
+    })),
+  ],
 };
 const version = {
   applicability_rule: null,
   codex_configuration: {
-    model: "gpt-test",
+    model: "gpt-5.6-sol",
     reasoning_effort: "high",
     service_tier: "standard",
   },
@@ -45,8 +55,10 @@ const repository = {
   lifecycle: "enabled",
   url: "https://example.test/repository.git",
 };
+let defaultArchived;
 
 beforeEach(() => {
+  defaultArchived = false;
   history.replaceState(null, "", "/?view=review-detail&review_id=review-1");
   Object.defineProperty(document, "cookie", {
     configurable: true,
@@ -63,7 +75,7 @@ beforeEach(() => {
     vi.fn(async (path, options) => {
       if (path === "/api/v1/system") {
         return {
-          json: async () => ({ codex: { catalog: { models: [model] } } }),
+          json: async () => ({ codex: { catalog } }),
           ok: true,
           status: 200,
         };
@@ -77,20 +89,25 @@ beforeEach(() => {
       }
       if (path === "/api/v1/reviews") {
         return {
-          json: async () => ({ reviews: [review] }),
+          json: async () => ({ reviews: defaultArchived ? [] : [review] }),
           ok: true,
           status: 200,
         };
       }
       if (path === "/api/v1/reviews?state=archived") {
         return {
-          json: async () => ({ reviews: [] }),
+          json: async () => ({
+            reviews: defaultArchived ? [{ ...review, archived: true }] : [],
+          }),
           ok: true,
           status: 200,
         };
       }
       if (options && String(path).startsWith("/api/v1/reviews/review-1/")) {
         const body = JSON.parse(options.body);
+        if (String(path).endsWith("/archival")) {
+          defaultArchived = body.archived;
+        }
         return {
           json: async () => ({
             changed: true,
@@ -183,7 +200,7 @@ it("surfaces malformed mutation success and reconciles ambiguous deletion", asyn
   vi.mocked(fetch).mockImplementation(async (path, options) => {
     if (path === "/api/v1/system") {
       return {
-        json: async () => ({ codex: { catalog: { models: [model] } } }),
+        json: async () => ({ codex: { catalog } }),
         ok: true,
         status: 200,
       };
@@ -239,5 +256,58 @@ it("surfaces malformed mutation success and reconciles ambiguous deletion", asyn
   expect(
     vi.mocked(fetch).mock.calls.filter(([path]) => path === "/api/v1/reviews"),
   ).toHaveLength(2);
+  wrapper.unmount();
+});
+
+it("confirms archival from authority after a lost mutation response", async () => {
+  let archived = false;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/system") {
+      return {
+        json: async () => ({ codex: { catalog } }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/repositories") {
+      return {
+        json: async () => ({ items: [repository], next_cursor: null }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/reviews") {
+      return {
+        json: async () => ({ reviews: archived ? [] : [review] }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/reviews?state=archived") {
+      return {
+        json: async () => ({
+          reviews: archived ? [{ ...review, archived: true }] : [],
+        }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (String(path).endsWith("/archival") && options) {
+      archived = true;
+      throw new TypeError("response lost");
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ReviewDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Archive")
+    .trigger("click");
+  await flushPromises();
+  expect(wrapper.text()).toContain("Boundaries archived");
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false);
   wrapper.unmount();
 });

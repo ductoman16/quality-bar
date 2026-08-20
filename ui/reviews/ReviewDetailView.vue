@@ -1,6 +1,5 @@
 <script setup>
 import { nextTick, onMounted, reactive, ref } from "vue";
-
 import {
   csrfRequest,
   repositoryCollection,
@@ -16,13 +15,12 @@ import {
   validReviewChange,
 } from "./contract.js";
 import ReviewEditor from "./ReviewEditor.vue";
-
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const id = new URLSearchParams(location.search).get("review_id");
-const review = ref();
-const repositories = ref([]);
-const models = ref([]);
-const error = ref("");
+const review = ref(),
+  repositories = ref([]),
+  models = ref([]),
+  error = ref("");
 const errorElement = useAlertFocus(error);
 const status = ref("");
 const metadata = reactive({ description: "", name: "" });
@@ -35,6 +33,8 @@ const deleteError = ref("");
 const selectedVersionId = ref("");
 const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
+const fail = (error, fallback) =>
+  error instanceof Error ? error.message : fallback;
 async function list(path) {
   const response = await fetch(path);
   await requireStatus(response, 200, "review_collection_response_invalid");
@@ -190,11 +190,23 @@ async function archive() {
     "PATCH",
     "Review lifecycle failed",
   );
-  if (!value) return;
-  const next = requireReview(value, true, (item) => item.archived === archived);
-  if (!next) return;
-  open(next);
-  status.value = `${next.name} ${archived ? "archived" : "restored"}.`;
+  const next = value
+    ? requireReview(value, true, (item) => item.archived === archived)
+    : null;
+  let authoritative;
+  try {
+    authoritative = await findReview();
+  } catch (failure) {
+    error.value = fail(failure, "Review refresh failed");
+    return;
+  }
+  if (authoritative?.archived !== archived) {
+    if (next) error.value = "Review lifecycle result is unavailable";
+    return;
+  }
+  error.value = "";
+  open(authoritative);
+  status.value = `${authoritative.name} ${archived ? "archived" : "restored"}.`;
 }
 async function openDelete() {
   deleteName.value = "";
@@ -229,10 +241,22 @@ async function remove() {
   }
   if (response) {
     if (!response.ok) {
-      error.value = await responseMessage(response);
+      const message = await responseMessage(response);
+      try {
+        await findReview();
+      } catch (failure) {
+        error.value = `${message}; ${fail(failure, "Review deletion reconciliation failed")}`;
+        return;
+      }
+      error.value = message;
       return;
     }
     if (response.status !== 200 || (await response.json()) !== null) {
+      const current = await findReview();
+      if (!current) {
+        location.assign("/?view=reviews");
+        return;
+      }
       error.value = "Review deletion response is invalid";
       return;
     }
@@ -247,10 +271,7 @@ async function remove() {
     }
     error.value = "Review deletion result is unavailable";
   } catch (failure) {
-    error.value =
-      failure instanceof Error
-        ? failure.message
-        : "Review deletion reconciliation failed";
+    error.value = fail(failure, "Review deletion reconciliation failed");
   }
 }
 onMounted(async () => {
@@ -264,14 +285,10 @@ onMounted(async () => {
     repositories.value = repositoryItems;
     await load();
   } catch (failure) {
-    error.value =
-      failure instanceof Error
-        ? failure.message
-        : "Review dependencies failed to load";
+    error.value = fail(failure, "Review dependencies failed to load");
   }
 });
 </script>
-
 <template>
   <section v-if="review" class="qb-region review-detail">
     <a class="qb-back" href="/?view=reviews">Reviews</a>

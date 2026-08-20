@@ -2,6 +2,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import AnalyticsView from "./AnalyticsView.vue";
+import { validAnalytics } from "./contract.js";
 
 const ratio = (numerator = 0, denominator = 0) => ({
   denominator,
@@ -110,7 +111,7 @@ const document_ = {
   review_applicability: [
     {
       applicable: 1,
-      applicable_rate: ratio(1, 1),
+      applicability_rate: ratio(1, 1),
       error: 0,
       error_rate: ratio(),
       not_applicable: 0,
@@ -180,6 +181,10 @@ it("renders every Analytics section and restores URL filters on navigation", asy
   expect(wrapper.get(".an-trend__col").attributes("title")).toContain(
     "0 advisory/blocking/error",
   );
+  expect(wrapper.get(".an-trend__col").attributes("tabindex")).toBe("0");
+  expect(wrapper.get(".an-trend__col").attributes("aria-label")).toContain(
+    "1 evaluations",
+  );
 
   await wrapper.get("#analytics-model").setValue("gpt-test");
   await wrapper.get("form").trigger("submit");
@@ -192,4 +197,14 @@ it("renders every Analytics section and restores URL filters on navigation", asy
   expect(wrapper.get("#analytics-model").element.value).toBe("gpt-back");
   expect(fetch).toHaveBeenLastCalledWith("/api/v1/analytics?model=gpt-back");
   wrapper.unmount();
+});
+
+it("rejects extra fields in closed Analytics records", () => {
+  expect(validAnalytics(document_)).toBe(true);
+  expect(
+    validAnalytics({
+      ...document_,
+      daily_trend: [{ ...document_.daily_trend[0], extra: true }],
+    }),
+  ).toBe(false);
 });

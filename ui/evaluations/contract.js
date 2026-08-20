@@ -70,6 +70,8 @@ const delivery = (/** @type {any} */ value) =>
   timestamp(value.last_attempt_at) &&
   timestamp(value.provider_gate_until) &&
   publicationError(value.provider_gate_error) &&
+  (value.provider_gate_until === null) ===
+    (value.provider_gate_error === null) &&
   timestamp(value.next_attempt_at) &&
   typeof value.reconciliation_required === "boolean";
 const publication = (/** @type {any} */ value, finding = false) =>
@@ -94,17 +96,29 @@ const publication = (/** @type {any} */ value, finding = false) =>
   (value.external_id === null || positive(value.external_id)) &&
   timestamp(value.published_at) &&
   publicationError(value.error) &&
-  (finding
-    ? ["aggregate_only", "waiting", "succeeded", "unavailable"]
-    : ["waiting", "succeeded", "unavailable"]
-  ).includes(value.publication_status);
+  (value.publication_status === "aggregate_only"
+    ? finding &&
+      value.external_id === null &&
+      value.published_at === null &&
+      value.error === null
+    : value.publication_status === "waiting"
+      ? value.external_id === null && value.published_at === null
+      : value.publication_status === "succeeded"
+        ? positive(value.external_id) &&
+          value.published_at !== null &&
+          value.error === null
+        : value.publication_status === "unavailable" &&
+          value.external_id === null &&
+          value.published_at === null &&
+          value.error !== null);
 const validFeedback = (/** @type {any} */ value) =>
   record(value) &&
   exact(value, ["aggregate", "findings"]) &&
   publication(value.aggregate) &&
   Array.isArray(value.findings) &&
   value.findings.every((/** @type {any} */ item) => publication(item, true));
-const validCommitStatus = (/** @type {any} */ value) =>
+/** @param {any} value @param {string} headCommit */
+const validCommitStatus = (value, headCommit) =>
   delivery(value) &&
   exact(value, [
     "attempt_count",
@@ -126,11 +140,16 @@ const validCommitStatus = (/** @type {any} */ value) =>
   ]) &&
   value.context === "Quality Bar" &&
   (value.external_id === null || positive(value.external_id)) &&
-  commit(value.head_commit) &&
+  value.head_commit === headCommit &&
   ["pending", "success", "failure", "error"].includes(value.state) &&
   ["waiting", "succeeded", "unavailable"].includes(value.publication_status) &&
   timestamp(value.published_at) &&
-  publicationError(value.error);
+  publicationError(value.error) &&
+  (value.publication_status === "waiting"
+    ? value.published_at === null
+    : value.publication_status === "succeeded"
+      ? value.published_at !== null && value.error === null
+      : value.published_at === null && value.error !== null);
 /** @param {unknown} value @param {string[]} names */
 function validCounts(value, names) {
   return (
@@ -236,6 +255,7 @@ export function validEvaluation(value) {
     value.id.length > 0 &&
     typeof value.repository.id === "string" &&
     value.repository.id.length > 0 &&
+    exact(value.repository, ["id", "url"]) &&
     httpsUrl(value.repository.url) &&
     ["automatic", "explicit"].includes(value.provenance) &&
     validSelector(value.base_selector) &&
@@ -260,7 +280,7 @@ export function validEvaluation(value) {
         exact(value.pull_request, ["number"]) &&
         positive(value.pull_request.number))) &&
     (value.commit_status === undefined ||
-      validCommitStatus(value.commit_status)) &&
+      validCommitStatus(value.commit_status, value.head_commit)) &&
     (value.feedback === undefined || validFeedback(value.feedback))
   );
 }

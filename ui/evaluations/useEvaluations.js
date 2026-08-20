@@ -11,6 +11,8 @@ import {
   validEvaluation,
   validEvaluationMutation,
 } from "./contract.js";
+import { validAnalytics } from "../analytics/contract.js";
+import { validSystem } from "../system/contract.js";
 const FILTER_NAMES = [
   "repository_id",
   "execution_status",
@@ -50,16 +52,6 @@ const epoch = (value) => {
   const parsed = value ? new Date(value).getTime() : NaN;
   return Number.isSafeInteger(parsed) && parsed >= 0 ? String(parsed) : "";
 };
-const count = (value) => Number.isSafeInteger(value) && value >= 0;
-const validStatsSystem = (value) =>
-  count(value?.codex_execution?.concurrency?.maximum_running) &&
-  count(value.codex_execution.concurrency.running_count) &&
-  count(value.codex_execution.queue?.count);
-const validStatsAnalytics = (value) =>
-  count(value?.evaluation_overview?.clear_rate?.numerator) &&
-  count(value.evaluation_overview.clear_rate.denominator) &&
-  (value.evaluation_overview.p95_duration_ms === null ||
-    count(value.evaluation_overview.p95_duration_ms));
 export function useEvaluations(csrfCookieName) {
   const evaluations = ref([]);
   const repositories = ref([]);
@@ -212,10 +204,7 @@ export function useEvaluations(csrfCookieName) {
         system.json(),
         analytics.json(),
       ]);
-      if (
-        !validStatsSystem(systemBody) ||
-        !validStatsAnalytics(analyticsBody)
-      ) {
+      if (!validSystem(systemBody) || !validAnalytics(analyticsBody)) {
         throw new Error("evaluation_statistics_invalid");
       }
       const concurrency = systemBody.codex_execution.concurrency;
@@ -229,9 +218,16 @@ export function useEvaluations(csrfCookieName) {
       stats.p95 = Number.isSafeInteger(overview.p95_duration_ms)
         ? `${overview.p95_duration_ms} ms`
         : "No data";
-      stats.updated = "Just now";
+      stats.updated = new Date().toLocaleTimeString();
       statsError.value = "";
     } catch (failure) {
+      Object.assign(stats, {
+        clearRate: "Unavailable",
+        p95: "Unavailable",
+        queue: "Unavailable",
+        updated: "Unavailable",
+        workers: "Unavailable",
+      });
       statsError.value =
         failure instanceof Error
           ? failure.message

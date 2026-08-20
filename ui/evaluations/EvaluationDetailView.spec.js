@@ -94,6 +94,7 @@ const notReady = () =>
       error: {
         code: "evaluation_result_not_ready",
         message: "Result not ready",
+        request_id: "request-1",
       },
     },
     409,
@@ -169,7 +170,13 @@ it("shows the safe not-found message", async () => {
     "fetch",
     vi.fn(async () =>
       response(
-        { error: { code: "evaluation_not_found", message: "Not found" } },
+        {
+          error: {
+            code: "evaluation_not_found",
+            message: "Not found",
+            request_id: "request-1",
+          },
+        },
         404,
       ),
     ),

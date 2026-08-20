@@ -30,6 +30,9 @@ const principal = (value, github = false) =>
   positive(value.id) &&
   nonempty(value.login) &&
   (!github || value.type === "User");
+/** @type {Validator} */
+const connectionPrincipal = (value) =>
+  record(value) && positive(value.id) && nonempty(value.login);
 
 /** @type {Validator} */
 const pollingError = (value) => value === null || codedError(value);
@@ -306,6 +309,7 @@ const forgejoVerification = (value) =>
       record(value.capabilities) &&
       value.error === null &&
       principal(value.principal) &&
+      nonempty(value.reported_version) &&
       /^16\./.test(value.reported_version) &&
       Array.isArray(value.scopes) &&
       value.scopes.every(nonempty)
@@ -315,7 +319,8 @@ const forgejoVerification = (value) =>
       codedError(value.error) &&
       (value.principal === null || principal(value.principal)) &&
       (value.reported_version === null ||
-        /^16\./.test(value.reported_version)) &&
+        (nonempty(value.reported_version) &&
+          /^16\./.test(value.reported_version))) &&
       (value.scopes === null ||
         (Array.isArray(value.scopes) && value.scopes.every(nonempty))));
 
@@ -347,7 +352,8 @@ export const validForgejoConnection = (/** @type {any} */ value) =>
     Array.isArray(value.polling) &&
     value.polling.every(polling) &&
     pollingFailure(value.polling_failure) &&
-    principal(value.principal) &&
+    connectionPrincipal(value.principal) &&
+    nonempty(value.reported_version) &&
     /^16\./.test(value.reported_version) &&
     Array.isArray(value.scopes) &&
     value.scopes.every(nonempty) &&
@@ -361,10 +367,7 @@ export const validForgejoChoices = (/** @type {any} */ value) =>
   value.length > 0 &&
   value.every(
     (/** @type {any} */ choice) =>
-      record(choice) &&
-      exact(choice, ["full_name", "id"]) &&
-      positive(choice.id) &&
-      nonempty(choice.full_name),
+      record(choice) && positive(choice.id) && nonempty(choice.full_name),
   );
 
 export const validManifestContinuation = (/** @type {any} */ value) =>
@@ -383,3 +386,9 @@ export const validLifecycleChange = (provider, method, value) =>
     : (provider === "github"
         ? validGitHubConnection(value)
         : validForgejoConnection(value)) && value?.lifecycle === "retired";
+
+/** @param {any} value */
+export const forgejoConnectionUsed = (value) =>
+  value.verification_history.some(
+    (/** @type {any} */ item) => item.repositories.length,
+  );

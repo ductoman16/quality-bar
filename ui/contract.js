@@ -70,7 +70,9 @@ export const modelCapability = (value) =>
 
 /** @param {any} value */
 export const validTokenReveal = (value) =>
-  record(value) && exact(value, ["token"]) && nonempty(value.token);
+  record(value) &&
+  exact(value, ["token"]) &&
+  /^[A-Za-z0-9_-]{43}$/.test(value.token);
 
 /** @param {any} value */
 export const validOnboardingToken = (value) =>
