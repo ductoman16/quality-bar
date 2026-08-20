@@ -2,6 +2,7 @@ import {
   canonicalValidationError,
   errorResponses,
 } from "../http-route-schema.js";
+import { writeError } from "../http-response.js";
 
 export const systemSchemas = {};
 
@@ -16,8 +17,14 @@ export const systemRoutes = [
   },
   {
     method: "POST",
+    onRequest(
+      /** @type {import("fastify").FastifyRequest} */ request,
+      /** @type {import("fastify").FastifyReply} */ reply,
+    ) {
+      void request;
+      writeError(reply, 404, "not_found", "Resource was not found");
+    },
     schema: {
-      body: {},
       hide: true,
       security: [],
     },

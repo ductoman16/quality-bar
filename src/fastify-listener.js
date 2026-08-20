@@ -6,7 +6,7 @@ import Fastify from "fastify";
 
 import { requireCodedError } from "./coded-error.js";
 import { canonicalFastifyValidationError } from "./fastify-validation-error.js";
-import { isUnavailableError } from "./http-request.js";
+import { isProductSurface, isUnavailableError } from "./http-request.js";
 import { createErrorDocument, writeError, writeJson } from "./http-response.js";
 import { apiRoutes, apiSchemas } from "./http-routes/index.js";
 
@@ -205,9 +205,9 @@ export function allowedSecuritySchemes(request) {
   );
   return declared.size > 0 ||
     request.routeOptions.schema?.security !== undefined ||
-    !/^\/(?:api|mcp)\/v1(?:\/|$)/.test(requestUrl(request).pathname)
+    !isProductSurface(requestUrl(request).pathname)
     ? declared
-    : new Set(["browser_session", "implementer_token", "onboarding_token"]);
+    : new Set(["browser_session", "implementer_token"]);
 }
 
 /** @param {string} code */

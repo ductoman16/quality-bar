@@ -240,6 +240,7 @@ export const githubRoutes = [
             type: "string",
           },
         },
+        required: ["receipt"],
         type: "object",
       },
     },

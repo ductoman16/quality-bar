@@ -16,6 +16,78 @@ import { writeEmpty, writeError, writeJson } from "./http-response.js";
 /** @typedef {{action: string, channel: string, errorCode?: string, outcome: string}} AttributionEvent */
 /** @typedef {(request: import("fastify").FastifyRequest, response: import("fastify").FastifyReply) => unknown} HttpHandler */
 
+const SESSION_MUTATION_ACTIONS = {
+  changeOperatorPassword: "password_change",
+  createImplementerToken: "implementer_token_create",
+  logoutOperator: "session_logout",
+  recordBrowserSessionActivity: "session_activity",
+  revokeBrowserSessions: "session_revoke_all",
+  revokeImplementerToken: "implementer_token_revoke",
+  rotateImplementerToken: "implementer_token_rotate",
+};
+
+/** @param {import("fastify").FastifyRequest} request @param {ReturnType<typeof requireCodedError>} failure @param {(event: AttributionEvent) => void} recordAuthorityAttribution */
+export function recordBrowserSessionBoundaryFailure(
+  request,
+  failure,
+  recordAuthorityAttribution,
+) {
+  const action =
+    SESSION_MUTATION_ACTIONS[
+      /** @type {keyof typeof SESSION_MUTATION_ACTIONS} */ (
+        request.routeOptions.schema?.operationId
+      )
+    ];
+  if (action) {
+    recordAuthorityAttribution({
+      action,
+      channel: "browser_session",
+      errorCode: failure.code,
+      outcome: "failure",
+    });
+  }
+}
+
+/** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response @param {any} implementerTokens @param {(event: AttributionEvent) => void} recordAuthorityAttribution */
+export function rejectOperatorLoginCredentials(
+  request,
+  response,
+  implementerTokens,
+  recordAuthorityAttribution,
+) {
+  if (request.headers.authorization === undefined) {
+    return false;
+  }
+  if (request.headers.cookie === undefined) {
+    writeMachineOperatorAccessDenial(
+      request,
+      response,
+      implementerTokens,
+      recordAuthorityAttribution,
+    );
+    return true;
+  }
+  try {
+    assertNoMixedCredentials(request);
+    return false;
+  } catch (error) {
+    const failure = requireCodedError(error);
+    recordAuthorityAttribution({
+      action: "authentication",
+      channel: "browser_session",
+      errorCode: failure.code,
+      outcome: "failure",
+    });
+    writeError(
+      response,
+      authenticationFailureStatus(failure.code),
+      failure.code,
+      failure.message,
+    );
+    return true;
+  }
+}
+
 /** @param {ReturnType<typeof requireCodedError>} error */
 function loginRetryAfterSeconds(error) {
   if (
@@ -107,20 +179,7 @@ export function createBrowserSessionOperations({
   const operations = {
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
     loginOperator(request, response) {
-      if (
-        request.headers.authorization !== undefined &&
-        request.headers.cookie === undefined
-      ) {
-        writeMachineOperatorAccessDenial(
-          request,
-          response,
-          implementerTokens,
-          recordAuthorityAttribution,
-        );
-        return;
-      }
       try {
-        assertNoMixedCredentials(request);
         const { password } = /** @type {{password: string}} */ (request.body);
         const { csrfToken, secret } = browserSessions.login(password);
         writeEmpty(response, {
@@ -131,14 +190,6 @@ export function createBrowserSessionOperations({
         });
       } catch (error) {
         const failure = requireCodedError(error);
-        if (failure.code === "authentication_ambiguous") {
-          recordAuthorityAttribution({
-            action: "authentication",
-            channel: "browser_session",
-            errorCode: failure.code,
-            outcome: "failure",
-          });
-        }
         writeError(
           response,
           authenticationFailureStatus(failure.code),

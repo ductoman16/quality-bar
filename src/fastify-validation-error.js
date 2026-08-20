@@ -8,6 +8,10 @@ const canonicalError = (code, message, status = 422) => ({
 /** @param {import("fastify").FastifyRequest} request @param {Array<{instancePath: string, keyword: string, params?: {missingProperty?: string}}>} validation */
 export function canonicalFastifyValidationError(request, validation) {
   const operationId = request.routeOptions.schema?.operationId ?? "";
+  const configuredError =
+    /** @type {any} */ (request.routeOptions.config)
+      ?.canonicalValidationError ??
+    canonicalError("request_malformed", "Request is malformed", 400);
   const missingHeaders = new Set(
     validation
       .filter((diagnostic) => diagnostic.keyword === "required")
@@ -60,6 +64,26 @@ export function canonicalFastifyValidationError(request, validation) {
       "Review Assignment cannot select the same Repository more than once",
     );
   }
+  if (
+    operationId === "deleteNeverUsedReview" &&
+    validation.some(
+      (diagnostic) =>
+        diagnostic.instancePath === "" && diagnostic.keyword === "type",
+    )
+  ) {
+    return canonicalError("request_malformed", "Request is malformed", 400);
+  }
+  if (
+    validation.some(
+      (diagnostic) =>
+        diagnostic.instancePath === "" &&
+        ["additionalProperties", "required", "type"].includes(
+          diagnostic.keyword,
+        ),
+    )
+  ) {
+    return configuredError;
+  }
   const codexOperation = [
     "createOnboardingRepositoryReview",
     "createReview",
@@ -68,6 +92,20 @@ export function canonicalFastifyValidationError(request, validation) {
     "updateWaiverAdjudicatorConfiguration",
   ].includes(operationId);
   if (codexOperation) {
+    if (
+      validation.some(
+        (diagnostic) =>
+          diagnostic.instancePath === "/codex_configuration" &&
+          ["additionalProperties", "required", "type"].includes(
+            diagnostic.keyword,
+          ),
+      )
+    ) {
+      return canonicalError(
+        "codex_configuration_malformed",
+        "Codex configuration must contain only exact model, reasoning_effort, and service_tier values",
+      );
+    }
     const field = ["reasoning_effort", "service_tier", "model"].find((name) =>
       validation.some((diagnostic) =>
         diagnostic.instancePath.endsWith(`/${name}`),
@@ -117,13 +155,19 @@ export function canonicalFastifyValidationError(request, validation) {
       /^\/criteria\/\d+/.test(diagnostic.instancePath),
     );
     const criterion =
+      criterionDiagnostics.find((diagnostic) =>
+        ["additionalProperties", "required", "type"].includes(
+          diagnostic.keyword,
+        ),
+      ) ??
       ["instruction", "impact", "id"]
         .map((field) =>
           criterionDiagnostics.find((diagnostic) =>
             diagnostic.instancePath.endsWith(`/${field}`),
           ),
         )
-        .find(Boolean) ?? criterionDiagnostics[0];
+        .find(Boolean) ??
+      criterionDiagnostics[0];
     if (criterion) {
       const index = Number(criterion.instancePath.split("/")[2]) + 1;
       if (criterion.instancePath.endsWith("/instruction")) {
@@ -197,18 +241,5 @@ export function canonicalFastifyValidationError(request, validation) {
       "Review must contain at least one Criterion",
     );
   }
-  if (
-    request.routeOptions.schema?.operationId === "deleteNeverUsedReview" &&
-    validation.some(
-      (diagnostic) =>
-        diagnostic.instancePath === "" && diagnostic.keyword === "type",
-    )
-  ) {
-    return canonicalError("request_malformed", "Request is malformed", 400);
-  }
-  return (
-    /** @type {any} */ (request.routeOptions.config)
-      ?.canonicalValidationError ??
-    canonicalError("request_malformed", "Request is malformed", 400)
-  );
+  return configuredError;
 }

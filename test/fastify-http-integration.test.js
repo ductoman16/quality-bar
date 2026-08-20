@@ -51,6 +51,14 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
     ].get.parameters.map((/** @type {any} */ parameter) => parameter.name),
     ["repository_id", "If-None-Match"],
   );
+  assert.equal(
+    document.paths[
+      "/api/v1/github-connections/callback-error"
+    ].get.parameters.find(
+      (/** @type {any} */ parameter) => parameter.name === "receipt",
+    ).required,
+    true,
+  );
 
   const unauthenticated = await request("/api/v1/repositories", {
     body: JSON.stringify({ value: "x".repeat(9 * 1024) }),
@@ -61,6 +69,8 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
 
   const unknown = await request("/api/v1/does-not-exist");
   assert.equal(unknown.status, 401);
+  const unknownBrowserMethod = await request("/", { method: "POST" });
+  assert.equal(unknownBrowserMethod.status, 401);
 
   const assetQuery = await request("/assets/login.js?unexpected=true");
   assert.equal(assetQuery.status, 400);
@@ -77,6 +87,33 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   assert.equal(
     /** @type {any} */ (await authenticatedUnknown.json()).error.code,
     "not_found",
+  );
+  const authenticatedUnknownMutation = await request("/api/v1/does-not-exist", {
+    headers: { cookie: operator.cookie },
+    method: "POST",
+  });
+  assert.equal(authenticatedUnknownMutation.status, 404);
+  const hiddenBootstrap = await request("/api/v1/operator-password/bootstrap", {
+    body: "{",
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  assert.equal(hiddenBootstrap.status, 404);
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const machineLogin = await request("/api/v1/session/login", {
+    body: "{}",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+  assert.equal(machineLogin.status, 403);
+  assert.equal(
+    /** @type {any} */ (await machineLogin.json()).error.code,
+    "authorization_forbidden",
   );
   const implicitHead = await request("/api/v1/repositories", {
     headers: { cookie: operator.cookie },
@@ -98,6 +135,23 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   assert.equal(
     /** @type {any} */ (await badOrigin.json()).error.code,
     "origin_invalid",
+  );
+  const rejectedLogout = await request("/api/v1/session/logout", {
+    headers: { ...operator, origin: "https://attacker.example" },
+    method: "POST",
+  });
+  assert.equal(rejectedLogout.status, 403);
+  assert.ok(
+    application.durableCore
+      .all(
+        "SELECT action, error_code FROM authority_attributions WHERE action = ?",
+        "session_logout",
+      )
+      .some(
+        (event) =>
+          event?.action === "session_logout" &&
+          event.error_code === "origin_invalid",
+      ),
   );
   const wrongContentType = await request("/api/v1/repositories", {
     body: "{}",

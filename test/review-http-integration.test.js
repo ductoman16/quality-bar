@@ -51,6 +51,36 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
   });
   assert.equal(rejected.status, 422);
   assert.equal(await responseErrorCode(rejected), "review_request_malformed");
+  const malformedAndBlank = await request.invalidRequest("/api/v1/reviews", {
+    body: JSON.stringify(reviewRequest({ name: " ", unexpected: true })),
+    headers,
+    method: "POST",
+  });
+  assert.equal(malformedAndBlank.status, 422);
+  assert.equal(
+    await responseErrorCode(malformedAndBlank),
+    "review_request_malformed",
+  );
+  const malformedCodexConfiguration = await request.invalidRequest(
+    "/api/v1/reviews",
+    {
+      body: JSON.stringify(
+        reviewRequest({
+          codex_configuration: {
+            model: "gpt-5.6-terra",
+            service_tier: "standard",
+          },
+        }),
+      ),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(malformedCodexConfiguration.status, 422);
+  assert.equal(
+    await responseErrorCode(malformedCodexConfiguration),
+    "codex_configuration_malformed",
+  );
   const unsupportedReasoning = await request.invalidRequest("/api/v1/reviews", {
     body: JSON.stringify(
       reviewRequest({

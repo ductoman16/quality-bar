@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
 import { test } from "node:test";
 
 import { createReviewService } from "../src/review.js";
@@ -35,6 +36,22 @@ async function callMcp(origin, headers, message) {
   });
   assert.equal(response.status, 200);
   return /** @type {any} */ (await response.json());
+}
+
+/** @param {string} origin @param {Record<string, string>} headers */
+function traceMcp(origin, headers) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      new URL("/mcp/v1", origin),
+      { headers, method: "TRACE" },
+      (response) => {
+        response.resume();
+        response.once("end", () => resolve(response));
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
 }
 
 test("authenticated Streamable HTTP MCP initializes without a server session or excluded capabilities", async () => {
@@ -97,6 +114,16 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     assert.equal(unsupported.status, 405, method);
     assert.equal(unsupported.headers.get("allow"), "POST");
   }
+  const trace = /** @type {import("node:http").IncomingMessage} */ (
+    await traceMcp(
+      origin,
+      mcpHeaders(token, {
+        "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+      }),
+    )
+  );
+  assert.equal(trace.statusCode, 405);
+  assert.equal(trace.headers.allow, "POST");
   const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
     headers: mcpHeaders(token, { origin: "https://attacker.example" }),
   });
