@@ -99,6 +99,27 @@ test("the authenticated Review resource creates only an exact complete v1 snapsh
     await responseErrorCode(unsupportedReasoning),
     "codex_reasoning_effort_unsupported",
   );
+  const unsupportedModelAndReasoning = await request.invalidRequest(
+    "/api/v1/reviews",
+    {
+      body: JSON.stringify(
+        reviewRequest({
+          codex_configuration: {
+            model: "unsupported-model",
+            reasoning_effort: "ultra",
+            service_tier: "standard",
+          },
+        }),
+      ),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(unsupportedModelAndReasoning.status, 422);
+  assert.equal(
+    await responseErrorCode(unsupportedModelAndReasoning),
+    "codex_model_unsupported",
+  );
   const reviewCount = application.durableCore.get(
     "SELECT count(*) AS count FROM reviews",
   );
@@ -228,6 +249,27 @@ test("the authenticated Review Version resource saves a complete snapshot or exp
     /** @type {{id: string, active_version: {id: string, criteria: Array<{id: string, impact: string, instruction: string, position: number}>}}} */ (
       await createdResponse.json()
     );
+  const invalidCriterionIdentity = await request.invalidRequest(
+    `/api/v1/reviews/${created.id}/versions`,
+    {
+      body: JSON.stringify({
+        applicability_rule: null,
+        codex_configuration: {
+          model: "gpt-5.6-terra",
+          reasoning_effort: "medium",
+          service_tier: "standard",
+        },
+        criteria: [{ id: "", impact: "blocking", instruction: "Exact" }],
+      }),
+      headers,
+      method: "POST",
+    },
+  );
+  assert.equal(invalidCriterionIdentity.status, 422);
+  assert.equal(
+    await responseErrorCode(invalidCriterionIdentity),
+    "review_criterion_identity_invalid",
+  );
   const [firstCriterion, secondCriterion] = created.active_version.criteria;
   assert.ok(firstCriterion);
   assert.ok(secondCriterion);

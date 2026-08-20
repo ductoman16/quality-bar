@@ -102,6 +102,10 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   const token = application.implementerTokens.create(
     "a correct operator password",
   );
+  const machineApiRoot = await request("/api/v1", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(machineApiRoot.status, 404);
   const machineLogin = await request("/api/v1/session/login", {
     body: "{}",
     headers: {
@@ -114,6 +118,18 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   assert.equal(
     /** @type {any} */ (await machineLogin.json()).error.code,
     "authorization_forbidden",
+  );
+  const urlToken = await request("/api/v1/system?token=secret");
+  assert.equal(urlToken.status, 401);
+  assert.deepEqual(
+    application.durableCore.get(
+      `SELECT channel, error_code
+       FROM authority_attributions
+       WHERE action = 'authentication'
+       ORDER BY occurred_at DESC, id DESC
+       LIMIT 1`,
+    ),
+    { channel: "implementer_token", error_code: "authentication_invalid" },
   );
   const implicitHead = await request("/api/v1/repositories", {
     headers: { cookie: operator.cookie },
@@ -162,6 +178,55 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
     method: "POST",
   });
   assert.equal(wrongContentType.status, 400);
+
+  for (const invalidPasswordRequest of [
+    { body: "{", headers: operator },
+    {
+      body: JSON.stringify({ current_password: "current" }),
+      headers: operator,
+    },
+    {
+      body: JSON.stringify({
+        current_password: "current",
+        new_password: "new password value",
+      }),
+      headers: {
+        ...operator,
+        "content-type": "application/json; charset=utf-8",
+      },
+    },
+  ]) {
+    const invalidPassword = await request("/api/v1/session/password", {
+      ...invalidPasswordRequest,
+      method: "POST",
+    });
+    assert.equal(invalidPassword.status, 400);
+  }
+  assert.equal(
+    application.durableCore.get(
+      `SELECT count(*) AS count
+       FROM authority_attributions
+       WHERE action = 'password_change' AND error_code = 'request_malformed'`,
+    )?.count,
+    3,
+  );
+
+  const missingIdempotencyKey = await request(
+    "/api/v1/repositories/repository-1/evaluations",
+    {
+      body: JSON.stringify({
+        base: { type: "branch", value: "main" },
+        head: { type: "branch", value: "topic" },
+      }),
+      headers: operator,
+      method: "POST",
+    },
+  );
+  assert.equal(missingIdempotencyKey.status, 400);
+  assert.equal(
+    /** @type {any} */ (await missingIdempotencyKey.json()).error.code,
+    "idempotency_key_required",
+  );
 
   const tooLarge = await request("/api/v1/repositories", {
     body: JSON.stringify({ value: "x".repeat(9 * 1024) }),

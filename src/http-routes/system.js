@@ -11,7 +11,7 @@ export const systemRoutes = [
     method: "GET",
     schema: {
       hide: true,
-      security: [{ browser_session: [] }],
+      security: [{ browser_session: [] }, { implementer_token: [] }],
     },
     url: "/api/v1",
   },

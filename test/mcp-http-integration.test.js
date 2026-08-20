@@ -38,12 +38,12 @@ async function callMcp(origin, headers, message) {
   return /** @type {any} */ (await response.json());
 }
 
-/** @param {string} origin @param {Record<string, string>} headers */
-function traceMcp(origin, headers) {
+/** @param {string} origin @param {Record<string, string>} headers @param {string} method */
+function requestMcpMethod(origin, headers, method) {
   return new Promise((resolve, reject) => {
     const request = httpRequest(
       new URL("/mcp/v1", origin),
-      { headers, method: "TRACE" },
+      { headers, method },
       (response) => {
         response.resume();
         response.once("end", () => resolve(response));
@@ -114,16 +114,30 @@ test("authenticated Streamable HTTP MCP initializes without a server session or 
     assert.equal(unsupported.status, 405, method);
     assert.equal(unsupported.headers.get("allow"), "POST");
   }
-  const trace = /** @type {import("node:http").IncomingMessage} */ (
-    await traceMcp(
-      origin,
-      mcpHeaders(token, {
-        "mcp-protocol-version": MCP_PROTOCOL_VERSION,
-      }),
-    )
-  );
-  assert.equal(trace.statusCode, 405);
-  assert.equal(trace.headers.allow, "POST");
+  for (const method of ["TRACE", "PROPFIND"]) {
+    const unsupported = /** @type {import("node:http").IncomingMessage} */ (
+      await requestMcpMethod(
+        origin,
+        mcpHeaders(token, {
+          "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+        }),
+        method,
+      )
+    );
+    assert.equal(unsupported.statusCode, 405, method);
+    assert.equal(unsupported.headers.allow, "POST", method);
+  }
+  const invalidQuery = await fetch(`${origin}/mcp/v1?unexpected=true`, {
+    body: JSON.stringify(requestMessage("ping", {})),
+    headers: mcpHeaders(token),
+    method: "POST",
+  });
+  assert.equal(invalidQuery.status, 200);
+  assert.deepEqual(await invalidQuery.json(), {
+    error: { code: -32600, message: "Invalid Request" },
+    id: null,
+    jsonrpc: "2.0",
+  });
   const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
     headers: mcpHeaders(token, { origin: "https://attacker.example" }),
   });

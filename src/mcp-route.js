@@ -102,6 +102,10 @@ export function createMcpRoute({
     /** @type {unknown} */ onboardingGrant,
     /** @type {unknown} */ token,
   ) {
+    if (Object.keys(/** @type {object} */ (request.query)).length > 0) {
+      writeProtocolError(response, null, -32600, "Invalid Request");
+      return true;
+    }
     const accept = request.headers.accept;
     const mediaTypes =
       typeof accept === "string" ? acceptedMcpMediaTypes(accept) : new Set();

@@ -26,7 +26,7 @@ const SESSION_MUTATION_ACTIONS = {
   rotateImplementerToken: "implementer_token_rotate",
 };
 
-/** @param {import("fastify").FastifyRequest} request @param {ReturnType<typeof requireCodedError>} failure @param {(event: AttributionEvent) => void} recordAuthorityAttribution */
+/** @param {import("fastify").FastifyRequest} request @param {{code: string}} failure @param {(event: AttributionEvent) => void} recordAuthorityAttribution */
 export function recordBrowserSessionBoundaryFailure(
   request,
   failure,

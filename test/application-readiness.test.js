@@ -412,6 +412,14 @@ test("a malformed external master key never appears in responses or logs", async
     error: "master_key_malformed",
     status: "not_ready",
   });
+  const unsupportedHealthMethod = await fetch(`${origin}/health/live`, {
+    method: "POST",
+  });
+  assert.equal(unsupportedHealthMethod.status, 400);
+  assert.equal(
+    await responseErrorCode(unsupportedHealthMethod),
+    "master_key_malformed",
+  );
 
   const productResponse = await fetch(`${origin}/api/v1/system`);
   assert.equal(productResponse.status, 503);

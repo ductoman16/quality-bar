@@ -37,7 +37,10 @@ export function createFastifyProductHook({
     const url = requestUrl(request);
     const path = url.pathname;
     runProductRequest(path, () => {
-      if (path === "/health/live" || path === "/health/ready") {
+      if (
+        request.method === "GET" &&
+        (path === "/health/live" || path === "/health/ready")
+      ) {
         done();
         return;
       }
@@ -124,9 +127,9 @@ export function createFastifyProductHook({
               ? "authorization"
               : "authentication",
           channel:
-            request.headers.authorization === undefined
-              ? "browser_session"
-              : "implementer_token",
+            hasUrlToken(url) || request.headers.authorization !== undefined
+              ? "implementer_token"
+              : "browser_session",
           errorCode: failure.code,
           outcome:
             failure.code === "authorization_forbidden"
@@ -185,6 +188,11 @@ export function createFastifyProductHook({
         request.routeOptions.schema?.body !== undefined &&
         request.headers["content-type"] !== JSON_TYPE
       ) {
+        recordBrowserSessionBoundaryFailure(
+          request,
+          { code: "request_malformed" },
+          recordAuthorityAttribution,
+        );
         writeError(reply, 400, "request_malformed", "Request is malformed");
         return;
       }

@@ -1,8 +1,13 @@
+import { METHODS } from "node:http";
+
 import { readBrowserAsset } from "./browser-assets.js";
 import { createApiOperations } from "./api-route.js";
 import { createBrowserAssetRoute } from "./browser-asset-route.js";
 import { createBrowserPageRoute } from "./browser-page-route.js";
-import { createBrowserSessionOperations } from "./browser-session-route.js";
+import {
+  createBrowserSessionOperations,
+  recordBrowserSessionBoundaryFailure,
+} from "./browser-session-route.js";
 import { createCanonicalComponents } from "./canonical-api-components.js";
 import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
 import { createCodexExecutionConcurrencyOperations } from "./codex-execution-concurrency-route.js";
@@ -14,6 +19,7 @@ import {
   requestUrl,
 } from "./fastify-listener.js";
 import { createFastifyProductHook } from "./fastify-product-hook.js";
+import { canonicalFastifyValidationError } from "./fastify-validation-error.js";
 import { bearerToken } from "./http-request.js";
 import { writeError } from "./http-response.js";
 import {
@@ -61,6 +67,11 @@ export function createApplicationServer(dependencies) {
   const server = createFastify(
     createCanonicalComponents(readCodexCapabilityCatalog()),
   );
+  for (const method of METHODS) {
+    if (!server.supportedMethods.includes(method)) {
+      server.addHttpMethod(method);
+    }
+  }
   const runProductRequest = createProductRequestRunner(workerSignal);
   const handleBrowserAsset = createBrowserAssetRoute({
     browserAssetReader,
@@ -169,6 +180,24 @@ export function createApplicationServer(dependencies) {
   }
 
   server.register(async (routes) => {
+    routes.addHook("onError", (request, reply, error, done) => {
+      void reply;
+      const fastifyError = /** @type {any} */ (error);
+      if (fastifyError.validation) {
+        recordBrowserSessionBoundaryFailure(
+          request,
+          canonicalFastifyValidationError(request, fastifyError.validation),
+          recordAuthorityAttribution,
+        );
+      } else if (fastifyError.code?.startsWith("FST_ERR_CTP_")) {
+        recordBrowserSessionBoundaryFailure(
+          request,
+          { code: "request_malformed" },
+          recordAuthorityAttribution,
+        );
+      }
+      done();
+    });
     routes.addHook(
       "onRequest",
       createFastifyProductHook({
@@ -224,8 +253,6 @@ export function createApplicationServer(dependencies) {
           body: {},
           hide: true,
           querystring: {
-            additionalProperties: false,
-            properties: {},
             type: "object",
           },
           security: [{ implementer_token: [] }, { onboarding_token: [] }],
@@ -244,7 +271,7 @@ export function createApplicationServer(dependencies) {
     );
     routes.route({
       handler() {},
-      method: ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "PUT", "TRACE"],
+      method: routes.supportedMethods.filter((method) => method !== "POST"),
       onRequest: [requireMcpOrigin, rejectMcpMethod],
       schema: {
         hide: true,
