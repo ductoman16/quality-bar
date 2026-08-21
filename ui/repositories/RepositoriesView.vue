@@ -14,10 +14,15 @@ import { useAlertFocus } from "../useAlertFocus.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repositories = ref([]);
+const loading = ref(true);
 const loadFailed = ref(false);
 const expanded = reactive(new Set());
 const error = ref("");
-const errorElement = useAlertFocus(error);
+const providerError = ref("");
+const visibleError = computed(() =>
+  [...new Set([error.value, providerError.value])].filter(Boolean).join("; "),
+);
+const errorElement = useAlertFocus(visibleError);
 const status = ref("");
 const statusElement = ref();
 const create = reactive({ token: "", url: "", username: "" });
@@ -40,12 +45,15 @@ const displayName = (repository) =>
     .slice(-2)
     .join("/");
 async function load(clearError = true, mutationError = "") {
+  loading.value = true;
   const previousError = error.value;
   try {
     repositories.value = await repositoryCollection();
+    loading.value = false;
     loadFailed.value = false;
     if (clearError && error.value === previousError) error.value = "";
   } catch (failure) {
+    loading.value = false;
     repositories.value = [];
     loadFailed.value = true;
     const loadError =
@@ -93,9 +101,9 @@ const changed = async () => {
   await load();
 };
 async function showError(message) {
-  error.value = "";
+  providerError.value = "";
   await nextTick();
-  error.value = message;
+  providerError.value = message;
 }
 onMounted(async () => {
   await load();
@@ -116,7 +124,7 @@ onMounted(async () => {
 
 <template>
   <section
-    v-if="!loadFailed"
+    v-if="!loading && !loadFailed"
     class="repo-overview"
     aria-label="Repository overview"
   >
@@ -142,11 +150,12 @@ onMounted(async () => {
     aria-labelledby="repository-inventory-title"
   >
     <h2 id="repository-inventory-title">Repository inventory</h2>
-    <p v-if="!loadFailed && !repositories.length">
+    <p v-if="loading">Loading repositories</p>
+    <p v-if="!loading && !loadFailed && !repositories.length">
       No repositories registered yet.
     </p>
     <article
-      v-for="repository in repositories"
+      v-for="repository in loading || loadFailed ? [] : repositories"
       :id="`repository-${repository.id}`"
       :key="repository.id"
       class="repo-row"
@@ -240,10 +249,10 @@ onMounted(async () => {
   <p
     id="repository-error"
     ref="errorElement"
-    :hidden="!error"
+    :hidden="!visibleError"
     role="alert"
     tabindex="-1"
   >
-    {{ error }}
+    {{ visibleError }}
   </p>
 </template>

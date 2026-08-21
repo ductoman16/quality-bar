@@ -50,8 +50,10 @@ export function useEvaluations(csrfCookieName) {
   const listError = ref("");
   const dependencyError = ref("");
   const statsError = ref("");
-  const error = computed(
-    () => dependencyError.value || listError.value || statsError.value,
+  const error = computed(() =>
+    [...new Set([dependencyError.value, listError.value, statsError.value])]
+      .filter(Boolean)
+      .join("; "),
   );
   const nextCursor = ref(null);
   const newActivity = ref(false);
@@ -75,8 +77,9 @@ export function useEvaluations(csrfCookieName) {
     headValue: "",
     repositoryId: "",
   });
-  let firstResponse = true;
-  let timer = null;
+  let firstResponse = true,
+    refreshGeneration = 0,
+    timer = null;
   const groups = computed(() => {
     const grouped = new Map();
     for (const evaluation of evaluations.value) {
@@ -89,7 +92,6 @@ export function useEvaluations(csrfCookieName) {
       .map((group) => group.sort(newestFirst))
       .sort((left, right) => newestFirst(left[0], right[0]));
   });
-
   const repositoryById = (id) =>
     repositories.value.find((repository) => repository.id === id);
   const parameters = () => {
@@ -119,14 +121,12 @@ export function useEvaluations(csrfCookieName) {
     search.set("view", "evaluations");
     history.replaceState(null, "", `/?${search}`);
   };
-  const showFailure = async (response) => {
-    listError.value = await responseMessage(response);
-  };
   async function refresh({
     cursor = null,
     poll = false,
     replace = false,
   } = {}) {
+    const generation = ++refreshGeneration;
     if (!poll) {
       loading.value = cursor === null;
     }
@@ -143,12 +143,18 @@ export function useEvaluations(csrfCookieName) {
         throw new Error("Evaluations returned an invalid response");
       }
     } catch (failure) {
+      if (generation !== refreshGeneration) {
+        return;
+      }
       loading.value = false;
       listFailed.value = true;
       listError.value =
         failure instanceof Error
           ? failure.message
           : "Evaluations failed to load";
+      return;
+    }
+    if (generation !== refreshGeneration) {
       return;
     }
     loading.value = false;
@@ -264,7 +270,8 @@ export function useEvaluations(csrfCookieName) {
         },
       );
       if (!response.ok) {
-        return showFailure(response);
+        listError.value = await responseMessage(response);
+        return;
       }
       const created = await response.json();
       if (

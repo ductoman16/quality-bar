@@ -186,7 +186,7 @@ describe("Evaluations view", () => {
       "fetch",
       vi.fn(async (path) => {
         if (path === "/api/v1/repositories") {
-          return json({ items: [], next_cursor: null });
+          throw new Error("Repositories unavailable");
         }
         if (path === "/api/v1/system") {
           systemLoads += 1;
@@ -242,12 +242,85 @@ describe("Evaluations view", () => {
       .trigger("click");
     await flushPromises();
     const alert = wrapper.get('[role="alert"]');
-    expect(alert.text()).toBe("Retry unavailable; authority failed");
+    expect(alert.text()).toBe(
+      "Repositories unavailable; Retry unavailable; authority failed",
+    );
     expect(document.activeElement).toBe(alert.element);
     expect(evaluationLoads).toBe(loadsBeforeMutation + 1);
     expect(systemLoads).toBe(statsBeforeMutation + 1);
     expect(wrapper.find(".evaluation-ledger").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("No Evaluations");
+    wrapper.unmount();
+  });
+
+  it("ignores a stale poll that finishes after mutation reconciliation", async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, "cookie", {
+      configurable: true,
+      value: "qb_csrf=csrf-token",
+    });
+    let current = evaluation();
+    let deferPoll = false;
+    let resolvePoll;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path, options) => {
+        if (path === "/api/v1/repositories") {
+          return json({ items: [], next_cursor: null });
+        }
+        if (path === "/api/v1/system") {
+          return json({
+            codex_execution: {
+              concurrency: { maximum_running: 1, running_count: 0 },
+              queue: { count: 0 },
+            },
+          });
+        }
+        if (String(path).startsWith("/api/v1/analytics?")) {
+          return json({
+            evaluation_overview: {
+              clear_rate: { denominator: 0, numerator: 0 },
+              p95_duration_ms: null,
+            },
+          });
+        }
+        if (String(path).startsWith("/api/v1/evaluations?")) {
+          if (deferPoll) {
+            deferPoll = false;
+            return new Promise((resolve) => {
+              resolvePoll = () =>
+                resolve(json({ items: [evaluation()], next_cursor: null }));
+            });
+          }
+          return json({ items: [current], next_cursor: null });
+        }
+        if (String(path).endsWith("/retry") && options?.method === "POST") {
+          current = {
+            ...evaluation(),
+            exhausted_at: null,
+            retry_error: null,
+            retry_state: "ready",
+          };
+          return json(current);
+        }
+        throw new Error(`unexpected request ${path}`);
+      }),
+    );
+    const wrapper = mount(EvaluationsView, {
+      props: { csrfCookieName: "qb_csrf" },
+    });
+    await flushPromises();
+    deferPoll = true;
+    vi.advanceTimersByTime(5_000);
+    await Promise.resolve();
+    await wrapper
+      .findAll(".evaluation-actions button")
+      .find((button) => button.text() === "Retry")
+      .trigger("click");
+    await flushPromises();
+    resolvePoll();
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("Retry");
     wrapper.unmount();
   });
 });

@@ -9,6 +9,7 @@ import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import EvaluationResult from "./evaluations/EvaluationResult.vue";
 import LoginView from "./LoginView.vue";
 import OperatorControls from "./OperatorControls.vue";
+import ProviderConnections from "./repositories/ProviderConnections.vue";
 import RepositoriesView from "./repositories/RepositoriesView.vue";
 import RepositoryActions from "./repositories/RepositoryActions.vue";
 import RepositoryDetailView from "./repositories/RepositoryDetailView.vue";
@@ -291,6 +292,56 @@ describe("Vue operator views", () => {
     expect(wrapper.text()).not.toContain("0 active Reviews");
     expect(wrapper.text()).not.toContain("No Reviews configured");
     wrapper.unmount();
+  });
+
+  it("keeps Review dependency errors visible across filters", async () => {
+    vi.mocked(fetch).mockImplementation(async (path) =>
+      path === "/api/v1/system"
+        ? failure()
+        : { json: async () => ({ reviews: [] }), ok: true, status: 200 },
+    );
+    const wrapper = shallowMount(ReviewsView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("Unavailable");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "Archived")
+      .trigger("click");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("Unavailable");
+    wrapper.unmount();
+  });
+
+  it("does not let provider actions clear Repository load errors", async () => {
+    const wrapper = shallowMount(RepositoriesView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    const providers = wrapper.getComponent(ProviderConnections);
+    providers.vm.$emit("error", "Provider failed");
+    await flushPromises();
+    providers.vm.$emit("error", "");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("Unavailable");
+    wrapper.unmount();
+  });
+
+  it("renders loading instead of fabricated empty state", () => {
+    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+    const repositories = shallowMount(RepositoriesView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    const reviews = shallowMount(ReviewsView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    expect(repositories.text()).toContain("Loading repositories");
+    expect(repositories.text()).not.toContain("No repositories registered");
+    expect(reviews.text()).toContain("Loading Reviews");
+    expect(reviews.text()).not.toContain("No Reviews configured");
+    repositories.unmount();
+    reviews.unmount();
   });
 
   it("focuses fail-fast errors in every secondary view", async () => {

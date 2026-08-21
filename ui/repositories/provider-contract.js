@@ -375,6 +375,7 @@ export const validManifestContinuation = (/** @type {any} */ value) =>
   record(value) &&
   exact(value, ["action", "manifest", "method", "state"]) &&
   value.method === "POST" &&
+  nonempty(value.state) &&
   /^[A-Za-z0-9_-]{8,256}$/.test(value.state) &&
   value.action ===
     `https://github.com/settings/apps/new?state=${encodeURIComponent(value.state)}` &&

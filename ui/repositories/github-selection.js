@@ -1,5 +1,19 @@
-import { csrfRequest } from "../browser.js";
-import { validGitHubSelection } from "./contract.js";
+import { csrfRequest, requireStatus, responseMessage } from "../browser.js";
+import { validGitHubSelection, validManifestContinuation } from "./contract.js";
+
+export async function requestGitHubManifest(csrfCookieName) {
+  const response = await csrfRequest(
+    csrfCookieName,
+    "/api/v1/github-connections/manifest",
+    {},
+  );
+  await requireStatus(response, 200, "github_manifest_response_invalid");
+  const body = await response.json();
+  if (!validManifestContinuation(body)) {
+    throw new Error("GitHub App Manifest response is invalid");
+  }
+  return body;
+}
 
 export function githubRepositoryChoices(connection) {
   const latest = connection?.verification_history?.at(-1);
@@ -24,15 +38,25 @@ export async function registerGitHubSelection(csrfCookieName, selected) {
     );
   } catch {
     return {
+      ambiguous: true,
       message: "GitHub Repository selection request failed",
       requestId,
     };
   }
   if (!response.ok) {
-    return { response };
+    try {
+      return { ambiguous: false, message: await responseMessage(response) };
+    } catch (failure) {
+      return {
+        ambiguous: false,
+        message:
+          failure instanceof Error ? failure.message : "error_response_invalid",
+      };
+    }
   }
   if (response.status !== 201) {
     return {
+      ambiguous: true,
       message: "GitHub Repository selection response is invalid",
       requestId,
     };
@@ -44,6 +68,7 @@ export async function registerGitHubSelection(csrfCookieName, selected) {
     return { registered: true };
   } catch (failure) {
     return {
+      ambiguous: true,
       message:
         failure instanceof Error
           ? failure.message

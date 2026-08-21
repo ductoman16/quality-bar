@@ -31,6 +31,9 @@ export const numberedId = (value, prefix) =>
 
 /** @param {any} value */
 export const httpsUrl = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
   try {
     return new URL(value).protocol === "https:";
   } catch {
@@ -40,6 +43,9 @@ export const httpsUrl = (value) => {
 
 /** @param {any} value */
 export const uri = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
   try {
     return Boolean(new URL(value).protocol);
   } catch {
@@ -111,6 +117,7 @@ export const modelCapability = (value) =>
 export const validTokenReveal = (value) =>
   record(value) &&
   exact(value, ["token"]) &&
+  nonempty(value.token) &&
   /^[A-Za-z0-9_-]{43}$/.test(value.token);
 
 /** @param {any} value */

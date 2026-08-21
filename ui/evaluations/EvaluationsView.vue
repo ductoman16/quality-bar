@@ -243,7 +243,7 @@ const dayHeading = (evaluation) => {
         />
       </section>
     </section>
-    <div class="evaluation-list-actions">
+    <div v-if="!state.listFailed.value" class="evaluation-list-actions">
       <button
         v-if="state.newActivity.value"
         type="button"

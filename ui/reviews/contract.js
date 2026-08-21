@@ -45,6 +45,13 @@ export const matchesReviewVersion = (version, snapshot) =>
       item.instruction === snapshot.criteria[index].instruction &&
       (!snapshot.criteria[index].id || item.id === snapshot.criteria[index].id),
   );
+const sameVersion = (left, right) =>
+  left.id === right.id &&
+  left.number === right.number &&
+  matchesReviewVersion(left, right) &&
+  left.criteria.every(
+    (item, index) => item.position === right.criteria[index].position,
+  );
 
 export const validReview = (value) =>
   record(value) &&
@@ -78,12 +85,7 @@ export const validReview = (value) =>
   value.versions.every(version) &&
   value.versions.filter(({ id }) => id === value.active_version.id).length ===
     1 &&
-  value.versions.some(
-    (item) =>
-      item.id === value.active_version.id &&
-      item.number === value.active_version.number &&
-      matchesReviewVersion(item, value.active_version),
-  );
+  value.versions.some((item) => sameVersion(item, value.active_version));
 
 export const validReviewChange = (value) =>
   record(value) &&

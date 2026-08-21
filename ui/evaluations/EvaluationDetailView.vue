@@ -26,7 +26,7 @@ const error = ref("");
 const errorElement = ref();
 const busy = ref(false);
 const lastRefreshed = ref("");
-let refreshing = false;
+let refreshPromise;
 let resultEvaluationId = null;
 let timer;
 
@@ -85,9 +85,7 @@ async function loadResult() {
     );
   }
 }
-async function refresh() {
-  if (refreshing || document.hidden) return false;
-  refreshing = true;
+async function loadEvaluation() {
   try {
     const id = new URLSearchParams(location.search).get("evaluation_id");
     if (!id) {
@@ -116,9 +114,15 @@ async function refresh() {
       failure instanceof Error ? failure.message : "Evaluation failed to load",
     );
     return false;
-  } finally {
-    refreshing = false;
   }
+}
+function refresh(force = false) {
+  if (document.hidden && !force) return Promise.resolve(null);
+  if (refreshPromise) {
+    return force ? refreshPromise.then(() => refresh(true)) : refreshPromise;
+  }
+  refreshPromise = loadEvaluation().finally(() => (refreshPromise = null));
+  return refreshPromise;
 }
 async function mutate(action) {
   if (!evaluation.value) return;
@@ -145,10 +149,12 @@ async function mutate(action) {
     failureMessage =
       failure instanceof Error ? failure.message : "Evaluation action failed";
   } finally {
-    const refreshed = await refresh();
+    const refreshed = await refresh(true);
     if (failureMessage) {
       await showError(
-        refreshed ? failureMessage : `${failureMessage}; ${error.value}`,
+        refreshed === false
+          ? `${failureMessage}; ${error.value}`
+          : failureMessage,
       );
     }
     busy.value = false;

@@ -14,12 +14,17 @@ import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const reviews = ref([]);
+const loading = ref(true);
 const loadFailed = ref(false);
 const models = ref([]);
 const state = ref("active");
 const expanded = reactive(new Set());
+const dependencyError = ref("");
 const error = ref("");
-const errorElement = useAlertFocus(error);
+const visibleError = computed(() =>
+  [...new Set([dependencyError.value, error.value])].filter(Boolean).join("; "),
+);
+const errorElement = useAlertFocus(visibleError);
 const status = ref("");
 const identity = reactive({ description: "", name: "" });
 const active = computed(() =>
@@ -34,17 +39,22 @@ async function list(path) {
   await requireStatus(response, 200, "review_collection_response_invalid");
   return readReviewCollection(await response.json());
 }
-async function load() {
+async function load(clearError = true) {
+  loading.value = true;
   try {
     reviews.value = await list(
       `/api/v1/reviews${state.value === "archived" ? "?state=archived" : ""}`,
     );
+    loading.value = false;
     loadFailed.value = false;
-    error.value = "";
+    if (clearError) error.value = "";
+    return true;
   } catch (failure) {
+    loading.value = false;
     loadFailed.value = true;
     error.value =
       failure instanceof Error ? failure.message : "Reviews failed to load";
+    return false;
   }
 }
 async function create(snapshot) {
@@ -129,24 +139,23 @@ async function archive(review) {
   } catch (failure) {
     const message =
       failure instanceof Error ? failure.message : "Review lifecycle failed";
-    if (failure instanceof TypeError) await load();
-    error.value = message;
+    const loaded = await load(false);
+    error.value = loaded ? message : `${message}; ${error.value}`;
   }
 }
 onMounted(async () => {
-  let modelError = "";
   try {
     const response = await fetch("/api/v1/system");
     await requireStatus(response, 200, "system_response_invalid");
     models.value = readModelCatalog(await response.json());
+    dependencyError.value = "";
   } catch (failure) {
-    modelError =
+    dependencyError.value =
       failure instanceof Error
         ? failure.message
         : "Codex model catalog failed to load";
   }
   await load();
-  if (modelError) error.value = modelError;
 });
 </script>
 
@@ -173,7 +182,8 @@ onMounted(async () => {
   </details>
   <section class="qb-region">
     <h2 class="qb-visually-hidden">Configured Reviews</h2>
-    <output v-if="!loadFailed" aria-live="polite"
+    <p v-if="loading">Loading Reviews</p>
+    <output v-if="!loading && !loadFailed" aria-live="polite"
       >{{ active.length }} {{ state }} Reviews</output
     >
     <div class="reviews-catalog__filter" role="group" aria-label="Review state">
@@ -190,9 +200,11 @@ onMounted(async () => {
         {{ value[0].toUpperCase() + value.slice(1) }}
       </button>
     </div>
-    <p v-if="!loadFailed && !active.length">No Reviews configured</p>
+    <p v-if="!loading && !loadFailed && !active.length">
+      No Reviews configured
+    </p>
     <article
-      v-for="review in loadFailed ? [] : active"
+      v-for="review in loading || loadFailed ? [] : active"
       :key="review.id"
       class="review-row"
     >
@@ -237,7 +249,7 @@ onMounted(async () => {
     </article>
   </section>
   <output aria-live="polite">{{ status }}</output>
-  <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
-    {{ error }}
+  <p v-if="visibleError" ref="errorElement" role="alert" tabindex="-1">
+    {{ visibleError }}
   </p>
 </template>

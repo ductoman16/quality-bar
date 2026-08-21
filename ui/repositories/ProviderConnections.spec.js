@@ -247,6 +247,7 @@ it("accepts only the state-bound GitHub manifest action", () => {
       action: "https://attacker.example/collect",
     }),
   ).toBe(false);
+  expect(validManifestContinuation({ ...value, state: 12345678 })).toBe(false);
 });
 
 it("starts the GitHub App manifest flow with its canonical response", async () => {
@@ -339,6 +340,7 @@ it("accepts complete GitHub Repository selection evidence", async () => {
     throw new Error(`unexpected request ${path}`);
   });
   await expect(registerGitHubSelection("qb_csrf", [11])).resolves.toEqual({
+    ambiguous: true,
     message: "GitHub Repository selection request failed",
     requestId,
   });
@@ -374,6 +376,66 @@ it("emits malformed successful provider responses as errors", async () => {
   await wrapper.get("#forgejo-connection-form").trigger("submit");
   await flushPromises();
   expect(wrapper.emitted("error").at(-1)).toEqual(["invalid JSON"]);
+  wrapper.unmount();
+});
+
+it("hides absent-state actions when provider authority is unknown", async () => {
+  vi.mocked(fetch).mockImplementation(async (path) => {
+    if (path === "/api/v1/github-connections") {
+      throw new Error("GitHub unavailable");
+    }
+    if (path === "/api/v1/forgejo-connections") {
+      return { json: async () => null, ok: true, status: 200 };
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  expect(wrapper.text()).not.toContain("Connect GitHub App");
+  expect(wrapper.text()).toContain("Verify Forgejo Connection");
+  expect(wrapper.emitted("error").at(-1)).toEqual(["GitHub unavailable"]);
+  wrapper.unmount();
+});
+
+it("combines Forgejo reactivation and authority failures", async () => {
+  let forgejoLoads = 0;
+  vi.mocked(fetch).mockImplementation(async (path, options) => {
+    if (path === "/api/v1/github-connections") {
+      return { json: async () => null, ok: true, status: 200 };
+    }
+    if (path === "/api/v1/forgejo-connections" && !options) {
+      forgejoLoads += 1;
+      if (forgejoLoads > 1) {
+        throw new Error("authority failed");
+      }
+      return {
+        json: async () => ({ ...connection, lifecycle: "retired" }),
+        ok: true,
+        status: 200,
+      };
+    }
+    if (path === "/api/v1/forgejo-connections/reactivate") {
+      throw new TypeError("response lost");
+    }
+    throw new Error(`unexpected request ${path}`);
+  });
+  const wrapper = mount(ProviderConnections, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper.get("#forgejo-reactivation-token").setValue("token");
+  await wrapper
+    .findAll("form")
+    .find((form) => form.text().includes("Reactivate Forgejo"))
+    .trigger("submit");
+  await flushPromises();
+  expect(wrapper.text()).not.toContain("Identityoperator (7)");
+  expect(wrapper.text()).not.toContain("Reactivate Forgejo Connection");
+  expect(wrapper.emitted("error").at(-1)).toEqual([
+    "response lost; authority failed",
+  ]);
   wrapper.unmount();
 });
 

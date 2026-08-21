@@ -408,6 +408,10 @@ it("refreshes the detail after retry", async () => {
     props: { csrfCookieName: "qb_csrf" },
   });
   await flushPromises();
+  Object.defineProperty(document, "hidden", {
+    configurable: true,
+    value: true,
+  });
   await wrapper
     .findAll("button")
     .find((button) => button.text() === "Retry")
@@ -420,6 +424,10 @@ it("refreshes the detail after retry", async () => {
   expect(
     wrapper.findAll("button").some((button) => button.text() === "Retry"),
   ).toBe(false);
+  Object.defineProperty(document, "hidden", {
+    configurable: true,
+    value: false,
+  });
   wrapper.unmount();
 });
 

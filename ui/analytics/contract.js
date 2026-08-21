@@ -22,7 +22,8 @@ const counter = (value) =>
   (value.sum === null || count(value.sum)) &&
   (value.median === null ||
     (Number.isFinite(value.median) && value.median >= 0));
-const commit = (value) => /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
+const commit = (value) =>
+  nonempty(value) && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
 const nullableCount = (value) => value === null || count(value);
 const filters = (value) =>
   record(value) &&
@@ -75,6 +76,7 @@ const reliability = (value, outcomes) =>
     (failure) =>
       record(failure) &&
       exact(failure, ["code", "count"]) &&
+      nonempty(failure.code) &&
       /^[a-z][a-z0-9_]*$/.test(failure.code) &&
       count(failure.count),
   ) &&

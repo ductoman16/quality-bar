@@ -4,7 +4,6 @@ import {
   csrfRequest,
   repositoryCollection,
   requireStatus,
-  responseMessage,
 } from "../browser.js";
 import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
 import ConnectionLifecycleActions from "./ConnectionLifecycleActions.vue";
@@ -15,14 +14,19 @@ import {
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,
-  validManifestContinuation,
 } from "./contract.js";
 import {
   githubRepositoryChoices,
   reconciledGitHubSelection,
   registerGitHubSelection,
+  requestGitHubManifest,
 } from "./github-selection.js";
-import { requestConnectionLifecycle } from "./provider-lifecycle.js";
+import {
+  readProviderConnection,
+  requestConnectionLifecycle,
+  requestProviderReactivation,
+  rethrowAfterRefresh,
+} from "./provider-lifecycle.js";
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
 const github = ref(null),
@@ -30,6 +34,7 @@ const github = ref(null),
   githubPem = ref(""),
   githubSelected = reactive(new Set()),
   manifest = ref();
+const providerFailed = reactive({ forgejo: false, github: false });
 const forge = reactive({
   baseUrl: "",
   choices: [],
@@ -68,52 +73,40 @@ const load = () => Promise.all(["github", "forgejo"].map(loadProvider));
 const githubChoices = computed(() => githubRepositoryChoices(github.value));
 async function loadProvider(provider) {
   const target = provider === "github" ? github : forgejo;
-  const validate =
-    provider === "github" ? validGitHubConnection : validForgejoConnection;
-  const response = await fetch(`/api/v1/${provider}-connections`);
-  await requireStatus(response, 200, "connection_response_invalid");
-  const value = await response.json();
-  if (!validate(value)) throw new Error("connection_response_invalid");
-  target.value = value;
+  try {
+    target.value = await readProviderConnection(provider);
+    providerFailed[provider] = false;
+  } catch (failure) {
+    target.value = null;
+    providerFailed[provider] = true;
+    throw failure;
+  }
 }
 async function startGitHub() {
-  const reactivating = github.value?.lifecycle === "retired";
-  const response = await request(
-    reactivating
-      ? "/api/v1/github-connections/reactivate"
-      : "/api/v1/github-connections/manifest",
-    reactivating ? { pem: githubPem.value } : {},
-  );
-  await requireStatus(response, 200, "github_manifest_response_invalid");
-  if (reactivating) {
-    const value = await response.json();
-    if (value === null || !validGitHubConnection(value))
-      throw new Error("GitHub Connection response is invalid");
-    github.value = value;
-    githubPem.value = "";
-    await announce("GitHub Connection reactivated.");
-    return;
-  }
-  const body = await response.json();
-  if (!validManifestContinuation(body))
-    throw new Error("GitHub App Manifest response is invalid");
-  manifest.value = body;
+  if (github.value?.lifecycle === "retired") return reactivate("github");
+  manifest.value = await requestGitHubManifest(props.csrfCookieName);
 }
 async function registerGitHubRepositories() {
   if (!githubSelected.size)
     throw new Error("Select at least one GitHub Repository");
   const selected = [...githubSelected];
   const result = await registerGitHubSelection(props.csrfCookieName, selected);
-  if (result.response) {
-    await Promise.all([loadProvider("github"), repositoryCollection()]);
-    throw new Error(await responseMessage(result.response));
-  }
   if (!result.registered) {
-    const repositories = await Promise.all([
-      loadProvider("github"),
-      repositoryCollection(),
-    ]).then((values) => values[1]);
+    let repositories;
+    try {
+      repositories = await Promise.all([
+        loadProvider("github"),
+        repositoryCollection(),
+      ]).then((values) => values[1]);
+    } catch (refreshFailure) {
+      github.value = null;
+      providerFailed.github = true;
+      throw new Error(
+        `${result.message}; ${failureMessage(refreshFailure, "Connection refresh failed")}`,
+      );
+    }
     if (
+      result.ambiguous &&
       reconciledGitHubSelection(
         github.value,
         repositories,
@@ -202,17 +195,28 @@ async function rotateForgejo() {
   forge.rotationToken = "";
   await announce("Forgejo PAT rotated. Revoke its predecessor in Forgejo.");
 }
-async function reactivateForgejo() {
-  const response = await request("/api/v1/forgejo-connections/reactivate", {
-    token: forge.reactivationToken,
-  });
-  await requireStatus(response, 200, "forgejo_reactivation_response_invalid");
-  const value = await response.json();
-  if (value === null || !validForgejoConnection(value))
-    throw new Error("Forgejo Connection response is invalid");
-  forgejo.value = value;
-  forge.reactivationToken = "";
-  await announce("Forgejo Connection reactivated.");
+async function reactivate(provider) {
+  const target = provider === "github" ? github : forgejo;
+  const credential =
+    provider === "github" ? githubPem.value : forge.reactivationToken;
+  try {
+    target.value = await requestProviderReactivation(
+      props.csrfCookieName,
+      provider,
+      credential,
+    );
+    providerFailed[provider] = false;
+    if (provider === "github") githubPem.value = "";
+    else forge.reactivationToken = "";
+    await announce(
+      `${provider === "github" ? "GitHub" : "Forgejo"} Connection reactivated.`,
+    );
+  } catch (failure) {
+    await rethrowAfterRefresh(
+      () => loadProvider(provider),
+      failureMessage(failure, "Connection reactivation failed"),
+    );
+  }
 }
 const openLifecycle = (provider, method, identity) =>
   lifecycleDialog.value.open(provider, method, identity);
@@ -225,21 +229,14 @@ async function lifecycle({ method, provider }) {
       method,
     );
     (lower === "github" ? github : forgejo).value = current;
+    providerFailed[lower] = false;
     await announce(
       `${provider} Connection ${method === "DELETE" ? "deleted" : "retired"}.`,
     );
     emit("changed");
   } catch (failure) {
     const message = failureMessage(failure, "Connection lifecycle failed");
-    try {
-      await loadProvider(lower);
-    } catch (refreshFailure) {
-      (lower === "github" ? github : forgejo).value = null;
-      throw new Error(
-        `${message}; ${failureMessage(refreshFailure, "Connection refresh failed")}`,
-      );
-    }
-    throw new Error(message);
+    await rethrowAfterRefresh(() => loadProvider(lower), message);
   }
 }
 onMounted(() => safe(load));
@@ -248,7 +245,9 @@ onMounted(() => safe(load));
   <section id="github-connection-details" class="qb-region" :inert="busy">
     <h2>GitHub Connection</h2>
     <form
-      v-if="!github || github.lifecycle === 'retired'"
+      v-if="
+        !providerFailed.github && (!github || github.lifecycle === 'retired')
+      "
       @submit.prevent="safe(startGitHub)"
     >
       <label v-if="github" for="github-pem">Replacement private key</label
@@ -262,7 +261,7 @@ onMounted(() => safe(load));
         {{ github ? "Reactivate GitHub App" : "Connect GitHub App" }}
       </button>
     </form>
-    <template v-if="github"
+    <template v-if="!providerFailed.github && github"
       ><ProviderConnectionFacts :connection="github" provider="GitHub" />
       <form
         v-if="github.lifecycle !== 'retired'"
@@ -317,7 +316,7 @@ onMounted(() => safe(load));
   </section>
   <section id="forgejo-connection-details" class="qb-region" :inert="busy">
     <h2>Forgejo Connection</h2>
-    <template v-if="!forgejo"
+    <template v-if="!providerFailed.forgejo && !forgejo"
       ><form
         v-if="!forge.choices.length"
         id="forgejo-connection-form"
@@ -355,7 +354,7 @@ onMounted(() => safe(load));
         <button type="submit">Register selected Forgejo Repositories</button>
       </form></template
     >
-    <template v-else
+    <template v-else-if="!providerFailed.forgejo"
       ><ProviderConnectionFacts :connection="forgejo" provider="Forgejo" />
       <form
         v-if="forgejo.lifecycle !== 'retired'"
@@ -370,7 +369,7 @@ onMounted(() => safe(load));
           type="password"
         /><button type="submit">Rotate Forgejo PAT</button>
       </form>
-      <form v-else @submit.prevent="safe(reactivateForgejo)">
+      <form v-else @submit.prevent="safe(() => reactivate('forgejo'))">
         <label for="forgejo-reactivation-token">Reactivation PAT</label
         ><input
           id="forgejo-reactivation-token"

@@ -23,10 +23,12 @@ const TERMINAL_STATUSES = new Set(["cancelled", "completed", "failed"]);
 const validError = (value) =>
   record(value) &&
   exact(value, ["code", "detail"]) &&
+  nonempty(value.code) &&
   /^[a-z][a-z0-9_]*$/.test(value.code) &&
   nonempty(value.detail);
 /** @param {any} value */
-const commit = (value) => /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(value);
+const commit = (value) =>
+  nonempty(value) && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(value);
 const validBranch = (/** @type {string} */ value) => {
   const segments = value.split("/");
   return (

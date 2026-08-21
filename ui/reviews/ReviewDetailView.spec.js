@@ -153,6 +153,9 @@ it("covers version, assignment, archival, and deletion controls", async () => {
     number: 2,
   };
   expect(validReview(contradictory)).toBe(false);
+  const misplaced = structuredClone(review);
+  misplaced.active_version.criteria[0].position = 99;
+  expect(validReview(misplaced)).toBe(false);
   const wrapper = mount(ReviewDetailView, {
     attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },

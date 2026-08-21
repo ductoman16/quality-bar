@@ -88,6 +88,21 @@ describe("Evaluation browser contract", () => {
         repository: { id: "repository-1", url: "http://example.test/repo" },
       }),
     ).toBe(false);
+    expect(
+      validEvaluation({
+        ...evaluation(),
+        repository: {
+          id: "repository-1",
+          url: ["https://example.test/repository.git"],
+        },
+      }),
+    ).toBe(false);
+    expect(
+      validEvaluation({
+        ...evaluation(),
+        retry_error: { code: false, detail: "Failure" },
+      }),
+    ).toBe(false);
     expect(nodeVisualState({ outcome: "blocking", status: "completed" })).toBe(
       "blocking",
     );
@@ -203,6 +218,22 @@ describe("Evaluation browser contract", () => {
     result.review_runs[0].criterion_results = result.criterion_results;
     result.review_runs[0].findings = result.findings;
     expect(validEvaluationResult(result, completed.id)).toBe(true);
+    for (const name of [
+      "review_runs",
+      "criterion_results",
+      "findings",
+      "file_changes",
+    ]) {
+      const duplicate = structuredClone(result);
+      duplicate[name].push(structuredClone(duplicate[name][0]));
+      if (name === "criterion_results") {
+        duplicate.review_runs[0].criterion_results = duplicate[name];
+      }
+      if (name === "findings") {
+        duplicate.review_runs[0].findings = duplicate[name];
+      }
+      expect(validEvaluationResult(duplicate, completed.id)).toBe(false);
+    }
     const invalidError = structuredClone(result);
     invalidError.criterion_results[0] = {
       criterion_id: "criterion-1",

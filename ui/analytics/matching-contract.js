@@ -1,6 +1,7 @@
 import { count, exact, nonempty, record } from "../contract.js";
 
-const commit = (value) => /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
+const commit = (value) =>
+  nonempty(value) && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
 const nullableCount = (value) => value === null || count(value);
 
 const evaluationFact = (value) =>
@@ -83,7 +84,9 @@ export const validMatchingFacts = (value) =>
         ["cancelled_by_operator", "cancelled_by_supersession"].includes(
           run.cancellation_code,
         )) &&
-      (run.error_code === null || /^[a-z][a-z0-9_]*$/.test(run.error_code)) &&
+      (run.error_code === null ||
+        (nonempty(run.error_code) &&
+          /^[a-z][a-z0-9_]*$/.test(run.error_code))) &&
       count(run.created_at) &&
       ["started_at", "completed_at"].every((name) =>
         nullableCount(run[name]),

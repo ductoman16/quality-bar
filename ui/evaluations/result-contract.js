@@ -350,7 +350,12 @@ export function validEvaluationResult(
     ),
   );
   const changes = new Set(value.file_changes.map((change) => change.id));
+  const findings = new Set(value.findings.map((finding) => finding.id));
   return (
+    runs.size === value.review_runs.length &&
+    criteria.size === value.criterion_results.length &&
+    changes.size === value.file_changes.length &&
+    findings.size === value.findings.length &&
     value.criterion_results.every((criterion) =>
       runs.has(criterion.review_run_id),
     ) &&

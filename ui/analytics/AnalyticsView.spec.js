@@ -201,6 +201,9 @@ it("renders every Analytics section and restores URL filters on navigation", asy
 
 it("rejects extra fields in closed Analytics records", () => {
   expect(validAnalytics(document_)).toBe(true);
+  const invalidCode = structuredClone(document_);
+  invalidCode.review_run_reliability.failure_codes[0].code = false;
+  expect(validAnalytics(invalidCode)).toBe(false);
   expect(
     validAnalytics({
       ...document_,
