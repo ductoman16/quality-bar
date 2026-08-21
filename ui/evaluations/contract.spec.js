@@ -203,11 +203,42 @@ describe("Evaluation browser contract", () => {
     result.review_runs[0].criterion_results = result.criterion_results;
     result.review_runs[0].findings = result.findings;
     expect(validEvaluationResult(result, completed.id)).toBe(true);
+    const invalidError = structuredClone(result);
+    invalidError.criterion_results[0] = {
+      criterion_id: "criterion-1",
+      error: { detail: "Failure", junk: "accepted" },
+      outcome: "error",
+      review_run_id: "run-1",
+    };
+    invalidError.review_runs[0].criterion_results =
+      invalidError.criterion_results;
+    expect(validEvaluationResult(invalidError, completed.id)).toBe(false);
     expect(
       validEvaluationResult(
         {
           ...result,
           review_runs: [{ ...result.review_runs[0], findings: [] }],
+        },
+        completed.id,
+      ),
+    ).toBe(false);
+    expect(
+      validEvaluationResult(
+        {
+          ...result,
+          applicability_results: [
+            {
+              assignment: { scope: "installation_wide" },
+              error: { detail: "Rule failed" },
+              outcome: "error",
+              review_id: "review-1",
+              review_version_id: "version-1",
+              rule: {
+                profile: "quality-bar-restricted-cel-v1",
+                source: "true",
+              },
+            },
+          ],
         },
         completed.id,
       ),

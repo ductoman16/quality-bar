@@ -422,3 +422,55 @@ it("refreshes the detail after retry", async () => {
   ).toBe(false);
   wrapper.unmount();
 });
+
+it("combines retry and failed authority refresh errors", async () => {
+  history.replaceState(
+    null,
+    "",
+    "/?view=evaluation-detail&evaluation_id=evaluation-1",
+  );
+  const current = {
+    ...evaluation("queued"),
+    exhausted_at: "2026-08-20T12:01:00.000Z",
+    retry_error: { code: "checkout_failed", detail: "Checkout failed" },
+    retry_state: "exhausted",
+  };
+  let loaded = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path, options) => {
+      if (String(path).endsWith("/retry") && options?.method === "POST") {
+        return {
+          json: async () => ({
+            error: {
+              code: "evaluation_retry_unavailable",
+              message: "Retry unavailable",
+              request_id: "request-1",
+            },
+          }),
+          ok: false,
+          status: 409,
+        };
+      }
+      if (loaded) {
+        throw new Error("authority failed");
+      }
+      loaded = true;
+      return response(current);
+    }),
+  );
+  const wrapper = mount(EvaluationDetailView, {
+    props: { csrfCookieName: "qb_csrf" },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Retry")
+    .trigger("click");
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toBe(
+    "Retry unavailable; authority failed",
+  );
+  expect(wrapper.find(".qb-evaluation-detail-meta").exists()).toBe(false);
+  wrapper.unmount();
+});

@@ -147,6 +147,12 @@ it("covers version, assignment, archival, and deletion controls", async () => {
     id: "version-missing",
   };
   expect(validReview(unlinked)).toBe(false);
+  const contradictory = structuredClone(review);
+  contradictory.active_version = {
+    ...contradictory.active_version,
+    number: 2,
+  };
+  expect(validReview(contradictory)).toBe(false);
   const wrapper = mount(ReviewDetailView, {
     attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },

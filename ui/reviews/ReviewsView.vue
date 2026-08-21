@@ -14,6 +14,7 @@ import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const reviews = ref([]);
+const loadFailed = ref(false);
 const models = ref([]);
 const state = ref("active");
 const expanded = reactive(new Set());
@@ -38,8 +39,10 @@ async function load() {
     reviews.value = await list(
       `/api/v1/reviews${state.value === "archived" ? "?state=archived" : ""}`,
     );
+    loadFailed.value = false;
     error.value = "";
   } catch (failure) {
+    loadFailed.value = true;
     error.value =
       failure instanceof Error ? failure.message : "Reviews failed to load";
   }
@@ -170,7 +173,9 @@ onMounted(async () => {
   </details>
   <section class="qb-region">
     <h2 class="qb-visually-hidden">Configured Reviews</h2>
-    <output aria-live="polite">{{ active.length }} {{ state }} Reviews</output>
+    <output v-if="!loadFailed" aria-live="polite"
+      >{{ active.length }} {{ state }} Reviews</output
+    >
     <div class="reviews-catalog__filter" role="group" aria-label="Review state">
       <button
         v-for="value in ['active', 'archived']"
@@ -185,8 +190,12 @@ onMounted(async () => {
         {{ value[0].toUpperCase() + value.slice(1) }}
       </button>
     </div>
-    <p v-if="!active.length">No Reviews configured</p>
-    <article v-for="review in active" :key="review.id" class="review-row">
+    <p v-if="!loadFailed && !active.length">No Reviews configured</p>
+    <article
+      v-for="review in loadFailed ? [] : active"
+      :key="review.id"
+      class="review-row"
+    >
       <div class="review-row__summary">
         <button
           type="button"

@@ -46,9 +46,13 @@ export function useEvaluations(csrfCookieName) {
   const repositories = ref([]);
   const expanded = reactive(new Set());
   const loading = ref(true);
+  const listFailed = ref(false);
   const listError = ref("");
+  const dependencyError = ref("");
   const statsError = ref("");
-  const error = computed(() => listError.value || statsError.value);
+  const error = computed(
+    () => dependencyError.value || listError.value || statsError.value,
+  );
   const nextCursor = ref(null);
   const newActivity = ref(false);
   const createOpen = ref(false);
@@ -140,6 +144,7 @@ export function useEvaluations(csrfCookieName) {
       }
     } catch (failure) {
       loading.value = false;
+      listFailed.value = true;
       listError.value =
         failure instanceof Error
           ? failure.message
@@ -147,6 +152,7 @@ export function useEvaluations(csrfCookieName) {
       return;
     }
     loading.value = false;
+    listFailed.value = false;
     listError.value = "";
     if (poll) {
       const incoming = new Map(
@@ -303,7 +309,9 @@ export function useEvaluations(csrfCookieName) {
     }
     await Promise.all([refresh({ replace: true }), refreshStats()]);
     if (failureMessage) {
-      listError.value = failureMessage;
+      listError.value = listFailed.value
+        ? `${failureMessage}; ${listError.value}`
+        : failureMessage;
     }
   }
   async function revealActivity() {
@@ -340,8 +348,9 @@ export function useEvaluations(csrfCookieName) {
     try {
       repositories.value = await repositoryCollection();
       create.repositoryId = repositories.value[0]?.id ?? "";
+      dependencyError.value = "";
     } catch (failure) {
-      listError.value =
+      dependencyError.value =
         failure instanceof Error
           ? failure.message
           : "Repositories failed to load";
@@ -367,6 +376,7 @@ export function useEvaluations(csrfCookieName) {
     filters,
     groups,
     loading,
+    listFailed,
     mutate,
     newActivity,
     nextCursor,

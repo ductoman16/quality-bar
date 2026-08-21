@@ -86,14 +86,15 @@ async function loadResult() {
   }
 }
 async function refresh() {
-  if (refreshing || document.hidden) return;
+  if (refreshing || document.hidden) return false;
   refreshing = true;
   try {
     const id = new URLSearchParams(location.search).get("evaluation_id");
     if (!id) {
       loading.value = false;
+      evaluation.value = result.value = null;
       await showError("An evaluation id is required");
-      return;
+      return false;
     }
     const response = await fetch(
       `/api/v1/evaluations/${encodeURIComponent(id)}`,
@@ -102,16 +103,19 @@ async function refresh() {
     await requireStatus(response, 200, "evaluation_response_invalid");
     const body = await response.json();
     if (!validEvaluation(body) || body.id !== id)
-      return showError("Evaluation failed to load");
+      throw new Error("Evaluation failed to load");
     evaluation.value = body;
     lastRefreshed.value = new Date().toLocaleTimeString();
     error.value = "";
     await loadResult();
+    return true;
   } catch (failure) {
     loading.value = false;
+    evaluation.value = result.value = null;
     await showError(
       failure instanceof Error ? failure.message : "Evaluation failed to load",
     );
+    return false;
   } finally {
     refreshing = false;
   }
@@ -141,8 +145,12 @@ async function mutate(action) {
     failureMessage =
       failure instanceof Error ? failure.message : "Evaluation action failed";
   } finally {
-    await refresh();
-    if (failureMessage) await showError(failureMessage);
+    const refreshed = await refresh();
+    if (failureMessage) {
+      await showError(
+        refreshed ? failureMessage : `${failureMessage}; ${error.value}`,
+      );
+    }
     busy.value = false;
   }
 }

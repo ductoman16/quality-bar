@@ -76,7 +76,14 @@ export const validReview = (value) =>
   Array.isArray(value.versions) &&
   value.versions.length > 0 &&
   value.versions.every(version) &&
-  value.versions.some(({ id }) => id === value.active_version.id);
+  value.versions.filter(({ id }) => id === value.active_version.id).length ===
+    1 &&
+  value.versions.some(
+    (item) =>
+      item.id === value.active_version.id &&
+      item.number === value.active_version.number &&
+      matchesReviewVersion(item, value.active_version),
+  );
 
 export const validReviewChange = (value) =>
   record(value) &&

@@ -11,6 +11,7 @@ import LoginView from "./LoginView.vue";
 import OperatorControls from "./OperatorControls.vue";
 import RepositoriesView from "./repositories/RepositoriesView.vue";
 import RepositoryActions from "./repositories/RepositoryActions.vue";
+import RepositoryDetailView from "./repositories/RepositoryDetailView.vue";
 import { consumeGitHubCallbackFailure } from "./repositories/github-callback.js";
 import ReviewsView from "./reviews/ReviewsView.vue";
 import SystemView from "./system/SystemView.vue";
@@ -66,6 +67,9 @@ describe("Vue operator views", () => {
       {},
       { authenticated: "yes", view: "evaluations" },
       { authenticated: true, view: "evaluations" },
+      { authenticated: true, csrfCookieName: null, view: "system" },
+      { authenticated: true, csrfCookieName: false, view: "system" },
+      { authenticated: true, csrfCookieName: 12345678, view: "system" },
       {
         authenticated: false,
         intendedDestination: "https://attacker.test",
@@ -218,6 +222,74 @@ describe("Vue operator views", () => {
       "response lost; authority failed",
     );
     expect(wrapper.findComponent(RepositoryActions).exists()).toBe(false);
+    expect(wrapper.find(".repo-stat-strip").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("No repositories registered");
+    wrapper.unmount();
+  });
+
+  it("preserves ambiguous deletion errors when Repository absence is confirmed", async () => {
+    history.replaceState(
+      null,
+      "",
+      "/?view=repository-detail&repository_id=repository-1",
+    );
+    const repository = {
+      credential_type: "none",
+      deletion_eligible: true,
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      url: "https://example.test/repository.git",
+    };
+    let deleted = false;
+    vi.mocked(fetch).mockImplementation(async (path) => {
+      if (path === "/api/v1/repositories") {
+        return {
+          json: async () => ({
+            items: deleted ? [] : [repository],
+            next_cursor: null,
+          }),
+          ok: true,
+          status: 200,
+        };
+      }
+      if (String(path).endsWith("/guidance")) {
+        return {
+          json: async () => ({
+            guidance_revision: `guidance-v1-${"a".repeat(43)}`,
+            repository: { id: repository.id, url: repository.url },
+            reviews: [],
+            schema_version: 1,
+          }),
+          ok: true,
+          status: 200,
+        };
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const wrapper = shallowMount(RepositoryDetailView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    const actions = wrapper.getComponent(RepositoryActions);
+    deleted = true;
+    actions.vm.$emit("error", "response lost");
+    actions.vm.$emit("refresh", "response lost");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe("response lost");
+    expect(wrapper.findComponent(RepositoryActions).exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("does not render Review counts or empty state after load failure", async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("reviews unavailable"));
+    const wrapper = shallowMount(ReviewsView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("0 active Reviews");
+    expect(wrapper.text()).not.toContain("No Reviews configured");
     wrapper.unmount();
   });
 

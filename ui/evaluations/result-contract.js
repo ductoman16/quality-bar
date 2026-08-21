@@ -8,7 +8,8 @@ import {
 } from "../contract.js";
 const validError = (/** @type {any} */ value) =>
   record(value) &&
-  Object.keys(value).length === 2 &&
+  exact(value, ["code", "detail"]) &&
+  nonempty(value.code) &&
   /^[a-z][a-z0-9_]*$/.test(value.code) &&
   nonempty(value.detail);
 const validRule = (/** @type {any} */ value) =>
@@ -112,6 +113,7 @@ function validApplicability(/** @type {any} */ value) {
           name,
         ),
       ) &&
+      nonempty(error.code) &&
       /^[a-z][a-z0-9_]*$/.test(error.code) &&
       nonempty(error.detail) &&
       (error.file_change_id === undefined || nonempty(error.file_change_id)) &&

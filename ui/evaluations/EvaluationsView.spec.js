@@ -181,6 +181,7 @@ describe("Evaluations view", () => {
     });
     let evaluationLoads = 0;
     let systemLoads = 0;
+    let mutationStarted = false;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (path) => {
@@ -206,9 +207,13 @@ describe("Evaluations view", () => {
         }
         if (String(path).startsWith("/api/v1/evaluations?")) {
           evaluationLoads += 1;
+          if (mutationStarted) {
+            throw new Error("authority failed");
+          }
           return json({ items: [evaluation()], next_cursor: null });
         }
         if (path === "/api/v1/evaluations/evaluation-1/retry") {
+          mutationStarted = true;
           return {
             json: async () => ({
               error: {
@@ -237,10 +242,12 @@ describe("Evaluations view", () => {
       .trigger("click");
     await flushPromises();
     const alert = wrapper.get('[role="alert"]');
-    expect(alert.text()).toBe("Retry unavailable");
+    expect(alert.text()).toBe("Retry unavailable; authority failed");
     expect(document.activeElement).toBe(alert.element);
     expect(evaluationLoads).toBe(loadsBeforeMutation + 1);
     expect(systemLoads).toBe(statsBeforeMutation + 1);
+    expect(wrapper.find(".evaluation-ledger").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("No Evaluations");
     wrapper.unmount();
   });
 });

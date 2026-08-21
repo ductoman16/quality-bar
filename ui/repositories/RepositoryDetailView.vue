@@ -22,7 +22,8 @@ async function load(mutationError = "") {
       (item) => item.id === id,
     );
     if (!repository.value) {
-      error.value = "Repository was not found";
+      guidance.value = undefined;
+      error.value = mutationError || "Repository was not found";
       return;
     }
     const response = await fetch(

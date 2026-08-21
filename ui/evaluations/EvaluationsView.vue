@@ -211,11 +211,17 @@ const dayHeading = (evaluation) => {
       </form>
     </details>
     <p v-if="state.loading.value" aria-live="polite">Loading Evaluations</p>
-    <p v-else-if="!state.evaluations.value.length">No Evaluations</p>
+    <p v-else-if="!state.listFailed.value && !state.evaluations.value.length">
+      No Evaluations
+    </p>
     <p v-if="state.error.value" ref="errorElement" role="alert" tabindex="-1">
       {{ state.error.value }}
     </p>
-    <section class="evaluation-ledger" aria-label="Evaluation ledger">
+    <section
+      v-if="!state.listFailed.value"
+      class="evaluation-ledger"
+      aria-label="Evaluation ledger"
+    >
       <section
         v-for="group in state.groups.value"
         :key="group[0].created_at.slice(0, 10)"

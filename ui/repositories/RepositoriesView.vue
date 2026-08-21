@@ -14,6 +14,7 @@ import { useAlertFocus } from "../useAlertFocus.js";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repositories = ref([]);
+const loadFailed = ref(false);
 const expanded = reactive(new Set());
 const error = ref("");
 const errorElement = useAlertFocus(error);
@@ -42,9 +43,11 @@ async function load(clearError = true, mutationError = "") {
   const previousError = error.value;
   try {
     repositories.value = await repositoryCollection();
+    loadFailed.value = false;
     if (clearError && error.value === previousError) error.value = "";
   } catch (failure) {
     repositories.value = [];
+    loadFailed.value = true;
     const loadError =
       failure instanceof Error ? failure.message : "Repository listing failed";
     error.value = mutationError ? `${mutationError}; ${loadError}` : loadError;
@@ -112,7 +115,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="repo-overview" aria-label="Repository overview">
+  <section
+    v-if="!loadFailed"
+    class="repo-overview"
+    aria-label="Repository overview"
+  >
     <div class="repo-stat-strip">
       <div
         v-for="[label, value] in [
@@ -135,7 +142,9 @@ onMounted(async () => {
     aria-labelledby="repository-inventory-title"
   >
     <h2 id="repository-inventory-title">Repository inventory</h2>
-    <p v-if="!repositories.length">No repositories registered yet.</p>
+    <p v-if="!loadFailed && !repositories.length">
+      No repositories registered yet.
+    </p>
     <article
       v-for="repository in repositories"
       :id="`repository-${repository.id}`"

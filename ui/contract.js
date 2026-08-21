@@ -80,6 +80,7 @@ export const validBrowserConfiguration = (value) =>
   views.includes(value.view) &&
   (value.authenticated === true
     ? exact(value, ["authenticated", "csrfCookieName", "view"]) &&
+      nonempty(value.csrfCookieName) &&
       /^[A-Za-z0-9_-]+$/.test(value.csrfCookieName)
     : value.authenticated === false &&
       exact(value, ["authenticated", "intendedDestination", "view"]) &&
