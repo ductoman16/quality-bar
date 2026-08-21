@@ -134,7 +134,7 @@ it("preserves an ambiguous Repository deletion error after refresh", async () =>
   await wrapper.get("dialog form").trigger("submit");
   await flushPromises();
   expect(wrapper.emitted("changed")).toBeUndefined();
-  expect(wrapper.emitted("refresh")).toEqual([[]]);
+  expect(wrapper.emitted("refresh")).toEqual([["Repository deletion failed"]]);
   expect(wrapper.emitted("error")).toEqual([["Repository deletion failed"]]);
   wrapper.unmount();
 });

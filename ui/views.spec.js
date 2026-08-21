@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AnalyticsView from "./analytics/AnalyticsView.vue";
 import App from "./App.vue";
 import { responseMessage } from "./browser.js";
+import { validBrowserConfiguration } from "./contract.js";
 import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import EvaluationResult from "./evaluations/EvaluationResult.vue";
 import LoginView from "./LoginView.vue";
 import OperatorControls from "./OperatorControls.vue";
 import RepositoriesView from "./repositories/RepositoriesView.vue";
+import RepositoryActions from "./repositories/RepositoryActions.vue";
 import { consumeGitHubCallbackFailure } from "./repositories/github-callback.js";
 import ReviewsView from "./reviews/ReviewsView.vue";
 import SystemView from "./system/SystemView.vue";
@@ -45,6 +47,40 @@ afterEach(() => {
 });
 
 describe("Vue operator views", () => {
+  it("rejects malformed browser configuration before mounting", () => {
+    expect(
+      validBrowserConfiguration({
+        authenticated: false,
+        intendedDestination: "/?view=reviews",
+        view: "evaluations",
+      }),
+    ).toBe(true);
+    expect(
+      validBrowserConfiguration({
+        authenticated: true,
+        csrfCookieName: "quality_bar_csrf",
+        view: "repositories",
+      }),
+    ).toBe(true);
+    for (const invalid of [
+      {},
+      { authenticated: "yes", view: "evaluations" },
+      { authenticated: true, view: "evaluations" },
+      {
+        authenticated: false,
+        intendedDestination: "https://attacker.test",
+        view: "evaluations",
+      },
+      {
+        authenticated: false,
+        intendedDestination: "/",
+        view: "unknown",
+      },
+    ]) {
+      expect(validBrowserConfiguration(invalid)).toBe(false);
+    }
+  });
+
   it("renders the fixed authenticated shell", async () => {
     const wrapper = shallowMount(App, {
       props: {
@@ -141,6 +177,47 @@ describe("Vue operator views", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("Repository registered");
     expect(wrapper.get("#repository-url").element.value).toBe("");
+    wrapper.unmount();
+  });
+
+  it("combines mutation and failed Repository reconciliation errors", async () => {
+    const repository = {
+      credential_type: "none",
+      deletion_eligible: true,
+      health: "healthy",
+      health_error: null,
+      id: "repository-1",
+      lifecycle: "enabled",
+      url: "https://example.test/repository.git",
+    };
+    let failRefresh = false;
+    vi.mocked(fetch).mockImplementation(async (path) => {
+      if (path !== "/api/v1/repositories") {
+        throw new Error(`unexpected request ${path}`);
+      }
+      if (failRefresh) {
+        throw new Error("authority failed");
+      }
+      return {
+        json: async () => ({ items: [repository], next_cursor: null }),
+        ok: true,
+        status: 200,
+      };
+    });
+    const wrapper = shallowMount(RepositoriesView, {
+      props: { csrfCookieName: "quality_bar_csrf" },
+    });
+    await flushPromises();
+    await wrapper.get(".repo-row__summary button").trigger("click");
+    const actions = wrapper.getComponent(RepositoryActions);
+    failRefresh = true;
+    actions.vm.$emit("error", "response lost");
+    actions.vm.$emit("refresh", "response lost");
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      "response lost; authority failed",
+    );
+    expect(wrapper.findComponent(RepositoryActions).exists()).toBe(false);
     wrapper.unmount();
   });
 

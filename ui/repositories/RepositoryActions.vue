@@ -25,7 +25,7 @@ const request = (path, body, method) =>
   csrfRequest(props.csrfCookieName, path, body, method);
 function reconcile(message) {
   emit("error", message);
-  emit("refresh");
+  emit("refresh", message);
 }
 async function mutation(path, body, method, fallback) {
   busy.value = true;
@@ -33,8 +33,7 @@ async function mutation(path, body, method, fallback) {
     const response = await request(path, body, method);
     if (method === "DELETE") {
       if (!response.ok) {
-        emit("error", await responseMessage(response));
-        emit("refresh");
+        reconcile(await responseMessage(response));
         return;
       }
       if (response.status !== 200 || (await response.json()) !== null) {
@@ -45,8 +44,9 @@ async function mutation(path, body, method, fallback) {
       return;
     }
     if (!response.ok) {
-      emit("error", await responseMessage(response));
-      if (method === "PATCH") emit("refresh");
+      const message = await responseMessage(response);
+      if (method === "PATCH") reconcile(message);
+      else emit("error", message);
       return;
     }
     const value = await response.json();

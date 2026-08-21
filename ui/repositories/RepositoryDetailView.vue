@@ -12,7 +12,7 @@ const guidance = ref();
 const error = ref("");
 const errorElement = useAlertFocus(error);
 const id = new URLSearchParams(location.search).get("repository_id");
-async function load() {
+async function load(mutationError = "") {
   if (!id) {
     error.value = "Repository was not specified";
     return;
@@ -39,8 +39,10 @@ async function load() {
     }
     guidance.value = body;
   } catch (failure) {
-    error.value =
+    repository.value = guidance.value = undefined;
+    const loadError =
       failure instanceof Error ? failure.message : "Repository failed to load";
+    error.value = mutationError ? `${mutationError}; ${loadError}` : loadError;
   }
 }
 async function changed(value) {

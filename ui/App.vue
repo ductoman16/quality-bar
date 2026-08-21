@@ -16,10 +16,10 @@ import { validSystem } from "./system/contract.js";
 import { useAlertFocus } from "./useAlertFocus.js";
 
 const props = defineProps({
-  authenticated: Boolean,
-  csrfCookieName: { default: "", type: String },
-  intendedDestination: { default: "/", type: String },
-  view: { default: "evaluations", type: String },
+  authenticated: { required: true, type: Boolean },
+  csrfCookieName: String,
+  intendedDestination: String,
+  view: { required: true, type: String },
 });
 const attention = ref(0);
 const attentionError = ref("");

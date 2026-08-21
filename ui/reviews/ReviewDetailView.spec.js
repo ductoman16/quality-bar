@@ -141,6 +141,12 @@ it("covers version, assignment, archival, and deletion controls", async () => {
   invalid.active_version.codex_configuration.model = "attacker-model";
   invalid.versions[0].codex_configuration.model = "attacker-model";
   expect(validReview(invalid)).toBe(false);
+  const unlinked = structuredClone(review);
+  unlinked.active_version = {
+    ...unlinked.active_version,
+    id: "version-missing",
+  };
+  expect(validReview(unlinked)).toBe(false);
   const wrapper = mount(ReviewDetailView, {
     attachTo: document.body,
     props: { csrfCookieName: "qb_csrf" },

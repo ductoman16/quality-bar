@@ -47,6 +47,44 @@ export const uri = (value) => {
   }
 };
 
+const views = [
+  "analytics",
+  "evaluation-detail",
+  "evaluations",
+  "repositories",
+  "repository-detail",
+  "review-detail",
+  "reviews",
+  "system",
+];
+/** @param {unknown} value */
+const safeDestination = (value) => {
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    return (
+      value.length > 0 &&
+      value.startsWith("/") &&
+      !value.startsWith("//") &&
+      new URL(value, "http://quality-bar.internal").origin ===
+        "http://quality-bar.internal"
+    );
+  } catch {
+    return false;
+  }
+};
+/** @param {unknown} value */
+export const validBrowserConfiguration = (value) =>
+  record(value) &&
+  views.includes(value.view) &&
+  (value.authenticated === true
+    ? exact(value, ["authenticated", "csrfCookieName", "view"]) &&
+      /^[A-Za-z0-9_-]+$/.test(value.csrfCookieName)
+    : value.authenticated === false &&
+      exact(value, ["authenticated", "intendedDestination", "view"]) &&
+      safeDestination(value.intendedDestination));
+
 /** @param {unknown} value */
 export const nullableString = (value) => value === null || nonempty(value);
 

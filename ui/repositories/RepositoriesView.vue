@@ -38,14 +38,16 @@ const displayName = (repository) =>
     .split("/")
     .slice(-2)
     .join("/");
-async function load(clearError = true) {
+async function load(clearError = true, mutationError = "") {
   const previousError = error.value;
   try {
     repositories.value = await repositoryCollection();
     if (clearError && error.value === previousError) error.value = "";
   } catch (failure) {
-    error.value =
+    repositories.value = [];
+    const loadError =
       failure instanceof Error ? failure.message : "Repository listing failed";
+    error.value = mutationError ? `${mutationError}; ${loadError}` : loadError;
   }
 }
 async function register() {
@@ -185,7 +187,7 @@ onMounted(async () => {
           :repository="repository"
           @changed="changed"
           @error="error = $event"
-          @refresh="load(false)"
+          @refresh="load(false, $event)"
         />
       </div>
     </article>
