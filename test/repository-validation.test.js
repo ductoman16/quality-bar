@@ -6,7 +6,7 @@ import {
   RepositoryError,
   normalizeRepositoryRegistration,
   normalizePublicRepositoryUrl,
-} from "../src/repository-validation.js";
+} from "../src/repository/repository-validation.js";
 
 test("a public Generic Repository identity is its normalized HTTPS URL", () => {
   assert.equal(

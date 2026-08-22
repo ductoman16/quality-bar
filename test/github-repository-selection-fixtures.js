@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { RepositoryError } from "../src/repository-validation.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { RepositoryError } from "../src/repository/repository-validation.js";
 import { assertGitHubSiblingRetirementRace } from "./github-repository-selection-race-support.js";
 
 export const capabilities = /** @type {any} */ ({
@@ -156,7 +156,7 @@ export function readGitHubVerificationCount(core) {
 
 /**
  * @param {any} core
- * @param {ReturnType<typeof import("../src/repository.js").createRepositoryService>} repositories
+ * @param {ReturnType<typeof import("../src/repository/repository.js").createRepositoryService>} repositories
  * @param {{selectRepositories(request: unknown): Promise<unknown>}} githubConnections
  * @param {(fails: boolean) => void} setVerificationFailure
  */
@@ -210,7 +210,7 @@ export async function assertGitHubRepositoryReactivation(
 }
 
 /**
- * @param {ReturnType<typeof import("../src/repository.js").createRepositoryService>} repositories
+ * @param {ReturnType<typeof import("../src/repository/repository.js").createRepositoryService>} repositories
  */
 export function assertFailedGitHubRepositoryEnablement(repositories) {
   const failedEnablement = repositories.list()[0];

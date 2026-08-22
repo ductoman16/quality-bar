@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createTranscriptFailureController } from "../src/review-run-codex-process.js";
-import { settleSubmissionTerminal } from "../src/review-run-codex-submission-terminal.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { createTranscriptFailureController } from "../src/review/review-run-codex-process.js";
+import { settleSubmissionTerminal } from "../src/review/review-run-codex-submission-terminal.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 import {
   acceptedChannel,
   claim,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Publisher } from "../src/forgejo-v16.js";
+import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
 
 test("Forgejo v16 publisher uses statuses, issue comments, and review comments on the frozen head", async () => {
   const head = "a".repeat(40);

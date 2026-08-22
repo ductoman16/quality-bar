@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   ReviewError,
   validateDeletionRequest,
-} from "../src/review-validation.js";
+} from "../src/review/review-validation.js";
 
 test("Review deletion accepts only an exact empty request", () => {
   assert.deepEqual(validateDeletionRequest({}), {});

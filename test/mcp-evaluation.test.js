@@ -7,7 +7,7 @@ import {
   readWorkflowResource,
   requestEvaluationArguments,
   resultChildResourceLinks,
-} from "../src/mcp-evaluation.js";
+} from "../src/mcp/mcp-evaluation.js";
 
 const commit = "a".repeat(40);
 

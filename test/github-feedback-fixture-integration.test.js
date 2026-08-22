@@ -3,7 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:http";
 import { test } from "node:test";
 
-import { createGitHubVerifier } from "../src/github-api.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
 
 const permissions = {
   contents: "read",

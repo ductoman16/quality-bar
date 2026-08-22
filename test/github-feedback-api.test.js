@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createGitHubFeedbackPublisher } from "../src/github-feedback-api.js";
+import { createGitHubFeedbackPublisher } from "../src/github/github-feedback-api.js";
 
 function publisher() {
   /** @type {any[]} */

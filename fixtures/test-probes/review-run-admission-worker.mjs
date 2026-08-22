@@ -1,8 +1,8 @@
-import { openDurableCore } from "../../src/durable-core.js";
+import { openDurableCore } from "../../src/durable/durable-core.js";
 import {
   createEvaluationService,
   EvaluationError,
-} from "../../src/evaluation.js";
+} from "../../src/evaluation/evaluation.js";
 
 const [databasePath, idempotencyKey, evaluationId, reviewRunId] =
   process.argv.slice(2);

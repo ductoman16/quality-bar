@@ -153,7 +153,7 @@ test("Error-only throwing accepts an aliased repository Error constructor", asyn
       {
         path: "src/error-import-fixture.js",
         source:
-          "import { DurableCoreError as Failure } from './durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
+          "import { DurableCoreError as Failure } from './durable/durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
       },
     ],
     repositoryRoot,
@@ -183,7 +183,7 @@ test("Error-only throwing accepts a validated repository Error re-export", async
       {
         path: "src/error-reexport-fixture.js",
         source:
-          "import { DurableCoreError as Failure } from './durable-core.js';\nthrow new Failure('invalid', 'invalid');\n",
+          "import { DurableCoreError as Failure } from './durable/durable-core.js';\nthrow new Failure('invalid', 'invalid');\n",
       },
     ],
     repositoryRoot,
@@ -264,7 +264,7 @@ test("the core JavaScript correctness evidence records the complete cleanup", ()
     {
       column: 7,
       line: 11,
-      path: "src/system-resource.js",
+      path: "src/system/system-resource.js",
       rule: "no-unused-vars",
     },
     {
@@ -294,13 +294,13 @@ test("the core JavaScript correctness evidence records the complete cleanup", ()
     {
       column: 13,
       line: 15,
-      path: "src/durable-access.js",
+      path: "src/durable/durable-access.js",
       rule: "error-only-throwing/error-only-throwing",
     },
     {
       column: 11,
       line: 30,
-      path: "src/durable-access.js",
+      path: "src/durable/durable-access.js",
       rule: "error-only-throwing/error-only-throwing",
     },
   ]);

@@ -6,13 +6,13 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { createGitHubVerifier } from "../src/github-api.js";
-import { createGitHubFeedbackService } from "../src/github-feedback-service.js";
-import { attemptGitHubDelivery } from "../src/github-delivery-service.js";
-import { createForgejoFeedbackService } from "../src/forgejo-feedback-service.js";
-import { createForgejoV16Publisher } from "../src/forgejo-v16.js";
-import { attemptForgejoDelivery } from "../src/forgejo-delivery-service.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
+import { createGitHubFeedbackService } from "../src/github/github-feedback-service.js";
+import { attemptGitHubDelivery } from "../src/github/github-delivery-service.js";
+import { createForgejoFeedbackService } from "../src/forgejo/forgejo-feedback-service.js";
+import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
+import { attemptForgejoDelivery } from "../src/forgejo/forgejo-delivery-service.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import { arrangeGitHubFeedback } from "./github-feedback-publication-support.js";
 

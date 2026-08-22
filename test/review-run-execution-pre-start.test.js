@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { ReviewRunCheckoutError } from "../src/review-run-checkout.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
+import { ReviewRunCheckoutError } from "../src/review/review-run-checkout.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
 
 const claim = Object.freeze({
   fencingToken: 7,

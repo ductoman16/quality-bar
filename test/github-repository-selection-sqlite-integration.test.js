@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createAvailableGitHubConnectionService as createGitHubConnectionService } from "./storage-reserve-support.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryService } from "../src/repository.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createRepositoryService } from "../src/repository/repository.js";
 import {
   availableRepositories,
   assertGitHubLifecycleVerification,

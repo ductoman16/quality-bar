@@ -5,9 +5,9 @@ import { test } from "node:test";
 import {
   createReviewRunPrompt,
   executeReviewRun,
-} from "../src/review-run-execution.js";
-import { ReviewRunCheckoutError } from "../src/review-run-checkout.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+} from "../src/review/review-run-execution.js";
+import { ReviewRunCheckoutError } from "../src/review/review-run-checkout.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 
 const claim = Object.freeze({
   fencingToken: 7,

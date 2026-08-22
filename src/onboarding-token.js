@@ -6,7 +6,7 @@ import {
 } from "node:crypto";
 
 import { insertAuthorityAttribution } from "./authority-attribution.js";
-import { normalizePublicRepositoryUrl } from "./repository-validation.js";
+import { normalizePublicRepositoryUrl } from "./repository/repository-validation.js";
 
 const TOKEN_LIFETIME_MILLISECONDS = 24 * 60 * 60 * 1_000;
 
@@ -82,7 +82,7 @@ export function createUnavailableOnboardingTokenService(error) {
 }
 
 export function createOnboardingTokenService(
-  /** @type {ReturnType<typeof import("./durable-core.js").openDurableCore>} */
+  /** @type {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} */
   durableCore,
   /** @type {{
    *   now?: () => number,

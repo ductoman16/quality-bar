@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection.js";
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
+import { createRepositoryService, RepositoryError } from "../src/repository/repository.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

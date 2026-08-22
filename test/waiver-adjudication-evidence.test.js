@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createWaiverAdjudicationEvidenceService } from "../src/waiver-adjudication-evidence.js";
+import { createWaiverAdjudicationEvidenceService } from "../src/waiver/waiver-adjudication-evidence.js";
 
 test("malformed terminal token counters fail before durable evidence", () => {
   const evidence = createWaiverAdjudicationEvidenceService({

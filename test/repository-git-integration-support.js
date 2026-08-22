@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 
-import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
 
 /**
  * @param {string} directory

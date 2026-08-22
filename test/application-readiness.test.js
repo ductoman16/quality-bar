@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, test } from "node:test";
 
-import { createApplication } from "../src/application.js";
-import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
+import { createApplication } from "../src/application/application.js";
+import { CODEX_CAPABILITY_CATALOG } from "../src/codex/codex-capabilities.js";
 import { loadInstallationConfiguration } from "../src/installation-configuration.js";
 import { acquireInstallationLock } from "../src/installation-environment.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 import {
   expectedSystemApplication,
   expectedSystemBackup,

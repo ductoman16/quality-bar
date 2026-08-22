@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createImplementerTokenService } from "../src/implementer-token.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

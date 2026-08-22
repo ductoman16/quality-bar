@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createGitHubPollingRunner } from "../src/github/github-polling-runner.js";
+import { createReviewService } from "../src/review/review.js";
 import {
   availableStorageReserve,
   seedDueGitHubPoll,

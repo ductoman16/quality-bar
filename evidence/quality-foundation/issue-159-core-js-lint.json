@@ -29,7 +29,7 @@
     {
       "column": 7,
       "line": 11,
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "rule": "no-unused-vars"
     },
     {
@@ -59,13 +59,13 @@
     {
       "column": 13,
       "line": 15,
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "rule": "error-only-throwing/error-only-throwing"
     },
     {
       "column": 11,
       "line": 30,
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "rule": "error-only-throwing/error-only-throwing"
     }
   ],

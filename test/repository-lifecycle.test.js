@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { prepareGitHubRepositoryEnablement } from "../src/repository-provider-verification.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { prepareGitHubRepositoryEnablement } from "../src/repository/repository-provider-verification.js";
 import {
   assertRepositoryAcceptsNewWork,
   normalizeRepositoryLifecycleChange,
   RepositoryError,
-} from "../src/repository-validation.js";
+} from "../src/repository/repository-validation.js";
 
 test("Repository lifecycle changes accept the operator-owned enabled, disabled, and retired transitions", () => {
   assert.deepEqual(

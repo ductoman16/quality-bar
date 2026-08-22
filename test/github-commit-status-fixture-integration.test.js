@@ -3,8 +3,8 @@ import { generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:http";
 import { test } from "node:test";
 
-import { createGitHubVerifier } from "../src/github-api.js";
-import { GITHUB_COMMIT_STATUS_CONTEXT } from "../src/github-commit-status.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
+import { GITHUB_COMMIT_STATUS_CONTEXT } from "../src/github/github-commit-status.js";
 
 const permissions = {
   contents: "read",

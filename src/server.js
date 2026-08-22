@@ -8,11 +8,11 @@ import {
   createBrowserSessionOperations,
   recordBrowserSessionBoundaryFailure,
 } from "./browser-session-route.js";
-import { createCanonicalComponents } from "./canonical-api-components.js";
-import { readCodexCapabilityCatalog } from "./codex-capabilities.js";
-import { createCodexExecutionConcurrencyOperations } from "./codex-execution-concurrency-route.js";
-import { createEvaluationOperations } from "./evaluation-route.js";
-import { createForgejoConnectionRoute } from "./forgejo-connection-route.js";
+import { createCanonicalComponents } from "./canonical/canonical-api-components.js";
+import { readCodexCapabilityCatalog } from "./codex/codex-capabilities.js";
+import { createCodexExecutionConcurrencyOperations } from "./codex/codex-execution-concurrency-route.js";
+import { createEvaluationOperations } from "./evaluation/evaluation-route.js";
+import { createForgejoConnectionRoute } from "./forgejo/forgejo-connection-route.js";
 import {
   createFastify,
   registerApiRoutes,
@@ -25,16 +25,16 @@ import { writeError } from "./http-response.js";
 import {
   createGitHubCallbackValidationErrorHandler,
   createGitHubConnectionRoute,
-} from "./github-connection-route.js";
+} from "./github/github-connection-route.js";
 import {
   createMcpOriginHook,
   createMcpRoute,
   rejectMcpMethod,
-} from "./mcp-route.js";
+} from "./mcp/mcp-route.js";
 import { createOnboardingApiOperations } from "./onboarding-api-route.js";
 import { createOnboardingOperations } from "./onboarding-operations.js";
 import { createProductRequestRunner } from "./product-request-runtime.js";
-import { createWaiverAdjudicatorConfigurationOperations } from "./waiver-adjudicator-configuration-route.js";
+import { createWaiverAdjudicatorConfigurationOperations } from "./waiver/waiver-adjudicator-configuration-route.js";
 
 /**
  * @param {any} dependencies

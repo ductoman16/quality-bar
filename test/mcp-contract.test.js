@@ -6,7 +6,7 @@ import {
   MCP_RESOURCE_TEMPLATES,
   MCP_TOOLS,
   mcpInitializeResult,
-} from "../src/mcp-contract.js";
+} from "../src/mcp/mcp-contract.js";
 
 test("the fixed MCP contract pins Repository, Evaluation, and waiver tools and resources", () => {
   assert.equal(MCP_PROTOCOL_VERSION, "2025-11-25");

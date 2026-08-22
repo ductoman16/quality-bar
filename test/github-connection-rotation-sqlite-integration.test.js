@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubConnectionCredentialCipher } from "../src/github-connection-credential.js";
-import { GitHubConnectionError } from "../src/github-connection.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createGitHubConnectionCredentialCipher } from "../src/github/github-connection-credential.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createAvailableGitHubConnectionService } from "./storage-reserve-support.js";
 
 const verification = {

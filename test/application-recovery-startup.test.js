@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApplication } from "../src/application.js";
+import { createApplication } from "../src/application/application.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("startup recovers durable Codex work before composing or starting workers", async () => {

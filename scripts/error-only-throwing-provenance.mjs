@@ -13,30 +13,30 @@ const repositoryRoot = resolve(import.meta.dirname, "..");
 const repositoryConstructors = new Map(
   Object.entries({
     "src/browser-session.js": ["BrowserSessionError"],
-    "src/codex-capabilities.js": ["CodexConfigurationError"],
-    "src/durable-error.js": ["DurableCoreError"],
+    "src/codex/codex-capabilities.js": ["CodexConfigurationError"],
+    "src/durable/durable-error.js": ["DurableCoreError"],
     "src/execution-analytics.js": ["AnalyticsError"],
-    "src/github-connection-error.js": ["GitHubConnectionError"],
+    "src/github/github-connection-error.js": ["GitHubConnectionError"],
     "src/implementer-token.js": ["ImplementerTokenError"],
     "src/installation-configuration.js": ["InstallationConfigurationError"],
     "src/installation-environment.js": ["InstallationEnvironmentError"],
-    "src/operator-login-throttle.js": ["OperatorLoginThrottleError"],
-    "src/operator-password.js": ["OperatorPasswordError"],
+    "src/operator/operator-login-throttle.js": ["OperatorLoginThrottleError"],
+    "src/operator/operator-password.js": ["OperatorPasswordError"],
     "src/request-security.js": ["RequestSecurityError"],
-    "src/review-run-checkout.js": ["ReviewRunCheckoutError"],
-    "src/review-run-result.js": ["ReviewRunExecutionError"],
-    "src/review-validation.js": ["ReviewError"],
+    "src/review/review-run-checkout.js": ["ReviewRunCheckoutError"],
+    "src/review/review-run-result.js": ["ReviewRunExecutionError"],
+    "src/review/review-validation.js": ["ReviewError"],
     "src/storage-reserve.js": ["StorageReserveError"],
   }).map(([path, names]) => [resolve(repositoryRoot, path), new Set(names)]),
 );
 
 const validatedRepositoryReexports = new Map([
   [
-    resolve(repositoryRoot, "src/durable-core.js"),
+    resolve(repositoryRoot, "src/durable/durable-core.js"),
     new Map([["DurableCoreError", "./durable-error.js"]]),
   ],
   [
-    resolve(repositoryRoot, "src/github-connection.js"),
+    resolve(repositoryRoot, "src/github/github-connection.js"),
     new Map([["GitHubConnectionError", "./github-connection-error.js"]]),
   ],
 ]);

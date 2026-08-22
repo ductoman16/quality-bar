@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewService, ReviewError } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewService, ReviewError } from "../src/review/review.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

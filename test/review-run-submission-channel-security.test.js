@@ -13,15 +13,15 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { publishSignedResponse } from "../src/review-run-submission-response.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { publishSignedResponse } from "../src/review/review-run-submission-response.js";
 import {
   isProcessAlive,
   parseSubmissionLock,
   publishFile,
-} from "../src/review-run-submission-files.js";
-import { removeOwnedFile } from "../src/review-run-submission-file-cleanup.js";
-import { processGroupIdentity } from "../src/review-run-submission-process-group.js";
+} from "../src/review/review-run-submission-files.js";
+import { removeOwnedFile } from "../src/review/review-run-submission-file-cleanup.js";
+import { processGroupIdentity } from "../src/review/review-run-submission-process-group.js";
 
 const claim = Object.freeze({
   fencingToken: 7,

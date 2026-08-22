@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   createWaiverAdjudicatorConfigurationService,
   WaiverAdjudicatorConfigurationError,
-} from "../src/waiver-adjudicator-configuration.js";
+} from "../src/waiver/waiver-adjudicator-configuration.js";
 
 function configuration(overrides = {}) {
   return {

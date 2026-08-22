@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readSystemStorageFacts } from "../src/system-storage-facts.js";
+import { readSystemStorageFacts } from "../src/system/system-storage-facts.js";
 
 const NOW = Date.parse("2026-08-02T12:00:00.000Z");
 const KEY_IDENTITY = `sha256:${"a".repeat(64)}`;

@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { recoverCodexExecutions } from "../src/codex/codex-execution-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("restart recovery write failure is hard storage_unavailable with no partial state", async (context) => {

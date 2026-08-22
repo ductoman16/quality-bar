@@ -1,4 +1,4 @@
-import { restoreOfflineBackup } from "../../src/offline-restore.js";
+import { restoreOfflineBackup } from "../../src/offline/offline-restore.js";
 
 const [databasePath, manifestPath, masterKeyHex, crashBoundary] =
   process.argv.slice(2);

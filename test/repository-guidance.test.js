@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { APPLICABILITY_RULE_PROFILE } from "../src/applicability-rule.js";
-import { buildRepositoryGuidance } from "../src/repository-guidance.js";
+import { APPLICABILITY_RULE_PROFILE } from "../src/applicability/applicability-rule.js";
+import { buildRepositoryGuidance } from "../src/repository/repository-guidance.js";
 
 test("Repository Guidance preserves the complete active Review contract without predicting applicability", () => {
   const repository = {

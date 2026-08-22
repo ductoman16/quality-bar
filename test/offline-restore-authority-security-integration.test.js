@@ -6,14 +6,14 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
 import { createBrowserSessionService } from "../src/browser-session.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createImplementerTokenService } from "../src/implementer-token.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
-import { restoreOfflineBackup } from "../src/offline-restore.js";
+import { restoreOfflineBackup } from "../src/offline/offline-restore.js";
 import {
   bootstrapOperatorPassword,
   verifyOperatorPassword,
-} from "../src/operator-password.js";
+} from "../src/operator/operator-password.js";
 import {
   createValidatedBackup,
   installationKeyIdentity,

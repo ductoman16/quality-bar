@@ -11,11 +11,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { readReviewRunFileChanges } from "../src/review-run-file-changes.js";
+import { readReviewRunFileChanges } from "../src/review/review-run-file-changes.js";
 import {
   ReviewRunExecutionError,
   validateReviewRunSubmission,
-} from "../src/review-run-result.js";
+} from "../src/review/review-run-result.js";
 
 /** @param {string} repository @param {string} message */
 function commit(repository, message) {

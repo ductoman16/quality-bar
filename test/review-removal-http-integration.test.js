@@ -7,7 +7,7 @@ import {
   reviewRequest,
   startApplication,
 } from "./review-http-integration-support.js";
-import { createUnavailableReviewService } from "../src/review.js";
+import { createUnavailableReviewService } from "../src/review/review.js";
 
 test("the canonical Review resource deletes only a never-used lineage", async () => {
   const { application, request } = await startApplication();

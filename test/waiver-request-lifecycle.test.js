@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { waiverRequestNextAction } from "../src/waiver-request-lifecycle.js";
+import { waiverRequestNextAction } from "../src/waiver/waiver-request-lifecycle.js";
 
 test("a Finding permits only the contract-defined next waiver action", () => {
   assert.equal(

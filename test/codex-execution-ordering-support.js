@@ -1,4 +1,4 @@
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 /** @param {any} core @param {{adjudicationReadyAt: number, reviewRunReadyAt: number}} times */

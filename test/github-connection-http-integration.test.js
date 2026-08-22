@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   GitHubConnectionError,
   createUnavailableGitHubConnectionService,
-} from "../src/github-connection.js";
+} from "../src/github/github-connection.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createWaiverAdjudicationPrompt } from "../src/waiver-adjudication-execution.js";
+import { createWaiverAdjudicationPrompt } from "../src/waiver/waiver-adjudication-execution.js";
 
 test("the focused prompt contains only selected immutable waiver context", () => {
   const prompt = createWaiverAdjudicationPrompt({

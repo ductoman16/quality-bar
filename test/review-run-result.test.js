@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   ReviewRunExecutionError,
   validateReviewRunSubmission,
-} from "../src/review-run-result.js";
+} from "../src/review/review-run-result.js";
 
 const criteria = [
   { criterion_id: "criterion-1", impact: "blocking" },

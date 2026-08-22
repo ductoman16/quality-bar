@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { arrangeGitHubFeedback as arrange } from "./github-feedback-publication-support.js";
 
 test("durable feedback cannot move or cross its frozen Evaluation", (context) => {

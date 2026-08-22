@@ -1,4 +1,4 @@
-import { restoreOfflineBackupFromHost } from "./offline-restore-host.js";
+import { restoreOfflineBackupFromHost } from "./offline/offline-restore-host.js";
 
 const manifestPath = process.argv[2];
 if (process.argv.length !== 3 || !manifestPath) {

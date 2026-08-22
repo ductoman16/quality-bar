@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableReviewService } from "../src/review.js";
+import { createUnavailableReviewService } from "../src/review/review.js";
 import {
   responseErrorCode,
   reviewRequest,

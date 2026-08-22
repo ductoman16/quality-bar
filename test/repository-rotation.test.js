@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
+import { createRepositoryService, RepositoryError } from "../src/repository/repository.js";
 
 /**
  * @param {Record<string, import("node:sqlite").SQLInputValue>[]} rows

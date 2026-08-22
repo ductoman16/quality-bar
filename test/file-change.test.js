@@ -4,8 +4,8 @@ import { test } from "node:test";
 import {
   APPLICABILITY_RULE_PROFILE,
   evaluateApplicabilityRule,
-} from "../src/applicability-evaluation.js";
-import { EvaluationError } from "../src/evaluation-validation.js";
+} from "../src/applicability/applicability-evaluation.js";
+import { EvaluationError } from "../src/evaluation/evaluation-validation.js";
 import { fileChangesFromGitNameStatus } from "../src/file-change.js";
 import { createGitPathMatcher } from "../src/git-path-matcher.js";
 

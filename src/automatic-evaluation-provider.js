@@ -1,11 +1,11 @@
 import {
   prepareForgejoAutomaticEvaluation,
   recordForgejoPullRequestEvaluation,
-} from "./forgejo-evaluation-admission.js";
+} from "./forgejo/forgejo-evaluation-admission.js";
 import {
   prepareGitHubAutomaticEvaluation,
   recordGitHubPullRequestEvaluation,
-} from "./github-evaluation-supersession.js";
+} from "./github/github-evaluation-supersession.js";
 
 /** @param {unknown} provider */
 function requireProvider(provider) {

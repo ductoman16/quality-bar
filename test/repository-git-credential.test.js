@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRepositoryGitCredentialAcquirer } from "../src/repository-git-credential.js";
+import { createRepositoryGitCredentialAcquirer } from "../src/repository/repository-git-credential.js";
 
 test("execution acquisition resolves only the owning Repository credential", async () => {
   const genericCredential = { token: "generic-token", username: "operator" };

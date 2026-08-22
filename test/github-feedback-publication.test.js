@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { cancelEvaluation } from "../src/evaluation-cancellation.js";
-import { createGitHubFeedbackService } from "../src/github-feedback-service.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { cancelEvaluation } from "../src/evaluation/evaluation-cancellation.js";
+import { createGitHubFeedbackService } from "../src/github/github-feedback-service.js";
 import {
   EVALUATION_SELECTION,
   readEvaluation,
-} from "../src/evaluation-resource.js";
+} from "../src/evaluation/evaluation-resource.js";
 import { arrangeGitHubFeedback as arrange } from "./github-feedback-publication-support.js";
 
 test("one append-only aggregate includes every Finding while only frozen-diff coordinates publish inline", async (context) => {

@@ -5,10 +5,10 @@ import {
   ApplicationShutdownError,
   createApplicationClose,
   createApplicationShutdownBoundary,
-} from "../src/application-shutdown.js";
+} from "../src/application/application-shutdown.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
-import { evaluationFailureStatus } from "../src/evaluation-route-failure.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
+import { evaluationFailureStatus } from "../src/evaluation/evaluation-route-failure.js";
 import { isUnavailableError } from "../src/http-request.js";
 
 test("graceful shutdown gates new durable work while preserving reads and cleanup", () => {

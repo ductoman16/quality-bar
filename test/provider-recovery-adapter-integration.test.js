@@ -6,11 +6,11 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { createGitHubVerifier } from "../src/github-api.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
-import { createForgejoCommitStatusService } from "../src/forgejo-commit-status-service.js";
-import { createForgejoV16Publisher } from "../src/forgejo-v16.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
+import { createForgejoCommitStatusService } from "../src/forgejo/forgejo-commit-status-service.js";
+import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
 

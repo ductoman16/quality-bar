@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   removeExpiredBrowserSessions,
 } from "../src/browser-session.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubPollingRunner } from "../src/github/github-polling-runner.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { createStorageReservePollingCore } from "../src/storage-reserve-polling-core.js";
 import {

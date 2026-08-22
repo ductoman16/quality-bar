@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { request as sendHttpRequest } from "node:http";
 import { test } from "node:test";
 
-import { createEvaluationService } from "../src/evaluation.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
-import { createReviewRunResultService } from "../src/review-run-result.js";
-import { createReviewService } from "../src/review.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
+import { createReviewRunResultService } from "../src/review/review-run-result.js";
+import { createReviewService } from "../src/review/review.js";
 import {
   responseErrorCode,
   startApplication,

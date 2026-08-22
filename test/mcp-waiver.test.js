@@ -5,7 +5,7 @@ import {
   executeWaiverTool,
   submitWaiverArguments,
   waiverAdjudicationArguments,
-} from "../src/mcp-waiver.js";
+} from "../src/mcp/mcp-waiver.js";
 
 test("MCP waiver inputs accept only the two fixed closed tool shapes", () => {
   assert.deepEqual(

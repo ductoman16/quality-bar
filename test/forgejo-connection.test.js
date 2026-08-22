@@ -5,8 +5,8 @@ import {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 
 test("Forgejo v16 verifier begins provider proof for an explicit empty repository selection", async () => {
   let requested = false;

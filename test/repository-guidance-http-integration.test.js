@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableRepositoryGuidanceService } from "../src/repository-guidance.js";
-import { createReviewService } from "../src/review.js";
+import { createUnavailableRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
+import { createReviewService } from "../src/review/review.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

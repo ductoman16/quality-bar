@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { projectForgejoDiffLineRange } from "../src/forgejo-feedback.js";
+import { projectForgejoDiffLineRange } from "../src/forgejo/forgejo-feedback.js";
 
 const fileChange = {
   after_path: "src/example.js",

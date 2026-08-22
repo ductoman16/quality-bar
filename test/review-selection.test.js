@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { selectReviewVersionsForNewEvaluation } from "../src/review-selection.js";
+import { selectReviewVersionsForNewEvaluation } from "../src/review/review-selection.js";
 
 test("new Evaluation selection pins only active Reviews while an earlier selection stays unchanged", () => {
   const active = {

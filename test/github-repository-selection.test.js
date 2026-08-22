@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { normalizeGitHubRepositorySelection } from "../src/github-repository-selection.js";
-import { createGitHubRepositorySelectionCommit } from "../src/github-repository-selection-commit.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
+import { normalizeGitHubRepositorySelection } from "../src/github/github-repository-selection.js";
+import { createGitHubRepositorySelectionCommit } from "../src/github/github-repository-selection-commit.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
 
 test("GitHub Repository selection requires one exact nonempty set of stable Forge Repository IDs", () => {
   assert.deepEqual(

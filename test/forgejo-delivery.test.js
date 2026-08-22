@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   forgejoDeliveryFailure,
   nextForgejoDeliveryAttemptAt,
-} from "../src/forgejo-delivery.js";
+} from "../src/forgejo/forgejo-delivery.js";
 
 test("Forgejo delivery retries transient failures indefinitely with provider-aware delay capped at one hour", () => {
   assert.equal(

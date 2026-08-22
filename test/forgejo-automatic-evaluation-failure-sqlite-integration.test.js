@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 import {
   forgejoVerification,
   pullRequest,

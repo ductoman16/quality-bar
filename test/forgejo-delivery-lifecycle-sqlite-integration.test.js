@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
-import { retireForgejoPublicationRows } from "../src/forgejo-publication-retirement.js";
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { resumeForgejoDeliveries } from "../src/forgejo/forgejo-delivery-recovery.js";
+import { retireForgejoPublicationRows } from "../src/forgejo/forgejo-publication-retirement.js";
+import { createRepositoryService, RepositoryError } from "../src/repository/repository.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
 test("deliveries admitted after retirement stay stopped until their Repository is verified", (context) => {

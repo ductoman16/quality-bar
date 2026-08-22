@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createForgejoPollingRunner } from "../src/forgejo-polling-runner.js";
+import { createForgejoPollingRunner } from "../src/forgejo/forgejo-polling-runner.js";
 import {
   IO_EXECUTION_CONCURRENCY,
   IO_EXECUTION_QUEUE_CAPACITY,
   createIoExecutionPool,
 } from "../src/io-execution-pool.js";
 import { createIoDutyTimer } from "../src/io-duty-timer.js";
-import { FORGEJO_POLL_INTERVAL_MS } from "../src/forgejo-polling.js";
+import { FORGEJO_POLL_INTERVAL_MS } from "../src/forgejo/forgejo-polling.js";
 
 test("a stopped I/O duty cannot restart from an earlier lifecycle callback", () => {
   /** @type {{callback: () => void, unref: () => void}[]} */

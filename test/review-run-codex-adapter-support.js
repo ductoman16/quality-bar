@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 
-import { runReviewRunCodex as runCodexAdapter } from "../src/review-run-codex-adapter.js";
-import { observeCodexProcess } from "../src/review-run-codex-process.js";
+import { runReviewRunCodex as runCodexAdapter } from "../src/review/review-run-codex-adapter.js";
+import { observeCodexProcess } from "../src/review/review-run-codex-process.js";
 
 export const claim = Object.freeze({
   fencingToken: 7,

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 test("shared claim storage failure keeps both kinds queued with no inferred result", (context) => {

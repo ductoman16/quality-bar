@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

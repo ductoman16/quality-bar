@@ -9,8 +9,8 @@ import {
   resolvePushedCommitSelectors,
   verifyPublicRepositoryRead,
   verifyRepositoryRead,
-} from "../src/repository-git.js";
-import { RepositoryError } from "../src/repository-validation.js";
+} from "../src/repository/repository-git.js";
+import { RepositoryError } from "../src/repository/repository-validation.js";
 import {
   assertCredentialedAcquisitionRejectsRedirect,
   createBareRepository,

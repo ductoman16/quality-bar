@@ -1,4 +1,4 @@
-import { normalizePublicRepositoryUrl } from "./repository-validation.js";
+import { normalizePublicRepositoryUrl } from "./repository/repository-validation.js";
 
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {

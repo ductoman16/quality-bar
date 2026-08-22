@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewService } from "../src/review/review.js";
 
 test("archiving excludes a Review from future selection and restoring preserves its pointer and history", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-archival-"));

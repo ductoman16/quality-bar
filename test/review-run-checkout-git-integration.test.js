@@ -15,7 +15,7 @@ import { test } from "node:test";
 import {
   prepareReviewRunCheckout,
   ReviewRunCheckoutError,
-} from "../src/review-run-checkout.js";
+} from "../src/review/review-run-checkout.js";
 
 /**
  * @param {string} repository

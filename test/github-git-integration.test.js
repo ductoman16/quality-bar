@@ -6,15 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { verifyGitHubRepositoryRead } from "../src/github-git-verification.js";
-import { createGitHubPollingService } from "../src/github-polling.js";
-import { createGitHubCommitStatusPublisher } from "../src/github-commit-status-api.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { verifyGitHubRepositoryRead } from "../src/github/github-git-verification.js";
+import { createGitHubPollingService } from "../src/github/github-polling.js";
+import { createGitHubCommitStatusPublisher } from "../src/github/github-commit-status-api.js";
 import {
   resolvePushedCommitSelectors,
   verifyRepositoryRead,
-} from "../src/repository-git.js";
+} from "../src/repository/repository-git.js";
 
 test("real Git distinguishes transient GitHub failure from definitive access loss", async (context) => {
   const server = createServer((request, response) => {

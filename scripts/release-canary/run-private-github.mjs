@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { createGitHubVerifier } from "../../src/github-api.js";
+import { createGitHubVerifier } from "../../src/github/github-api.js";
 import { runReleaseCanary } from "./evidence.mjs";
 import { readPrivateGitHubCanaryConfiguration } from "./private-github-configuration.mjs";
 import { invokePrivateGitHubCanary } from "./private-github.mjs";

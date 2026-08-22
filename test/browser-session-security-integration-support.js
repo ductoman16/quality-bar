@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach } from "node:test";
 
-import { createApplication } from "../src/application.js";
+import { createApplication } from "../src/application/application.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */

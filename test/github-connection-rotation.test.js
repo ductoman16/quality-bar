@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { rotateGitHubConnection } from "../src/github-connection-rotation.js";
-import { GitHubConnectionError } from "../src/github-connection.js";
+import { rotateGitHubConnection } from "../src/github/github-connection-rotation.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
 
 test("GitHub App rotation rejects every non-canonical credential request", async () => {
   const dependencies = /** @type {any} */ ({

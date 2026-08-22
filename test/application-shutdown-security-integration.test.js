@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApplication } from "../src/application.js";
-import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
+import { createApplication } from "../src/application/application.js";
+import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("shutdown failure logs its owning code without exposing a registered credential", async (context) => {

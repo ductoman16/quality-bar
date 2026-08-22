@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEvaluationService } from "../src/evaluation.js";
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
 import { startApplication } from "./http-integration-support.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 

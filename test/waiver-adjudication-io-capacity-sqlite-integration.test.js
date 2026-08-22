@@ -4,15 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   IO_EXECUTION_CONCURRENCY,
   IO_EXECUTION_QUEUE_CAPACITY,
   createIoExecutionPool,
 } from "../src/io-execution-pool.js";
-import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
-import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { createWaiverAdjudicationClaimService } from "../src/waiver/waiver-adjudication-claim.js";
+import { executeWaiverAdjudication } from "../src/waiver/waiver-adjudication-execution.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 test("I/O saturation releases waiver work without consuming a pre-start attempt", async (context) => {
