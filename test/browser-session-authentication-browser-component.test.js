@@ -23,15 +23,42 @@ async function responseErrorCode(response) {
   return body.error.code;
 }
 
+/** @param {string} html */
+function browserConfiguration(html) {
+  const source = html.match(
+    /<script id="browser-configuration" type="application\/json">\s*([^<]+)\s*<\/script>/,
+  )?.[1];
+  if (!source) {
+    throw new Error("browser_configuration_missing");
+  }
+  return /** @type {any} */ (JSON.parse(source));
+}
+
+/** @param {string} html */
+function browserAssetPath(html) {
+  const path = html.match(/<script type="module"[^>]+src="([^"]+)"/)?.[1];
+  if (!path) {
+    throw new Error("browser_asset_missing");
+  }
+  return path;
+}
+
 test("the minimum unauthenticated surface exposes the password-only login and no product data", async () => {
   const { origin } = await startApplication();
 
   const login = await fetch(`${origin}/`);
   assert.match(requiredHeader(login, "content-type"), /^text\/html/);
   const loginPage = await login.text();
-  assert.match(loginPage, /<label for="password">Password<\/label>/);
-  assert.match(loginPage, /<button[^>]*>Log in<\/button>/);
-  assert.match(loginPage, /<script src="\/assets\/login\.js"><\/script>/);
+  assert.deepEqual(browserConfiguration(loginPage), {
+    authenticated: false,
+    intendedDestination: "/",
+    view: "evaluations",
+  });
+  assert.match(loginPage, /<div id="app"><\/div>/);
+  assert.match(
+    browserAssetPath(loginPage),
+    /^\/assets\/index-[A-Za-z0-9_-]+\.js$/,
+  );
   assert.doesNotMatch(
     loginPage,
     /username|signup|remember|recovery|localStorage|Bearer/i,
@@ -53,8 +80,8 @@ test("the operator theme cookie is honored server-side and validated", async () 
 
   assert.match(await read("dark"), /<html lang="en" data-theme="dark">/);
   assert.match(await read("light"), /<html lang="en" data-theme="light">/);
-  assert.match(await read("neon"), /<html lang="en"><head>/);
-  assert.match(await read(undefined), /<html lang="en"><head>/);
+  assert.match(await read("neon"), /<html lang="en">/);
+  assert.match(await read(undefined), /<html lang="en">/);
 });
 
 test("a password login sets a callback-capable session cookie and strict CSRF cookie", async () => {
@@ -111,14 +138,11 @@ test("a password login sets a callback-capable session cookie and strict CSRF co
     headers: { cookie: cookie.split(";", 1)[0], ...proxyHeaders },
   });
   const authenticatedHtml = await authenticatedPage.text();
-  assert.match(
-    authenticatedHtml,
-    /<button[^>]*id="logout"[^>]*>Log out<\/button>/,
-  );
-  assert.match(
-    authenticatedHtml,
-    /<script src="\/assets\/operator\.js"><\/script>/,
-  );
+  assert.deepEqual(browserConfiguration(authenticatedHtml), {
+    authenticated: true,
+    csrfCookieName: "quality_bar_csrf",
+    view: "evaluations",
+  });
 
   const logout = await fetch(`${origin}/api/v1/session/logout`, {
     headers: {
@@ -160,7 +184,7 @@ test("a password login sets a callback-capable session cookie and strict CSRF co
   );
 });
 
-test("the authenticated browser shell has the fixed resource navigation and a System attention target", async () => {
+test("the authenticated browser shell selects each fixed resource view", async () => {
   const { origin } = await startApplication();
   const login = await fetch(`${origin}/api/v1/session/login`, {
     body: JSON.stringify({ password: "a correct operator password" }),
@@ -171,94 +195,23 @@ test("the authenticated browser shell has the fixed resource navigation and a Sy
 
   const evaluations = await fetch(`${origin}/`, { headers: { cookie } });
   const evaluationsHtml = await evaluations.text();
-  assert.match(evaluationsHtml, /<h1[^>]*>Evaluations<\/h1>/);
-  assert.match(evaluationsHtml, /aria-label="Primary"/);
-  for (const resource of [
-    "Evaluations",
-    "Reviews",
-    "Repositories",
-    "Analytics",
-    "System",
-  ]) {
-    assert.match(evaluationsHtml, new RegExp(`>${resource}<\\/a>`));
-  }
-  assert.match(evaluationsHtml, /id="attention"/);
-  assert.doesNotMatch(evaluationsHtml, /Dashboard|notification|workflow/i);
+  assert.equal(browserConfiguration(evaluationsHtml).view, "evaluations");
 
   const system = await fetch(`${origin}/?view=system`, { headers: { cookie } });
   const systemHtml = await system.text();
-  assert.match(systemHtml, /<h1[^>]*>System<\/h1>/);
-  assert.match(systemHtml, /id="system-facts"/);
-  assert.match(systemHtml, /<script src="\/assets\/operator\.js"><\/script>/);
+  assert.equal(browserConfiguration(systemHtml).view, "system");
 
   const reviews = await fetch(`${origin}/?view=reviews`, {
     headers: { cookie },
   });
   const reviewsHtml = await reviews.text();
-  assert.match(reviewsHtml, /<h1[^>]*>Reviews<\/h1>/);
-  assert.match(reviewsHtml, /id="review-catalog"/);
-  assert.match(reviewsHtml, /id="review-create-form"/);
-  assert.match(reviewsHtml, /id="review-criteria"/);
-  assert.match(reviewsHtml, /id="review-add-criterion"[^>]*>\+<\/button>/);
-  assert.match(reviewsHtml, /id="review-model"/);
-  assert.match(reviewsHtml, /id="review-reasoning-effort"/);
-  assert.match(reviewsHtml, /id="review-service-tier"/);
-  assert.match(reviewsHtml, /review-create-result/);
-  assert.match(reviewsHtml, /<script src="\/assets\/operator\.js"><\/script>/);
-  assert.match(
-    reviewsHtml,
-    /<script src="\/assets\/review-catalog\.js"><\/script>/,
-  );
-  assert.match(
-    reviewsHtml,
-    /<script src="\/assets\/review-create\.js"><\/script>/,
-  );
-  assert.match(
-    reviewsHtml,
-    /<script src="\/assets\/review-criteria\.js"><\/script>/,
-  );
+  assert.equal(browserConfiguration(reviewsHtml).view, "reviews");
 
   const reviewDetail = await fetch(`${origin}/?view=review-detail`, {
     headers: { cookie },
   });
   const reviewDetailHtml = await reviewDetail.text();
-  assert.match(reviewDetailHtml, /id="review-detail"/);
-  assert.match(reviewDetailHtml, /id="review-metadata-form"/);
-  assert.match(reviewDetailHtml, /id="review-metadata-name"/);
-  assert.match(reviewDetailHtml, /id="review-metadata-description"/);
-  assert.match(reviewDetailHtml, /id="review-metadata-result"/);
-  assert.match(reviewDetailHtml, /id="review-version-form"/);
-  assert.match(reviewDetailHtml, /id="review-version-activation"/);
-  assert.match(
-    reviewDetailHtml,
-    /id="review-version-activate"[^>]*>Reactivate<\/button>/,
-  );
-  assert.match(reviewDetailHtml, /id="review-version-applicability-rule"/);
-  assert.match(reviewDetailHtml, /id="review-version-criteria"/);
-  assert.match(
-    reviewDetailHtml,
-    /id="review-version-add-criterion"[^>]*>\+<\/button>/,
-  );
-  assert.match(reviewDetailHtml, /id="review-version-result"/);
-  assert.match(reviewDetailHtml, /id="review-archival-form"/);
-  assert.match(reviewDetailHtml, /id="review-archival-state"/);
-  assert.match(reviewDetailHtml, /id="review-archival-result"/);
-  assert.match(
-    reviewDetailHtml,
-    /<script src="\/assets\/review-detail\.js"><\/script>/,
-  );
-  assert.match(
-    reviewDetailHtml,
-    /<script src="\/assets\/review-version\.js"><\/script>/,
-  );
-  assert.match(
-    reviewDetailHtml,
-    /<script src="\/assets\/review-reactivation\.js"><\/script>/,
-  );
-  assert.match(
-    reviewDetailHtml,
-    /<script src="\/assets\/review-archival\.js"><\/script>/,
-  );
+  assert.equal(browserConfiguration(reviewDetailHtml).view, "review-detail");
 });
 
 test("a malformed login request creates no session", async () => {
@@ -297,11 +250,10 @@ test("an expired browser session returns to login and preserves only a safe inte
     { headers: { cookie } },
   );
   const safeLoginPage = await safeDestination.text();
-  assert.match(
-    safeLoginPage,
-    /<script id="browser-configuration" type="application\/json">\{"intendedDestination":"\/system\?section=sessions"\}<\/script>/,
+  assert.equal(
+    browserConfiguration(safeLoginPage).intendedDestination,
+    "/system?section=sessions",
   );
-  assert.match(safeLoginPage, /<script src="\/assets\/login\.js"><\/script>/);
 
   const rejectedMutation = await fetch(`${origin}/api/v1/session/logout`, {
     headers: { cookie },
@@ -318,19 +270,13 @@ test("an expired browser session returns to login and preserves only a safe inte
     headers: { cookie: freshCookie },
   });
   const authenticatedHtml = await operatorPage.text();
-  assert.match(
-    authenticatedHtml,
-    /<script src="\/assets\/operator\.js"><\/script>/,
-  );
+  assert.equal(browserConfiguration(authenticatedHtml).authenticated, true);
 
   const unsafeDestination = await fetch(
     `${origin}/?return_to=https%3A%2F%2Fattacker.example%2Fsteal`,
   );
   const unsafeLoginPage = await unsafeDestination.text();
-  assert.match(
-    unsafeLoginPage,
-    /<script id="browser-configuration" type="application\/json">\{"intendedDestination":"\/"\}<\/script>/,
-  );
+  assert.equal(browserConfiguration(unsafeLoginPage).intendedDestination, "/");
   assert.doesNotMatch(unsafeLoginPage, /attacker\.example/);
 });
 

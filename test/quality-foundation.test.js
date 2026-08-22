@@ -49,8 +49,9 @@ test("Node declarations pin the same exact runtime", () => {
   assert.equal(npmConfiguration, "engine-strict=true\n");
   assert.match(
     dockerfile,
-    /^ARG BUNDLED_NODE_IMAGE=node:24\.18\.0-alpine@sha256:[a-f0-9]{64}\nFROM \$\{BUNDLED_NODE_IMAGE\}$/m,
+    /^ARG BUNDLED_NODE_IMAGE=node:24\.18\.0-alpine@sha256:[a-f0-9]{64}\nFROM \$\{BUNDLED_NODE_IMAGE\} AS build$/m,
   );
+  assert.match(dockerfile, /^FROM \$\{BUNDLED_NODE_IMAGE\}$/m);
 });
 
 test("the verifier runtime contract rejects every nonexact Node version", () => {

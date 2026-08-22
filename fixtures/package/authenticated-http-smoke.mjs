@@ -26,6 +26,14 @@ const cookie = `${sessionCookie}; quality_bar_csrf=${csrfToken}`;
 const browser = await fetch(`${endpoint}/?view=system`, {
   headers: { ...headers, cookie },
 });
+const browserHtml = await browser.text();
+const browserAssetPath = browserHtml.match(/<script[^>]+src="([^"]+)"/)?.[1];
+const browserAsset = browserAssetPath
+  ? await fetch(new URL(browserAssetPath, endpoint), {
+      headers: { ...headers, cookie },
+    })
+  : null;
+const browserJavaScript = browserAsset?.ok ? await browserAsset.text() : "";
 const system = await fetch(`${endpoint}/api/v1/system`, {
   headers: { ...headers, cookie },
 });
@@ -124,9 +132,11 @@ console.log(
     hasCodexCapabilityModels:
       Array.isArray(codexCapabilityCatalog.models) &&
       codexCapabilityCatalog.models.length > 0,
-    hasNavigation: /Evaluations.*Reviews.*Repositories.*Analytics.*System/.test(
-      await browser.text(),
-    ),
+    hasNavigation:
+      browserHtml.includes('id="app"') &&
+      ["Evaluations", "Reviews", "Repositories", "Analytics", "System"].every(
+        (label) => browserJavaScript.includes(label),
+      ),
     loginStatus: login.status,
     ...machineFacts,
     openapiStatus: openapi.status,

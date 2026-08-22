@@ -1,8 +1,8 @@
 import { METHODS } from "node:http";
+import { fileURLToPath } from "node:url";
 
-import { readBrowserAsset } from "./browser-assets.js";
+import fastifyStatic from "@fastify/static";
 import { createApiOperations } from "./api-route.js";
-import { createBrowserAssetRoute } from "./browser-asset-route.js";
 import { createBrowserPageRoute } from "./browser-page-route.js";
 import {
   createBrowserSessionOperations,
@@ -43,7 +43,6 @@ import { createWaiverAdjudicatorConfigurationOperations } from "./waiver-adjudic
 export function createApplicationServer(dependencies) {
   const {
     browserSessions,
-    browserAssetReader = readBrowserAsset,
     implementerTokens,
     onboardingTokens,
     browserOrigin,
@@ -74,10 +73,6 @@ export function createApplicationServer(dependencies) {
     }
   }
   const runProductRequest = createProductRequestRunner(workerSignal);
-  const handleBrowserAsset = createBrowserAssetRoute({
-    browserAssetReader,
-    browserSessions,
-  });
   const sessionOperations = createBrowserSessionOperations({
     browserSessions,
     implementerTokens,
@@ -194,6 +189,12 @@ export function createApplicationServer(dependencies) {
         runProductRequest,
       }),
     );
+    routes.register(fastifyStatic, {
+      decorateReply: false,
+      index: false,
+      prefix: "/assets/",
+      root: fileURLToPath(new URL("../dist/assets", import.meta.url)),
+    });
     routes.setNotFoundHandler((request, reply) => {
       void request;
       writeError(reply, 404, "not_found", "Resource was not found");
@@ -211,22 +212,6 @@ export function createApplicationServer(dependencies) {
       { schema: { hide: true, security: [] } },
       (request, reply) =>
         handleBrowserPage(request, reply, requestUrl(request)),
-    );
-    routes.get(
-      "/assets/*",
-      {
-        schema: {
-          hide: true,
-          querystring: {
-            additionalProperties: false,
-            properties: {},
-            type: "object",
-          },
-          security: [],
-        },
-      },
-      (request, reply) =>
-        handleBrowserAsset(request, reply, requestUrl(request)),
     );
     routes.post(
       "/mcp/v1",

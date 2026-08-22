@@ -73,13 +73,10 @@ export function writeHtml(response, body, theme) {
     );
 }
 
-/**
- * @param {import("fastify").FastifyReply} response
- * @param {string} body
- */
-export function writeJavascript(response, body) {
+/** @param {import("fastify").FastifyReply} response @param {string} body */
+export function writeHtmlDocument(response, body) {
   assertProductOutputAvailable();
-  response.type("text/javascript; charset=utf-8").send(body);
+  response.type("text/html; charset=utf-8").send(body);
 }
 
 /**

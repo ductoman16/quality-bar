@@ -198,7 +198,11 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
       response.writeHead(502, { "content-type": "application/json" });
       response.end(
         JSON.stringify({
-          error: { message: "Controlled Forgejo verification failure" },
+          error: {
+            code: "forgejo_verification_failed",
+            message: "Controlled Forgejo verification failure",
+            request_id: "00000000-0000-4000-8000-000000000001",
+          },
         }),
       );
       completeWhenProven();

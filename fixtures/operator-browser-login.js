@@ -1,48 +1,49 @@
-const password = document.getElementById("password");
-const loginForm = document.getElementById("login-form");
-
-if (
-  password instanceof HTMLInputElement &&
-  loginForm instanceof HTMLFormElement
-) {
-  password.value = "a correct operator password";
-  loginForm.requestSubmit();
-} else {
-  const forgejoForm = document.getElementById("forgejo-connection-form");
-  const forgejoBaseUrl = document.getElementById("forgejo-connection-base-url");
-  const forgejoToken = document.getElementById("forgejo-connection-token");
-  const forgejoError = document.getElementById("forgejo-connection-error");
-
+window.addEventListener("DOMContentLoaded", () => {
+  const password = document.getElementById("password");
+  const loginForm = document.getElementById("login-form");
   if (
-    !(forgejoForm instanceof HTMLFormElement) ||
-    !(forgejoBaseUrl instanceof HTMLInputElement) ||
-    !(forgejoToken instanceof HTMLInputElement) ||
-    !(forgejoError instanceof HTMLParagraphElement)
+    password instanceof HTMLInputElement &&
+    loginForm instanceof HTMLFormElement
   ) {
-    throw new Error("operator_browser_forgejo_controls_missing");
+    password.value = "a correct operator password";
+    password.dispatchEvent(new Event("input", { bubbles: true }));
+    loginForm.requestSubmit();
+    return;
   }
+  const submitForgejo = () => {
+    const form = document.getElementById("forgejo-connection-form");
+    const baseUrl = document.getElementById("forgejo-connection-base-url");
+    const token = document.getElementById("forgejo-connection-token");
+    const error = document.getElementById("repository-error");
+    if (
+      !(form instanceof HTMLFormElement) ||
+      !(baseUrl instanceof HTMLInputElement) ||
+      !(token instanceof HTMLInputElement) ||
+      !(error instanceof HTMLParagraphElement) ||
+      form.closest("[inert]")
+    ) {
+      setTimeout(submitForgejo, 10);
+      return;
+    }
+    baseUrl.value = "https://forgejo.invalid";
+    baseUrl.dispatchEvent(new Event("input", { bubbles: true }));
+    token.value = "controlled-invalid-token";
+    token.dispatchEvent(new Event("input", { bubbles: true }));
+    form.requestSubmit();
 
-  window.addEventListener(
-    "DOMContentLoaded",
-    () => {
-      forgejoBaseUrl.value = "https://forgejo.invalid";
-      forgejoToken.value = "controlled-invalid-token";
-      forgejoForm.requestSubmit();
-
-      const reportError = () => {
-        if (!forgejoError.hidden) {
-          void fetch(
-            `/operator-browser-complete?${new URLSearchParams({
-              error: forgejoError.textContent ?? "",
-              path: `${location.pathname}${location.search}`,
-            })}`,
-          );
-          return;
-        }
-        setTimeout(reportError, 10);
-      };
-      reportError();
-    },
-    { once: true },
-  );
-}
+    const reportError = () => {
+      if (!error.hidden) {
+        void fetch(
+          `/operator-browser-complete?${new URLSearchParams({
+            error: error.textContent?.trim() ?? "",
+            path: `${location.pathname}${location.search}`,
+          })}`,
+        );
+        return;
+      }
+      setTimeout(reportError, 10);
+    };
+    reportError();
+  };
+  submitForgejo();
+});

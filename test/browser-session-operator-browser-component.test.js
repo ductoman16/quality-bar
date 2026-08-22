@@ -28,6 +28,17 @@ async function tokenBody(response) {
   return /** @type {{token: string}} */ (await response.json());
 }
 
+/** @param {string} html */
+function browserConfiguration(html) {
+  const source = html.match(
+    /<script id="browser-configuration" type="application\/json">\s*([^<]+)\s*<\/script>/,
+  )?.[1];
+  if (!source) {
+    throw new Error("operator_component_configuration_missing");
+  }
+  return /** @type {any} */ (JSON.parse(source));
+}
+
 test("the authenticated operator surface changes a password and revokes all sessions with fresh confirmation", async () => {
   const { origin } = await startApplication();
   const currentPassword = "a correct operator password";
@@ -50,13 +61,7 @@ test("the authenticated operator surface changes a password and revokes all sess
     headers: { cookie: firstCookie },
   });
   const authenticatedHtml = await authenticatedPage.text();
-  assert.match(authenticatedHtml, /id="password-change-form"/);
-  assert.match(
-    authenticatedHtml,
-    /<script src="\/assets\/operator\.js"><\/script>/,
-  );
-  assert.match(authenticatedHtml, /id="session-revocation-form"/);
-  assert.match(authenticatedHtml, /REVOKE ALL SESSIONS/);
+  assert.equal(browserConfiguration(authenticatedHtml).authenticated, true);
   assert.doesNotMatch(authenticatedHtml, /localStorage|Bearer/i);
 
   const passwordChange = await fetch(`${origin}/api/v1/session/password`, {
@@ -143,12 +148,7 @@ test("the authenticated operator surface reveals each generated implementer toke
     headers: { cookie: sessionCookie },
   });
   const html = await page.text();
-  assert.match(html, /id="implementer-token-create-form"/);
-  assert.match(html, /id="implementer-token-rotate-form"/);
-  assert.match(html, /id="implementer-token-revoke-form"/);
-  assert.match(html, /id="implementer-token-reveal"/);
-  assert.match(html, /aria-labelledby="implementer-token-reveal-title"/);
-  assert.match(html, /<script src="\/assets\/operator\.js"><\/script>/);
+  assert.equal(browserConfiguration(html).authenticated, true);
   assert.doesNotMatch(html, /Bearer|localStorage/i);
 
   const created = await fetch(`${origin}/api/v1/implementer-token`, {

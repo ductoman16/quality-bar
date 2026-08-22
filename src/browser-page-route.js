@@ -5,14 +5,11 @@ import {
   themePreference,
 } from "./http-request.js";
 import { writeMachineOperatorAccessDenial } from "./api-authorization.js";
-import {
-  browserView,
-  loginPage,
-  operatorPage,
-  safeInternalDestination,
-} from "./browser-pages.js";
+import { browserView, safeInternalDestination } from "./browser-navigation.js";
+import { browserDocument } from "./browser-ui.js";
+import { BROWSER_CSRF_COOKIE_NAME } from "./browser-session.js";
 import { requireCodedError } from "./coded-error.js";
-import { writeError, writeHtml } from "./http-response.js";
+import { writeError, writeHtml, writeHtmlDocument } from "./http-response.js";
 
 /**
  * @typedef {{
@@ -73,13 +70,16 @@ export function createBrowserPageRoute({
           channel: "browser_session",
           outcome: "success",
         });
-        writeHtml(
+        writeHtmlDocument(
           response,
-          operatorPage({
-            evaluationId: requestUrl.searchParams.get("evaluation_id"),
-            view,
-          }),
-          theme,
+          browserDocument(
+            {
+              authenticated: true,
+              csrfCookieName: BROWSER_CSRF_COOKIE_NAME,
+              view,
+            },
+            theme,
+          ),
         );
       } else {
         if (sessionSecret(request) !== undefined) {
@@ -90,12 +90,18 @@ export function createBrowserPageRoute({
             outcome: "failure",
           });
         }
-        writeHtml(
+        writeHtmlDocument(
           response,
-          loginPage(
-            safeInternalDestination(requestUrl.searchParams.get("return_to")),
+          browserDocument(
+            {
+              authenticated: false,
+              intendedDestination: safeInternalDestination(
+                requestUrl.searchParams.get("return_to"),
+              ),
+              view,
+            },
+            theme,
           ),
-          theme,
         );
       }
     } catch (error) {

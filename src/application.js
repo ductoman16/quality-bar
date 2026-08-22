@@ -18,7 +18,6 @@ import {
   createBrowserSessionService,
   createUnavailableBrowserSessionService,
 } from "./browser-session.js";
-import { readBrowserAsset as readMaintainedBrowserAsset } from "./browser-assets.js";
 import { requireCodedError } from "./coded-error.js";
 import {
   createImplementerTokenService,
@@ -107,7 +106,6 @@ import { installationKeyIdentity as computeInstallationKeyIdentity } from "./sql
  *   createCodexRuntime?: typeof createCodexExecutionRuntime,
  *   installationKeyIdentity?: string,
  *   recoverExecutions?: typeof recoverCodexExecutions,
- *   readBrowserAsset?: (path: string) => string,
  *   now?: () => number,
  *   writeLog?: (line: string) => unknown
  * }} options
@@ -133,7 +131,6 @@ export function createApplication({
   createCodexRuntime = createCodexExecutionRuntime,
   installationKeyIdentity,
   recoverExecutions = recoverCodexExecutions,
-  readBrowserAsset = readMaintainedBrowserAsset,
   now = () => Date.now(),
   writeLog = (line) => process.stderr.write(line),
 }) {
@@ -388,7 +385,6 @@ export function createApplication({
 
   const server = createApplicationRuntimeServer({
     browserSessions,
-    browserAssetReader: readBrowserAsset,
     implementerTokens,
     onboardingTokens,
     browserOrigin,
