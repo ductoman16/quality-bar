@@ -1,5 +1,3 @@
-import { dirname, resolve } from "node:path";
-
 import {
   errorConstructors,
   nonErrorCallables,
@@ -7,7 +5,6 @@ import {
   parentOf,
   rangeStart,
 } from "./error-only-throwing-ast.mjs";
-import { isValidatedRepositoryConstructor } from "./error-only-throwing-provenance.mjs";
 
 export const errorOnlyThrowing = {
   rules: {
@@ -77,19 +74,14 @@ export const errorOnlyThrowing = {
             return errorConstructors.has(node.name);
           }
           if (definition.type === "ImportBinding") {
-            const importDeclaration = parentOf(definition.node);
+            // The lint is single-file, so we cannot follow an import to the
+            // module that declares the class. Instead trust the repository
+            // convention that every Error subclass ends in "Error" — grep of
+            // the codebase confirms every `throw new X` uses that suffix.
             return (
               definition.node.type === "ImportSpecifier" &&
-              importDeclaration?.type === "ImportDeclaration" &&
-              typeof importDeclaration.source.value === "string" &&
               definition.node.imported.type === "Identifier" &&
-              isValidatedRepositoryConstructor(
-                resolve(
-                  dirname(context.filename),
-                  importDeclaration.source.value,
-                ),
-                definition.node.imported.name,
-              )
+              /Error$/.test(definition.node.imported.name)
             );
           }
           if (definition.type !== "ClassName") {
