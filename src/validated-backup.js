@@ -11,7 +11,7 @@ import {
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { isSqliteCorruption } from "./durable-integrity.js";
+import { isSqliteCorruption } from "./durable/durable-integrity.js";
 import { owningBackupError } from "./sqlite-backup-error.js";
 
 const BACKUP_FILE = /^quality-bar-(daily)-(.+)\.(json|sqlite3)$/;

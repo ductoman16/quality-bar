@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex/codex-execution-concurrency.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 
 test("a concurrency write failure is storage_unavailable and keeps the prior durable value", (context) => {
   const directory = mkdtempSync(

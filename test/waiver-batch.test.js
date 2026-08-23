@@ -4,7 +4,7 @@ import {
   canonicalWaiverErrorRetryRequest,
   canonicalWaiverBatchRequest,
   createWaiverBatchService,
-} from "../src/waiver-batch.js";
+} from "../src/waiver/waiver-batch.js";
 
 test("canonical waiver batch requires unique Findings and scenario-specific rationales", () => {
   assert.deepEqual(

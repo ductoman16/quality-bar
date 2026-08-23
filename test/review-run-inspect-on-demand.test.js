@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createReviewRunPrompt } from "../src/review-run-execution.js";
+import { createReviewRunPrompt } from "../src/review/review-run-execution.js";
 
 test("the Review Run receives frozen identities without a host-selected patch or coverage policy", () => {
   const prompt = createReviewRunPrompt({

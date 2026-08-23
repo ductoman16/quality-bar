@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createApplicationIoPool } from "../src/application-io-pool.js";
+import { createApplicationIoPool } from "../src/application/application-io-pool.js";
 import { IO_EXECUTION_CONCURRENCY } from "../src/io-execution-pool.js";
 
 test("one application pool owns explicit acquisition and eligible cleanup", async () => {

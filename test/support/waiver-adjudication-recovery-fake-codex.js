@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 
 import { createIoExecutionPool } from "../../src/io-execution-pool.js";
-import { createWaiverAdjudicationClaimService } from "../../src/waiver-adjudication-claim.js";
-import { createWaiverAdjudicationEvidenceService } from "../../src/waiver-adjudication-evidence.js";
-import { executeWaiverAdjudication } from "../../src/waiver-adjudication-execution.js";
-import { createWaiverAdjudicationRecoveryService } from "../../src/waiver-adjudication-recovery.js";
-import { createWaiverAdjudicationResultService } from "../../src/waiver-adjudication-result-service.js";
+import { createWaiverAdjudicationClaimService } from "../../src/waiver/waiver-adjudication-claim.js";
+import { createWaiverAdjudicationEvidenceService } from "../../src/waiver/waiver-adjudication-evidence.js";
+import { executeWaiverAdjudication } from "../../src/waiver/waiver-adjudication-execution.js";
+import { createWaiverAdjudicationRecoveryService } from "../../src/waiver/waiver-adjudication-recovery.js";
+import { createWaiverAdjudicationResultService } from "../../src/waiver/waiver-adjudication-result-service.js";
 
 /** @param {{checkoutRoot: string, core: any, fakeCodex: string}} input */
 export async function recoverStartedAdjudicationWithFakeCodex({

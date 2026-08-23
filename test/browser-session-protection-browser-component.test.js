@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableReviewService } from "../src/review.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
-import { createUnavailableEvaluationService } from "../src/evaluation.js";
+import { createUnavailableReviewService } from "../src/review/review.js";
+import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
+import { createUnavailableEvaluationService } from "../src/evaluation/evaluation.js";
 import { createApplicationServer } from "../src/server.js";
-import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
+import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver/waiver-adjudicator-configuration.js";
 import { startApplication } from "./browser-session-component-support.js";
 
 /** @param {Response} response */

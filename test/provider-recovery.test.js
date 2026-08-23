@@ -5,28 +5,28 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
 import {
   githubDeliveryFailure,
   nextGitHubDeliveryAttemptAt,
-} from "../src/github-delivery.js";
-import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
-import { createForgejoCommitStatusService } from "../src/forgejo-commit-status-service.js";
+} from "../src/github/github-delivery.js";
+import { resumeGitHubDeliveries } from "../src/github/github-delivery-recovery.js";
+import { createForgejoCommitStatusService } from "../src/forgejo/forgejo-commit-status-service.js";
 import {
   forgejoDeliveryFailure,
   nextForgejoDeliveryAttemptAt,
-} from "../src/forgejo-delivery.js";
-import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
-import { openDurableCore } from "../src/durable-core.js";
+} from "../src/forgejo/forgejo-delivery.js";
+import { resumeForgejoDeliveries } from "../src/forgejo/forgejo-delivery-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   isDefinitiveGitHubPollingFailure,
   nextGitHubAttemptAt,
-} from "../src/github-polling-failure.js";
+} from "../src/github/github-polling-failure.js";
 import {
   isDefinitiveForgejoPollingFailure,
   nextForgejoAttemptAt,
-} from "../src/forgejo-polling-failure.js";
+} from "../src/forgejo/forgejo-polling-failure.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { newlyEligibleForgejoPullRequests } from "../src/forgejo-automatic-evaluation.js";
-import { createForgejoAutomaticApplicationDependencies } from "../src/forgejo-automatic-application-dependencies.js";
+import { newlyEligibleForgejoPullRequests } from "../src/forgejo/forgejo-automatic-evaluation.js";
+import { createForgejoAutomaticApplicationDependencies } from "../src/forgejo/forgejo-automatic-application-dependencies.js";
 
 /** @param {number} number @param {Partial<{base: {sha: string}, draft: boolean, head: {sha: string}, merge_base: string, merged: boolean, merged_at: string | null, state: "closed" | "open"}>} [overrides] */
 function pullRequest(number, overrides = {}) {

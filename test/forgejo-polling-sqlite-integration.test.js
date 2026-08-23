@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryService } from "../src/repository.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createRepositoryService } from "../src/repository/repository.js";
 import {
   createOneShotForgejoBaselineFailure,
   forgejoVerification,

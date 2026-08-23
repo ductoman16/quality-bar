@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 import { forgejoAutomaticEvaluationTestDependencies } from "./storage-reserve-support.js";
 
 /** @param {any} core @param {any} options */

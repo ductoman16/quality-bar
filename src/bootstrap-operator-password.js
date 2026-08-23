@@ -1,4 +1,4 @@
-import { bootstrapOperatorPasswordFromHost } from "./operator-password-bootstrap.js";
+import { bootstrapOperatorPasswordFromHost } from "./operator/operator-password-bootstrap.js";
 
 try {
   await bootstrapOperatorPasswordFromHost();

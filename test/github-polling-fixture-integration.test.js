@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 
-import { createGitHubVerifier } from "../src/github-api.js";
-import { newlyEligibleGitHubPullRequests } from "../src/github-automatic-evaluation.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
+import { newlyEligibleGitHubPullRequests } from "../src/github/github-automatic-evaluation.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
 
 const permissions = {
   contents: "read",

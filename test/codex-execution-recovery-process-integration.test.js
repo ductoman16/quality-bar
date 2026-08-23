@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createHardStorageBoundary } from "../src/application-runtime.js";
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
-import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
+import { createHardStorageBoundary } from "../src/application/application-runtime.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { recoverCodexExecutions } from "../src/codex/codex-execution-recovery.js";
+import { prepareCodexProcess } from "../src/codex/codex-process-supervisor.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 /** @param {number} processGroupId @returns {number[]} */

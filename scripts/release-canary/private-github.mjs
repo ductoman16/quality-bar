@@ -1,8 +1,8 @@
-import { redactOrdinaryDetail } from "../../src/application-log.js";
+import { redactOrdinaryDetail } from "../../src/application/application-log.js";
 import {
   formatGitHubAggregateFeedback,
   formatGitHubInlineFeedback,
-} from "../../src/github-feedback.js";
+} from "../../src/github/github-feedback.js";
 
 const KIND = "private-github-canary";
 const REST_PROFILE = "2026-03-10";

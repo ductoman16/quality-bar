@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   createApplicationLogWriter,
   createApplicationSecretRegistry,
   sanitizeStructuredLogLine,
-} from "../src/application-log.js";
+} from "../src/application/application-log.js";
 
 test("ordinary logs redact owned credential shapes without scanning retained transcript content", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-log-security-"));

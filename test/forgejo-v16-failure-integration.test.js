@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
-import { forgejoV16ResponseFailure } from "../src/forgejo-v16-response-failure.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { forgejoV16ResponseFailure } from "../src/forgejo/forgejo-v16-response-failure.js";
 import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
 
 test("Forgejo v16 fixture rejects redirects and reports transport failures with owned codes", async () => {

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   availableRepositories,
   capabilities,

@@ -6,7 +6,7 @@ import {
   responseErrorCode,
   startApplication,
 } from "./http-integration-support.js";
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 const path = "/api/v1/system/codex-concurrency";

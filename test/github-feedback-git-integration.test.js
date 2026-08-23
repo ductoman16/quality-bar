@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { projectFrozenDiffLineRange } from "../src/github-feedback.js";
-import { readReviewRunFileChanges } from "../src/review-run-file-changes.js";
+import { projectFrozenDiffLineRange } from "../src/github/github-feedback.js";
+import { readReviewRunFileChanges } from "../src/review/review-run-file-changes.js";
 
 test("real Git frozen patch authority distinguishes projectable and unchanged lines", (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-feedback-git-"));

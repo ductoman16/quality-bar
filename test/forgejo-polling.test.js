@@ -5,7 +5,7 @@ import {
   FORGEJO_POLL_INTERVAL_MS,
   createForgejoPollingService,
   nextForgejoAttemptAt,
-} from "../src/forgejo-polling.js";
+} from "../src/forgejo/forgejo-polling.js";
 
 /** @param {number} number */
 function pullRequest(number) {

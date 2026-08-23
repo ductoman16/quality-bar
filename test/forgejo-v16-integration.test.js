@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
 import {
   createAvailableForgejoConnectionService,
   assertForgejoFailedReactivationHistory as assertFailedHistory,

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   signalReviewRunCancellations,
   subscribeReviewRunCancellation,
-} from "../src/evaluation-cancellation.js";
+} from "../src/evaluation/evaluation-cancellation.js";
 
 test("Review Run cancellation signals only the exact running work after durable cancellation", () => {
   /** @type {string[]} */

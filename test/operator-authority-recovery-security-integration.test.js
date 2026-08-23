@@ -5,15 +5,15 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
 import { createBrowserSessionService } from "../src/browser-session.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createImplementerTokenService } from "../src/implementer-token.js";
-import { recordFailedOperatorLogin } from "../src/operator-login-throttle.js";
+import { recordFailedOperatorLogin } from "../src/operator/operator-login-throttle.js";
 import {
   OPERATOR_PASSWORD_VERIFIER_METADATA_KEY,
   bootstrapOperatorPassword,
   recoverOperatorAuthority,
   verifyOperatorPassword,
-} from "../src/operator-password.js";
+} from "../src/operator/operator-password.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

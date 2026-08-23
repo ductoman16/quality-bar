@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { DurableCoreError } from "../src/durable-error.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex/codex-execution-concurrency.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { DurableCoreError } from "../src/durable/durable-error.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 test("durable concurrency defaults to one and raising or lowering changes only new claims", (context) => {

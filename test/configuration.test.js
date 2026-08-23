@@ -6,7 +6,7 @@ import {
   loadInstallationConfiguration,
   verifyInstallationKey,
 } from "../src/installation-configuration.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

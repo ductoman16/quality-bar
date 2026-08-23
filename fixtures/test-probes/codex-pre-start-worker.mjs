@@ -1,5 +1,5 @@
-import { openDurableCore } from "../../src/durable-core.js";
-import { createReviewRunClaimService } from "../../src/review-run-claim.js";
+import { openDurableCore } from "../../src/durable/durable-core.js";
+import { createReviewRunClaimService } from "../../src/review/review-run-claim.js";
 
 const [databasePath, attemptedAtValue, workerId, action = "fail"] =
   process.argv.slice(2);

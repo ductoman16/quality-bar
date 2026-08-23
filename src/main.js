@@ -1,5 +1,5 @@
 import { createInstalledApplication } from "./installed-application.js";
-import { installApplicationSignalHandlers } from "./application-shutdown.js";
+import { installApplicationSignalHandlers } from "./application/application-shutdown.js";
 import { readHttpPort } from "./http-port.js";
 
 process.umask(0o077);

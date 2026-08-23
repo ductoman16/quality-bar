@@ -1,6 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 
-import { configureDatabase, validateIntegrity } from "./durable-integrity.js";
+import {
+  configureDatabase,
+  validateIntegrity,
+} from "./durable/durable-integrity.js";
 import { owningBackupError } from "./sqlite-backup-error.js";
 import { createValidatedBackup } from "./sqlite-backup.js";
 import { readValidatedBackups } from "./validated-backup.js";

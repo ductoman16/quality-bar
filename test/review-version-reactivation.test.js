@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   ReviewError,
   validateReactivationRequest,
-} from "../src/review-validation.js";
+} from "../src/review/review-validation.js";
 
 test("a Review Version reactivation request accepts only one exact nonblank identity", () => {
   assert.deepEqual(

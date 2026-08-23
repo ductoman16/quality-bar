@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositoryCredentialCipher } from "../src/repository-credential.js";
-import { RepositoryError } from "../src/repository-validation.js";
+import { createRepositoryCredentialCipher } from "../src/repository/repository-credential.js";
+import { RepositoryError } from "../src/repository/repository-validation.js";
 
 const masterKey = Buffer.alloc(32, 7);
 const repository = {

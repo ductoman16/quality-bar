@@ -8,9 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { createForgejoConnectionCredentialCipher } from "../src/forgejo-connection-credential.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { createForgejoConnectionCredentialCipher } from "../src/forgejo/forgejo-connection-credential.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 
 const privateRepository = {
   api_url: "https://forgejo.example/api/v1/repos/operator/private",

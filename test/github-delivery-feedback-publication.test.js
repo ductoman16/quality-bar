@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubFeedbackService } from "../src/github-feedback-service.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubFeedbackService } from "../src/github/github-feedback-service.js";
 import { arrangeGitHubFeedback as arrange } from "./github-feedback-publication-support.js";
 
 test("feedback failures preserve exact owning errors without inferred success", async (context) => {

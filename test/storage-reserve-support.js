@@ -1,6 +1,6 @@
-import { createForgejoConnectionService as createForgejoService } from "../src/forgejo-connection.js";
-import { createGitHubConnectionService as createGitHubService } from "../src/github-connection.js";
-import { createGitHubPollingRunner as createGitHubRunner } from "../src/github-polling-runner.js";
+import { createForgejoConnectionService as createForgejoService } from "../src/forgejo/forgejo-connection.js";
+import { createGitHubConnectionService as createGitHubService } from "../src/github/github-connection.js";
+import { createGitHubPollingRunner as createGitHubRunner } from "../src/github/github-polling-runner.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
 
 const facts = {

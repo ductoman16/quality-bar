@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositoryCollection } from "../src/repository-collection.js";
+import { createRepositoryCollection } from "../src/repository/repository-collection.js";
 
 function repositoryResources() {
   return [...Array(101).keys()].map((index) => ({

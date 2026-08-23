@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunResultService } from "../src/review-run-result.js";
-import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunResultService } from "../src/review/review-run-result.js";
+import { createWaiverAdjudicationClaimService } from "../src/waiver/waiver-adjudication-claim.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 

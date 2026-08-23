@@ -1,8 +1,8 @@
-import { createEvaluationService } from "../src/evaluation.js";
-import { createReviewService } from "../src/review.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createReviewService } from "../src/review/review.js";
 
 /**
- * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
+ * @param {ReturnType<typeof import("../src/durable/durable-core.js").openDurableCore>} core
  * @param {{
  *   applicabilityRule?: string | null,
  *   baseCommit?: string,
@@ -94,7 +94,7 @@ export async function createQueuedReviewRun(
 }
 
 /**
- * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
+ * @param {ReturnType<typeof import("../src/durable/durable-core.js").openDurableCore>} core
  */
 export function createSiblingQueuedReviewRun(core) {
   const createdAt = 11;

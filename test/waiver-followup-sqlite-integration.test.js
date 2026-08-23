@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubWaiverFollowupService } from "../src/github-waiver-followup-service.js";
-import { readEvaluationWaiverAdjudications } from "../src/waiver-adjudication-resource.js";
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubWaiverFollowupService } from "../src/github/github-waiver-followup-service.js";
+import { readEvaluationWaiverAdjudications } from "../src/waiver/waiver-adjudication-resource.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 /** @param {any} core */

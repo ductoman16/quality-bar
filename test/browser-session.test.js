@@ -10,8 +10,8 @@ import {
   createUnavailableBrowserSessionService,
   removeExpiredBrowserSessions,
 } from "../src/browser-session.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

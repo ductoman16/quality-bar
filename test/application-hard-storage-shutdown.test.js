@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createApplication } from "../src/application.js";
-import { createHardStorageBoundary } from "../src/application-runtime.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
+import { createApplication } from "../src/application/application.js";
+import { createHardStorageBoundary } from "../src/application/application-runtime.js";
+import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("the hard storage boundary requires one exact shutdown owner", () => {

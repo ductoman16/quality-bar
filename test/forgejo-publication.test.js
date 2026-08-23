@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   EVALUATION_SELECTION,
   readEvaluation,
-} from "../src/evaluation-resource.js";
-import { createForgejoPublicationServices } from "../src/forgejo-publication-services.js";
+} from "../src/evaluation/evaluation-resource.js";
+import { createForgejoPublicationServices } from "../src/forgejo/forgejo-publication-services.js";
 import { arrangeForgejoFeedback as arrange } from "./forgejo-feedback-publication-support.js";
 
 test("Forgejo completes admitted delivery after Repository disablement", async (context) => {
@@ -281,7 +281,7 @@ test("Forgejo retirement makes waiting publication surfaces unavailable without 
     "UPDATE repositories SET lifecycle = 'retired' WHERE id = 'repository-1'",
   );
   const { retireForgejoConnection } =
-    await import("../src/forgejo-connection-lifecycle.js");
+    await import("../src/forgejo/forgejo-connection-lifecycle.js");
   retireForgejoConnection(core, { lifecycle: "retired" }, () => undefined);
   assert.deepEqual(
     core.get(

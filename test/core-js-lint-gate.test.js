@@ -61,8 +61,6 @@ test("the core JavaScript correctness gate reports every required rule family", 
       "error-only-throwing/error-only-throwing",
     "member-non-error": "error-only-throwing/error-only-throwing",
     "shadowed-error-name": "error-only-throwing/error-only-throwing",
-    "unproven-import": "error-only-throwing/error-only-throwing",
-    "nested-relative-import": "error-only-throwing/error-only-throwing",
     "reassigned-non-error": "error-only-throwing/error-only-throwing",
     "snapshot-function-non-error": "error-only-throwing/error-only-throwing",
     "unused-variable": "no-unused-vars",
@@ -147,13 +145,13 @@ test("Error-only throwing accepts actual Error ancestry", async () => {
   assert.equal(result.outcome, "pass", result.report);
 });
 
-test("Error-only throwing accepts an aliased repository Error constructor", async () => {
+test("Error-only throwing accepts an imported Error-suffixed constructor", async () => {
   const result = await runCoreJavaScriptLint({
     files: [
       {
         path: "src/error-import-fixture.js",
         source:
-          "import { DurableCoreError as Failure } from './durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
+          "import { DurableCoreError as Failure } from './durable/durable-error.js';\nthrow new Failure('invalid', 'invalid');\n",
       },
     ],
     repositoryRoot,
@@ -162,34 +160,20 @@ test("Error-only throwing accepts an aliased repository Error constructor", asyn
   assert.equal(result.outcome, "pass", result.report);
 });
 
-test("Error-only throwing accepts every proven repository Error export", async () => {
+test("Error-only throwing rejects an imported constructor without an Error suffix", async () => {
   const result = await runCoreJavaScriptLint({
     files: [
       {
-        path: "src/error-import-fixture.js",
+        path: "src/non-error-import-fixture.js",
         source:
-          "import { BrowserSessionError as Failure } from './browser-session.js';\nthrow new Failure('invalid', 'invalid');\n",
+          "import { SomeUtility } from './durable/durable-error.js';\nthrow new SomeUtility('invalid');\n",
       },
     ],
     repositoryRoot,
   });
 
-  assert.equal(result.outcome, "pass", result.report);
-});
-
-test("Error-only throwing accepts a validated repository Error re-export", async () => {
-  const result = await runCoreJavaScriptLint({
-    files: [
-      {
-        path: "src/error-reexport-fixture.js",
-        source:
-          "import { DurableCoreError as Failure } from './durable-core.js';\nthrow new Failure('invalid', 'invalid');\n",
-      },
-    ],
-    repositoryRoot,
-  });
-
-  assert.equal(result.outcome, "pass", result.report);
+  assert.equal(result.outcome, "fail", result.report);
+  assert.match(result.report, /\[error-only-throwing\/error-only-throwing\]/);
 });
 
 test("Error-only throwing does not reject calls or members changed to Error values", async () => {
@@ -264,7 +248,7 @@ test("the core JavaScript correctness evidence records the complete cleanup", ()
     {
       column: 7,
       line: 11,
-      path: "src/system-resource.js",
+      path: "src/system/system-resource.js",
       rule: "no-unused-vars",
     },
     {
@@ -294,13 +278,13 @@ test("the core JavaScript correctness evidence records the complete cleanup", ()
     {
       column: 13,
       line: 15,
-      path: "src/durable-access.js",
+      path: "src/durable/durable-access.js",
       rule: "error-only-throwing/error-only-throwing",
     },
     {
       column: 11,
       line: 30,
-      path: "src/durable-access.js",
+      path: "src/durable/durable-access.js",
       rule: "error-only-throwing/error-only-throwing",
     },
   ]);

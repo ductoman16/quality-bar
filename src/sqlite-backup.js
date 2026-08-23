@@ -12,7 +12,7 @@ import {
 import { basename, join } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
 
-import { isSqliteCorruption } from "./durable-integrity.js";
+import { isSqliteCorruption } from "./durable/durable-integrity.js";
 import { failBackup, owningBackupError } from "./sqlite-backup-error.js";
 import {
   readValidatedBackups,

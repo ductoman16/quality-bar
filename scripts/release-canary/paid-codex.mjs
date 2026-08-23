@@ -3,14 +3,14 @@ import { lstatSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { CODEX_CAPABILITY_CATALOG } from "../../src/codex-capabilities.js";
-import { buildCodexHostEnvironment } from "../../src/review-run-codex-command.js";
-import { removeOwnedDirectory } from "../../src/review-run-submission-file-cleanup.js";
-import { runReviewRunCodex } from "../../src/review-run-codex-adapter.js";
+import { CODEX_CAPABILITY_CATALOG } from "../../src/codex/codex-capabilities.js";
+import { buildCodexHostEnvironment } from "../../src/review/review-run-codex-command.js";
+import { removeOwnedDirectory } from "../../src/review/review-run-submission-file-cleanup.js";
+import { runReviewRunCodex } from "../../src/review/review-run-codex-adapter.js";
 import {
   ReviewRunExecutionError,
   validateReviewRunSubmission,
-} from "../../src/review-run-result.js";
+} from "../../src/review/review-run-result.js";
 import {
   PAID_CODEX_SUBMISSION_COMMAND,
   readPaidCodexEventEvidence,

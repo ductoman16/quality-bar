@@ -4,9 +4,9 @@ import { test } from "node:test";
 import {
   forgejoDefinitiveFailureScope,
   forgejoFailureRepositoryIds,
-} from "../src/forgejo-failure.js";
-import { updateForgejoConnectionFailureHealth } from "../src/forgejo-failure-health.js";
-import { recordForgejoPollingOwningFailure } from "../src/forgejo-polling-owning-failure.js";
+} from "../src/forgejo/forgejo-failure.js";
+import { updateForgejoConnectionFailureHealth } from "../src/forgejo/forgejo-failure-health.js";
+import { recordForgejoPollingOwningFailure } from "../src/forgejo/forgejo-polling-owning-failure.js";
 
 test("Forgejo definitive failures gate only their exact owning resource", () => {
   for (const code of [

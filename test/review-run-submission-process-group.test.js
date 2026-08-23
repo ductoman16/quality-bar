@@ -7,18 +7,18 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { createSubmissionProcessor } from "../src/review-run-submission-processor.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { createSubmissionProcessor } from "../src/review/review-run-submission-processor.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 import {
   isSubmissionLeaseAlive,
   processStartIdentity,
   SUBMISSION_LEASE_MILLISECONDS,
-} from "../src/review-run-submission-files.js";
+} from "../src/review/review-run-submission-files.js";
 import {
   isProcessDescendant,
   processGroupIdentity,
-} from "../src/review-run-submission-process-group.js";
+} from "../src/review/review-run-submission-process-group.js";
 
 async function terminatedProcessId() {
   const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"]);

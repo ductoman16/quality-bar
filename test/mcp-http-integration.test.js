@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { request as httpRequest } from "node:http";
 import { test } from "node:test";
 
-import { createReviewService } from "../src/review.js";
+import { createReviewService } from "../src/review/review.js";
 import { startApplication } from "./http-integration-support.js";
 import { reviewRequest } from "./review-http-integration-support.js";
 

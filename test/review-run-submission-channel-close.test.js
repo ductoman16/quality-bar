@@ -12,9 +12,9 @@ import { basename, dirname, join } from "node:path";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { createSubmissionChannelSurface } from "../src/review-run-submission-channel-surface.js";
-import { publishFile } from "../src/review-run-submission-files.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { createSubmissionChannelSurface } from "../src/review/review-run-submission-channel-surface.js";
+import { publishFile } from "../src/review/review-run-submission-files.js";
 
 const claim = Object.freeze({
   fencingToken: 7,

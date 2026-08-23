@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { prepareForgejoRepositoryEnablement } from "../src/repository-provider-verification.js";
-import { createRepositoryService } from "../src/repository.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { prepareForgejoRepositoryEnablement } from "../src/repository/repository-provider-verification.js";
+import { createRepositoryService } from "../src/repository/repository.js";
 import {
   forgejoVerification,
   repositoryEvidence,

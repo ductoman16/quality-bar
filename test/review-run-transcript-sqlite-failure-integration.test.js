@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("a transcript-chunk write failure enters the hard storage_unavailable gate", async (context) => {

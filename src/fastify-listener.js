@@ -63,7 +63,7 @@ function writeUnhandledError(reply, error) {
 }
 
 /**
- * @param {ReturnType<typeof import("./canonical-api-components.js").createCanonicalComponents>} components
+ * @param {ReturnType<typeof import("./canonical/canonical-api-components.js").createCanonicalComponents>} components
  * @returns {import("fastify").FastifyInstance}
  */
 export function createFastify(components) {

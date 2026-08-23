@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { createReviewRunResultService } from "../src/review-run-result.js";
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { recoverCodexExecutions } from "../src/codex/codex-execution-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createReviewRunResultService } from "../src/review/review-run-result.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 

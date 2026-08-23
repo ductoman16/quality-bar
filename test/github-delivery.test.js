@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
-import { attemptGitHubDelivery } from "../src/github-delivery-service.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { resumeGitHubDeliveries } from "../src/github/github-delivery-recovery.js";
+import { attemptGitHubDelivery } from "../src/github/github-delivery-service.js";
 import {
   githubDeliveryFailure,
   nextGitHubDeliveryAttemptAt,
-} from "../src/github-delivery.js";
+} from "../src/github/github-delivery.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
 
 test("GitHub delivery retries transient failures indefinitely with exponential delay capped at one hour", () => {

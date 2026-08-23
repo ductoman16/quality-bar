@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createEvaluationService } from "../src/evaluation.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewService } from "../src/review.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewService } from "../src/review/review.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

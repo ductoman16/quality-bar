@@ -5,7 +5,7 @@ import {
   readWaiverAdjudication,
   readWaiverDecision,
   readWaiverRequest,
-} from "../src/waiver-resource.js";
+} from "../src/waiver/waiver-resource.js";
 
 test("active Waiver Adjudications expose no speculative Decisions", () => {
   assert.deepEqual(

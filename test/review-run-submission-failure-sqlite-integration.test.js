@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createSubmissionFailure } from "../src/review-run-codex-failure.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createSubmissionFailure } from "../src/review/review-run-codex-failure.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 import { executeFailedReviewRun } from "./review-run-result-sqlite-integration-support.js";
 

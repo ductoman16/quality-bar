@@ -5,7 +5,7 @@ import {
   ReviewError,
   validateArchivalRequest,
   validateReviewListState,
-} from "../src/review-validation.js";
+} from "../src/review/review-validation.js";
 
 test("Review archival and collection filters accept only exact lifecycle state", () => {
   assert.deepEqual(validateArchivalRequest({ archived: true }), {

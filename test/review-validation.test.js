@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CodexConfigurationError } from "../src/codex-capabilities.js";
-import { createReviewService, ReviewError } from "../src/review.js";
+import { CodexConfigurationError } from "../src/codex/codex-capabilities.js";
+import { createReviewService, ReviewError } from "../src/review/review.js";
 import {
   validateAssignmentRequest,
   validateExecutableSnapshot,
-} from "../src/review-validation.js";
+} from "../src/review/review-validation.js";
 
 function validDefinition(overrides = {}) {
   return {

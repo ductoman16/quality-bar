@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createCodexProcessFailure } from "../src/review-run-codex-failure.js";
-import { terminateReviewRunProcessGroup } from "../src/review-run-process-group.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { createCodexProcessFailure } from "../src/review/review-run-codex-failure.js";
+import { terminateReviewRunProcessGroup } from "../src/review/review-run-process-group.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 import {
   acceptedChannel,
   claim,

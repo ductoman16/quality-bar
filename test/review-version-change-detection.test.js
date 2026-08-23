@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewService } from "../src/review/review.js";
 
 test("changing only the Applicability Rule or Codex configuration creates the next version", () => {
   /** @type {Array<[string, (snapshot: ReturnType<typeof snapshotFor>) => ReturnType<typeof snapshotFor>]>} */

@@ -272,7 +272,7 @@ test("the Node boundary evidence records the complete ownership cleanup", () => 
       paths: [
         "fixtures/package/database-facts.mjs",
         "fixtures/package/write-database-marker.mjs",
-        "src/durable-core.js",
+        "src/durable/durable-core.js",
         "src/installation-environment.js",
         "test/installation-environment.test.js",
       ],

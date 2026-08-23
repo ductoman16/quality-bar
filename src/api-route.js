@@ -1,15 +1,15 @@
-import { writeAnalytics } from "./analytics-route.js";
+import { writeAnalytics } from "./analytics/analytics-route.js";
 import { writeBrowserJsonMutation } from "./api-mutation.js";
 import { requireCodedError } from "./coded-error.js";
 import { isUnavailableError } from "./http-request.js";
 import { writeError, writeJson } from "./http-response.js";
-import { writeRepositoryDeletion } from "./repository-delete-route.js";
-import { writeRepositoryGuidance } from "./repository-guidance-route.js";
-import { writeRepositoryLifecycleChange } from "./repository-lifecycle-route.js";
-import { writeRepositoryList } from "./repository-list-route.js";
-import { writeReviewAssignmentMutation } from "./review-assignment-route.js";
-import { writeReviewDeletion } from "./review-delete-route.js";
-import { writeReviewList } from "./review-list-route.js";
+import { writeRepositoryDeletion } from "./repository/repository-delete-route.js";
+import { writeRepositoryGuidance } from "./repository/repository-guidance-route.js";
+import { writeRepositoryLifecycleChange } from "./repository/repository-lifecycle-route.js";
+import { writeRepositoryList } from "./repository/repository-list-route.js";
+import { writeReviewAssignmentMutation } from "./review/review-assignment-route.js";
+import { writeReviewDeletion } from "./review/review-delete-route.js";
+import { writeReviewList } from "./review/review-list-route.js";
 
 /** @param {import("fastify").FastifyRequest} request @param {string} name */
 function pathParameter(request, name) {

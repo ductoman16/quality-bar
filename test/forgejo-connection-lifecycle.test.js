@@ -5,13 +5,13 @@ import {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 import {
   reactivateForgejoConnection,
   removeNeverUsedForgejoConnection,
   retireForgejoConnection,
-} from "../src/forgejo-connection-lifecycle.js";
-import { failedForgejoRepositoryChecks } from "../src/forgejo-repository-check.js";
+} from "../src/forgejo/forgejo-connection-lifecycle.js";
+import { failedForgejoRepositoryChecks } from "../src/forgejo/forgejo-repository-check.js";
 
 function completeVerification() {
   return {

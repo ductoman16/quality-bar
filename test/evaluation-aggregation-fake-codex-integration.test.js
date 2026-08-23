@@ -7,12 +7,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunResultService } from "../src/review-run-result.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunResultService } from "../src/review/review-run-result.js";
+import { createReviewService } from "../src/review/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 const fakeCodexPath = fileURLToPath(

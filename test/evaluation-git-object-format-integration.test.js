@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { resolvePushedCommitSelectors } from "../src/repository-git.js";
-import { EvaluationError } from "../src/evaluation-validation.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
+import { EvaluationError } from "../src/evaluation/evaluation-validation.js";
 import { createBareRepository } from "./repository-git-integration-support.js";
 
 test("Evaluation acquisition freezes native SHA-256 commit object IDs", async (context) => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositorySelectorResolver } from "../src/repository-selector.js";
+import { createRepositorySelectorResolver } from "../src/repository/repository-selector.js";
 
 const request = {
   base: { type: "branch", value: "main" },

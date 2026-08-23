@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApplication } from "../src/application.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github-connection.js";
+import { createApplication } from "../src/application/application.js";
+import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("shutdown stops recurring I/O before waiting for held Codex work", async () => {

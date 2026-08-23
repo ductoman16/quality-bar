@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createSystemResource } from "../src/system-resource.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createSystemResource } from "../src/system/system-resource.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 test("System distinguishes queued Evaluation work from running Waiver Adjudication work without hiding a lowered concurrency limit", (context) => {

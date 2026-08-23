@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { runReviewRunCodex as runCodexAdapter } from "../src/review-run-codex-adapter.js";
+import { runReviewRunCodex as runCodexAdapter } from "../src/review/review-run-codex-adapter.js";
 import {
   acceptedChannel,
   claim,

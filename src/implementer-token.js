@@ -4,7 +4,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
-import { verifyOperatorPassword } from "./operator-password.js";
+import { verifyOperatorPassword } from "./operator/operator-password.js";
 import { insertAuthorityAttribution } from "./authority-attribution.js";
 
 export const IMPLEMENTER_TOKEN_VERIFIER_METADATA_KEY =
@@ -128,7 +128,7 @@ function readVerifier(reader) {
 }
 
 /**
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} durableCore
  * @param {{
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,

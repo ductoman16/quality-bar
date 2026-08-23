@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createApplicationExecutionRuntime } from "../src/application-execution-runtime.js";
+import { createApplicationExecutionRuntime } from "../src/application/application-execution-runtime.js";
 import {
   IO_EXECUTION_CONCURRENCY,
   IO_EXECUTION_QUEUE_CAPACITY,

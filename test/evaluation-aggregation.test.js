@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { aggregateEvaluationOutcome } from "../src/evaluation-aggregation.js";
+import { aggregateEvaluationOutcome } from "../src/evaluation/evaluation-aggregation.js";
 
 test("complete Evaluation outcome preserves error, blocking, advisory, clear precedence", () => {
   /** @type {[Parameters<typeof aggregateEvaluationOutcome>[0], string][]} */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createRepositoryService } from "../src/repository.js";
+import { createRepositoryService } from "../src/repository/repository.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

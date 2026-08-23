@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { readSystemDeliveryFacts } from "../src/system-delivery-facts.js";
-import { readSystemPollingFacts } from "../src/system-polling-facts.js";
-import { createSystemResource } from "../src/system-resource.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { readSystemDeliveryFacts } from "../src/system/system-delivery-facts.js";
+import { readSystemPollingFacts } from "../src/system/system-polling-facts.js";
+import { createSystemResource } from "../src/system/system-resource.js";
 import { arrangeGitHubFeedback } from "./github-feedback-publication-support.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import {

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

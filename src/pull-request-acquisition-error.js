@@ -1,4 +1,4 @@
-import { failEvaluation } from "./evaluation-validation.js";
+import { failEvaluation } from "./evaluation/evaluation-validation.js";
 
 /** @param {string} stderr @param {unknown} cause */
 export function failRepositoryGitReadLoss(stderr, cause) {
