@@ -207,11 +207,8 @@ export function createApplicationServer(dependencies) {
         ? { status: "ready" }
         : reply.code(503).send(status);
     });
-    routes.get(
-      "/",
-      { schema: { security: [] } },
-      (request, reply) =>
-        handleBrowserPage(request, reply, requestUrl(request)),
+    routes.get("/", { schema: { security: [] } }, (request, reply) =>
+      handleBrowserPage(request, reply, requestUrl(request)),
     );
     routes.post(
       "/mcp/v1",
