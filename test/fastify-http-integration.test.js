@@ -6,67 +6,8 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 
-test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
+test("registered Fastify routes enforce authentication, routing, and error contracts", async () => {
   const { application, request } = await startApplication();
-  const document = /** @type {any} */ (application.server.swagger());
-  const operations = Object.values(document.paths).flatMap((path) =>
-    Object.values(path).filter((operation) => operation.operationId),
-  );
-  assert.equal(document.openapi, "3.1.0");
-  assert.deepEqual(
-    document.components.schemas.ReviewCreateRequest.properties
-      .applicability_rule.type,
-    ["string", "null"],
-  );
-  assert.equal(operations.length, 72);
-  assert.equal(
-    JSON.stringify(document).includes("x-canonical-validation"),
-    false,
-  );
-  assert.deepEqual(
-    document.paths[
-      "/api/v1/repositories/{repository_id}/evaluations"
-    ].post.parameters
-      .map((/** @type {any} */ parameter) => [
-        parameter.name.toLowerCase(),
-        parameter.required,
-      ])
-      .toSorted(),
-    [
-      ["idempotency-key", true],
-      ["origin", false],
-      ["repository_id", true],
-      ["x-quality-bar-csrf", false],
-    ].toSorted(),
-  );
-  assert.deepEqual(
-    document.paths["/api/v1/session/password"].post.parameters
-      .map((/** @type {any} */ parameter) => [
-        parameter.name.toLowerCase(),
-        parameter.required,
-      ])
-      .toSorted(),
-    [
-      ["origin", true],
-      ["x-quality-bar-csrf", true],
-    ].toSorted(),
-  );
-  assert.deepEqual(
-    document.paths[
-      "/api/v1/repositories/{repository_id}/guidance"
-    ].get.parameters
-      .map((/** @type {any} */ parameter) => parameter.name.toLowerCase())
-      .toSorted(),
-    ["repository_id", "if-none-match"].toSorted(),
-  );
-  assert.equal(
-    document.paths[
-      "/api/v1/github-connections/callback-error"
-    ].get.parameters.find(
-      (/** @type {any} */ parameter) => parameter.name === "receipt",
-    ).required,
-    true,
-  );
 
   const unauthenticated = await request("/api/v1/repositories", {
     body: JSON.stringify({ value: "x".repeat(9 * 1024) }),
@@ -247,9 +188,12 @@ test("registered Fastify schemas own validation and OpenAPI 3.1", async () => {
   assert.equal(error.error.code, "request_malformed");
   assert.match(error.error.request_id, /^[0-9a-f-]{36}$/);
 
-  const published = await request("/api/v1/openapi.json", {
+  const publishedContract = await request("/api/v1/openapi.json", {
     headers: { cookie: operator.cookie },
   });
-  assert.equal(published.status, 200);
-  assert.equal(/** @type {any} */ (await published.json()).openapi, "3.1.0");
+  assert.equal(publishedContract.status, 404);
+  assert.equal(
+    /** @type {any} */ (await publishedContract.json()).error.code,
+    "not_found",
+  );
 });

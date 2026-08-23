@@ -37,7 +37,7 @@ const browserJavaScript = browserAsset?.ok ? await browserAsset.text() : "";
 const system = await fetch(`${endpoint}/api/v1/system`, {
   headers: { ...headers, cookie },
 });
-const openapi = await fetch(`${endpoint}/api/v1/openapi.json`, {
+const retiredOpenapi = await fetch(`${endpoint}/api/v1/openapi.json`, {
   headers: { ...headers, cookie },
 });
 const systemFacts =
@@ -139,9 +139,7 @@ console.log(
       ),
     loginStatus: login.status,
     ...machineFacts,
-    openapiStatus: openapi.status,
-    openapiVersion: /** @type {{openapi: string}} */ (await openapi.json())
-      .openapi,
+    retiredOpenapiStatus: retiredOpenapi.status,
     storage: systemFacts.storage,
   }),
 );

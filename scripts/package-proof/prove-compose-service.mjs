@@ -362,10 +362,9 @@ export function proveComposeService({ configuration, fixture }) {
     mcpRepositoryCount: 0,
     mcpStatus: 200,
     mcpTool: "quality_bar.list_repositories",
-    openapiStatus: 200,
-    openapiVersion: "3.1.0",
     repositoryCount: 0,
     repositoryListStatus: 200,
+    retiredOpenapiStatus: 404,
     storage: {
       filesystems: [
         {

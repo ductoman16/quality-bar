@@ -30,10 +30,9 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   mcpRepositoryCount: number,
  *   mcpStatus: number,
  *   mcpTool: string,
- *   openapiStatus: number,
- *   openapiVersion: string,
  *   repositoryCount: number,
  *   repositoryListStatus: number,
+ *   retiredOpenapiStatus: number,
  *   storage: {
  *     filesystems: {available_bytes: number, filesystem: string, path: string, status: string}[],
  *     reserve_bytes: number,
