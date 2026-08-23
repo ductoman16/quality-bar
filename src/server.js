@@ -209,7 +209,7 @@ export function createApplicationServer(dependencies) {
     });
     routes.get(
       "/",
-      { schema: { hide: true, security: [] } },
+      { schema: { security: [] } },
       (request, reply) =>
         handleBrowserPage(request, reply, requestUrl(request)),
     );
@@ -219,7 +219,6 @@ export function createApplicationServer(dependencies) {
         onRequest: requireMcpOrigin,
         schema: {
           body: {},
-          hide: true,
           querystring: {
             type: "object",
           },
@@ -242,7 +241,6 @@ export function createApplicationServer(dependencies) {
       method: routes.supportedMethods.filter((method) => method !== "POST"),
       onRequest: [requireMcpOrigin, rejectMcpMethod],
       schema: {
-        hide: true,
         security: [{ implementer_token: [] }, { onboarding_token: [] }],
       },
       url: "/mcp/v1",

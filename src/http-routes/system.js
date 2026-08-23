@@ -10,7 +10,6 @@ export const systemRoutes = [
   {
     method: "GET",
     schema: {
-      hide: true,
       security: [{ browser_session: [] }, { implementer_token: [] }],
     },
     url: "/api/v1",
@@ -25,38 +24,9 @@ export const systemRoutes = [
       writeError(reply, 404, "not_found", "Resource was not found");
     },
     schema: {
-      hide: true,
       security: [],
     },
     url: "/api/v1/operator-password/bootstrap",
-  },
-  {
-    method: "GET",
-    schema: {
-      operationId: "getOpenApiDocument",
-      querystring: {
-        additionalProperties: false,
-        properties: {},
-        type: "object",
-      },
-      security: [
-        {
-          browser_session: [],
-        },
-        {
-          implementer_token: [],
-        },
-      ],
-      response: {
-        200: {
-          additionalProperties: true,
-          type: "object",
-          description: "OpenAPI document",
-        },
-        ...errorResponses(400, 401),
-      },
-    },
-    url: "/api/v1/openapi.json",
   },
   {
     method: "GET",
