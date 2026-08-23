@@ -18,9 +18,8 @@ import assert from "node:assert/strict";
  *     cap_add: string[],
  *     profiles?: unknown,
  *     depends_on?: unknown,
- *     network_mode: string,
  *     stop_grace_period?: string,
- *     ports?: unknown,
+ *     ports: string[],
  *     security_opt: string[],
  *     volumes: ComposeVolume[],
  *   }>,
@@ -47,7 +46,7 @@ export function assertComposeConfiguration(fixture) {
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
-  assert.equal(configuration.services[serviceName].network_mode, "host");
+
   assert.deepEqual(configuration.services[serviceName].cap_add, [
     "SETGID",
     "SETUID",
@@ -60,7 +59,10 @@ export function assertComposeConfiguration(fixture) {
     "seccomp=unconfined",
   ]);
   assert.equal(configuration.services[serviceName].stop_grace_period, "15m5s");
-  assert.equal(configuration.services[serviceName].ports, undefined);
+  const ports = configuration.services[serviceName].ports;
+  assert.deepEqual(ports, [
+    `${fixture.environment.QUALITY_BAR_HTTP_PORT}:${fixture.environment.QUALITY_BAR_HTTP_PORT}`,
+  ]);
 
   const serviceVolumes = configuration.services[serviceName].volumes;
   assert.deepEqual(

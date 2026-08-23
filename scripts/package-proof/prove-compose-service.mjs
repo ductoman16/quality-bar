@@ -147,7 +147,7 @@ function packageFacts({
     installationDeletion,
     network: {
       httpBindAddress: "127.0.0.1",
-      mode: service.network_mode,
+      mode: "bridge",
     },
     tools: { ...toolVersions, persistentCodexLogin: false },
     configuration: {
