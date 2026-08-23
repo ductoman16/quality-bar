@@ -54,6 +54,23 @@ Do not add quotes or unrelated keys. `QUALITY_BAR_EXTERNAL_ORIGIN` is the URL op
 
 The master key is not a password. Generate it with `openssl rand -base64 32`; this produces the required 32 random bytes in the exact base64 format Quality Bar accepts. Keep the file private and backed up. Never generate a replacement after the installation has state, because the original key is required to decrypt that state. The exports above last only for the current shell; for later shells, put the same absolute paths in `.env` while preserving its existing `QUALITY_BAR_VERSION` line. Docker Desktop/macOS can skip the Linux-only `chown`; the `0700` directory and `0400` files are still required.
 
+## Host security surface
+
+`compose.yaml` grants the container a substantial amount of host access. Choose this installation deliberately — it is not the default posture of a typical Docker service:
+
+- **`cap_add: SYS_ADMIN`, `SYS_CHROOT`, `SYS_PTRACE`** — these let a process create and enter new namespaces (`unshare`, `chroot`) and trace/attach to other processes. They are broad capabilities: `SYS_ADMIN` in particular covers dozens of unrelated privileged operations and is often called "the new root" for containers.
+- **`security_opt: apparmor=unconfined`, `seccomp=unconfined`** — these disable the container's mandatory access control profile and syscall filter, so the process can make syscalls (like `unshare`, `mount`, `ptrace`) that Docker's default profiles block.
+
+All of this exists for one reason: Codex CLI spawns its own sandboxed subprocesses for each review-run, and building a sandbox requires namespace and ptrace operations that Docker's default confinement forbids. Without these grants, Codex CLI's own sandboxing cannot run inside the container at all.
+
+**Mitigations already in place:**
+
+- The process runs as an unprivileged UID (`10001:10001`), never as root, so the elevated capabilities are still gated by discretionary access control on that user.
+- The HTTP server binds only to `127.0.0.1` ([src/main.js](src/main.js)), never a routable interface; [#437](https://github.com/ductoman16/quality-bar/issues/437) additionally drops `network_mode: host` in favor of a bridge network with the published port bound to `127.0.0.1`, removing host network-namespace sharing without changing reachability.
+- Egress is restricted to registered forge (Git hosting) APIs and Codex/OpenAI endpoints — see [Operator authority recovery](#operator-authority-recovery) for the firewall requirement.
+
+**Path to removal:** [#428](https://github.com/ductoman16/quality-bar/issues/428) tracks migrating Codex execution onto the [omp.sh](https://omp.sh) harness, which would own subprocess sandboxing outside this container. Once that migration lands, `SYS_ADMIN`, `SYS_CHROOT`, `SYS_PTRACE`, and the AppArmor/seccomp opt-outs become unnecessary and can be dropped from `compose.yaml`.
+
 ## Host provisioning
 
 Quality Bar has one fixed Codex-authentication location: `/var/lib/quality-bar/codex-home`.
