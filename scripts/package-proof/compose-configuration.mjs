@@ -12,6 +12,16 @@ import assert from "node:assert/strict";
 
 /**
  * @typedef {{
+ *   mode: string,
+ *   host_ip: string,
+ *   target: number,
+ *   published: string,
+ *   protocol: string,
+ * }} ComposePort
+ */
+
+/**
+ * @typedef {{
  *   services: Record<string, {
  *     platform: string,
  *     image: string,
@@ -19,7 +29,7 @@ import assert from "node:assert/strict";
  *     profiles?: unknown,
  *     depends_on?: unknown,
  *     stop_grace_period?: string,
- *     ports: string[],
+ *     ports: ComposePort[],
  *     security_opt: string[],
  *     volumes: ComposeVolume[],
  *   }>,
@@ -61,7 +71,13 @@ export function assertComposeConfiguration(fixture) {
   assert.equal(configuration.services[serviceName].stop_grace_period, "15m5s");
   const ports = configuration.services[serviceName].ports;
   assert.deepEqual(ports, [
-    `${fixture.environment.QUALITY_BAR_HTTP_PORT}:${fixture.environment.QUALITY_BAR_HTTP_PORT}`,
+    {
+      mode: "ingress",
+      host_ip: "127.0.0.1",
+      target: Number(fixture.environment.QUALITY_BAR_HTTP_PORT),
+      published: String(fixture.environment.QUALITY_BAR_HTTP_PORT),
+      protocol: "tcp",
+    },
   ]);
 
   const serviceVolumes = configuration.services[serviceName].volumes;
