@@ -46,7 +46,7 @@ export function beginForgejoCapabilityEvidence(evidence) {
   evidence.capabilities = Object.fromEntries(
     FORGEJO_CAPABILITY_NAMES.map((name) => [name, "not_completed"]),
   );
-  evidence.profile = "forgejo-v16";
+  evidence.profile = "forgejo";
   evidence.scopes = [...VERIFIED_FORGEJO_AUTHORITIES];
 }
 

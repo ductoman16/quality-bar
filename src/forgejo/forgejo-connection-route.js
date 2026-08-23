@@ -11,7 +11,7 @@ export function createForgejoConnectionRoute({ forgejoConnections }) {
       writeJson(response, 200, forgejoConnections.read());
     },
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
-    verifyForgejoV16Connection(request, response) {
+    verifyForgejoConnection(request, response) {
       return writeBrowserJsonMutation(request, response, {
         failureCode: "forgejo_connection_failed",
         mutate: (body) => forgejoConnections.connect(body),
@@ -27,7 +27,7 @@ export function createForgejoConnectionRoute({ forgejoConnections }) {
       });
     },
     /** @param {import("fastify").FastifyRequest} request @param {import("fastify").FastifyReply} response */
-    discoverForgejoV16Repositories(request, response) {
+    discoverForgejoRepositories(request, response) {
       return writeBrowserJsonMutation(request, response, {
         failureCode: "forgejo_connection_discovery_failed",
         mutate: (body) => forgejoConnections.discover(body),

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoPublisher } from "../src/forgejo/forgejo-verifier.js";
 
-test("Forgejo v16 publisher uses statuses, issue comments, and review comments on the frozen head", async () => {
+test("Forgejo publisher uses statuses, issue comments, and review comments on the frozen head", async () => {
   const head = "a".repeat(40);
   /** @type {any[]} */
   const requests = [];
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async (url, options) => {
       const requestUrl = String(url);
       requests.push({
@@ -127,7 +127,7 @@ test("Forgejo v16 publisher uses statuses, issue comments, and review comments o
 
 test("Forgejo publication surfaces preserve exact provider failures", async () => {
   const head = "a".repeat(40);
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async () => new Response("outage", { status: 503 }),
   });
   await assert.rejects(
@@ -143,7 +143,7 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
       error.message ===
         "Forgejo publication route failed with HTTP 503: /api/v1/repos/operator/repository/issues/17/comments",
   );
-  const invalid = createForgejoV16Publisher({
+  const invalid = createForgejoPublisher({
     fetch: async () =>
       Response.json(
         { context: "Quality Bar", id: 901, sha: "b".repeat(40) },
@@ -163,7 +163,7 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
     ),
     { code: "forgejo_api_response_invalid" },
   );
-  const noInlineComment = createForgejoV16Publisher({
+  const noInlineComment = createForgejoPublisher({
     fetch: async () =>
       Response.json(
         { commit_id: head, comments_count: 0, id: 903 },
@@ -206,7 +206,7 @@ test("Forgejo publication surfaces preserve exact provider failures", async () =
 test("Forgejo reconciliation preserves provider rate-limit delay", async () => {
   const now = Date.now();
   const rateReset = Math.ceil((now + 240_000) / 1_000);
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async () =>
       new Response("rate limited", {
         headers: {
@@ -243,7 +243,7 @@ test("Forgejo response ownership distinguishes transient, Connection, and Reposi
     [403, "forgejo_repository_permission_denied", 101],
     [404, "forgejo_repository_api_access_failed", 101],
   ])) {
-    const publisher = createForgejoV16Publisher({
+    const publisher = createForgejoPublisher({
       fetch: async () => new Response("failure", { status: responseStatus }),
     });
     await assert.rejects(
@@ -285,7 +285,7 @@ test("Forgejo inline reconciliation requires the exact persisted range", async (
     path: "src/example.js",
     position: 5,
   };
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async (url) =>
       String(url).endsWith("/reviews?limit=50&page=1")
         ? Response.json([{ id: 901 }])
@@ -300,7 +300,7 @@ test("Forgejo inline reconciliation requires the exact persisted range", async (
     ),
     null,
   );
-  const duplicate = createForgejoV16Publisher({
+  const duplicate = createForgejoPublisher({
     fetch: async (url) =>
       String(url).endsWith("/reviews?limit=50&page=1")
         ? Response.json([{ id: 901 }])

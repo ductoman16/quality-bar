@@ -260,7 +260,7 @@ export async function reactivateForgejoConnection(
     );
     completedVerification = verification;
     if (
-      verification.profile !== "forgejo-v16" ||
+      verification.profile !== "forgejo" ||
       verification.principal?.id !== connection.principal_id ||
       verification.principal?.login !== connection.principal_login
     ) {

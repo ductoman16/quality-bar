@@ -19,7 +19,7 @@ export function arrangeForgejoFeedback(
        principal_login, scopes, capabilities, health, lifecycle,
        created_at, verified_at
      ) VALUES (
-       'connection-1', 'https://forgejo.example', 'forgejo-v16', '16.0.4',
+       'connection-1', 'https://forgejo.example', 'forgejo', '16.0.4',
        91, 'operator', '["read:repository"]',
        '{"aggregate_feedback":"verified","commit_status":"verified","inline_feedback":"verified"}',
        'healthy', ?, 1, 1
@@ -35,7 +35,7 @@ export function arrangeForgejoFeedback(
        principal, scopes, capabilities, repositories,
        error_code, error_message, verified_at
      ) VALUES (
-       'verification-1', 'connection-1', 'onboarding', 'forgejo-v16',
+       'verification-1', 'connection-1', 'onboarding', 'forgejo',
        '16.0.4', '{"id":91,"login":"operator"}', '["read:repository"]',
        '{"aggregate_feedback":"verified","commit_status":"verified","inline_feedback":"verified"}',
        '[{"api_url":"https://forgejo.example/api/v1/repos/operator/repository","clone_url":"https://forgejo.example/operator/repository.git","full_name":"operator/repository","html_url":"https://forgejo.example/operator/repository","id":101,"outcome":"success","permissions":{"admin":true,"pull":true,"push":true},"private":true}]',

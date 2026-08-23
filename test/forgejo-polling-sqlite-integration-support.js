@@ -40,7 +40,7 @@ export function forgejoVerification(repositories) {
       pull_request_access: "verified",
     },
     principal: { id: 7, login: "operator" },
-    profile: "forgejo-v16",
+    profile: "forgejo",
     reported_version: "16.0.4",
     repositories,
     scopes: ["read:repository", "write:issue", "write:repository"],

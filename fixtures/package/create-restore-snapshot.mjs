@@ -26,7 +26,7 @@ try {
       verified_at
     ) VALUES (
       'package-restored-forgejo', 'https://forgejo.example',
-      'forgejo-v16', '16.0.1', 5, 'operator', '[]', '{}', 'healthy',
+      'forgejo', '16.0.1', 5, 'operator', '[]', '{}', 'healthy',
       'retired', 1, 1
     );
     INSERT INTO repositories (
@@ -51,7 +51,7 @@ try {
       scopes, capabilities, repositories, verified_at
     ) VALUES (
       'package-restored-forgejo-verification', 'package-restored-forgejo',
-      'onboarding', 'forgejo-v16', '16.0.1',
+      'onboarding', 'forgejo', '16.0.1',
       '{"id":5,"login":"operator"}', '[]', '{}',
       '[{"api_url":"https://forgejo.example/api/v1/repos/operator/restored","clone_url":"https://forgejo.example/operator/restored.git","full_name":"operator/restored","html_url":"https://forgejo.example/operator/restored","id":6,"outcome":"success","permissions":{"admin":true,"pull":true,"push":true},"private":true}]',
       1

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import { runIoOperation } from "../src/io-operation-context.js";
-import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
+import { forgejoOpenApi } from "./forgejo-openapi-support.js";
 
 /** @param {string} path */
 function forgejoVerificationBody(path) {
@@ -11,7 +11,7 @@ function forgejoVerificationBody(path) {
     return { version: "16.0.4" };
   }
   if (path === "/swagger.v1.json") {
-    return forgejoV16OpenApi();
+    return forgejoOpenApi();
   }
   if (path === "/api/v1/repos/search?page=1&limit=50&private=true") {
     return {
@@ -39,7 +39,7 @@ function forgejoVerificationBody(path) {
   return [];
 }
 
-/** @param {ReturnType<typeof createForgejoV16Verifier>} verifier */
+/** @param {ReturnType<typeof createForgejoVerifier>} verifier */
 function beginVerification(verifier) {
   const workers = new AbortController();
   const completion = /** @type {Promise<any>} */ (
@@ -57,7 +57,7 @@ function beginVerification(verifier) {
 test("Forgejo verification preserves hard shutdown during response parsing", async () => {
   const responseBody = Promise.withResolvers();
   const { completion, workers } = beginVerification(
-    createForgejoV16Verifier({
+    createForgejoVerifier({
       fetch: async () =>
         /** @type {Response} */ ({
           json: () => responseBody.promise,
@@ -82,7 +82,7 @@ test("Forgejo verification preserves hard shutdown during response parsing", asy
 test("Forgejo verification preserves hard shutdown during private Git read", async () => {
   const gitRead = Promise.withResolvers();
   const { completion, workers } = beginVerification(
-    createForgejoV16Verifier({
+    createForgejoVerifier({
       fetch: async (input) => {
         const requestUrl = new URL(String(input));
         return new Response(
@@ -115,7 +115,7 @@ test("Forgejo verification preserves a distinct private Git termination failure"
     { code: "git_termination_failed" },
   );
   const { completion, workers } = beginVerification(
-    createForgejoV16Verifier({
+    createForgejoVerifier({
       fetch: async (input) => {
         const requestUrl = new URL(String(input));
         return new Response(

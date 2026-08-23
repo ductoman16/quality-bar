@@ -12,7 +12,7 @@ function verification(row) {
     typeof row.id !== "string" ||
     typeof row.trigger !== "string" ||
     !Number.isSafeInteger(row.sequence) ||
-    (row.profile !== null && row.profile !== "forgejo-v16") ||
+    (row.profile !== null && row.profile !== "forgejo") ||
     (row.reported_version !== null &&
       typeof row.reported_version !== "string") ||
     !Number.isSafeInteger(row.verified_at) ||
@@ -101,7 +101,7 @@ export function readForgejoConnection(durableCore) {
   if (
     typeof row.id !== "string" ||
     typeof row.base_url !== "string" ||
-    row.api_profile !== "forgejo-v16" ||
+    row.api_profile !== "forgejo" ||
     typeof row.reported_version !== "string" ||
     !Number.isSafeInteger(row.principal_id) ||
     typeof row.principal_login !== "string" ||

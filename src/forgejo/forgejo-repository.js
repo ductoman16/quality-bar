@@ -68,7 +68,7 @@ export function forgejoRepository(value) {
   ) {
     fail(
       "forgejo_repository_capability_missing",
-      "Forgejo Repository does not have the required v16 authority",
+      "Forgejo Repository does not have the required Forgejo authority",
       Number.isSafeInteger(evidence.id) && Number(evidence.id) > 0
         ? { repositoryId: evidence.id }
         : {},
@@ -93,7 +93,7 @@ export function requireForgejoRepositoryAuthority(value, expectedId) {
   ) {
     fail(
       "forgejo_repository_capability_missing",
-      "Forgejo Repository does not have the required v16 authority",
+      "Forgejo Repository does not have the required Forgejo authority",
     );
   }
 }

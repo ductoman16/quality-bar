@@ -40,7 +40,7 @@ test("SQLite onboarding advances nothing when the complete Forgejo baseline fail
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [
             {
@@ -107,7 +107,7 @@ test("SQLite polling preserves the last Forgejo success through an exact rate ga
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [
             {

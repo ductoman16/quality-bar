@@ -23,7 +23,7 @@ const privateRepository = {
   private: true,
 };
 
-test("SQLite atomically stores the selected Forgejo v16 Repositories and a secret-free verification", async (context) => {
+test("SQLite atomically stores the selected Forgejo Repositories and a secret-free verification", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-"));
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -46,7 +46,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],
@@ -69,7 +69,7 @@ test("SQLite atomically stores the selected Forgejo v16 Repositories and a secre
   assert.equal(verificationHistory[0].trigger, "onboarding");
   assert.equal(verificationHistory[0].outcome, "success");
   assert.deepEqual(projection, {
-    api_profile: "forgejo-v16",
+    api_profile: "forgejo",
     base_url: "https://forgejo.example",
     capabilities: { private_git_read: "verified" },
     health: "healthy",
@@ -184,7 +184,7 @@ test("SQLite keeps the active Forgejo PAT when replacement verification fails", 
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],
@@ -316,7 +316,7 @@ test("SQLite atomically activates a replacement PAT only after every enabled For
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.5",
           repositories: repositories.filter((repository) =>
             repositoryIds.includes(repository.id),

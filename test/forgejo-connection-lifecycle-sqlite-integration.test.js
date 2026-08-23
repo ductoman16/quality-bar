@@ -39,7 +39,7 @@ function verified(repositories = [repository]) {
         repositories.length === 0 ? "not_completed" : "verified",
     },
     principal: { id: 7, login: "operator" },
-    profile: "forgejo-v16",
+    profile: "forgejo",
     reported_version: "16.0.4",
     repositories,
     scopes: ["read:repository", "write:issue", "write:repository"],
@@ -335,14 +335,14 @@ test("SQLite hard-deletes only a never-used Forgejo Connection", (context) => {
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
   const cipher = createForgejoConnectionCredentialCipher(Buffer.alloc(32, 13));
   core.run(
-    "INSERT INTO forgejo_connections (id, base_url, api_profile, reported_version, principal_id, principal_login, scopes, capabilities, health, created_at, verified_at) VALUES ('connection-1', 'https://forgejo.example', 'forgejo-v16', '16.0.4', 7, 'operator', '[]', '{}', 'healthy', 1000, 1000)",
+    "INSERT INTO forgejo_connections (id, base_url, api_profile, reported_version, principal_id, principal_login, scopes, capabilities, health, created_at, verified_at) VALUES ('connection-1', 'https://forgejo.example', 'forgejo', '16.0.4', 7, 'operator', '[]', '{}', 'healthy', 1000, 1000)",
   );
   core.run(
     "INSERT INTO forgejo_connection_credentials (connection_id, encrypted_credential, created_at) VALUES ('connection-1', ?, 1000)",
     cipher.encrypt("connection-1", "operator-pat"),
   );
   core.run(
-    "INSERT INTO forgejo_connection_verifications (id, connection_id, trigger, profile, reported_version, principal, scopes, capabilities, repositories, error_code, error_message, verified_at) VALUES ('verification-1', 'connection-1', 'onboarding', 'forgejo-v16', '16.0.4', '{\"id\":7,\"login\":\"operator\"}', '[]', '{}', '[]', NULL, NULL, 1000)",
+    "INSERT INTO forgejo_connection_verifications (id, connection_id, trigger, profile, reported_version, principal, scopes, capabilities, repositories, error_code, error_message, verified_at) VALUES ('verification-1', 'connection-1', 'onboarding', 'forgejo', '16.0.4', '{\"id\":7,\"login\":\"operator\"}', '[]', '{}', '[]', NULL, NULL, 1000)",
   );
   cipher.destroy();
   const service = createForgejoConnectionService(core, {

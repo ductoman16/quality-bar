@@ -110,7 +110,7 @@ export const forgejoSuccessfulVerification = {
   additionalProperties: false,
   properties: {
     ...verificationFacts,
-    api_profile: { const: "forgejo-v16", type: "string" },
+    api_profile: { const: "forgejo", type: "string" },
     capabilities: { additionalProperties: true, type: "object" },
     error: { type: "null" },
     outcome: { const: "success", type: "string" },
@@ -128,7 +128,7 @@ export const forgejoFailedVerification = {
   properties: {
     ...verificationFacts,
     api_profile: {
-      oneOf: [{ const: "forgejo-v16", type: "string" }, { type: "null" }],
+      oneOf: [{ const: "forgejo", type: "string" }, { type: "null" }],
     },
     capabilities: {
       oneOf: [{ additionalProperties: true, type: "object" }, { type: "null" }],

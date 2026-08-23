@@ -2,8 +2,8 @@ import {
   currentIoOperationSignal,
   throwIfIoOperationAborted,
 } from "../io-operation-context.js";
-import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
-import { forgejoV16ResponseFailure } from "./forgejo-v16-response-failure.js";
+import { normalizedForgejoBaseUrl } from "./forgejo-url.js";
+import { forgejoResponseFailure } from "./forgejo-response-failure.js";
 
 /** @param {string} code @param {string} message @param {Record<string, unknown>} [facts] @returns {never} */
 function fail(code, message, facts = {}) {
@@ -20,7 +20,7 @@ function object(value) {
 /** @param {Response} response @param {string} path @param {number} repositoryId */
 async function responseArray(response, path, repositoryId) {
   if (!response.ok) {
-    throw forgejoV16ResponseFailure(
+    throw forgejoResponseFailure(
       response,
       path,
       "reconciliation",
@@ -153,9 +153,7 @@ function reconciledIdentity(matches) {
 }
 
 /** @param {{fetch?: typeof fetch}} [options] */
-export function createForgejoV16Reconciler({
-  fetch: fetchRequest = fetch,
-} = {}) {
+export function createForgejoReconciler({ fetch: fetchRequest = fetch } = {}) {
   return {
     /** @param {any} connection @param {any} repository @param {any} status */
     async reconcileCommitStatus(connection, repository, status) {

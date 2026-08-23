@@ -10,7 +10,7 @@ import { createGitHubVerifier } from "../src/github/github-api.js";
 import { createGitHubFeedbackService } from "../src/github/github-feedback-service.js";
 import { attemptGitHubDelivery } from "../src/github/github-delivery-service.js";
 import { createForgejoFeedbackService } from "../src/forgejo/forgejo-feedback-service.js";
-import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoPublisher } from "../src/forgejo/forgejo-verifier.js";
 import { attemptForgejoDelivery } from "../src/forgejo/forgejo-delivery-service.js";
 import { openDurableCore } from "../src/durable/durable-core.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
@@ -207,7 +207,7 @@ test("Forgejo aggregate recovery proves absence before exactly one replacement c
   const requests = [];
   let creates = 0;
   let unresolvedCreates = 0;
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async (requestUrl, options = {}) => {
       const url = new URL(requestUrl);
       requests.push({ method: options.method ?? "GET", path: url.pathname });
