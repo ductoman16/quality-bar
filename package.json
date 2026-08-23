@@ -3,28 +3,28 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "24.18.0"
+    "node": ">=24.18.0 <25"
   },
   "packageManager": "npm@11.16.0",
   "scripts": {
     "build": "vite build",
-    "canary:paid-codex": "node scripts/run-with-exact-node.mjs scripts/release-canary/run-paid-codex.mjs",
-    "canary:private-github": "node scripts/run-with-exact-node.mjs scripts/release-canary/run-private-github.mjs",
-    "start": "node scripts/run-with-exact-node.mjs src/main.js",
+    "canary:paid-codex": "node scripts/release-canary/run-paid-codex.mjs",
+    "canary:private-github": "node scripts/release-canary/run-private-github.mjs",
+    "start": "node src/main.js",
     "pretest": "npm run build",
-    "test": "node scripts/run-with-exact-node.mjs --test && npm run test:ui",
+    "test": "node --test && npm run test:ui",
     "test:ui": "vitest run",
-    "lint:structure": "node scripts/run-with-exact-node.mjs scripts/structural-lint.mjs",
-    "lint:correctness": "node scripts/run-with-exact-node.mjs scripts/core-js-lint.mjs",
-    "lint:boundaries": "node scripts/run-with-exact-node.mjs scripts/node-boundary-lint.mjs",
-    "typecheck:node": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.node.json",
-    "typecheck:browser": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.browser.json",
-    "typecheck:tests": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test.json && node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.test-browser.json",
-    "typecheck:scripts": "node scripts/run-with-exact-node.mjs node_modules/typescript/bin/tsc --project tsconfig.scripts.json",
+    "lint:structure": "node scripts/structural-lint.mjs",
+    "lint:correctness": "node scripts/core-js-lint.mjs",
+    "lint:boundaries": "node scripts/node-boundary-lint.mjs",
+    "typecheck:node": "node node_modules/typescript/bin/tsc --project tsconfig.node.json",
+    "typecheck:browser": "node node_modules/typescript/bin/tsc --project tsconfig.browser.json",
+    "typecheck:tests": "node node_modules/typescript/bin/tsc --project tsconfig.test.json && node node_modules/typescript/bin/tsc --project tsconfig.test-browser.json",
+    "typecheck:scripts": "node node_modules/typescript/bin/tsc --project tsconfig.scripts.json",
     "precoverage": "npm run build",
-    "coverage": "node scripts/run-with-exact-node.mjs node_modules/c8/bin/c8.js --all --include='src/**/*.js' --check-coverage --lines=85 --branches=80 --functions=85 node --test && npm run test:ui",
-    "format": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
-    "format:check": "node scripts/run-with-exact-node.mjs node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js"
+    "coverage": "node node_modules/c8/bin/c8.js --all --include='src/**/*.js' --check-coverage --lines=85 --branches=80 --functions=85 node --test && npm run test:ui",
+    "format": "node node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
+    "format:check": "node node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

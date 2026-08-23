@@ -12,17 +12,13 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 
 import {
-  REQUIRED_NODE_VERSION,
-  assertExactNodeRuntime,
-} from "../scripts/runtime-contract.mjs";
-import {
   listMaintainedJavaScriptFiles,
   runStructuralLint,
 } from "../scripts/structural-lint.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
-test("Node declarations pin the same exact runtime", () => {
+test("Node declarations agree on the supported runtime range", () => {
   const packageJson = JSON.parse(
     readFileSync(resolve(repositoryRoot, "package.json"), "utf8"),
   );
@@ -39,8 +35,7 @@ test("Node declarations pin the same exact runtime", () => {
     "utf8",
   );
 
-  assert.equal(REQUIRED_NODE_VERSION, "v24.18.0");
-  assert.equal(packageJson.engines.node, "24.18.0");
+  assert.equal(packageJson.engines.node, ">=24.18.0 <25");
   assert.equal(packageJson.packageManager, "npm@11.16.0");
   assert.equal(packageJson.devDependencies.prettier, "3.7.4");
   assert.equal(packageJson.devDependencies.typescript, "7.0.2");
@@ -52,30 +47,6 @@ test("Node declarations pin the same exact runtime", () => {
     /^ARG BUNDLED_NODE_IMAGE=node:24\.18\.0-alpine@sha256:[a-f0-9]{64}\nFROM \$\{BUNDLED_NODE_IMAGE\} AS build$/m,
   );
   assert.match(dockerfile, /^FROM \$\{BUNDLED_NODE_IMAGE\}$/m);
-});
-
-test("the verifier runtime contract rejects every nonexact Node version", () => {
-  assert.doesNotThrow(() => assertExactNodeRuntime(REQUIRED_NODE_VERSION));
-  assert.throws(
-    () => assertExactNodeRuntime("v24.18.1"),
-    new Error(
-      "verification_runtime_mismatch: expected v24.18.0, received v24.18.1",
-    ),
-  );
-});
-
-test("the shared command runner invokes child Node with the validated runtime", () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      "scripts/run-with-exact-node.mjs",
-      "fixtures/test-probes/runtime-version.mjs",
-    ],
-    { cwd: repositoryRoot, encoding: "utf8" },
-  );
-
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, REQUIRED_NODE_VERSION);
 });
 
 test("the focused formatter rejects the representative unformatted fixture", () => {
