@@ -24,7 +24,6 @@ test("invalid SQLite backup output is discarded and never reported as success", 
   temporaryDirectories.push(directory);
   const backupsPath = join(directory, "backups");
   const database = new DatabaseSync(join(directory, "quality-bar.sqlite3"));
-  database.exec("PRAGMA user_version = 53");
 
   await assert.rejects(
     createValidatedBackup({

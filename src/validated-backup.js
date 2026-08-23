@@ -23,7 +23,6 @@ const BACKUP_FILE = /^quality-bar-(daily)-(.+)\.(json|sqlite3)$/;
  *   database_file: string,
  *   installation_key_identity: string,
  *   kind: string,
- *   schema_version: number,
  * }} BackupManifest
  */
 
@@ -87,20 +86,15 @@ function validatedManifest(manifest, kind, databaseFile) {
     Number.isNaN(Date.parse(record.created_at)) ||
     new Date(record.created_at).toISOString() !== record.created_at ||
     typeof record.installation_key_identity !== "string" ||
-    !/^sha256:[0-9a-f]{64}$/.test(record.installation_key_identity) ||
-    !Number.isSafeInteger(record.schema_version) ||
-    /** @type {number} */ (record.schema_version) <= 0
+    !/^sha256:[0-9a-f]{64}$/.test(record.installation_key_identity)
   ) {
     return null;
   }
   return /** @type {BackupManifest} */ (record);
 }
 
-/**
- * @param {string} databasePath
- * @param {number} schemaVersion
- */
-function databaseIsValid(databasePath, schemaVersion) {
+/** @param {string} databasePath */
+function databaseIsValid(databasePath) {
   let database;
   let valid = false;
   let validationFailure;
@@ -108,9 +102,7 @@ function databaseIsValid(databasePath, schemaVersion) {
     database = new DatabaseSync(databasePath, { readOnly: true });
     valid =
       database.prepare("PRAGMA integrity_check").get()?.integrity_check ===
-        "ok" &&
-      database.prepare("PRAGMA user_version").get()?.user_version ===
-        schemaVersion;
+      "ok";
   } catch (error) {
     if (!isSqliteCorruption(error)) {
       validationFailure = owningBackupError(
@@ -203,7 +195,7 @@ export function readValidatedBackups({ backupsPath, kind }) {
     if (
       !manifest ||
       !fileExists(databasePath) ||
-      !databaseIsValid(databasePath, manifest.schema_version)
+      !databaseIsValid(databasePath)
     ) {
       discard([
         manifestPath,
@@ -220,7 +212,6 @@ export function readValidatedBackups({ backupsPath, kind }) {
       keyIdentity: manifest.installation_key_identity,
       kind: manifestKind,
       manifestPath,
-      schemaVersion: manifest.schema_version,
     });
   }
 

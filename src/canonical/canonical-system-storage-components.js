@@ -21,16 +21,9 @@ export function canonicalSystemStorageSchemas() {
           pattern: "^sha256:[0-9a-f]{64}$",
           type: ["string", "null"],
         },
-        schema_version: { minimum: 1, type: ["integer", "null"] },
         status: { enum: ["available", "unavailable"], type: "string" },
       },
-      [
-        "application_version",
-        "error",
-        "installation_key_identity",
-        "schema_version",
-        "status",
-      ],
+      ["application_version", "error", "installation_key_identity", "status"],
     ),
     SystemBackupRecord: closedObject(
       {
@@ -44,14 +37,12 @@ export function canonicalSystemStorageSchemas() {
           type: "string",
         },
         kind: { const: "daily", type: "string" },
-        schema_version: { minimum: 1, type: "integer" },
       },
       [
         "application_version",
         "created_at",
         "installation_key_identity",
         "kind",
-        "schema_version",
       ],
     ),
     SystemBackupFact: closedObject(

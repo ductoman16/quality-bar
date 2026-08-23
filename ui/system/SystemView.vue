@@ -258,8 +258,6 @@ onMounted(load);
           {{ system.application.application_version ?? "Unavailable" }} ·
           {{ problem(system.application.error) }}
         </dd>
-        <dt>Schema version</dt>
-        <dd>{{ system.application.schema_version ?? "Unavailable" }}</dd>
         <dt>Installation key</dt>
         <dd>
           {{ system.application.installation_key_identity ?? "Unavailable" }}
@@ -290,7 +288,6 @@ onMounted(load);
           {{ system.backup.status }} ·
           {{ system.backup.last_successful?.created_at ?? "Never" }} ·
           {{ system.backup.last_successful?.application_version ?? "none" }} ·
-          schema {{ system.backup.last_successful?.schema_version ?? "none" }} ·
           key
           {{
             system.backup.last_successful?.installation_key_identity ?? "none"

@@ -137,7 +137,7 @@ The command fails while the service holds the installation lock. On success it c
 
 ## Backup and restore
 
-Quality Bar accepts only an empty database or schema v53. Startup validates the current schema and SQLite integrity before serving work. Daily backups remain restorable offline with the same application schema:
+Startup validates SQLite integrity and applies the current schema before serving work. Daily backups remain restorable offline with the same application schema:
 
 ```sh
 docker compose stop quality-bar

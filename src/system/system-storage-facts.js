@@ -9,7 +9,6 @@ const KEY_IDENTITY = /^sha256:[0-9a-f]{64}$/;
  *   createdAt: string,
  *   keyIdentity: string,
  *   kind: "daily",
- *   schemaVersion: number
  * }} ValidatedBackup
  */
 
@@ -48,9 +47,7 @@ function requireBackup(value) {
     typeof record.createdAt !== "string" ||
     typeof record.keyIdentity !== "string" ||
     !KEY_IDENTITY.test(record.keyIdentity) ||
-    record.kind !== "daily" ||
-    !Number.isSafeInteger(record.schemaVersion) ||
-    /** @type {number} */ (record.schemaVersion) <= 0
+    record.kind !== "daily"
   ) {
     throw new TypeError("Validated backup fact is invalid");
   }
@@ -65,7 +62,6 @@ function backupDocument(backup) {
     created_at: backup.createdAt,
     installation_key_identity: backup.keyIdentity,
     kind: backup.kind,
-    schema_version: backup.schemaVersion,
   };
 }
 
@@ -80,7 +76,6 @@ function latestBackup(backups) {
  * @param {{
  *   applicationVersion?: string,
  *   backupsPath: string,
- *   durableCore: {facts: {schemaVersion: number}},
  *   installationKeyIdentity?: string,
  *   now?: () => number,
  *   readBackups?: typeof readValidatedBackups
@@ -89,7 +84,6 @@ function latestBackup(backups) {
 export function readSystemStorageFacts({
   applicationVersion,
   backupsPath,
-  durableCore,
   installationKeyIdentity,
   now = () => Date.now(),
   readBackups = readValidatedBackups,
@@ -101,13 +95,6 @@ export function readSystemStorageFacts({
     typeof readBackups !== "function"
   ) {
     throw new TypeError("System storage fact dependencies are invalid");
-  }
-  const currentSchemaVersion = durableCore?.facts?.schemaVersion;
-  if (
-    !Number.isSafeInteger(currentSchemaVersion) ||
-    currentSchemaVersion <= 0
-  ) {
-    throw new TypeError("System storage schema version is invalid");
   }
   const timestamp = now();
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
@@ -131,7 +118,6 @@ export function readSystemStorageFacts({
     ? {
         application_version: null,
         installation_key_identity: null,
-        schema_version: null,
         status: "unavailable",
         error: applicationError,
       }
@@ -139,7 +125,6 @@ export function readSystemStorageFacts({
         application_version: applicationVersion,
         error: null,
         installation_key_identity: installationKeyIdentity,
-        schema_version: currentSchemaVersion,
         status: "available",
       };
 
@@ -179,8 +164,7 @@ export function readSystemStorageFacts({
       status:
         daily.createdAt.slice(0, 10) === utcDate &&
         daily.applicationVersion === applicationVersion &&
-        daily.keyIdentity === installationKeyIdentity &&
-        daily.schemaVersion === currentSchemaVersion
+        daily.keyIdentity === installationKeyIdentity
           ? "current"
           : "stale",
     };

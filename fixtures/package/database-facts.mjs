@@ -54,7 +54,6 @@ console.log(
           )
           .get()?.baseline_status ?? null,
     },
-    schemaVersion: scalar("PRAGMA user_version", "user_version"),
     synchronous: { 0: "off", 1: "normal", 2: "full", 3: "extra" }[synchronous],
   }),
 );
