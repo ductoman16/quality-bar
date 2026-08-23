@@ -6,7 +6,10 @@ import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable/durable-core.js";
 import { readForgejoConnection } from "../src/forgejo/forgejo-connection-read.js";
-import { createRepositoryService, RepositoryError } from "../src/repository/repository.js";
+import {
+  createRepositoryService,
+  RepositoryError,
+} from "../src/repository/repository.js";
 import {
   attemptForgejoDelivery,
   recordForgejoDeliveryHealth,

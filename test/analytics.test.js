@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildDailyTrend, createAnalyticsService } from "../src/analytics/analytics.js";
+import {
+  buildDailyTrend,
+  createAnalyticsService,
+} from "../src/analytics/analytics.js";
 
 test("daily trend buckets evaluations by UTC day and fills empty days", () => {
   const day = (/** @type {string} */ iso) => Date.parse(iso);

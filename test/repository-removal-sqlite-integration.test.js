@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable/durable-core.js";
-import { createRepositoryService, RepositoryError } from "../src/repository/repository.js";
+import {
+  createRepositoryService,
+  RepositoryError,
+} from "../src/repository/repository.js";
 import { createReviewService } from "../src/review/review.js";
 
 test("SQLite deletes only an unreferenced Repository and reactivates used identity after complete verification", async (context) => {
