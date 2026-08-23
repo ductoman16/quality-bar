@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createAnalyticsService } from "../src/analytics.js";
+import { createAnalyticsService } from "../src/analytics/analytics.js";
 import { nearestRankP95 } from "../src/execution-analytics.js";
 test("Analytics derives current Evaluation, Finding, and waiver populations from immutable facts", () => {
   const analytics = createAnalyticsService({

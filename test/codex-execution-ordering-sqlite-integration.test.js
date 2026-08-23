@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
-import { openDurableCore } from "../src/durable-core.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex/codex-execution-concurrency.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 
 test("ready_at then stable identity orders Review Runs and Waiver Adjudications together", (context) => {

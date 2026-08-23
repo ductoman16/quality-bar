@@ -8,10 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createForgejoConnectionCredentialCipher } from "../src/forgejo-connection-credential.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { ensureForgejoDelivery } from "../src/forgejo-delivery.js";
+import { createForgejoConnectionCredentialCipher } from "../src/forgejo/forgejo-connection-credential.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { ensureForgejoDelivery } from "../src/forgejo/forgejo-delivery.js";
 
 const repository = {
   api_url: "https://forgejo.example/api/v1/repos/operator/private",

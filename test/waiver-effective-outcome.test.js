@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { effectiveEvaluationOutcome } from "../src/waiver-effective-outcome.js";
+import { effectiveEvaluationOutcome } from "../src/waiver/waiver-effective-outcome.js";
 
 test("current waiver facts recompute pending, error, blocking, advisory, then clear", () => {
   const facts = {

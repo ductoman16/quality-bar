@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { recoverOperatorAuthorityFromHost } from "../src/operator-authority-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { recoverOperatorAuthorityFromHost } from "../src/operator/operator-authority-recovery.js";
 import {
   bootstrapOperatorPassword,
   verifyOperatorPassword,
-} from "../src/operator-password.js";
+} from "../src/operator/operator-password.js";
 
 /** @type {string[]} */
 const temporaryDirectories = [];

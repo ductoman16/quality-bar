@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex/codex-execution-concurrency.js";
 import {
   createQueuedReviewRun,
   createSiblingQueuedReviewRun,

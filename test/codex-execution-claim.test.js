@@ -5,7 +5,7 @@ import {
   CODEX_EXECUTION_LEASE_MILLISECONDS,
   CODEX_EXECUTION_RENEWAL_MILLISECONDS,
   createCodexExecutionClaimService,
-} from "../src/codex-execution-claim.js";
+} from "../src/codex/codex-execution-claim.js";
 
 test("Codex execution claims use one oldest-ready-first selection across work kinds", () => {
   let selection = "";

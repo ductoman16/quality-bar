@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createServer } from "node:http";
 
-import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
 
 test("real Git preserves a Forgejo Repository disappearance as definitive read loss", async (context) => {
   const server = createServer((request, response) => {

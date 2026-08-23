@@ -4,9 +4,9 @@ import { test } from "node:test";
 import {
   createEvaluationService,
   createUnavailableEvaluationService,
-} from "../src/evaluation.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
+} from "../src/evaluation/evaluation.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

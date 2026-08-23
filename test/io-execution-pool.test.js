@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createApplicationIoPool } from "../src/application-io-pool.js";
-import { createGitHubApiRequest } from "../src/github-api-request.js";
+import { createApplicationIoPool } from "../src/application/application-io-pool.js";
+import { createGitHubApiRequest } from "../src/github/github-api-request.js";
 import {
   IO_EXECUTION_CONCURRENCY,
   IO_EXECUTION_QUEUE_CAPACITY,

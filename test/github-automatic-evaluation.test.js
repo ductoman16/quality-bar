@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { newlyEligibleGitHubPullRequests } from "../src/github-automatic-evaluation.js";
+import { newlyEligibleGitHubPullRequests } from "../src/github/github-automatic-evaluation.js";
 
 /** @param {number} number @param {Partial<{base: {sha: string}, draft: boolean, head: {sha: string}, merged_at: string | null, state: "closed" | "open"}>} [overrides] */
 function pullRequest(number, overrides = {}) {

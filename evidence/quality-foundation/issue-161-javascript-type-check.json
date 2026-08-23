@@ -285,7 +285,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 24,
       "code": "TS7006",
@@ -293,7 +293,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 34,
       "code": "TS7006",
@@ -301,7 +301,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 44,
       "code": "TS7006",
@@ -309,7 +309,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 51,
       "code": "TS7006",
@@ -317,7 +317,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 62,
       "code": "TS7006",
@@ -325,7 +325,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 34,
       "column": 71,
       "code": "TS7006",
@@ -333,7 +333,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 43,
       "column": 12,
       "code": "TS2339",
@@ -341,7 +341,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 44,
       "column": 12,
       "code": "TS2339",
@@ -349,7 +349,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 49,
       "column": 36,
       "code": "TS7006",
@@ -357,7 +357,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 52,
       "column": 7,
       "code": "TS7034",
@@ -365,7 +365,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 54,
       "column": 34,
       "code": "TS7006",
@@ -373,7 +373,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 71,
       "column": 14,
       "code": "TS7005",
@@ -381,7 +381,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 73,
       "column": 11,
       "code": "TS7006",
@@ -389,7 +389,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 74,
       "column": 11,
       "code": "TS7005",
@@ -397,7 +397,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 91,
       "column": 26,
       "code": "TS7006",
@@ -405,7 +405,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 98,
       "column": 11,
       "code": "TS7005",
@@ -413,7 +413,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 109,
       "column": 3,
       "code": "TS7031",
@@ -421,7 +421,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 118,
       "column": 15,
       "code": "TS7006",
@@ -429,7 +429,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 134,
       "column": 7,
       "code": "TS7034",
@@ -437,7 +437,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 135,
       "column": 7,
       "code": "TS7034",
@@ -445,7 +445,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 145,
       "column": 28,
       "code": "TS7006",
@@ -453,7 +453,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 198,
       "column": 46,
       "code": "TS7005",
@@ -461,7 +461,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 205,
       "column": 5,
       "code": "TS2353",
@@ -469,7 +469,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 213,
       "column": 10,
       "code": "TS18047",
@@ -477,7 +477,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 216,
       "column": 45,
       "code": "TS2339",
@@ -485,7 +485,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 223,
       "column": 33,
       "code": "TS7006",
@@ -493,7 +493,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 224,
       "column": 7,
       "code": "TS18047",
@@ -501,7 +501,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 225,
       "column": 34,
       "code": "TS7006",
@@ -509,7 +509,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 226,
       "column": 7,
       "code": "TS18047",
@@ -517,7 +517,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 236,
       "column": 43,
       "code": "TS2339",
@@ -525,7 +525,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 240,
       "column": 26,
       "code": "TS7006",
@@ -533,7 +533,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 246,
       "column": 60,
       "code": "TS2810",
@@ -541,7 +541,7 @@
     },
     {
       "environment": "node",
-      "path": "src/application.js",
+      "path": "src/application/application.js",
       "line": 250,
       "column": 7,
       "code": "TS7005",
@@ -1453,7 +1453,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 1,
       "column": 23,
       "code": "TS7006",
@@ -1461,7 +1461,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 1,
       "column": 35,
       "code": "TS7006",
@@ -1469,7 +1469,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 1,
       "column": 45,
       "code": "TS7006",
@@ -1477,7 +1477,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 5,
       "column": 21,
       "code": "TS7006",
@@ -1485,7 +1485,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 5,
       "column": 33,
       "code": "TS7006",
@@ -1493,7 +1493,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 9,
       "column": 23,
       "code": "TS7006",
@@ -1501,7 +1501,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 9,
       "column": 35,
       "code": "TS7006",
@@ -1509,7 +1509,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 13,
       "column": 43,
       "code": "TS7006",
@@ -1517,7 +1517,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 88,
       "column": 51,
       "code": "TS7006",
@@ -1525,7 +1525,7 @@
     },
     {
       "environment": "node",
-      "path": "src/canonical-api-components.js",
+      "path": "src/canonical/canonical-api-components.js",
       "line": 226,
       "column": 51,
       "code": "TS7006",
@@ -1573,7 +1573,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 25,
       "column": 15,
       "code": "TS7006",
@@ -1581,7 +1581,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 25,
       "column": 21,
       "code": "TS7006",
@@ -1589,7 +1589,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 32,
       "column": 15,
       "code": "TS7006",
@@ -1597,7 +1597,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 32,
       "column": 21,
       "code": "TS7006",
@@ -1605,7 +1605,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 36,
       "column": 31,
       "code": "TS7006",
@@ -1613,7 +1613,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 53,
       "column": 44,
       "code": "TS7006",
@@ -1621,7 +1621,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 68,
       "column": 8,
       "code": "TS18048",
@@ -1629,7 +1629,7 @@
     },
     {
       "environment": "node",
-      "path": "src/codex-capabilities.js",
+      "path": "src/codex/codex-capabilities.js",
       "line": 74,
       "column": 8,
       "code": "TS18048",
@@ -1637,7 +1637,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 6,
       "column": 19,
       "code": "TS7006",
@@ -1645,7 +1645,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 10,
       "column": 37,
       "code": "TS7006",
@@ -1653,7 +1653,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 10,
       "column": 49,
       "code": "TS2339",
@@ -1661,7 +1661,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 11,
       "column": 7,
       "code": "TS7034",
@@ -1669,7 +1669,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 14,
       "column": 9,
       "code": "TS7005",
@@ -1677,7 +1677,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 19,
       "column": 36,
       "code": "TS7006",
@@ -1685,7 +1685,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 20,
       "column": 10,
       "code": "TS7005",
@@ -1693,7 +1693,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 33,
       "column": 20,
       "code": "TS7006",
@@ -1701,7 +1701,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 33,
       "column": 28,
       "code": "TS7006",
@@ -1709,7 +1709,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 33,
       "column": 33,
       "code": "TS7006",
@@ -1717,7 +1717,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 45,
       "column": 30,
       "code": "TS7006",
@@ -1725,7 +1725,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 55,
       "column": 11,
       "code": "TS7006",
@@ -1733,7 +1733,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 55,
       "column": 16,
       "code": "TS7019",
@@ -1741,7 +1741,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 59,
       "column": 11,
       "code": "TS7006",
@@ -1749,7 +1749,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 59,
       "column": 16,
       "code": "TS7019",
@@ -1757,7 +1757,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 63,
       "column": 11,
       "code": "TS7006",
@@ -1765,7 +1765,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 63,
       "column": 16,
       "code": "TS7019",
@@ -1773,7 +1773,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 71,
       "column": 9,
       "code": "TS7006",
@@ -1781,7 +1781,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 71,
       "column": 14,
       "code": "TS7019",
@@ -1789,7 +1789,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 74,
       "column": 9,
       "code": "TS7006",
@@ -1797,7 +1797,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 74,
       "column": 14,
       "code": "TS7019",
@@ -1805,7 +1805,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 77,
       "column": 9,
       "code": "TS7006",
@@ -1813,7 +1813,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 77,
       "column": 14,
       "code": "TS7019",
@@ -1821,7 +1821,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 80,
       "column": 17,
       "code": "TS7006",
@@ -1829,7 +1829,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 124,
       "column": 20,
       "code": "TS2339",
@@ -1837,7 +1837,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 125,
       "column": 24,
       "code": "TS2339",
@@ -1845,7 +1845,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 132,
       "column": 20,
       "code": "TS2339",
@@ -1853,7 +1853,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-access.js",
+      "path": "src/durable/durable-access.js",
       "line": 141,
       "column": 18,
       "code": "TS2339",
@@ -1861,7 +1861,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-core.js",
+      "path": "src/durable/durable-core.js",
       "line": 13,
       "column": 20,
       "code": "TS7006",
@@ -1869,7 +1869,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-core.js",
+      "path": "src/durable/durable-core.js",
       "line": 26,
       "column": 33,
       "code": "TS7006",
@@ -1877,7 +1877,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-core.js",
+      "path": "src/durable/durable-core.js",
       "line": 26,
       "column": 49,
       "code": "TS2339",
@@ -1885,7 +1885,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-core.js",
+      "path": "src/durable/durable-core.js",
       "line": 39,
       "column": 5,
       "code": "TS18048",
@@ -1893,7 +1893,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 2,
       "column": 15,
       "code": "TS7006",
@@ -1901,7 +1901,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 2,
       "column": 21,
       "code": "TS7006",
@@ -1909,7 +1909,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 2,
       "column": 30,
       "code": "TS7006",
@@ -1917,7 +1917,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 9,
       "column": 22,
       "code": "TS7006",
@@ -1925,7 +1925,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 9,
       "column": 28,
       "code": "TS7006",
@@ -1933,7 +1933,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-error.js",
+      "path": "src/durable/durable-error.js",
       "line": 9,
       "column": 37,
       "code": "TS7006",
@@ -1941,7 +1941,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 15,
       "column": 21,
       "code": "TS7006",
@@ -1949,7 +1949,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 19,
       "column": 36,
       "code": "TS7006",
@@ -1957,7 +1957,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 29,
       "column": 29,
       "code": "TS7006",
@@ -1965,7 +1965,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 33,
       "column": 17,
       "code": "TS7006",
@@ -1973,7 +1973,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 33,
       "column": 27,
       "code": "TS7006",
@@ -1981,7 +1981,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 33,
       "column": 35,
       "code": "TS7006",
@@ -1989,7 +1989,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 37,
       "column": 35,
       "code": "TS7006",
@@ -1997,7 +1997,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-integrity.js",
+      "path": "src/durable/durable-integrity.js",
       "line": 92,
       "column": 35,
       "code": "TS7006",
@@ -2005,7 +2005,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-schema.js",
+      "path": "src/durable/durable-schema.js",
       "line": 68,
       "column": 20,
       "code": "TS7006",
@@ -2013,7 +2013,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-schema.js",
+      "path": "src/durable/durable-schema.js",
       "line": 68,
       "column": 30,
       "code": "TS7006",
@@ -2021,7 +2021,7 @@
     },
     {
       "environment": "node",
-      "path": "src/durable-schema.js",
+      "path": "src/durable/durable-schema.js",
       "line": 80,
       "column": 44,
       "code": "TS7006",
@@ -3237,7 +3237,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 8,
       "column": 15,
       "code": "TS7006",
@@ -3245,7 +3245,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 8,
       "column": 21,
       "code": "TS7006",
@@ -3253,7 +3253,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 8,
       "column": 30,
       "code": "TS7006",
@@ -3261,7 +3261,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 15,
       "column": 15,
       "code": "TS7006",
@@ -3269,7 +3269,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 15,
       "column": 21,
       "code": "TS7006",
@@ -3277,7 +3277,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 19,
       "column": 33,
       "code": "TS7006",
@@ -3285,7 +3285,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 19,
       "column": 40,
       "code": "TS7006",
@@ -3293,7 +3293,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 37,
       "column": 20,
       "code": "TS7006",
@@ -3301,7 +3301,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 49,
       "column": 24,
       "code": "TS7006",
@@ -3309,7 +3309,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 49,
       "column": 31,
       "code": "TS7006",
@@ -3317,7 +3317,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 49,
       "column": 36,
       "code": "TS7006",
@@ -3325,7 +3325,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 58,
       "column": 26,
       "code": "TS7006",
@@ -3333,7 +3333,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 67,
       "column": 28,
       "code": "TS7006",
@@ -3341,7 +3341,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 74,
       "column": 46,
       "code": "TS7006",
@@ -3349,7 +3349,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 74,
       "column": 59,
       "code": "TS7006",
@@ -3357,7 +3357,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 82,
       "column": 11,
       "code": "TS2339",
@@ -3365,7 +3365,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 87,
       "column": 43,
       "code": "TS7006",
@@ -3373,7 +3373,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 87,
       "column": 56,
       "code": "TS7006",
@@ -3381,7 +3381,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 89,
       "column": 35,
       "code": "TS7006",
@@ -3389,7 +3389,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-login-throttle.js",
+      "path": "src/operator/operator-login-throttle.js",
       "line": 107,
       "column": 47,
       "code": "TS7006",
@@ -3397,7 +3397,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 20,
       "column": 15,
       "code": "TS7006",
@@ -3405,7 +3405,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 20,
       "column": 21,
       "code": "TS7006",
@@ -3413,7 +3413,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 20,
       "column": 30,
       "code": "TS7006",
@@ -3421,7 +3421,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 24,
       "column": 43,
       "code": "TS7006",
@@ -3429,7 +3429,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 45,
       "column": 31,
       "code": "TS7006",
@@ -3437,7 +3437,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 45,
       "column": 38,
       "code": "TS7006",
@@ -3445,7 +3445,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 54,
       "column": 21,
       "code": "TS7006",
@@ -3453,7 +3453,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password-bootstrap.js",
+      "path": "src/operator/operator-password-bootstrap.js",
       "line": 66,
       "column": 22,
       "code": "TS7006",
@@ -3461,7 +3461,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 20,
       "column": 15,
       "code": "TS7006",
@@ -3469,7 +3469,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 20,
       "column": 21,
       "code": "TS7006",
@@ -3477,7 +3477,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 20,
       "column": 30,
       "code": "TS7006",
@@ -3485,7 +3485,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 27,
       "column": 15,
       "code": "TS7006",
@@ -3493,7 +3493,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 27,
       "column": 21,
       "code": "TS7006",
@@ -3501,7 +3501,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 27,
       "column": 30,
       "code": "TS7006",
@@ -3509,7 +3509,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 31,
       "column": 33,
       "code": "TS7006",
@@ -3517,7 +3517,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 35,
       "column": 33,
       "code": "TS7006",
@@ -3525,7 +3525,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 35,
       "column": 43,
       "code": "TS7006",
@@ -3533,7 +3533,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 66,
       "column": 5,
       "code": "TS18048",
@@ -3541,7 +3541,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 70,
       "column": 31,
       "code": "TS7006",
@@ -3549,7 +3549,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 114,
       "column": 40,
       "code": "TS7006",
@@ -3557,7 +3557,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 114,
       "column": 53,
       "code": "TS7006",
@@ -3565,7 +3565,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 144,
       "column": 24,
       "code": "TS2345",
@@ -3573,7 +3573,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 150,
       "column": 3,
       "code": "TS7006",
@@ -3581,7 +3581,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 151,
       "column": 3,
       "code": "TS7006",
@@ -3589,7 +3589,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 152,
       "column": 3,
       "code": "TS7006",
@@ -3597,7 +3597,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 172,
       "column": 3,
       "code": "TS7006",
@@ -3605,7 +3605,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 173,
       "column": 3,
       "code": "TS7006",
@@ -3613,7 +3613,7 @@
     },
     {
       "environment": "node",
-      "path": "src/operator-password.js",
+      "path": "src/operator/operator-password.js",
       "line": 189,
       "column": 28,
       "code": "TS7006",
@@ -3709,7 +3709,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 6,
       "column": 15,
       "code": "TS7006",
@@ -3717,7 +3717,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 6,
       "column": 21,
       "code": "TS7006",
@@ -3725,7 +3725,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 13,
       "column": 15,
       "code": "TS7006",
@@ -3733,7 +3733,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 13,
       "column": 21,
       "code": "TS7006",
@@ -3741,7 +3741,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 17,
       "column": 24,
       "code": "TS7006",
@@ -3749,7 +3749,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 17,
       "column": 31,
       "code": "TS7006",
@@ -3757,7 +3757,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 24,
       "column": 17,
       "code": "TS7006",
@@ -3765,7 +3765,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 28,
       "column": 27,
       "code": "TS7006",
@@ -3773,7 +3773,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 28,
       "column": 34,
       "code": "TS7006",
@@ -3781,7 +3781,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 28,
       "column": 40,
       "code": "TS7006",
@@ -3789,7 +3789,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 35,
       "column": 29,
       "code": "TS7006",
@@ -3797,7 +3797,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 54,
       "column": 27,
       "code": "TS7006",
@@ -3805,7 +3805,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 61,
       "column": 24,
       "code": "TS7006",
@@ -3813,7 +3813,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 61,
       "column": 35,
       "code": "TS7006",
@@ -3821,7 +3821,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 80,
       "column": 29,
       "code": "TS7006",
@@ -3829,7 +3829,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 114,
       "column": 19,
       "code": "TS7006",
@@ -3837,7 +3837,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 119,
       "column": 3,
       "code": "TS7006",
@@ -3845,7 +3845,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 130,
       "column": 12,
       "code": "TS7006",
@@ -3853,7 +3853,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 138,
       "column": 48,
       "code": "TS7006",
@@ -3861,7 +3861,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 138,
       "column": 59,
       "code": "TS7006",
@@ -3869,7 +3869,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 144,
       "column": 51,
       "code": "TS7031",
@@ -3877,7 +3877,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 152,
       "column": 34,
       "code": "TS7006",
@@ -3885,7 +3885,7 @@
     },
     {
       "environment": "node",
-      "path": "src/review.js",
+      "path": "src/review/review.js",
       "line": 222,
       "column": 48,
       "code": "TS7006",
@@ -4085,7 +4085,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 12,
       "column": 23,
       "code": "TS7006",
@@ -4093,7 +4093,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 14,
       "column": 9,
       "code": "TS2339",
@@ -4101,7 +4101,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 18,
       "column": 25,
       "code": "TS7006",
@@ -4109,7 +4109,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 22,
       "column": 19,
       "code": "TS7006",
@@ -4117,7 +4117,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 32,
       "column": 24,
       "code": "TS7006",
@@ -4125,7 +4125,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 41,
       "column": 14,
       "code": "TS2339",
@@ -4133,7 +4133,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 47,
       "column": 3,
       "code": "TS7006",
@@ -4141,7 +4141,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 56,
       "column": 25,
       "code": "TS7006",
@@ -4149,7 +4149,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 77,
       "column": 25,
       "code": "TS7006",
@@ -4157,7 +4157,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 109,
       "column": 20,
       "code": "TS2339",
@@ -4165,7 +4165,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 116,
       "column": 32,
       "code": "TS7006",
@@ -4173,7 +4173,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 123,
       "column": 32,
       "code": "TS7006",
@@ -4181,7 +4181,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 127,
       "column": 17,
       "code": "TS7031",
@@ -4189,7 +4189,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 127,
       "column": 34,
       "code": "TS7031",
@@ -4197,7 +4197,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 127,
       "column": 41,
       "code": "TS7031",
@@ -4205,7 +4205,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 159,
       "column": 33,
       "code": "TS2339",
@@ -4213,7 +4213,7 @@
     },
     {
       "environment": "node",
-      "path": "src/system-resource.js",
+      "path": "src/system/system-resource.js",
       "line": 159,
       "column": 41,
       "code": "TS2339",

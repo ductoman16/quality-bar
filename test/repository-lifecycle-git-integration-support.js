@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { renameSync } from "node:fs";
 import { join } from "node:path";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { verifyRepositoryRead } from "../src/repository-git.js";
-import { createRepositoryGuidanceService } from "../src/repository-guidance.js";
-import { createRepositoryService } from "../src/repository.js";
-import { RepositoryError } from "../src/repository-validation.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { verifyRepositoryRead } from "../src/repository/repository-git.js";
+import { createRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
+import { createRepositoryService } from "../src/repository/repository.js";
+import { RepositoryError } from "../src/repository/repository-validation.js";
+import { createReviewService } from "../src/review/review.js";
 
 /** @param {string} directory @param {string} certificate @param {number} port */
 export async function assertRepositoryLifecycleOverRealGit(

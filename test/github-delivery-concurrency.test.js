@@ -4,18 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { resumeGitHubDeliveries } from "../src/github-delivery-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { resumeGitHubDeliveries } from "../src/github/github-delivery-recovery.js";
 import {
   beginGitHubDeliveryAttempt,
   ensureGitHubDelivery,
   failGitHubDelivery,
-} from "../src/github-delivery.js";
+} from "../src/github/github-delivery.js";
 import {
   attemptGitHubDelivery,
   recordGitHubDeliveryHealth,
-} from "../src/github-delivery-service.js";
+} from "../src/github/github-delivery-service.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
 
 test("retirement wins successful and failed in-flight delivery completions", async (context) => {

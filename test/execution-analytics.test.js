@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createAnalyticsService } from "../src/analytics.js";
+import { createAnalyticsService } from "../src/analytics/analytics.js";
 
 test("Analytics derives execution reliability, duration, and supplied token coverage without pre-start work", () => {
   const analytics = createAnalyticsService({

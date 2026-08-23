@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateWaiverAdjudicationSubmission } from "../src/waiver-adjudication-result.js";
+import { validateWaiverAdjudicationSubmission } from "../src/waiver/waiver-adjudication-result.js";
 
 const requests = [{ id: "request-1" }, { id: "request-2" }];
 

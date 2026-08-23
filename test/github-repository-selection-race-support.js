@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { fail as failRepository } from "../src/repository-validation.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { fail as failRepository } from "../src/repository/repository-validation.js";
 
 /** @param {any} core */
 function readGitHubVerificationCount(core) {

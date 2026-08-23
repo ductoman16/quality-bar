@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createWaiverAdjudicatorConfigurationService } from "../src/waiver-adjudicator-configuration.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createWaiverAdjudicatorConfigurationService } from "../src/waiver/waiver-adjudicator-configuration.js";
 
 test("SQLite atomically preserves the one installation-wide Waiver Adjudicator Configuration", () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-waiver-config-"));

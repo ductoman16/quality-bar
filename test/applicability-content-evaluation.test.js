@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   APPLICABILITY_RULE_PROFILE,
   evaluateApplicabilityRule,
-} from "../src/applicability-evaluation.js";
+} from "../src/applicability/applicability-evaluation.js";
 
 const textChange = {
   added: false,

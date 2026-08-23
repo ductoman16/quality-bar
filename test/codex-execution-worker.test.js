@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCodexExecutionWorker } from "../src/codex-execution-worker.js";
-import { createStorageGuardedClaimService } from "../src/codex-execution-runtime.js";
+import { createCodexExecutionWorker } from "../src/codex/codex-execution-worker.js";
+import { createStorageGuardedClaimService } from "../src/codex/codex-execution-runtime.js";
 
 test("the application worker fills durable claims without serializing long executions", async () => {
-  /** @type {import("../src/codex-execution-claim.js").CodexExecutionClaim[]} */
+  /** @type {import("../src/codex/codex-execution-claim.js").CodexExecutionClaim[]} */
   const claims = [
     {
       fencingToken: 1,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 import {
   startApplication,
   temporaryDatabasePath,

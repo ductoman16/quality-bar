@@ -5,7 +5,7 @@ import {
   APPLICABILITY_RULE_PROFILE,
   ApplicabilityRuleError,
   compileApplicabilityRule,
-} from "../src/applicability-rule.js";
+} from "../src/applicability/applicability-rule.js";
 
 test("the restricted CEL profile compiles its complete Boolean and File Change surface", () => {
   for (const source of [

@@ -317,7 +317,7 @@ function decryptVerifier(value, masterKey) {
 }
 
 /**
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} durableCore
  * @param {Buffer} masterKey
  */
 export function verifyInstallationKey(durableCore, masterKey) {
@@ -349,7 +349,7 @@ export function verifyInstallationKey(durableCore, masterKey) {
 /**
  * Restore must authenticate an existing verifier rather than initializing one.
  *
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} durableCore
  * @param {Buffer} masterKey
  */
 export function verifyRestoredInstallationKey(durableCore, masterKey) {

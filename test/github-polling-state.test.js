@@ -5,10 +5,10 @@ import {
   createGitHubPollingService,
   nextGitHubAttemptAt,
   pullRequestSnapshot,
-} from "../src/github-polling.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubPollingRunner } from "../src/github-polling-runner.js";
-import { readGitHubPollingFailure } from "../src/github-polling-read.js";
+} from "../src/github/github-polling.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubPollingRunner } from "../src/github/github-polling-runner.js";
+import { readGitHubPollingFailure } from "../src/github/github-polling-read.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("GitHub polling lower layers reject incomplete dependencies at construction", () => {

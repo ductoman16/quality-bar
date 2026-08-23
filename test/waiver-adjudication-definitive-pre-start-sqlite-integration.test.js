@@ -6,12 +6,12 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { prepareReviewRunCheckout } from "../src/review-run-checkout.js";
-import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
-import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { prepareReviewRunCheckout } from "../src/review/review-run-checkout.js";
+import { createWaiverAdjudicationClaimService } from "../src/waiver/waiver-adjudication-claim.js";
+import { executeWaiverAdjudication } from "../src/waiver/waiver-adjudication-execution.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 
 /**

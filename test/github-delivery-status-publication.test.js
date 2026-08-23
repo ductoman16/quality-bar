@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
 import { arrangeGitHubCommitStatus as arrange } from "./github-commit-status-publication-support.js";
 
 test("an uncertain status response reconciles before recreate and recreates only after proven absence", async (context) => {

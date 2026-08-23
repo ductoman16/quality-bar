@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCodexExecutionConcurrencyService } from "../src/codex-execution-concurrency.js";
+import { createCodexExecutionConcurrencyService } from "../src/codex/codex-execution-concurrency.js";
 
 test("Codex concurrency accepts only exact integers from one through four", () => {
   let stored = 1;

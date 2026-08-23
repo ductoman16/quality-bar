@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createAnalyticsService } from "../src/analytics.js";
-import { derivePullRequestCriterionTransitions } from "../src/analytics-filter.js";
+import { createAnalyticsService } from "../src/analytics/analytics.js";
+import { derivePullRequestCriterionTransitions } from "../src/analytics/analytics-filter.js";
 import { evaluation, progression } from "./analytics-filter-support.js";
 
 test("Analytics filters one visible population and derives only adjacent recorded same-PR Criterion transitions", () => {

@@ -7,9 +7,9 @@ import {
   GITHUB_MANDATED_EVENTS,
   GITHUB_REQUIRED_PERMISSIONS,
   createGitHubAppManifest,
-} from "../src/github-app-manifest.js";
-import { createGitHubVerifier } from "../src/github-api.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
+} from "../src/github/github-app-manifest.js";
+import { createGitHubVerifier } from "../src/github/github-api.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
 
 test("GitHub App Manifest is private, webhook-free, and requests only the exact v1 permissions", () => {
   const manifest = createGitHubAppManifest({

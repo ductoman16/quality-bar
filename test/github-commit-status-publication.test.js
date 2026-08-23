@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { retireGitHubConnection } from "../src/github-connection-lifecycle.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { retireGitHubConnection } from "../src/github/github-connection-lifecycle.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
 
 test("status publication records success and the exact owning GitHub failure", async (context) => {

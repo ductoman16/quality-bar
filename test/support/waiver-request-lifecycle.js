@@ -1,5 +1,5 @@
-import { createWaiverAdjudicationResultService } from "../../src/waiver-adjudication-result-service.js";
-import { createWaiverBatchService } from "../../src/waiver-batch.js";
+import { createWaiverAdjudicationResultService } from "../../src/waiver/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../../src/waiver/waiver-batch.js";
 
 /** @param {any} core @param {number} index @param {string} rationale */
 export function prepareDeniedWaiverRequest(core, index, rationale) {

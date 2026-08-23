@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createGitHubCallbackFailureStore } from "../src/github-callback-failure.js";
-import { GitHubConnectionError } from "../src/github-connection.js";
+import { createGitHubCallbackFailureStore } from "../src/github/github-callback-failure.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
 
 test("callback failure receipts preserve exact code once and expire without stale state", () => {
   let now = 1_000;

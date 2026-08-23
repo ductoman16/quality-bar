@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
-import { openDurableCore } from "../../src/durable-core.js";
-import { verifyOperatorPassword } from "../../src/operator-password.js";
+import { openDurableCore } from "../../src/durable/durable-core.js";
+import { verifyOperatorPassword } from "../../src/operator/operator-password.js";
 
 const password = (await readFile("/dev/stdin", "utf8")).replace(/\r?\n$/, "");
 const core = openDurableCore("/var/lib/quality-bar/quality-bar.sqlite3");

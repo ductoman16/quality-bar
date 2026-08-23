@@ -5,7 +5,7 @@ import {
   createReviewRunClaimService,
   REVIEW_RUN_LEASE_MILLISECONDS,
   REVIEW_RUN_RENEWAL_MILLISECONDS,
-} from "../src/review-run-claim.js";
+} from "../src/review/review-run-claim.js";
 
 test("Review Run claims renew every 30 seconds and expire after two minutes", () => {
   assert.equal(REVIEW_RUN_RENEWAL_MILLISECONDS, 30_000);

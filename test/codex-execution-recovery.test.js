@@ -5,7 +5,7 @@ import {
   classifyCodexExecutionRecovery,
   recoverCodexExecutions,
   terminateTrackedCodexProcessGroup,
-} from "../src/codex-execution-recovery.js";
+} from "../src/codex/codex-execution-recovery.js";
 
 const TRACKED_PROCESS = Object.freeze({
   bootIdentity: "boot-1",

@@ -5,7 +5,7 @@ import {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
 
 function createCore() {
   /** @type {any[]} */

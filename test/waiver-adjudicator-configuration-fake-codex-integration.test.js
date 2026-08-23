@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { waiverAdjudicatorCodexConfigurationArguments } from "../src/waiver-adjudicator-codex-configuration.js";
+import { waiverAdjudicatorCodexConfigurationArguments } from "../src/waiver/waiver-adjudicator-codex-configuration.js";
 import {
   authenticatedOperatorHeaders,
   startApplication,

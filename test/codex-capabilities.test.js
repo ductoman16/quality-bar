@@ -6,7 +6,7 @@ import {
   CodexConfigurationError,
   readCodexCapabilityCatalog,
   validateCodexConfiguration,
-} from "../src/codex-capabilities.js";
+} from "../src/codex/codex-capabilities.js";
 
 test("the pinned Codex catalog offers only exact model-compatible settings", () => {
   assert.deepEqual(CODEX_CAPABILITY_CATALOG, {

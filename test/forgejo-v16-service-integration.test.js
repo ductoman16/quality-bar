@@ -7,14 +7,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
-import { prepareForgejoRepositoryEnablement } from "../src/repository-provider-verification.js";
-import { resolvePushedCommitSelectors } from "../src/repository-git.js";
-import { createRepositoryService } from "../src/repository.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { prepareForgejoRepositoryEnablement } from "../src/repository/repository-provider-verification.js";
+import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
+import { createRepositoryService } from "../src/repository/repository.js";
+import { createReviewService } from "../src/review/review.js";
 import { proveForgejoV16AutomaticEvaluation } from "./forgejo-v16-automatic-evaluation-support.js";
 import { assertForgejoPublication } from "./forgejo-v16-publication-service-support.js";
 

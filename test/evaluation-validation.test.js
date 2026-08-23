@@ -5,14 +5,14 @@ import {
   canonicalExplicitEvaluationRequest,
   EvaluationError,
   requireIdempotencyKey,
-} from "../src/evaluation-validation.js";
+} from "../src/evaluation/evaluation-validation.js";
 import {
   createEvaluationService,
   createUnavailableEvaluationService,
-} from "../src/evaluation.js";
-import { readIdempotentReplay } from "../src/evaluation-idempotency.js";
-import { createCanonicalComponents } from "../src/canonical-api-components.js";
-import { readCodexCapabilityCatalog } from "../src/codex-capabilities.js";
+} from "../src/evaluation/evaluation.js";
+import { readIdempotentReplay } from "../src/evaluation/evaluation-idempotency.js";
+import { createCanonicalComponents } from "../src/canonical/canonical-api-components.js";
+import { readCodexCapabilityCatalog } from "../src/codex/codex-capabilities.js";
 import { apiRoutes } from "../src/http-routes/index.js";
 
 test("explicit Evaluation accepts exactly typed pushed branch and commit selectors", () => {

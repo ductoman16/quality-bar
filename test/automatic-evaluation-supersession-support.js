@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
-} from "../src/review-run-result.js";
+} from "../src/review/review-run-result.js";
 
 /** @param {any} core */
 export function assertSupersessionFencesRunningWorker(core) {

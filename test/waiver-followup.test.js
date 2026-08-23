@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createForgejoCommitStatusService } from "../src/forgejo-commit-status-service.js";
-import { createForgejoWaiverFollowupService } from "../src/forgejo-waiver-followup-service.js";
-import { createGitHubCommitStatusService } from "../src/github-commit-status-service.js";
-import { createGitHubWaiverFollowupService } from "../src/github-waiver-followup-service.js";
+import { createForgejoCommitStatusService } from "../src/forgejo/forgejo-commit-status-service.js";
+import { createForgejoWaiverFollowupService } from "../src/forgejo/forgejo-waiver-followup-service.js";
+import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
+import { createGitHubWaiverFollowupService } from "../src/github/github-waiver-followup-service.js";
 import {
   formatWaiverAdjudicationFollowup,
   formatWaiverDecisionFollowup,
-} from "../src/waiver-followup.js";
+} from "../src/waiver/waiver-followup.js";
 
 /** @type {Array<[string, (durableCore: any, dependencies: any) => any]>} */
 const providerServices = [

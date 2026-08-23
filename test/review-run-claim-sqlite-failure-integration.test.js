@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("a claim write failure is hard storage_unavailable and commits no claim", async (context) => {

@@ -5,8 +5,8 @@ import AjvModule from "ajv";
 import {
   APPLICABILITY_RULE_PROFILE,
   evaluateApplicabilityRule,
-} from "../src/applicability-evaluation.js";
-import { canonicalApplicabilitySchemas } from "../src/canonical-applicability-components.js";
+} from "../src/applicability/applicability-evaluation.js";
+import { canonicalApplicabilitySchemas } from "../src/canonical/canonical-applicability-components.js";
 
 const Ajv = AjvModule.default;
 const validateApplicabilityResult = new Ajv({

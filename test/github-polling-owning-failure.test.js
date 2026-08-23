@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { recordGitHubPollingOwningFailure } from "../src/github-polling-owning-failure.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { recordGitHubPollingOwningFailure } from "../src/github/github-polling-owning-failure.js";
 
 /** @param {import("node:test").TestContext} context */
 function createCore(context) {

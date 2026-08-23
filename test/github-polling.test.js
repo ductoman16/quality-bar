@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
 import {
   GITHUB_POLL_INTERVAL_MS,
   createGitHubPollingService,
-} from "../src/github-polling.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { readGitHubPollingFailure } from "../src/github-polling-read.js";
+} from "../src/github/github-polling.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { readGitHubPollingFailure } from "../src/github/github-polling-read.js";
 import {
   createAvailableGitHubPollingRunner as createGitHubPollingRunner,
   githubPullRequest as pullRequest,

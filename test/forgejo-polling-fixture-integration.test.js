@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
 
 /** @param {number} number */
 function pullRequest(number) {

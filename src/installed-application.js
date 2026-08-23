@@ -1,4 +1,4 @@
-import { createApplication } from "./application.js";
+import { createApplication } from "./application/application.js";
 import { loadInstallationConfiguration } from "./installation-configuration.js";
 import {
   BACKUPS_PATH,
@@ -6,7 +6,7 @@ import {
   validateInstallationSources,
 } from "./installation-environment.js";
 import { runDailyBackupIfDue } from "./installed-backup.js";
-import { SCHEMA_VERSION } from "./durable-schema.js";
+import { SCHEMA_VERSION } from "./durable/durable-schema.js";
 import { failBackup } from "./sqlite-backup-error.js";
 import { installationKeyIdentity } from "./sqlite-backup.js";
 

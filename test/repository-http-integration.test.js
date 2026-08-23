@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   createRepositoryService,
   createUnavailableRepositoryService,
-} from "../src/repository.js";
+} from "../src/repository/repository.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

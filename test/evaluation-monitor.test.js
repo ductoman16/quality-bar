@@ -4,9 +4,9 @@ import { test } from "node:test";
 import {
   createEvaluationCollection,
   readEvaluationCollectionFilters,
-} from "../src/evaluation-collection.js";
-import { readEvaluationMonitors } from "../src/evaluation-monitor.js";
-import { createEvaluationCollectionReader } from "../src/evaluation-collection-reader.js";
+} from "../src/evaluation/evaluation-collection.js";
+import { readEvaluationMonitors } from "../src/evaluation/evaluation-monitor.js";
+import { createEvaluationCollectionReader } from "../src/evaluation/evaluation-collection-reader.js";
 
 /**
  * @param {string} id

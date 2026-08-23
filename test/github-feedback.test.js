@@ -5,7 +5,7 @@ import {
   formatGitHubAggregateFeedback,
   formatGitHubInlineFeedback,
   projectFrozenDiffLineRange,
-} from "../src/github-feedback.js";
+} from "../src/github/github-feedback.js";
 
 const identity = {
   base_commit: "1".repeat(40),

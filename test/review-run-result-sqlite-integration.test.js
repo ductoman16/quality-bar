@@ -4,15 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
-import { createReviewRunEvidenceService } from "../src/review-run-evidence.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
-} from "../src/review-run-result.js";
-import { createReviewService } from "../src/review.js";
+} from "../src/review/review-run-result.js";
+import { createReviewService } from "../src/review/review.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 import { assertRejectedCandidatesStoreNothing } from "./review-run-result-sqlite-integration-support.js";
 import { executeFailedReviewRun } from "./review-run-result-sqlite-integration-support.js";

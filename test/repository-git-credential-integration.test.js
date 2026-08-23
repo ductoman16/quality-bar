@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { verifyRepositoryRead } from "../src/repository-git.js";
+import { verifyRepositoryRead } from "../src/repository/repository-git.js";
 import { runIoOperation } from "../src/io-operation-context.js";
 import { runGitCommand } from "../src/secure-git-command.js";
 

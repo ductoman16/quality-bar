@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
-import { formatWaiverDecisionFollowup } from "../src/waiver-followup.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { formatWaiverDecisionFollowup } from "../src/waiver/waiver-followup.js";
 
 test("Forgejo v16 fixture accepts the exact status, aggregate, and inline publication routes", async (context) => {
   const head = "a".repeat(40);

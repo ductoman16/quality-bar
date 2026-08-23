@@ -19,7 +19,7 @@ import { test } from "node:test";
 import {
   removeOwnedDirectory,
   removeOwnedFile,
-} from "../src/review-run-submission-file-cleanup.js";
+} from "../src/review/review-run-submission-file-cleanup.js";
 
 test("restores a symlink replacement before reporting non-file cleanup", (context) => {
   const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-ownership-"));

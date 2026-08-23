@@ -6,10 +6,10 @@ import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { verifyInstallationKey } from "../src/installation-configuration.js";
-import { restoreOfflineBackup } from "../src/offline-restore.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { restoreOfflineBackup } from "../src/offline/offline-restore.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 import {
   createValidatedBackup,
   installationKeyIdentity,

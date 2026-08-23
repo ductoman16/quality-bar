@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { executeClaimWithOwningAdapter } from "../src/codex-execution-dispatch.js";
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { startSpawnedCodexProcessGroup } from "../src/codex-execution-process-group-tracking.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { executeClaimWithOwningAdapter } from "../src/codex/codex-execution-dispatch.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { startSpawnedCodexProcessGroup } from "../src/codex/codex-execution-process-group-tracking.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { runReviewRunCodex as runProductionReviewRunCodex } from "../src/review-run-codex-adapter.js";
+import { runReviewRunCodex as runProductionReviewRunCodex } from "../src/review/review-run-codex-adapter.js";
 import { seedQueuedCodexExecutionKinds } from "./codex-execution-ordering-support.js";
 import {
   acceptedChannel,

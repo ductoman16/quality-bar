@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService, EvaluationError } from "../src/evaluation.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import {
+  createEvaluationService,
+  EvaluationError,
+} from "../src/evaluation/evaluation.js";
+import { createReviewService } from "../src/review/review.js";
 
 test("a queue write failure rolls back the complete Review Run admission boundary", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-admission-fail-"));

@@ -7,12 +7,12 @@ import {
 import {
   prepareOperatorPasswordReplacement,
   verifyOperatorPassword,
-} from "./operator-password.js";
+} from "./operator/operator-password.js";
 import {
   clearFailedOperatorLoginDelay,
   recordFailedOperatorLogin,
   rejectDuringFailedLoginDelay,
-} from "./operator-login-throttle.js";
+} from "./operator/operator-login-throttle.js";
 import { insertAuthorityAttribution } from "./authority-attribution.js";
 
 export const BROWSER_SESSION_COOKIE_NAME = "quality_bar_session";
@@ -128,7 +128,7 @@ function hasExpired(session, timestamp) {
 }
 
 /**
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} durableCore
  * @param {{now?: () => number}} [options]
  */
 export function removeExpiredBrowserSessions(
@@ -150,7 +150,7 @@ export function removeExpiredBrowserSessions(
 }
 
 /**
- * @param {ReturnType<typeof import("./durable-core.js").openDurableCore>} durableCore
+ * @param {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} durableCore
  * @param {{
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,

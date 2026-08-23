@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
-import { createReviewService } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import {
+  createRepositoryService,
+  RepositoryError,
+} from "../src/repository/repository.js";
+import { createReviewService } from "../src/review/review.js";
 
 test("SQLite deletes only an unreferenced Repository and reactivates used identity after complete verification", async (context) => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));

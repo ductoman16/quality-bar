@@ -1,4 +1,4 @@
-import { installApplicationSignalHandlers } from "../../src/application-shutdown.js";
+import { installApplicationSignalHandlers } from "../../src/application/application-shutdown.js";
 
 installApplicationSignalHandlers({
   close() {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { prepareCodexProcess } from "../src/codex-process-supervisor.js";
+import { prepareCodexProcess } from "../src/codex/codex-process-supervisor.js";
 
 /** @param {number} processGroupId @returns {number[]} */
 function readLiveProcessGroupMembers(processGroupId) {

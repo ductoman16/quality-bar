@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { recoverCodexExecutions } from "../src/codex-execution-recovery.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { recoverCodexExecutions } from "../src/codex/codex-execution-recovery.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 /**

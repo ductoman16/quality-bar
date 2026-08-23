@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubPollingService } from "../src/github-polling.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubPollingService } from "../src/github/github-polling.js";
 import {
   createAvailableGitHubPollingRunner,
   seedDueGitHubPoll,

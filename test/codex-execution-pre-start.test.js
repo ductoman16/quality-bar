@@ -5,7 +5,7 @@ import {
   CODEX_PRE_START_ATTEMPT_LIMIT,
   CODEX_PRE_START_RETRY_DELAYS,
   isTransientCodexPreStartFailure,
-} from "../src/codex-execution-pre-start.js";
+} from "../src/codex/codex-execution-pre-start.js";
 
 test("accepted Codex work uses the initial, one-minute, and five-minute pre-start attempts", () => {
   assert.equal(CODEX_PRE_START_ATTEMPT_LIMIT, 3);

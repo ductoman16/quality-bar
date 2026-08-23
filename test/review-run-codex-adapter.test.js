@@ -6,8 +6,8 @@ import { test } from "node:test";
 import {
   reviewRunCodexEnvironment,
   reviewRunCodexArguments,
-} from "../src/review-run-codex-adapter.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+} from "../src/review/review-run-codex-adapter.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 import { runReviewRunCodex } from "./review-run-codex-adapter-support.js";
 
 const claim = Object.freeze({

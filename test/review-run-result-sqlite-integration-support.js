@@ -1,15 +1,15 @@
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import assert from "node:assert/strict";
 
-import { executeReviewRun } from "../src/review-run-execution.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
-} from "../src/review-run-result.js";
+} from "../src/review/review-run-result.js";
 
 /**
- * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
+ * @param {ReturnType<typeof import("../src/durable/durable-core.js").openDurableCore>} core
  * @param {ReturnType<typeof createReviewRunResultService>} results
  * @param {{fencingToken: number, workerId: string, workId: string}} claim
  * @param {any[]} fileChanges
@@ -108,7 +108,7 @@ export function assertRejectedCandidatesStoreNothing(
 }
 
 /**
- * @param {ReturnType<typeof import("../src/durable-core.js").openDurableCore>} core
+ * @param {ReturnType<typeof import("../src/durable/durable-core.js").openDurableCore>} core
  * @param {Error} underlyingFailure
  */
 export async function executeFailedReviewRun(core, underlyingFailure) {

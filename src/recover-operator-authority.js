@@ -1,4 +1,4 @@
-import { recoverOperatorAuthorityFromHost } from "./operator-authority-recovery.js";
+import { recoverOperatorAuthorityFromHost } from "./operator/operator-authority-recovery.js";
 
 let authorityRecovered = false;
 try {

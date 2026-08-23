@@ -11,12 +11,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { createSubmissionProcessor } from "../src/review-run-submission-processor.js";
-import { processPendingResponse } from "../src/review-run-submission-pending.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
-import { requirePrivateFile } from "../src/review-run-submission-files.js";
-import { settleSubmissionTerminal } from "../src/review-run-codex-submission-terminal.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { createSubmissionProcessor } from "../src/review/review-run-submission-processor.js";
+import { processPendingResponse } from "../src/review/review-run-submission-pending.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
+import { requirePrivateFile } from "../src/review/review-run-submission-files.js";
+import { settleSubmissionTerminal } from "../src/review/review-run-codex-submission-terminal.js";
 
 test("rejects a private submission file owned by a different identity", (context) => {
   const checkoutPath = mkdtempSync(join(tmpdir(), "qbs-ownership-owner-"));

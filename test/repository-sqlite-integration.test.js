@@ -4,8 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import {
+  createRepositoryService,
+  RepositoryError,
+} from "../src/repository/repository.js";
 
 test("a verified normalized Repository identity is inserted once and failed verification stores nothing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-repository-"));

@@ -1,13 +1,13 @@
 import { createIoExecutionPool } from "../../src/io-execution-pool.js";
-import { openDurableCore } from "../../src/durable-core.js";
-import { createForgejoCommitStatusService } from "../../src/forgejo-commit-status-service.js";
-import { createForgejoFeedbackService } from "../../src/forgejo-feedback-service.js";
-import { createForgejoV16Verifier } from "../../src/forgejo-v16.js";
-import { createForgejoPollingService } from "../../src/forgejo-polling.js";
-import { createGitHubCommitStatusService } from "../../src/github-commit-status-service.js";
-import { createGitHubFeedbackService } from "../../src/github-feedback-service.js";
-import { createGitHubVerifier } from "../../src/github-api.js";
-import { createGitHubPollingService } from "../../src/github-polling.js";
+import { openDurableCore } from "../../src/durable/durable-core.js";
+import { createForgejoCommitStatusService } from "../../src/forgejo/forgejo-commit-status-service.js";
+import { createForgejoFeedbackService } from "../../src/forgejo/forgejo-feedback-service.js";
+import { createForgejoV16Verifier } from "../../src/forgejo/forgejo-v16.js";
+import { createForgejoPollingService } from "../../src/forgejo/forgejo-polling.js";
+import { createGitHubCommitStatusService } from "../../src/github/github-commit-status-service.js";
+import { createGitHubFeedbackService } from "../../src/github/github-feedback-service.js";
+import { createGitHubVerifier } from "../../src/github/github-api.js";
+import { createGitHubPollingService } from "../../src/github/github-polling.js";
 import { createProviderHarness } from "./provider-recovery-provider.mjs";
 
 const [provider, databasePath, nowValue] = process.argv.slice(2);

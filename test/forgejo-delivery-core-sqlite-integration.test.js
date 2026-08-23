@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { attemptForgejoDelivery } from "../src/forgejo-delivery-service.js";
-import { createForgejoPollingRunner } from "../src/forgejo-polling-runner.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { attemptForgejoDelivery } from "../src/forgejo/forgejo-delivery-service.js";
+import { createForgejoPollingRunner } from "../src/forgejo/forgejo-polling-runner.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import {
   availableStorageReserve,

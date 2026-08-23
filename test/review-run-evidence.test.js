@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import {
   createReviewRunEvidenceService,
   readTerminalTokenCounters,
-} from "../src/review-run-evidence.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
+} from "../src/review/review-run-evidence.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("reads only exact supplied counters from the terminal Codex JSONL event", () => {

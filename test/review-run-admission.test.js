@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   assertReviewRunCapacity,
   REVIEW_RUN_QUEUE_CAPACITY,
-} from "../src/review-run-admission.js";
+} from "../src/review/review-run-admission.js";
 
 test("Review Run admission accepts only a complete batch within the shared queue cap", () => {
   assert.equal(REVIEW_RUN_QUEUE_CAPACITY, 25);

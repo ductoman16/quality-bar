@@ -12,8 +12,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { evaluateApplicabilityRule } from "../src/applicability-evaluation.js";
-import { resolvePushedCommitSelectors } from "../src/repository-git.js";
+import { evaluateApplicabilityRule } from "../src/applicability/applicability-evaluation.js";
+import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
 import { createBareRepository } from "./repository-git-integration-support.js";
 
 test("a Boolean Applicability Rule evaluates against exact commits frozen by real Git acquisition", async (context) => {

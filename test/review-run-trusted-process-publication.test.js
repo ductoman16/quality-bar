@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { publishFile } from "../src/review-run-submission-files.js";
-import { processGroupIdentity } from "../src/review-run-submission-process-group.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { publishFile } from "../src/review/review-run-submission-files.js";
+import { processGroupIdentity } from "../src/review/review-run-submission-process-group.js";
 
 test("publishes trusted-process provenance within the command filesystem", async () => {
   const checkoutPath = mkdtempSync(join(tmpdir(), "trusted-process-"));

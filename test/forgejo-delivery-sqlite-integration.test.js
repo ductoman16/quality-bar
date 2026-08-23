@@ -4,14 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { readForgejoConnection } from "../src/forgejo-connection-read.js";
-import { createRepositoryService, RepositoryError } from "../src/repository.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { readForgejoConnection } from "../src/forgejo/forgejo-connection-read.js";
+import {
+  createRepositoryService,
+  RepositoryError,
+} from "../src/repository/repository.js";
 import {
   attemptForgejoDelivery,
   recordForgejoDeliveryHealth,
-} from "../src/forgejo-delivery-service.js";
-import { resumeForgejoDeliveries } from "../src/forgejo-delivery-recovery.js";
+} from "../src/forgejo/forgejo-delivery-service.js";
+import { resumeForgejoDeliveries } from "../src/forgejo/forgejo-delivery-recovery.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 
 test("an ambiguous delivery identity retries reconciliation until it becomes exact", async (context) => {

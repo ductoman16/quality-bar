@@ -14,9 +14,9 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
-import { openReviewRunSubmissionChannel } from "../src/review-run-submission-channel.js";
-import { processGroupIdentity } from "../src/review-run-submission-process-group.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
+import { openReviewRunSubmissionChannel } from "../src/review/review-run-submission-channel.js";
+import { processGroupIdentity } from "../src/review/review-run-submission-process-group.js";
 
 const claim = Object.freeze({
   fencingToken: 7,

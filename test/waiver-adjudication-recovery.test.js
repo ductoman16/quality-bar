@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { classifyWaiverAdjudicationRecovery } from "../src/waiver-adjudication-recovery.js";
-import { isTransientWaiverPreStartFailure } from "../src/waiver-adjudication-pre-start.js";
+import { classifyWaiverAdjudicationRecovery } from "../src/waiver/waiver-adjudication-recovery.js";
+import { isTransientWaiverPreStartFailure } from "../src/waiver/waiver-adjudication-pre-start.js";
 
 test("only temporary checkout preparation uses the timed pre-start budget", () => {
   assert.equal(

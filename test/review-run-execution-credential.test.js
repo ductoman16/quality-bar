@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
 
 test("credential acquisition failure stays inside the claimed execution lifecycle", async () => {
   const failure = Object.assign(new Error("credential failed exactly"), {

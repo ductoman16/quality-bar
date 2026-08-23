@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
 import { createOnboardingTokenService } from "../src/onboarding-token.js";
 
 test("onboarding tokens are hashed, URL-bound, concurrent, and expire after 24 hours", (context) => {

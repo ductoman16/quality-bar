@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableEvaluationService } from "../src/evaluation.js";
+import { createUnavailableEvaluationService } from "../src/evaluation/evaluation.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,

@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
-import { REVIEW_RUN_TERMINAL_FAILURE_CODES } from "../src/review-run-codex-failure.js";
-import { ReviewRunExecutionError } from "../src/review-run-result.js";
+import { REVIEW_RUN_TERMINAL_FAILURE_CODES } from "../src/review/review-run-codex-failure.js";
+import { ReviewRunExecutionError } from "../src/review/review-run-result.js";
 import {
   claim,
   run,

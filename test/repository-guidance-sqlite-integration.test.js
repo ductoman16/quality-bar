@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryGuidanceService } from "../src/repository-guidance.js";
-import { createReviewService, ReviewError } from "../src/review.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
+import { createReviewService, ReviewError } from "../src/review/review.js";
 
 /** @param {string} name @param {"advisory" | "blocking"} impact */
 function reviewDefinition(name, impact) {

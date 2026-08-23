@@ -8,10 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createRepositoryService } from "../src/repository.js";
-import { RepositoryError } from "../src/repository-validation.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createRepositoryService } from "../src/repository/repository.js";
+import { RepositoryError } from "../src/repository/repository-validation.js";
 import { createSelectionRequests } from "./github-repository-selection-fixtures.js";
 
 const repository = {

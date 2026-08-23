@@ -4,16 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createForgejoConnectionService } from "../src/forgejo-connection.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 import {
   createForgejoPollingService,
   readForgejoPollingGeneration,
-} from "../src/forgejo-polling.js";
-import { GitHubConnectionError } from "../src/github-connection-error.js";
-import { createGitHubPollingService } from "../src/github-polling.js";
-import { readGitHubPollingGeneration } from "../src/github-polling-generation.js";
-import { createRepositoryService } from "../src/repository.js";
+} from "../src/forgejo/forgejo-polling.js";
+import { GitHubConnectionError } from "../src/github/github-connection-error.js";
+import { createGitHubPollingService } from "../src/github/github-polling.js";
+import { readGitHubPollingGeneration } from "../src/github/github-polling-generation.js";
+import { createRepositoryService } from "../src/repository/repository.js";
 import {
   forgejoVerification,
   repositoryEvidence,

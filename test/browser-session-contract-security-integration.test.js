@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CODEX_CAPABILITY_CATALOG } from "../src/codex-capabilities.js";
-import { bootstrapOperatorPassword } from "../src/operator-password.js";
+import { CODEX_CAPABILITY_CATALOG } from "../src/codex/codex-capabilities.js";
+import { bootstrapOperatorPassword } from "../src/operator/operator-password.js";
 import {
   startApplication,
   temporaryDatabasePath,

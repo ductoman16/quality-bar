@@ -4,7 +4,7 @@ import { test } from "node:test";
 import {
   GITHUB_COMMIT_STATUS_CONTEXT,
   githubCommitStatusForEvaluation,
-} from "../src/github-commit-status.js";
+} from "../src/github/github-commit-status.js";
 
 test("Quality Bar maps Evaluation truth to one stable GitHub status", () => {
   assert.equal(GITHUB_COMMIT_STATUS_CONTEXT, "Quality Bar");

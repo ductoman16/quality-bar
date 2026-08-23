@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 
-import { createApplication } from "../src/application.js";
+import { createApplication } from "../src/application/application.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
-import { OPERATOR_PASSWORD_VERIFIER_METADATA_KEY } from "../src/operator-password.js";
+import { OPERATOR_PASSWORD_VERIFIER_METADATA_KEY } from "../src/operator/operator-password.js";
 
 /** @typedef {ReturnType<typeof createApplication>} Application */
 /** @type {Application[]} */

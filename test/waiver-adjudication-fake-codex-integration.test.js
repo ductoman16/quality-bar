@@ -7,13 +7,13 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationCollectionReader } from "../src/evaluation-collection-reader.js";
-import { createWaiverAdjudicationClaimService } from "../src/waiver-adjudication-claim.js";
-import { createWaiverAdjudicationEvidenceService } from "../src/waiver-adjudication-evidence.js";
-import { executeWaiverAdjudication } from "../src/waiver-adjudication-execution.js";
-import { createWaiverAdjudicationResultService } from "../src/waiver-adjudication-result-service.js";
-import { createWaiverBatchService } from "../src/waiver-batch.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationCollectionReader } from "../src/evaluation/evaluation-collection-reader.js";
+import { createWaiverAdjudicationClaimService } from "../src/waiver/waiver-adjudication-claim.js";
+import { createWaiverAdjudicationEvidenceService } from "../src/waiver/waiver-adjudication-evidence.js";
+import { executeWaiverAdjudication } from "../src/waiver/waiver-adjudication-execution.js";
+import { createWaiverAdjudicationResultService } from "../src/waiver/waiver-adjudication-result-service.js";
+import { createWaiverBatchService } from "../src/waiver/waiver-batch.js";
 import { seedCompletedEvaluation } from "./support/waiver-batch-fixture.js";
 import { recoverStartedAdjudicationWithFakeCodex } from "./support/waiver-adjudication-recovery-fake-codex.js";
 

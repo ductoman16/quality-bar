@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { acquireForgejoAutomaticEvaluations } from "../src/forgejo-automatic-evaluation-admission.js";
-import { newlyEligibleForgejoPullRequests } from "../src/forgejo-automatic-evaluation.js";
-import { ApplicationShutdownError } from "../src/application-shutdown.js";
-import { createForgejoV16Verifier } from "../src/forgejo-v16.js";
+import { acquireForgejoAutomaticEvaluations } from "../src/forgejo/forgejo-automatic-evaluation-admission.js";
+import { newlyEligibleForgejoPullRequests } from "../src/forgejo/forgejo-automatic-evaluation.js";
+import { ApplicationShutdownError } from "../src/application/application-shutdown.js";
+import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
 import { StorageReserveError } from "../src/storage-reserve.js";
 
 /** @param {boolean} draft @param {number} [number] @param {object} [overrides] */

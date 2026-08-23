@@ -1,4 +1,4 @@
-import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../../src/waiver-followup-schema.js";
+import { WAIVER_FOLLOWUP_REBUILD_CLEANUP } from "../../src/waiver/waiver-followup-schema.js";
 
 /** @param {{run: (sql: string) => unknown}} access */
 export function removeWaiverFollowupSchema(access) {

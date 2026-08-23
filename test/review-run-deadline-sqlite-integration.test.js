@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { openDurableCore } from "../src/durable-core.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
-import { createReviewRunClaimService } from "../src/review-run-claim.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
 import {
   createReviewRunResultService,
   ReviewRunExecutionError,
-} from "../src/review-run-result.js";
+} from "../src/review/review-run-result.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("the Review Run deadline persists one exact terminal failure and no partial Result facts", async (context) => {

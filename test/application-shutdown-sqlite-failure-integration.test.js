@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createApplicationShutdownBoundary } from "../src/application-shutdown.js";
-import { createCodexExecutionClaimService } from "../src/codex-execution-claim.js";
-import { createStorageGuardedClaimService } from "../src/codex-execution-runtime.js";
-import { openDurableCore } from "../src/durable-core.js";
-import { createEvaluationService } from "../src/evaluation.js";
+import { createApplicationShutdownBoundary } from "../src/application/application-shutdown.js";
+import { createCodexExecutionClaimService } from "../src/codex/codex-execution-claim.js";
+import { createStorageGuardedClaimService } from "../src/codex/codex-execution-runtime.js";
+import { openDurableCore } from "../src/durable/durable-core.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
 import { createIoExecutionPool } from "../src/io-execution-pool.js";
-import { executeReviewRun } from "../src/review-run-execution.js";
+import { executeReviewRun } from "../src/review/review-run-execution.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
 
 test("shutdown racing acquired work stores no Evaluation or idempotency fact", async (context) => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableRepositoryGuidanceService } from "../src/repository-guidance.js";
+import { createUnavailableRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
 import { startApplication } from "./http-integration-support.js";
 
 const MCP_PROTOCOL_VERSION = "2025-11-25";
