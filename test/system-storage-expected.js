@@ -4,7 +4,6 @@ export const expectedSystemApplication = {
   application_version: "1.2.3",
   error: null,
   installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
-  schema_version: 53,
   status: "available",
 };
 
@@ -21,7 +20,6 @@ export function expectedSystemDurableCore(durableCore) {
     foreign_keys: true,
     integrity: "ok",
     journal_mode: "wal",
-    schema_version: 53,
     status: "ready",
     synchronous: "full",
   };

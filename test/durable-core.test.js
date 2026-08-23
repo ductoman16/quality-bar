@@ -36,7 +36,6 @@ test("opens the durable core only with WAL, foreign keys, durable synchronizatio
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: 53,
     synchronous: "full",
   });
   assert.match(core.facts.databaseVersion, /^\d+\.\d+\.\d+$/);
@@ -100,27 +99,7 @@ test("rejects a corrupt database with the exact owning error", () => {
   );
 });
 
-test("rejects an incompatible schema with the exact owning error", () => {
-  const databasePath = temporaryDatabasePath();
-  const current = openDurableCore(databasePath);
-  current.run("PRAGMA user_version = 54");
-  current.close();
-
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) => {
-      const failure = codedError(error);
-      assert.equal(failure.code, "schema_invalid");
-      assert.equal(
-        failure.message,
-        "SQLite schema version 54 is not supported",
-      );
-      return true;
-    },
-  );
-});
-
-test("accepts an existing valid v53 database without changing its data", () => {
+test("accepts an existing durable database without changing its data", () => {
   const databasePath = temporaryDatabasePath();
   const created = openDurableCore(databasePath);
   created.run(
@@ -141,7 +120,7 @@ test("accepts an existing valid v53 database without changing its data", () => {
   reopened.close();
 });
 
-test("rejects nonempty version 0 before changing its objects", () => {
+test("rejects an existing database whose shape does not match the current schema", () => {
   const databasePath = temporaryDatabasePath();
   const database = new DatabaseSync(databasePath);
   database.exec("CREATE TABLE unsupported (value TEXT) STRICT");
@@ -154,113 +133,11 @@ test("rejects nonempty version 0 before changing its objects", () => {
       assert.equal(failure.code, "schema_invalid");
       assert.equal(
         failure.message,
-        "SQLite schema version 0 contains unsupported objects",
+        "SQLite schema does not match the current schema",
       );
       return true;
     },
   );
-  const unchanged = new DatabaseSync(databasePath, {
-    readOnly: true,
-  });
-  assert.equal(
-    unchanged
-      .prepare("SELECT name FROM sqlite_schema WHERE name = 'unsupported'")
-      .get()?.name,
-    "unsupported",
-  );
-  unchanged.close();
-});
-
-test("rejects a schema below v53 before changing its data", () => {
-  const databasePath = temporaryDatabasePath();
-  const unsupported = new DatabaseSync(databasePath);
-  unsupported.exec(`
-    CREATE TABLE preserved (value TEXT) STRICT;
-    INSERT INTO preserved (value) VALUES ('yes');
-    PRAGMA user_version = 52;
-  `);
-  unsupported.close();
-
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) => {
-      assert.equal(
-        codedError(error).message,
-        "SQLite schema version 52 is not supported",
-      );
-      return true;
-    },
-  );
-  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
-  assert.equal(
-    unchanged.prepare("SELECT value FROM preserved").get()?.value,
-    "yes",
-  );
-  assert.equal(
-    unchanged.prepare("PRAGMA user_version").get()?.user_version,
-    52,
-  );
-  assert.equal(
-    unchanged.prepare("PRAGMA journal_mode").get()?.journal_mode,
-    "delete",
-  );
-  unchanged.close();
-});
-
-test("rejects malformed v53 before repairing it", () => {
-  const databasePath = temporaryDatabasePath();
-  const created = openDurableCore(databasePath);
-  created.run("DROP TABLE onboarding_tokens");
-  created.close();
-
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) => {
-      assert.equal(
-        codedError(error).message,
-        "SQLite schema table onboarding_tokens is missing",
-      );
-      return true;
-    },
-  );
-  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
-  assert.equal(
-    unchanged
-      .prepare(
-        "SELECT name FROM sqlite_schema WHERE name = 'onboarding_tokens'",
-      )
-      .get(),
-    undefined,
-  );
-  unchanged.close();
-});
-
-test("rejects a v53 database missing a current index", () => {
-  const databasePath = temporaryDatabasePath();
-  const created = openDurableCore(databasePath);
-  created.run("DROP INDEX onboarding_tokens_expiry");
-  created.close();
-
-  assert.throws(
-    () => openDurableCore(databasePath),
-    (error) => {
-      assert.equal(
-        codedError(error).message,
-        "SQLite schema does not match version 53",
-      );
-      return true;
-    },
-  );
-  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
-  assert.equal(
-    unchanged
-      .prepare(
-        "SELECT name FROM sqlite_schema WHERE name = 'onboarding_tokens_expiry'",
-      )
-      .get(),
-    undefined,
-  );
-  unchanged.close();
 });
 
 test("a durable write failure enters the hard storage_unavailable gate", () => {
@@ -295,7 +172,7 @@ test("a durable write failure enters the hard storage_unavailable gate", () => {
     () =>
       core.get(
         "SELECT value FROM quality_bar_metadata WHERE key = ?",
-        "schema_version",
+        "write_failure",
       ),
     (error) => {
       assert.equal(codedError(error).code, "storage_unavailable");

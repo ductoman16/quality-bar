@@ -6,21 +6,8 @@ import { readSystemStorageFacts } from "../src/system/system-storage-facts.js";
 const NOW = Date.parse("2026-08-02T12:00:00.000Z");
 const KEY_IDENTITY = `sha256:${"a".repeat(64)}`;
 
-function durableCore() {
-  return {
-    facts: {
-      databaseVersion: "3.49.1",
-      foreignKeys: true,
-      integrity: "ok",
-      journalMode: "wal",
-      schemaVersion: 53,
-      synchronous: "full",
-    },
-  };
-}
-
-/** @param {number} createdAt @param {number} [schemaVersion] */
-function backup(createdAt, schemaVersion = 53) {
+/** @param {number} createdAt */
+function backup(createdAt) {
   return {
     applicationVersion: "1.2.3",
     createdAt: new Date(createdAt).toISOString(),
@@ -28,7 +15,6 @@ function backup(createdAt, schemaVersion = 53) {
     keyIdentity: KEY_IDENTITY,
     kind: "daily",
     manifestPath: "/backups/daily.json",
-    schemaVersion,
   };
 }
 
@@ -46,7 +32,6 @@ test("System storage facts expose current identity and backup state", () => {
   const facts = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
-    durableCore: durableCore(),
     installationKeyIdentity: KEY_IDENTITY,
     now: () => NOW,
     readBackups: readFacts([daily]),
@@ -57,7 +42,6 @@ test("System storage facts expose current identity and backup state", () => {
       application_version: "1.2.3",
       error: null,
       installation_key_identity: KEY_IDENTITY,
-      schema_version: 53,
       status: "available",
     },
     backup: {
@@ -67,7 +51,6 @@ test("System storage facts expose current identity and backup state", () => {
         created_at: daily.createdAt,
         installation_key_identity: KEY_IDENTITY,
         kind: "daily",
-        schema_version: 53,
       },
       status: "current",
     },
@@ -79,7 +62,6 @@ test("System storage facts distinguish empty and stale backups", () => {
   const empty = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
-    durableCore: durableCore(),
     installationKeyIdentity: KEY_IDENTITY,
     now: () => NOW,
     readBackups: readFacts([]),
@@ -87,7 +69,6 @@ test("System storage facts distinguish empty and stale backups", () => {
   const staleFacts = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
-    durableCore: durableCore(),
     installationKeyIdentity: KEY_IDENTITY,
     now: () => NOW,
     readBackups: readFacts([stale]),
@@ -101,7 +82,6 @@ test("System storage facts distinguish empty and stale backups", () => {
     created_at: stale.createdAt,
     installation_key_identity: KEY_IDENTITY,
     kind: "daily",
-    schema_version: 53,
   });
 });
 
@@ -115,7 +95,6 @@ test("System storage facts retain exact backup failure and never infer success",
   const facts = readSystemStorageFacts({
     applicationVersion: "1.2.3",
     backupsPath: "/backups",
-    durableCore: durableCore(),
     installationKeyIdentity: KEY_IDENTITY,
     now: () => NOW,
     readBackups() {

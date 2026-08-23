@@ -29,6 +29,7 @@ export const WAIVER_BATCH_SCHEMA = `
     cached_input_tokens INTEGER CHECK (cached_input_tokens IS NULL OR cached_input_tokens >= 0),
     output_tokens INTEGER CHECK (output_tokens IS NULL OR output_tokens >= 0),
     execution_evidence_recorded INTEGER NOT NULL DEFAULT 0 CHECK (execution_evidence_recorded IN (0, 1)),
+    retry_cycle INTEGER NOT NULL DEFAULT 1 CHECK (retry_cycle > 0),
     ${RETRY_SUMMARY_COLUMNS_SQL}
     CHECK (length(base_commit) = length(head_commit)),
     CHECK (requests_sealed_at IS NULL OR requests_sealed_at >= created_at),

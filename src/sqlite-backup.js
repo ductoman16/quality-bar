@@ -104,6 +104,7 @@ export async function createValidatedBackup({
     backupsPath,
     `.${stem}.${incompleteIdentity}.json`,
   );
+  /** @type {DatabaseSync | undefined} */
   let validatedDatabase;
   let databaseCommitted = false;
   let manifestCommitted = false;
@@ -168,15 +169,6 @@ export async function createValidatedBackup({
           `SQLite backup integrity check returned ${String(integrity)}`,
         );
       }
-      const schemaVersion = /** @type {{ user_version: number }} */ (
-        validatedDatabase.prepare("PRAGMA user_version").get()
-      ).user_version;
-      if (!Number.isSafeInteger(schemaVersion) || schemaVersion <= 0) {
-        failBackup(
-          "backup_schema_invalid",
-          "SQLite backup schema version is invalid",
-        );
-      }
       validatedDatabase.close();
       validatedDatabase = undefined;
       rmSync(`${incompleteDatabasePath}-wal`, { force: true });
@@ -188,7 +180,6 @@ export async function createValidatedBackup({
         database_file: basename(databasePath),
         installation_key_identity: keyIdentity,
         kind,
-        schema_version: schemaVersion,
       };
       writeFileSync(
         incompleteManifestPath,
@@ -210,7 +201,6 @@ export async function createValidatedBackup({
         keyIdentity,
         kind,
         manifestPath,
-        schemaVersion,
       };
       if (kind === "daily") {
         retainLatestValidatedBackups({

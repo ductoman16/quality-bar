@@ -3,10 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createDurableAccess } from "./durable-access.js";
 import { DurableCoreError, fail } from "./durable-error.js";
 import { configureDatabase, validateIntegrity } from "./durable-integrity.js";
-import {
-  initializeOrValidateSchema,
-  SCHEMA_VERSION,
-} from "./durable-schema.js";
+import { initializeOrValidateSchema } from "./durable-schema.js";
 import { validateResultingSchema } from "./durable-schema-validation.js";
 
 export { DurableCoreError } from "./durable-error.js";
@@ -21,7 +18,6 @@ function readFacts(database) {
     foreignKeys: true,
     integrity: "ok",
     journalMode: "wal",
-    schemaVersion: SCHEMA_VERSION,
     synchronous: "full",
   };
 }
@@ -46,14 +42,8 @@ export function openDurableCore(databasePath, { onStorageUnavailable } = {}) {
       retentionCleanupState.active ? 1 : 0,
     );
     validateIntegrity(database);
-    const schemaVersion = /** @type {{ user_version: number }} */ (
-      database.prepare("PRAGMA user_version").get()
-    ).user_version;
-    if (!Number.isSafeInteger(schemaVersion) || schemaVersion < 0) {
-      fail("schema_invalid", "SQLite schema version is invalid");
-    }
     initializeOrValidateSchema(database);
-    validateResultingSchema(database, SCHEMA_VERSION);
+    validateResultingSchema(database);
     configureDatabase(database);
   } catch (error) {
     database.close();

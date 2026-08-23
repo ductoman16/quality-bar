@@ -36,6 +36,5 @@ console.log(
     masterKeyCopied:
       manifestSource.includes(encodedMasterKey) ||
       databaseSource.includes(Buffer.from(encodedMasterKey)),
-    schemaVersion: manifest.schema_version,
   }),
 );

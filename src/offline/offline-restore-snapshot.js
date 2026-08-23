@@ -8,7 +8,6 @@ import {
 import { basename, dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { SCHEMA_VERSION } from "../durable/durable-schema.js";
 import { failRestore, owningRestoreError } from "./offline-restore-error.js";
 import {
   CURRENT_SCHEMA_DEFINITION,
@@ -78,8 +77,6 @@ export function validateRestoreSnapshot({
     manifest.database_file !== manifestName.replace(/\.json$/, ".sqlite3") ||
     typeof manifest.application_version !== "string" ||
     !/^\d+\.\d+\.\d+$/.test(manifest.application_version) ||
-    !Number.isSafeInteger(manifest.schema_version) ||
-    Number(manifest.schema_version) <= 0 ||
     typeof manifest.installation_key_identity !== "string" ||
     !/^sha256:[0-9a-f]{64}$/.test(manifest.installation_key_identity) ||
     typeof manifest.created_at !== "string" ||
@@ -92,12 +89,6 @@ export function validateRestoreSnapshot({
     failRestore(
       "restore_application_incompatible",
       `Restore snapshot application version ${String(manifest.application_version)} is incompatible with ${applicationVersion}`,
-    );
-  }
-  if (manifest.schema_version !== SCHEMA_VERSION) {
-    failRestore(
-      "restore_schema_incompatible",
-      `Restore snapshot schema version ${String(manifest.schema_version)} is incompatible with ${SCHEMA_VERSION}`,
     );
   }
   const keyIdentity = installationKeyIdentity(masterKey);
@@ -134,15 +125,6 @@ export function validateRestoreSnapshot({
         "Restore snapshot foreign-key check found a violation",
       );
     }
-    const schemaVersion = snapshot
-      .prepare("PRAGMA user_version")
-      .get()?.user_version;
-    if (schemaVersion !== manifest.schema_version) {
-      failRestore(
-        "restore_snapshot_integrity_invalid",
-        "Restore snapshot schema does not match its manifest",
-      );
-    }
   } catch (error) {
     if (error instanceof Error && error.name === "OfflineRestoreError") {
       throw error;
@@ -157,7 +139,6 @@ export function validateRestoreSnapshot({
   }
   return {
     applicationVersion,
-    schemaVersion: SCHEMA_VERSION,
     snapshotPath,
   };
 }
@@ -212,16 +193,12 @@ export function validateRestoreCandidate(candidatePath) {
     const integrity = candidate
       .prepare("PRAGMA integrity_check")
       .get()?.integrity_check;
-    const schemaVersion = candidate
-      .prepare("PRAGMA user_version")
-      .get()?.user_version;
     const foreignKeyViolation = candidate
       .prepare("PRAGMA foreign_key_check")
       .get();
     if (
       integrity !== "ok" ||
       foreignKeyViolation ||
-      schemaVersion !== SCHEMA_VERSION ||
       JSON.stringify(schemaDefinition(candidate)) !== CURRENT_SCHEMA_DEFINITION
     ) {
       failRestore(

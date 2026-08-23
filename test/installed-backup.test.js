@@ -28,13 +28,10 @@ function fixture() {
   const database = new DatabaseSync(databasePath);
   database.exec(`
     PRAGMA journal_mode = WAL;
-    PRAGMA user_version = 53;
     CREATE TABLE quality_bar_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     ) STRICT;
-    INSERT INTO quality_bar_metadata (key, value)
-    VALUES ('schema_version', '53');
   `);
   database.close();
   return { backupsPath, databasePath };
@@ -55,7 +52,6 @@ test("creates at most one successful daily backup for a UTC day", async () => {
     databasePath,
     keyIdentity,
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 53,
   };
 
   const created = await runDailyBackupIfDue(input);
@@ -87,7 +83,6 @@ test("a manifest cannot substitute a file outside the backup directory", async (
       database_file: "../quality-bar.sqlite3",
       installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
       kind: "daily",
-      schema_version: 53,
     })}\n`,
   );
   const originalDatabase = readFileSync(databasePath);
@@ -98,7 +93,6 @@ test("a manifest cannot substitute a file outside the backup directory", async (
     databasePath,
     keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 53,
   });
 
   assert.equal(result.status, "created");
@@ -128,7 +122,6 @@ test("startup discards malformed, orphaned, and interrupted backup output", asyn
       database_file: "quality-bar-daily-corrupt.sqlite3",
       installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
       kind: "daily",
-      schema_version: 53,
     })}\n`,
   );
   writeFileSync(
@@ -150,7 +143,6 @@ test("startup discards malformed, orphaned, and interrupted backup output", asyn
     databasePath,
     keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
     now: () => Date.parse("2026-07-28T01:02:03Z"),
-    schemaVersion: 53,
   });
 
   assert.equal(result.status, "created");
@@ -176,7 +168,6 @@ test("startup surfaces an exact operational backup-read failure", async () => {
       databasePath,
       keyIdentity: installationKeyIdentity(Buffer.alloc(32, 7)),
       now: () => Date.parse("2026-07-28T01:02:03Z"),
-      schemaVersion: 53,
     }),
     (error) => {
       assert.ok(error instanceof Error && "code" in error);

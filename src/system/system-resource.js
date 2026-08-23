@@ -219,7 +219,6 @@ export function createSystemResource(
       const storageFacts = readSystemStorageFacts({
         applicationVersion,
         backupsPath,
-        durableCore,
         installationKeyIdentity,
         now: () => timestamp,
         readBackups,
@@ -259,7 +258,6 @@ export function createSystemResource(
           foreign_keys: durableCore.facts.foreignKeys,
           integrity: durableCore.facts.integrity,
           journal_mode: durableCore.facts.journalMode,
-          schema_version: durableCore.facts.schemaVersion,
           status: "ready",
           synchronous: durableCore.facts.synchronous,
         },
