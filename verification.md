@@ -1,0 +1,3 @@
+- `grep -n 'noInlineConfig' eslint.config.js` → no matches (exit 1) — **OK**
+- `grep -n 'reportUnusedDisableDirectives' eslint.config.js` → line 16 present — **OK**
+- `npm run lint:structure && npm run lint:correctness` → both PASS (889 files, zero warnings) — **OK**

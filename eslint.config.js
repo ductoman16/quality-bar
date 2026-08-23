@@ -13,7 +13,6 @@ export default [
     files: ["**/*.{js,mjs,cjs}"],
     plugins: { "error-only-throwing": errorOnlyThrowing, n },
     linterOptions: {
-      noInlineConfig: true,
       reportUnusedDisableDirectives: "error",
     },
     rules: {
