@@ -3,7 +3,7 @@ import test from "node:test";
 import addFormatsModule from "ajv-formats";
 import AjvModule from "ajv";
 
-import { canonicalEvaluationSchemas } from "../src/canonical/canonical-evaluation-components.js";
+import { canonicalEvaluationSchemas } from "../src/canonical/evaluation.js";
 
 const Ajv = AjvModule.default;
 const addFormats = addFormatsModule.default;

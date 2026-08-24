@@ -1,5 +1,5 @@
 import { forgejoConnectionSchema } from "../forgejo/forgejo-connection-http-schema.js";
-import { withValidationError } from "../canonical/canonical-schema.js";
+import { withValidationError } from "../canonical/schema.js";
 
 const forgejoUrl = withValidationError(
   { format: "uri", type: "string" },

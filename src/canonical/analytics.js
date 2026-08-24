@@ -1,15 +1,232 @@
-import { closedObject } from "./canonical-schema.js";
-import { canonicalAnalyticsMatchingSchemas } from "./canonical-analytics-matching-components.js";
-import {
-  analyticsFilters,
-  count,
-  durationSummary,
-  failureCodes,
-  nullableCount,
-  nullableMeasurement,
-  rate,
-  tokenCounters,
-} from "./canonical-analytics-shared-components.js";
+import { closedObject } from "./schema.js";
+
+export const count = { minimum: 0, type: "integer" };
+export const rate = closedObject({ denominator: count, numerator: count }, [
+  "numerator",
+  "denominator",
+]);
+export const nullableCount = { oneOf: [count, { type: "null" }] };
+export const nullableMeasurement = {
+  oneOf: [{ minimum: 0, type: "number" }, { type: "null" }],
+};
+export const durationSummary = closedObject(
+  {
+    execution_count: count,
+    median_ms: nullableMeasurement,
+    total_ms: nullableCount,
+  },
+  ["execution_count", "median_ms", "total_ms"],
+);
+export const tokenCounters = closedObject(
+  {
+    cached_input_tokens: { $ref: "TokenCounterAnalytics#" },
+    input_tokens: { $ref: "TokenCounterAnalytics#" },
+    output_tokens: { $ref: "TokenCounterAnalytics#" },
+  },
+  ["input_tokens", "cached_input_tokens", "output_tokens"],
+);
+export const failureCodes = {
+  items: { $ref: "ExecutionFailureCodeAnalytics#" },
+  type: "array",
+};
+export const analyticsFilters = closedObject(
+  {
+    base_commit: {
+      pattern: "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      type: "string",
+    },
+    criterion_id: { minLength: 1, type: "string" },
+    end: count,
+    head_commit: {
+      pattern: "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      type: "string",
+    },
+    model: { minLength: 1, type: "string" },
+    pull_request_number: { minimum: 1, type: "integer" },
+    reasoning_effort: { minLength: 1, type: "string" },
+    repository_id: { minLength: 1, type: "string" },
+    review_id: { minLength: 1, type: "string" },
+    review_version_id: { minLength: 1, type: "string" },
+    service_tier: { minLength: 1, type: "string" },
+    start: count,
+    terminal_outcome: {
+      enum: ["clear", "advisory", "blocking", "error"],
+      type: "string",
+    },
+  },
+  [],
+);
+
+const matchingCommit = {
+  pattern: "^([0-9a-f]{40}|[0-9a-f]{64})$",
+  type: "string",
+};
+const matchingStableErrorCode = {
+  pattern: "^[a-z][a-z0-9_]*$",
+  type: "string",
+};
+
+export function canonicalAnalyticsMatchingSchemas() {
+  return {
+    AnalyticsMatchingFacts: closedObject(
+      {
+        evaluations: {
+          items: { $ref: "AnalyticsEvaluationFact#" },
+          type: "array",
+        },
+        review_runs: {
+          items: { $ref: "AnalyticsReviewRunFact#" },
+          type: "array",
+        },
+      },
+      ["evaluations", "review_runs"],
+    ),
+    AnalyticsEvaluationFact: closedObject(
+      {
+        base_commit: matchingCommit,
+        created_at: count,
+        evaluation_id: { minLength: 1, type: "string" },
+        head_commit: matchingCommit,
+        pull_request_number: {
+          oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
+        },
+        repository_id: { minLength: 1, type: "string" },
+        terminal_outcome: {
+          enum: ["clear", "advisory", "blocking", "error", "pending"],
+          type: "string",
+        },
+      },
+      [
+        "evaluation_id",
+        "repository_id",
+        "base_commit",
+        "head_commit",
+        "pull_request_number",
+        "created_at",
+        "terminal_outcome",
+      ],
+    ),
+    AnalyticsReviewRunFact: closedObject(
+      {
+        base_commit: matchingCommit,
+        cached_input_tokens: nullableCount,
+        cancellation_code: {
+          oneOf: [
+            {
+              enum: ["cancelled_by_operator", "cancelled_by_supersession"],
+              type: "string",
+            },
+            { type: "null" },
+          ],
+        },
+        completed_at: nullableCount,
+        created_at: count,
+        criterion_results: {
+          items: { $ref: "AnalyticsCriterionFact#" },
+          type: "array",
+        },
+        error_code: {
+          oneOf: [matchingStableErrorCode, { type: "null" }],
+        },
+        evaluation_id: { minLength: 1, type: "string" },
+        execution_status: {
+          enum: ["queued", "running", "completed", "failed", "cancelled"],
+          type: "string",
+        },
+        findings: {
+          items: { $ref: "AnalyticsFindingFact#" },
+          type: "array",
+        },
+        head_commit: matchingCommit,
+        input_tokens: nullableCount,
+        model: { minLength: 1, type: "string" },
+        output_tokens: nullableCount,
+        pull_request_number: {
+          oneOf: [{ minimum: 1, type: "integer" }, { type: "null" }],
+        },
+        reasoning_effort: { minLength: 1, type: "string" },
+        repository_id: { minLength: 1, type: "string" },
+        review_id: { minLength: 1, type: "string" },
+        review_run_id: { minLength: 1, type: "string" },
+        review_version_id: { minLength: 1, type: "string" },
+        service_tier: { minLength: 1, type: "string" },
+        started_at: nullableCount,
+        waiver_decisions: {
+          items: { $ref: "AnalyticsWaiverDecisionFact#" },
+          type: "array",
+        },
+        waiver_requests: {
+          items: { $ref: "AnalyticsWaiverRequestFact#" },
+          type: "array",
+        },
+      },
+      [
+        "review_run_id",
+        "evaluation_id",
+        "repository_id",
+        "base_commit",
+        "head_commit",
+        "pull_request_number",
+        "review_id",
+        "review_version_id",
+        "model",
+        "reasoning_effort",
+        "service_tier",
+        "execution_status",
+        "cancellation_code",
+        "created_at",
+        "started_at",
+        "completed_at",
+        "error_code",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "criterion_results",
+        "findings",
+        "waiver_requests",
+        "waiver_decisions",
+      ],
+    ),
+    AnalyticsCriterionFact: closedObject(
+      {
+        criterion_id: { minLength: 1, type: "string" },
+        outcome: {
+          enum: ["clear", "triggered", "not_applicable", "error"],
+          type: "string",
+        },
+      },
+      ["criterion_id", "outcome"],
+    ),
+    AnalyticsFindingFact: closedObject(
+      {
+        criterion_id: { minLength: 1, type: "string" },
+        finding_id: { minLength: 1, type: "string" },
+        impact: { enum: ["advisory", "blocking"], type: "string" },
+      },
+      ["finding_id", "criterion_id", "impact"],
+    ),
+    AnalyticsWaiverRequestFact: closedObject(
+      {
+        created_at: count,
+        finding_id: { minLength: 1, type: "string" },
+        waiver_request_id: { minLength: 1, type: "string" },
+      },
+      ["waiver_request_id", "finding_id", "created_at"],
+    ),
+    AnalyticsWaiverDecisionFact: closedObject(
+      {
+        created_at: count,
+        outcome: {
+          enum: ["accepted", "denied", "error"],
+          type: "string",
+        },
+        waiver_decision_id: { minLength: 1, type: "string" },
+        waiver_request_id: { minLength: 1, type: "string" },
+      },
+      ["waiver_decision_id", "waiver_request_id", "outcome", "created_at"],
+    ),
+  };
+}
 
 export function canonicalAnalyticsSchemas() {
   return {
