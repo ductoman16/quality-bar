@@ -282,7 +282,6 @@ export async function restoreOfflineBackup({
     );
     return {
       applicationVersion: snapshot.applicationVersion,
-      schemaVersion: snapshot.schemaVersion,
       status: "restored",
     };
   } catch (error) {

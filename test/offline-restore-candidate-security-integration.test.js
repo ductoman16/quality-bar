@@ -145,41 +145,6 @@ test("candidate directory failure and uncoded filesystem errors get restore owne
   assert.equal(failure.code, "restore_input_failed");
 });
 
-test("the copied candidate is revalidated before durable access", async () => {
-  const input = await restoreFixture();
-  const substitutePath = join(
-    input.backup.databasePath,
-    "..",
-    "substitute.sqlite3",
-  );
-  copyFileSync(input.backup.databasePath, substitutePath);
-  const substitute = new DatabaseSync(substitutePath);
-  substitute.exec("PRAGMA user_version = 20");
-  substitute.close();
-
-  await assert.rejects(
-    restoreOfflineBackup({
-      applicationVersion: "0.1.0",
-      copyOperations: {
-        copy(source, destination) {
-          assert.equal(source, input.backup.databasePath);
-          copyFileSync(substitutePath, destination);
-        },
-      },
-      databasePath: input.databasePath,
-      manifestPath: input.backup.manifestPath,
-      masterKey: input.masterKey,
-      operatorPassword: "a replacement operator password",
-    }),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "restore_candidate_schema_invalid",
-  );
-
-  assert.deepEqual(readFileSync(input.databasePath), input.original);
-});
-
 test("a current-version snapshot missing required schema cannot replace the target", async () => {
   const input = await restoreFixture();
   const incomplete = new DatabaseSync(input.backup.databasePath);
@@ -369,7 +334,6 @@ test("a validated snapshot replaces an unreadable stopped target", async () => {
   });
 
   const restored = openDurableCore(input.databasePath);
-  assert.equal(restored.facts.schemaVersion, 53);
   verifyInstallationKey(restored, input.masterKey);
   restored.close();
 });

@@ -19,7 +19,6 @@ test("the authenticated System API exposes storage identity, cleanup, and backup
     application_version: "1.2.3",
     error: null,
     installation_key_identity: installationKeyIdentity(Buffer.alloc(32, 7)),
-    schema_version: 53,
     status: "available",
   });
   assert.deepEqual(system.backup, {
@@ -32,7 +31,6 @@ test("the authenticated System API exposes storage identity, cleanup, and backup
     foreign_keys: true,
     integrity: "ok",
     journal_mode: "wal",
-    schema_version: 53,
     status: "ready",
     synchronous: "full",
   });

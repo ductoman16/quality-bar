@@ -48,7 +48,6 @@ const application = (value) =>
     "application_version",
     "error",
     "installation_key_identity",
-    "schema_version",
     "status",
   ]) &&
   ["available", "unavailable"].includes(value.status) &&
@@ -57,9 +56,7 @@ const application = (value) =>
   storageError(value.error) &&
   (value.status === "unavailable") === (value.error !== null) &&
   (value.installation_key_identity === null ||
-    /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity)) &&
-  (value.schema_version === null ||
-    (Number.isSafeInteger(value.schema_version) && value.schema_version > 0));
+    /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity));
 const cleanup = (value) =>
   status(value, ["available", "not_run", "running", "unavailable"]) &&
   exact(value, [
@@ -100,15 +97,12 @@ const backupRecord = (value) =>
     "created_at",
     "installation_key_identity",
     "kind",
-    "schema_version",
   ]) &&
   /^\d+\.\d+\.\d+$/.test(value.application_version) &&
   value.created_at !== null &&
   timestamp(value.created_at) &&
   /^sha256:[0-9a-f]{64}$/.test(value.installation_key_identity) &&
-  value.kind === "daily" &&
-  Number.isSafeInteger(value.schema_version) &&
-  value.schema_version > 0;
+  value.kind === "daily";
 const backup = (value) =>
   status(value, ["current", "empty", "stale", "unavailable"]) &&
   exact(value, ["error", "last_successful", "status"]) &&
@@ -258,8 +252,6 @@ export const validSystem = (value) =>
   value.durable_core.foreign_keys === true &&
   value.durable_core.integrity === "ok" &&
   value.durable_core.journal_mode === "wal" &&
-  Number.isSafeInteger(value.durable_core.schema_version) &&
-  value.durable_core.schema_version > 0 &&
   value.durable_core.synchronous === "full" &&
   storage(value.storage) &&
   backup(value.backup) &&

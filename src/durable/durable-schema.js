@@ -1,4 +1,3 @@
-import { fail } from "./durable-error.js";
 import { GITHUB_CONNECTION_SCHEMA } from "../github/github-connection-schema.js";
 import { GITHUB_POLLING_SCHEMA } from "../github/github-polling-schema.js";
 import { REPOSITORY_CREDENTIAL_SCHEMA } from "../repository/repository-credential-schema.js";
@@ -18,10 +17,8 @@ import { ONBOARDING_TOKEN_SCHEMA } from "../onboarding-token-schema.js";
 import { RETENTION_SCHEMA } from "../retention-schema.js";
 import { WAIVER_ADJUDICATION_RECOVERY_BASELINE } from "../waiver/waiver-adjudication-recovery-schema.js";
 
-export const SCHEMA_VERSION = 53;
-
 const AUTHORITY_ATTRIBUTION_SCHEMA = `
-  CREATE TABLE authority_attributions (
+  CREATE TABLE IF NOT EXISTS authority_attributions (
     id TEXT PRIMARY KEY,
     channel TEXT NOT NULL CHECK (channel IN ('browser_session', 'host', 'implementer_token', 'onboarding_token')),
     action TEXT NOT NULL,
@@ -29,40 +26,19 @@ const AUTHORITY_ATTRIBUTION_SCHEMA = `
     error_code TEXT,
     occurred_at INTEGER NOT NULL
   ) STRICT;
-  CREATE INDEX authority_attributions_keyset
+  CREATE INDEX IF NOT EXISTS authority_attributions_keyset
     ON authority_attributions (occurred_at DESC, id DESC);
 `;
 
 /** @param {import("node:sqlite").DatabaseSync} database */
 export function initializeOrValidateSchema(database) {
-  const version = database.prepare("PRAGMA user_version").get()?.user_version;
-  if (version !== 0 && version !== SCHEMA_VERSION) {
-    fail(
-      "schema_invalid",
-      `SQLite schema version ${String(version)} is not supported`,
-    );
-  }
-  if (version === SCHEMA_VERSION) {
-    return;
-  }
-  const existingObject = database
-    .prepare(
-      "SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1",
-    )
-    .get();
-  if (existingObject) {
-    fail(
-      "schema_invalid",
-      "SQLite schema version 0 contains unsupported objects",
-    );
-  }
   database.exec(`
     BEGIN IMMEDIATE;
-    CREATE TABLE quality_bar_metadata (
+    CREATE TABLE IF NOT EXISTS quality_bar_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     ) STRICT;
-    CREATE TABLE browser_sessions (
+    CREATE TABLE IF NOT EXISTS browser_sessions (
       session_hash TEXT PRIMARY KEY,
       csrf_hash TEXT NOT NULL,
       created_at INTEGER NOT NULL,
@@ -87,8 +63,6 @@ export function initializeOrValidateSchema(database) {
     ${WAIVER_FOLLOWUP_SCHEMA}
     ${reviewDeletionSchema.REVIEW_DELETION_LINEAGE_INTEGRITY}
     ${repositorySchema.REPOSITORY_USAGE_INTEGRITY}
-    INSERT INTO quality_bar_metadata (key, value) VALUES ('schema_version', '${SCHEMA_VERSION}');
-    PRAGMA user_version = ${SCHEMA_VERSION};
     COMMIT;
   `);
 }
