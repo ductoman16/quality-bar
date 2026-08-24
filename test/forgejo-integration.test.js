@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { openDurableCore } from "../src/durable/durable-core.js";
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import {
   createAvailableForgejoConnectionService,
   assertForgejoFailedReactivationHistory as assertFailedHistory,
@@ -16,10 +16,10 @@ import {
   assertForgejoPartialFailure,
   assertForgejoRepositoryFailureOwners,
   assertForgejoVerificationRows,
-} from "./forgejo-v16-integration-support.js";
-import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
+} from "./forgejo-integration-support.js";
+import { forgejoOpenApi } from "./forgejo-openapi-support.js";
 
-test("Forgejo v16 verification proves the fixed profile without provider writes", async (context) => {
+test("Forgejo verification proves the fixed profile without provider writes", async (context) => {
   /** @type {{method: string | undefined, path: string}[]} */
   const requests = [];
   /** @type {number | null} */
@@ -43,7 +43,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       return send({ version: "16.0.4" });
     }
     if (url.pathname === "/swagger.v1.json") {
-      return send(forgejoV16OpenApi());
+      return send(forgejoOpenApi());
     }
     if (url.pathname === "/api/v1/repos/search") {
       return send({
@@ -121,7 +121,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   assert.ok(address && typeof address !== "string");
   /** @type {{certificateAuthorityPath: string | undefined, token: string, url: string, username: string}[]} */
   const gitReads = [];
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     certificateAuthorityPath: "/run/secrets/forgejo-ca.pem",
     fetch,
     verifyGit: async (url, credential, options) => {
@@ -159,7 +159,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       commit_status: "verified",
     },
     principal: { id: 7, login: "operator" },
-    profile: "forgejo-v16",
+    profile: "forgejo",
     reported_version: "16.0.4",
     repositories: [
       {
@@ -204,7 +204,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
       pull_request_access: "not_completed",
     },
     principal: { id: 7, login: "operator" },
-    profile: "forgejo-v16",
+    profile: "forgejo",
     reported_version: "16.0.4",
     repositories: [],
     scopes: ["read:repository", "write:issue", "write:repository"],
@@ -284,7 +284,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
   assertForgejoPartialFailure(partialFailure);
   forbiddenRepositoryId = null;
   const directory = mkdtempSync(
-    join(tmpdir(), "quality-bar-forgejo-v16-rotation-"),
+    join(tmpdir(), "quality-bar-forgejo-rotation-"),
   );
   context.after(() => rmSync(directory, { force: true, recursive: true }));
   const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
@@ -338,7 +338,7 @@ test("Forgejo v16 verification proves the fixed profile without provider writes"
 });
 
 test("Forgejo verification rejects unsupported versions before Repository access", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     fetch: async () =>
       new Response(JSON.stringify({ version: "17.0.0" }), {
         headers: {
@@ -357,7 +357,7 @@ test("Forgejo verification rejects unsupported versions before Repository access
   );
 });
 
-test("Forgejo v16 fixture exhausts pagination before selecting a later Repository", async () => {
+test("Forgejo fixture exhausts pagination before selecting a later Repository", async () => {
   const repository = (/** @type {number} */ id) => ({
     clone_url: `https://forgejo.example/operator/private-${id}.git`,
     full_name: `operator/private-${id}`,
@@ -370,7 +370,7 @@ test("Forgejo v16 fixture exhausts pagination before selecting a later Repositor
   });
   /** @type {string[]} */
   const requests = [];
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     fetch: async (input) => {
       const requestUrl = new URL(String(input));
       const path = requestUrl.pathname + requestUrl.search;
@@ -379,7 +379,7 @@ test("Forgejo v16 fixture exhausts pagination before selecting a later Repositor
         path === "/api/v1/version"
           ? { version: "16.1.0" }
           : path === "/swagger.v1.json"
-            ? forgejoV16OpenApi()
+            ? forgejoOpenApi()
             : path === "/api/v1/repos/search?page=1&limit=50&private=true"
               ? {
                   data: Array.from({ length: 50 }, (value, index) => {

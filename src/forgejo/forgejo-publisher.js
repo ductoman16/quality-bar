@@ -2,9 +2,9 @@ import {
   currentIoOperationSignal,
   throwIfIoOperationAborted,
 } from "../io-operation-context.js";
-import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
-import { createForgejoV16Reconciler } from "./forgejo-v16-reconciliation.js";
-import { forgejoV16ResponseFailure } from "./forgejo-v16-response-failure.js";
+import { normalizedForgejoBaseUrl } from "./forgejo-url.js";
+import { createForgejoReconciler } from "./forgejo-reconciler.js";
+import { forgejoResponseFailure } from "./forgejo-response-failure.js";
 
 /** @param {string} code @param {string} message @param {unknown} [cause] @returns {never} */
 function fail(code, message, cause) {
@@ -100,12 +100,7 @@ async function forgejoPublicationRequest(
   }
   signal?.throwIfAborted();
   if (response.status !== expectedStatus) {
-    throw forgejoV16ResponseFailure(
-      response,
-      path,
-      "publication",
-      repositoryId,
-    );
+    throw forgejoResponseFailure(response, path, "publication", repositoryId);
   }
   try {
     return await response.json();
@@ -127,15 +122,13 @@ function publicationNumber(value, message) {
 }
 
 /** @param {{fetch?: typeof fetch}} [options] */
-export function createForgejoV16Publisher({
-  fetch: fetchRequest = fetch,
-} = {}) {
+export function createForgejoPublisher({ fetch: fetchRequest = fetch } = {}) {
   if (typeof fetchRequest !== "function") {
     throw new TypeError("Forgejo publisher dependencies are invalid");
   }
 
   return {
-    ...createForgejoV16Reconciler({ fetch: fetchRequest }),
+    ...createForgejoReconciler({ fetch: fetchRequest }),
     /**
      * @param {{base_url: string, token: string}} connection
      * @param {{full_name: string, id: number}} repository

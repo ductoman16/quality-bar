@@ -43,7 +43,7 @@ test("SQLite admits exactly one Forgejo Connection when simultaneous verificatio
         return {
           capabilities: {},
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [privateRepository],
           scopes: ["read:repository", "write:issue", "write:repository"],

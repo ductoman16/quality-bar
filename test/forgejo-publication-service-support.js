@@ -30,7 +30,7 @@ export async function assertForgejoPublication({
        evaluation_id, id, added, deleted, modified, renamed,
        before_path, after_path, base_line_count, head_line_count, patch
      ) VALUES (
-       ?, 'change-waiver-v16', 0, 0, 1, 0,
+       ?, 'change-waiver-forgejo', 0, 0, 1, 0,
        'automatic-proof.txt', 'automatic-proof.txt', 1, 1,
        '@@ -1 +1 @@\n-automatic proof\n+reenabled proof\n'
      )`,
@@ -68,8 +68,8 @@ export async function assertForgejoPublication({
        evidence, remediation, location_kind, file_change_id,
        side, start_line, end_line
      ) VALUES (
-       'finding-waiver-v16', ?, ?, ?,
-       'Pinned v16 evidence', 'Pinned v16 remediation',
+       'finding-waiver-forgejo', ?, ?, ?,
+       'Pinned Forgejo evidence', 'Pinned Forgejo remediation',
        'line_range', ?, 'head', 1, 1
      )`,
     completedEvaluation.id,
@@ -134,11 +134,11 @@ export async function assertForgejoPublication({
   const original = core.get(
     `SELECT external_id, path, side, start_line, start_side, line
      FROM forgejo_finding_feedback
-     WHERE finding_id = 'finding-waiver-v16'`,
+     WHERE finding_id = 'finding-waiver-forgejo'`,
   );
   assert.equal(
     core.get(
-      "SELECT publication_status FROM forgejo_finding_feedback WHERE finding_id = 'finding-waiver-v16'",
+      "SELECT publication_status FROM forgejo_finding_feedback WHERE finding_id = 'finding-waiver-forgejo'",
     )?.publication_status,
     "succeeded",
   );
@@ -150,29 +150,29 @@ export async function assertForgejoPublication({
     currentTime,
   );
   createWaiverBatchService(core, {
-    createAdjudicationId: () => "adjudication-waiver-v16",
-    createRequestId: () => "request-waiver-v16",
+    createAdjudicationId: () => "adjudication-waiver-forgejo",
+    createRequestId: () => "request-waiver-forgejo",
     now: () => currentTime + 1,
     readCodexCapabilityFailure: () => null,
     storageReserve: { assertWorkAdmissionAvailable() {} },
   }).submit({
     channel: "browser_session",
     evaluationId: completedEvaluation.id,
-    idempotencyKey: "waiver-v16",
+    idempotencyKey: "waiver-forgejo",
     request: {
       requests: [
         {
-          finding_id: "finding-waiver-v16",
-          rationale: "The pinned v16 exception is justified.",
+          finding_id: "finding-waiver-forgejo",
+          rationale: "The pinned Forgejo exception is justified.",
         },
       ],
     },
   });
   core.run(
     `UPDATE codex_execution_queue
-     SET worker_id = 'worker-waiver-v16', fencing_token = 1,
+     SET worker_id = 'worker-waiver-forgejo', fencing_token = 1,
          lease_expires_at = ?, started_at = ?
-     WHERE work_id = 'adjudication-waiver-v16'`,
+     WHERE work_id = 'adjudication-waiver-forgejo'`,
     currentTime + 10_000,
     currentTime + 2,
   );
@@ -180,25 +180,25 @@ export async function assertForgejoPublication({
     `UPDATE waiver_adjudications
      SET execution_status = 'running', started_at = ?,
          codex_cli_version = '0.114.0'
-     WHERE id = 'adjudication-waiver-v16'`,
+     WHERE id = 'adjudication-waiver-forgejo'`,
     currentTime + 2,
   );
   await service.publishWaiting();
   createWaiverAdjudicationResultService(core, {
-    createDecisionId: () => "decision-waiver-v16",
+    createDecisionId: () => "decision-waiver-forgejo",
     now: () => currentTime + 3,
   }).prepare(
     {
       fencingToken: 1,
-      workerId: "worker-waiver-v16",
-      workId: "adjudication-waiver-v16",
+      workerId: "worker-waiver-forgejo",
+      workId: "adjudication-waiver-forgejo",
     },
     {
       decisions: [
         {
-          explanation: "The pinned v16 exception is justified.",
+          explanation: "The pinned Forgejo exception is justified.",
           outcome: "accepted",
-          request_id: "request-waiver-v16",
+          request_id: "request-waiver-forgejo",
         },
       ],
     },
@@ -208,7 +208,7 @@ export async function assertForgejoPublication({
     `SELECT publication_status, external_id, path, side,
             start_line, start_side, line
      FROM forgejo_waiver_decision_followups
-     WHERE waiver_decision_id = 'decision-waiver-v16'`,
+     WHERE waiver_decision_id = 'decision-waiver-forgejo'`,
   );
   assert.equal(local?.publication_status, "succeeded");
   assert.notEqual(local?.external_id, original.external_id);

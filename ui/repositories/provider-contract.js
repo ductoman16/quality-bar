@@ -306,7 +306,7 @@ const forgejoVerification = (value) =>
       (/** @type {any} */ repository) => repository.outcome === "success",
     )) &&
   (value.outcome === "success"
-    ? value.api_profile === "forgejo-v16" &&
+    ? value.api_profile === "forgejo" &&
       record(value.capabilities) &&
       value.error === null &&
       principal(value.principal) &&
@@ -315,7 +315,7 @@ const forgejoVerification = (value) =>
       Array.isArray(value.scopes) &&
       value.scopes.every(nonempty)
     : value.outcome === "error" &&
-      (value.api_profile === null || value.api_profile === "forgejo-v16") &&
+      (value.api_profile === null || value.api_profile === "forgejo") &&
       (value.capabilities === null || record(value.capabilities)) &&
       codedError(value.error) &&
       (value.principal === null || principal(value.principal)) &&
@@ -344,7 +344,7 @@ export const validForgejoConnection = (/** @type {any} */ value) =>
       "verification_history",
       "verified_at",
     ]) &&
-    value.api_profile === "forgejo-v16" &&
+    value.api_profile === "forgejo" &&
     uri(value.base_url) &&
     record(value.capabilities) &&
     health(value) &&

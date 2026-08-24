@@ -157,7 +157,7 @@ export async function rotateForgejoConnection(
       activeRepositoryIds,
     );
     if (
-      verification.profile !== "forgejo-v16" ||
+      verification.profile !== "forgejo" ||
       !verification.principal ||
       !Number.isSafeInteger(verification.principal.id) ||
       typeof verification.principal.login !== "string" ||

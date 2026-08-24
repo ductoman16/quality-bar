@@ -5,12 +5,12 @@ import {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
 
-test("Forgejo v16 verifier begins provider proof for an explicit empty repository selection", async () => {
+test("Forgejo verifier begins provider proof for an explicit empty repository selection", async () => {
   let requested = false;
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     fetch: async () => {
       requested = true;
       return new Response();
@@ -27,9 +27,9 @@ test("Forgejo v16 verifier begins provider proof for an explicit empty repositor
   assert.equal(requested, true);
 });
 
-test("Forgejo v16 verifier rejects malformed selection, token, and endpoint inputs before provider access", async () => {
+test("Forgejo verifier rejects malformed selection, token, and endpoint inputs before provider access", async () => {
   let requested = false;
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     fetch: async () => {
       requested = true;
       return new Response();
@@ -189,7 +189,7 @@ test("Forgejo PAT rotation rejects an empty replacement before reading or verify
 
 test("Forgejo Connection read rejects contradictory durable health errors", () => {
   const baseRow = {
-    api_profile: "forgejo-v16",
+    api_profile: "forgejo",
     base_url: "https://forgejo.example",
     capabilities: "{}",
     health: "healthy",

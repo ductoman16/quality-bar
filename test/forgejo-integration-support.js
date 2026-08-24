@@ -117,7 +117,7 @@ export function assertForgejoPartialFailure(failure) {
   assert.deepEqual(failure?.verificationEvidence, {
     capabilities: incompleteForgejoCapabilities,
     principal: { id: 7, login: "operator" },
-    profile: "forgejo-v16",
+    profile: "forgejo",
     reported_version: "16.0.4",
     repositories: failure.repositoryChecks,
     scopes: ["read:repository", "write:issue", "write:repository"],
@@ -146,7 +146,7 @@ export function assertForgejoVerificationRows(core) {
 /** @param {any} verification */
 export function assertForgejoFailedReactivationHistory(verification) {
   assert.deepEqual(verification, {
-    api_profile: "forgejo-v16",
+    api_profile: "forgejo",
     capabilities: incompleteForgejoCapabilities,
     error: routeError,
     id: "verification-3",

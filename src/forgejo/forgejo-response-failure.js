@@ -24,7 +24,7 @@ function providerDelay(headers, now) {
 }
 
 /** @param {Response} response @param {string} path @param {"publication" | "reconciliation" | "verification"} operation @param {number | undefined} repositoryId @param {number} [attemptedAt] */
-export function forgejoV16ResponseFailure(
+export function forgejoResponseFailure(
   response,
   path,
   operation,
@@ -66,7 +66,7 @@ export function forgejoV16ResponseFailure(
 }
 
 /** @param {string} path @param {Response} response @param {number | undefined} repositoryId @param {number} attemptedAt */
-export async function forgejoV16ResponseJson(
+export async function forgejoResponseJson(
   path,
   response,
   repositoryId,
@@ -77,7 +77,7 @@ export async function forgejoV16ResponseJson(
       ![403, 404].includes(response.status) ||
       Number.isSafeInteger(repositoryId)
     ) {
-      throw forgejoV16ResponseFailure(
+      throw forgejoResponseFailure(
         response,
         path,
         "verification",

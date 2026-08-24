@@ -3,7 +3,7 @@ import { verifiedForgejoRepositoryEvidence } from "./forgejo-repository-check.js
 import {
   FORGEJO_CAPABILITY_NAMES,
   VERIFIED_FORGEJO_AUTHORITIES,
-} from "./forgejo-v16-evidence.js";
+} from "./forgejo-evidence.js";
 
 const REQUIRED_CAPABILITIES = FORGEJO_CAPABILITY_NAMES;
 const REQUIRED_SCOPES = VERIFIED_FORGEJO_AUTHORITIES;
@@ -28,7 +28,7 @@ export function completeForgejoReactivationVerification(
       ? Object.entries(result.capabilities)
       : [];
   if (
-    result?.profile !== "forgejo-v16" ||
+    result?.profile !== "forgejo" ||
     typeof result.reported_version !== "string" ||
     !/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(result.reported_version) ||
     !result.principal ||
@@ -76,7 +76,7 @@ export function failedForgejoReactivationVerification(error, repositoryIds) {
     !result ||
     Object.keys(result).sort().join(",") !==
       "capabilities,principal,profile,reported_version,repositories,scopes" ||
-    ![null, "forgejo-v16"].includes(result.profile) ||
+    ![null, "forgejo"].includes(result.profile) ||
     (result.reported_version !== null &&
       (typeof result.reported_version !== "string" ||
         !/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(

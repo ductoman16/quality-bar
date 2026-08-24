@@ -4,26 +4,26 @@ import {
   createForgejoVerificationEvidence,
   throwWithForgejoEvidence,
   VERIFIED_FORGEJO_AUTHORITIES,
-} from "./forgejo-v16-evidence.js";
+} from "./forgejo-evidence.js";
 import {
   forgejoRepository as repository,
   forgejoRepositoryOwner as repositoryOwner,
   missingForgejoRepositorySelection,
   requireForgejoRepositoryAuthority as requiredRepositoryAuthority,
-} from "./forgejo-v16-repository.js";
-import { createForgejoV16PullRequestReader } from "./forgejo-v16-polling.js";
-import { createForgejoV16Publisher } from "./forgejo-v16-publication.js";
-import { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
-import { forgejoV16ResponseJson } from "./forgejo-v16-response-failure.js";
+} from "./forgejo-repository.js";
+import { createForgejoPullRequestReader } from "./forgejo-pull-request-reader.js";
+import { createForgejoPublisher } from "./forgejo-publisher.js";
+import { normalizedForgejoBaseUrl } from "./forgejo-url.js";
+import { forgejoResponseJson } from "./forgejo-response-failure.js";
 import {
   currentIoOperationSignal,
   throwIfIoOperationAborted,
 } from "../io-operation-context.js";
 
-export { normalizedForgejoBaseUrl } from "./forgejo-v16-url.js";
-export { createForgejoV16Publisher };
+export { normalizedForgejoBaseUrl } from "./forgejo-url.js";
+export { createForgejoPublisher };
 
-const PROFILE = "forgejo-v16";
+const PROFILE = "forgejo";
 const REQUIRED_OPENAPI_OPERATIONS = Object.freeze([
   ["/repos/search", "get", "200"],
   ["/repos/{owner}/{repo}", "get", "200"],
@@ -71,7 +71,7 @@ function version(value) {
   if (!/^16\.\d+\.\d+(?:\+gitea-\d+\.\d+\.\d+)?$/.test(reported)) {
     fail(
       "forgejo_version_unsupported",
-      "Forgejo Connection requires stable v16.x",
+      "Forgejo Connection requires a supported stable release",
     );
   }
   return reported;
@@ -82,7 +82,7 @@ function openApi(value) {
   const document = object(value);
   const paths = object(document?.paths);
   if (document?.swagger !== "2.0" || !paths) {
-    fail("forgejo_openapi_invalid", "Forgejo v16 OpenAPI evidence is invalid");
+    fail("forgejo_openapi_invalid", "Forgejo OpenAPI evidence is invalid");
   }
   for (const [path, method, successStatus] of REQUIRED_OPENAPI_OPERATIONS) {
     const operation = object(object(paths[path])?.[method]);
@@ -90,7 +90,7 @@ function openApi(value) {
     if (!operation || !object(responses?.[successStatus])) {
       fail(
         "forgejo_openapi_invalid",
-        `Forgejo v16 OpenAPI evidence is missing required operation: ${method} ${path}`,
+        `Forgejo OpenAPI evidence is missing required operation: ${method} ${path}`,
       );
     }
   }
@@ -117,7 +117,7 @@ function routeArray(value, route, field) {
 }
 
 /** @param {{certificateAuthorityPath?: string, fetch?: typeof fetch, now?: () => number, verifyGit?: typeof verifyRepositoryRead}} [options] */
-export function createForgejoV16Verifier({
+export function createForgejoVerifier({
   certificateAuthorityPath,
   fetch: fetchRequest = fetch,
   now = () => Date.now(),
@@ -130,12 +130,12 @@ export function createForgejoV16Verifier({
   ) {
     throw new TypeError("Forgejo verifier dependencies are invalid");
   }
-  const listPullRequests = createForgejoV16PullRequestReader({
+  const listPullRequests = createForgejoPullRequestReader({
     fetchRequest,
     normalizeBaseUrl: normalizedForgejoBaseUrl,
     now,
   });
-  const publisher = createForgejoV16Publisher({ fetch: fetchRequest });
+  const publisher = createForgejoPublisher({ fetch: fetchRequest });
   return {
     listPullRequests,
     ...publisher,
@@ -183,7 +183,7 @@ export function createForgejoV16Verifier({
           );
         }
         signal?.throwIfAborted();
-        const body = await forgejoV16ResponseJson(
+        const body = await forgejoResponseJson(
           path,
           response,
           repositoryId,

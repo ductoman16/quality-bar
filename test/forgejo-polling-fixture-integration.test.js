@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 
 /** @param {number} number */
 function pullRequest(number) {
@@ -20,7 +20,7 @@ function pullRequest(number) {
 test("Forgejo polling fixture completes every pull-request page", async () => {
   /** @type {string[]} */
   const paths = [];
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       const requestUrl = new URL(url);
       paths.push(`${requestUrl.pathname}${requestUrl.search}`);
@@ -49,7 +49,7 @@ test("Forgejo polling fixture completes every pull-request page", async () => {
 });
 
 test("Forgejo polling fixture does not mistake a server page cap for completion", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       const page = Number(new URL(url).searchParams.get("page"));
       return Response.json(
@@ -79,7 +79,7 @@ test("Forgejo polling accepts a closed pull request whose base branch no longer 
     base: { sha: "" },
     state: "closed",
   };
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       return Response.json(
         new URL(url).searchParams.get("page") === "1" ? [closed] : [],
@@ -96,7 +96,7 @@ test("Forgejo polling accepts a closed pull request whose base branch no longer 
 });
 
 test("Forgejo polling fixture rejects an incomplete later page", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       const page = Number(new URL(url).searchParams.get("page"));
       return Response.json(
@@ -130,7 +130,7 @@ test("Forgejo polling fixture rejects inexact object IDs and timestamps", async 
     { ...pullRequest(1), base: { sha: "" } },
   ];
   for (const invalid of invalidPullRequests) {
-    const verifier = createForgejoV16Verifier({
+    const verifier = createForgejoVerifier({
       async fetch(url) {
         return Response.json(
           new URL(url).searchParams.get("page") === "1" ? [invalid] : [],
@@ -149,7 +149,7 @@ test("Forgejo polling fixture rejects inexact object IDs and timestamps", async 
 });
 
 test("Forgejo polling fixture preserves Retry-After without a hidden fallback", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch() {
       return Response.json(
         { message: "rate limit exceeded" },
@@ -185,7 +185,7 @@ test("Forgejo polling fixture preserves transient seconds and date gates", async
     [new Date(121_000).toUTCString(), 121_000],
   ];
   for (const [retryAfter, expected] of cases) {
-    const verifier = createForgejoV16Verifier({
+    const verifier = createForgejoVerifier({
       async fetch() {
         return Response.json(
           { message: "unavailable" },
@@ -221,7 +221,7 @@ test("Forgejo polling fixture preserves definitive and transient HTTP ownership"
     [503, "forgejo_api_transient_failure", true],
   ];
   for (const [status, code, retry] of cases) {
-    const verifier = createForgejoV16Verifier({
+    const verifier = createForgejoVerifier({
       async fetch() {
         return Response.json({ message: "failed" }, { status });
       },
@@ -243,7 +243,7 @@ test("Forgejo polling fixture preserves definitive and transient HTTP ownership"
 });
 
 test("Forgejo polling fixture rejects invalid requests and transport", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch() {
       throw new Error("network unavailable");
     },
@@ -274,7 +274,7 @@ test("Forgejo polling fixture rejects invalid requests and transport", async () 
 });
 
 test("Forgejo polling fixture rejects a non-array snapshot", async () => {
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch() {
       return Response.json({ items: [] });
     },

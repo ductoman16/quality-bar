@@ -227,7 +227,7 @@ test("Forgejo Repository re-enablement commits exact failure health or one fresh
   failure = false;
   staleFailure = false;
   verificationFailure = Object.assign(
-    new Error("Forgejo Connection requires stable v16.x"),
+    new Error("Forgejo Connection requires a supported stable release"),
     { code: "forgejo_version_unsupported" },
   );
   await assert.rejects(

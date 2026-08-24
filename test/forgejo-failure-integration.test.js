@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
-import { forgejoV16ResponseFailure } from "../src/forgejo/forgejo-v16-response-failure.js";
-import { forgejoV16OpenApi } from "./forgejo-v16-openapi-support.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
+import { forgejoResponseFailure } from "../src/forgejo/forgejo-response-failure.js";
+import { forgejoOpenApi } from "./forgejo-openapi-support.js";
 
-test("Forgejo v16 fixture rejects redirects and reports transport failures with owned codes", async () => {
-  const verifier = createForgejoV16Verifier({
+test("Forgejo fixture rejects redirects and reports transport failures with owned codes", async () => {
+  const verifier = createForgejoVerifier({
     fetch: async (...arguments_) => {
       const options = arguments_[1];
       assert.equal(options?.redirect, "error");
@@ -23,7 +23,7 @@ test("Forgejo v16 fixture rejects redirects and reports transport failures with 
   );
 });
 
-test("Forgejo v16 verification preserves authentication and provider rate semantics", async () => {
+test("Forgejo verification preserves authentication and provider rate semantics", async () => {
   /** @type {[number, Record<string, string>, Record<string, unknown>][]} */
   const cases = [
     [
@@ -42,7 +42,7 @@ test("Forgejo v16 verification preserves authentication and provider rate semant
     ],
   ];
   for (const [status, headers, expected] of cases) {
-    const verifier = createForgejoV16Verifier({
+    const verifier = createForgejoVerifier({
       fetch: async () => new Response("{}", { headers, status }),
       now: () => 1_000,
     });
@@ -57,10 +57,10 @@ test("Forgejo v16 verification preserves authentication and provider rate semant
   }
 });
 
-test("Forgejo v16 verification makes incompatible required routes definitive at their exact scope", () => {
+test("Forgejo verification makes incompatible required routes definitive at their exact scope", () => {
   const response = new Response("{}", { status: 405 });
   assert.deepEqual(
-    forgejoV16ResponseFailure(
+    forgejoResponseFailure(
       response,
       "/api/v1/version",
       "verification",
@@ -77,7 +77,7 @@ test("Forgejo v16 verification makes incompatible required routes definitive at 
     ),
   );
   assert.equal(
-    forgejoV16ResponseFailure(
+    forgejoResponseFailure(
       response,
       "/api/v1/repos/operator/repository/branches",
       "verification",
@@ -87,8 +87,8 @@ test("Forgejo v16 verification makes incompatible required routes definitive at 
   );
 });
 
-test("Forgejo v16 fixture rejects missing pinned OpenAPI route evidence", async () => {
-  const verifier = createForgejoV16Verifier({
+test("Forgejo fixture rejects missing pinned OpenAPI route evidence", async () => {
+  const verifier = createForgejoVerifier({
     fetch: async (input) => {
       const path = new URL(String(input)).pathname;
       const body =
@@ -113,15 +113,15 @@ test("Forgejo v16 fixture rejects missing pinned OpenAPI route evidence", async 
   );
 });
 
-test("Forgejo v16 fixture rejects ambiguous principal enumeration", async () => {
-  const verifier = createForgejoV16Verifier({
+test("Forgejo fixture rejects ambiguous principal enumeration", async () => {
+  const verifier = createForgejoVerifier({
     fetch: async (input) => {
       const path = new URL(String(input)).pathname;
       const body =
         path === "/api/v1/version"
           ? { version: "16.0.4" }
           : path === "/swagger.v1.json"
-            ? forgejoV16OpenApi()
+            ? forgejoOpenApi()
             : {
                 data: [7, 8].map((id) => ({
                   clone_url: `https://forgejo.example/operator/repository-${id}.git`,
@@ -150,15 +150,15 @@ test("Forgejo v16 fixture rejects ambiguous principal enumeration", async () => 
   );
 });
 
-test("Forgejo v16 enumeration capability failure retains its Repository owner", async () => {
-  const verifier = createForgejoV16Verifier({
+test("Forgejo enumeration capability failure retains its Repository owner", async () => {
+  const verifier = createForgejoVerifier({
     fetch: async (input) => {
       const path = new URL(String(input)).pathname;
       const body =
         path === "/api/v1/version"
           ? { version: "16.0.4" }
           : path === "/swagger.v1.json"
-            ? forgejoV16OpenApi()
+            ? forgejoOpenApi()
             : {
                 data: [
                   {
@@ -193,7 +193,7 @@ test("Forgejo v16 enumeration capability failure retains its Repository owner", 
   );
 });
 
-test("Forgejo v16 fixture preserves exact evidence when pagination fails", async () => {
+test("Forgejo fixture preserves exact evidence when pagination fails", async () => {
   const repositories = [...Array(50).keys()].map((index) => {
     const id = index + 1;
     return {
@@ -207,7 +207,7 @@ test("Forgejo v16 fixture preserves exact evidence when pagination fails", async
       url: `https://forgejo.example/api/v1/repos/operator/repository-${id}`,
     };
   });
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     fetch: async (input) => {
       const url = new URL(String(input));
       if (
@@ -220,7 +220,7 @@ test("Forgejo v16 fixture preserves exact evidence when pagination fails", async
         url.pathname === "/api/v1/version"
           ? { version: "16.0.4" }
           : url.pathname === "/swagger.v1.json"
-            ? forgejoV16OpenApi()
+            ? forgejoOpenApi()
             : { data: repositories, ok: true };
       return new Response(JSON.stringify(body), {
         headers: { "content-type": "application/json" },
@@ -252,7 +252,7 @@ test("Forgejo v16 fixture preserves exact evidence when pagination fails", async
           pull_request_access: "not_completed",
         },
         principal: { id: 7, login: "operator" },
-        profile: "forgejo-v16",
+        profile: "forgejo",
         reported_version: "16.0.4",
         repositories: [{ forge_repository_id: 1, outcome: "not_completed" }],
         scopes: ["read:repository", "write:issue", "write:repository"],

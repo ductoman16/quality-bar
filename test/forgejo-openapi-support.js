@@ -1,4 +1,4 @@
-export function forgejoV16OpenApi() {
+export function forgejoOpenApi() {
   const operations = [
     ["/repos/search", "get", "200"],
     ["/repos/{owner}/{repo}", "get", "200"],

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
 
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import { formatWaiverDecisionFollowup } from "../src/waiver/waiver-followup.js";
 
-test("Forgejo v16 fixture accepts the exact status, aggregate, and inline publication routes", async (context) => {
+test("Forgejo fixture accepts the exact status, aggregate, and inline publication routes", async (context) => {
   const head = "a".repeat(40);
   const waiverBody = formatWaiverDecisionFollowup(
     {
@@ -122,7 +122,7 @@ test("Forgejo v16 fixture accepts the exact status, aggregate, and inline public
   context.after(() => new Promise((resolve) => server.close(resolve)));
   const address = server.address();
   assert.ok(address && typeof address !== "string");
-  const verifier = createForgejoV16Verifier();
+  const verifier = createForgejoVerifier();
   const connection = {
     base_url: `http://127.0.0.1:${address.port}`,
     token: "operator-pat",

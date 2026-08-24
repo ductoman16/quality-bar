@@ -22,7 +22,7 @@ function connectionSchema(health) {
   return {
     additionalProperties: false,
     properties: {
-      api_profile: { const: "forgejo-v16", type: "string" },
+      api_profile: { const: "forgejo", type: "string" },
       base_url: { format: "uri", type: "string" },
       capabilities: { additionalProperties: true, type: "object" },
       health: { const: health, type: "string" },
@@ -41,7 +41,7 @@ function connectionSchema(health) {
       reported_version: { pattern: "^16\\.", type: "string" },
       scopes: {
         description:
-          "Required v16 PAT authorities proven through route and capability behavior",
+          "Required Forgejo PAT authorities proven through route and capability behavior",
         items: { type: "string" },
         type: "array",
       },

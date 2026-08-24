@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 /**
  * @param {{api: Function, baseUrl: string, core: any, repository: any, repositoryId: string, repositories: any, service: any, setCurrentTime: (value: number) => void, token: string}} input
  */
-export async function proveForgejoV16AutomaticEvaluation({
+export async function proveForgejoAutomaticEvaluation({
   api,
   baseUrl,
   core,

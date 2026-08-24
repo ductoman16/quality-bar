@@ -10,13 +10,13 @@ import { test } from "node:test";
 import { openDurableCore } from "../src/durable/durable-core.js";
 import { createEvaluationService } from "../src/evaluation/evaluation.js";
 import { createForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import { prepareForgejoRepositoryEnablement } from "../src/repository/repository-provider-verification.js";
 import { resolvePushedCommitSelectors } from "../src/repository/repository-git.js";
 import { createRepositoryService } from "../src/repository/repository.js";
 import { createReviewService } from "../src/review/review.js";
-import { proveForgejoV16AutomaticEvaluation } from "./forgejo-v16-automatic-evaluation-support.js";
-import { assertForgejoPublication } from "./forgejo-v16-publication-service-support.js";
+import { proveForgejoAutomaticEvaluation } from "./forgejo-automatic-evaluation-support.js";
+import { assertForgejoPublication } from "./forgejo-publication-service-support.js";
 
 const FORGEJO_IMAGE =
   "codeberg.org/forgejo/forgejo@sha256:3eb3107bc9de4e9d6d9e539044e6c802dc0b7be351919a145540d4cb5422bf07";
@@ -37,7 +37,7 @@ async function reservePort() {
   });
   const address = server.address();
   if (!address || typeof address === "string") {
-    throw new Error("Forgejo v16 service port reservation failed");
+    throw new Error("Forgejo service port reservation failed");
   }
   await new Promise((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve(undefined)));
@@ -68,11 +68,11 @@ async function api(baseUrl, route, authorization, body, method) {
   return responseBody === "" ? null : JSON.parse(responseBody);
 }
 
-test("pinned Forgejo v16 service verifies retirement and reactivation", async () => {
+test("stable Forgejo service verifies retirement and reactivation", async () => {
   const port = await reservePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const container = `quality-bar-forgejo-v16-${process.pid}`;
-  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-v16-"));
+  const container = `quality-bar-forgejo-${process.pid}`;
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-forgejo-"));
   /** @type {any} */
   let service;
   /** @type {any} */
@@ -116,7 +116,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
           break;
         }
         readinessFailure = new Error(
-          `Pinned Forgejo v16 readiness returned HTTP ${response.status}: ${await response.text()}`,
+          `Stable Forgejo readiness returned HTTP ${response.status}: ${await response.text()}`,
         );
       } catch (error) {
         if (!(error instanceof Error)) {
@@ -125,7 +125,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
         readinessFailure = error;
       }
       if (Date.now() >= deadline) {
-        throw new Error("Pinned Forgejo v16 service did not become ready", {
+        throw new Error("Stable Forgejo service did not become ready", {
           cause: readinessFailure,
         });
       }
@@ -221,8 +221,8 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
           instruction: "Review the newly ready Forgejo pull request.",
         },
       ],
-      description: "Pinned Forgejo v16 automatic Evaluation proof",
-      name: "Pinned Forgejo Review",
+      description: "Stable Forgejo automatic Evaluation proof",
+      name: "Stable Forgejo Review",
     });
     evaluations = createEvaluationService(core, {
       acquireChangeset: async () => {
@@ -233,7 +233,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       now: () => currentTime,
       storageReserve: availableStorageReserve,
     });
-    const verifier = createForgejoV16Verifier();
+    const verifier = createForgejoVerifier();
     service = createForgejoConnectionService(core, {
       async acquirePullRequestChangeset({ pullRequest, repositoryId }) {
         const stored = core.get(
@@ -347,7 +347,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
       "SELECT id FROM repositories LIMIT 1",
     )?.id;
     assert.equal(typeof localRepositoryId, "string");
-    await proveForgejoV16AutomaticEvaluation({
+    await proveForgejoAutomaticEvaluation({
       api,
       baseUrl,
       core,
@@ -407,7 +407,7 @@ test("pinned Forgejo v16 service verifies retirement and reactivation", async ()
     ...cleanupFailures,
   ];
   if (failures.length > 1) {
-    throw new AggregateError(failures, "Forgejo v16 service proof failed");
+    throw new AggregateError(failures, "Forgejo service proof failed");
   }
   if (failures.length === 1) {
     throw failures[0];

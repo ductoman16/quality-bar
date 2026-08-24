@@ -12,9 +12,9 @@ import {
   verifiedForgejoRepositories,
 } from "./forgejo-connection-rotation.js";
 import {
-  createForgejoV16Verifier,
+  createForgejoVerifier,
   normalizedForgejoBaseUrl,
-} from "./forgejo-v16.js";
+} from "./forgejo-verifier.js";
 import { createForgejoPollingRunner } from "./forgejo-polling-runner.js";
 import { prepareForgejoRepositoryEnablement } from "./forgejo-repository-enablement.js";
 import { createForgejoPublicationServices } from "./forgejo-publication-services.js";
@@ -93,7 +93,7 @@ export function createForgejoConnectionService(
     now = () => Date.now(),
     registerSecret,
     storageReserve,
-    verifier = createForgejoV16Verifier({ certificateAuthorityPath }),
+    verifier = createForgejoVerifier({ certificateAuthorityPath }),
   },
 ) {
   if (

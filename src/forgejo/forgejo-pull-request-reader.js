@@ -64,7 +64,7 @@ function fail(code, message, details) {
 /**
  * @param {{fetchRequest: typeof fetch, normalizeBaseUrl: (baseUrl: string) => string, now: () => number}} dependencies
  */
-export function createForgejoV16PullRequestReader({
+export function createForgejoPullRequestReader({
   fetchRequest,
   normalizeBaseUrl,
   now,
