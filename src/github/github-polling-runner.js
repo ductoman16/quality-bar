@@ -17,6 +17,7 @@ import {
 } from "../storage-reserve-polling-core.js";
 import { createIoDutyScheduler } from "../io-execution-pool.js";
 import { requireCodedError } from "../coded-error.js";
+import { createPollingRunner } from "../forge/polling/runner.js";
 
 /** @param {any} durableCore @param {{acquirePullRequestChangeset: (input: {repositoryId: string, pullRequest: any}) => Promise<any>, admitAutomaticEvaluation: (transaction: any, input: {changeset: any, provider: "github", pullRequestNumber: number, repositoryId: string}) => any, cipher: any, storageReserve: {assertPollingObservationAdvanceAvailable: () => unknown, ioPool: any, preparePollingObservationAdvance: () => unknown}, timestamp: () => number, verifier: any}} dependencies */
 export function createGitHubPollingRunner(
@@ -71,17 +72,11 @@ export function createGitHubPollingRunner(
   const preparedBaselineFailures = new WeakMap();
   /** @type {ReturnType<typeof setInterval> | null} */
   let timer = null;
-  let running = false;
 
-  async function pollDue() {
-    if (running) {
-      return;
-    }
-    storageReserve.preparePollingObservationAdvance();
-    running = true;
-    try {
-      const due = durableCore.all(
-        `SELECT github_repository_polls.connection_id, github_repository_polls.forge_repository_id,
+  /** @param {number} now */
+  function queryDue(now) {
+    return durableCore.all(
+      `SELECT github_repository_polls.connection_id, github_repository_polls.forge_repository_id,
               github_connections.app_id, github_connections.app_slug,
               github_connections.installation_id, github_connections.principal_id,
               github_connections.principal_login, github_connection_credentials.encrypted_credential,
@@ -101,157 +96,147 @@ export function createGitHubPollingRunner(
           AND repositories.health = 'healthy'
         ORDER BY github_repository_polls.connection_id,
                  github_repository_polls.forge_repository_id`,
-        timestamp(),
-      );
-      const gatedConnections = new Set();
-      const baselineConnections = new Set(
-        due
-          .filter(
-            (/** @type {any} */ row) => row.baseline_status !== "complete",
-          )
-          .map((/** @type {any} */ row) => row.connection_id),
-      );
-      const completedBaselines = new Set();
-      for (const row of due) {
-        if (gatedConnections.has(row.connection_id)) {
-          continue;
-        }
-        if (
-          baselineConnections.has(row.connection_id) &&
-          completedBaselines.has(row.connection_id)
-        ) {
-          continue;
-        }
-        const baseline = baselineConnections.has(row.connection_id);
-        let credential;
-        try {
-          credential = cipher.decrypt(
-            { appId: row.app_id, id: row.connection_id },
-            row.encrypted_credential,
+      now,
+    );
+  }
+
+  /** @param {{dueRows: any[], tracking: {gatedConnections: Set<any>, completedBaselines: Set<any>, baselineConnections: Set<any>}}} context */
+  function createRun({ dueRows, tracking }) {
+    /** @param {any} row @param {boolean} baseline */
+    return async function runRow(row, baseline) {
+      let credential;
+      try {
+        credential = cipher.decrypt(
+          { appId: row.app_id, id: row.connection_id },
+          row.encrypted_credential,
+        );
+      } catch (error) {
+        if (!(error instanceof Error)) {
+          throw new TypeError(
+            "GitHub credential decryption failed with a non-Error value",
           );
-        } catch (error) {
-          if (!(error instanceof Error)) {
-            throw new TypeError(
-              "GitHub credential decryption failed with a non-Error value",
+        }
+        const failure =
+          error instanceof GitHubConnectionError
+            ? error
+            : "code" in error && typeof error.code === "string"
+              ? new GitHubConnectionError(error.code, error.message, {
+                  cause: error,
+                })
+              : null;
+        if (!failure) {
+          throw error;
+        }
+        polling.recordFailure({
+          connectionId: row.connection_id,
+          error: failure,
+          forgeRepositoryId: row.forge_repository_id,
+        });
+        return;
+      }
+      try {
+        const baselineRows = baseline
+          ? dueRows.filter(
+              (/** @type {any} */ candidate) =>
+                candidate.connection_id === row.connection_id &&
+                candidate.baseline_status !== "complete",
+            )
+          : [row];
+        const input = {
+          connection: { ...row, id: row.connection_id },
+          credential,
+          repositories: baselineRows.map((/** @type {any} */ candidate) => ({
+            id: candidate.forge_repository_id,
+            full_name: candidate.name,
+          })),
+        };
+        const prepared = await polling.prepare(input, {
+          baseline,
+        });
+        /** @type {{changeset: any, pullRequestNumber: number, repositoryId: string}[]} */
+        const automaticEvaluations = [];
+        /** @type {{afterCommit: () => void, resource: any}[]} */
+        const admissions = [];
+        const releaseAttempted = new Set();
+        try {
+          if (!baseline) {
+            automaticEvaluations.push(
+              ...(await acquireAutomaticEvaluations(
+                JSON.parse(row.snapshot),
+                prepared.snapshots[0]?.snapshot,
+                row.repository_id,
+                acquirePullRequestChangeset,
+              )),
             );
           }
-          const failure =
-            error instanceof GitHubConnectionError
-              ? error
-              : "code" in error && typeof error.code === "string"
-                ? new GitHubConnectionError(error.code, error.message, {
-                    cause: error,
-                  })
-                : null;
-          if (!failure) {
-            throw error;
+          const committed = pollingCore.transaction((transaction) => {
+            if (
+              !polling.commitSuccess(transaction, row.connection_id, prepared)
+            ) {
+              return false;
+            }
+            admissions.push(
+              ...admitAutomaticEvaluations(
+                transaction,
+                automaticEvaluations,
+                admitAutomaticEvaluation,
+              ),
+            );
+            releaseAutomaticEvaluationChangesets(
+              automaticEvaluations,
+              releaseAttempted,
+            );
+            return true;
+          });
+          if (!committed) {
+            throw new GitHubConnectionError(
+              "github_polling_conflict",
+              "GitHub polling changed during reconciliation",
+            );
           }
+          completeAutomaticEvaluationAdmissions(admissions);
+          if (baseline) {
+            tracking.completedBaselines.add(row.connection_id);
+          }
+        } finally {
+          for (const { changeset } of automaticEvaluations) {
+            if (!releaseAttempted.has(changeset)) {
+              changeset?.release?.();
+            }
+          }
+        }
+      } catch (error) {
+        const failure = requireCodedError(error);
+        if (failure.code === "application_shutting_down") {
+          throw failure;
+        }
+        if (!(failure instanceof GitHubConnectionError)) {
           polling.recordFailure({
             connectionId: row.connection_id,
-            error: failure,
+            error: new GitHubConnectionError(failure.code, failure.message, {
+              cause: failure,
+              repositoryId: row.forge_repository_id,
+            }),
             forgeRepositoryId: row.forge_repository_id,
           });
-          continue;
+          return;
         }
-        try {
-          const baselineRows = baseline
-            ? due.filter(
-                (/** @type {any} */ candidate) =>
-                  candidate.connection_id === row.connection_id &&
-                  candidate.baseline_status !== "complete",
-              )
-            : [row];
-          const input = {
-            connection: { ...row, id: row.connection_id },
-            credential,
-            repositories: baselineRows.map((/** @type {any} */ candidate) => ({
-              id: candidate.forge_repository_id,
-              full_name: candidate.name,
-            })),
-          };
-          const prepared = await polling.prepare(input, {
-            baseline,
-          });
-          /** @type {{changeset: any, pullRequestNumber: number, repositoryId: string}[]} */
-          const automaticEvaluations = [];
-          /** @type {{afterCommit: () => void, resource: any}[]} */
-          const admissions = [];
-          const releaseAttempted = new Set();
-          try {
-            if (!baseline) {
-              automaticEvaluations.push(
-                ...(await acquireAutomaticEvaluations(
-                  JSON.parse(row.snapshot),
-                  prepared.snapshots[0]?.snapshot,
-                  row.repository_id,
-                  acquirePullRequestChangeset,
-                )),
-              );
-            }
-            const committed = pollingCore.transaction((transaction) => {
-              if (
-                !polling.commitSuccess(transaction, row.connection_id, prepared)
-              ) {
-                return false;
-              }
-              admissions.push(
-                ...admitAutomaticEvaluations(
-                  transaction,
-                  automaticEvaluations,
-                  admitAutomaticEvaluation,
-                ),
-              );
-              releaseAutomaticEvaluationChangesets(
-                automaticEvaluations,
-                releaseAttempted,
-              );
-              return true;
-            });
-            if (!committed) {
-              throw new GitHubConnectionError(
-                "github_polling_conflict",
-                "GitHub polling changed during reconciliation",
-              );
-            }
-            completeAutomaticEvaluationAdmissions(admissions);
-            if (baseline) {
-              completedBaselines.add(row.connection_id);
-            }
-          } finally {
-            for (const { changeset } of automaticEvaluations) {
-              if (!releaseAttempted.has(changeset)) {
-                changeset?.release?.();
-              }
-            }
-          }
-        } catch (error) {
-          const failure = requireCodedError(error);
-          if (failure.code === "application_shutting_down") {
-            throw failure;
-          }
-          if (!(failure instanceof GitHubConnectionError)) {
-            polling.recordFailure({
-              connectionId: row.connection_id,
-              error: new GitHubConnectionError(failure.code, failure.message, {
-                cause: failure,
-                repositoryId: row.forge_repository_id,
-              }),
-              forgeRepositoryId: row.forge_repository_id,
-            });
-            continue;
-          }
-          if (failure.code === "github_polling_conflict") {
-            throw failure;
-          }
-          if (baseline || failure.nextAttemptAt !== undefined) {
-            gatedConnections.add(row.connection_id);
-          }
+        if (failure.code === "github_polling_conflict") {
+          throw failure;
+        }
+        if (baseline || failure.nextAttemptAt !== undefined) {
+          tracking.gatedConnections.add(row.connection_id);
         }
       }
-    } finally {
-      running = false;
-    }
+    };
   }
+
+  const { runDue: pollDue } = createPollingRunner({
+    queryDue,
+    createRun,
+    storageReserve,
+    timestamp,
+  });
 
   const repositoryVerifier = {
     ...verifier,
