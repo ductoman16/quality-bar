@@ -143,7 +143,6 @@ test("restores snapshot-era canonical facts without post-backup work", async () 
 
   assert.deepEqual(restored, {
     applicationVersion: "0.1.0",
-    schemaVersion: 53,
     status: "restored",
   });
   const restoredCore = openDurableCore(databasePath);
@@ -234,7 +233,7 @@ test("restores a pre-bootstrap snapshot with the newly supplied password", async
   restored.close();
 });
 
-test("a v53 pre-migration manifest uses the normal restore validation path", async () => {
+test("a pre-migration manifest uses the normal restore validation path", async () => {
   const directory = mkdtempSync(join(tmpdir(), "quality-bar-restore-legacy-"));
   temporaryDirectories.push(directory);
   const stem = "quality-bar-pre-migration-fixture";
@@ -253,7 +252,6 @@ test("a v53 pre-migration manifest uses the normal restore validation path", asy
       database_file: `${stem}.sqlite3`,
       installation_key_identity: installationKeyIdentity(masterKey),
       kind: "pre-migration",
-      schema_version: 53,
     })}\n`,
   );
 
@@ -265,6 +263,6 @@ test("a v53 pre-migration manifest uses the normal restore validation path", asy
       masterKey,
       operatorPassword: "the restored operator password",
     }),
-    { applicationVersion: "0.1.0", schemaVersion: 53, status: "restored" },
+    { applicationVersion: "0.1.0", status: "restored" },
   );
 });

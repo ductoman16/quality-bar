@@ -52,7 +52,6 @@ const serviceFixtureImage =
  *   keyIdentity: string,
  *   kind: string,
  *   masterKeyCopied: boolean,
- *   schemaVersion: number,
  * }} BackupFacts
  */
 /** @typedef {ReturnType<typeof proveInstallationDeletion>} InstallationDeletionFacts */
@@ -403,7 +402,6 @@ export function proveComposeService({ configuration, fixture }) {
     provePackageOfflineRestore({
       fixture,
       recoveryPassword,
-      schemaVersion: recreatedDatabaseFacts.schemaVersion,
     });
   const durableWriteFailure = /** @type {DurableWriteFailureFacts} */ (
     jsonPackageProbe(

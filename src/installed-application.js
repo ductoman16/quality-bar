@@ -6,7 +6,6 @@ import {
   validateInstallationSources,
 } from "./installation-environment.js";
 import { runDailyBackupIfDue } from "./installed-backup.js";
-import { SCHEMA_VERSION } from "./durable/durable-schema.js";
 import { failBackup } from "./sqlite-backup-error.js";
 import { installationKeyIdentity } from "./sqlite-backup.js";
 
@@ -209,7 +208,6 @@ export async function createInstalledApplication({
     databasePath,
     keyIdentity,
     now,
-    schemaVersion: SCHEMA_VERSION,
     signal: application.workerSignal,
   };
   try {

@@ -37,7 +37,6 @@ function openBackupSource(databasePath) {
  *   databasePath: string,
  *   keyIdentity: string,
  *   now?: () => number,
- *   schemaVersion: number,
  *   signal?: AbortSignal,
  * }} input
  */
@@ -47,7 +46,6 @@ export async function runDailyBackupIfDue({
   databasePath,
   keyIdentity,
   now = () => Date.now(),
-  schemaVersion,
   signal,
 }) {
   signal?.throwIfAborted();
@@ -59,8 +57,7 @@ export async function runDailyBackupIfDue({
   }).find(
     (backup) =>
       backup.createdAt.slice(0, 10) === utcDate &&
-      backup.keyIdentity === keyIdentity &&
-      backup.schemaVersion === schemaVersion,
+      backup.keyIdentity === keyIdentity,
   );
   if (current) {
     return { status: "current" };

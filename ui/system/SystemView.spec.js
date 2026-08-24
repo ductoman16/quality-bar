@@ -16,7 +16,6 @@ const system = {
     application_version: "1.2.3",
     error: null,
     installation_key_identity: keyIdentity,
-    schema_version: 1,
     status: "available",
   },
   backup: {
@@ -26,7 +25,6 @@ const system = {
       created_at: timestamp,
       installation_key_identity: keyIdentity,
       kind: "daily",
-      schema_version: 1,
     },
     status: "current",
   },
@@ -87,7 +85,6 @@ const system = {
     foreign_keys: true,
     integrity: "ok",
     journal_mode: "wal",
-    schema_version: 1,
     status: "ready",
     synchronous: "full",
   },
@@ -284,7 +281,6 @@ it("renders complete polling and delivery facts and saves configuration", async 
   expect(wrapper.text()).toContain("Last success 2026-08-20T12:00:00.000Z");
   expect(wrapper.text()).toContain("External identity 42");
   expect(wrapper.text()).toContain("Source evaluation-1:commit-status");
-  expect(wrapper.text()).toContain("schema 1");
   expect(wrapper.text()).toContain(keyIdentity);
   expect(wrapper.text()).toContain("None");
   await wrapper.get("form").trigger("submit");

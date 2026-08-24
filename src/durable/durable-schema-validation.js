@@ -14,36 +14,8 @@ export const EXPECTED_SCHEMA_TABLES = new Set(
  * Validate the complete current schema before the database becomes authoritative.
  *
  * @param {import("node:sqlite").DatabaseSync} database
- * @param {number} schemaVersion
  */
-export function validateResultingSchema(database, schemaVersion) {
-  const userVersion = database
-    .prepare("PRAGMA user_version")
-    .get()?.user_version;
-  if (userVersion !== schemaVersion) {
-    fail(
-      "schema_invalid",
-      `SQLite schema version ${String(userVersion)} is not ${schemaVersion}`,
-    );
-  }
-
-  let storedVersion;
-  try {
-    storedVersion = database
-      .prepare(
-        "SELECT value FROM quality_bar_metadata WHERE key='schema_version'",
-      )
-      .get()?.value;
-  } catch (error) {
-    fail("schema_invalid", "SQLite schema metadata is invalid", error);
-  }
-  if (storedVersion !== String(schemaVersion)) {
-    fail(
-      "schema_invalid",
-      `SQLite schema metadata is ${storedVersion ?? "missing"}, not ${schemaVersion}`,
-    );
-  }
-
+export function validateResultingSchema(database) {
   const actualTables = new Set(
     database
       .prepare(
@@ -61,10 +33,7 @@ export function validateResultingSchema(database, schemaVersion) {
   if (
     JSON.stringify(schemaDefinition(database)) !== CURRENT_SCHEMA_DEFINITION
   ) {
-    fail(
-      "schema_invalid",
-      `SQLite schema does not match version ${schemaVersion}`,
-    );
+    fail("schema_invalid", "SQLite schema does not match the current schema");
   }
 
   let foreignKeyViolation;

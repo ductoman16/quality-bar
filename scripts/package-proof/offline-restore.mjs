@@ -16,7 +16,6 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  *   operatorPasswordVerifier: string | null,
  *   persistedMarker: string | null,
  *   restoredDiscovery: {forgejo: string | null, github: string | null},
- *   schemaVersion: number,
  *   synchronous: string,
  * }} DatabaseFacts
  */
@@ -53,14 +52,9 @@ import { jsonPackageProbe, runPackageProbe } from "./package-probes.mjs";
  * @param {{
  *   fixture: import("./package-fixture.mjs").PackageFixture,
  *   recoveryPassword: string,
- *   schemaVersion: number,
  * }} input
  */
-export function provePackageOfflineRestore({
-  fixture,
-  recoveryPassword,
-  schemaVersion,
-}) {
+export function provePackageOfflineRestore({ fixture, recoveryPassword }) {
   const { environment, serviceName } = fixture;
   assert.deepEqual(
     jsonPackageProbe(
@@ -102,7 +96,7 @@ export function provePackageOfflineRestore({
       ],
       `${restorePassword}\n`,
     ),
-    `{"applicationVersion":"${fixture.applicationVersion}","schemaVersion":${schemaVersion},"status":"restored"}`,
+    `{"applicationVersion":"${fixture.applicationVersion}","status":"restored"}`,
   );
   fixture.runCompose(["up", "--detach", "--wait", "--force-recreate"]);
   const restoredDatabaseFacts = /** @type {DatabaseFacts} */ (

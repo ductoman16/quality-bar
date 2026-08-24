@@ -169,17 +169,12 @@ test("a corrupt snapshot fails before target mutation", async () => {
   assert.deepEqual(readFileSync(input.databasePath), original);
 });
 
-test("incompatible application or schema version leaves the target unavailable and unchanged", async () => {
+test("incompatible application version leaves the target unavailable and unchanged", async () => {
   for (const mismatch of [
     {
       field: "application_version",
       value: "0.2.0",
       code: "restore_application_incompatible",
-    },
-    {
-      field: "schema_version",
-      value: 20,
-      code: "restore_schema_incompatible",
     },
   ]) {
     const input = fixture();
@@ -233,7 +228,6 @@ test("malformed restore identity and manifest fail before candidate creation", a
   const validManifest = JSON.parse(readFileSync(backup.manifestPath, "utf8"));
   for (const malformedIdentity of [
     { application_version: 1 },
-    { schema_version: "21" },
     { installation_key_identity: "sha256:invalid" },
   ]) {
     writeFileSync(
@@ -270,7 +264,7 @@ test("malformed restore identity and manifest fail before candidate creation", a
   );
 });
 
-test("missing or manifest-disagreeing snapshot fails with its exact diagnostic", async () => {
+test("missing snapshot fails with its exact diagnostic", async () => {
   const missingInput = fixture();
   const missingCore = openDurableCore(missingInput.databasePath);
   verifyInstallationKey(missingCore, missingInput.masterKey);
@@ -288,29 +282,6 @@ test("missing or manifest-disagreeing snapshot fails with its exact diagnostic",
     }),
     (error) =>
       error instanceof Error && "code" in error && error.code === "ENOENT",
-  );
-
-  const mismatchInput = fixture();
-  const mismatchCore = openDurableCore(mismatchInput.databasePath);
-  verifyInstallationKey(mismatchCore, mismatchInput.masterKey);
-  bootstrapOperatorPassword(mismatchCore, "the snapshot operator password");
-  mismatchCore.close();
-  const mismatchBackup = await backupFixture(mismatchInput);
-  const snapshot = new DatabaseSync(mismatchBackup.databasePath);
-  snapshot.exec("PRAGMA user_version = 20");
-  snapshot.close();
-  await assert.rejects(
-    restoreOfflineBackup({
-      applicationVersion: "0.1.0",
-      databasePath: mismatchInput.databasePath,
-      manifestPath: mismatchBackup.manifestPath,
-      masterKey: mismatchInput.masterKey,
-      operatorPassword: "a replacement operator password",
-    }),
-    (error) =>
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "restore_snapshot_integrity_invalid",
   );
 });
 
