@@ -1,20 +1,52 @@
-import { canonicalRepositorySchemas } from "./canonical-repository-components.js";
-import { canonicalGitHubConnectionSchemas } from "./canonical-github-connection-components.js";
-import {
-  closedObject,
-  openObject,
-  withValidationError,
-} from "./canonical-schema.js";
-import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./canonical-waiver-adjudicator-configuration-components.js";
-import { canonicalStorageReserveSchemas } from "./canonical-storage-reserve-components.js";
-import { canonicalEvaluationSchemas } from "./canonical-evaluation-components.js";
-import { canonicalCodexExecutionConcurrencySchemas } from "./canonical-codex-execution-concurrency-components.js";
-import { canonicalSystemExecutionSchemas } from "./canonical-system-execution-components.js";
-import { canonicalSystemFactSchemas } from "./canonical-system-fact-components.js";
-import { canonicalSystemPollingDeliverySchemas } from "./canonical-system-polling-delivery-components.js";
-import { canonicalSystemStorageSchemas } from "./canonical-system-storage-components.js";
-import { canonicalAnalyticsSchemas } from "./canonical-analytics-components.js";
-import { canonicalReviewSchemas } from "./canonical-review-components.js";
+import { canonicalRepositorySchemas } from "./system.js";
+import { canonicalGitHubConnectionSchemas } from "./forge.js";
+import { canonicalWaiverAdjudicatorConfigurationSchemas } from "./review.js";
+import { canonicalStorageReserveSchemas } from "./system.js";
+import { canonicalEvaluationSchemas } from "./evaluation.js";
+import { canonicalCodexExecutionConcurrencySchemas } from "./system.js";
+import { canonicalSystemExecutionSchemas } from "./system.js";
+import { canonicalSystemFactSchemas } from "./system.js";
+import { canonicalSystemPollingDeliverySchemas } from "./system.js";
+import { canonicalSystemStorageSchemas } from "./system.js";
+import { canonicalAnalyticsSchemas } from "./analytics.js";
+import { canonicalReviewSchemas } from "./review.js";
+
+/**
+ * @template {Record<string, unknown>} Properties
+ * @template {boolean} AdditionalProperties
+ * @param {Properties} properties
+ * @param {string[]} required
+ * @param {AdditionalProperties} additionalProperties
+ */
+function objectSchema(properties, required, additionalProperties) {
+  return { additionalProperties, properties, required, type: "object" };
+}
+
+/**
+ * @template {Record<string, unknown>} Properties
+ * @param {Properties} properties
+ * @param {string[]} required
+ */
+export function openObject(properties, required) {
+  return objectSchema(properties, required, true);
+}
+
+/**
+ * @template {Record<string, unknown>} Properties
+ * @param {Properties} properties
+ * @param {string[]} required
+ */
+export function closedObject(properties, required) {
+  return objectSchema(properties, required, false);
+}
+
+/** @param {Record<string, unknown>} schema @param {string} code @param {string} message @param {number} [status] */
+export function withValidationError(schema, code, message, status = 422) {
+  return {
+    ...schema,
+    "x-quality-bar-error": { code, message, status },
+  };
+}
 
 /**
  * @typedef {{

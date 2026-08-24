@@ -11,7 +11,7 @@ import {
   createUnavailableEvaluationService,
 } from "../src/evaluation/evaluation.js";
 import { readIdempotentReplay } from "../src/evaluation/evaluation-idempotency.js";
-import { createCanonicalComponents } from "../src/canonical/canonical-api-components.js";
+import { createCanonicalComponents } from "../src/canonical/schema.js";
 import { readCodexCapabilityCatalog } from "../src/codex/codex-capabilities.js";
 import { apiRoutes } from "../src/http-routes/index.js";
 
