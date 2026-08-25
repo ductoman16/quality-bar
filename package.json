@@ -23,8 +23,8 @@
     "typecheck:scripts": "node node_modules/typescript/bin/tsc --project tsconfig.scripts.json",
     "precoverage": "npm run build",
     "coverage": "node node_modules/c8/bin/c8.js --all --include='src/**/*.js' --check-coverage --lines=85 --branches=80 --functions=85 node --test && npm run test:ui",
-    "format": "node node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
-    "format:check": "node node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js"
+    "format": "node node_modules/prettier/bin/prettier.cjs --write .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js",
+    "format:check": "node node_modules/prettier/bin/prettier.cjs --check .prettierrc.json README.md compose.yaml package.json package-lock.json \"tsconfig*.json\" \"vite.config.js\" \"ui/**/*.{css,html,js,vue}\" \"src/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.js\" \"test/package/**/*.mjs\" \"fixtures/test-probes/**/*.mjs\" fixtures/operator-browser-login.js"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

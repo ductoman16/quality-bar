@@ -124,15 +124,7 @@ export default [
     },
   },
   {
-    files: [
-      "fixtures/package/authenticated-http-smoke.mjs",
-      "fixtures/package/backup-facts.mjs",
-      "fixtures/package/database-facts.mjs",
-      "fixtures/package/filesystem-facts.mjs",
-      "fixtures/package/http-facts.mjs",
-      "scripts/package-proof/prove-compose-service.mjs",
-      "test/operator-browser-smoke.test.js",
-    ],
+    files: ["test/operator-browser-smoke.test.js"],
     rules: { "no-console": "off", "no-restricted-globals": "off" },
   },
   {

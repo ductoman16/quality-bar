@@ -85,7 +85,7 @@ test("the Node boundary gate restricts console output and environment access", a
   const acceptedProtocolOwner = await runNodeBoundaryLint({
     files: [
       {
-        path: "fixtures/package/http-facts.mjs",
+        path: "test/operator-browser-smoke.test.js",
         source: fixture("console-output"),
       },
     ],
@@ -94,7 +94,7 @@ test("the Node boundary gate restricts console output and environment access", a
   const rejectedUnownedFixture = await runNodeBoundaryLint({
     files: [
       {
-        path: "fixtures/package/not-a-protocol-owner.mjs",
+        path: "test/not-a-protocol-owner.test.js",
         source: fixture("console-output"),
       },
     ],
@@ -270,8 +270,6 @@ test("the Node boundary evidence records the complete ownership cleanup", () => 
     {
       feature: "sqlite",
       paths: [
-        "fixtures/package/database-facts.mjs",
-        "fixtures/package/write-database-marker.mjs",
         "src/durable/durable-core.js",
         "src/installation-environment.js",
         "test/installation-environment.test.js",
@@ -283,11 +281,6 @@ test("the Node boundary evidence records the complete ownership cleanup", () => 
     "sqlite",
   ]);
   assert.deepEqual(evidence.approved_console_owners, [
-    "fixtures/package/authenticated-http-smoke.mjs",
-    "fixtures/package/database-facts.mjs",
-    "fixtures/package/filesystem-facts.mjs",
-    "fixtures/package/http-facts.mjs",
-    "scripts/package-proof/prove-compose-service.mjs",
     "test/operator-browser-smoke.test.js",
   ]);
   assert.deepEqual(evidence.approved_environment_owners, [
