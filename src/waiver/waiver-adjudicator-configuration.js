@@ -137,18 +137,3 @@ export function createWaiverAdjudicatorConfigurationService(
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableWaiverAdjudicatorConfigurationService(error) {
-  return {
-    read() {
-      throw error;
-    },
-    freezeForAdjudication() {
-      throw error;
-    },
-    update() {
-      throw error;
-    },
-  };
-}

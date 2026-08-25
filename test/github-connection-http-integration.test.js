@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  GitHubConnectionError,
-  createUnavailableGitHubConnectionService,
-} from "../src/github/github-connection.js";
+import { GitHubConnectionError } from "../src/github/github-connection.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
   startApplication,
 } from "./http-integration-support.js";
+import { stubUnavailableGitHubConnectionService } from "./service-stubs-support.js";
 
 const selectionRequestId = "00000000-0000-4000-8000-000000000001";
 
@@ -175,7 +173,7 @@ test("GitHub Connection reactivation preserves an unavailable service error", as
   );
   const { request } = await startApplication({
     createGitHubConnections: () =>
-      createUnavailableGitHubConnectionService(unavailable),
+      stubUnavailableGitHubConnectionService(unavailable),
   });
   const headers = await authenticatedOperatorHeaders(request);
   const response = await request("/api/v1/github-connections/reactivate", {

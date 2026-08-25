@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { forgejoCommitStatusForEvaluation } from "../src/forgejo/forgejo-commit-status.js";
+import { commitStatusForEvaluation as forgejoCommitStatusForEvaluation } from "../src/forge/commit-status/status.js";
 
 test("Forgejo uses the fixed Quality Bar status mapping", () => {
   assert.deepEqual(forgejoCommitStatusForEvaluation("pending"), {

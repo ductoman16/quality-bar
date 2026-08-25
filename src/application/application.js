@@ -14,54 +14,23 @@ import {
   validateInstallationFilesystem,
   validateInstallationSources,
 } from "../installation-environment.js";
-import {
-  createBrowserSessionService,
-  createUnavailableBrowserSessionService,
-} from "../browser-session.js";
+import { createBrowserSessionService } from "../browser-session.js";
 import { requireCodedError } from "../coded-error.js";
-import {
-  createImplementerTokenService,
-  createUnavailableImplementerTokenService,
-} from "../implementer-token.js";
-import {
-  createOnboardingTokenService,
-  createUnavailableOnboardingTokenService,
-} from "../onboarding-token.js";
-import {
-  createGitHubConnectionService,
-  createUnavailableGitHubConnectionService,
-} from "../github/github-connection.js";
-import {
-  createForgejoConnectionService,
-  unavailableForgejoConnectionService,
-} from "../forgejo/forgejo-connection.js";
+import { createImplementerTokenService } from "../implementer-token.js";
+import { createOnboardingTokenService } from "../onboarding-token.js";
+import { createGitHubConnectionService } from "../github/github-connection.js";
+import { createForgejoConnectionService } from "../forgejo/forgejo-connection.js";
 import { createForgejoAutomaticApplicationDependencies } from "../forgejo/forgejo-automatic-application-dependencies.js";
 import { createApplicationRuntimeServer } from "./application-server-runtime.js";
-import {
-  createRequestSecurityBoundary,
-  createUnavailableRequestSecurityBoundary,
-} from "../request-security.js";
-import {
-  createReviewService,
-  createUnavailableReviewService,
-} from "../review/review.js";
-import {
-  createRepositoryService,
-  createUnavailableRepositoryService,
-} from "../repository/repository.js";
+import { createRequestSecurityBoundary } from "../request-security.js";
+import { createReviewService } from "../review/review.js";
+import { createRepositoryService } from "../repository/repository.js";
 import { createRepositoryProviderApplicationDependencies } from "../repository/repository-provider-application-dependencies.js";
-import {
-  createRepositoryGuidanceService,
-  createUnavailableRepositoryGuidanceService,
-} from "../repository/repository-guidance.js";
+import { createRepositoryGuidanceService } from "../repository/repository-guidance.js";
 import { createSystemResource } from "../system/system-resource.js";
-import {
-  createUnavailableWaiverAdjudicatorConfigurationService,
-  createWaiverAdjudicatorConfigurationService,
-} from "../waiver/waiver-adjudicator-configuration.js";
+import { createWaiverAdjudicatorConfigurationService } from "../waiver/waiver-adjudicator-configuration.js";
 import { createStorageReserveGate } from "../storage-reserve.js";
 import {
-  createUnavailableCodexConcurrency,
   createWorkerSignal,
   createDurableCoreStatusReader,
   createHardStorageBoundary,
@@ -77,10 +46,7 @@ import {
   createApplicationLog,
   createApplicationSecretRegistry,
 } from "./application-log.js";
-import {
-  createEvaluationService,
-  createUnavailableEvaluationService,
-} from "../evaluation/evaluation.js";
+import { createEvaluationService } from "../evaluation/evaluation.js";
 import { installationKeyIdentity as computeInstallationKeyIdentity } from "../sqlite-backup.js";
 
 /** @typedef {ReturnType<typeof requireCodedError>} CodedError */
@@ -142,29 +108,18 @@ export function createApplication({
   let durableCore = null;
   const { knownSecrets, registerSecret } = createApplicationSecretRegistry();
   writeLog = createApplicationLog(writeLog, () => durableCore, knownSecrets);
-  let browserSessions = null,
-    implementerTokens = null,
-    onboardingTokens = null,
-    reviews = null;
-  let browserOrigin = "",
-    requestSecurity = null;
-  /** @type {ReturnType<typeof createRepositoryService> | null} */
-  let repositories = null;
   /** @type {any} */
   let githubConnections = null;
   /** @type {any} */
   let forgejoConnections = null;
-  let repositoryGuidance = null,
-    waiverAdjudicatorConfiguration = null,
-    systemResource = null;
-  /** @type {ReturnType<typeof createStorageReserveGate> | null} */
-  let storageReserve = null;
+  /** @type {ReturnType<typeof createRepositoryService> | null} */
+  let repositories = null;
   /** @type {ReturnType<typeof createEvaluationService> | null} */
   let evaluations = null;
+  /** @type {ReturnType<typeof createStorageReserveGate> | null} */
+  let storageReserve = null;
   /** @type {ReturnType<typeof createCodexExecutionRuntime> | null} */
   let codexRuntime = null;
-  /** @type {ReturnType<typeof createCodexExecutionConcurrencyService> | null} */
-  let codexExecutionConcurrency = null;
   const shutdownBoundary = createApplicationShutdownBoundary();
   /** @param {CodedError} [error] */
   function stopProductWork(error) {
@@ -187,9 +142,42 @@ export function createApplication({
   let codexCapabilityFailure = null;
   /** @type {(() => void) | null} */
   let releaseInstallationLock = null;
-  /** @type {CodedError | null} */
-  let startupFailure = null;
   let runtimeKeyIdentity = installationKeyIdentity;
+
+  /** @param {unknown} error */
+  function releaseStartupResources(error) {
+    const failure = requireCodedError(error);
+    void codexRuntime?.close();
+    codexRuntime = null;
+    evaluations?.destroy?.();
+    repositories?.destroy?.();
+    githubConnections?.destroy?.();
+    forgejoConnections?.destroy?.();
+    durableCore?.close();
+    durableCore = null;
+    releaseInstallationLock?.();
+    releaseInstallationLock = null;
+    structuredLog(
+      writeLog,
+      "error",
+      "installation_not_ready",
+      "configuration",
+      "failure",
+      failure,
+    );
+    return failure;
+  }
+
+  let browserOrigin;
+  let requestSecurity;
+  let browserSessions;
+  let implementerTokens;
+  let onboardingTokens;
+  let reviews;
+  let repositoryGuidance;
+  let waiverAdjudicatorConfiguration;
+  let systemResource;
+  let codexExecutionConcurrency;
 
   try {
     validateSources();
@@ -340,47 +328,13 @@ export function createApplication({
       "success",
     );
   } catch (error) {
-    void codexRuntime?.close();
-    codexRuntime = null;
-    codexExecutionConcurrency = createUnavailableCodexConcurrency(
-      () => startupFailure,
-    );
-    evaluations?.destroy?.();
-    repositories?.destroy?.();
-    githubConnections?.destroy?.();
-    forgejoConnections?.destroy?.();
-    durableCore?.close();
-    durableCore = null;
-    startupFailure = requireCodedError(error);
-    requestSecurity = createUnavailableRequestSecurityBoundary(startupFailure);
-    browserSessions = createUnavailableBrowserSessionService(startupFailure);
-    implementerTokens =
-      createUnavailableImplementerTokenService(startupFailure);
-    onboardingTokens = createUnavailableOnboardingTokenService(startupFailure);
-    reviews = createUnavailableReviewService(startupFailure);
-    repositories = createUnavailableRepositoryService(startupFailure);
-    evaluations = createUnavailableEvaluationService(startupFailure);
-    githubConnections =
-      createUnavailableGitHubConnectionService(startupFailure);
-    forgejoConnections = unavailableForgejoConnectionService(startupFailure);
-    repositoryGuidance =
-      createUnavailableRepositoryGuidanceService(startupFailure);
-    waiverAdjudicatorConfiguration =
-      createUnavailableWaiverAdjudicatorConfigurationService(startupFailure);
-    structuredLog(
-      writeLog,
-      "error",
-      "installation_not_ready",
-      "configuration",
-      "failure",
-      startupFailure,
-    );
+    throw releaseStartupResources(error);
   }
 
   // prettier-ignore
-  const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, storageReserve, startupFailure);
+  const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, /** @type {NonNullable<typeof storageReserve>} */ (storageReserve));
   // prettier-ignore
-  const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, shutdownBoundary, () => startupFailure);
+  const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, shutdownBoundary);
   const workerSignal = createWorkerSignal(storageBoundary, shutdownBoundary);
 
   const server = createApplicationRuntimeServer({
@@ -401,7 +355,6 @@ export function createApplication({
     codexExecutionConcurrency,
     readDurableCoreStatus,
     codexCapabilityFailure,
-    startupFailure,
     storageReserve,
     systemResource,
     workerSignal,

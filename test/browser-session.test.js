@@ -7,7 +7,6 @@ import { afterEach, test } from "node:test";
 import {
   BROWSER_SESSION_ABSOLUTE_LIFETIME_MS,
   createBrowserSessionService,
-  createUnavailableBrowserSessionService,
   removeExpiredBrowserSessions,
 } from "../src/browser-session.js";
 import { openDurableCore } from "../src/durable/durable-core.js";
@@ -46,24 +45,6 @@ function temporaryDatabasePath() {
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { force: true, recursive: true });
-  }
-});
-
-test("an unavailable browser-session boundary preserves the exact startup failure", () => {
-  const failure = Object.assign(new Error("Configuration is unavailable"), {
-    code: "configuration_missing",
-  });
-  const sessions = createUnavailableBrowserSessionService(failure);
-
-  for (const invoke of [
-    () => sessions.authenticate(),
-    () => sessions.isBootstrapped(),
-    () => sessions.login(),
-    () => sessions.logout(),
-    () => sessions.changePassword(),
-    () => sessions.revokeAll(),
-  ]) {
-    assert.throws(invoke, (error) => error === failure);
   }
 });
 

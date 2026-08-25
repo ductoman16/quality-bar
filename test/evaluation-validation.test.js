@@ -6,10 +6,7 @@ import {
   EvaluationError,
   requireIdempotencyKey,
 } from "../src/evaluation/evaluation-validation.js";
-import {
-  createEvaluationService,
-  createUnavailableEvaluationService,
-} from "../src/evaluation/evaluation.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
 import { readIdempotentReplay } from "../src/evaluation/evaluation-idempotency.js";
 import { createCanonicalComponents } from "../src/canonical/schema.js";
 import { readCodexCapabilityCatalog } from "../src/codex/codex-capabilities.js";
@@ -318,31 +315,6 @@ test("Evaluation construction and creation identities fail before durable work",
         ).createExplicit(validInput),
       /Evaluation identity or timestamp is invalid/,
     );
-  }
-});
-
-test("an unavailable Evaluation service preserves a coded cause or owns one exact default", async () => {
-  for (const [cause, code] of [
-    [
-      Object.assign(new Error("Storage is unavailable"), {
-        code: "storage_unavailable",
-      }),
-      "storage_unavailable",
-    ],
-    [new TypeError("unexpected"), "evaluation_capability_unavailable"],
-  ]) {
-    const service = createUnavailableEvaluationService(cause);
-    for (const operation of [
-      () => service.createExplicit(),
-      () => service.list(),
-      () => service.read(),
-      () => service.readResult(),
-    ]) {
-      await assert.rejects(
-        async () => operation(),
-        (error) => error instanceof EvaluationError && error.code === code,
-      );
-    }
   }
 });
 

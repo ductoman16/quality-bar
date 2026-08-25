@@ -127,81 +127,33 @@ export async function createInstalledApplication({
     );
   }
 
-  /** @type {ReturnType<typeof loadInstallationConfiguration> | undefined} */
-  let installation;
-  /** @type {(() => void) | undefined} */
-  let releaseInstallationLock;
-  let preflightFailure;
-  let keyIdentity = "";
-  try {
-    validateSources();
-    installation = loadInstallation();
-    keyIdentity = installationKeyIdentity(installation.masterKey);
-    ({ releaseInstallationLock } = validateInstallation({
-      reserveBytes: installation.freeSpaceReserveBytes,
-    }));
-  } catch (error) {
-    preflightFailure = error;
-  }
-
-  if (preflightFailure) {
-    installation?.masterKey.fill(0);
-    let application;
-    try {
-      application = createRuntime({
-        applicationVersion,
-        backupsPath,
-        certificateAuthorityPath,
-        databasePath,
-        installationKeyIdentity: keyIdentity,
-        validateSources() {
-          throw preflightFailure;
-        },
-        writeLog,
-      });
-    } catch (error) {
-      releaseInstallationLock?.();
-      releaseInstallationLock = undefined;
-      throw error;
-    }
-    if (releaseInstallationLock) {
-      const closeApplication = application.close.bind(application);
-      let lockReleased = false;
-      application.close = async () => {
-        try {
-          return await closeApplication();
-        } finally {
-          if (!lockReleased) {
-            lockReleased = true;
-            releaseInstallationLock?.();
-            releaseInstallationLock = undefined;
-          }
-        }
-      };
-    }
-    return application;
-  }
-
-  const application = createRuntime({
-    applicationVersion,
-    backupsPath,
-    certificateAuthorityPath,
-    databasePath,
-    installationKeyIdentity: keyIdentity,
-    loadInstallation: () =>
-      /** @type {NonNullable<typeof installation>} */ (installation),
-    validateInstallation: () => ({
-      releaseInstallationLock: /** @type {() => void} */ (
-        releaseInstallationLock
-      ),
-    }),
-    validateSources: () => {},
-    writeLog,
+  validateSources();
+  const installation = loadInstallation();
+  const keyIdentity = installationKeyIdentity(installation.masterKey);
+  const { releaseInstallationLock } = validateInstallation({
+    reserveBytes: installation.freeSpaceReserveBytes,
   });
-  installation?.masterKey.fill(0);
-  if (!application.durableCore) {
-    return application;
+
+  /** @type {Awaited<ReturnType<typeof createApplication>>} */
+  let application;
+  try {
+    application = createRuntime({
+      applicationVersion,
+      backupsPath,
+      certificateAuthorityPath,
+      databasePath,
+      installationKeyIdentity: keyIdentity,
+      loadInstallation: () => installation,
+      validateInstallation: () => ({ releaseInstallationLock }),
+      validateSources: () => {},
+      writeLog,
+    });
+  } catch (error) {
+    installation.masterKey.fill(0);
+    releaseInstallationLock();
+    throw error;
   }
+  installation.masterKey.fill(0);
   const dailyBackupInput = {
     applicationVersion,
     backupsPath,

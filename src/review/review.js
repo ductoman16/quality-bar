@@ -522,25 +522,3 @@ export function createReviewService(
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableReviewService(error) {
-  /** @returns {never} */
-  function unavailable() {
-    throw error;
-  }
-  return {
-    create: unavailable,
-    createForRepository: unavailable,
-    list: unavailable,
-    read: unavailable,
-    reactivateVersion: unavailable,
-    remove: unavailable,
-    saveVersion: unavailable,
-    selectForNewEvaluation: unavailable,
-    setArchived: unavailable,
-    setAssignment: unavailable,
-    setForRepository: unavailable,
-    updateMetadata: unavailable,
-  };
-}

@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  createRepositoryService,
-  createUnavailableRepositoryService,
-} from "../src/repository/repository.js";
+import { createRepositoryService } from "../src/repository/repository.js";
+import { stubUnavailableRepositoryService } from "./service-stubs-support.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
@@ -147,7 +145,7 @@ test("Repository discovery surfaces its exact owning unavailability without a pa
   );
   const { application, request } = await startApplication({
     createRepositories() {
-      return createUnavailableRepositoryService(unavailable);
+      return stubUnavailableRepositoryService(unavailable);
     },
   });
   const token = application.implementerTokens.create(
