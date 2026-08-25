@@ -128,21 +128,3 @@ export function createRequestSecurityBoundary({
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableRequestSecurityBoundary(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw new TypeError(
-      "an exact unavailable request-security error is required",
-    );
-  }
-  return {
-    requestFacts() {
-      throw error;
-    },
-  };
-}

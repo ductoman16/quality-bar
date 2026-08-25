@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
+import { stubUnavailableRepositoryGuidanceService } from "./service-stubs-support.js";
 import { startApplication } from "./http-integration-support.js";
 
 const MCP_PROTOCOL_VERSION = "2025-11-25";
@@ -312,7 +312,7 @@ test("MCP surfaces exact Repository Guidance unavailability without a partial or
   );
   const { application, origin } = await startApplication({
     createRepositoryGuidance() {
-      return createUnavailableRepositoryGuidanceService(unavailable);
+      return stubUnavailableRepositoryGuidanceService(unavailable);
     },
   });
   const token = application.implementerTokens.create(

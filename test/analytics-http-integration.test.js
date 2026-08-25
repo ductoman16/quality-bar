@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableEvaluationService } from "../src/evaluation/evaluation.js";
+import { stubUnavailableEvaluationService } from "./service-stubs-support.js";
 import {
   authenticatedOperatorHeaders,
   responseErrorCode,
@@ -221,7 +221,7 @@ test("HTTP exposes the canonical Analytics document to browser and machine autho
   const { application, request } = await startApplication({
     createEvaluations() {
       return {
-        ...createUnavailableEvaluationService(new Error("unused Evaluation")),
+        ...stubUnavailableEvaluationService(new Error("unused Evaluation")),
         readAnalytics: () => document,
       };
     },
@@ -273,7 +273,7 @@ test("HTTP accepts exact Analytics filters and preserves their half-open boundar
   const { request } = await startApplication({
     createEvaluations() {
       return {
-        ...createUnavailableEvaluationService(new Error("unused Evaluation")),
+        ...stubUnavailableEvaluationService(new Error("unused Evaluation")),
         readAnalytics(filters) {
           received = filters;
           return filteredDocument;
@@ -316,7 +316,7 @@ test("HTTP accepts exact Analytics filters and preserves their half-open boundar
 test("HTTP surfaces the exact Analytics query failure without fallback data", async () => {
   const { request } = await startApplication({
     createEvaluations() {
-      return createUnavailableEvaluationService(
+      return stubUnavailableEvaluationService(
         Object.assign(new Error("Analytics query failed"), {
           code: "analytics_query_failed",
         }),
@@ -334,7 +334,7 @@ test("HTTP surfaces the exact Analytics query failure without fallback data", as
 test("HTTP preserves an unavailable Analytics owner as a service gate", async () => {
   const { request } = await startApplication({
     createEvaluations() {
-      return createUnavailableEvaluationService(
+      return stubUnavailableEvaluationService(
         Object.assign(new Error("Canonical storage is unavailable"), {
           code: "storage_unavailable",
         }),

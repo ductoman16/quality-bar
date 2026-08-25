@@ -159,12 +159,3 @@ export function createRepositoryGuidanceService(durableCore) {
     },
   };
 }
-
-/** @param {unknown} error */
-export function createUnavailableRepositoryGuidanceService(error) {
-  return {
-    read() {
-      throw error;
-    },
-  };
-}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableReviewService } from "../src/review/review.js";
+import { stubUnavailableReviewService } from "./service-stubs-support.js";
 import {
   responseErrorCode,
   reviewRequest,
@@ -372,7 +372,7 @@ test("an unexpected Review resource failure has an exact owning error", async ()
   const { request } = await startApplication({
     createReviews() {
       return {
-        ...createUnavailableReviewService(failure),
+        ...stubUnavailableReviewService(failure),
         list() {
           listAttempt += 1;
           if (listAttempt === 2) {

@@ -34,30 +34,6 @@ export class BrowserSessionError extends Error {
   }
 }
 
-/** @param {unknown} error */
-export function createUnavailableBrowserSessionService(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw new TypeError("an exact unavailable-session error is required");
-  }
-  const unavailable = () => {
-    throw error;
-  };
-  return {
-    authenticate: unavailable,
-    isBootstrapped: unavailable,
-    login: unavailable,
-    logout: unavailable,
-    changePassword: unavailable,
-    revokeAll: unavailable,
-    touch: unavailable,
-    verifyCsrf: unavailable,
-  };
-}
-
 /**
  * @param {string} code
  * @param {string} message

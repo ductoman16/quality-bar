@@ -30,7 +30,6 @@ import {
   normalizePublicRepositoryUrl,
   RepositoryError,
 } from "./repository-validation.js";
-export { createUnavailableRepositoryService } from "./repository-unavailable.js";
 import { createRepositorySelectorResolver } from "./repository-selector.js";
 
 export { RepositoryError };
