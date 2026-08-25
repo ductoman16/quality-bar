@@ -1,4 +1,8 @@
 import {
+  runConnectionRemoval,
+  runConnectionRetirement,
+} from "../forge/connection/lifecycle-guards.js";
+import {
   completeForgejoReactivationVerification,
   failedForgejoReactivationVerification,
 } from "./forgejo-connection-reactivation-verification.js";
@@ -10,22 +14,6 @@ import { resumeForgejoDeliveries } from "./forgejo-delivery-recovery.js";
 /** @param {string} code @param {string} message @returns {never} */
 function fail(code, message) {
   throw Object.assign(new Error(message), { code });
-}
-
-/** @param {unknown} input */
-function retirementRequest(input) {
-  if (
-    !input ||
-    Array.isArray(input) ||
-    typeof input !== "object" ||
-    Object.keys(input).length !== 1 ||
-    /** @type {Record<string, unknown>} */ (input).lifecycle !== "retired"
-  ) {
-    fail(
-      "forgejo_connection_lifecycle_request_invalid",
-      "Forgejo Connection lifecycle request must retire the Connection",
-    );
-  }
 }
 
 /** @param {unknown} input */
@@ -47,22 +35,18 @@ function reactivationRequest(input) {
   return /** @type {{token: string}} */ (input);
 }
 
-/**
- * @param {any} durableCore
- * @param {unknown} input
- * @param {() => unknown} readConnection
- */
-export function retireForgejoConnection(durableCore, input, readConnection) {
-  retirementRequest(input);
-  const [connection] = durableCore.all(
+/** @param {any} durableCore */
+function loadConnection(durableCore) {
+  return durableCore.all(
     "SELECT id, lifecycle FROM forgejo_connections LIMIT 1",
-  );
-  if (!connection) {
-    fail("forgejo_connection_not_found", "Forgejo Connection was not found");
-  }
-  if (connection.lifecycle === "retired") {
-    return readConnection();
-  }
+  )[0];
+}
+
+/** @param {any} connection */
+const isRetired = (connection) => connection.lifecycle === "retired";
+
+/** @param {any} durableCore @param {any} connection */
+function requireForgejoDependents(durableCore, connection) {
   const dependents = durableCore.all(
     `SELECT repositories.id
      FROM forgejo_repositories
@@ -87,7 +71,11 @@ export function retireForgejoConnection(durableCore, input, readConnection) {
   ) {
     throw new TypeError("Forgejo Connection dependent Repository is invalid");
   }
-  if (
+}
+
+/** @param {any} durableCore @param {any} connection */
+function hasActiveDependents(durableCore, connection) {
+  return (
     durableCore.all(
       `SELECT repositories.id
        FROM forgejo_repositories
@@ -95,89 +83,116 @@ export function retireForgejoConnection(durableCore, input, readConnection) {
        WHERE forgejo_repositories.connection_id = ?
          AND repositories.lifecycle != 'retired'`,
       connection.id,
-    ).length
-  ) {
-    fail(
-      "forgejo_connection_repositories_active",
-      "Forgejo Connection cannot retire while dependent Repositories are enabled or disabled",
-    );
-  }
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    retireForgejoPublicationRows(transaction, connection.id);
-    const credential = transaction.run(
-      "DELETE FROM forgejo_connection_credentials WHERE connection_id = ?",
-      connection.id,
-    );
-    const retired = transaction.run(
-      `UPDATE forgejo_connections
-       SET lifecycle = 'retired'
-       WHERE id = ? AND lifecycle = 'enabled'
-         AND NOT EXISTS (
-           SELECT 1
-           FROM forgejo_repositories
-           JOIN repositories
-             ON repositories.id = forgejo_repositories.repository_id
-           WHERE forgejo_repositories.connection_id = ?
-             AND repositories.lifecycle != 'retired'
-         )`,
-      connection.id,
-      connection.id,
-    );
-    if (credential.changes !== 1 || retired.changes !== 1) {
-      fail(
-        "forgejo_connection_lifecycle_conflict",
-        "Forgejo Connection changed during retirement",
+    ).length > 0
+  );
+}
+
+/**
+ * @param {any} durableCore
+ * @param {unknown} input
+ * @param {() => unknown} readConnection
+ */
+export function retireForgejoConnection(durableCore, input, readConnection) {
+  return runConnectionRetirement({
+    activeDependentsError: {
+      code: "forgejo_connection_repositories_active",
+      message:
+        "Forgejo Connection cannot retire while dependent Repositories are enabled or disabled",
+    },
+    conflictError: {
+      code: "forgejo_connection_lifecycle_conflict",
+      message: "Forgejo Connection changed during retirement",
+    },
+    durableCore,
+    hasActiveDependents,
+    input,
+    isRetired,
+    loadConnection,
+    notFoundError: {
+      code: "forgejo_connection_not_found",
+      message: "Forgejo Connection was not found",
+    },
+    raise: fail,
+    readConnection,
+    requestError: {
+      code: "forgejo_connection_lifecycle_request_invalid",
+      message:
+        "Forgejo Connection lifecycle request must retire the Connection",
+    },
+    requireDependents: requireForgejoDependents,
+    runTransaction: (transaction, connection, { assertSingleChange }) => {
+      retireForgejoPublicationRows(transaction, connection.id);
+      const credential = transaction.run(
+        "DELETE FROM forgejo_connection_credentials WHERE connection_id = ?",
+        connection.id,
       );
-    }
+      const retired = transaction.run(
+        `UPDATE forgejo_connections
+         SET lifecycle = 'retired'
+         WHERE id = ? AND lifecycle = 'enabled'
+           AND NOT EXISTS (
+             SELECT 1
+             FROM forgejo_repositories
+             JOIN repositories
+               ON repositories.id = forgejo_repositories.repository_id
+             WHERE forgejo_repositories.connection_id = ?
+               AND repositories.lifecycle != 'retired'
+           )`,
+        connection.id,
+        connection.id,
+      );
+      assertSingleChange(credential);
+      assertSingleChange(retired);
+    },
   });
-  return readConnection();
 }
 
 /** @param {any} durableCore */
 export function removeNeverUsedForgejoConnection(durableCore) {
-  const [connection] = durableCore.all(
-    "SELECT id FROM forgejo_connections LIMIT 1",
-  );
-  if (!connection) {
-    fail("forgejo_connection_not_found", "Forgejo Connection was not found");
-  }
-  if (
-    durableCore.all(
-      "SELECT repository_id FROM forgejo_repositories WHERE connection_id = ? LIMIT 1",
-      connection.id,
-    ).length
-  ) {
-    fail(
-      "forgejo_connection_delete_unsupported",
-      "Forgejo Connection with dependent Repositories must be retired",
-    );
-  }
-  durableCore.transaction((/** @type {any} */ transaction) => {
-    transaction.run(
-      "INSERT INTO quality_bar_metadata (key, value) VALUES ('forgejo_connection_delete', ?)",
-      connection.id,
-    );
-    transaction.run(
-      "DELETE FROM forgejo_connection_verifications WHERE connection_id = ?",
-      connection.id,
-    );
-    transaction.run(
-      "DELETE FROM forgejo_connection_credentials WHERE connection_id = ?",
-      connection.id,
-    );
-    const removed = transaction.run(
-      "DELETE FROM forgejo_connections WHERE id = ?",
-      connection.id,
-    );
-    if (removed.changes !== 1) {
-      fail(
-        "forgejo_connection_lifecycle_conflict",
-        "Forgejo Connection changed during deletion",
+  runConnectionRemoval({
+    conflictError: {
+      code: "forgejo_connection_lifecycle_conflict",
+      message: "Forgejo Connection changed during deletion",
+    },
+    dependentsError: {
+      code: "forgejo_connection_delete_unsupported",
+      message: "Forgejo Connection with dependent Repositories must be retired",
+    },
+    durableCore,
+    hasAnyDependents: (core, connection) =>
+      core.all(
+        "SELECT repository_id FROM forgejo_repositories WHERE connection_id = ? LIMIT 1",
+        connection.id,
+      ).length > 0,
+    loadConnection: (core) =>
+      core.all("SELECT id FROM forgejo_connections LIMIT 1")[0],
+    notFoundError: {
+      code: "forgejo_connection_not_found",
+      message: "Forgejo Connection was not found",
+    },
+    raise: fail,
+    runTransaction: (transaction, connection, { assertSingleChange }) => {
+      transaction.run(
+        "INSERT INTO quality_bar_metadata (key, value) VALUES ('forgejo_connection_delete', ?)",
+        connection.id,
       );
-    }
-    transaction.run(
-      "DELETE FROM quality_bar_metadata WHERE key = 'forgejo_connection_delete'",
-    );
+      transaction.run(
+        "DELETE FROM forgejo_connection_verifications WHERE connection_id = ?",
+        connection.id,
+      );
+      transaction.run(
+        "DELETE FROM forgejo_connection_credentials WHERE connection_id = ?",
+        connection.id,
+      );
+      const removed = transaction.run(
+        "DELETE FROM forgejo_connections WHERE id = ?",
+        connection.id,
+      );
+      assertSingleChange(removed);
+      transaction.run(
+        "DELETE FROM quality_bar_metadata WHERE key = 'forgejo_connection_delete'",
+      );
+    },
   });
 }
 
