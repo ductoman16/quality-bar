@@ -1,18 +1,398 @@
-import { closedObject } from "./canonical-schema.js";
-import { canonicalEvaluationMonitorSchemas } from "./canonical-evaluation-monitor-components.js";
-import { canonicalEvaluationSelectorSchemas } from "./canonical-evaluation-selector-components.js";
-import { canonicalApplicabilitySchemas } from "./canonical-applicability-components.js";
+import { closedObject } from "./schema.js";
 import {
   GITHUB_DELIVERY_REQUIRED,
   canonicalGitHubDeliveryProperties,
   canonicalGitHubFeedbackSchemas,
-} from "./canonical-github-feedback-components.js";
-import { canonicalReviewRunSchemas } from "./canonical-review-run-components.js";
-import { canonicalWaiverSchemas } from "./canonical-waiver-components.js";
-import {
-  evaluationPreStartRetryProperties,
-  evaluationPreStartRetryRequired,
-} from "./canonical-evaluation-pre-start-retry.js";
+} from "./forge.js";
+import { canonicalReviewRunSchemas, canonicalWaiverSchemas } from "./review.js";
+
+export function canonicalApplicabilitySchemas() {
+  const identity = {
+    assignment: closedObject(
+      {
+        scope: {
+          enum: ["installation_wide", "repository_specific"],
+          type: "string",
+        },
+      },
+      ["scope"],
+    ),
+    review_id: { minLength: 1, type: "string" },
+    review_version_id: { minLength: 1, type: "string" },
+  };
+  const rule = closedObject(
+    {
+      profile: { const: "quality-bar-restricted-cel-v1", type: "string" },
+      source: { minLength: 1, type: "string" },
+    },
+    ["profile", "source"],
+  );
+  /** @param {string} kind @param {boolean} minimumPredicates */
+  const branchEvidence = (kind, minimumPredicates) =>
+    closedObject(
+      {
+        branch_ids: {
+          items: { pattern: "^branch-[1-9][0-9]*$", type: "string" },
+          type: "array",
+        },
+        kind: { const: kind, type: "string" },
+        predicate_ids: {
+          items: { pattern: "^predicate-[1-9][0-9]*$", type: "string" },
+          ...(minimumPredicates ? { minItems: 1 } : {}),
+          type: "array",
+        },
+      },
+      ["kind", "branch_ids", "predicate_ids"],
+    );
+  const unconditionalEvidence = closedObject(
+    { kind: { const: "unconditional", type: "string" } },
+    ["kind"],
+  );
+  const failedEvidence = branchEvidence("failed_branches", false);
+  const satisfiedEvidence = branchEvidence("satisfied_branches", true);
+  const matchedEvidence = closedObject(
+    {
+      kind: { const: "matched", type: "string" },
+      matches: {
+        items: closedObject(
+          {
+            after_path: { type: ["string", "null"] },
+            before_path: { type: ["string", "null"] },
+            branch_ids: {
+              items: { pattern: "^branch-[1-9][0-9]*$", type: "string" },
+              minItems: 1,
+              type: "array",
+            },
+            file_change_id: { minLength: 1, type: "string" },
+            predicate_ids: {
+              items: {
+                pattern: "^predicate-[1-9][0-9]*$",
+                type: "string",
+              },
+              minItems: 1,
+              type: "array",
+            },
+            sides: {
+              items: {
+                enum: ["change", "before", "after"],
+                type: "string",
+              },
+              minItems: 1,
+              type: "array",
+            },
+          },
+          [
+            "file_change_id",
+            "before_path",
+            "after_path",
+            "branch_ids",
+            "predicate_ids",
+            "sides",
+          ],
+        ),
+        minItems: 1,
+        type: "array",
+      },
+    },
+    ["kind", "matches"],
+  );
+  /**
+   * @param {string} outcome
+   * @param {Record<string, unknown>} resultRule
+   * @param {Record<string, unknown>} evidence
+   */
+  const result = (outcome, resultRule, evidence) =>
+    closedObject(
+      {
+        ...identity,
+        evidence,
+        outcome: { const: outcome, type: "string" },
+        rule: resultRule,
+      },
+      [
+        "review_id",
+        "review_version_id",
+        "assignment",
+        "rule",
+        "outcome",
+        "evidence",
+      ],
+    );
+  return {
+    ApplicabilityResult: {
+      oneOf: [
+        result("applicable", { type: "null" }, unconditionalEvidence),
+        result("applicable", rule, {
+          oneOf: [satisfiedEvidence, matchedEvidence],
+        }),
+        result("not_applicable", rule, failedEvidence),
+        closedObject(
+          {
+            ...identity,
+            error: closedObject(
+              {
+                code: { pattern: "^[a-z][a-z0-9_]*$", type: "string" },
+                detail: { minLength: 1, type: "string" },
+                file_change_id: { minLength: 1, type: "string" },
+                predicate_id: {
+                  pattern: "^predicate-[1-9][0-9]*$",
+                  type: "string",
+                },
+                side: { enum: ["before", "after"], type: "string" },
+              },
+              ["code", "detail"],
+            ),
+            outcome: { const: "error", type: "string" },
+            rule,
+          },
+          [
+            "review_id",
+            "review_version_id",
+            "assignment",
+            "rule",
+            "outcome",
+            "error",
+          ],
+        ),
+      ],
+    },
+  };
+}
+
+export function canonicalEvaluationSelectorSchemas() {
+  return {
+    EvaluationSelector: {
+      oneOf: [
+        closedObject(
+          {
+            type: { const: "branch", type: "string" },
+            value: {
+              minLength: 1,
+              pattern:
+                "^(?!@$)(?![./])(?!.*(?:\\.\\.|//|@\\{|[\\u0000-\\u0020\\u007f~^:?*\\[\\\\]))(?!.*(?:^|/)\\.)(?!.*\\.lock(?:/|$))(?!.*[./]$).+$",
+              type: "string",
+            },
+          },
+          ["type", "value"],
+        ),
+        closedObject(
+          {
+            type: { const: "commit", type: "string" },
+            value: {
+              pattern: "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$",
+              type: "string",
+            },
+          },
+          ["type", "value"],
+        ),
+      ],
+    },
+  };
+}
+
+export function canonicalEvaluationMonitorSchemas() {
+  return {
+    EvaluationMonitorSystemNode: closedObject(
+      {
+        key: { enum: ["preparing", "finalizing"], type: "string" },
+        kind: { const: "system", type: "string" },
+        label: { enum: ["Preparing", "Finalizing"], type: "string" },
+        status: {
+          enum: ["queued", "running", "completed", "failed", "cancelled"],
+          type: "string",
+        },
+      },
+      ["kind", "key", "label", "status"],
+    ),
+    EvaluationMonitorReviewNode: closedObject(
+      {
+        kind: { const: "review", type: "string" },
+        label: { minLength: 1, type: "string" },
+        outcome: {
+          oneOf: [
+            {
+              enum: ["clear", "advisory", "blocking", "error"],
+              type: "string",
+            },
+            { type: "null" },
+          ],
+        },
+        review_id: { minLength: 1, type: "string" },
+        review_version_id: { minLength: 1, type: "string" },
+        status: {
+          enum: ["queued", "running", "completed", "failed", "cancelled"],
+          type: "string",
+        },
+      },
+      ["kind", "review_id", "review_version_id", "label", "outcome", "status"],
+    ),
+    EvaluationMonitor: closedObject(
+      {
+        duration_ms: {
+          oneOf: [{ minimum: 0, type: "integer" }, { type: "null" }],
+        },
+        finding_counts: {
+          oneOf: [
+            closedObject(
+              {
+                advisory: { minimum: 0, type: "integer" },
+                blocking: { minimum: 0, type: "integer" },
+                total: { minimum: 0, type: "integer" },
+              },
+              ["total", "advisory", "blocking"],
+            ),
+            { type: "null" },
+          ],
+        },
+        nodes: {
+          items: {
+            oneOf: [
+              { $ref: "EvaluationMonitorSystemNode#" },
+              { $ref: "EvaluationMonitorReviewNode#" },
+            ],
+          },
+          minItems: 2,
+          type: "array",
+        },
+        outcome_counts: {
+          oneOf: [
+            closedObject(
+              {
+                clear: { minimum: 0, type: "integer" },
+                error: { minimum: 0, type: "integer" },
+                not_applicable: { minimum: 0, type: "integer" },
+                triggered: { minimum: 0, type: "integer" },
+              },
+              ["clear", "triggered", "not_applicable", "error"],
+            ),
+            { type: "null" },
+          ],
+        },
+        review_counts: closedObject(
+          {
+            cancelled: { minimum: 0, type: "integer" },
+            completed: { minimum: 0, type: "integer" },
+            failed: { minimum: 0, type: "integer" },
+            queued: { minimum: 0, type: "integer" },
+            running: { minimum: 0, type: "integer" },
+            total: { minimum: 0, type: "integer" },
+          },
+          ["total", "queued", "running", "completed", "failed", "cancelled"],
+        ),
+      },
+      [
+        "nodes",
+        "review_counts",
+        "outcome_counts",
+        "finding_counts",
+        "duration_ms",
+      ],
+    ),
+  };
+}
+
+export const evaluationPreStartRetryProperties = {
+  exhausted_at: {
+    oneOf: [{ format: "date-time", type: "string" }, { type: "null" }],
+  },
+  pre_start_attempt_count: { minimum: 0, type: "integer" },
+  retry_error: {
+    oneOf: [{ $ref: "WaiverOperationalError#" }, { type: "null" }],
+  },
+  retry_state: {
+    enum: ["ready", "exhausted"],
+    type: "string",
+  },
+};
+
+export const evaluationPreStartRetryRequired = [
+  "retry_state",
+  "retry_error",
+  "pre_start_attempt_count",
+  "exhausted_at",
+];
+
+/**
+ * @param {object} errorResponse
+ * @param {object} evaluationResponse
+ * @param {object} identityParameter
+ */
+export function canonicalEvaluationPreStartRetryOperation(
+  errorResponse,
+  evaluationResponse,
+  identityParameter,
+) {
+  return {
+    post: {
+      operationId: "retryEvaluationPreStart",
+      parameters: [
+        identityParameter,
+        {
+          in: "header",
+          name: "Idempotency-Key",
+          required: true,
+          schema: {
+            maxLength: 255,
+            minLength: 1,
+            pattern: "^[!-~]+$",
+            type: "string",
+          },
+        },
+      ],
+      responses: {
+        200: evaluationResponse,
+        400: errorResponse,
+        401: errorResponse,
+        403: errorResponse,
+        404: errorResponse,
+        409: errorResponse,
+        503: errorResponse,
+      },
+      security: [{ browser_session: [] }],
+    },
+  };
+}
+
+export const EVALUATION_LIST_PARAMETERS = [
+  {
+    in: "query",
+    name: "cursor",
+    schema: { minLength: 1, type: "string" },
+  },
+  {
+    in: "query",
+    name: "limit",
+    schema: { maximum: 100, minimum: 1, type: "integer" },
+  },
+  {
+    in: "query",
+    name: "repository_id",
+    schema: { minLength: 1, type: "string" },
+  },
+  {
+    in: "query",
+    name: "execution_status",
+    schema: {
+      enum: ["queued", "running", "completed", "failed", "cancelled"],
+      type: "string",
+    },
+  },
+  {
+    in: "query",
+    name: "effective_outcome",
+    schema: {
+      enum: ["pending", "clear", "advisory", "blocking", "error"],
+      type: "string",
+    },
+  },
+  { in: "query", name: "start", schema: { minimum: 0, type: "integer" } },
+  { in: "query", name: "end", schema: { minimum: 0, type: "integer" } },
+  {
+    in: "query",
+    name: "query",
+    schema: { maxLength: 200, minLength: 1, type: "string" },
+  },
+];
 
 export function canonicalEvaluationSchemas() {
   return {

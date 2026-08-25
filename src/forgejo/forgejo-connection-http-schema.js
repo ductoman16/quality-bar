@@ -1,11 +1,9 @@
 import {
   forgejoFailedVerification,
-  forgejoSuccessfulVerification,
-} from "../canonical/canonical-forgejo-connection-components.js";
-import {
   forgejoPollingFailure,
   forgejoPollingState,
-} from "../canonical/canonical-forgejo-polling-components.js";
+  forgejoSuccessfulVerification,
+} from "../canonical/forge.js";
 
 const connectionHealthError = {
   additionalProperties: false,
