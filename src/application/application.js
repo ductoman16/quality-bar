@@ -1,7 +1,6 @@
 import { openDurableCore } from "../durable/durable-core.js";
 import { createCodexExecutionRuntime } from "../codex/codex-execution-runtime.js";
 import { recoverCodexExecutions } from "../codex/codex-execution-recovery.js";
-import { createCodexExecutionConcurrencyService } from "../codex/codex-execution-concurrency.js";
 import { createApplicationExecutionRuntime } from "./application-execution-runtime.js";
 import {
   loadInstallationConfiguration,
@@ -18,17 +17,8 @@ import { createBrowserSessionService } from "../browser-session.js";
 import { requireCodedError } from "../coded-error.js";
 import { createImplementerTokenService } from "../implementer-token.js";
 import { createOnboardingTokenService } from "../onboarding-token.js";
-import { createGitHubConnectionService } from "../github/github-connection.js";
-import { createForgejoConnectionService } from "../forgejo/forgejo-connection.js";
-import { createForgejoAutomaticApplicationDependencies } from "../forgejo/forgejo-automatic-application-dependencies.js";
 import { createApplicationRuntimeServer } from "./application-server-runtime.js";
 import { createRequestSecurityBoundary } from "../request-security.js";
-import { createReviewService } from "../review/review.js";
-import { createRepositoryService } from "../repository/repository.js";
-import { createRepositoryProviderApplicationDependencies } from "../repository/repository-provider-application-dependencies.js";
-import { createRepositoryGuidanceService } from "../repository/repository-guidance.js";
-import { createSystemResource } from "../system/system-resource.js";
-import { createWaiverAdjudicatorConfigurationService } from "../waiver/waiver-adjudicator-configuration.js";
 import { createStorageReserveGate } from "../storage-reserve.js";
 import {
   createWorkerSignal,
@@ -46,8 +36,17 @@ import {
   createApplicationLog,
   createApplicationSecretRegistry,
 } from "./application-log.js";
-import { createEvaluationService } from "../evaluation/evaluation.js";
 import { installationKeyIdentity as computeInstallationKeyIdentity } from "../sqlite-backup.js";
+import { register as registerCodex } from "../codex/index.js";
+import { register as registerEvaluation } from "../evaluation/index.js";
+import { register as registerForgejo } from "../forgejo/index.js";
+import { register as registerGitHub } from "../github/index.js";
+import { register as registerRepository } from "../repository/index.js";
+import { register as registerReview } from "../review/index.js";
+import { register as registerSystem } from "../system/index.js";
+import { register as registerWaiver } from "../waiver/index.js";
+import { register as registerAnalytics } from "../analytics/index.js";
+import { register as registerMcp } from "../mcp/index.js";
 
 /** @typedef {ReturnType<typeof requireCodedError>} CodedError */
 /**
@@ -61,14 +60,14 @@ import { installationKeyIdentity as computeInstallationKeyIdentity } from "../sq
  *   validateSources?: typeof validateInstallationSources,
  *   validateTools?: typeof validateBundledTools,
  *   validateCodexAuthentication?: typeof validateCodexLogin,
- *   createReviews?: typeof createReviewService,
+ *   createReviews?: typeof import("../review/review.js").createReviewService,
  *   createRepositories?: (...arguments_: any[]) => any,
  *   createGitHubConnections?: (...arguments_: any[]) => any,
  *   createForgejoConnections?: (...arguments_: any[]) => any,
- *   createRepositoryGuidance?: typeof createRepositoryGuidanceService,
- *   createWaiverAdjudicatorConfiguration?: typeof createWaiverAdjudicatorConfigurationService,
+ *   createRepositoryGuidance?: typeof import("../repository/repository-guidance.js").createRepositoryGuidanceService,
+ *   createWaiverAdjudicatorConfiguration?: typeof import("../waiver/waiver-adjudicator-configuration.js").createWaiverAdjudicatorConfigurationService,
  *   createStorageReserve?: typeof createStorageReserveGate,
- *   createEvaluations?: typeof createEvaluationService,
+ *   createEvaluations?: typeof import("../evaluation/evaluation.js").createEvaluationService,
  *   createCodexRuntime?: typeof createCodexExecutionRuntime,
  *   installationKeyIdentity?: string,
  *   recoverExecutions?: typeof recoverCodexExecutions,
@@ -86,14 +85,14 @@ export function createApplication({
   validateSources = validateInstallationSources,
   validateTools = validateBundledTools,
   validateCodexAuthentication = validateCodexLogin,
-  createReviews = createReviewService,
-  createRepositories = createRepositoryService,
-  createGitHubConnections = createGitHubConnectionService,
-  createForgejoConnections = createForgejoConnectionService,
-  createRepositoryGuidance = createRepositoryGuidanceService,
-  createWaiverAdjudicatorConfiguration = createWaiverAdjudicatorConfigurationService,
+  createReviews,
+  createRepositories,
+  createGitHubConnections,
+  createForgejoConnections,
+  createRepositoryGuidance,
+  createWaiverAdjudicatorConfiguration,
   createStorageReserve = createStorageReserveGate,
-  createEvaluations = createEvaluationService,
+  createEvaluations,
   createCodexRuntime = createCodexExecutionRuntime,
   installationKeyIdentity,
   recoverExecutions = recoverCodexExecutions,
@@ -108,24 +107,14 @@ export function createApplication({
   let durableCore = null;
   const { knownSecrets, registerSecret } = createApplicationSecretRegistry();
   writeLog = createApplicationLog(writeLog, () => durableCore, knownSecrets);
-  /** @type {any} */
-  let githubConnections = null;
-  /** @type {any} */
-  let forgejoConnections = null;
-  /** @type {ReturnType<typeof createRepositoryService> | null} */
-  let repositories = null;
-  /** @type {ReturnType<typeof createEvaluationService> | null} */
-  let evaluations = null;
-  /** @type {ReturnType<typeof createStorageReserveGate> | null} */
-  let storageReserve = null;
-  /** @type {ReturnType<typeof createCodexExecutionRuntime> | null} */
-  let codexRuntime = null;
+  /** @type {Record<string, any>} */
+  const deps = {};
   const shutdownBoundary = createApplicationShutdownBoundary();
   /** @param {CodedError} [error] */
   function stopProductWork(error) {
-    githubConnections?.destroy?.();
-    forgejoConnections?.destroy?.();
-    void codexRuntime?.close();
+    deps.githubConnections?.destroy?.();
+    deps.forgejoConnections?.destroy?.();
+    void deps.codexRuntime?.close();
     void (error ? ioPool.shutdown(error) : ioPool.close());
   }
   const storageBoundary = createHardStorageBoundary(writeLog, stopProductWork);
@@ -147,12 +136,12 @@ export function createApplication({
   /** @param {unknown} error */
   function releaseStartupResources(error) {
     const failure = requireCodedError(error);
-    void codexRuntime?.close();
-    codexRuntime = null;
-    evaluations?.destroy?.();
-    repositories?.destroy?.();
-    githubConnections?.destroy?.();
-    forgejoConnections?.destroy?.();
+    void deps.codexRuntime?.close();
+    deps.codexRuntime = null;
+    deps.evaluations?.destroy?.();
+    deps.repositories?.destroy?.();
+    deps.githubConnections?.destroy?.();
+    deps.forgejoConnections?.destroy?.();
     durableCore?.close();
     durableCore = null;
     releaseInstallationLock?.();
@@ -170,14 +159,6 @@ export function createApplication({
 
   let browserOrigin;
   let requestSecurity;
-  let browserSessions;
-  let implementerTokens;
-  let onboardingTokens;
-  let reviews;
-  let repositoryGuidance;
-  let waiverAdjudicatorConfiguration;
-  let systemResource;
-  let codexExecutionConcurrency;
 
   try {
     validateSources();
@@ -187,7 +168,7 @@ export function createApplication({
     ({ releaseInstallationLock } = validateInstallation({
       reserveBytes: installation.freeSpaceReserveBytes,
     }));
-    storageReserve = shutdownBoundary.guardStorageReserve(
+    const storageReserve = shutdownBoundary.guardStorageReserve(
       ioPool.createStorageReserve(
         createStorageReserve,
         () => durableCore,
@@ -195,13 +176,24 @@ export function createApplication({
         installation.freeSpaceReserveBytes,
       ),
     );
+    deps.storageReserve = storageReserve;
     durableCore = openDurableCore(databasePath, {
       onStorageUnavailable(error) {
         storageBoundary.enter(requireCodedError(error));
       },
     });
-    codexExecutionConcurrency =
-      createCodexExecutionConcurrencyService(durableCore);
+    deps.durableCore = durableCore;
+    deps.now = now;
+    deps.registerSecret = registerSecret;
+    deps.certificateAuthorityPath = certificateAuthorityPath;
+    deps.ioPool = ioPool;
+    deps.getRepositories = () => deps.repositories;
+    deps.getEvaluations = () => deps.evaluations;
+    deps.getGitHubConnections = () => deps.githubConnections;
+    deps.getForgejoConnections = () => deps.forgejoConnections;
+    deps.readCodexCapabilityFailure = () => codexCapabilityFailure;
+    deps.validateCodexAuthentication = validateCodexAuthentication;
+    Object.assign(deps, registerCodex(null, deps));
     try {
       verifyInstallationKey(durableCore, installation.masterKey);
       runtimeKeyIdentity ??= computeInstallationKeyIdentity(
@@ -211,94 +203,39 @@ export function createApplication({
       /** @type {ReturnType<typeof createStorageReserveGate>} */ (
         storageReserve
       ).cleanupEligibleData();
-      githubConnections = createGitHubConnections(durableCore, {
-        acquirePullRequestChangeset: (
-          /** @type {{pullRequest: any, repositoryId: string}} */ {
-            pullRequest,
-            repositoryId,
-          },
-        ) => {
-          if (!repositories) {
-            throw new TypeError("Repository service is unavailable");
-          }
-          return repositories.resolvePullRequestChangeset(repositoryId, {
-            baseSha: pullRequest.base.sha,
-            headSha: pullRequest.head.sha,
-          });
-        },
-        admitAutomaticEvaluation: (
-          /** @type {any} */ transaction,
-          /** @type {any} */ input,
-        ) => {
-          if (!evaluations) {
-            throw new TypeError("Evaluation service is unavailable");
-          }
-          return evaluations.admitAutomatic(transaction, input);
-        },
-        externalOrigin: installation.externalOrigin,
-        masterKey: installation.masterKey,
-        now,
-        registerSecret,
-        storageReserve:
-          /** @type {ReturnType<typeof createStorageReserveGate>} */ (
-            storageReserve
-          ),
-      });
-      forgejoConnections = createForgejoConnections(durableCore, {
-        ...createForgejoAutomaticApplicationDependencies({
-          getEvaluations: () => evaluations,
-          getRepositories: () => repositories,
-        }),
-        externalOrigin: installation.externalOrigin,
-        certificateAuthorityPath,
-        masterKey: installation.masterKey,
-        now,
-        registerSecret,
-        storageReserve,
-      });
-      repositories = createRepositories(durableCore, {
-        ...createRepositoryProviderApplicationDependencies({
-          getForgejoConnections: () => forgejoConnections,
-          getGitHubConnections: () => githubConnections,
-        }),
-        certificateAuthorityPath,
-        masterKey: installation.masterKey,
-        now,
-        registerSecret,
-      });
-      evaluations = createEvaluations(durableCore, {
-        acquireChangeset: (repositoryId, request) =>
-          ioPool.acquireChangeset(repositories, repositoryId, request),
-        readCodexCapabilityFailure: () => codexCapabilityFailure,
-        masterKey: installation.masterKey,
-        now,
-        storageReserve:
-          /** @type {ReturnType<typeof createStorageReserveGate>} */ (
-            storageReserve
-          ),
-        validateCodexAuthentication,
-      });
+      deps.externalOrigin = installation.externalOrigin;
+      deps.masterKey = installation.masterKey;
+      deps.createGitHubConnections = createGitHubConnections;
+      deps.createForgejoConnections = createForgejoConnections;
+      deps.createRepositories = createRepositories;
+      deps.createRepositoryGuidance = createRepositoryGuidance;
+      deps.createEvaluations = createEvaluations;
+      Object.assign(deps, registerGitHub(null, deps));
+      Object.assign(deps, registerForgejo(null, deps));
+      Object.assign(deps, registerRepository(null, deps));
+      Object.assign(deps, registerEvaluation(null, deps));
     } finally {
       installation.masterKey.fill(0);
     }
-    browserSessions = createBrowserSessionService(durableCore, { now });
-    implementerTokens = createImplementerTokenService(durableCore, { now });
-    onboardingTokens = createOnboardingTokenService(durableCore, {
+    deps.browserSessions = createBrowserSessionService(durableCore, { now });
+    deps.implementerTokens = createImplementerTokenService(durableCore, {
+      now,
+    });
+    deps.onboardingTokens = createOnboardingTokenService(durableCore, {
       now,
       registerSecret,
     });
-    reviews = createReviews(durableCore, { now });
-    repositoryGuidance = createRepositoryGuidance(durableCore);
-    waiverAdjudicatorConfiguration = createWaiverAdjudicatorConfiguration(
-      durableCore,
-      { now },
-    );
-    systemResource = createSystemResource(durableCore, {
-      applicationVersion,
-      backupsPath,
-      installationKeyIdentity: runtimeKeyIdentity,
-      now,
-    });
+    deps.createReviews = createReviews;
+    Object.assign(deps, registerReview(null, deps));
+    deps.createWaiverAdjudicatorConfiguration =
+      createWaiverAdjudicatorConfiguration;
+    Object.assign(deps, registerWaiver(null, deps));
+    deps.applicationVersion = applicationVersion;
+    deps.backupsPath = backupsPath;
+    deps.installationKeyIdentity = runtimeKeyIdentity;
+    Object.assign(deps, registerSystem(null, deps));
+    Object.assign(deps, registerAnalytics(null, deps));
+    Object.assign(deps, registerMcp(null, deps));
     validateTools();
     try {
       validateCodexAuthentication();
@@ -314,9 +251,9 @@ export function createApplication({
       );
     }
     if (!codexCapabilityFailure) {
-      codexRuntime = executionRuntime.createCodexRuntime(
+      deps.codexRuntime = executionRuntime.createCodexRuntime(
         durableCore,
-        repositories,
+        deps.repositories,
         storageReserve,
       );
     }
@@ -332,47 +269,33 @@ export function createApplication({
   }
 
   // prettier-ignore
-  const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, /** @type {NonNullable<typeof storageReserve>} */ (storageReserve));
+  const requireStorageReserve = requireAvailableStorageReserve.bind(null, storageBoundary, /** @type {NonNullable<typeof deps.storageReserve>} */ (deps.storageReserve));
   // prettier-ignore
   const readDurableCoreStatus = createDurableCoreStatusReader(storageBoundary, executionRuntime, shutdownBoundary);
   const workerSignal = createWorkerSignal(storageBoundary, shutdownBoundary);
 
   const server = createApplicationRuntimeServer({
-    browserSessions,
-    implementerTokens,
-    onboardingTokens,
+    ...deps,
     browserOrigin,
     requestSecurity,
-    repositories: /** @type {ReturnType<typeof createRepositoryService>} */ (
-      repositories
-    ),
-    githubConnections,
-    forgejoConnections,
-    repositoryGuidance,
-    evaluations,
-    reviews,
-    waiverAdjudicatorConfiguration,
-    codexExecutionConcurrency,
     readDurableCoreStatus,
     codexCapabilityFailure,
-    storageReserve,
-    systemResource,
     workerSignal,
     writeLog,
     secureBrowserCookie: browserOrigin.startsWith("https:"),
   });
-  githubConnections.startPolling();
-  forgejoConnections.startPolling();
-  codexRuntime?.start();
+  deps.githubConnections.startPolling();
+  deps.forgejoConnections.startPolling();
+  deps.codexRuntime?.start();
   const close = createApplicationClose({
-    codexRuntime,
+    codexRuntime: deps.codexRuntime ?? null,
     durableCore,
-    evaluations,
-    forgejoConnections,
-    githubConnections,
+    evaluations: deps.evaluations,
+    forgejoConnections: deps.forgejoConnections,
+    githubConnections: deps.githubConnections,
     ioPool,
     releaseInstallationLock,
-    repositories,
+    repositories: deps.repositories,
     server,
     shutdownBoundary,
     writeLog: /** @type {ReturnType<typeof createApplicationLog>} */ (writeLog),
@@ -381,8 +304,8 @@ export function createApplication({
   return {
     server,
     durableCore,
-    implementerTokens,
-    onboardingTokens,
+    implementerTokens: deps.implementerTokens,
+    onboardingTokens: deps.onboardingTokens,
     get codexCapability() {
       return readCodexCapability(codexCapabilityFailure);
     },
@@ -407,7 +330,7 @@ export function createApplication({
     },
     cleanupEligibleData: () => requireStorageReserve().cleanupEligibleData(),
     freezeWaiverAdjudicatorConfiguration() {
-      return waiverAdjudicatorConfiguration.freezeForAdjudication();
+      return deps.waiverAdjudicatorConfiguration.freezeForAdjudication();
     },
     close,
   };
