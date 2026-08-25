@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createApplication } from "../src/application/application.js";
-import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
+import { stubUnavailableGitHubConnectionService } from "./service-stubs-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("shutdown failure logs its owning code without exposing a registered credential", async (context) => {
@@ -26,7 +26,7 @@ test("shutdown failure logs its owning code without exposing a registered creden
       void core;
       options.registerSecret(secret);
       return {
-        ...createUnavailableGitHubConnectionService(new Error("unused")),
+        ...stubUnavailableGitHubConnectionService(new Error("unused")),
         destroy() {
           throw failure;
         },

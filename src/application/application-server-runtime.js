@@ -1,14 +1,6 @@
 import { createApplicationServer } from "../server.js";
 import { StorageReserveError } from "../storage-reserve.js";
 
-/** @param {unknown} failure @returns {never} */
-function throwStartupFailure(failure) {
-  if (!(failure instanceof Error)) {
-    throw new TypeError("Application startup failure is unavailable");
-  }
-  throw failure;
-}
-
 /** @param {(line: string) => unknown} writeLog */
 function createMcpOperationRecorder(writeLog) {
   /** @param {any} input */
@@ -44,7 +36,6 @@ export function createApplicationRuntimeServer(options) {
     browserSessions,
     codexCapabilityFailure,
     implementerTokens,
-    startupFailure,
     storageReserve,
     systemResource,
     writeLog,
@@ -52,9 +43,6 @@ export function createApplicationRuntimeServer(options) {
   return createApplicationServer({
     ...options,
     readSystemStatus() {
-      if (!systemResource || !storageReserve) {
-        throwStartupFailure(startupFailure);
-      }
       if (typeof storageReserve.readCleanupFacts !== "function") {
         throw new StorageReserveError(
           "storage_cleanup_facts_unavailable",
@@ -77,18 +65,12 @@ export function createApplicationRuntimeServer(options) {
     },
     /** @param {{cursor?: string, limit?: string}} query */
     listAuthorityAttributions(query) {
-      if (!systemResource) {
-        throwStartupFailure(startupFailure);
-      }
       return systemResource.listAuthorityAttributions(query);
     },
     /**
      * @param {{action: string, channel: string, errorCode?: string, outcome: string}} event
      */
     recordAuthorityAttribution(event) {
-      if (!systemResource) {
-        throwStartupFailure(startupFailure);
-      }
       return systemResource.recordAuthorityAttribution(event);
     },
     recordMcpOperation: createMcpOperationRecorder(writeLog),

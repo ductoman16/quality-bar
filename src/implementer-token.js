@@ -23,27 +23,6 @@ export class ImplementerTokenError extends Error {
   }
 }
 
-/** @param {unknown} error */
-export function createUnavailableImplementerTokenService(error) {
-  if (
-    !(error instanceof Error) ||
-    !("code" in error) ||
-    typeof error.code !== "string"
-  ) {
-    throw new TypeError("an exact unavailable-token error is required");
-  }
-  const unavailable = () => {
-    throw error;
-  };
-  return {
-    authenticate: unavailable,
-    create: unavailable,
-    hasActiveToken: unavailable,
-    revoke: unavailable,
-    rotate: unavailable,
-  };
-}
-
 /**
  * @param {string} code
  * @param {string} message

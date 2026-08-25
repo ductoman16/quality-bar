@@ -5,8 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { createApplication } from "../src/application/application.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
+import {
+  stubUnavailableForgejoConnectionService,
+  stubUnavailableGitHubConnectionService,
+} from "./service-stubs-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("shutdown stops recurring I/O before waiting for held Codex work", async () => {
@@ -30,7 +32,7 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
     },
     createForgejoConnections() {
       return {
-        ...unavailableForgejoConnectionService(connectionFailure),
+        ...stubUnavailableForgejoConnectionService(connectionFailure),
         destroy() {
           order.push("forgejo-destroy");
         },
@@ -42,7 +44,7 @@ test("shutdown stops recurring I/O before waiting for held Codex work", async ()
     },
     createGitHubConnections() {
       return {
-        ...createUnavailableGitHubConnectionService(connectionFailure),
+        ...stubUnavailableGitHubConnectionService(connectionFailure),
         destroy() {
           order.push("github-destroy");
         },

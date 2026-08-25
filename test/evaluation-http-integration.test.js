@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  createEvaluationService,
-  createUnavailableEvaluationService,
-} from "../src/evaluation/evaluation.js";
+import { createEvaluationService } from "../src/evaluation/evaluation.js";
 import { createReviewRunClaimService } from "../src/review/review-run-claim.js";
 import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.js";
 import {
@@ -13,6 +10,7 @@ import {
   startApplication,
 } from "./http-integration-support.js";
 import { createQueuedReviewRun } from "./review-run-claim-support.js";
+import { stubUnavailableEvaluationService } from "./service-stubs-support.js";
 
 const baseCommit = "1".repeat(40);
 const headCommit = "2".repeat(40);
@@ -172,7 +170,7 @@ test("Evaluation capability and storage-reserve failures are hard dependency gat
     const failure = Object.assign(new Error(`${code} exact failure`), { code });
     const { request } = await startApplication({
       createEvaluations() {
-        return createUnavailableEvaluationService(failure);
+        return stubUnavailableEvaluationService(failure);
       },
     });
     const headers = await authenticatedOperatorHeaders(request);

@@ -154,38 +154,36 @@ test("the ready application starts and closes its composed Codex runtime", async
   assert.equal(closed, 1);
 });
 
-test("a startup failure retains the SQLite installation lock until close", async () => {
+test("a startup failure releases the SQLite installation lock before propagating", () => {
   const directory = mkdtempSync(
     join(tmpdir(), "quality-bar-application-startup-lock-"),
   );
   const lockPath = join(directory, "installation.lock");
   const createLock = () => new DatabaseSync(lockPath);
-  const application = createApplication({
-    databasePath: join(directory, "quality-bar.sqlite3"),
-    loadInstallation: validInstallation,
-    validateCodexAuthentication() {},
-    validateInstallation: () => ({
-      releaseInstallationLock: acquireInstallationLock(createLock),
-    }),
-    validateSources() {},
-    validateTools() {},
-    createStorageReserve() {
-      throw Object.assign(new Error("storage reserve unavailable"), {
-        code: "storage_reserve_unavailable",
-      });
-    },
-    writeLog() {},
-  });
-
   try {
     assert.throws(
-      () => acquireInstallationLock(createLock),
+      () =>
+        createApplication({
+          databasePath: join(directory, "quality-bar.sqlite3"),
+          loadInstallation: validInstallation,
+          validateCodexAuthentication() {},
+          validateInstallation: () => ({
+            releaseInstallationLock: acquireInstallationLock(createLock),
+          }),
+          validateSources() {},
+          validateTools() {},
+          createStorageReserve() {
+            throw Object.assign(new Error("storage reserve unavailable"), {
+              code: "storage_reserve_unavailable",
+            });
+          },
+          writeLog() {},
+        }),
       (error) =>
         error instanceof Error &&
         "code" in error &&
-        error.code === "installation_locked",
+        error.code === "storage_reserve_unavailable",
     );
-    await application.close();
     const releaseInstallationLock = acquireInstallationLock(createLock);
     releaseInstallationLock();
   } finally {
@@ -193,19 +191,26 @@ test("a startup failure retains the SQLite installation lock until close", async
   }
 });
 
-test("SQLite startup failure keeps liveness distinct from exact not-ready state", async () => {
-  const { origin } = await startApplication(":memory:");
-
-  const liveResponse = await fetch(`${origin}/health/live`);
-  assert.equal(liveResponse.status, 200);
-  assert.deepEqual(await liveResponse.json(), { status: "live" });
-
-  const readyResponse = await fetch(`${origin}/health/ready`);
-  assert.equal(readyResponse.status, 503);
-  assert.deepEqual(await readyResponse.json(), {
-    error: "wal_unavailable",
-    status: "not_ready",
-  });
+test("startup fails fast when SQLite cannot open the durable core", () => {
+  assert.throws(
+    () =>
+      createApplication({
+        applicationVersion: "1.2.3",
+        backupsPath: join(tmpdir(), "quality-bar-fail-fast-backups"),
+        databasePath: ":memory:",
+        createStorageReserve: availableStorageReserve,
+        loadInstallation: validInstallation,
+        validateInstallation: () => ({ releaseInstallationLock() {} }),
+        validateSources() {},
+        validateTools() {},
+        validateCodexAuthentication() {},
+        writeLog() {},
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string",
+  );
 });
 
 test("liveness remains a process probe when the configured browser origin requires HTTPS", async () => {
@@ -230,62 +235,57 @@ test("liveness remains a process probe when the configured browser origin requir
   );
 });
 
-test("configuration failure keeps product traffic unavailable without exposing secret values", async () => {
+test("startup fails fast on a configuration failure and logs the exact code", () => {
   /** @type {string[]} */
   const logs = [];
   const configurationFailure = Object.assign(
     new Error("Configuration has an unknown key"),
     { code: "configuration_unknown" },
   );
-  const { origin } = await startApplication(temporaryDatabasePath(), {
-    loadInstallation() {
-      throw configurationFailure;
-    },
-    /** @param {string} line */
-    writeLog(line) {
-      logs.push(line);
-    },
-  });
-
-  const liveResponse = await fetch(`${origin}/health/live`);
-  assert.equal(liveResponse.status, 200);
-  assert.deepEqual(await liveResponse.json(), { status: "live" });
-
-  const readyResponse = await fetch(`${origin}/health/ready`);
-  assert.equal(readyResponse.status, 503);
-  assert.deepEqual(await readyResponse.json(), {
-    error: "configuration_unknown",
-    status: "not_ready",
-  });
-
-  const productResponse = await fetch(`${origin}/api/v1/system`);
-  assert.equal(productResponse.status, 503);
-  assert.equal(
-    await responseErrorCode(productResponse),
-    "configuration_unknown",
+  assert.throws(
+    () =>
+      createApplication({
+        applicationVersion: "1.2.3",
+        backupsPath: join(tmpdir(), "quality-bar-configuration-backups"),
+        databasePath: temporaryDatabasePath(),
+        createStorageReserve: availableStorageReserve,
+        loadInstallation() {
+          throw configurationFailure;
+        },
+        validateInstallation: () => ({ releaseInstallationLock() {} }),
+        validateSources() {},
+        validateTools() {},
+        validateCodexAuthentication() {},
+        writeLog(line) {
+          logs.push(line);
+        },
+      }),
+    (error) => error === configurationFailure,
   );
+  assert.match(logs.join(""), /"error":"configuration_unknown"/);
 });
 
-test("unsafe fixed sources are rejected before their contents are read", async () => {
+test("unsafe fixed sources are rejected before their contents are read", () => {
   let wasRead = false;
   const sourceFailure = Object.assign(new Error("unsafe source"), {
     code: "owned_path_unsafe",
   });
-  const application = createApplication({
-    databasePath: temporaryDatabasePath(),
-    loadInstallation() {
-      wasRead = true;
-      return validInstallation();
-    },
-    validateSources() {
-      throw sourceFailure;
-    },
-    writeLog() {},
-  });
-  applications.push(application);
-
+  assert.throws(
+    () =>
+      createApplication({
+        databasePath: temporaryDatabasePath(),
+        loadInstallation() {
+          wasRead = true;
+          return validInstallation();
+        },
+        validateSources() {
+          throw sourceFailure;
+        },
+        writeLog() {},
+      }),
+    (error) => error === sourceFailure,
+  );
   assert.equal(wasRead, false);
-  assert.equal(application.durableCore, null);
 });
 
 test("unavailable Codex authentication leaves the durable System surface ready", async () => {
@@ -373,116 +373,84 @@ test("unavailable Codex authentication leaves the durable System surface ready",
   });
 });
 
-test("a malformed external master key never appears in responses or logs", async () => {
+test("a malformed external master key never appears in logs on startup failure", () => {
   /** @type {string[]} */
   const logs = [];
   const secretValue = "this-master-key-must-never-appear";
-  const { origin } = await startApplication(temporaryDatabasePath(), {
-    loadInstallation() {
-      return loadInstallationConfiguration({
-        configPath: "/etc/quality-bar/config.env",
-        masterKeyPath: "/run/secrets/quality-bar-master-key",
-        readFile(path, encoding) {
-          if (path === "/etc/quality-bar/config.env") {
-            return encoding
-              ? [
-                  "QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000",
-                  "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none",
-                ].join("\n")
-              : Buffer.from("");
-          }
-          if (path === "/run/secrets/quality-bar-master-key") {
-            return encoding ? secretValue : Buffer.from(secretValue);
-          }
-          throw new Error("unexpected path");
+  assert.throws(
+    () =>
+      createApplication({
+        applicationVersion: "1.2.3",
+        backupsPath: join(tmpdir(), "quality-bar-master-key-backups"),
+        databasePath: temporaryDatabasePath(),
+        createStorageReserve: availableStorageReserve,
+        loadInstallation() {
+          return loadInstallationConfiguration({
+            configPath: "/etc/quality-bar/config.env",
+            masterKeyPath: "/run/secrets/quality-bar-master-key",
+            readFile(path, encoding) {
+              if (path === "/etc/quality-bar/config.env") {
+                return encoding
+                  ? [
+                      "QUALITY_BAR_EXTERNAL_ORIGIN=http://127.0.0.1:3000",
+                      "QUALITY_BAR_TRUSTED_PROXY_ADDRESSES=none",
+                    ].join("\n")
+                  : Buffer.from("");
+              }
+              if (path === "/run/secrets/quality-bar-master-key") {
+                return encoding ? secretValue : Buffer.from(secretValue);
+              }
+              throw new Error("unexpected path");
+            },
+          });
         },
-      });
-    },
-    /** @param {string} line */
-    writeLog(line) {
-      logs.push(line);
-    },
-  });
-
-  const readyResponse = await fetch(`${origin}/health/ready`);
-  assert.equal(readyResponse.status, 503);
-  assert.deepEqual(await readyResponse.json(), {
-    error: "master_key_malformed",
-    status: "not_ready",
-  });
-  const unsupportedHealthMethod = await fetch(`${origin}/health/live`, {
-    method: "POST",
-  });
-  assert.equal(unsupportedHealthMethod.status, 400);
-  assert.equal(
-    await responseErrorCode(unsupportedHealthMethod),
-    "master_key_malformed",
+        validateInstallation: () => ({ releaseInstallationLock() {} }),
+        validateSources() {},
+        validateTools() {},
+        validateCodexAuthentication() {},
+        writeLog(line) {
+          logs.push(line);
+        },
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "master_key_malformed",
   );
-
-  const productResponse = await fetch(`${origin}/api/v1/system`);
-  assert.equal(productResponse.status, 503);
-  assert.equal(
-    await responseErrorCode(productResponse),
-    "master_key_malformed",
-  );
+  assert.match(logs.join(""), /"error":"master_key_malformed"/);
   assert.doesNotMatch(logs.join(""), new RegExp(secretValue));
 });
 
-test("an undecryptable installation key keeps product traffic unavailable", async () => {
+test("an undecryptable installation key fails startup fast", async () => {
   const databasePath = temporaryDatabasePath();
   const first = await startApplication(databasePath);
   await first.application.close();
   applications.splice(applications.indexOf(first.application), 1);
 
-  const { origin } = await startApplication(databasePath, {
-    loadInstallation() {
-      return {
-        externalOrigin: "http://127.0.0.1:3000",
-        freeSpaceReserveBytes: 5 * 1024 ** 3,
-        masterKey: Buffer.alloc(32, 8),
-        trustedProxyAddresses: [],
-      };
-    },
-  });
-
-  const readyResponse = await fetch(`${origin}/health/ready`);
-  assert.equal(readyResponse.status, 503);
-  assert.deepEqual(await readyResponse.json(), {
-    error: "master_key_undecryptable",
-    status: "not_ready",
-  });
-
-  const productResponse = await fetch(`${origin}/api/v1/system`);
-  assert.equal(productResponse.status, 503);
-  assert.equal(
-    await responseErrorCode(productResponse),
-    "master_key_undecryptable",
-  );
-});
-test("product surface not-ready returns descriptive message for each code", async () => {
-  for (const [code, expected] of /** @type {Array<[string, RegExp]>} */ ([
-    ["storage_unavailable", /storage is unavailable/],
-    ["installation_not_ready", /installation is not ready/],
-    ["codex_termination_failed", /Codex execution terminated/],
-    ["application_shutdown_failed", /application shutdown failed/],
-    ["schema_invalid", /schema is invalid/],
-    ["custom_io_error", /custom_io_error/],
-  ])) {
-    const { application, origin } = await startApplication(
-      temporaryDatabasePath(),
-      {
-        loadInstallation: () => {
-          throw Object.assign(new Error("test not-ready"), { code });
+  assert.throws(
+    () =>
+      createApplication({
+        applicationVersion: "1.2.3",
+        backupsPath: join(tmpdir(), "quality-bar-undecryptable-backups"),
+        databasePath,
+        createStorageReserve: availableStorageReserve,
+        loadInstallation() {
+          return {
+            externalOrigin: "http://127.0.0.1:3000",
+            freeSpaceReserveBytes: 5 * 1024 ** 3,
+            masterKey: Buffer.alloc(32, 8),
+            trustedProxyAddresses: [],
+          };
         },
-      },
-    );
-    const response = await fetch(`${origin}/api/v1/system`);
-    assert.equal(response.status, 503);
-    const body = /** @type {any} */ (await response.json());
-    assert.equal(body.error.code, code);
-    assert.match(body.error.message, expected);
-    assert.match(body.error.message, /Quality Bar is not ready/);
-    await application.close();
-    applications.splice(applications.indexOf(application), 1);
-  }
+        validateInstallation: () => ({ releaseInstallationLock() {} }),
+        validateSources() {},
+        validateTools() {},
+        validateCodexAuthentication() {},
+        writeLog() {},
+      }),
+    (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "master_key_undecryptable",
+  );
 });

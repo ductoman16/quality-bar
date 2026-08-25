@@ -41,7 +41,6 @@ import { createAutomaticEvaluationAdmission } from "./evaluation-automatic-admis
 import { readLiveCodexCapabilityFailure as readCapabilityFailure } from "../codex/codex-capability-gate.js";
 
 export { EvaluationError };
-export { createUnavailableEvaluationService } from "./evaluation-unavailable.js";
 
 /**
  * @param {{
