@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableReviewService } from "../src/review/review.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
-import { createUnavailableEvaluationService } from "../src/evaluation/evaluation.js";
 import { createApplicationServer } from "../src/server.js";
-import { createUnavailableWaiverAdjudicatorConfigurationService } from "../src/waiver/waiver-adjudicator-configuration.js";
+import {
+  stubUnavailableEvaluationService,
+  stubUnavailableForgejoConnectionService,
+  stubUnavailableGitHubConnectionService,
+  stubUnavailableReviewService,
+  stubUnavailableWaiverAdjudicatorConfigurationService,
+} from "./service-stubs-support.js";
 import { startApplication } from "./browser-session-component-support.js";
 
 /** @param {Response} response */
@@ -220,13 +222,13 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       read: () => 1,
       set: (/** @type {unknown} */ value) => value,
     },
-    evaluations: createUnavailableEvaluationService(
+    evaluations: stubUnavailableEvaluationService(
       new Error("unused Evaluation"),
     ),
-    githubConnections: createUnavailableGitHubConnectionService(
+    githubConnections: stubUnavailableGitHubConnectionService(
       new Error("unused GitHub Connection"),
     ),
-    forgejoConnections: unavailableForgejoConnectionService(
+    forgejoConnections: stubUnavailableForgejoConnectionService(
       new Error("unused Forgejo Connection"),
     ),
     browserSessions: {
@@ -285,7 +287,7 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
     readDurableCoreStatus: () => ({ status: "ready" }),
     readSystemStatus: () => ({}),
     waiverAdjudicatorConfiguration:
-      createUnavailableWaiverAdjudicatorConfigurationService(
+      stubUnavailableWaiverAdjudicatorConfigurationService(
         new Error("unused Waiver Adjudicator Configuration"),
       ),
     repositories: {
@@ -324,7 +326,7 @@ test("browser activity makes an unexpected authority-recording failure secret-sa
       },
     },
     reviews: {
-      ...createUnavailableReviewService(
+      ...stubUnavailableReviewService(
         new Error("unused Review service operation"),
       ),
       list() {

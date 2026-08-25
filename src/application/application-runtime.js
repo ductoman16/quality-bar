@@ -75,27 +75,14 @@ export function structuredLog(
 
 /**
  * @param {{assertAvailable: () => unknown}} storageBoundary
- * @param {{assertCodexStartAvailable: () => unknown, assertWorkAdmissionAvailable: () => unknown, cleanupEligibleData: () => unknown} | null} storageReserve
- * @param {CodedError | null} startupFailure
+ * @param {{assertCodexStartAvailable: () => unknown, assertWorkAdmissionAvailable: () => unknown, cleanupEligibleData: () => unknown}} storageReserve
  */
 export function requireAvailableStorageReserve(
   storageBoundary,
   storageReserve,
-  startupFailure,
 ) {
   storageBoundary.assertAvailable();
-  if (!storageReserve) {
-    throw startupFailure;
-  }
   return storageReserve;
-}
-
-/** @param {() => CodedError | null} readFailure */
-export function createUnavailableCodexConcurrency(readFailure) {
-  const unavailable = () => {
-    throw readFailure();
-  };
-  return { read: unavailable, set: unavailable };
 }
 
 /** @param {CodedError | null} failure */
@@ -117,20 +104,17 @@ export function createWorkerSignal(storageBoundary, shutdownBoundary) {
  * @param {{failure: CodedError | null}} storageBoundary
  * @param {{failure: CodedError | null}} executionRuntime
  * @param {{failure: CodedError | null}} shutdownBoundary
- * @param {() => CodedError | null} readStartupFailure
  */
 export function createDurableCoreStatusReader(
   storageBoundary,
   executionRuntime,
   shutdownBoundary,
-  readStartupFailure,
 ) {
   return () => {
     const error =
       storageBoundary.failure ??
       executionRuntime.failure ??
-      shutdownBoundary.failure ??
-      readStartupFailure();
+      shutdownBoundary.failure;
     return error
       ? { error: error.code, status: "not_ready" }
       : { status: "ready" };

@@ -7,8 +7,10 @@ import { test } from "node:test";
 
 import { createApplication } from "../src/application/application.js";
 import { createHardStorageBoundary } from "../src/application/application-runtime.js";
-import { unavailableForgejoConnectionService } from "../src/forgejo/forgejo-connection.js";
-import { createUnavailableGitHubConnectionService } from "../src/github/github-connection.js";
+import {
+  stubUnavailableForgejoConnectionService,
+  stubUnavailableGitHubConnectionService,
+} from "./service-stubs-support.js";
 import { availableStorageReserve } from "./storage-reserve-support.js";
 
 test("the hard storage boundary requires one exact shutdown owner", () => {
@@ -41,7 +43,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
     },
     createForgejoConnections() {
       return {
-        ...unavailableForgejoConnectionService(connectionFailure),
+        ...stubUnavailableForgejoConnectionService(connectionFailure),
         destroy() {
           stopped.push("forgejo");
         },
@@ -50,7 +52,7 @@ test("hard storage failure stops work, terminates Codex, and rejects every produ
     },
     createGitHubConnections() {
       return {
-        ...createUnavailableGitHubConnectionService(connectionFailure),
+        ...stubUnavailableGitHubConnectionService(connectionFailure),
         destroy() {
           stopped.push("github");
         },

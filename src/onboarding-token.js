@@ -67,20 +67,6 @@ function publicToken(row) {
   };
 }
 
-/** @param {unknown} error */
-export function createUnavailableOnboardingTokenService(error) {
-  const unavailable = () => {
-    throw error;
-  };
-  return {
-    authenticate: unavailable,
-    create: unavailable,
-    list: unavailable,
-    revoke: unavailable,
-    selfRevoke: unavailable,
-  };
-}
-
 export function createOnboardingTokenService(
   /** @type {ReturnType<typeof import("./durable/durable-core.js").openDurableCore>} */
   durableCore,

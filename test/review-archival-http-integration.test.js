@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableReviewService } from "../src/review/review.js";
+import { stubUnavailableReviewService } from "./service-stubs-support.js";
 import {
   responseErrorCode,
   reviewRequest,
@@ -141,7 +141,7 @@ test("an unexpected Review archival failure surfaces its exact owning error", as
   const failure = new Error("exact Review archival failure");
   const { request } = await startApplication({
     createReviews() {
-      return createUnavailableReviewService(failure);
+      return stubUnavailableReviewService(failure);
     },
   });
   const login = await request("/api/v1/session/login", {

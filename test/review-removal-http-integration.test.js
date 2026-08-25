@@ -7,7 +7,7 @@ import {
   reviewRequest,
   startApplication,
 } from "./review-http-integration-support.js";
-import { createUnavailableReviewService } from "../src/review/review.js";
+import { stubUnavailableReviewService } from "./service-stubs-support.js";
 
 test("the canonical Review resource deletes only a never-used lineage", async () => {
   const { application, request } = await startApplication();
@@ -117,7 +117,7 @@ test("an unexpected Review deletion failure surfaces its exact owning error", as
   const failure = new Error("exact Review deletion failure");
   const { request } = await startApplication({
     createReviews() {
-      return createUnavailableReviewService(failure);
+      return stubUnavailableReviewService(failure);
     },
   });
   const headers = await authenticatedOperatorHeaders(request);

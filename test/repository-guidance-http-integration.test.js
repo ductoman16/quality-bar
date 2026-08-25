@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createUnavailableRepositoryGuidanceService } from "../src/repository/repository-guidance.js";
+import { stubUnavailableRepositoryGuidanceService } from "./service-stubs-support.js";
 import { createReviewService } from "../src/review/review.js";
 import {
   authenticatedOperatorHeaders,
@@ -145,7 +145,7 @@ test("Repository Guidance surfaces its exact owning unavailability without a par
   );
   const { application, request } = await startApplication({
     createRepositoryGuidance() {
-      return createUnavailableRepositoryGuidanceService(unavailable);
+      return stubUnavailableRepositoryGuidanceService(unavailable);
     },
   });
   const token = application.implementerTokens.create(
