@@ -1,4 +1,4 @@
-import { GITHUB_COMMIT_STATUS_CONTEXT } from "./github-commit-status.js";
+import { COMMIT_STATUS_CONTEXT as GITHUB_COMMIT_STATUS_CONTEXT } from "../forge/commit-status/status.js";
 
 /** @param {unknown} value */
 function object(value) {

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  GITHUB_COMMIT_STATUS_CONTEXT,
-  githubCommitStatusForEvaluation,
-} from "../src/github/github-commit-status.js";
+  COMMIT_STATUS_CONTEXT as GITHUB_COMMIT_STATUS_CONTEXT,
+  commitStatusForEvaluation as githubCommitStatusForEvaluation,
+} from "../src/forge/commit-status/status.js";
 
 test("Quality Bar maps Evaluation truth to one stable GitHub status", () => {
   assert.equal(GITHUB_COMMIT_STATUS_CONTEXT, "Quality Bar");

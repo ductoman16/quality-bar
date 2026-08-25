@@ -1,4 +1,4 @@
-export const GITHUB_COMMIT_STATUS_CONTEXT = "Quality Bar";
+export const COMMIT_STATUS_CONTEXT = "Quality Bar";
 
 const STATUS_BY_OUTCOME = Object.freeze({
   advisory: Object.freeze({
@@ -24,7 +24,7 @@ const STATUS_BY_OUTCOME = Object.freeze({
 });
 
 /** @param {unknown} outcome */
-export function githubCommitStatusForEvaluation(outcome) {
+export function commitStatusForEvaluation(outcome) {
   if (typeof outcome !== "string" || !(outcome in STATUS_BY_OUTCOME)) {
     throw new TypeError("Evaluation outcome is invalid");
   }
