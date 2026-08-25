@@ -63,7 +63,7 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
             id: token === "wrong-principal-pat" ? 8 : 7,
             login: "operator",
           },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [repository],
           scopes: ["read:repository", "write:issue", "write:repository"],
@@ -98,7 +98,7 @@ test("SQLite preserves completed Forgejo evidence when replacement identity mism
       error_message:
         "Replacement Forgejo PAT does not match the configured Connection",
       principal: JSON.stringify({ id: 8, login: "operator" }),
-      profile: "forgejo-v16",
+      profile: "forgejo",
       reported_version: "16.0.4",
       repositories: JSON.stringify([repository]),
       scopes: JSON.stringify([
@@ -262,7 +262,7 @@ test("SQLite rejects a stale failed rotation after another replacement succeeds"
         return {
           capabilities: { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: [repository],
           scopes: ["read:repository", "write:issue", "write:repository"],

@@ -15,7 +15,7 @@ import {
 } from "./github-selection.js";
 
 const connection = {
-  api_profile: "forgejo-v16",
+  api_profile: "forgejo",
   base_url: "https://forgejo.example",
   capabilities: {},
   health: "healthy",
@@ -38,7 +38,7 @@ const connection = {
   scopes: ["read:repository", "write:issue", "write:repository"],
   verification_history: [
     {
-      api_profile: "forgejo-v16",
+      api_profile: "forgejo",
       capabilities: {},
       error: null,
       id: "verification-1",

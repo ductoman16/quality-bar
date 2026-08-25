@@ -17,7 +17,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   let current = null;
   const verificationHistory = [
     {
-      api_profile: "forgejo-v16",
+      api_profile: "forgejo",
       capabilities: {},
       error: null,
       id: "verification-1",
@@ -60,7 +60,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             new Error(
               conflict === "connection"
                 ? "A Forgejo Connection is already configured"
-                : "Forgejo Connection requires stable v16.x",
+                : "Forgejo Connection requires a supported stable release",
             ),
             {
               code:
@@ -76,7 +76,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
           calls.push(input);
           if (conflict === "rotation") {
             current = {
-              api_profile: "forgejo-v16",
+              api_profile: "forgejo",
               base_url: "https://forgejo.example",
               capabilities: {},
               health: "error",
@@ -102,7 +102,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             );
           }
           return {
-            api_profile: "forgejo-v16",
+            api_profile: "forgejo",
             base_url: "https://forgejo.example",
             capabilities: {},
             health: "healthy",
@@ -129,7 +129,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             );
           }
           return {
-            api_profile: "forgejo-v16",
+            api_profile: "forgejo",
             base_url: "https://forgejo.example",
             capabilities: {},
             health: "healthy",
@@ -156,7 +156,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
             );
           }
           return {
-            api_profile: "forgejo-v16",
+            api_profile: "forgejo",
             base_url: "https://forgejo.example",
             capabilities: {},
             health: "healthy",
@@ -256,7 +256,7 @@ test("Forgejo Connection HTTP registration keeps PAT input write-only and preser
   assert.equal(read.status, 200);
   assert.equal(await read.json(), null);
   current = {
-    api_profile: "forgejo-v16",
+    api_profile: "forgejo",
     base_url: "https://forgejo.example",
     capabilities: {},
     health: "healthy",

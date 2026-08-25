@@ -331,7 +331,7 @@ test("Forgejo recovery health gate preserves the latest verification failure", (
        principal_login, scopes, capabilities, health, created_at, verified_at
      ) VALUES (
        'forgejo-1', 'https://forgejo.example.test',
-       'forgejo-v16', '11.0.0', 7, 'operator',
+       'forgejo', '11.0.0', 7, 'operator',
        '[]', '{}', 'error', 1, 2
      )`,
   );
@@ -341,7 +341,7 @@ test("Forgejo recovery health gate preserves the latest verification failure", (
        scopes, capabilities, repositories, error_code, error_message,
        verified_at
      ) VALUES (
-       'forgejo-success', 'forgejo-1', 'onboarding', 'forgejo-v16', '11.0.0',
+       'forgejo-success', 'forgejo-1', 'onboarding', 'forgejo', '11.0.0',
        '{"id":7,"login":"operator"}', '[]', '{}', '[]', NULL, NULL, 1
      )`,
   );

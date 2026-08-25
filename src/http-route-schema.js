@@ -1,4 +1,4 @@
-import { withValidationError } from "./canonical/canonical-schema.js";
+import { withValidationError } from "./canonical/schema.js";
 
 const errorResponse = { $ref: "ErrorResponse#" };
 

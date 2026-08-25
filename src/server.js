@@ -8,7 +8,7 @@ import {
   createBrowserSessionOperations,
   recordBrowserSessionBoundaryFailure,
 } from "./browser-session-route.js";
-import { createCanonicalComponents } from "./canonical/canonical-api-components.js";
+import { createCanonicalComponents } from "./canonical/schema.js";
 import { readCodexCapabilityCatalog } from "./codex/codex-capabilities.js";
 import { createCodexExecutionConcurrencyOperations } from "./codex/codex-execution-concurrency-route.js";
 import { createEvaluationOperations } from "./evaluation/evaluation-route.js";

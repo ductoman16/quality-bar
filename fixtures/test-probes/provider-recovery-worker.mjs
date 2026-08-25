@@ -2,7 +2,7 @@ import { createIoExecutionPool } from "../../src/io-execution-pool.js";
 import { openDurableCore } from "../../src/durable/durable-core.js";
 import { createForgejoCommitStatusService } from "../../src/forgejo/forgejo-commit-status-service.js";
 import { createForgejoFeedbackService } from "../../src/forgejo/forgejo-feedback-service.js";
-import { createForgejoV16Verifier } from "../../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../../src/forgejo/forgejo-verifier.js";
 import { createForgejoPollingService } from "../../src/forgejo/forgejo-polling.js";
 import { createGitHubCommitStatusService } from "../../src/github/github-commit-status-service.js";
 import { createGitHubFeedbackService } from "../../src/github/github-feedback-service.js";
@@ -33,7 +33,7 @@ const providerHarness = createProviderHarness({
 const providerVerifier = /** @type {any} */ (
   provider === "github"
     ? createGitHubVerifier({ fetch: providerHarness.fetch, now: () => now })
-    : createForgejoV16Verifier({
+    : createForgejoVerifier({
         fetch: providerHarness.fetch,
         now: () => now,
       })

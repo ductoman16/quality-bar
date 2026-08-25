@@ -1,5 +1,5 @@
 import { forgejoConnectionSchema } from "../forgejo/forgejo-connection-http-schema.js";
-import { withValidationError } from "../canonical/canonical-schema.js";
+import { withValidationError } from "../canonical/schema.js";
 
 const forgejoUrl = withValidationError(
   { format: "uri", type: "string" },
@@ -12,7 +12,7 @@ export const forgejoSchemas = {
     anyOf: [{ $ref: "ForgejoConnection#" }, { type: "null" }],
   },
   ForgejoConnection: forgejoConnectionSchema,
-  VerifyForgejoV16ConnectionRequest: {
+  VerifyForgejoConnectionRequest: {
     additionalProperties: false,
     properties: {
       base_url: forgejoUrl,
@@ -27,12 +27,12 @@ export const forgejoSchemas = {
     required: ["base_url", "repository_ids", "token"],
     type: "object",
   },
-  DiscoverForgejoV16Repositories200Response: {
+  DiscoverForgejoRepositories200Response: {
     items: { additionalProperties: true, type: "object" },
     minItems: 1,
     type: "array",
   },
-  DiscoverForgejoV16RepositoriesRequest: {
+  DiscoverForgejoRepositoriesRequest: {
     additionalProperties: false,
     properties: {
       base_url: forgejoUrl,
@@ -74,7 +74,7 @@ export const forgejoRoutes = [
       response: {
         200: {
           $ref: "GetForgejoConnection200Response#",
-          description: "The single verified Forgejo v16 Connection",
+          description: "The single verified Forgejo Connection",
         },
         ...errorResponses(400, 401, 403, 500, 503),
       },
@@ -89,7 +89,7 @@ export const forgejoRoutes = [
         "Forgejo Connection request is invalid",
         422,
       ),
-      operationId: "verifyForgejoV16Connection",
+      operationId: "verifyForgejoConnection",
       security: [
         {
           browser_session: [],
@@ -104,7 +104,7 @@ export const forgejoRoutes = [
         ...errorResponses(400, 401, 403, 409, 422, 500, 503),
       },
       body: {
-        $ref: "VerifyForgejoV16ConnectionRequest#",
+        $ref: "VerifyForgejoConnectionRequest#",
       },
     },
     url: "/api/v1/forgejo-connections",
@@ -117,7 +117,7 @@ export const forgejoRoutes = [
         "Forgejo Connection request is invalid",
         422,
       ),
-      operationId: "discoverForgejoV16Repositories",
+      operationId: "discoverForgejoRepositories",
       security: [
         {
           browser_session: [],
@@ -125,14 +125,14 @@ export const forgejoRoutes = [
       ],
       response: {
         200: {
-          $ref: "DiscoverForgejoV16Repositories200Response#",
+          $ref: "DiscoverForgejoRepositories200Response#",
           description:
             "Verified accessible Forgejo Repositories for explicit selection",
         },
         ...errorResponses(400, 401, 403, 422, 500, 503),
       },
       body: {
-        $ref: "DiscoverForgejoV16RepositoriesRequest#",
+        $ref: "DiscoverForgejoRepositoriesRequest#",
       },
     },
     url: "/api/v1/forgejo-connections/discover",

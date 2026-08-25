@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { acquireForgejoAutomaticEvaluations } from "../src/forgejo/forgejo-automatic-evaluation-admission.js";
 import { newlyEligibleForgejoPullRequests } from "../src/forgejo/forgejo-automatic-evaluation.js";
 import { ApplicationShutdownError } from "../src/application/application-shutdown.js";
-import { createForgejoV16Verifier } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoVerifier } from "../src/forgejo/forgejo-verifier.js";
 import { StorageReserveError } from "../src/storage-reserve.js";
 
 /** @param {boolean} draft @param {number} [number] @param {object} [overrides] */
@@ -22,8 +22,8 @@ function pullRequest(draft, number = 17, overrides = {}) {
   };
 }
 
-test("Forgejo v16 fixture turns a newly ready provider snapshot into acquisition input", async () => {
-  const verifier = createForgejoV16Verifier({
+test("Forgejo fixture turns a newly ready provider snapshot into acquisition input", async () => {
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       return Response.json(
         new URL(url).searchParams.get("page") === "1"
@@ -69,12 +69,12 @@ test("Forgejo v16 fixture turns a newly ready provider snapshot into acquisition
   ]);
 });
 
-test("Forgejo v16 fixture preserves reopen and pair changes while ignoring target-tip-only changes", async () => {
+test("Forgejo fixture preserves reopen and pair changes while ignoring target-tip-only changes", async () => {
   let response = [
     pullRequest(false, 17, { state: "closed" }),
     pullRequest(false, 19),
   ];
-  const verifier = createForgejoV16Verifier({
+  const verifier = createForgejoVerifier({
     async fetch(url) {
       return Response.json(
         new URL(url).searchParams.get("page") === "1" ? response : [],

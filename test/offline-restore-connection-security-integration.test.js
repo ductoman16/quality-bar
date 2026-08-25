@@ -62,7 +62,7 @@ function insertConnection(core, connection) {
          id, base_url, api_profile, reported_version, principal_id,
          principal_login, scopes, capabilities, health, created_at, verified_at
        ) VALUES ('forgejo-connection', 'https://forgejo.example',
-                 'forgejo-v16', '16.0.1', 5, 'operator', '[]', '{}',
+                 'forgejo', '16.0.1', 5, 'operator', '[]', '{}',
                  'healthy', 100, 100)`,
     );
   }

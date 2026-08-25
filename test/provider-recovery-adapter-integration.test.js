@@ -9,7 +9,7 @@ import { createIoExecutionPool } from "../src/io-execution-pool.js";
 import { createGitHubVerifier } from "../src/github/github-api.js";
 import { createGitHubCommitStatusService } from "../src/github/github-commit-status-service.js";
 import { createForgejoCommitStatusService } from "../src/forgejo/forgejo-commit-status-service.js";
-import { createForgejoV16Publisher } from "../src/forgejo/forgejo-v16.js";
+import { createForgejoPublisher } from "../src/forgejo/forgejo-verifier.js";
 import { openDurableCore } from "../src/durable/durable-core.js";
 import { arrangeForgejoFeedback } from "./forgejo-feedback-publication-support.js";
 import { arrangeGitHubCommitStatus } from "./github-commit-status-publication-support.js";
@@ -131,7 +131,7 @@ test("Forgejo publication service recovers a malformed adapter response before s
     "https://quality-bar.example/?view=evaluations&evaluation_id=evaluation-1";
   /** @type {{method: string, path: string}[]} */
   const requests = [];
-  const publisher = createForgejoV16Publisher({
+  const publisher = createForgejoPublisher({
     fetch: async (requestUrl, options = {}) => {
       const url = new URL(requestUrl);
       requests.push({ method: options.method ?? "GET", path: url.pathname });

@@ -59,7 +59,7 @@ test("SQLite rotates global delivery authority with no active Forgejo Repositori
                 }
               : { private_git_read: "verified" },
           principal: { id: 7, login: "operator" },
-          profile: "forgejo-v16",
+          profile: "forgejo",
           reported_version: "16.0.4",
           repositories: input.repositoryIds?.length === 0 ? [] : [repository],
           scopes: ["read:repository", "write:issue", "write:repository"],

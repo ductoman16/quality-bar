@@ -3,7 +3,7 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     id TEXT PRIMARY KEY,
     singleton INTEGER NOT NULL DEFAULT 1 CHECK (singleton = 1) UNIQUE,
     base_url TEXT NOT NULL UNIQUE,
-    api_profile TEXT NOT NULL CHECK (api_profile = 'forgejo-v16'),
+    api_profile TEXT NOT NULL CHECK (api_profile = 'forgejo'),
     reported_version TEXT NOT NULL,
     principal_id INTEGER NOT NULL CHECK (principal_id > 0),
     principal_login TEXT NOT NULL CHECK (length(principal_login) > 0),
@@ -26,7 +26,7 @@ export const FORGEJO_CONNECTION_SCHEMA = `
     trigger TEXT NOT NULL CHECK (
       trigger IN ('onboarding', 'enablement', 'rotation', 'manual_test', 'capability_drift')
     ),
-    profile TEXT CHECK (profile IS NULL OR profile = 'forgejo-v16'),
+    profile TEXT CHECK (profile IS NULL OR profile = 'forgejo'),
     reported_version TEXT,
     principal TEXT CHECK (principal IS NULL OR json_valid(principal)),
     scopes TEXT CHECK (scopes IS NULL OR json_valid(scopes)),
