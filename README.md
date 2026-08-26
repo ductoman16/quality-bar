@@ -37,7 +37,7 @@ fi
 docker compose config --quiet
 docker compose stop quality-bar
 docker compose build quality-bar
-docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.js
+docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.ts
 docker compose run --rm --no-deps quality-bar codex login --device-auth
 docker compose up --detach --wait
 curl --fail http://127.0.0.1:3000/health/live
@@ -66,7 +66,7 @@ All of this exists for one reason: Codex CLI spawns its own sandboxed subprocess
 **Mitigations already in place:**
 
 - The process runs as an unprivileged UID (`10001:10001`), never as root, so the elevated capabilities are still gated by discretionary access control on that user.
-- The HTTP server binds only to `127.0.0.1` ([src/main.js](src/main.js)), never a routable interface; [#437](https://github.com/ductoman16/quality-bar/issues/437) additionally drops `network_mode: host` in favor of a bridge network with the published port bound to `127.0.0.1`, removing host network-namespace sharing without changing reachability.
+- The HTTP server binds only to `127.0.0.1` ([src/main.ts](src/main.ts)), never a routable interface; [#437](https://github.com/ductoman16/quality-bar/issues/437) additionally drops `network_mode: host` in favor of a bridge network with the published port bound to `127.0.0.1`, removing host network-namespace sharing without changing reachability.
 - Egress is restricted to registered forge (Git hosting) APIs and Codex/OpenAI endpoints — see [Operator authority recovery](#operator-authority-recovery) for the firewall requirement.
 
 **Path to removal:** [#428](https://github.com/ductoman16/quality-bar/issues/428) tracks migrating Codex execution onto the [omp.sh](https://omp.sh) harness, which would own subprocess sandboxing outside this container. Once that migration lands, `SYS_ADMIN`, `SYS_CHROOT`, `SYS_PTRACE`, and the AppArmor/seccomp opt-outs become unnecessary and can be dropped from `compose.yaml`.
@@ -107,7 +107,7 @@ The command writes only to the named state volume. A missing or invalid login le
 Before starting Quality Bar for the first time, set the single operator password from the host. Keep the service stopped while the command runs so it can take the installation lock:
 
 ```sh
-docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.js
+docker compose run --rm --no-deps quality-bar node src/bootstrap-operator-password.ts
 ```
 
 Enter the password at the terminal, or pipe it on standard input. It must contain at least 15 characters. The command takes no password argument and reads no password environment variable; it stores only a salted memory-hard verifier. It succeeds only when no operator password exists.
@@ -117,7 +117,7 @@ Enter the password at the terminal, or pipe it on standard input. It must contai
 If the operator password is lost, stop Quality Bar and replace it from the host:
 
 ```sh
-docker compose run --rm --no-deps quality-bar node src/recover-operator-authority.js
+docker compose run --rm --no-deps quality-bar node src/recover-operator-authority.ts
 ```
 
 Enter the replacement password at the terminal, or pipe it on standard input. The command takes no password argument and reads no password environment variable. It atomically replaces the password verifier, revokes every browser session and the active implementer token, and clears the failed-login delay. Machine access remains disabled until the operator creates a new implementer token through the authenticated product surface.
@@ -130,7 +130,7 @@ To remove all Quality Bar-owned application state, stop the service first and ru
 
 ```sh
 docker compose stop quality-bar
-docker compose run --rm --no-deps quality-bar node src/delete-installation.js
+docker compose run --rm --no-deps quality-bar node src/delete-installation.ts
 ```
 
 The command fails while the service holds the installation lock. On success it clears the SQLite state and persistent Codex login, disposable checkouts, and local backup contents. Configuration, the installation master-key file, and operator-managed off-host copies are outside the deletion boundary and remain the operator's responsibility.
@@ -141,7 +141,7 @@ Startup validates SQLite integrity and applies the current schema before serving
 
 ```sh
 docker compose stop quality-bar
-docker compose run --rm --no-deps quality-bar node src/restore-backup.js /var/backups/quality-bar/quality-bar-daily-<timestamp>.json
+docker compose run --rm --no-deps quality-bar node src/restore-backup.ts /var/backups/quality-bar/quality-bar-daily-<timestamp>.json
 docker compose up --detach --wait
 ```
 

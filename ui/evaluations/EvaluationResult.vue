@@ -1,8 +1,8 @@
 <script setup>
 import { computed, reactive } from "vue";
 
-import { requireStatus } from "../browser.js";
-import { validReviewRunDiagnostics } from "./contract.js";
+import { requireStatus } from "../browser.ts";
+import { validReviewRunDiagnostics } from "./contract.ts";
 
 const props = defineProps({
   evaluation: { required: true, type: Object },

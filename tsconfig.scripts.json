@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.node.json",
-  "include": [
-    "eslint.config.js",
-    "scripts/**/*.mjs",
-    "fixtures/package/**/*.mjs"
-  ]
-}

@@ -6,13 +6,13 @@ import {
   requireStatus,
   responseError,
   responseMessage,
-} from "../browser.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+} from "../browser.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 import {
   validConfiguration,
   validConfigurationChange,
   validSystem,
-} from "./contract.js";
+} from "./contract.ts";
 import SystemPollingDelivery from "./SystemPollingDelivery.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });

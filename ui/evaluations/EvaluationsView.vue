@@ -2,8 +2,8 @@
 import { nextTick, ref } from "vue";
 
 import EvaluationRow from "./EvaluationRow.vue";
-import { useEvaluations } from "./useEvaluations.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+import { useEvaluations } from "./useEvaluations.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const state = useEvaluations(props.csrfCookieName);

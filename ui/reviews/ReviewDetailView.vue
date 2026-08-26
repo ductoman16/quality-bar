@@ -5,15 +5,15 @@ import {
   repositoryCollection,
   requireStatus,
   responseMessage,
-} from "../browser.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+} from "../browser.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 import {
   matchesReviewVersion,
   readModelCatalog,
   readReviewCollection,
   validReview,
   validReviewChange,
-} from "./contract.js";
+} from "./contract.ts";
 import ReviewEditor from "./ReviewEditor.vue";
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const id = new URLSearchParams(location.search).get("review_id");

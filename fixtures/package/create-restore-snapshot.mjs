@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   createValidatedBackup,
   installationKeyIdentity,
-} from "../../src/sqlite-backup.js";
+} from "../../src/sqlite-backup.ts";
 
 const [applicationVersion, encodedMasterKey] = process.argv.slice(2);
 if (!applicationVersion || !encodedMasterKey) {

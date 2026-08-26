@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from "vue";
 
-import { isTerminalStatus, nodeVisualState } from "./contract.js";
-import { formatDuration } from "./duration.js";
+import { isTerminalStatus, nodeVisualState } from "./contract.ts";
+import { formatDuration } from "./duration.ts";
 
 const props = defineProps({
   evaluation: { required: true, type: Object },

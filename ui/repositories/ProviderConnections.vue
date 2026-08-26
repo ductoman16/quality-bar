@@ -4,7 +4,7 @@ import {
   csrfRequest,
   repositoryCollection,
   requireStatus,
-} from "../browser.js";
+} from "../browser.ts";
 import ConnectionLifecycleDialog from "./ConnectionLifecycleDialog.vue";
 import ConnectionLifecycleActions from "./ConnectionLifecycleActions.vue";
 import GitHubManifestContinuation from "./GitHubManifestContinuation.vue";
@@ -14,19 +14,19 @@ import {
   validForgejoChoices,
   validForgejoConnection,
   validGitHubConnection,
-} from "./contract.js";
+} from "./contract.ts";
 import {
   githubRepositoryChoices,
   reconciledGitHubSelection,
   registerGitHubSelection,
   requestGitHubManifest,
-} from "./github-selection.js";
+} from "./github-selection.ts";
 import {
   readProviderConnection,
   requestConnectionLifecycle,
   requestProviderReactivation,
   rethrowAfterRefresh,
-} from "./provider-lifecycle.js";
+} from "./provider-lifecycle.ts";
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const emit = defineEmits(["changed", "error"]);
 const github = ref(null),

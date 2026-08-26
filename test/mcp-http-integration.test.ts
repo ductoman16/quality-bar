@@ -1,0 +1,426 @@
+import assert from "node:assert/strict";
+import { request as httpRequest } from "node:http";
+import { test } from "node:test";
+
+import { createReviewService } from "../src/review/review.ts";
+import { startApplication } from "./http-integration-support.ts";
+import { reviewRequest } from "./review-http-integration-support.ts";
+
+const MCP_PROTOCOL_VERSION = "2025-11-25";
+
+function mcpHeaders(token: string, headers: Record<string, string> = {}) {
+  return {
+    accept: "application/json, text/event-stream",
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    ...headers,
+  };
+}
+
+function requestMessage(method: string, params: unknown, id: number = 1) {
+  return { id, jsonrpc: "2.0", method, params };
+}
+
+async function callMcp(
+  origin: string,
+  headers: Record<string, string>,
+  message: unknown,
+) {
+  const response = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(message),
+    headers,
+    method: "POST",
+  });
+  assert.equal(response.status, 200);
+  return (await response.json()) as any;
+}
+
+function requestMcpMethod(
+  origin: string,
+  headers: Record<string, string>,
+  method: string,
+) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      new URL("/mcp/v1", origin),
+      { headers, method },
+      (response) => {
+        response.resume();
+        response.once("end", () => resolve(response));
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
+}
+
+test("authenticated Streamable HTTP MCP initializes without a server session or excluded capabilities", async () => {
+  const { application, origin } = await startApplication();
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+
+  const initialized = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(
+      requestMessage("initialize", {
+        capabilities: {},
+        clientInfo: { name: "quality-bar-test", version: "1.0.0" },
+        protocolVersion: MCP_PROTOCOL_VERSION,
+      }),
+    ),
+    headers: mcpHeaders(token),
+    method: "POST",
+  });
+
+  assert.equal(initialized.status, 200);
+  assert.equal(initialized.headers.get("content-type"), "application/json");
+  assert.equal(initialized.headers.get("mcp-session-id"), null);
+  assert.deepEqual(await initialized.json(), {
+    id: 1,
+    jsonrpc: "2.0",
+    result: {
+      capabilities: { resources: {}, tools: {} },
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      serverInfo: { name: "quality-bar", version: "0.1.0" },
+    },
+  });
+
+  const negotiated = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(
+      requestMessage("initialize", {
+        capabilities: {},
+        clientInfo: { name: "quality-bar-test", version: "1.0.0" },
+        protocolVersion: "2025-06-18",
+      }),
+    ),
+    headers: mcpHeaders(token, {
+      accept: "application/json; q=1, text/event-stream; q=0.5",
+    }),
+    method: "POST",
+  });
+  assert.equal(negotiated.status, 200);
+  assert.equal(
+    ((await negotiated.json()) as any).result.protocolVersion,
+    MCP_PROTOCOL_VERSION,
+  );
+
+  for (const method of ["GET", "HEAD", "OPTIONS", "DELETE"]) {
+    const unsupported = await fetch(`${origin}/mcp/v1`, {
+      headers: mcpHeaders(token, {
+        "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+      }),
+      method,
+    });
+    assert.equal(unsupported.status, 405, method);
+    assert.equal(unsupported.headers.get("allow"), "POST");
+  }
+  for (const method of ["TRACE", "PROPFIND"]) {
+    const unsupported = (await requestMcpMethod(
+      origin,
+      mcpHeaders(token, {
+        "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+      }),
+      method,
+    )) as import("node:http").IncomingMessage;
+    assert.equal(unsupported.statusCode, 405, method);
+    assert.equal(unsupported.headers.allow, "POST", method);
+  }
+  const invalidQuery = await fetch(`${origin}/mcp/v1?unexpected=true`, {
+    body: JSON.stringify(requestMessage("ping", {})),
+    headers: mcpHeaders(token),
+    method: "POST",
+  });
+  assert.equal(invalidQuery.status, 200);
+  assert.deepEqual(await invalidQuery.json(), {
+    error: { code: -32600, message: "Invalid Request" },
+    id: null,
+    jsonrpc: "2.0",
+  });
+  const invalidOrigin = await fetch(`${origin}/mcp/v1`, {
+    headers: mcpHeaders(token, { origin: "https://attacker.example" }),
+  });
+  assert.equal(invalidOrigin.status, 403);
+  assert.equal(
+    ((await invalidOrigin.json()) as any).error.code,
+    "origin_invalid",
+  );
+});
+
+test("MCP exposes only the fixed Repository, Evaluation, and waiver tools and resource templates", async () => {
+  const { application, origin } = await startApplication();
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const headers = mcpHeaders(token, {
+    "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+  });
+
+  const toolResponse = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(requestMessage("tools/list", {}, 2)),
+    headers,
+    method: "POST",
+  });
+  assert.equal(toolResponse.status, 200);
+  const toolBody = (await toolResponse.json()) as any;
+  assert.deepEqual(
+    toolBody.result.tools.map(({ name }: { name: string }) => name),
+    [
+      "quality_bar.list_repositories",
+      "quality_bar.get_repository_guidance",
+      "quality_bar.request_evaluation",
+      "quality_bar.get_evaluation",
+      "quality_bar.get_evaluation_result",
+      "quality_bar.submit_waiver_requests",
+      "quality_bar.get_waiver_adjudication",
+    ],
+  );
+  assert.deepEqual(
+    toolBody.result.tools.map(
+      ({ inputSchema }: { inputSchema: { $schema: string } }) =>
+        inputSchema.$schema,
+    ),
+    Array(7).fill("https://json-schema.org/draft/2020-12/schema"),
+  );
+  assert.deepEqual(
+    toolBody.result.tools.map(
+      ({ inputSchema }: { inputSchema: { additionalProperties: boolean } }) =>
+        inputSchema.additionalProperties,
+    ),
+    Array(7).fill(false),
+  );
+
+  const templatesResponse = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(requestMessage("resources/templates/list", {}, 3)),
+    headers,
+    method: "POST",
+  });
+  assert.equal(templatesResponse.status, 200);
+  const templatesBody = (await templatesResponse.json()) as any;
+  assert.deepEqual(
+    templatesBody.result.resourceTemplates.map(
+      ({
+        mimeType,
+        uriTemplate,
+      }: {
+        mimeType: string;
+        uriTemplate: string;
+      }) => ({ mimeType, uriTemplate }),
+    ),
+    [
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/repositories/{repository_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/repositories/{repository_id}/guidance",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/evaluations/{evaluation_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/evaluations/{evaluation_id}/result",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/review-runs/{review_run_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/findings/{finding_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/waiver-requests/{waiver_request_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate:
+          "quality-bar://v1/waiver-adjudications/{waiver_adjudication_id}",
+      },
+      {
+        mimeType: "application/json",
+        uriTemplate: "quality-bar://v1/waiver-decisions/{waiver_decision_id}",
+      },
+    ],
+  );
+
+  const resourcesResponse = await fetch(`${origin}/mcp/v1`, {
+    body: JSON.stringify(requestMessage("resources/list", {}, 4)),
+    headers,
+    method: "POST",
+  });
+  assert.equal(resourcesResponse.status, 200);
+  assert.deepEqual(await resourcesResponse.json(), {
+    id: 4,
+    jsonrpc: "2.0",
+    result: { resources: [] },
+  });
+});
+
+test("MCP tools and resources return the canonical Repository and Guidance documents", async () => {
+  const { application, origin, request } = await startApplication();
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository/one",
+    "https://example.com/one.git",
+    1,
+    1,
+  );
+  application.durableCore.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository/two",
+    "https://example.com/two.git",
+    2,
+    2,
+  );
+  const reviews = createReviewService(application.durableCore, {
+    createId: (() => {
+      let next = 0;
+      return () => `mcp-guidance-${++next}`;
+    })(),
+    now: () => 3,
+  });
+  reviews.create(
+    reviewRequest({
+      description: "Keep MCP and HTTP documents equivalent.",
+      name: "MCP equivalence",
+    }),
+  );
+  const token = application.implementerTokens.create(
+    "a correct operator password",
+  );
+  const headers = mcpHeaders(token, {
+    "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+  });
+
+  const httpList = await request("/api/v1/repositories?limit=1", {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const httpListDocument = (await httpList.json()) as any;
+  const listed = await callMcp(
+    origin,
+    headers,
+    requestMessage(
+      "tools/call",
+      {
+        arguments: { limit: 1 },
+        name: "quality_bar.list_repositories",
+      },
+      5,
+    ),
+  );
+  assert.equal(listed.result.isError, false);
+  assert.deepEqual(Object.keys(httpListDocument).sort(), [
+    "items",
+    "next_cursor",
+  ]);
+  assert.deepEqual(Object.keys(listed.result.structuredContent).sort(), [
+    "items",
+    "next_cursor",
+  ]);
+  assert.deepEqual(
+    listed.result.structuredContent.items,
+    httpListDocument.items,
+  );
+  assert.equal(typeof httpListDocument.next_cursor, "string");
+  assert.equal(typeof listed.result.structuredContent.next_cursor, "string");
+  assert.deepEqual(
+    JSON.parse(listed.result.content[0].text),
+    listed.result.structuredContent,
+  );
+  assert.deepEqual(listed.result.content.slice(1), [
+    {
+      mimeType: "application/json",
+      name: "repository/one",
+      type: "resource_link",
+      uri: "quality-bar://v1/repositories/repository%2Fone",
+    },
+  ]);
+
+  const nextPage = await callMcp(
+    origin,
+    headers,
+    requestMessage(
+      "tools/call",
+      {
+        arguments: {
+          cursor: listed.result.structuredContent.next_cursor,
+          limit: 1,
+        },
+        name: "quality_bar.list_repositories",
+      },
+      10,
+    ),
+  );
+  assert.deepEqual(
+    nextPage.result.structuredContent.items.map(({ id }: { id: string }) => id),
+    ["repository/two"],
+  );
+
+  const located = await callMcp(
+    origin,
+    headers,
+    requestMessage(
+      "tools/call",
+      {
+        arguments: { remote_url: "https://example.com/two.git" },
+        name: "quality_bar.list_repositories",
+      },
+      6,
+    ),
+  );
+  assert.deepEqual(
+    located.result.structuredContent.items.map(({ id }: { id: string }) => id),
+    ["repository/two"],
+  );
+  assert.equal(located.result.structuredContent.next_cursor, null);
+
+  const httpGuidance = await request(
+    "/api/v1/repositories/repository%2Fone/guidance",
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  const guidanceDocument = await httpGuidance.json();
+  const guidance = await callMcp(
+    origin,
+    headers,
+    requestMessage(
+      "tools/call",
+      {
+        arguments: { repository_id: "repository/one" },
+        name: "quality_bar.get_repository_guidance",
+      },
+      7,
+    ),
+  );
+  assert.equal(guidance.result.isError, false);
+  assert.deepEqual(guidance.result.structuredContent, guidanceDocument);
+  assert.doesNotMatch(
+    JSON.stringify(guidance.result),
+    /codex_configuration|applicability_result/,
+  );
+
+  for (const [id, uri, expected] of [
+    [
+      8,
+      "quality-bar://v1/repositories/repository%2Fone",
+      httpListDocument.items[0],
+    ],
+    [
+      9,
+      "quality-bar://v1/repositories/repository%2Fone/guidance",
+      guidanceDocument,
+    ],
+  ]) {
+    const resource = await callMcp(
+      origin,
+      headers,
+      requestMessage("resources/read", { uri }, id),
+    );
+    assert.deepEqual(JSON.parse(resource.result.contents[0].text), expected);
+    assert.equal(resource.result.contents[0].mimeType, "application/json");
+    assert.equal(resource.result.contents[0].uri, uri);
+  }
+});

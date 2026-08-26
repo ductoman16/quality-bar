@@ -1,6 +1,6 @@
-import { openDurableCore } from "../../src/durable/durable-core.js";
-import { createReviewRunClaimService } from "../../src/review/review-run-claim.js";
-import { createCodexExecutionConcurrencyService } from "../../src/codex/codex-execution-concurrency.js";
+import { openDurableCore } from "../../src/durable/durable-core.ts";
+import { createReviewRunClaimService } from "../../src/review/review-run-claim.ts";
+import { createCodexExecutionConcurrencyService } from "../../src/codex/codex-execution-concurrency.ts";
 
 const [
   databasePath,

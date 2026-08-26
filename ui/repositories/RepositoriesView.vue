@@ -5,12 +5,12 @@ import {
   csrfToken,
   repositoryCollection,
   responseMessage,
-} from "../browser.js";
+} from "../browser.ts";
 import ProviderConnections from "./ProviderConnections.vue";
 import RepositoryActions from "./RepositoryActions.vue";
-import { validRepository } from "./contract.js";
-import { consumeGitHubCallbackFailure } from "./github-callback.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+import { validRepository } from "./contract.ts";
+import { consumeGitHubCallbackFailure } from "./github-callback.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repositories = ref([]);

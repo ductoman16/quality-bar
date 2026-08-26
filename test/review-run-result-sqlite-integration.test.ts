@@ -1,0 +1,384 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { openDurableCore } from "../src/durable/durable-core.ts";
+import { createEvaluationService } from "../src/evaluation/evaluation.ts";
+import { createReviewRunClaimService } from "../src/review/review-run-claim.ts";
+import { createReviewRunEvidenceService } from "../src/review/review-run-evidence.ts";
+import {
+  createReviewRunResultService,
+  ReviewRunExecutionError,
+} from "../src/review/review-run-result.ts";
+import { createReviewService } from "../src/review/review.ts";
+import { createQueuedReviewRun } from "./review-run-claim-support.ts";
+import { assertRejectedCandidatesStoreNothing } from "./review-run-result-sqlite-integration-support.ts";
+import { executeFailedReviewRun } from "./review-run-result-sqlite-integration-support.ts";
+
+test("the first valid fenced submission atomically preserves every complete Criterion Result meaning", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "quality-bar-result-"));
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  core.run(
+    "INSERT INTO repositories (id, normalized_url, created_at, verified_at) VALUES (?, ?, ?, ?)",
+    "repository-1",
+    "https://example.invalid/repository.git",
+    1,
+    1,
+  );
+  let fact = 0;
+  const review = createReviewService(core, {
+    createId: () => `result-fact-${++fact}`,
+    now: () => 2,
+  }).create({
+    assignment: { scope: "installation_wide" },
+    codex_configuration: {
+      model: "gpt-5.6-terra",
+      reasoning_effort: "high",
+      service_tier: "standard",
+    },
+    criteria: [
+      { impact: "blocking", instruction: "Triggered Criterion" },
+      { impact: "advisory", instruction: "Clear Criterion" },
+      { impact: "blocking", instruction: "Not-applicable Criterion" },
+      { impact: "advisory", instruction: "Error Criterion" },
+    ],
+    description: "Clear result proof",
+    name: "Clear result proof",
+  });
+  await createEvaluationService(core, {
+    acquireChangeset: async () => ({
+      base_commit: "1".repeat(40),
+      head_commit: "2".repeat(40),
+    }),
+    createId: () => "evaluation-1",
+    createReviewRunId: () => "review-run-1",
+    masterKey: Buffer.alloc(32, 7),
+    now: () => 10,
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  }).createExplicit({
+    channel: "browser_session",
+    idempotencyKey: "clear-result",
+    repositoryId: "repository-1",
+    request: {
+      base: { type: "branch", value: "main" },
+      head: { type: "branch", value: "topic" },
+    },
+  });
+  const claims = createReviewRunClaimService(core, {
+    createWorkerId: () => "worker-1",
+    now: () => 20,
+  });
+  const claim = claims.claimNext();
+  assert.ok(claim);
+  claims.start(claim, "0.145.0");
+  let finding = 0;
+  const results = createReviewRunResultService(core, {
+    createFindingId: () => `finding-${++finding}`,
+    now: () => 30,
+  });
+  const fileChanges = [
+    {
+      added: false,
+      after_path: "src/current.js",
+      base_line_count: 2,
+      before_path: "src/previous.js",
+      deleted: false,
+      head_line_count: 3,
+      id: "file-change-1",
+      modified: true,
+      patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+      renamed: true,
+    },
+  ];
+
+  const criterionIds = review.active_version.criteria.map(({ id }) => id);
+  assertRejectedCandidatesStoreNothing(
+    core,
+    results,
+    claim,
+    fileChanges,
+    criterionIds,
+  );
+
+  results.prepare(
+    claim,
+    {
+      criterion_results: [
+        {
+          criterion_id: review.active_version.criteria[0].id,
+          findings: [
+            {
+              evidence: "The changed branch returns stale state.",
+              location: {
+                end_line: 3,
+                file_change_id: "file-change-1",
+                kind: "line_range",
+                side: "head",
+                start_line: 2,
+              },
+              remediation: "Return the newly computed state.",
+            },
+          ],
+          outcome: "triggered",
+        },
+        {
+          criterion_id: review.active_version.criteria[1].id,
+          outcome: "clear",
+        },
+        {
+          criterion_id: review.active_version.criteria[2].id,
+          outcome: "not_applicable",
+        },
+        {
+          criterion_id: review.active_version.criteria[3].id,
+          error: {
+            code: "required_evidence_unavailable",
+            detail: "The required generated file is absent from the head.",
+          },
+          outcome: "error",
+        },
+      ],
+    },
+    fileChanges,
+  );
+  createReviewRunEvidenceService(core).complete(claim, {
+    exitCode: 0,
+    signal: null,
+    tokenCounters: {
+      cached_input_tokens: null,
+      input_tokens: null,
+      output_tokens: null,
+    },
+  });
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    4,
+  );
+  assert.deepEqual(
+    core.get(
+      "SELECT execution_status, completed_at FROM review_runs WHERE id = ?",
+      claim.workId,
+    ),
+    { completed_at: 30, execution_status: "completed" },
+  );
+  const result = createEvaluationService(core, {
+    acquireChangeset: async () => {
+      throw new Error("not used");
+    },
+    masterKey: Buffer.alloc(32, 7),
+    readCodexCapabilityFailure: () => null,
+    storageReserve: { assertWorkAdmissionAvailable() {} },
+  }).readResult("evaluation-1");
+  assert.deepEqual(result, {
+    applicability_results: [
+      {
+        assignment: { scope: "installation_wide" },
+        evidence: { kind: "unconditional" },
+        outcome: "applicable",
+        review_id: review.id,
+        review_version_id: review.active_version.id,
+        rule: null,
+      },
+    ],
+    completed_at: "1970-01-01T00:00:00.030Z",
+    criterion_results: [
+      {
+        criterion_id: review.active_version.criteria[0].id,
+        outcome: "triggered",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[1].id,
+        outcome: "clear",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[2].id,
+        outcome: "not_applicable",
+        review_run_id: "review-run-1",
+      },
+      {
+        criterion_id: review.active_version.criteria[3].id,
+        error: {
+          code: "required_evidence_unavailable",
+          detail: "The required generated file is absent from the head.",
+        },
+        outcome: "error",
+        review_run_id: "review-run-1",
+      },
+    ],
+    evaluation_id: "evaluation-1",
+    file_changes: [
+      {
+        added: false,
+        after_path: "src/current.js",
+        before_path: "src/previous.js",
+        deleted: false,
+        id: "file-change-1",
+        modified: true,
+        patch: "@@ -1,2 +1,3 @@\n previous\n-old\n+new\n+head\n",
+        renamed: true,
+      },
+    ],
+    findings: [
+      {
+        criterion_id: review.active_version.criteria[0].id,
+        evidence: "The changed branch returns stale state.",
+        id: "finding-1",
+        impact: "blocking",
+        location: {
+          end_line: 3,
+          file_change_id: "file-change-1",
+          kind: "line_range",
+          path: "src/current.js",
+          side: "head",
+          start_line: 2,
+        },
+        remediation: "Return the newly computed state.",
+        review_run_id: "review-run-1",
+      },
+    ],
+    outcome: "error",
+    review_runs: result.review_runs,
+  });
+  assert.throws(
+    () =>
+      results.prepare(
+        claim,
+        {
+          criterion_results: review.active_version.criteria.map(({ id }) => ({
+            criterion_id: id,
+            outcome: "clear",
+          })),
+        },
+        fileChanges,
+      ),
+    (error) =>
+      error instanceof ReviewRunExecutionError &&
+      error.code === "submission_channel_closed",
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    4,
+  );
+});
+
+test("exact started Review Run failures create no partial or fallback Result", async (context) => {
+  const cases = [
+    [
+      "configuration_unavailable",
+      "Network-disabled Codex launch could not be constructed",
+    ],
+    [
+      "authentication_failed",
+      "You must be logged in to use Codex. Run codex login.",
+    ],
+  ];
+  for (const [code, detail] of cases) {
+    await context.test(code, async (caseContext) => {
+      const directory = mkdtempSync(
+        join(tmpdir(), "quality-bar-boundary-failure-"),
+      );
+      caseContext.after(() =>
+        rmSync(directory, { force: true, recursive: true }),
+      );
+      const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+      caseContext.after(() => core.close());
+      await createQueuedReviewRun(core);
+      const failure = new ReviewRunExecutionError(code, detail);
+
+      await assert.rejects(
+        () => executeFailedReviewRun(core, failure),
+        (error) => error === failure,
+      );
+      assert.deepEqual(
+        core.get(
+          `SELECT evaluations.execution_status, evaluation_results.outcome
+           FROM evaluations
+           JOIN evaluation_results
+             ON evaluation_results.evaluation_id = evaluations.id`,
+        ),
+        { execution_status: "completed", outcome: "error" },
+      );
+      assert.deepEqual(
+        core.get(
+          `SELECT execution_status, error_code, error_detail
+           FROM review_runs`,
+        ),
+        {
+          error_code: code,
+          error_detail: detail,
+          execution_status: "failed",
+        },
+      );
+      assert.equal(
+        core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+        0,
+      );
+      assert.equal(
+        core.get("SELECT count(*) AS count FROM findings")?.count,
+        0,
+      );
+      const criterion = core.get(
+        "SELECT criterion_id FROM review_version_criteria LIMIT 1",
+      );
+      assert.ok(criterion);
+      assert.throws(
+        () =>
+          core.run(
+            `INSERT INTO criterion_results (
+               review_run_id, criterion_id, outcome
+             ) VALUES (?, ?, 'clear')`,
+            "review-run-1",
+            criterion.criterion_id,
+          ),
+        /criterion_result_review_run_not_running/,
+      );
+    });
+  }
+});
+
+test("an unexpected started failure persists one stable safe terminal error", async (context) => {
+  const directory = mkdtempSync(
+    join(tmpdir(), "quality-bar-unexpected-failure-"),
+  );
+  context.after(() => rmSync(directory, { force: true, recursive: true }));
+  const core = openDurableCore(join(directory, "quality-bar.sqlite3"));
+  context.after(() => core.close());
+  await createQueuedReviewRun(core);
+  const underlyingFailure = new Error(
+    "sensitive implementation path /private/runtime/review-run",
+  );
+
+  await assert.rejects(
+    () => executeFailedReviewRun(core, underlyingFailure),
+    (error) => {
+      assert.ok(error instanceof ReviewRunExecutionError);
+      assert.equal(error.code, "unexpected_execution_failure");
+      assert.equal(error.message, "Unexpected Review Run execution failure");
+      assert.equal(error.cause, underlyingFailure);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    core.get(
+      `SELECT execution_status, error_code, error_detail
+       FROM review_runs`,
+    ),
+    {
+      error_code: "unexpected_execution_failure",
+      error_detail: "Unexpected Review Run execution failure",
+      execution_status: "failed",
+    },
+  );
+  assert.equal(
+    core.get("SELECT count(*) AS count FROM criterion_results")?.count,
+    0,
+  );
+  assert.equal(core.get("SELECT count(*) AS count FROM findings")?.count, 0);
+});
