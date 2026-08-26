@@ -1,12 +1,12 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
-import { csrfToken, requireStatus, responseMessage } from "./browser.js";
+import { csrfToken, requireStatus, responseMessage } from "./browser.ts";
 import {
   readOnboardingTokens,
   validOnboardingTokenReveal,
   validTokenReveal,
-} from "./contract.js";
+} from "./contract.ts";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },

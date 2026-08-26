@@ -1,0 +1,416 @@
+import {
+  APPLICABILITY_RULE_PROFILE,
+  compileApplicabilityRule,
+} from "./applicability-rule.ts";
+import {
+  appendBranch,
+  combined,
+  orderedIds,
+  trace,
+  unique,
+} from "./applicability-evidence.ts";
+import { predicateFailure } from "./applicability-predicate-failure.ts";
+import { isValidFileChange } from "../file-change.ts";
+
+export { APPLICABILITY_RULE_PROFILE };
+const OUTSIDE = "outside";
+
+function identify(expression: any) {
+  const branches = new WeakMap();
+  const predicates = new WeakMap();
+  let branch = 0;
+  let predicate = 0;
+  function visit(node: any) {
+    if (
+      ["and", "or", "not", "group", "file_exists", "path_exists"].includes(
+        node.type,
+      )
+    ) {
+      branches.set(node, `branch-${++branch}`);
+    }
+    if (
+      ["literal", "file_fact", "match", "file_exists", "path_exists"].includes(
+        node.type,
+      )
+    ) {
+      predicates.set(node, `predicate-${++predicate}`);
+    }
+    for (const child of [
+      node.left,
+      node.right,
+      node.operand,
+      node.expression,
+      node.predicate,
+    ]) {
+      if (child) {
+        visit(child);
+      }
+    }
+  }
+  visit(expression);
+  return { branches, predicates };
+}
+
+function evaluate(
+  node: any,
+  context: {
+    branches: WeakMap<object, string>;
+    predicates: WeakMap<object, string>;
+    fileChanges: any[] | undefined;
+    file?: any;
+    matchesPath: (pathspec: string, path: string) => boolean;
+    readContent?: (fileChange: any, side: "before" | "after") => any;
+    path?: { side: "before" | "after"; value: string };
+  },
+): any {
+  const branchId = context.branches.get(node);
+  const predicateId = context.predicates.get(node);
+  if (node.type === "literal") {
+    return trace(node.value, {
+      predicateIds: [predicateId],
+    });
+  }
+  if (node.type === "group") {
+    const result = evaluate(node.expression, context);
+    if (result.state === true && branchId) {
+      result.branchIds = unique([...result.branchIds, branchId]);
+      result.matches = appendBranch(result.matches, branchId);
+    }
+    return result;
+  }
+  if (node.type === "not") {
+    const result = evaluate(node.operand, context);
+    if (result.state === "error" || result.state === OUTSIDE) {
+      return result;
+    }
+    return trace(!result.state, {
+      branchIds:
+        !result.state && branchId
+          ? unique([...result.branchIds, branchId])
+          : result.branchIds,
+      matches: appendBranch(
+        result.matches,
+        !result.state ? branchId : undefined,
+      ),
+      predicateIds: result.predicateIds,
+    });
+  }
+  if (node.type === "and") {
+    const left = evaluate(node.left, context);
+    if (left.state === "error" || left.state === false) {
+      return left;
+    }
+    if (left.state === OUTSIDE) {
+      return left;
+    }
+    const right = evaluate(node.right, context);
+    if (right.state === "error") {
+      return right;
+    }
+    return combined(
+      right.state === true ? true : right.state,
+      left,
+      right,
+      branchId,
+    );
+  }
+  if (node.type === "or") {
+    const left = evaluate(node.left, context);
+    if (left.state === "error" || left.state === true) {
+      return left;
+    }
+    const right = evaluate(node.right, context);
+    if (right.state === "error") {
+      return right;
+    }
+    if (right.state === true) {
+      return combined(true, trace(false), right, branchId);
+    }
+    return combined(
+      left.state === OUTSIDE || right.state === OUTSIDE ? OUTSIDE : false,
+      left,
+      right,
+      branchId,
+    );
+  }
+  if (node.type === "file_exists") {
+    if (!context.fileChanges) {
+      return {
+        ...trace("error"),
+        error: {
+          code: "applicability_file_changes_unavailable",
+          detail:
+            "Frozen File Changes are unavailable for Applicability evaluation",
+          predicate_id: predicateId as string,
+        },
+      };
+    }
+    const matches = [];
+    for (const file of context.fileChanges) {
+      const result = evaluate(node.predicate, { ...context, file });
+      if (result.state === "error") {
+        return result;
+      }
+      if (result.state === true) {
+        const sides = unique(
+          result.matches.flatMap((match: { sides: string[] }) => match.sides),
+        );
+        matches.push({
+          after_path: file.after_path,
+          before_path: file.before_path,
+          branch_ids: orderedIds([
+            ...(branchId ? [branchId] : []),
+            ...result.branchIds,
+          ]),
+          file_change_id: file.id,
+          predicate_ids: orderedIds([
+            ...(predicateId ? [predicateId] : []),
+            ...result.predicateIds,
+          ]),
+          sides: sides.length ? sides : ["change"],
+        });
+      }
+    }
+    return trace(matches.length > 0, {
+      branchIds: matches.length > 0 && branchId ? [branchId] : [],
+      matches,
+      predicateIds: matches.length > 0 && predicateId ? [predicateId] : [],
+    });
+  }
+  if (node.type === "path_exists") {
+    const paths = [
+      ["before", context.file?.before_path],
+      ["after", context.file?.after_path],
+    ].filter((entry) => typeof entry[1] === "string");
+    const results = paths.map(([side, value]) =>
+      evaluate(node.predicate, {
+        ...context,
+        path: {
+          side: side as "before" | "after",
+          value,
+        },
+      }),
+    );
+    const failure = results.find((result) => result.state === "error");
+    if (failure) {
+      return failure;
+    }
+    const matched = results.filter((result) => result.state === true);
+    return trace(matched.length > 0, {
+      branchIds:
+        matched.length > 0 && branchId
+          ? unique([branchId, ...matched.flatMap((result) => result.branchIds)])
+          : [],
+      matches: matched.flatMap((result) => result.matches),
+      predicateIds:
+        matched.length > 0
+          ? unique([
+              ...(predicateId ? [predicateId] : []),
+              ...matched.flatMap((result) => result.predicateIds),
+            ])
+          : [],
+    });
+  }
+  if (node.type === "file_fact") {
+    const matched = context.file?.[node.field] === true;
+    return trace(matched, {
+      matches: matched ? [{ sides: ["change"] }] : [],
+      predicateIds: [predicateId],
+    });
+  }
+  if (node.type === "match") {
+    let side;
+    let value;
+    if (node.member === "path") {
+      side = context.path?.side;
+      value = context.path?.value;
+    } else if (node.member === "before_path") {
+      side = "before";
+      value = context.file?.before_path;
+    } else if (node.member === "after_path") {
+      side = "after";
+      value = context.file?.after_path;
+    } else {
+      side = node.member.startsWith("before_") ? "before" : "after";
+      let content = context.file?.[node.member];
+      if (content === undefined && context.readContent) {
+        try {
+          content = context.readContent(
+            context.file,
+            side as "before" | "after",
+          );
+        } catch (cause) {
+          return predicateFailure(
+            cause,
+            context,
+            predicateId as string,
+            side,
+            "Frozen File Change content could not be read",
+          );
+        }
+      }
+      if (content?.state === "error") {
+        if (
+          typeof content.error?.code !== "string" ||
+          typeof content.error?.detail !== "string"
+        ) {
+          throw new TypeError("Frozen File Change content error is invalid");
+        }
+        return {
+          ...trace("error"),
+          error: {
+            code: content.error?.code,
+            detail: content.error?.detail,
+            file_change_id: context.file?.id,
+            predicate_id: predicateId as string,
+            side,
+          },
+        };
+      }
+      if (content?.state === "absent" || content?.state === "binary") {
+        return trace(OUTSIDE);
+      }
+      if (content === undefined) {
+        return predicateFailure(
+          Object.assign(
+            new Error(
+              "Frozen File Change content is unavailable for Applicability evaluation",
+            ),
+            { code: "applicability_file_side_unavailable" },
+          ),
+          context,
+          predicateId as string,
+          side,
+          "Frozen File Change content is unavailable",
+        );
+      }
+      if (content?.state !== "text" || typeof content.value !== "string") {
+        return predicateFailure(
+          Object.assign(
+            new Error("Frozen File Change content state is invalid"),
+            { code: "applicability_file_content_invalid" },
+          ),
+          context,
+          predicateId as string,
+          side,
+          "Frozen File Change content state is invalid",
+        );
+      }
+      value = content.value;
+    }
+    if (typeof value !== "string") {
+      return trace(false);
+    }
+    let matched;
+    try {
+      matched = node.member.endsWith("_content")
+        ? node.matcher.test(value)
+        : context.matchesPath(node.matcher.pathspec, value);
+    } catch (cause) {
+      return predicateFailure(
+        cause,
+        context,
+        predicateId as string,
+        side,
+        "Applicability predicate evaluation failed",
+      );
+    }
+    return trace(matched, {
+      matches: matched ? [{ sides: [side] }] : [],
+      predicateIds: [predicateId],
+    });
+  }
+  throw new TypeError("Compiled Applicability Rule is invalid");
+}
+
+export function evaluateApplicabilityRule(
+  source: string,
+  changeset: {
+    file_changes?: unknown;
+    base_commit?: string;
+    head_commit?: string;
+  },
+  {
+    matchesPath,
+    readContent,
+  }: {
+    matchesPath: (pathspec: string, path: string) => boolean;
+    readContent?: (fileChange: any, side: "before" | "after") => any;
+  },
+) {
+  if (typeof matchesPath !== "function") {
+    throw new TypeError("Applicability path matcher is invalid");
+  }
+  if (readContent !== undefined && typeof readContent !== "function") {
+    throw new TypeError("Applicability content reader is invalid");
+  }
+  const compiled = compileApplicabilityRule(source);
+  const fileChanges = Array.isArray(changeset?.file_changes)
+    ? changeset.file_changes
+    : undefined;
+  if (fileChanges && !fileChanges.every(isValidFileChange)) {
+    const invalid = fileChanges.find(
+      (fileChange) => !isValidFileChange(fileChange),
+    );
+    return {
+      error: {
+        code: "applicability_file_change_invalid",
+        detail: `Frozen File Change ${
+          typeof invalid?.id === "string" ? invalid.id : "identity"
+        } is invalid`,
+      },
+      outcome: "error",
+      profile: APPLICABILITY_RULE_PROFILE,
+      source,
+    };
+  }
+  const identified = identify(compiled.expression);
+  const result = evaluate(compiled.expression, {
+    ...identified,
+    fileChanges: fileChanges?.toSorted((left: any, right: any) =>
+      left.id.localeCompare(right.id),
+    ),
+    matchesPath,
+    readContent,
+  });
+  if (result.state === "error") {
+    return {
+      error: result.error,
+      outcome: "error",
+      profile: APPLICABILITY_RULE_PROFILE,
+      source,
+    };
+  }
+  if (result.state === true) {
+    return {
+      evidence:
+        result.matches.length === 0
+          ? {
+              branch_ids: result.branchIds,
+              kind: "satisfied_branches",
+              predicate_ids: result.predicateIds,
+            }
+          : {
+              kind: "matched",
+              matches: result.matches,
+            },
+      outcome: "applicable",
+      profile: APPLICABILITY_RULE_PROFILE,
+      source,
+    };
+  }
+  return {
+    evidence: {
+      branch_ids: [identified.branches.get(compiled.expression)].filter(
+        Boolean,
+      ),
+      kind: "failed_branches",
+      predicate_ids: [identified.predicates.get(compiled.expression)].filter(
+        Boolean,
+      ),
+    },
+    outcome: "not_applicable",
+    profile: APPLICABILITY_RULE_PROFILE,
+    source,
+  };
+}

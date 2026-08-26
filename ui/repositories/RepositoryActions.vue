@@ -1,8 +1,8 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import { csrfRequest, responseMessage } from "../browser.js";
-import { validRepository } from "./contract.js";
+import { csrfRequest, responseMessage } from "../browser.ts";
+import { validRepository } from "./contract.ts";
 
 const props = defineProps({
   csrfCookieName: { required: true, type: String },

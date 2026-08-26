@@ -6,7 +6,7 @@ import {
   requireStatus,
   responseError,
   responseMessage,
-} from "../browser.js";
+} from "../browser.ts";
 import EvaluationResult from "./EvaluationResult.vue";
 import {
   mutateEvaluation,
@@ -15,8 +15,8 @@ import {
   validEvaluation,
   validEvaluationMutation,
   validEvaluationResult,
-} from "./contract.js";
-import { formatDuration } from "./duration.js";
+} from "./contract.ts";
+import { formatDuration } from "./duration.ts";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const evaluation = ref(null);

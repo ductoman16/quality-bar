@@ -1,11 +1,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 
-import { requireStatus } from "../browser.js";
-import { useAlertFocus } from "../useAlertFocus.js";
-import { validAnalytics } from "./contract.js";
+import { requireStatus } from "../browser.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
+import { validAnalytics } from "./contract.ts";
 import MetricTable from "./MetricTable.vue";
-import { supplementalTables } from "./supplemental-tables.js";
+import { supplementalTables } from "./supplemental-tables.ts";
 
 const document_ = ref();
 const error = ref("");

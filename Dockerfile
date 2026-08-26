@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY ui ./ui
-COPY src/browser/display-font.js src/browser/style-tokens.js ./src/browser/
+COPY src/browser/display-font.ts src/browser/style-tokens.ts ./src/browser/
 COPY vite.config.js ./
 RUN npm run build
 
@@ -45,6 +45,6 @@ USER 10001:10001
 EXPOSE 3000
 
 HEALTHCHECK --interval=2s --timeout=2s --start-period=2s --retries=10 \
-  CMD ["node", "src/healthcheck.js"]
+  CMD ["node", "src/healthcheck.ts"]
 
-CMD ["node", "src/main.js"]
+CMD ["node", "src/main.ts"]

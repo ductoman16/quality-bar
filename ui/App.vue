@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
-import { requireStatus } from "./browser.js";
+import { requireStatus } from "./browser.ts";
 import EvaluationDetailView from "./evaluations/EvaluationDetailView.vue";
 import EvaluationsView from "./evaluations/EvaluationsView.vue";
 import LoginView from "./LoginView.vue";
@@ -12,8 +12,8 @@ import RepositoryDetailView from "./repositories/RepositoryDetailView.vue";
 import ReviewDetailView from "./reviews/ReviewDetailView.vue";
 import ReviewsView from "./reviews/ReviewsView.vue";
 import SystemView from "./system/SystemView.vue";
-import { validSystem } from "./system/contract.js";
-import { useAlertFocus } from "./useAlertFocus.js";
+import { validSystem } from "./system/contract.ts";
+import { useAlertFocus } from "./useAlertFocus.ts";
 
 const props = defineProps({
   authenticated: { required: true, type: Boolean },

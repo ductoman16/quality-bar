@@ -1,0 +1,206 @@
+import { ReviewRunExecutionError } from "./review-run-result.ts";
+import { CodexProcessExitError } from "./review-run-codex-command.ts";
+
+export const REVIEW_RUN_TERMINAL_FAILURE_CODES = Object.freeze([
+  "authentication_failed",
+  "configuration_unavailable",
+  "deadline_exceeded",
+  "cancelled_by_operator",
+  "subscription_exhausted",
+  "context_exhausted",
+  "resource_exhausted",
+  "result_not_submitted",
+  "codex_process_failed",
+  "codex_protocol_failed",
+  "submission_failed",
+  "unexpected_execution_failure",
+]);
+
+export function attachFailureDiagnostic(
+  failure: Error,
+  name: string,
+  diagnostic: unknown,
+) {
+  Object.defineProperty(failure, name, {
+    configurable: true,
+    enumerable: false,
+    value: diagnostic,
+  });
+}
+
+const FAILURE_PATTERNS = Object.freeze([
+  Object.freeze({
+    code: "authentication_failed",
+    pattern:
+      /\b(?:401|authentication|log(?:ged)? in|refresh token|unauthorized|access token could not be refreshed|(?:ChatGPT|API key) (?:login|credentials|auth)|login is restricted to workspace|CLI auth)\b/i,
+  }),
+  Object.freeze({
+    code: "subscription_exhausted",
+    pattern:
+      /\b(?:credits|quota exceeded|rate limit|spend cap|usage limit|usage not included|upgrade to plus)\b/i,
+  }),
+  Object.freeze({
+    code: "context_exhausted",
+    pattern:
+      /(?:\b(?:context window|session budget|shared rollout token budget)\b.*\b(?:exceeded|exhausted|room)\b|\b(?:exceeded|exhausted|room)\b.*\b(?:context window|session budget|shared rollout token budget)\b)/i,
+  }),
+  Object.freeze({
+    code: "resource_exhausted",
+    pattern:
+      /\b(?:at capacity|high demand|resource exhausted|server overloaded)\b/i,
+  }),
+  Object.freeze({
+    code: "configuration_unavailable",
+    pattern:
+      /\b(?:bad request|configuration|invalid request|model is not supported|model not found|unsupported operation)\b/i,
+  }),
+]);
+
+const CONFIGURATION_STDERR_PATTERN =
+  /^(?:Error (?:finding codex home|loading config\.toml|loading rules|parsing -c overrides):|No default OSS provider configured)/i;
+
+function isRecord(value: unknown) {
+  return (
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function mapMessage(detail: string) {
+  if (
+    /\b(?:failed to serialize exec json event|session configured event was not the first event)\b/i.test(
+      detail,
+    )
+  ) {
+    return { code: "codex_protocol_failed", detail };
+  }
+  const mapping = FAILURE_PATTERNS.find(({ pattern }) => pattern.test(detail));
+  return {
+    code: mapping?.code ?? "unexpected_execution_failure",
+    detail,
+  };
+}
+
+export function mapCodexTerminalFailure(stdout: string, stderr: string) {
+  if (typeof stdout !== "string" || typeof stderr !== "string") {
+    throw new TypeError("Review Run process transcript is invalid");
+  }
+  let terminalMessage: string | undefined;
+  for (const line of stdout.trimEnd().split("\n")) {
+    if (line.length === 0) {
+      continue;
+    }
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return {
+        code: "codex_protocol_failed",
+        detail: "Codex Review Run terminal event is invalid",
+      };
+    }
+    if (!isRecord(event) || typeof event.type !== "string") {
+      return {
+        code: "codex_protocol_failed",
+        detail: "Codex Review Run terminal event is invalid",
+      };
+    }
+    if (event.type === "turn.failed") {
+      if (
+        !isRecord(event.error) ||
+        typeof event.error.message !== "string" ||
+        event.error.message.trim().length === 0
+      ) {
+        return {
+          code: "codex_protocol_failed",
+          detail: "Codex Review Run terminal event is invalid",
+        };
+      }
+      terminalMessage = event.error.message;
+      continue;
+    }
+    if (event.type === "error") {
+      if (
+        typeof event.message !== "string" ||
+        event.message.trim().length === 0
+      ) {
+        return {
+          code: "codex_protocol_failed",
+          detail: "Codex Review Run terminal event is invalid",
+        };
+      }
+      terminalMessage = event.message;
+    }
+  }
+  if (terminalMessage !== undefined) {
+    return mapMessage(terminalMessage);
+  }
+  const startupDetail = stderr.trim();
+  if (startupDetail.length === 0) {
+    return undefined;
+  }
+  const mapping = FAILURE_PATTERNS.find(({ pattern }) =>
+    pattern.test(startupDetail),
+  );
+  if (!mapping && !CONFIGURATION_STDERR_PATTERN.test(startupDetail)) {
+    return undefined;
+  }
+  return {
+    code: mapping?.code ?? "configuration_unavailable",
+    detail: startupDetail,
+  };
+}
+
+function secretSafeCodexDetail(
+  detail: string,
+  environment: Record<string, string>,
+) {
+  let safe = detail;
+  for (const [name, value] of Object.entries(environment)) {
+    if (name.endsWith("_TOKEN") && value.length > 0) {
+      safe = safe.replaceAll(value, "[REDACTED]");
+    }
+  }
+  return safe;
+}
+
+export function createCodexProcessFailure(
+  process: {
+    code: number | null;
+    error?: Error;
+    signal: NodeJS.Signals | null;
+    stderr: string;
+    stdout: string;
+  },
+  environment: Record<string, string>,
+) {
+  const mapped = mapCodexTerminalFailure(process.stdout, process.stderr);
+  const processError =
+    process.error instanceof Error ? process.error : undefined;
+  return new ReviewRunExecutionError(
+    mapped?.code ?? "codex_process_failed",
+    mapped
+      ? secretSafeCodexDetail(mapped.detail, environment)
+      : processError
+        ? secretSafeCodexDetail(processError.message, environment)
+        : "Codex Review Run process failed",
+    { cause: new CodexProcessExitError(process) },
+  );
+}
+
+export function createSubmissionFailure(failure: unknown) {
+  if (
+    failure instanceof Error &&
+    "code" in failure &&
+    failure.code === "storage_unavailable"
+  ) {
+    return failure;
+  }
+  return new ReviewRunExecutionError(
+    "submission_failed",
+    "Review Run submission failed",
+    failure instanceof Error ? { cause: failure } : undefined,
+  );
+}

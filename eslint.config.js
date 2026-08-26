@@ -1,16 +1,18 @@
 import js from "@eslint/js";
+import ts from "@typescript-eslint/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
 import { globalIgnores } from "eslint/config";
 import n from "eslint-plugin-n";
 import globals from "globals";
 
-import { errorOnlyThrowing } from "./scripts/error-only-throwing-lint.mjs";
-import { GENERATED_ARTIFACT_ALLOWLIST } from "./scripts/structural-lint-policy.mjs";
+import { errorOnlyThrowing } from "./scripts/error-only-throwing-lint.mts";
+import { GENERATED_ARTIFACT_ALLOWLIST } from "./scripts/structural-lint-policy.mts";
 
 export default [
   globalIgnores(GENERATED_ARTIFACT_ALLOWLIST, "generated-artifacts"),
   js.configs.recommended,
   {
-    files: ["**/*.{js,mjs,cjs}"],
+    files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
     plugins: { "error-only-throwing": errorOnlyThrowing, n },
     linterOptions: {
       noInlineConfig: true,
@@ -38,13 +40,12 @@ export default [
       "prefer-const": "error",
       "n/no-extraneous-import": "error",
       "n/no-missing-import": "error",
-      "n/no-unsupported-features/es-syntax": [
-        "error",
-        { version: "24.18.0" },
-      ],
       "n/no-unsupported-features/node-builtins": [
         "error",
-        { ignores: ["import.meta.main", "sqlite"], version: "24.18.0" },
+        {
+          ignores: ["import.meta.main", "module.stripTypeScriptTypes", "sqlite"],
+          version: "24.18.0",
+        },
       ],
       "no-console": "error",
       "no-restricted-globals": [
@@ -118,7 +119,7 @@ export default [
     },
   },
   {
-    files: ["src/browser/evaluation.js"],
+    files: ["src/browser/evaluation.ts"],
     rules: {
       "max-lines": ["error", { max: 900, skipBlankLines: true, skipComments: true }],
     },
@@ -130,48 +131,65 @@ export default [
       "fixtures/package/database-facts.mjs",
       "fixtures/package/filesystem-facts.mjs",
       "fixtures/package/http-facts.mjs",
-      "scripts/package-proof/prove-compose-service.mjs",
-      "test/operator-browser-smoke.test.js",
+      "scripts/package-proof/prove-compose-service.mts",
+      "test/operator-browser-smoke.test.ts",
     ],
     rules: { "no-console": "off", "no-restricted-globals": "off" },
   },
   {
     files: [
-      "scripts/package-proof/package-fixture.mjs",
-      "scripts/release-canary/run-paid-codex.mjs",
-      "scripts/release-canary/run-private-github.mjs",
-      "src/healthcheck.js",
-      "src/main.js",
-      "src/operator/operator-password-bootstrap.js",
-      "src/quality-bar-submit.js",
-      "src/recover-operator-authority.js",
-      "src/review/review-run-codex-adapter.js",
-      "src/restore-backup.js",
+      "scripts/package-proof/package-fixture.mts",
+      "scripts/release-canary/run-paid-codex.mts",
+      "scripts/release-canary/run-private-github.mts",
+      "src/healthcheck.ts",
+      "src/main.ts",
+      "src/operator/operator-password-bootstrap.ts",
+      "src/quality-bar-submit.ts",
+      "src/recover-operator-authority.ts",
+      "src/review/review-run-codex-adapter.ts",
+      "src/restore-backup.ts",
       "fixtures/test-probes/fake-codex-review-run.mjs",
-      "test/operator-browser-smoke.test.js",
+      "test/operator-browser-smoke.test.ts",
     ],
     rules: { "no-restricted-syntax": "off" },
   },
   {
-    files: ["src/**/*.js"],
+    files: ["src/**/*.{js,mjs,ts,mts}"],
     ignores: ["src/browser/**"],
     languageOptions: { globals: globals.node },
   },
   {
     files: [
-      "src/browser/**/*.js",
-      "ui/**/*.js",
+      "src/browser/**/*.{js,ts}",
+      "ui/**/*.{js,ts}",
       "fixtures/operator-browser-login.js",
     ],
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ["scripts/**/*.mjs", "eslint.config.js"],
+    files: ["scripts/**/*.{mjs,mts}", "eslint.config.js"],
     languageOptions: { globals: globals.node },
   },
   {
-    files: ["test/**/*.{js,mjs}", "fixtures/**/*.{js,mjs}"],
+    files: ["test/**/*.{js,mjs,ts,mts}", "fixtures/**/*.{js,mjs}"],
     ignores: ["fixtures/operator-browser-login.js"],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["**/*.{ts,mts,cts}"],
+    languageOptions: { parser: tsParser },
+    plugins: { "@typescript-eslint": ts },
+    rules: {
+      "no-undef": "off",
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          args: "all",
+          caughtErrors: "all",
+          ignoreRestSiblings: false,
+        },
+      ],
+    },
   },
 ];

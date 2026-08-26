@@ -60,17 +60,8 @@ jobs:
       - name: Check Node boundaries
         run: npm run lint:boundaries
 
-      - name: Type-check Node source
-        run: npm run typecheck:node
-
-      - name: Type-check browser source
-        run: npm run typecheck:browser
-
-      - name: Type-check tests
-        run: npm run typecheck:tests
-
-      - name: Type-check scripts
-        run: npm run typecheck:scripts
+      - name: Type-check source
+        run: npm run typecheck
 
       - name: Run tests with coverage
         run: npm run coverage

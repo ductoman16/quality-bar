@@ -1,10 +1,10 @@
 <script setup>
 import { onMounted, ref } from "vue";
 
-import { repositoryCollection, requireStatus } from "../browser.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+import { repositoryCollection, requireStatus } from "../browser.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 import RepositoryActions from "./RepositoryActions.vue";
-import { validGuidance } from "./contract.js";
+import { validGuidance } from "./contract.ts";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });
 const repository = ref();

@@ -1,15 +1,15 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
 
-import { csrfRequest, requireStatus, responseMessage } from "../browser.js";
-import { useAlertFocus } from "../useAlertFocus.js";
+import { csrfRequest, requireStatus, responseMessage } from "../browser.ts";
+import { useAlertFocus } from "../useAlertFocus.ts";
 import {
   readModelCatalog,
   readReviewCollection,
   matchesReviewVersion,
   validReview,
   validReviewChange,
-} from "./contract.js";
+} from "./contract.ts";
 import ReviewEditor from "./ReviewEditor.vue";
 
 const props = defineProps({ csrfCookieName: { required: true, type: String } });

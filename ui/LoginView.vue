@@ -1,7 +1,7 @@
 <script setup>
 import { nextTick, ref } from "vue";
 
-import { responseMessage } from "./browser.js";
+import { responseMessage } from "./browser.ts";
 
 const props = defineProps({
   intendedDestination: { default: "/", type: String },
