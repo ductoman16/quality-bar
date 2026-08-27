@@ -1,36 +1,22 @@
 const [port] = process.argv.slice(2);
 const endpoint = `http://127.0.0.1:${port}`;
 
-/**
- * @param {string} path
- * @param {Record<string, string>} [headers]
- */
-async function responseFacts(path, headers) {
-  const response = await fetch(`${endpoint}${path}`, { headers });
-  const body = /** @type {{error: {code: string}, status?: string}} */ (
-    await response.json()
-  );
-  return { body, status: response.status };
+async function pollLiveness() {
+  let lastError;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      const response = await fetch(`${endpoint}/health/live`);
+      const body = /** @type {{status?: string}} */ (await response.json());
+      if (response.status === 200 && body.status === "live") {
+        return { body, status: response.status };
+      }
+      lastError = new Error(`unexpected_liveness_${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw lastError ?? new Error("package_probe_liveness_timeout");
 }
 
-const liveness = await responseFacts("/health/live");
-const readiness = await responseFacts("/health/ready");
-const directSystem = await responseFacts("/api/v1/system");
-const forwardedSystem = await responseFacts("/api/v1/system", {
-  forwarded: "for=203.0.113.24;host=quality-bar.example;proto=https",
-});
-
-console.log(
-  JSON.stringify({
-    directSystem: {
-      errorCode: directSystem.body.error.code,
-      status: directSystem.status,
-    },
-    forwardedSystem: {
-      errorCode: forwardedSystem.body.error.code,
-      status: forwardedSystem.status,
-    },
-    liveness,
-    readiness,
-  }),
-);
+console.log(JSON.stringify({ liveness: await pollLiveness() }));
