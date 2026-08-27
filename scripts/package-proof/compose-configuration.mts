@@ -17,9 +17,15 @@ export type ComposeConfiguration = {
       cap_add: string[];
       profiles?: unknown;
       depends_on?: unknown;
-      network_mode: string;
+      network_mode?: string;
       stop_grace_period?: string;
-      ports?: unknown;
+      ports?: {
+        mode: string;
+        host_ip?: string;
+        target: number;
+        published: string;
+        protocol: string;
+      }[];
       security_opt: string[];
       volumes: ComposeVolume[];
     }
@@ -43,7 +49,7 @@ export function assertComposeConfiguration(
   );
   assert.equal(configuration.services[serviceName].profiles, undefined);
   assert.equal(configuration.services[serviceName].depends_on, undefined);
-  assert.equal(configuration.services[serviceName].network_mode, "host");
+  assert.equal(configuration.services[serviceName].network_mode, undefined);
   assert.deepEqual(configuration.services[serviceName].cap_add, [
     "SETGID",
     "SETUID",
@@ -56,7 +62,16 @@ export function assertComposeConfiguration(
     "seccomp=unconfined",
   ]);
   assert.equal(configuration.services[serviceName].stop_grace_period, "15m5s");
-  assert.equal(configuration.services[serviceName].ports, undefined);
+  const publishedPorts = configuration.services[serviceName].ports ?? [];
+  assert.equal(publishedPorts.length, 1);
+  const [publishedPort] = publishedPorts;
+  assert.equal(publishedPort.host_ip, "127.0.0.1");
+  assert.equal(publishedPort.target, 3000);
+  assert.equal(
+    publishedPort.published,
+    fixture.environment.QUALITY_BAR_HTTP_PORT,
+  );
+  assert.equal(publishedPort.protocol, "tcp");
 
   const serviceVolumes = configuration.services[serviceName].volumes;
   assert.deepEqual(

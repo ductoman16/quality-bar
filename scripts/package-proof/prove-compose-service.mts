@@ -153,8 +153,8 @@ function packageFacts({
     },
     installationDeletion,
     network: {
-      httpBindAddress: "127.0.0.1",
-      mode: service.network_mode,
+      httpBindAddress: service.ports?.[0]?.host_ip ?? "127.0.0.1",
+      mode: service.network_mode ?? "bridge",
     },
     tools: { ...toolVersions, persistentCodexLogin: false },
     configuration: {

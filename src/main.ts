@@ -14,7 +14,7 @@ const application = await createInstalledApplication({
 const { server } = application;
 installApplicationSignalHandlers(application);
 
-await server.listen({ host: "127.0.0.1", port });
+await server.listen({ host: "0.0.0.0", port });
 process.stdout.write(
   `${JSON.stringify({
     timestamp: new Date().toISOString(),
