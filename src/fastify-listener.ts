@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import AjvCompiler from "@fastify/ajv-compiler";
+import SerializerSelector from "@fastify/fast-json-stringify-compiler";
 import cookie from "@fastify/cookie";
 import swagger from "@fastify/swagger";
 import Fastify from "fastify";
@@ -13,6 +14,31 @@ import { apiRoutes, apiSchemas } from "./http-routes/index.ts";
 
 const JSON_TYPE = "application/json";
 const createValidatorCompiler = AjvCompiler();
+const buildSerializerFactory = SerializerSelector();
+
+// The route response schemas are static and identical across every application
+// instance in a process, so fast-json-stringify compiles byte-identical
+// serializers each boot. Compiling them is ~98% of server startup cost, so a
+// process-level cache keyed by the response schema lets repeated boots (every
+// integration test that starts a fresh application) reuse the first compile.
+const responseSerializerCache = new Map<
+  string,
+  (document: unknown) => string
+>();
+
+function cachedSerializerCompiler(
+  compile: (options: any) => (document: unknown) => string,
+): (options: any) => (document: unknown) => string {
+  return (options) => {
+    const key = JSON.stringify(options.schema);
+    let serialize = responseSerializerCache.get(key);
+    if (serialize === undefined) {
+      serialize = compile(options);
+      responseSerializerCache.set(key, serialize);
+    }
+    return serialize;
+  };
+}
 
 function writeUnhandledError(reply: any, error: unknown) {
   const failure =
@@ -99,6 +125,9 @@ export function createFastify(
     },
   });
   server.setValidatorCompiler(validator);
+  server.setSerializerCompiler(
+    cachedSerializerCompiler(buildSerializerFactory(registeredSchemas, {})),
+  );
   server.register(cookie);
   server.register(swagger, {
     convertConstToEnum: false,

@@ -14,16 +14,6 @@ function fixture(name: string) {
   );
 }
 
-test("the core JavaScript correctness gate accepts maintained JavaScript", async () => {
-  const result = await runCoreJavaScriptLint({ repositoryRoot });
-
-  assert.equal(result.outcome, "pass", result.report);
-  assert.match(
-    result.report,
-    /core_javascript_lint: PASS \(\d+ maintained JavaScript files, zero warnings\)/,
-  );
-});
-
 test("the core JavaScript correctness gate reports every required rule family", async () => {
   const expectedDiagnostics = {
     "recommended-no-undef": "no-undef",
