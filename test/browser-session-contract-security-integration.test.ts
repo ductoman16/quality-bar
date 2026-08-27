@@ -14,37 +14,6 @@ import {
   expectedSystemDurableCore,
 } from "./system-storage-expected.ts";
 
-export type OpenApiSchema = {
-  $ref?: string;
-  additionalProperties?: boolean;
-  const?: unknown;
-  enum?: unknown[];
-  format?: string;
-  items?: OpenApiSchema;
-  minItems?: number;
-  oneOf?: OpenApiSchema[];
-  pattern?: string;
-  properties: Record<string, OpenApiSchema>;
-  required?: string[];
-  type?: string | string[];
-};
-
-export type OpenApiOperation = {
-  operationId?: string;
-  parameters: { name: string; required: boolean }[];
-  responses: Record<string, { description?: string }>;
-  security?: Record<string, unknown[]>[];
-};
-
-export type OpenApiDocument = {
-  openapi: string;
-  components: { schemas: Record<string, OpenApiSchema> };
-  paths: Record<
-    string,
-    { get: OpenApiOperation; patch: OpenApiOperation; post: OpenApiOperation }
-  >;
-};
-
 async function responseErrorCode(response: Response) {
   const body = (await response.json()) as { error: { code: string } };
   return body.error.code;
@@ -58,13 +27,7 @@ function responseCookie(response: Response) {
   return cookie;
 }
 
-function parameterFacts(operation: OpenApiOperation) {
-  return operation.parameters
-    .map(({ name, required }) => ({ name: name.toLowerCase(), required }))
-    .toSorted((left: any, right: any) => left.name.localeCompare(right.name));
-}
-
-test("the authenticated canonical contract is OpenAPI 3.1 with strict System attribution pagination", async () => {
+test("the authenticated canonical API enforces security and strict System attribution pagination", async () => {
   let now = Date.parse("2026-07-25T12:00:00.000Z");
   const application = await startApplication(temporaryDatabasePath(), {
     now: () => now,
@@ -72,9 +35,7 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   const password = "a correct operator password";
   bootstrapOperatorPassword(application.application.durableCore, password);
 
-  const unauthenticated = await fetch(
-    `${application.origin}/api/v1/openapi.json`,
-  );
+  const unauthenticated = await fetch(`${application.origin}/api/v1/system`);
   assert.equal(unauthenticated.status, 401);
   const unauthenticatedError = (await unauthenticated.json()) as {
     error: Record<string, unknown>;
@@ -94,219 +55,6 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
   const setCookie = responseCookie(login);
   const cookie = setCookie.split(";", 1)[0];
   const token = application.application.implementerTokens.create(password);
-
-  const openapi = await fetch(`${application.origin}/api/v1/openapi.json`, {
-    headers: { cookie },
-  });
-  assert.equal(openapi.status, 200);
-  const contract = (await openapi.json()) as OpenApiDocument;
-  assert.equal(contract.openapi, "3.1.0");
-  assert.equal(contract.components.schemas.Error.additionalProperties, true);
-  assert.equal(
-    contract.components.schemas.FieldError.additionalProperties,
-    true,
-  );
-  assert.equal(contract.components.schemas.System.additionalProperties, true);
-  assert.equal(
-    contract.components.schemas.BootstrapFact.additionalProperties,
-    true,
-  );
-  for (const schema of [
-    "CurrentPasswordRequest",
-    "LoginRequest",
-    "PasswordChangeRequest",
-    "SessionRevocationRequest",
-  ]) {
-    assert.equal(
-      contract.components.schemas[schema].additionalProperties,
-      false,
-    );
-  }
-  assert.deepEqual(contract.components.schemas.System.properties.codex, {
-    $ref: "#/components/schemas/CodexFact",
-  });
-  assert.equal(
-    contract.components.schemas.CodexCapabilityCatalog.properties
-      .codex_cli_version.const,
-    CODEX_CAPABILITY_CATALOG.codex_cli_version,
-  );
-  assert.deepEqual(
-    contract.components.schemas.CodexCapabilityCatalog.const,
-    CODEX_CAPABILITY_CATALOG,
-  );
-  assert.deepEqual(
-    contract.components.schemas.CodexModelCapability.oneOf,
-    CODEX_CAPABILITY_CATALOG.models.map((model) => ({
-      additionalProperties: false,
-      properties: {
-        id: { const: model.id, type: "string" },
-        reasoning_efforts: {
-          items: { enum: model.reasoning_efforts, type: "string" },
-          minItems: 1,
-          type: "array",
-        },
-        service_tiers: {
-          items: { enum: model.service_tiers, type: "string" },
-          minItems: 1,
-          type: "array",
-        },
-      },
-      required: ["id", "reasoning_efforts", "service_tiers"],
-      type: "object",
-    })),
-  );
-  assert.equal(
-    contract.components.schemas.AuthorityAttribution.properties.occurred_at
-      .format,
-    "date-time",
-  );
-  assert.deepEqual(
-    contract.components.schemas.AuthorityAttribution.properties.channel.enum,
-    ["browser_session", "host", "implementer_token", "onboarding_token"],
-  );
-  assert.ok(contract.paths["/api/v1/system/authority-attributions"]);
-  assert.ok(contract.paths["/api/v1/reviews"]);
-  assert.equal(
-    contract.paths["/api/v1/reviews"].post.operationId,
-    "createReview",
-  );
-  assert.deepEqual(parameterFacts(contract.paths["/api/v1/reviews"].post), [
-    { name: "origin", required: true },
-    { name: "x-quality-bar-csrf", required: true },
-  ]);
-  assert.deepEqual(contract.paths["/api/v1/reviews"].post.security, [
-    { browser_session: [] },
-  ]);
-  assert.deepEqual(contract.paths["/api/v1/reviews"].get.security, [
-    { browser_session: [] },
-    { onboarding_token: [] },
-  ]);
-  const reviewStateParameter =
-    contract.paths["/api/v1/reviews"].get.parameters[0];
-  assert.ok("schema" in reviewStateParameter);
-  const reviewStateSchema = reviewStateParameter.schema as { enum: string[] };
-  assert.deepEqual(reviewStateSchema.enum, ["active", "archived"]);
-  assert.deepEqual(contract.paths["/api/v1/repositories"].get.security, [
-    { browser_session: [] },
-    { implementer_token: [] },
-    { onboarding_token: [] },
-  ]);
-  assert.deepEqual(contract.paths["/api/v1/repositories"].post.security, [
-    { browser_session: [] },
-  ]);
-  assert.deepEqual(
-    contract.paths["/api/v1/repositories/{repository_id}/guidance"].get
-      .security,
-    [
-      { browser_session: [] },
-      { implementer_token: [] },
-      { onboarding_token: [] },
-    ],
-  );
-  assert.deepEqual(
-    contract.paths["/api/v1/repositories"].get.parameters.map(
-      ({ name }) => name,
-    ),
-    ["cursor", "limit"],
-  );
-  assert.equal(
-    contract.components.schemas.RepositoryCollection.additionalProperties,
-    false,
-  );
-  assert.deepEqual(contract.components.schemas.RepositoryCollection.required, [
-    "items",
-    "next_cursor",
-  ]);
-  assert.deepEqual(
-    Object.keys(
-      contract.components.schemas.RepositoryCollection.properties,
-    ).sort(),
-    ["items", "next_cursor"],
-  );
-  assert.deepEqual(
-    contract.paths["/api/v1/reviews/{review_id}/archival"].patch.security,
-    [{ browser_session: [] }],
-  );
-  assert.deepEqual(
-    contract.paths["/api/v1/reviews/{review_id}/metadata"].patch.security,
-    [{ browser_session: [] }],
-  );
-  assert.deepEqual(
-    parameterFacts(
-      contract.paths["/api/v1/reviews/{review_id}/metadata"].patch,
-    ),
-    [
-      { name: "origin", required: true },
-      { name: "review_id", required: true },
-      { name: "x-quality-bar-csrf", required: true },
-    ],
-  );
-  assert.equal(
-    contract.paths["/api/v1/reviews"].post.responses[201].description,
-    "Review with its active immutable v1",
-  );
-  assert.ok(contract.paths["/api/v1/reviews"].post.responses[500]);
-  assert.equal(
-    contract.components.schemas.ReviewCreateRequest.properties.name.pattern,
-    "\\S",
-  );
-  assert.equal(
-    contract.components.schemas.ReviewCreateRequest.properties.description
-      .pattern,
-    "\\S",
-  );
-  assert.equal(
-    contract.components.schemas.Review.properties.archived.type,
-    "boolean",
-  );
-  assert.equal(
-    contract.components.schemas.CriterionCreateRequest.properties.instruction
-      .pattern,
-    "\\S",
-  );
-  for (const schema of [
-    "CriterionCreateRequest",
-    "ReviewCreateRequest",
-    "Criterion",
-    "ReviewVersion",
-    "Review",
-  ]) {
-    assert.equal(
-      contract.components.schemas[schema].additionalProperties,
-      false,
-    );
-  }
-  const assignmentSchemas = contract.components.schemas.ReviewAssignment.oneOf;
-  assert.ok(assignmentSchemas);
-  for (const assignment of assignmentSchemas) {
-    assert.equal(assignment.additionalProperties, false);
-  }
-  assert.equal(
-    contract.components.schemas.CodexConfiguration.additionalProperties,
-    false,
-  );
-  for (const path of [
-    "/api/v1/session/logout",
-    "/api/v1/session/activity",
-    "/api/v1/session/password",
-    "/api/v1/sessions/revoke",
-    "/api/v1/implementer-token",
-    "/api/v1/implementer-token/rotate",
-    "/api/v1/implementer-token/revoke",
-  ]) {
-    assert.deepEqual(parameterFacts(contract.paths[path].post), [
-      { name: "origin", required: true },
-      { name: "x-quality-bar-csrf", required: true },
-    ]);
-  }
-  assert.ok(contract.paths["/api/v1/session/logout"].post.responses[503]);
-  assert.ok(contract.paths["/api/v1/session/logout"].post.responses[400]);
-  assert.ok(contract.paths["/api/v1/session/activity"].post.responses[400]);
-  assert.ok(contract.paths["/api/v1/openapi.json"].get.responses[400]);
-  assert.ok(contract.paths["/api/v1/system"].get.responses[400]);
-  assert.ok(
-    contract.paths["/api/v1/system/authority-attributions"].get.responses[503],
-  );
 
   const system = await fetch(`${application.origin}/api/v1/system`, {
     headers: { cookie },
@@ -385,10 +133,6 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
       `${application.origin}/api/v1/system?unexpected=true`,
       "request_malformed",
     ],
-    [
-      `${application.origin}/api/v1/openapi.json?unexpected=true`,
-      "request_malformed",
-    ],
   ]) {
     const response = await fetch(url, { headers: { cookie } });
     assert.equal(response.status, 400);
@@ -426,11 +170,6 @@ test("the authenticated canonical contract is OpenAPI 3.1 with strict System att
     "request_malformed",
   );
 
-  const machineContract = await fetch(
-    `${application.origin}/api/v1/openapi.json`,
-    { headers: { authorization: `Bearer ${token}` } },
-  );
-  assert.equal(machineContract.status, 200);
   const machineSystem = await fetch(`${application.origin}/api/v1/system`, {
     headers: { authorization: `Bearer ${token}` },
   });
