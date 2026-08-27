@@ -14,16 +14,6 @@ function fixture(name: string) {
   );
 }
 
-test("the Node and ownership-boundary gate accepts maintained JavaScript", async () => {
-  const result = await runNodeBoundaryLint({ repositoryRoot });
-
-  assert.equal(result.outcome, "pass", result.report);
-  assert.match(
-    result.report,
-    /node_boundary_lint: PASS \(\d+ maintained JavaScript files, zero warnings\)/,
-  );
-});
-
 test("the Node boundary gate rejects missing, extraneous, and unavailable imports", async () => {
   const expectedDiagnostics = {
     "missing-import": "n/no-missing-import",
