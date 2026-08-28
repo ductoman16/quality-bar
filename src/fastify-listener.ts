@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import AjvCompiler from "@fastify/ajv-compiler";
 import SerializerSelector from "@fastify/fast-json-stringify-compiler";
 import cookie from "@fastify/cookie";
-import swagger from "@fastify/swagger";
 import Fastify from "fastify";
 
 import { requireCodedError } from "./coded-error.ts";
@@ -129,20 +128,6 @@ export function createFastify(
     cachedSerializerCompiler(buildSerializerFactory(registeredSchemas, {})),
   );
   server.register(cookie);
-  server.register(swagger, {
-    convertConstToEnum: false,
-    openapi: {
-      components: {
-        securitySchemes: components.securitySchemes as any,
-      },
-      info: { title: "Quality Bar API", version: "1.0.0" },
-      openapi: "3.1.0",
-    },
-    refResolver: {
-      buildLocalReference: (schema, ...context) =>
-        String(schema.$id ?? `schema-${context[2]}`),
-    },
-  });
   for (const schema of Object.values(registeredSchemas)) {
     server.addSchema(schema);
   }
@@ -278,23 +263,15 @@ export function registerApiRoutes(
   for (const route of apiRoutes) {
     const operationId = route.schema.operationId;
     const handler =
-      operationId === "getOpenApiDocument"
+      operationId === undefined
         ? (
             request: import("fastify").FastifyRequest,
             reply: import("fastify").FastifyReply,
           ) => {
             void request;
-            return reply.send(server.swagger());
+            writeError(reply, 404, "not_found", "Resource was not found");
           }
-        : operationId === undefined
-          ? (
-              request: import("fastify").FastifyRequest,
-              reply: import("fastify").FastifyReply,
-            ) => {
-              void request;
-              writeError(reply, 404, "not_found", "Resource was not found");
-            }
-          : handlers[operationId];
+        : handlers[operationId];
     if (typeof handler !== "function") {
       throw new TypeError(`HTTP operation handler is missing: ${operationId}`);
     }

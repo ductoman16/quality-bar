@@ -276,14 +276,5 @@ export function createCanonicalComponents(
       ...canonicalEvaluationSchemas(),
       ...canonicalAnalyticsSchemas(),
     },
-    securitySchemes: {
-      browser_session: {
-        in: "cookie",
-        name: "quality_bar_session",
-        type: "apiKey",
-      },
-      implementer_token: { scheme: "bearer", type: "http" },
-      onboarding_token: { scheme: "bearer", type: "http" },
-    },
   };
 }
