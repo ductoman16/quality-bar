@@ -66,7 +66,7 @@ All of this exists for one reason: Codex CLI spawns its own sandboxed subprocess
 **Mitigations already in place:**
 
 - The process runs as an unprivileged UID (`10001:10001`), never as root, so the elevated capabilities are still gated by discretionary access control on that user.
-- The HTTP server binds only to `127.0.0.1` ([src/main.ts](src/main.ts)), never a routable interface; [#437](https://github.com/ductoman16/quality-bar/issues/437) additionally drops `network_mode: host` in favor of a bridge network with the published port bound to `127.0.0.1`, removing host network-namespace sharing without changing reachability.
+- The service is reachable from the host only on `127.0.0.1`: [compose.yaml](compose.yaml) runs the container on a bridge network and publishes its port bound to `127.0.0.1` (`ports: ["127.0.0.1:${QUALITY_BAR_HTTP_PORT:-3000}:3000"]`), never on a routable interface. This replaced the former `network_mode: host` ([#437](https://github.com/ductoman16/quality-bar/issues/437)), removing host network-namespace sharing without changing reachability.
 - Egress is restricted to registered forge (Git hosting) APIs and Codex/OpenAI endpoints — see [Operator authority recovery](#operator-authority-recovery) for the firewall requirement.
 
 **Path to removal:** [#428](https://github.com/ductoman16/quality-bar/issues/428) tracks migrating Codex execution onto the [omp.sh](https://omp.sh) harness, which would own subprocess sandboxing outside this container. Once that migration lands, `SYS_ADMIN`, `SYS_CHROOT`, `SYS_PTRACE`, and the AppArmor/seccomp opt-outs become unnecessary and can be dropped from `compose.yaml`.
