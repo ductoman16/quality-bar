@@ -83,12 +83,7 @@ export function createRepositorySelectorResolver({
     return resolveSelectors(repository.url, credential, request, {
       certificateAuthorityPath,
       objectDatabaseRoot,
-      ...("pullRequestProvider" in options
-        ? { pullRequestProvider: options.pullRequestProvider }
-        : {}),
-      ...("useMergeBase" in options
-        ? { useMergeBase: options.useMergeBase }
-        : {}),
+      ...options,
     });
   };
 }

@@ -49,10 +49,16 @@ test("Forge Repository selector acquisition uses its owning Connection credentia
     },
   });
 
-  assert.deepEqual(await resolver("repository-1", request), {
-    base_commit: "1".repeat(40),
-    head_commit: "2".repeat(40),
-  });
+  assert.deepEqual(
+    await resolver("repository-1", request, {
+      pullRequestProvider: "github",
+      useMergeBase: true,
+    }),
+    {
+      base_commit: "1".repeat(40),
+      head_commit: "2".repeat(40),
+    },
+  );
   assert.deepEqual(observed, [
     ["credential", "connection-1", "github"],
     [
@@ -66,6 +72,8 @@ test("Forge Repository selector acquisition uses its owning Connection credentia
       {
         certificateAuthorityPath: "/run/secrets/private-ca.pem",
         objectDatabaseRoot: "/owned/checkouts",
+        pullRequestProvider: "github",
+        useMergeBase: true,
       },
     ],
   ]);
