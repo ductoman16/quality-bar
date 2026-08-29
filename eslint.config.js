@@ -119,12 +119,6 @@ export default [
     },
   },
   {
-    files: ["src/browser/evaluation.ts"],
-    rules: {
-      "max-lines": ["error", { max: 900, skipBlankLines: true, skipComments: true }],
-    },
-  },
-  {
     files: [
       "fixtures/package/authenticated-http-smoke.mjs",
       "fixtures/package/backup-facts.mjs",
