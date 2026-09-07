@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton } from "fono-ui";
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import {
   csrfRequest,
@@ -242,7 +243,7 @@ async function lifecycle({ method, provider }) {
 onMounted(() => safe(load));
 </script>
 <template>
-  <section id="github-connection-details" class="qb-region" :inert="busy">
+  <section id="github-connection-details" class="domain-region" :inert="busy">
     <h2>GitHub Connection</h2>
     <form
       v-if="
@@ -257,9 +258,9 @@ onMounted(() => safe(load));
         v-model="githubPem"
         required
       ></textarea
-      ><button class="qb-btn qb-btn--secondary" type="submit">
+      ><FonoButton type="submit">
         {{ github ? "Reactivate GitHub App" : "Connect GitHub App" }}
-      </button>
+      </FonoButton>
     </form>
     <template v-if="!providerFailed.github && github"
       ><ProviderConnectionFacts :connection="github" provider="GitHub" />
@@ -273,7 +274,7 @@ onMounted(() => safe(load));
           v-model="githubPem"
           required
         ></textarea
-        ><button type="submit">Rotate GitHub App credentials</button>
+        ><FonoButton type="submit">Rotate GitHub App credentials</FonoButton>
       </form>
       <form
         v-if="githubChoices.length && github.lifecycle !== 'retired'"
@@ -300,7 +301,7 @@ onMounted(() => safe(load));
             }}</label
           >
         </fieldset>
-        <button type="submit">Register selected Repositories</button>
+        <FonoButton type="submit">Register selected Repositories</FonoButton>
       </form>
       <ConnectionLifecycleActions
         :connection="github"
@@ -314,7 +315,7 @@ onMounted(() => safe(load));
       :manifest="manifest.manifest"
     />
   </section>
-  <section id="forgejo-connection-details" class="qb-region" :inert="busy">
+  <section id="forgejo-connection-details" class="domain-region" :inert="busy">
     <h2>Forgejo Connection</h2>
     <template v-if="!providerFailed.forgejo && !forgejo"
       ><form
@@ -334,7 +335,7 @@ onMounted(() => safe(load));
           v-model="forge.token"
           required
           type="password"
-        /><button type="submit">Verify Forgejo Connection</button>
+        /><FonoButton type="submit">Verify Forgejo Connection</FonoButton>
       </form>
       <form v-else @submit.prevent="safe(connectForgejo)">
         <fieldset>
@@ -351,7 +352,9 @@ onMounted(() => safe(load));
             />{{ item.full_name }}</label
           >
         </fieldset>
-        <button type="submit">Register selected Forgejo Repositories</button>
+        <FonoButton type="submit"
+          >Register selected Forgejo Repositories</FonoButton
+        >
       </form></template
     >
     <template v-else-if="!providerFailed.forgejo"
@@ -367,7 +370,7 @@ onMounted(() => safe(load));
           v-model="forge.rotationToken"
           required
           type="password"
-        /><button type="submit">Rotate Forgejo PAT</button>
+        /><FonoButton type="submit">Rotate Forgejo PAT</FonoButton>
       </form>
       <form v-else @submit.prevent="safe(() => reactivate('forgejo'))">
         <label for="forgejo-reactivation-token">Reactivation PAT</label
@@ -376,7 +379,7 @@ onMounted(() => safe(load));
           v-model="forge.reactivationToken"
           required
           type="password"
-        /><button type="submit">Reactivate Forgejo Connection</button>
+        /><FonoButton type="submit">Reactivate Forgejo Connection</FonoButton>
       </form>
       <ConnectionLifecycleActions
         :connection="forgejo"

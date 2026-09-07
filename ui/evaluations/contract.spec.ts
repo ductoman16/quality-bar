@@ -104,8 +104,13 @@ describe("Evaluation browser contract", () => {
       }),
     ).toBe(false);
     expect(nodeVisualState({ outcome: "blocking", status: "completed" })).toBe(
-      "blocking",
+      "blocked",
     );
+    expect(nodeVisualState({ outcome: "advisory", status: "completed" })).toBe(
+      "attention",
+    );
+    expect(nodeVisualState({ status: "running" })).toBe("active");
+    expect(nodeVisualState({ status: "cancelled" })).toBe("cancelled");
     const fetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetch);
     vi.stubGlobal("crypto", { randomUUID: () => "request-id" });

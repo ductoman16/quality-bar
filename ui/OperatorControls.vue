@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoDialog, FonoTableFrame } from "fono-ui";
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
 import { csrfToken, requireStatus, responseMessage } from "./browser.ts";
@@ -15,9 +16,9 @@ const props = defineProps({
 const error = ref("");
 const errorElement = ref();
 const token = ref("");
-const tokenDialog = ref();
+const tokenOpen = ref(false);
 const onboardingToken = ref("");
-const onboardingDialog = ref();
+const onboardingOpen = ref(false);
 const onboardingTokens = ref([]);
 const onboardingUrl = ref("");
 const fields = ref({
@@ -71,7 +72,7 @@ async function tokenMutation(path, password) {
   const value = await response.json();
   if (!validTokenReveal(value)) return showError("token_reveal_invalid");
   token.value = value.token;
-  tokenDialog.value.showModal();
+  tokenOpen.value = true;
 }
 async function logout() {
   const response = await request("/api/v1/session/logout", {});
@@ -113,7 +114,7 @@ async function createOnboardingToken() {
     return showError("onboarding_token_reveal_invalid");
   onboardingToken.value = value.token;
   onboardingUrl.value = "";
-  onboardingDialog.value.showModal();
+  onboardingOpen.value = true;
   await loadOnboardingTokens();
 }
 async function revokeOnboardingToken(id) {
@@ -168,7 +169,7 @@ onUnmounted(() => {
         required
         type="password"
       />
-      <button type="submit">Change password</button>
+      <FonoButton type="submit">Change password</FonoButton>
     </form>
     <form
       @submit.prevent="
@@ -196,7 +197,7 @@ onUnmounted(() => {
         v-model="fields.revokeConfirmation"
         required
       />
-      <button type="submit">Revoke all sessions</button>
+      <FonoButton type="submit">Revoke all sessions</FonoButton>
     </form>
     <form
       @submit.prevent="
@@ -213,7 +214,7 @@ onUnmounted(() => {
         autocomplete="current-password"
         required
         type="password"
-      /><button type="submit">Create implementer token</button>
+      /><FonoButton type="submit">Create implementer token</FonoButton>
     </form>
     <form
       @submit.prevent="
@@ -233,7 +234,7 @@ onUnmounted(() => {
         autocomplete="current-password"
         required
         type="password"
-      /><button type="submit">Rotate implementer token</button>
+      /><FonoButton type="submit">Rotate implementer token</FonoButton>
     </form>
     <form
       @submit.prevent="
@@ -255,7 +256,7 @@ onUnmounted(() => {
         autocomplete="current-password"
         required
         type="password"
-      /><button type="submit">Revoke implementer token</button>
+      /><FonoButton type="submit">Revoke implementer token</FonoButton>
     </form>
     <section v-if="showOnboarding" aria-labelledby="onboarding-tokens-title">
       <h2 id="onboarding-tokens-title">Onboarding tokens</h2>
@@ -266,52 +267,56 @@ onUnmounted(() => {
           v-model="onboardingUrl"
           required
           type="url"
-        /><button type="submit">Create onboarding token</button>
+        /><FonoButton type="submit">Create onboarding token</FonoButton>
       </form>
-      <table>
-        <thead>
-          <tr>
-            <th>Repository</th>
-            <th>Expires</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in onboardingTokens" :key="item.id">
-            <td>{{ item.repository_url }}</td>
-            <td>{{ new Date(item.expires_at).toLocaleString() }}</td>
-            <td>
-              <button
-                type="button"
-                @click="safe(() => revokeOnboardingToken(item.id))"
-              >
-                Revoke
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <FonoTableFrame label="Onboarding tokens">
+        <table>
+          <thead>
+            <tr>
+              <th>Repository</th>
+              <th>Expires</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in onboardingTokens" :key="item.id">
+              <td>{{ item.repository_url }}</td>
+              <td>{{ new Date(item.expires_at).toLocaleString() }}</td>
+              <td>
+                <FonoButton
+                  type="button"
+                  @click="safe(() => revokeOnboardingToken(item.id))"
+                >
+                  Revoke
+                </FonoButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </FonoTableFrame>
     </section>
-    <button type="button" @click="safe(logout)">Log out</button>
+    <FonoButton type="button" @click="safe(logout)">Log out</FonoButton>
   </details>
-  <dialog
-    ref="tokenDialog"
+  <FonoDialog
+    :open="tokenOpen"
     aria-labelledby="implementer-token-reveal-title"
     @close="token = ''"
+    @update:open="tokenOpen = $event"
   >
     <h2 id="implementer-token-reveal-title">Implementer token</h2>
     <output>{{ token }}</output
-    ><button type="button" @click="tokenDialog.close()">Done</button>
-  </dialog>
-  <dialog
-    ref="onboardingDialog"
+    ><FonoButton type="button" @click="tokenOpen = false">Done</FonoButton>
+  </FonoDialog>
+  <FonoDialog
+    :open="onboardingOpen"
     aria-labelledby="onboarding-token-reveal-title"
     @close="onboardingToken = ''"
+    @update:open="onboardingOpen = $event"
   >
     <h2 id="onboarding-token-reveal-title">Onboarding token</h2>
     <output>{{ onboardingToken }}</output>
     <p role="status">Shown once.</p>
-    <button type="button" @click="onboardingDialog.close()">Done</button>
-  </dialog>
+    <FonoButton type="button" @click="onboardingOpen = false">Done</FonoButton>
+  </FonoDialog>
   <p v-if="error" ref="errorElement" role="alert" tabindex="-1">{{ error }}</p>
 </template>

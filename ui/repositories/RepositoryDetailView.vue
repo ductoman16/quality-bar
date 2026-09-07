@@ -1,4 +1,5 @@
 <script setup>
+import { FonoBackLink } from "fono-ui";
 import { onMounted, ref } from "vue";
 
 import { repositoryCollection, requireStatus } from "../browser.ts";
@@ -54,8 +55,8 @@ onMounted(load);
 </script>
 
 <template>
-  <section class="qb-region repo-detail">
-    <a class="qb-back" href="/?view=repositories">Repositories</a>
+  <section class="domain-region repo-detail">
+    <FonoBackLink href="/?view=repositories">Repositories</FonoBackLink>
     <template v-if="repository"
       ><div class="repo-detail__head">
         <h2>{{ repository.name || repository.url }}</h2>
@@ -80,7 +81,7 @@ onMounted(load);
         @error="error = $event"
         @refresh="load"
       />
-      <section class="qb-region qb-deep-surface">
+      <section class="domain-region detail-surface">
         <h2>Applicable reviews</h2>
         <p v-if="!guidance?.reviews?.length">
           No reviews apply to this repository.

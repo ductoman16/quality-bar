@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton } from "fono-ui";
 defineProps({
   connection: { required: true, type: Object },
   provider: { required: true, type: String },
@@ -7,17 +8,17 @@ defineProps({
 const emit = defineEmits(["open"]);
 </script>
 <template>
-  <button
+  <FonoButton
     v-if="connection.lifecycle !== 'retired' && (provider === 'GitHub' || used)"
     type="button"
     @click="emit('open', provider, 'PATCH', connection.principal.login)"
   >
-    Retire {{ provider }} Connection</button
-  ><button
+    Retire {{ provider }} Connection</FonoButton
+  ><FonoButton
     v-if="provider === 'GitHub' || !used"
     type="button"
     @click="emit('open', provider, 'DELETE', connection.principal.login)"
   >
     Delete {{ provider }} Connection
-  </button>
+  </FonoButton>
 </template>

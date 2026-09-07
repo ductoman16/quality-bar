@@ -3,9 +3,9 @@ FROM ${BUNDLED_NODE_IMAGE} AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY vendor ./vendor
 RUN npm ci --ignore-scripts
 COPY ui ./ui
-COPY src/browser/display-font.ts src/browser/style-tokens.ts ./src/browser/
 COPY vite.config.js ./
 RUN npm run build
 
@@ -32,6 +32,7 @@ RUN apk add --no-cache "git=${BUNDLED_GIT_VERSION}" \
 WORKDIR /app
 
 COPY --chown=10001:10001 package.json package-lock.json ./
+COPY --chown=10001:10001 vendor ./vendor
 RUN npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 COPY --chown=10001:10001 src ./src

@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoIcon, FonoStat, FonoStatStrip } from "fono-ui";
 import { nextTick, ref } from "vue";
 
 import EvaluationRow from "./EvaluationRow.vue";
@@ -36,8 +37,8 @@ const dayHeading = (evaluation) => {
     class="evaluation-monitor"
     aria-label="Evaluation monitor"
   >
-    <section class="qb-stat-strip" aria-label="Fleet statistics">
-      <div
+    <FonoStatStrip class="evaluation-stat-strip" aria-label="Fleet statistics">
+      <FonoStat
         v-for="[label, value] in [
           ['Workers', state.stats.workers],
           ['Queue', state.stats.queue],
@@ -46,38 +47,36 @@ const dayHeading = (evaluation) => {
           ['Updated', state.stats.updated],
         ]"
         :key="label"
-        class="qb-stat evaluation-stat"
-      >
-        <span>{{ label }}</span
-        ><output>{{ value }}</output>
-      </div>
-    </section>
+        :label="label"
+        :value="value"
+      />
+    </FonoStatStrip>
     <div class="evaluation-monitor__controls">
       <div class="evaluation-stat-window" aria-label="Statistics window">
-        <button
+        <FonoButton
           type="button"
           :aria-pressed="state.statsWindow.value === 24"
           @click="state.refreshStats(24)"
         >
           24h
-        </button>
-        <button
+        </FonoButton>
+        <FonoButton
           type="button"
           :aria-pressed="state.statsWindow.value === 168"
           @click="state.refreshStats(168)"
         >
           7d
-        </button>
+        </FonoButton>
       </div>
-      <button
-        :class="`qb-btn ${state.createOpen.value ? 'qb-btn--secondary' : 'qb-btn--primary'}`"
+      <FonoButton
+        :emphasis="state.createOpen.value ? 'secondary' : 'primary'"
         type="button"
         :aria-expanded="state.createOpen.value"
         aria-controls="evaluation-create-form"
         @click="toggleCreate"
       >
-        + New evaluation
-      </button>
+        <FonoIcon name="plus" /> New evaluation
+      </FonoButton>
     </div>
     <form
       v-if="state.createOpen.value"
@@ -122,7 +121,7 @@ const dayHeading = (evaluation) => {
         v-model="state.create.headValue"
         required
       />
-      <button class="qb-btn qb-btn--primary" type="submit">Evaluate</button
+      <FonoButton emphasis="primary" type="submit">Evaluate</FonoButton
       ><output aria-live="polite">{{ state.createStatus.value }}</output>
     </form>
     <details class="evaluation-filters">
@@ -200,14 +199,10 @@ const dayHeading = (evaluation) => {
           v-model="state.filters.end"
           type="datetime-local"
         />
-        <button class="qb-btn qb-btn--secondary" type="submit">Apply</button
-        ><button
-          class="qb-btn qb-btn--secondary"
-          type="button"
-          @click="state.resetFilters"
-        >
+        <FonoButton type="submit">Apply</FonoButton
+        ><FonoButton type="button" @click="state.resetFilters">
           Reset
-        </button>
+        </FonoButton>
       </form>
     </details>
     <p v-if="state.loading.value" aria-live="polite">Loading Evaluations</p>
@@ -244,20 +239,20 @@ const dayHeading = (evaluation) => {
       </section>
     </section>
     <div v-if="!state.listFailed.value" class="evaluation-list-actions">
-      <button
+      <FonoButton
         v-if="state.newActivity.value"
         type="button"
         @click="state.revealActivity"
       >
         New activity available
-      </button>
-      <button
+      </FonoButton>
+      <FonoButton
         v-if="state.nextCursor.value"
         type="button"
         @click="state.refresh({ cursor: state.nextCursor.value })"
       >
         Load more
-      </button>
+      </FonoButton>
     </div>
   </section>
 </template>

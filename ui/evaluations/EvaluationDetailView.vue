@@ -1,4 +1,5 @@
 <script setup>
+import { FonoBackLink, FonoButton, FonoTimeline } from "fono-ui";
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
 
 import {
@@ -180,10 +181,10 @@ onUnmounted(() => {
 
 <template>
   <section id="evaluation-detail">
-    <a id="evaluation-detail-back" class="qb-back" href="/?view=evaluations"
-      >Evaluations</a
+    <FonoBackLink id="evaluation-detail-back" href="/?view=evaluations"
+      >Evaluations</FonoBackLink
     >
-    <div v-if="evaluation" class="qb-evaluation-detail-meta">
+    <div v-if="evaluation" class="evaluation-detail-meta">
       <h2 id="evaluation-detail-title">Evaluation {{ evaluation.id }}</h2>
       <dl>
         <dt>Repository</dt>
@@ -227,7 +228,7 @@ onUnmounted(() => {
         <dt>Last refreshed</dt>
         <dd id="evaluation-detail-updated">{{ lastRefreshed }}</dd>
       </dl>
-      <button
+      <FonoButton
         v-if="['queued', 'running'].includes(evaluation.execution_status)"
         id="evaluation-detail-cancel"
         :disabled="busy"
@@ -235,8 +236,8 @@ onUnmounted(() => {
         @click="mutate('cancel')"
       >
         Cancel
-      </button>
-      <button
+      </FonoButton>
+      <FonoButton
         v-if="evaluation.retry_state === 'exhausted'"
         id="evaluation-detail-retry"
         :disabled="busy"
@@ -244,7 +245,7 @@ onUnmounted(() => {
         @click="mutate('retry')"
       >
         Retry
-      </button>
+      </FonoButton>
     </div>
     <p v-if="loading" id="evaluation-detail-loading">Loading Evaluation</p>
     <p
@@ -259,31 +260,20 @@ onUnmounted(() => {
     <div
       v-if="evaluation"
       id="evaluation-detail-preview"
-      class="qb-deep-surface evaluation-detail-preview"
+      class="detail-surface evaluation-detail-preview"
     >
-      <section
+      <FonoTimeline
         id="evaluation-detail-timeline"
-        class="qb-timeline evaluation-detail-timeline"
+        class="evaluation-detail-timeline"
         aria-label="Evaluation steps"
-      >
-        <template
-          v-for="(node, index) in evaluation.monitor.nodes"
-          :key="node.key ?? node.review_version_id"
-        >
-          <span v-if="index" class="qb-timeline-connector"></span>
-          <span
-            :class="`qb-timeline-node qb-timeline-node--${node.kind} qb-timeline-node--${nodeVisualState(node)}`"
-            :aria-label="`${node.label}: ${statusLabel(node)}`"
-          >
-            <span aria-hidden="true" class="qb-timeline-node__marker"></span>
-            <span
-              >{{ node.kind === "review" ? "Review " : ""
-              }}{{ node.label }}</span
-            ><span>{{ statusLabel(node) }}</span
-            ><span>—</span>
-          </span>
-        </template>
-      </section>
+        :items="
+          evaluation.monitor.nodes.map((node) => ({
+            id: node.key ?? node.review_version_id,
+            label: `${node.kind === 'review' ? 'Review ' : ''}${node.label}: ${statusLabel(node)}`,
+            status: nodeVisualState(node),
+          }))
+        "
+      />
       <aside aria-label="Outcome summary">
         <h2>Outcome summary</h2>
         <dl>

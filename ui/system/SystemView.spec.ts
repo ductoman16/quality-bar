@@ -415,7 +415,9 @@ it("focuses the invalid configuration field", async () => {
   await flushPromises();
   await wrapper.get("form").trigger("submit");
   await flushPromises();
-  expect(wrapper.get("output").text()).toBe("Service tier is unsupported");
+  expect(wrapper.findAll("output").at(-1)?.text()).toBe(
+    "Service tier is unsupported",
+  );
   expect(document.activeElement).toBe(wrapper.get("#waiver-tier").element);
   responseMode = "generic";
   await wrapper.get("form").trigger("submit");
@@ -428,6 +430,6 @@ it("focuses the invalid configuration field", async () => {
   await wrapper.get("form").trigger("submit");
   await flushPromises();
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-  expect(wrapper.get("output").text()).toBe("Saved");
+  expect(wrapper.findAll("output").at(-1)?.text()).toBe("Saved");
   wrapper.unmount();
 });

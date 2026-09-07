@@ -2,6 +2,7 @@ import { flushPromises, mount, shallowMount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
+import MetricTable from "./analytics/MetricTable.vue";
 import App from "./App.vue";
 import { responseMessage } from "./browser.ts";
 import { validBrowserConfiguration } from "./contract.ts";
@@ -87,7 +88,7 @@ describe("Vue operator views", () => {
   });
 
   it("renders the fixed authenticated shell", async () => {
-    const wrapper = shallowMount(App, {
+    const wrapper = mount(App, {
       props: {
         authenticated: true,
         csrfCookieName: "quality_bar_csrf",
@@ -95,8 +96,14 @@ describe("Vue operator views", () => {
       },
     });
     await flushPromises();
+    expect(wrapper.get("[data-fono-root]").attributes()).toMatchObject({
+      "data-fono-appearance": "system",
+      "data-fono-mode": "monochrome",
+    });
     expect(wrapper.get("h1").text()).toBe("Repositories");
-    expect(wrapper.findAll("nav a").map((link) => link.text())).toEqual([
+    expect(
+      wrapper.findAll(".fono-app-shell__wide-nav a").map((link) => link.text()),
+    ).toEqual([
       "Evaluations",
       "Reviews",
       "Repositories",
@@ -104,14 +111,62 @@ describe("Vue operator views", () => {
       "System",
     ]);
     expect(wrapper.get('a[aria-current="page"]').text()).toBe("Repositories");
+    expect(
+      wrapper
+        .findAll(".fono-app-shell__wide-nav a")
+        .map((link) => link.attributes("href")),
+    ).toEqual([
+      "/?view=evaluations",
+      "/?view=reviews",
+      "/?view=repositories",
+      "/?view=analytics",
+      "/?view=system",
+    ]);
     wrapper.unmount();
 
-    const detail = shallowMount(App, {
+    const detail = mount(App, {
       props: { authenticated: true, view: "evaluation-detail" },
     });
     expect(detail.get("h1").text()).toBe("Evaluation");
     expect(detail.get('a[aria-current="page"]').text()).toBe("Evaluations");
     detail.unmount();
+  });
+
+  it("cycles the Fono Appearance while Quality Bar owns its cookie", async () => {
+    document.cookie = "qb_theme=;path=/;max-age=0";
+    const wrapper = mount(App, {
+      props: {
+        authenticated: true,
+        csrfCookieName: "quality_bar_csrf",
+        view: "system",
+      },
+    });
+    await flushPromises();
+    const control = wrapper.get(".fono-appearance");
+    await control.trigger("click");
+    expect(
+      wrapper.get("[data-fono-root]").attributes("data-fono-appearance"),
+    ).toBe("light");
+    expect(document.cookie).toContain("qb_theme=light");
+    await control.trigger("click");
+    expect(document.cookie).toContain("qb_theme=dark");
+    await control.trigger("click");
+    expect(
+      wrapper.get("[data-fono-root]").attributes("data-fono-appearance"),
+    ).toBe("system");
+    expect(document.cookie).not.toContain("qb_theme=");
+    wrapper.unmount();
+  });
+
+  it("keeps analytics tables semantic inside the Fono overflow frame", () => {
+    const wrapper = mount(MetricTable, {
+      props: { headers: ["Metric"], rows: [["Clear"]], title: "Outcomes" },
+    });
+    expect(wrapper.get(".fono-table-frame > table").element.tagName).toBe(
+      "TABLE",
+    );
+    expect(wrapper.get("th").text()).toBe("Metric");
+    wrapper.unmount();
   });
 
   it("surfaces an invalid System attention document", async () => {
@@ -120,7 +175,7 @@ describe("Vue operator views", () => {
       ok: true,
       status: 200,
     });
-    const wrapper = shallowMount(App, {
+    const wrapper = mount(App, {
       props: { authenticated: true, view: "evaluations" },
     });
     await flushPromises();
@@ -214,6 +269,7 @@ describe("Vue operator views", () => {
       };
     });
     const wrapper = shallowMount(RepositoriesView, {
+      global: { stubs: { FonoButton: false, FonoIconButton: false } },
       props: { csrfCookieName: "quality_bar_csrf" },
     });
     await flushPromises();
@@ -227,7 +283,7 @@ describe("Vue operator views", () => {
       "response lost; authority failed",
     );
     expect(wrapper.findComponent(RepositoryActions).exists()).toBe(false);
-    expect(wrapper.find(".repo-stat-strip").exists()).toBe(false);
+    expect(wrapper.find(".fono-stat-strip").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("No repositories registered");
     wrapper.unmount();
   });
@@ -304,7 +360,7 @@ describe("Vue operator views", () => {
         ? failure()
         : { json: async () => ({ reviews: [] }), ok: true, status: 200 },
     );
-    const wrapper: any = shallowMount(ReviewsView, {
+    const wrapper: any = mount(ReviewsView, {
       props: { csrfCookieName: "quality_bar_csrf" },
     });
     await flushPromises();

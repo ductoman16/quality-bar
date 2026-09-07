@@ -1,6 +1,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import EvaluationRow from "./EvaluationRow.vue";
 import EvaluationsView from "./EvaluationsView.vue";
 
 vi.mock("../analytics/contract.ts", () => ({ validAnalytics: () => true }));
@@ -172,6 +173,21 @@ describe("Evaluations view", () => {
         .some((button) => button.text() === "Retry"),
     ).toBe(false);
     wrapper.unmount();
+  });
+
+  it("renders a failed Evaluation with Fono's error status", () => {
+    const failed = evaluation();
+    failed.execution_status = "failed";
+    failed.effective_outcome = "error";
+    const wrapper = mount(EvaluationRow, {
+      props: { evaluation: failed },
+    });
+    expect(
+      wrapper.get("[data-fono-status]").attributes("data-fono-status"),
+    ).toBe("error");
+    expect(
+      wrapper.get(".evaluation-row__detail").attributes("aria-label"),
+    ).toBe("Open evaluation evaluation-1");
   });
 
   it("keeps a failed mutation visible after authoritative refresh", async () => {

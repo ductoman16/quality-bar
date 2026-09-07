@@ -1,12 +1,15 @@
 <script setup>
+import { FonoTableFrame } from "fono-ui";
+
 defineProps({
   headers: { required: true, type: Array },
   rows: { required: true, type: Array },
+  title: { required: true, type: String },
 });
 </script>
 
 <template>
-  <div class="an-scroll">
+  <FonoTableFrame :label="title">
     <table>
       <thead>
         <tr>
@@ -19,5 +22,5 @@ defineProps({
         </tr>
       </tbody>
     </table>
-  </div>
+  </FonoTableFrame>
 </template>

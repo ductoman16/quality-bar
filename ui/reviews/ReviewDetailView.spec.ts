@@ -4,6 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import ReviewDetailView from "./ReviewDetailView.vue";
 import { validReview } from "./contract.ts";
 
+let dialogReturnFocus: HTMLElement | null = null;
+
 const model = {
   id: "gpt-5.6-sol",
   reasoning_efforts: ["low", "medium", "high", "xhigh", "max"],
@@ -69,8 +71,15 @@ beforeEach(() => {
     "confirm",
     vi.fn(() => true),
   );
-  HTMLDialogElement.prototype.showModal = vi.fn();
-  HTMLDialogElement.prototype.close = vi.fn();
+  HTMLDialogElement.prototype.showModal = function () {
+    dialogReturnFocus = document.activeElement as HTMLElement;
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+    dialogReturnFocus?.focus();
+  };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (path, options) => {
@@ -201,6 +210,7 @@ it("covers version, assignment, archival, and deletion controls", async () => {
     .findAll("dialog button")
     .find((button: any) => button.text() === "Cancel")
     .trigger("click");
+  await flushPromises();
   expect(document.activeElement).toBe(deleteButton.element);
   await deleteButton.trigger("click");
   await wrapper.get("#review-delete-name").setValue("wrong");

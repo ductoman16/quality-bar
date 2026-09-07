@@ -1,16 +1,10 @@
 import { createApp } from "vue";
 
-import { DISPLAY_FONT_STYLE } from "../src/browser/display-font.ts";
-import { FONO_LCD_STYLE } from "../src/browser/style-tokens.ts";
 import App from "./App.vue";
 import { validBrowserConfiguration } from "./contract.ts";
+import "fono-ui/styles.css";
 import "./ui.css";
 import "./views.css";
-
-document.head.insertAdjacentHTML(
-  "beforeend",
-  DISPLAY_FONT_STYLE + FONO_LCD_STYLE,
-);
 
 const configuration = document.getElementById("browser-configuration");
 if (configuration?.getAttribute("type") !== "application/json") {

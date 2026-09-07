@@ -308,15 +308,18 @@ export function nodeVisualState(node: unknown) {
     return "error";
   }
   if (node.outcome === "blocking") {
-    return "blocking";
+    return "blocked";
   }
   if (node.outcome === "advisory") {
-    return "advisory";
+    return "attention";
   }
   if (node.status === "completed") {
     return "complete";
   }
-  return node.status === "running" ? "running" : "pending";
+  if (node.status === "cancelled") {
+    return "cancelled";
+  }
+  return node.status === "running" ? "active" : "pending";
 }
 
 export function mutateEvaluation(

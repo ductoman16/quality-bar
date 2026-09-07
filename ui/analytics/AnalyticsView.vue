@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoStat, FonoStatStrip } from "fono-ui";
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 
 import { requireStatus } from "../browser.ts";
@@ -268,13 +269,15 @@ onUnmounted(() => window.removeEventListener("popstate", popstate));
 </script>
 
 <template>
-  <section v-if="document_" class="qb-region an-overview">
-    <div class="an-stat-strip">
-      <div v-for="[label, value] in overview" :key="label" class="an-stat">
-        <span>{{ label }}</span
-        ><output>{{ value }}</output>
-      </div>
-    </div>
+  <section v-if="document_" class="domain-region an-overview">
+    <FonoStatStrip>
+      <FonoStat
+        v-for="[label, value] in overview"
+        :key="label"
+        :label="label"
+        :value="value"
+      />
+    </FonoStatStrip>
     <p>
       {{ document_.population.state.replaceAll("_", " ") }} ·
       {{ document_.population.matching_evaluations }}/{{
@@ -338,12 +341,20 @@ onUnmounted(() => window.removeEventListener("popstate", popstate));
               ? 'number'
               : 'text'
           " /></template
-      ><button type="submit">Filter</button>
+      ><FonoButton type="submit">Filter</FonoButton>
     </form>
   </details>
-  <section v-for="table in tables" :key="table.title" class="qb-region an-band">
+  <section
+    v-for="table in tables"
+    :key="table.title"
+    class="domain-region an-band"
+  >
     <h2>{{ table.title }}</h2>
-    <MetricTable :headers="table.headers" :rows="table.rows" />
+    <MetricTable
+      :headers="table.headers"
+      :rows="table.rows"
+      :title="table.title"
+    />
   </section>
   <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
     {{ error }}

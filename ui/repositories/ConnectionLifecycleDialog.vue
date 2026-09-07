@@ -1,8 +1,9 @@
 <script setup>
+import { FonoButton, FonoDialog } from "fono-ui";
 import { nextTick, reactive, ref } from "vue";
 
 const emit = defineEmits(["change"]);
-const dialog = ref();
+const dialogOpen = ref(false);
 const input = ref();
 const confirmButton = ref();
 const error = ref("");
@@ -21,15 +22,22 @@ async function open(provider, method, identity) {
   value.text = "";
   error.value = "";
   trigger = document.activeElement;
-  dialog.value.showModal();
+  dialogOpen.value = true;
   await nextTick();
-  (method === "DELETE" ? input.value : confirmButton.value).focus();
+  const target = method === "DELETE" ? input.value : confirmButton.value.$el;
+  if (!(target instanceof HTMLElement)) {
+    throw new Error("connection_dialog_focus_target_unavailable");
+  }
+  target.focus();
 }
-async function close() {
-  dialog.value.close();
+const close = async () => {
+  dialogOpen.value = false;
   await nextTick();
-  trigger?.focus();
-}
+  if (!(trigger instanceof HTMLElement)) {
+    throw new Error("connection_dialog_trigger_unavailable");
+  }
+  trigger.focus();
+};
 async function submit() {
   if (value.method === "DELETE" && value.text !== "DELETE") {
     error.value = `Type DELETE to confirm permanent ${value.provider} Connection deletion`;
@@ -44,10 +52,10 @@ defineExpose({ open });
 </script>
 
 <template>
-  <dialog
-    ref="dialog"
+  <FonoDialog
+    :open="dialogOpen"
     aria-labelledby="connection-confirmation-title"
-    @cancel.prevent="close"
+    @update:open="dialogOpen = $event"
   >
     <form @submit.prevent="submit">
       <h3 id="connection-confirmation-title">
@@ -70,8 +78,8 @@ defineExpose({ open });
         required
       />
       <p v-if="error" role="alert">{{ error }}</p>
-      <button type="button" @click="close">Cancel</button
-      ><button ref="confirmButton" type="submit">Confirm</button>
+      <FonoButton type="button" @click="close">Cancel</FonoButton
+      ><FonoButton ref="confirmButton" type="submit">Confirm</FonoButton>
     </form>
-  </dialog>
+  </FonoDialog>
 </template>
