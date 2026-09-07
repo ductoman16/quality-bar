@@ -154,9 +154,11 @@ it("keeps not-ready results quiet and renders system markers", async () => {
   });
   await flushPromises();
   expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-  expect(wrapper.findAll(".qb-timeline-node--system")).toHaveLength(2);
-  expect(wrapper.findAll(".qb-timeline-node--review")).toHaveLength(1);
-  expect(wrapper.findAll(".qb-timeline-node__marker")).toHaveLength(3);
+  const timeline = wrapper.get(".fono-timeline");
+  expect(timeline.findAll("li")).toHaveLength(3);
+  expect(timeline.text()).toContain("Preparing: Completed");
+  expect(timeline.text()).toContain("Review Boundaries: Clear");
+  expect(timeline.text()).toContain("Finalizing: Completed");
   wrapper.unmount();
 });
 
@@ -479,6 +481,6 @@ it("combines retry and failed authority refresh errors", async () => {
   expect(wrapper.get('[role="alert"]').text()).toBe(
     "Retry unavailable; authority failed",
   );
-  expect(wrapper.find(".qb-evaluation-detail-meta").exists()).toBe(false);
+  expect(wrapper.find(".evaluation-detail-meta").exists()).toBe(false);
   wrapper.unmount();
 });

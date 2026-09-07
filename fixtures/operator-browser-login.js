@@ -5,6 +5,8 @@ window.addEventListener("DOMContentLoaded", () => {
     password instanceof HTMLInputElement &&
     loginForm instanceof HTMLFormElement
   ) {
+    window.name =
+      new URLSearchParams(location.search).get("viewport") ?? "unknown";
     password.value = "a correct operator password";
     password.dispatchEvent(new Event("input", { bubbles: true }));
     loginForm.requestSubmit();
@@ -33,17 +35,51 @@ window.addEventListener("DOMContentLoaded", () => {
 
     const reportError = () => {
       if (!error.hidden) {
-        void fetch(
-          `/operator-browser-complete?${new URLSearchParams({
-            error: error.textContent?.trim() ?? "",
-            path: `${location.pathname}${location.search}`,
-          })}`,
-        );
+        window.name = `${window.name.split("\n", 1)[0]}\n${error.textContent?.trim() ?? ""}`;
+        const navigateToSystem = () => {
+          const systemLink = [...document.querySelectorAll("a")].find(
+            (link) =>
+              link.getAttribute("href") === "/?view=system" &&
+              link instanceof HTMLElement &&
+              link.offsetParent !== null,
+          );
+          if (systemLink instanceof HTMLAnchorElement) {
+            systemLink.click();
+            return;
+          }
+          const menu = document.querySelector(
+            '.fono-app-shell__menu[aria-label="Open navigation"]',
+          );
+          if (menu instanceof HTMLButtonElement) {
+            menu.click();
+          }
+          setTimeout(navigateToSystem, 10);
+        };
+        navigateToSystem();
         return;
       }
       setTimeout(reportError, 10);
     };
     reportError();
   };
-  submitForgejo();
+  if (new URLSearchParams(location.search).get("view") === "system") {
+    const reportLayout = () => {
+      if (!(document.querySelector(".sys-summary") instanceof HTMLElement)) {
+        setTimeout(reportLayout, 10);
+        return;
+      }
+      const [viewport = "unknown", storedError = ""] = window.name.split("\n");
+      void fetch(
+        `/operator-browser-complete?${new URLSearchParams({
+          error: storedError,
+          path: `${location.pathname}${location.search}`,
+          viewport,
+          width: String(window.innerWidth),
+        })}`,
+      );
+    };
+    reportLayout();
+  } else {
+    submitForgejo();
+  }
 });

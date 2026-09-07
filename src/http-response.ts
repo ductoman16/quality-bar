@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { fonoStyleText } from "fono-ui/style-text";
 
 import { currentIoOperationSignal } from "./io-operation-context.ts";
 
-import { FONO_LCD_STYLE } from "./browser/style-tokens.ts";
-import { DISPLAY_FONT_STYLE } from "./browser/display-font.ts";
-
-const BROWSER_STYLE = DISPLAY_FONT_STYLE + FONO_LCD_STYLE;
+const BROWSER_STYLE = `<style>${fonoStyleText}</style>`;
 
 function assertProductOutputAvailable() {
   currentIoOperationSignal()?.throwIfAborted();
@@ -59,16 +57,12 @@ export function writeHtml(
   assertProductOutputAvailable();
   // Emit fixed literals (never the raw cookie value) so the attribute is
   // provably free of reflected input.
-  const themeAttribute =
-    theme === "dark"
-      ? ' data-theme="dark"'
-      : theme === "light"
-        ? ' data-theme="light"'
-        : "";
+  const appearanceAttribute =
+    theme === "dark" ? "dark" : theme === "light" ? "light" : "system";
   response
     .type("text/html; charset=utf-8")
     .send(
-      `<!doctype html><html lang="en"${themeAttribute}><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
+      `<!doctype html><html lang="en" data-fono-root data-fono-mode="monochrome" data-fono-appearance="${appearanceAttribute}"><head>${BROWSER_STYLE}</head><body>${body}</body></html>`,
     );
 }
 

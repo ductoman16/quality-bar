@@ -140,6 +140,7 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
   let sawForgejoDiscovery = false;
   let sawForgejoError = false;
   let sawSystemFetch = false;
+  const responsiveProofs = new Map<string, Record<string, string>>();
   const requestFacts: string[] = [];
   let complete: () => void = () => {
     throw new Error("operator_browser_completion_not_initialized");
@@ -152,7 +153,8 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
       sawAuthenticatedShell &&
       sawForgejoDiscovery &&
       sawForgejoError &&
-      sawSystemFetch
+      sawSystemFetch &&
+      responsiveProofs.size === 3
     ) {
       complete();
     }
@@ -200,11 +202,24 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
       request.url.startsWith("/operator-browser-complete?")
     ) {
       const facts = new URL(request.url, "http://127.0.0.1");
-      assert.equal(facts.searchParams.get("path"), "/?view=repositories");
+      assert.equal(facts.searchParams.get("path"), "/?view=system");
       assert.equal(
         facts.searchParams.get("error"),
         "Controlled Forgejo verification failure",
       );
+      const viewport = facts.searchParams.get("viewport") ?? "";
+      assert.ok(["desktop", "tablet", "phone"].includes(viewport));
+      const width = Number(facts.searchParams.get("width"));
+      assert.equal(Number.isSafeInteger(width), true);
+      assert.equal(
+        viewport === "desktop"
+          ? width > 900
+          : viewport === "tablet"
+            ? width > 720 && width <= 900
+            : width <= 720,
+        true,
+      );
+      responsiveProofs.set(viewport, Object.fromEntries(facts.searchParams));
       sawForgejoError = true;
       response.writeHead(204);
       response.end();
@@ -231,7 +246,9 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
       upstream.headers.get("content-type") ?? "application/octet-stream";
     if (
       request.method === "GET" &&
-      (!request.headers.cookie || request.url === "/?view=repositories") &&
+      (!request.headers.cookie ||
+        request.url === "/?view=repositories" ||
+        request.url === "/?view=system") &&
       contentType.startsWith("text/html")
     ) {
       responseBody = automatedLoginPage(responseBody);
@@ -257,31 +274,46 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
     throw new Error("operator_browser_proxy_address_unavailable");
   }
   const proxyOrigin = `http://127.0.0.1:${proxyAddress.port}`;
-  const firefoxProfilePath = join(directory, "firefox-profile");
-  mkdirSync(firefoxProfilePath, { mode: 0o700 });
-  const firefox = spawn(firefoxBinary(), [
-    "--headless",
-    "--no-remote",
-    "--profile",
-    firefoxProfilePath,
-    `${proxyOrigin}/?return_to=%2F%3Fview%3Drepositories`,
-  ]);
-  let firefoxStandardError = "";
-  firefox.stderr.on("data", (chunk) => {
-    firefoxStandardError = `${firefoxStandardError}${String(chunk)}`.slice(
-      -4096,
-    );
+  const viewports = [
+    ["desktop", 1440, 900],
+    ["tablet", 820, 1180],
+    ["phone", 390, 844],
+  ] as const;
+  const firefoxes = viewports.map(([name, width, height]) => {
+    const profile = join(directory, `firefox-profile-${name}`);
+    mkdirSync(profile, { mode: 0o700 });
+    return spawn(firefoxBinary(), [
+      "--headless",
+      "--no-remote",
+      "--profile",
+      profile,
+      "--width",
+      String(width),
+      "--height",
+      String(height),
+      `${proxyOrigin}/?return_to=%2F%3Fview%3Drepositories&viewport=${name}`,
+    ]);
   });
+  let firefoxStandardError = "";
+  for (const firefox of firefoxes) {
+    firefox.stderr.on("data", (chunk) => {
+      firefoxStandardError = `${firefoxStandardError}${String(chunk)}`.slice(
+        -4096,
+      );
+    });
+  }
   const { promise: firefoxExited, reject: rejectFirefoxExit } =
     Promise.withResolvers();
-  firefox.once("error", rejectFirefoxExit);
-  firefox.once("exit", (code, signal) => {
-    rejectFirefoxExit(
-      new Error(
-        `Firefox exited before completing the smoke (code ${String(code)}, signal ${String(signal)})`,
-      ),
-    );
-  });
+  for (const firefox of firefoxes) {
+    firefox.once("error", rejectFirefoxExit);
+    firefox.once("exit", (code, signal) => {
+      rejectFirefoxExit(
+        new Error(
+          `Firefox exited before completing the smoke (code ${String(code)}, signal ${String(signal)})`,
+        ),
+      );
+    });
+  }
 
   try {
     try {
@@ -300,7 +332,9 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
     assert.equal(sawForgejoError, true);
     assert.equal(sawSystemFetch, true);
   } finally {
-    firefox.kill("SIGTERM");
+    for (const firefox of firefoxes) {
+      firefox.kill("SIGTERM");
+    }
     await close(proxy);
     await application.close();
   }
@@ -313,6 +347,7 @@ test("Firefox keeps a Forgejo verification failure visible on Repositories", asy
       }).trim(),
       forgejoDiscovery: sawForgejoDiscovery,
       forgejoErrorVisible: sawForgejoError,
+      responsiveViewports: [...responsiveProofs.keys()].sort(),
       systemFetch: sawSystemFetch,
     })}`,
   );

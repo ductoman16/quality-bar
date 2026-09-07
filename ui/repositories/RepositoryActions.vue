@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoDialog } from "fono-ui";
 import { nextTick, ref } from "vue";
 
 import { csrfRequest, responseMessage } from "../browser.ts";
@@ -13,7 +14,7 @@ const credentialOpen = ref(false);
 const username = ref("");
 const token = ref("");
 const confirmation = ref("");
-const dialog = ref();
+const deleteOpen = ref(false);
 const confirmationInput = ref();
 const deleteTrigger = ref();
 const busy = ref(false);
@@ -102,13 +103,13 @@ async function rotate() {
 }
 async function openDelete() {
   confirmation.value = "";
-  dialog.value.showModal();
+  deleteOpen.value = true;
   await nextTick();
   confirmationInput.value.focus();
 }
 function cancelDelete() {
-  dialog.value.close();
-  deleteTrigger.value?.focus();
+  deleteOpen.value = false;
+  void nextTick(() => deleteTrigger.value.$el.focus());
 }
 async function remove() {
   if (confirmation.value !== identity()) {
@@ -116,7 +117,7 @@ async function remove() {
     confirmationInput.value.focus();
     return;
   }
-  dialog.value.close();
+  deleteOpen.value = false;
   await mutation(
     `/api/v1/repositories/${encodeURIComponent(props.repository.id)}`,
     {},
@@ -128,7 +129,7 @@ async function remove() {
 
 <template>
   <div class="repo-actions">
-    <button
+    <FonoButton
       v-for="state in ['enabled', 'disabled', 'retired'].filter(
         (state) => state !== repository.lifecycle,
       )"
@@ -138,15 +139,15 @@ async function remove() {
       @click="lifecycle(state)"
     >
       {{ state[0].toUpperCase() + state.slice(1) }}
-    </button>
-    <button
+    </FonoButton>
+    <FonoButton
       v-if="repository.credential_type === 'username_token'"
       type="button"
       @click="credentialOpen = !credentialOpen"
     >
       Rotate credential
-    </button>
-    <button
+    </FonoButton>
+    <FonoButton
       v-if="repository.deletion_eligible"
       ref="deleteTrigger"
       class="repo-danger"
@@ -154,7 +155,7 @@ async function remove() {
       @click="openDelete"
     >
       Delete
-    </button>
+    </FonoButton>
     <form
       v-if="credentialOpen"
       class="repo-credential"
@@ -176,13 +177,13 @@ async function remove() {
         required
         type="password"
       />
-      <button :disabled="busy" type="submit">Save credential</button>
+      <FonoButton :disabled="busy" type="submit">Save credential</FonoButton>
     </form>
   </div>
-  <dialog
-    ref="dialog"
+  <FonoDialog
+    :open="deleteOpen"
     aria-labelledby="repository-delete-title"
-    @cancel.prevent="cancelDelete"
+    @update:open="deleteOpen = $event"
   >
     <form @submit.prevent="remove">
       <h2 id="repository-delete-title">Delete Repository permanently</h2>
@@ -196,10 +197,10 @@ async function remove() {
         autocomplete="off"
         required
       />
-      <button type="button" @click="cancelDelete">Cancel</button
-      ><button class="qb-btn qb-btn--primary" :disabled="busy" type="submit">
+      <FonoButton type="button" @click="cancelDelete">Cancel</FonoButton
+      ><FonoButton emphasis="primary" :disabled="busy" type="submit">
         Delete permanently
-      </button>
+      </FonoButton>
     </form>
-  </dialog>
+  </FonoDialog>
 </template>

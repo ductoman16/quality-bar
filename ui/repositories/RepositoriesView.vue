@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoIconButton, FonoStat, FonoStatStrip } from "fono-ui";
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
 import {
@@ -128,8 +129,8 @@ onMounted(async () => {
     class="repo-overview"
     aria-label="Repository overview"
   >
-    <div class="repo-stat-strip">
-      <div
+    <FonoStatStrip>
+      <FonoStat
         v-for="[label, value] in [
           ['Repositories', counts.total],
           ['Enabled', counts.enabled],
@@ -138,15 +139,13 @@ onMounted(async () => {
           ['Health errors', counts.errors],
         ]"
         :key="label"
-        class="repo-stat"
-      >
-        <span>{{ label }}</span
-        ><output>{{ value }}</output>
-      </div>
-    </div>
+        :label="label"
+        :value="value"
+      />
+    </FonoStatStrip>
   </section>
   <section
-    class="qb-region repo-inventory"
+    class="domain-region repo-inventory"
     aria-labelledby="repository-inventory-title"
   >
     <h2 id="repository-inventory-title">Repository inventory</h2>
@@ -163,18 +162,16 @@ onMounted(async () => {
       :data-lifecycle="repository.lifecycle"
     >
       <div class="repo-row__summary">
-        <button
-          type="button"
+        <FonoIconButton
+          icon="list-checks"
           :aria-expanded="expanded.has(repository.id)"
-          :aria-label="`${expanded.has(repository.id) ? 'Collapse' : 'Expand'} repository ${displayName(repository)}`"
+          :label="`${expanded.has(repository.id) ? 'Collapse' : 'Expand'} repository ${displayName(repository)}`"
           @click="
             expanded.has(repository.id)
               ? expanded.delete(repository.id)
               : expanded.add(repository.id)
           "
-        >
-          ›
-        </button>
+        />
         <a
           class="repo-row__name"
           :href="`/?view=repository-detail&repository_id=${encodeURIComponent(repository.id)}`"
@@ -212,7 +209,7 @@ onMounted(async () => {
   </section>
   <details class="repo-add">
     <summary class="repo-add__summary">Add repository</summary>
-    <section class="qb-region">
+    <section class="domain-region">
       <h2>Register HTTPS repository</h2>
       <form @submit.prevent="register">
         <label for="repository-url">HTTPS URL</label
@@ -232,9 +229,9 @@ onMounted(async () => {
           v-model="create.token"
           autocomplete="off"
           type="password"
-        /><button class="qb-btn qb-btn--primary" type="submit">
+        /><FonoButton emphasis="primary" type="submit">
           Register Repository
-        </button>
+        </FonoButton>
       </form>
     </section>
     <ProviderConnections

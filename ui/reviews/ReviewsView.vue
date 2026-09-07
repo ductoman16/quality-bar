@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoIconButton } from "fono-ui";
 import { computed, onMounted, reactive, ref } from "vue";
 
 import { csrfRequest, requireStatus, responseMessage } from "../browser.ts";
@@ -180,14 +181,14 @@ onMounted(async () => {
       />
     </div>
   </details>
-  <section class="qb-region">
-    <h2 class="qb-visually-hidden">Configured Reviews</h2>
+  <section class="domain-region">
+    <h2 class="visually-hidden">Configured Reviews</h2>
     <p v-if="loading">Loading Reviews</p>
     <output v-if="!loading && !loadFailed" aria-live="polite"
       >{{ active.length }} {{ state }} Reviews</output
     >
     <div class="reviews-catalog__filter" role="group" aria-label="Review state">
-      <button
+      <FonoButton
         v-for="value in ['active', 'archived']"
         :key="value"
         :aria-pressed="state === value"
@@ -198,7 +199,7 @@ onMounted(async () => {
         "
       >
         {{ value[0].toUpperCase() + value.slice(1) }}
-      </button>
+      </FonoButton>
     </div>
     <p v-if="!loading && !loadFailed && !active.length">
       No Reviews configured
@@ -209,18 +210,16 @@ onMounted(async () => {
       class="review-row"
     >
       <div class="review-row__summary">
-        <button
-          type="button"
+        <FonoIconButton
+          icon="clipboard-check"
           :aria-expanded="expanded.has(review.id)"
-          :aria-label="`Expand Review ${review.name}`"
+          :label="`${expanded.has(review.id) ? 'Collapse' : 'Expand'} Review ${review.name}`"
           @click="
             expanded.has(review.id)
               ? expanded.delete(review.id)
               : expanded.add(review.id)
           "
-        >
-          ›</button
-        ><a
+        /><a
           :href="`/?view=review-detail&review_id=${encodeURIComponent(review.id)}`"
           ><strong>{{ review.name }}</strong></a
         ><span>{{ review.assignment?.scope?.replaceAll("_", " ") }}</span
@@ -239,8 +238,12 @@ onMounted(async () => {
             {{ criterion.instruction }}
           </li>
         </ol>
-        <button v-if="review.archived" type="button" @click="archive(review)">
-          Restore</button
+        <FonoButton
+          v-if="review.archived"
+          type="button"
+          @click="archive(review)"
+        >
+          Restore</FonoButton
         ><a
           :href="`/?view=review-detail&review_id=${encodeURIComponent(review.id)}`"
           >Open Review</a

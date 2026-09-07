@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoIcon, FonoIconButton } from "fono-ui";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 
 const props = defineProps({
@@ -103,33 +104,31 @@ function save() {
         >
           <option value="blocking">Blocking</option>
           <option value="advisory">Advisory</option></select
-        ><button
+        ><FonoButton
           :disabled="index === 0"
           type="button"
           :aria-label="`Move Criterion ${index + 1} up`"
           @click="move(index, -1)"
         >
-          ↑</button
-        ><button
+          Move Criterion {{ index + 1 }} up</FonoButton
+        ><FonoButton
           :disabled="index === form.criteria.length - 1"
           type="button"
           :aria-label="`Move Criterion ${index + 1} down`"
           @click="move(index, 1)"
         >
-          ↓</button
-        ><button
+          Move Criterion {{ index + 1 }} down</FonoButton
+        ><FonoIconButton
           :disabled="form.criteria.length === 1"
-          type="button"
-          :aria-label="`Retire Criterion ${index + 1}`"
+          icon="x"
+          :label="`Retire Criterion ${index + 1}`"
           @click="removeCriterion(index)"
-        >
-          −
-        </button>
+        />
       </li>
     </ol>
-    <button type="button" aria-label="Add Criterion" @click="addCriterion">
-      + Criterion
-    </button>
+    <FonoButton type="button" aria-label="Add Criterion" @click="addCriterion">
+      <FonoIcon name="plus" /> Criterion
+    </FonoButton>
     <label for="review-applicability-rule">Applicability rule</label
     ><textarea
       id="review-applicability-rule"
@@ -153,8 +152,8 @@ function save() {
         {{ value }}
       </option>
     </select>
-    <button class="qb-btn qb-btn--primary" type="submit">
+    <FonoButton emphasis="primary" type="submit">
       {{ submitLabel }}
-    </button>
+    </FonoButton>
   </form>
 </template>

@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton } from "fono-ui";
 import { nextTick, ref } from "vue";
 
 import { responseMessage } from "./browser.ts";
@@ -39,13 +40,13 @@ async function submit() {
 </script>
 
 <template>
-  <main class="qb-login">
-    <div class="qb-login__card">
-      <div class="qb-login__brand">
-        <span class="qb-brand">QB</span
-        ><span class="qb-login__title">Quality Bar</span>
+  <main class="login">
+    <div class="login__card">
+      <div class="login__brand">
+        <span class="login__mark">QB</span
+        ><span class="login__title">Quality Bar</span>
       </div>
-      <form id="login-form" class="qb-login__form" @submit.prevent="submit">
+      <form id="login-form" class="login__form" @submit.prevent="submit">
         <label for="password">Password</label>
         <input
           id="password"
@@ -54,9 +55,9 @@ async function submit() {
           required
           type="password"
         />
-        <button class="qb-btn qb-btn--primary" :disabled="busy" type="submit">
+        <FonoButton emphasis="primary" :disabled="busy" type="submit">
           Log in
-        </button>
+        </FonoButton>
         <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
           {{ error }}
         </p>

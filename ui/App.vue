@@ -1,4 +1,10 @@
 <script setup>
+import {
+  FonoAppearanceControl,
+  FonoAppShell,
+  FonoRoot,
+  FonoStatusMark,
+} from "fono-ui";
 import { computed, onMounted, ref } from "vue";
 
 import AnalyticsView from "./analytics/AnalyticsView.vue";
@@ -24,7 +30,7 @@ const props = defineProps({
 const attention = ref(0);
 const attentionError = ref("");
 const attentionErrorElement = useAlertFocus(attentionError);
-const theme = ref("");
+const appearance = ref("system");
 const component = computed(
   () =>
     ({
@@ -51,19 +57,53 @@ const heading = computed(
       "review-detail": "Review",
     })[props.view] ?? props.view[0].toUpperCase() + props.view.slice(1),
 );
-const toggleTheme = () => {
-  const root = document.documentElement;
-  const current =
-    root.getAttribute("data-theme") ||
-    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  theme.value = current === "dark" ? "light" : "dark";
-  root.setAttribute("data-theme", theme.value);
-  document.cookie = `qb_theme=${theme.value};path=/;max-age=31536000;samesite=lax`;
+const navigationGroups = computed(() => [
+  {
+    id: "work",
+    label: "Work",
+    items: [
+      ["evaluations", "Evaluations", "list-checks"],
+      ["reviews", "Reviews", "clipboard-check"],
+      ["repositories", "Repositories", "folder-git-2"],
+    ].map(([id, label, icon]) => ({
+      id,
+      label,
+      icon,
+      href: `/?view=${id}`,
+      current: active(id),
+      primary: true,
+    })),
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    items: [
+      ["analytics", "Analytics", "bar-chart-3"],
+      ["system", "System", "settings"],
+    ].map(([id, label, icon]) => ({
+      id,
+      label,
+      icon,
+      href: `/?view=${id}`,
+      current: active(id),
+      primary: true,
+    })),
+  },
+]);
+const setAppearance = (value) => {
+  appearance.value = value;
+  document.documentElement.toggleAttribute("data-theme", value !== "system");
+  if (value === "system") {
+    document.documentElement.removeAttribute("data-theme");
+    document.cookie = "qb_theme=;path=/;max-age=0;samesite=lax";
+  } else {
+    document.documentElement.setAttribute("data-theme", value);
+    document.cookie = `qb_theme=${value};path=/;max-age=31536000;samesite=lax`;
+  }
 };
 onMounted(async () => {
-  theme.value =
-    document.documentElement.getAttribute("data-theme") ||
-    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  appearance.value =
+    document.documentElement.getAttribute("data-theme") || "system";
   if (!props.authenticated) return;
   try {
     const response = await fetch("/api/v1/system");
@@ -91,66 +131,50 @@ onMounted(async () => {
 </script>
 
 <template>
-  <LoginView
-    v-if="!authenticated"
-    :intended-destination="intendedDestination"
-  />
-  <div v-else class="qb-app-shell">
-    <header class="qb-header">
-      <a class="qb-brand" href="/?view=evaluations" aria-label="Quality Bar"
-        >QB</a
-      ><span class="qb-brand-title">Quality Bar</span>
-      <nav class="qb-primary-nav" aria-label="Primary">
-        <div class="qb-nav-group">
-          <a
-            v-for="name in ['evaluations', 'reviews', 'repositories']"
-            :key="name"
-            :aria-current="active(name) ? 'page' : undefined"
-            :href="`/?view=${name}`"
-            >{{ name[0].toUpperCase() + name.slice(1) }}</a
-          >
-        </div>
-        <div class="qb-nav-group">
-          <a
-            v-for="name in ['analytics', 'system']"
-            :key="name"
-            :aria-current="active(name) ? 'page' : undefined"
-            :href="`/?view=${name}`"
-            >{{ name[0].toUpperCase() + name.slice(1) }}</a
-          >
-        </div>
-      </nav>
-      <div class="qb-header-actions">
-        <button
-          class="qb-theme-toggle"
-          type="button"
-          aria-label="Toggle theme"
-          @click="toggleTheme"
+  <FonoRoot :config="{ mode: 'monochrome', appearance }">
+    <LoginView
+      v-if="!authenticated"
+      :intended-destination="intendedDestination"
+    />
+    <FonoAppShell
+      v-else
+      app-name="Quality Bar"
+      brand-mark="QB"
+      home-href="/?view=evaluations"
+      :navigation-groups="navigationGroups"
+    >
+      <template v-if="attention" #status>
+        <a href="/?view=system">
+          <FonoStatusMark
+            status="attention"
+            :label="`${attention} need${attention === 1 ? '' : 's'} attention`"
+          />
+        </a>
+      </template>
+      <template #action-one>
+        <FonoAppearanceControl
+          :model-value="appearance"
+          @update:model-value="setAppearance"
+        />
+      </template>
+      <div class="application-page">
+        <p
+          v-if="attentionError"
+          ref="attentionErrorElement"
+          role="alert"
+          tabindex="-1"
         >
-          {{ theme === "dark" ? "☾" : "☼" }}
-        </button>
+          {{ attentionError }}
+        </p>
+        <h1 class="application-page-heading">
+          {{ heading }}
+        </h1>
+        <component :is="component" :csrf-cookie-name="csrfCookieName" />
+        <OperatorControls
+          :csrf-cookie-name="csrfCookieName"
+          :show-onboarding="view === 'system'"
+        />
       </div>
-      <a v-if="attention" class="qb-attention" href="/?view=system"
-        >{{ attention }} need{{ attention === 1 ? "s" : "" }} attention</a
-      >
-    </header>
-    <main class="qb-main">
-      <p
-        v-if="attentionError"
-        ref="attentionErrorElement"
-        role="alert"
-        tabindex="-1"
-      >
-        {{ attentionError }}
-      </p>
-      <h1 class="qb-page-heading">
-        {{ heading }}
-      </h1>
-      <component :is="component" :csrf-cookie-name="csrfCookieName" />
-      <OperatorControls
-        :csrf-cookie-name="csrfCookieName"
-        :show-onboarding="view === 'system'"
-      />
-    </main>
-  </div>
+    </FonoAppShell>
+  </FonoRoot>
 </template>

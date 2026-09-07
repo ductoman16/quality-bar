@@ -1,4 +1,5 @@
 <script setup>
+import { FonoBackLink, FonoButton, FonoDialog } from "fono-ui";
 import { nextTick, onMounted, reactive, ref } from "vue";
 import {
   csrfRequest,
@@ -25,7 +26,7 @@ const errorElement = useAlertFocus(error);
 const status = ref("");
 const metadata = reactive({ description: "", name: "" });
 const assignment = reactive({ repositoryIds: [], scope: "installation_wide" });
-const deleteDialog = ref();
+const deleteOpen = ref(false);
 const deleteInput = ref();
 const deleteTrigger = ref();
 const deleteName = ref("");
@@ -211,13 +212,14 @@ async function archive() {
 async function openDelete() {
   deleteName.value = "";
   deleteError.value = "";
-  deleteDialog.value.showModal();
+  deleteOpen.value = true;
   await nextTick();
   deleteInput.value.focus();
 }
-function cancelDelete() {
-  deleteDialog.value.close();
-  deleteTrigger.value?.focus();
+async function cancelDelete() {
+  deleteOpen.value = false;
+  await nextTick();
+  deleteTrigger.value.$el.focus();
 }
 async function remove() {
   if (deleteName.value !== review.value.name) {
@@ -225,7 +227,7 @@ async function remove() {
     deleteInput.value.focus();
     return;
   }
-  deleteDialog.value.close();
+  deleteOpen.value = false;
   let mutationError = "";
   try {
     const response = await request(
@@ -269,13 +271,13 @@ onMounted(async () => {
 });
 </script>
 <template>
-  <section v-if="review" class="qb-region review-detail">
-    <a class="qb-back" href="/?view=reviews">Reviews</a>
+  <section v-if="review" class="domain-region review-detail">
+    <FonoBackLink href="/?view=reviews">Reviews</FonoBackLink>
     <div class="review-detail__head">
       <h2>{{ review.name }}</h2>
       <span>{{ review.archived ? "Archived" : "Active" }}</span>
     </div>
-    <section class="review-group qb-deep-surface">
+    <section class="review-group detail-surface">
       <h2>Active version · v{{ review.active_version.number }}</h2>
       <ReviewEditor
         :models="models"
@@ -294,7 +296,9 @@ onMounted(async () => {
           >
             v{{ version.number }}
           </option></select
-        ><button type="button" @click="activateVersion">Reactivate</button>
+        ><FonoButton type="button" @click="activateVersion"
+          >Reactivate</FonoButton
+        >
       </details>
     </section>
     <section class="review-group">
@@ -311,7 +315,7 @@ onMounted(async () => {
           v-model="metadata.description"
           required
         ></textarea
-        ><button type="submit">Save metadata</button>
+        ><FonoButton type="submit">Save metadata</FonoButton>
       </form>
       <form @submit.prevent="saveAssignment">
         <label for="review-assignment-scope">Scope</label
@@ -333,27 +337,27 @@ onMounted(async () => {
           >
             {{ repository.url }}
           </option></select
-        ><button type="submit">Save Assignment</button>
+        ><FonoButton type="submit">Save Assignment</FonoButton>
       </form>
       <div>
-        <button type="button" @click="archive">
-          {{ review.archived ? "Restore" : "Archive" }}</button
-        ><button
+        <FonoButton type="button" @click="archive">
+          {{ review.archived ? "Restore" : "Archive" }}</FonoButton
+        ><FonoButton
           v-if="review.deletion_eligible"
           ref="deleteTrigger"
           type="button"
           @click="openDelete"
         >
           Delete Review
-        </button>
+        </FonoButton>
       </div>
     </section>
     <output aria-live="polite">{{ status }}</output>
   </section>
-  <dialog
-    ref="deleteDialog"
+  <FonoDialog
+    :open="deleteOpen"
     aria-labelledby="review-delete-title"
-    @cancel.prevent="cancelDelete"
+    @update:open="deleteOpen = $event"
   >
     <form @submit.prevent="remove">
       <h2 id="review-delete-title">Delete Review permanently</h2>
@@ -368,10 +372,10 @@ onMounted(async () => {
         required
       />
       <p v-if="deleteError" role="alert">{{ deleteError }}</p>
-      <button type="button" @click="cancelDelete">Cancel</button
-      ><button type="submit">Delete permanently</button>
+      <FonoButton type="button" @click="cancelDelete">Cancel</FonoButton
+      ><FonoButton type="submit">Delete permanently</FonoButton>
     </form>
-  </dialog>
+  </FonoDialog>
   <p v-if="error" ref="errorElement" role="alert" tabindex="-1">
     {{ error }}
   </p>

@@ -22,7 +22,7 @@ const providerIdentity = (connection) =>
 </script>
 
 <template>
-  <section class="qb-region">
+  <section class="domain-region">
     <h2>Polling</h2>
     <ol>
       <li v-if="!polling.connections.length">None</li>
@@ -61,7 +61,7 @@ const providerIdentity = (connection) =>
       </li>
     </ol>
   </section>
-  <section class="qb-region">
+  <section class="domain-region">
     <h2>Delivery</h2>
     <ol>
       <li v-if="!delivery.surfaces.length">None</li>

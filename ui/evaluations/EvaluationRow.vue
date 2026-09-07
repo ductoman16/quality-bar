@@ -1,4 +1,10 @@
 <script setup>
+import {
+  FonoButton,
+  FonoIconButton,
+  FonoStatusMark,
+  FonoTimeline,
+} from "fono-ui";
 import { computed } from "vue";
 
 import { isTerminalStatus, nodeVisualState } from "./contract.ts";
@@ -55,21 +61,40 @@ const pullRequestUrl = computed(() =>
 const status = computed(() => {
   const execution = {
     cancelled: ["Cancelled", "cancelled"],
-    failed: ["Failed", "failed"],
+    failed: ["Failed", "error"],
     queued: ["Queued", "pending"],
     running: ["Running", "active"],
   }[props.evaluation.execution_status];
   const outcome = props.evaluation.effective_outcome;
-  return execution ?? [outcome[0].toUpperCase() + outcome.slice(1), outcome];
+  return (
+    execution ?? [
+      outcome[0].toUpperCase() + outcome.slice(1),
+      {
+        advisory: "attention",
+        blocking: "blocked",
+        clear: "complete",
+        error: "error",
+        pending: "pending",
+      }[outcome],
+    ]
+  );
 });
 const nodeStatus = (node) => {
   const outcome = node.kind === "review" ? node.outcome : null;
   if (outcome && outcome !== "pending") {
-    return [outcome, outcome[0].toUpperCase() + outcome.slice(1)];
+    return [
+      {
+        advisory: "attention",
+        blocking: "blocked",
+        clear: "complete",
+        error: "error",
+      }[outcome],
+      outcome[0].toUpperCase() + outcome.slice(1),
+    ];
   }
   const [tone, label] = {
     cancelled: ["cancelled", "Cancelled"],
-    completed: ["clear", "Completed"],
+    completed: ["complete", "Completed"],
     failed: ["error", "Failed"],
     queued: ["pending", "Queued"],
     running: ["active", "Running"],
@@ -96,16 +121,14 @@ const frozen = (selector, commit) =>
 <template>
   <article class="evaluation-row" :data-evaluation-id="evaluation.id">
     <div class="evaluation-row__summary">
-      <button
+      <FonoIconButton
         class="evaluation-row__toggle"
-        type="button"
+        icon="list-checks"
         :aria-expanded="expanded"
         :aria-controls="`evaluation-expanded-${evaluation.id}`"
-        :aria-label="`${expanded ? 'Collapse' : 'Expand'} evaluation ${evaluation.id}`"
+        :label="`${expanded ? 'Collapse' : 'Expand'} evaluation ${evaluation.id}`"
         @click="$emit('toggle')"
-      >
-        <span class="evaluation-row__chevron"></span>
-      </button>
+      />
       <a class="evaluation-row__time" :href="evaluationUrl">{{
         localTime(timestamp)
       }}</a>
@@ -126,6 +149,7 @@ const frozen = (selector, commit) =>
         <span v-else class="evaluation-row__source-commit">{{
           short(evaluation.base_commit)
         }}</span>
+        <span class="evaluation-row__source-separator">to</span>
         <a
           v-if="commitUrl(evaluation.head_commit)"
           class="evaluation-row__source-commit"
@@ -146,59 +170,51 @@ const frozen = (selector, commit) =>
           >PR #{{ pullRequest }}</a
         >
       </span>
-      <a
-        :class="`evaluation-row__outcome evaluation-status--${status[1]}`"
-        :href="evaluationUrl"
-      >
-        <span class="evaluation-status__icon"></span
-        ><span>{{ status[0] }}</span>
+      <a class="evaluation-row__outcome" :href="evaluationUrl">
+        <FonoStatusMark :label="status[0]" :status="status[1]" />
       </a>
       <span class="evaluation-row__duration">{{ duration }}</span>
     </div>
-    <div
-      class="qb-timeline evaluation-row__timeline"
+    <FonoTimeline
+      class="evaluation-row__timeline"
       aria-label="Step progress"
-    >
-      <template
-        v-for="(node, index) in evaluation.monitor.nodes"
-        :key="node.key ?? node.review_version_id"
-      >
-        <span v-if="index" class="qb-timeline-connector"></span>
-        <span
-          :class="`qb-timeline-node qb-timeline-node--${node.kind} qb-timeline-node--${nodeVisualState(node)}`"
-          :aria-label="`${node.label}: ${nodeStatus(node)[1]}`"
-          :title="`${node.label}: ${nodeStatus(node)[1]}`"
-        ></span>
-      </template>
-    </div>
+      :items="
+        evaluation.monitor.nodes.map((node) => ({
+          id: node.key ?? node.review_version_id,
+          label: `${node.kind === 'review' ? 'Review ' : ''}${node.label}: ${nodeStatus(node)[1]}`,
+          status: nodeVisualState(node),
+        }))
+      "
+    />
     <div
       v-if="['queued', 'running'].includes(evaluation.execution_status)"
       class="evaluation-actions"
     >
-      <button
-        class="qb-btn qb-btn--secondary qb-btn--compact"
+      <FonoButton
+        size="compact"
         type="button"
         @click="$emit('mutate', 'cancel')"
       >
         Cancel
-      </button>
-      <button
+      </FonoButton>
+      <FonoButton
         v-if="
           evaluation.execution_status === 'queued' &&
           evaluation.retry_state === 'exhausted'
         "
-        class="qb-btn qb-btn--secondary qb-btn--compact"
+        size="compact"
         type="button"
         @click="$emit('mutate', 'retry')"
       >
         Retry
-      </button>
+      </FonoButton>
     </div>
-    <a
+    <FonoButton
       class="evaluation-row__detail"
       :href="evaluationUrl"
+      size="compact"
       :aria-label="`Open evaluation ${evaluation.id}`"
-      >›</a
+      >Open</FonoButton
     >
     <section
       v-if="expanded"
@@ -233,11 +249,11 @@ const frozen = (selector, commit) =>
             <span class="evaluation-step__number">{{ index + 1 }}</span
             ><span>{{ node.label }}</span>
           </span>
-          <span
-            :class="`evaluation-node-status evaluation-status--${nodeStatus(node)[0]}`"
-            ><span class="evaluation-status__icon"></span
-            ><span>{{ nodeStatus(node)[1] }}</span></span
-          >
+          <FonoStatusMark
+            class="evaluation-node-status"
+            :label="nodeStatus(node)[1]"
+            :status="nodeStatus(node)[0]"
+          />
         </li>
       </ol>
       <a :href="evaluationUrl">Open Evaluation detail</a>

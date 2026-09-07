@@ -1,4 +1,5 @@
 <script setup>
+import { FonoButton, FonoStat, FonoStatStrip, FonoStatusMark } from "fono-ui";
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 
 import {
@@ -157,7 +158,7 @@ onMounted(load);
 
 <template>
   <template v-if="system">
-    <section class="qb-region">
+    <section class="domain-region">
       <h2>Codex execution</h2>
       <dl>
         <dt>Maximum running</dt>
@@ -206,34 +207,33 @@ onMounted(load);
         </div>
       </div>
     </section>
-    <section class="qb-region sys-zone"><h2>Health</h2></section>
+    <section class="domain-region sys-zone"><h2>Health</h2></section>
     <section
-      class="qb-region sys-summary"
+      class="domain-region sys-summary"
       aria-live="polite"
       :data-state="attention ? 'warn' : 'ok'"
     >
-      <p>
-        {{
+      <FonoStatusMark
+        :status="attention ? 'attention' : 'complete'"
+        :label="
           attention
-            ? `${attention} need${attention === 1 ? "s" : ""} attention`
-            : "All clear"
-        }}
-      </p>
+            ? `${attention} need${attention === 1 ? '' : 's'} attention`
+            : 'All clear'
+        "
+      />
     </section>
-    <section class="qb-region sys-overview">
-      <div class="sys-health">
-        <div
+    <section class="domain-region sys-overview">
+      <FonoStatStrip>
+        <FonoStat
           v-for="[label, value, state] in health"
           :key="label"
-          class="sys-health__tile"
+          :label="label"
+          :value="humanize(value)"
           :data-state="state"
-        >
-          <span>{{ label }}</span
-          ><strong>{{ humanize(value) }}</strong>
-        </div>
-      </div>
+        />
+      </FonoStatStrip>
     </section>
-    <section class="qb-region">
+    <section class="domain-region">
       <h2>Execution providers</h2>
       <dl>
         <template
@@ -250,7 +250,7 @@ onMounted(load);
         >
       </dl>
     </section>
-    <section class="qb-region">
+    <section class="domain-region">
       <h2>Storage and backup</h2>
       <dl>
         <dt>Application version</dt>
@@ -301,10 +301,10 @@ onMounted(load);
       :delivery="system.delivery"
       :polling="system.polling"
     />
-    <section class="qb-region sys-zone sys-zone--admin">
+    <section class="domain-region sys-zone sys-zone--admin">
       <h2>Administration</h2>
     </section>
-    <section class="qb-region">
+    <section class="domain-region">
       <h2>Provider &amp; access</h2>
       <dl>
         <dt>Codex models</dt>
@@ -322,7 +322,7 @@ onMounted(load);
         <dd>{{ system.implementer_token.status }}</dd>
       </dl>
     </section>
-    <section class="qb-region qb-deep-surface">
+    <section class="domain-region detail-surface">
       <h2>Waiver Adjudicator Configuration</h2>
       <form @submit.prevent="saveConfiguration">
         <label for="waiver-model">Model</label
@@ -366,7 +366,7 @@ onMounted(load);
           <option v-for="value in selectedModel?.service_tiers" :key="value">
             {{ value }}
           </option></select
-        ><button type="submit">Save configuration</button
+        ><FonoButton type="submit">Save configuration</FonoButton
         ><output id="waiver-configuration-status" aria-live="polite">{{
           configurationStatus
         }}</output>
