@@ -52,7 +52,7 @@
     "@fastify/fast-json-stringify-compiler": "5.1.0",
     "@fastify/static": "10.1.3",
     "fastify": "5.12.1",
-    "fono-ui": "file:vendor/fono-ui-0.1.0.tgz",
+    "fono-ui": "file:vendor/fono-ui-0.1.3.tgz",
     "re2-wasm": "1.0.2"
   }
 }
