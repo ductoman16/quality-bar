@@ -6,7 +6,6 @@ body {
 }
 .application-page {
   display: grid;
-  padding: 6px 24px 48px;
 }
 .application-page-heading {
   display: block;
@@ -83,7 +82,7 @@ body {
   position: relative;
   left: 50%;
   width: 100vw;
-  padding: 0 26px 40px;
+  padding: 0 26px;
   transform: translateX(-50%);
 }
 .evaluation-monitor {
